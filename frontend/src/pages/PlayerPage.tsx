@@ -61,6 +61,8 @@ export function PlayerPage() {
   const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | null>(null)
   const [quality, setQuality] = useState<Quality>('auto')
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
+  // Embedded subtitles are extracted on first use, which can take a little while for large files.
+  const [subtitleStatus, setSubtitleStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
   const [upNextCancelled, setUpNextCancelled] = useState(false)
   const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
 
@@ -299,6 +301,7 @@ export function PlayerPage() {
       void restartHere({ subtitleKey: key ?? 'off', audioStreamIndex: info?.selectedAudioIndex ?? undefined })
     } else {
       setSubtitleKey(key)
+      setSubtitleStatus(key ? 'loading' : 'idle')
     }
   }
 
@@ -410,10 +413,26 @@ export function PlayerPage() {
         onDoubleClick={toggleFullscreen}
         x-webkit-airplay="allow"
       >
-        {selectedText && <track key={selectedText.key} kind="subtitles" src={selectedText.url!} srcLang={selectedText.language ?? 'und'} label={selectedText.key} default />}
+        {selectedText && (
+          <track
+            key={selectedText.key}
+            kind="subtitles"
+            src={selectedText.url!}
+            srcLang={selectedText.language ?? 'und'}
+            label={selectedText.key}
+            default
+            onLoad={() => setSubtitleStatus('idle')}
+            onError={() => setSubtitleStatus('failed')}
+          />
+        )}
       </video>
 
       {waiting && !error && <div className="player-spinner" role="status" aria-label="Loading" />}
+      {subtitleStatus !== 'idle' && (
+        <p className="player-toast" role="status">
+          {subtitleStatus === 'loading' ? 'Preparing subtitles. They’ll appear in a moment.' : 'These subtitles couldn’t be loaded. Try another track.'}
+        </p>
+      )}
 
       <header className="player-top">
         <button className="icon-button" onClick={exit} aria-label="Back">

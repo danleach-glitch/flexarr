@@ -91,15 +91,20 @@ public static class PlaybackEndpoints
             return path is null ? Results.Problem("The segment couldn't be converted.", statusCode: 500) : Results.File(path, "video/mp2t");
         });
 
-        group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session || session.Subtitles.FirstOrDefault(s => s.Key == key) is not { } track)
             {
                 return Results.NotFound();
             }
 
+            if (!track.IsText)
+            {
+                return Results.Problem("Picture-based subtitles can only be burned into the video.", statusCode: 422);
+            }
+
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
-            var path = await Subtitles.ToWebVttAsync(file, track, TranscodeSettingsFor(options.CurrentValue), ct);
+            var path = await subtitles.GetAsync(file, session.Subtitles, track, ct);
             if (path is null)
             {
                 return Results.Problem("These subtitles couldn't be converted.", statusCode: 422);

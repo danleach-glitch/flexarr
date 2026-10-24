@@ -53,54 +53,110 @@ public static partial class Subtitles
         return tracks;
     }
 
-    /// <summary>Converts a text subtitle track to WebVTT, caching the result. Returns null for picture-based tracks.</summary>
-    public static async Task<string?> ToWebVttAsync(MediaFile file, SubtitleTrack track, TranscodeSettings settings, CancellationToken ct)
+    /// <summary>Where a track's WebVTT is cached (keyed by source, stream and modification time).</summary>
+    public static string CachePath(MediaFile file, SubtitleTrack track, TranscodeSettings settings)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(settings);
 
-        if (!track.IsText)
-        {
-            return null;
-        }
-
         var source = track.ExternalPath ?? file.Path;
         var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{source}|{track.StreamIndex}|{File.GetLastWriteTimeUtc(source).Ticks}")))[..32];
-        var target = Path.Combine(settings.CacheDirectory, "subtitles", $"{key}.vtt");
-        if (File.Exists(target))
+        return Path.Combine(settings.CacheDirectory, "subtitles", $"{key}.vtt");
+    }
+
+    /// <summary>
+    /// Converts the given text subtitle tracks of one file to WebVTT. Embedded tracks are extracted together in a
+    /// single pass, because getting even one means reading the whole file (minutes for a large film on a slow drive).
+    /// Returns the cached paths of the tracks that converted.
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<string, string>> ToWebVttAsync(MediaFile file, IReadOnlyList<SubtitleTrack> tracks, TranscodeSettings settings, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(tracks);
+
+        var done = new Dictionary<string, string>(StringComparer.Ordinal);
+        var embedded = new List<(SubtitleTrack Track, string Target)>();
+        foreach (var track in tracks.Where(t => t.IsText))
         {
-            return target;
+            var target = CachePath(file, track, settings);
+            if (File.Exists(target))
+            {
+                done[track.Key] = target;
+            }
+            else if (track.ExternalPath is not null)
+            {
+                if (await ConvertSidecarAsync(track.ExternalPath, target, settings, ct).ConfigureAwait(false))
+                {
+                    done[track.Key] = target;
+                }
+            }
+            else
+            {
+                embedded.Add((track, target));
+            }
         }
 
+        if (embedded.Count == 0)
+        {
+            return done;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(embedded[0].Target)!);
+        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-i", file.Path, "-vn", "-an", "-dn" };
+        foreach (var (track, target) in embedded)
+        {
+            args.AddRange(["-map", $"0:{track.StreamIndex}", "-c:s", "webvtt", "-f", "webvtt", target + ".tmp"]);
+        }
+
+        var ok = await RunAsync(settings.FfmpegPath, args, ct).ConfigureAwait(false);
+        foreach (var (track, target) in embedded)
+        {
+            var partial = target + ".tmp";
+            if (ok && File.Exists(partial))
+            {
+                File.Move(partial, target, overwrite: true);
+                done[track.Key] = target;
+            }
+            else if (File.Exists(partial))
+            {
+                File.Delete(partial);
+            }
+        }
+
+        return done;
+    }
+
+    private static async Task<bool> ConvertSidecarAsync(string source, string target, TranscodeSettings settings, CancellationToken ct)
+    {
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         var partial = target + ".tmp";
-        var start = new ProcessStartInfo(settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true };
-        string[] args = track.ExternalPath is null
-            ? ["-hide_banner", "-v", "error", "-y", "-i", source, "-map", $"0:{track.StreamIndex}", "-c:s", "webvtt", "-f", "webvtt", partial]
-            : ["-hide_banner", "-v", "error", "-y", "-sub_charenc", "UTF-8", "-i", source, "-c:s", "webvtt", "-f", "webvtt", partial];
+
+        // Older sidecars are often Windows-1252 rather than UTF-8: try UTF-8 first, then fall back.
+        foreach (var encoding in new[] { "UTF-8", "CP1252" })
+        {
+            if (await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-sub_charenc", encoding, "-i", source, "-c:s", "webvtt", "-f", "webvtt", partial], ct).ConfigureAwait(false))
+            {
+                File.Move(partial, target, overwrite: true);
+                return true;
+            }
+        }
+
+        File.Delete(partial);
+        return false;
+    }
+
+    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct)
+    {
+        var start = new ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true };
         foreach (var arg in args)
         {
             start.ArgumentList.Add(arg);
         }
 
         using var process = Process.Start(start)!;
-        var error = await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
+        await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
         await process.WaitForExitAsync(ct).ConfigureAwait(false);
-        if (process.ExitCode != 0)
-        {
-            // Older sidecars are often Windows-1252 rather than UTF-8.
-            if (track.ExternalPath is not null && error.Contains("Invalid UTF-8", StringComparison.OrdinalIgnoreCase))
-            {
-                return await RetryLatin1Async(source, partial, target, settings, ct).ConfigureAwait(false);
-            }
-
-            File.Delete(partial);
-            return null;
-        }
-
-        File.Move(partial, target, overwrite: true);
-        return target;
+        return process.ExitCode == 0;
     }
 
     /// <summary>Prefixes WebVTT with the timestamp mapping Apple's HLS players need to sync with MPEG-TS segments.</summary>
@@ -112,26 +168,6 @@ public static partial class Subtitles
         const string map = "X-TIMESTAMP-MAP=MPEGTS:126000,LOCAL:00:00:00.000";
         var newline = vtt.IndexOf('\n', StringComparison.Ordinal);
         return newline < 0 ? $"WEBVTT\n{map}\n" : string.Concat(vtt.AsSpan(0, newline + 1), map, "\n", vtt.AsSpan(newline + 1));
-    }
-
-    private static async Task<string?> RetryLatin1Async(string source, string partial, string target, TranscodeSettings settings, CancellationToken ct)
-    {
-        var start = new ProcessStartInfo(settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true };
-        foreach (var arg in new[] { "-hide_banner", "-v", "error", "-y", "-sub_charenc", "CP1252", "-i", source, "-c:s", "webvtt", "-f", "webvtt", partial })
-        {
-            start.ArgumentList.Add(arg);
-        }
-
-        using var process = Process.Start(start)!;
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
-        if (process.ExitCode != 0)
-        {
-            File.Delete(partial);
-            return null;
-        }
-
-        File.Move(partial, target, overwrite: true);
-        return target;
     }
 
     [GeneratedRegex(@"^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$", RegexOptions.IgnoreCase)]

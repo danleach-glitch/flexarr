@@ -47,22 +47,35 @@ public static class Languages
     }
 
     /// <summary>
-    /// A label for a track: the language, plus the stream title when it says something useful
-    /// ("SDH", "Commentary") rather than naming the source ("iTunes", "English").
+    /// A label for a track: the language, plus whatever the stream title adds ("SDH", "Commentary"), with the
+    /// noise removed: source names ("iTunes"), the language repeated, and nested brackets.
     /// </summary>
     public static string Label(string? code, string? title, bool forced)
     {
         var language = Name(code) ?? "Unknown";
-        var useful = title is { Length: > 0 }
-            && !title.Equals(language, StringComparison.OrdinalIgnoreCase)
-            && !title.Equals(code, StringComparison.OrdinalIgnoreCase)
-            && !UselessTitles.Contains(title.Trim());
-        var label = useful ? $"{language} ({title!.Trim()})" : language;
+        var extra = Clean(title, language, code);
+        var label = extra is null ? language : $"{language} ({extra})";
         return forced && !label.Contains("forced", StringComparison.OrdinalIgnoreCase) ? $"{label} (forced)" : label;
+    }
+
+    private static string? Clean(string? title, string language, string? code)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        var words = title.Replace('(', ' ').Replace(')', ' ').Replace('[', ' ').Replace(']', ' ')
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(w => !UselessTitles.Contains(w) && !w.Equals(language, StringComparison.OrdinalIgnoreCase) && !w.Equals(code, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var cleaned = string.Join(' ', words).Trim(' ', '-', ',');
+        return cleaned.Length == 0 ? null : cleaned;
     }
 
     private static readonly HashSet<string> UselessTitles = new(StringComparer.OrdinalIgnoreCase)
     {
-        "iTunes", "Netflix", "Amazon", "Disney+", "HBO", "Hulu", "Apple TV+", "Full", "Subtitles", "Subtitle", "Default", "Stereo", "Surround",
+        "iTunes", "Netflix", "Amazon", "AMZN", "Disney+", "HBO", "Max", "Hulu", "Apple", "TV+", "Full", "Subtitles", "Subtitle", "Subs",
+        "Default", "Stereo", "Surround", "SRT", "PGS", "v2", "v3",
     };
 }
