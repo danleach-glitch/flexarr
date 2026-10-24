@@ -206,6 +206,36 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ARemovalConfirmedWhileAScanFindsNewNumbers_DoesNotLetThemThrough()
+    {
+        var root = Touch(Enumerable.Range(1, 12).Select(n => $"movies/Film {n} (2000)/Film {n} (2000).mkv").ToArray());
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        for (var n = 1; n <= 7; n++)
+        {
+            Directory.Delete(Path.Combine(movies, $"Film {n} (2000)"), recursive: true);
+        }
+
+        await Scanner().ScanAsync(library, null, default); // Held: 7 of 12 gone.
+
+        // Someone confirms the 7 just as a scan, which has the folder loaded already, finds an 8th gone.
+        await using (var other = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>()
+            .UseSqlite($"Data Source={Path.Combine(_dir, "test.db")}").Options))
+        {
+            await other.LibraryFolders.ExecuteUpdateAsync(u => u.SetProperty(f => f.RemovalConfirmed, true));
+        }
+
+        Directory.Delete(Path.Combine(movies, "Film 8 (2000)"), recursive: true);
+        var during = await Scanner().ScanAsync(library, null, default);
+        var queued = await Scanner().ScanAsync(library, null, default); // The scan the confirmation queued.
+
+        var folder = await _db.LibraryFolders.AsNoTracking().SingleAsync();
+        Assert.Equal((0, 0), (during.Missing, queued.Missing));
+        Assert.Equal((FolderHold.MostFilesGone, 8, false), (folder.Hold, folder.HeldMissing, folder.RemovalConfirmed));
+    }
+
+    [Fact]
     public async Task EmptiedFolder_StaysHeld_UntilTheRemovalIsConfirmed_ThenGoesAfterTheGracePeriod()
     {
         var root = Touch("movies/A (2001)/A (2001).mkv", "movies/B (2002)/B (2002).mkv");

@@ -92,11 +92,14 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
         var health = await client.GetFromJsonAsync<System.Text.Json.JsonElement>(new Uri("/api/v1/library-health", UriKind.Relative));
         var held = health.GetProperty("held").EnumerateArray().Single(h => h.GetProperty("folderId").GetInt32() == folderId);
-        var confirm = await client.PostAsync(new Uri($"/api/v1/library-health/held/{folderId}/confirm", UriKind.Relative), null);
-        var refused = await client.PostAsync(new Uri($"/api/v1/library-health/held/{unmounted}/confirm", UriKind.Relative), null);
+        var shown = new { since = held.GetProperty("since").GetString(), missing = held.GetProperty("missing").GetInt32(), known = held.GetProperty("known").GetInt32() };
+        var stale = await client.PostAsJsonAsync(new Uri($"/api/v1/library-health/held/{folderId}/confirm", UriKind.Relative), shown with { missing = 6 });
+        var confirm = await client.PostAsJsonAsync(new Uri($"/api/v1/library-health/held/{folderId}/confirm", UriKind.Relative), shown);
+        var refused = await client.PostAsJsonAsync(new Uri($"/api/v1/library-health/held/{unmounted}/confirm", UriKind.Relative), shown);
 
         Assert.Equal(("FolderEmpty", 9, true), (held.GetProperty("reason").GetString(), held.GetProperty("missing").GetInt32(), held.GetProperty("canConfirm").GetBoolean()));
-        Assert.Equal((HttpStatusCode.Accepted, HttpStatusCode.Conflict), (confirm.StatusCode, refused.StatusCode));
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Accepted, HttpStatusCode.Conflict), (stale.StatusCode, confirm.StatusCode, refused.StatusCode));
+        Assert.Contains("found something different", await stale.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains(factory.ScanQueue.Requests, r => r.Path == path);
         using var check = factory.Services.CreateScope();
         Assert.True((await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().LibraryFolders.SingleAsync(f => f.Id == folderId)).RemovalConfirmed);

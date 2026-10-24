@@ -1349,10 +1349,11 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
   async function confirm(f: HeldFolder) {
     setAsking(null)
     try {
-      await confirmHeldRemoval(f.folderId)
+      await confirmHeldRemoval(f)
       onConfirmed()
     } catch (e) {
       setErrors((x) => ({ ...x, [f.folderId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t confirm it' }))
+      if (e instanceof ApiError && e.status === 409) onConfirmed() // Show what the scans found now.
     }
   }
 

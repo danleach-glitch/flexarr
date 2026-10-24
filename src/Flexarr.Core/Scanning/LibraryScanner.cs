@@ -398,26 +398,36 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         return false;
     }
 
-    private static void Hold(LibraryFolder folder, FolderHold reason, int hiding, int known, DateTime now)
+    private void Hold(LibraryFolder folder, FolderHold reason, int hiding, int known, DateTime now)
     {
         folder.Hold = reason;
         folder.HeldSince = now;
         folder.HeldScans = 1;
         folder.HeldMissing = hiding;
         folder.HeldKnown = known;
-        folder.RemovalConfirmed = false;
+        Unconfirm(folder);
         folder.ReleasedAt = null;
     }
 
-    private static void Clear(LibraryFolder folder, DateTime? releasedAt)
+    private void Clear(LibraryFolder folder, DateTime? releasedAt)
     {
         folder.Hold = null;
         folder.HeldSince = null;
         folder.HeldScans = 0;
         folder.HeldMissing = 0;
         folder.HeldKnown = 0;
-        folder.RemovalConfirmed = false;
+        Unconfirm(folder);
         folder.ReleasedAt = releasedAt;
+    }
+
+    /// <summary>
+    /// Written even if it was false when this scan loaded the folder: a "Confirm removal" saved while it ran was for
+    /// the numbers shown then, not the ones this scan has just recorded.
+    /// </summary>
+    private void Unconfirm(LibraryFolder folder)
+    {
+        folder.RemovalConfirmed = false;
+        db.Entry(folder).Property(f => f.RemovalConfirmed).IsModified = true;
     }
 
     private static bool IsEmpty(string directory)
