@@ -40,6 +40,7 @@ import {
   uploadProfileImage,
   type PlexAvatarResult,
   getProfiles,
+  selectProfile,
   updateProfile,
   getSettings,
   importFromPlex,
@@ -64,6 +65,7 @@ import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
 import { SignIns } from '../components/SignIns'
 import { useLibraries } from '../hooks/librariesContext'
+import { useSession } from '../hooks/sessionContext'
 import { ChevronDown, ChevronUp } from '../components/icons'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
@@ -93,9 +95,7 @@ export function SettingsPage() {
   if (me.data && !me.data.isAdmin) {
     return (
       <div className="settings">
-        {me.data.method === 'tailscale' && me.data.profileId === 'owner' ? <TailscaleAdminNote /> : (
-          <p className="page-message muted">Settings are for the main profile. Switch to it from the profile menu to change them.</p>
-        )}
+        {me.data.method === 'tailscale' && me.data.profileId === 'owner' ? <TailscaleAdminNote /> : <MainProfileNote />}
       </div>
     )
   }
@@ -130,6 +130,50 @@ export function SettingsPage() {
   )
 }
 
+/** Asks for the main profile (its PIN, if it has one), then comes back to this page of Settings. */
+function switchToMainProfile(main: Profile | undefined) {
+  askForProfile(main?.id)
+  window.location.reload()
+}
+
+/** Another profile is chosen on this browser: the way back to the main one, and to this page. */
+function MainProfileNote() {
+  const { profiles } = useSession()
+  const main = profiles?.find((p) => p.isMain)
+  const [refused, setRefused] = useState(false)
+
+  return (
+    <div className="page-message">
+      <p className="muted">Settings are for the main profile.</p>
+      {refused ? (
+        <p className="muted">Ask whoever manages Flexarr to give the main profile a PIN.</p>
+      ) : (
+        <p>
+          <button
+            className="button"
+            onClick={async () => {
+              if (main && !main.hasPin) {
+                // Nothing to ask for: switch straight to it, unless the server won't (over Tailscale, without a PIN).
+                try {
+                  await selectProfile(main.id)
+                  sessionStorage.setItem('flexarr.profileChosen', '1')
+                  window.location.reload()
+                } catch {
+                  setRefused(true)
+                }
+                return
+              }
+              switchToMainProfile(main)
+            }}
+          >
+            Switch to the main profile
+          </button>
+        </p>
+      )}
+    </div>
+  )
+}
+
 /**
  * Over Tailscale the owner's account watches as the main profile but doesn't manage the server on its own: another
  * program on the server could pose as it. The main profile's PIN, or the API key, proves it's really them.
@@ -137,7 +181,8 @@ export function SettingsPage() {
 function TailscaleAdminNote() {
   const [error, setError] = useState<string>()
   const profiles = useApi(getProfiles, [])
-  const mainHasPin = profiles.data?.some((p) => p.isMain && p.hasPin) ?? false
+  const main = profiles.data?.find((p) => p.isMain)
+  const mainHasPin = main?.hasPin ?? false
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -152,24 +197,19 @@ function TailscaleAdminNote() {
   return (
     <div className="panel">
       <p className="settings-lede">
-        Over Tailscale, changing settings takes one more step, because another program on the server could pose as your Tailscale account. Choose the main
-        profile with its PIN{mainHasPin ? '' : ' (give it a PIN in Settings › Profiles from home first)'}, and this browser stays signed in until it’s
-        signed out in Settings › Server or left unused for two weeks.
+        Over Tailscale, changing settings takes one more step, because another program on the server could pose as your Tailscale account.{' '}
+        {mainHasPin
+          ? 'Choose the main profile with its PIN, and this browser stays signed in until it’s signed out or left unused for two weeks.'
+          : 'Ask whoever manages Flexarr to give the main profile a PIN, or sign in with the API key below.'}
       </p>
       {mainHasPin && (
         <p>
-          <button
-            className="button"
-            onClick={() => {
-              askForProfile()
-              window.location.assign('/')
-            }}
-          >
+          <button className="button" onClick={() => switchToMainProfile(main)}>
             Choose the main profile
           </button>
         </p>
       )}
-      <p className="settings-lede">Or sign this browser in with the API key:</p>
+      <p className="settings-lede">{mainHasPin ? 'Or sign this browser in with the API key:' : 'Sign this browser in with the API key:'}</p>
       <form className="api-key-row" onSubmit={submit}>
         <input name="apiKey" type="password" autoComplete="off" aria-label="API key" required />
         <button type="submit" className="button">
@@ -709,7 +749,8 @@ function ServerSection() {
   const [signInsVersion, setSignInsVersion] = useState(0)
   const [webhookSecret, setWebhookSecret] = useState<string>()
   const profiles = useApi(getProfiles, [])
-  const mainHasPin = profiles.data?.some((p) => p.isMain && p.hasPin) ?? false
+  const main = profiles.data?.find((p) => p.isMain)
+  const mainHasPin = main?.hasPin ?? false
   const origin = window.location.origin
 
   async function confirmKey(event: FormEvent<HTMLFormElement>) {
@@ -1484,7 +1525,21 @@ function HealthRowMain({ item, file, detail }: { item: ItemSummary | null; file?
 
 // ---------------------------------------------------------------- Profiles
 
-const profileColours = ['#a9c2ec', '#e8a0bf', '#9fd8b9', '#f2c879', '#c7a6f2', '#f0a27e', '#86d0e0']
+const profileColours = [
+  { value: '#a9c2ec', name: 'Blue' },
+  { value: '#e8a0bf', name: 'Pink' },
+  { value: '#9fd8b9', name: 'Green' },
+  { value: '#f2c879', name: 'Yellow' },
+  { value: '#c7a6f2', name: 'Purple' },
+  { value: '#f0a27e', name: 'Orange' },
+  { value: '#86d0e0', name: 'Teal' },
+]
+
+/** A new profile's colour: the first no one has yet, so profiles look different in the picker. */
+function freeColour(profiles: Profile[]) {
+  const taken = new Set(profiles.map((p) => p.color.toLowerCase()))
+  return (profileColours.find((c) => !taken.has(c.value)) ?? profileColours[profiles.length % profileColours.length]).value
+}
 
 function ProfilesSection() {
   const [version, setVersion] = useState(0)
@@ -1511,7 +1566,15 @@ function ProfilesSection() {
         PIN keeps a profile private (handy for keeping kids out of yours).
       </p>
       {editing !== undefined && (
-        <ProfileForm profile={editing === 'new' ? undefined : editing} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
+        <ProfileForm
+          // A fresh form for each profile: one opened over another mustn't carry its settings across.
+          key={editing === 'new' ? 'new' : editing.id}
+          profile={editing === 'new' ? undefined : editing}
+          defaultColour={freeColour(data ?? [])}
+          libraries={libraries}
+          onDone={reload}
+          onCancel={() => setEditing(undefined)}
+        />
       )}
       {data?.map((p) => (
         <div key={p.id} className="panel profile-row">
@@ -1563,14 +1626,27 @@ function hiddenSummary(profile: Profile, libraries: Library[]) {
   return names.length > 0 && `Can’t see ${names.join(', ')}`
 }
 
-function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profile; libraries: Library[]; onDone: () => void; onCancel: () => void }) {
+function ProfileForm({
+  profile,
+  defaultColour,
+  libraries,
+  onDone,
+  onCancel,
+}: {
+  profile?: Profile
+  defaultColour: string
+  libraries: Library[]
+  onDone: () => void
+  onCancel: () => void
+}) {
   const [name, setName] = useState(profile?.name ?? '')
   const [hidden, setHidden] = useState<string[]>(profile?.hiddenLibraryIds ?? [])
   const [picture, setPicture] = useState<File | null>()
   const preview = usePreviewUrl(picture)
   const shownImage = picture === null ? null : (preview ?? profile?.image ?? null)
-  const [color, setColor] = useState(profile?.color ?? profileColours[1])
+  const [color, setColor] = useState(profile?.color ?? defaultColour)
   const [pin, setPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
   const [removePin, setRemovePin] = useState(false)
   // Changing the main profile's PIN takes the one it has now (it guards the API key), or the key if it's forgotten.
   const [currentPin, setCurrentPin] = useState('')
@@ -1580,6 +1656,10 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (pin !== '' && !removePin && pin !== confirmPin) {
+      setErrors(['The two PINs don’t match. Type the same one in both.'])
+      return
+    }
     try {
       const confirmation = asksForCurrentPin ? (apiKey !== undefined ? { apiKey: apiKey.trim() } : { currentPin }) : {}
       const saved = profile
@@ -1600,11 +1680,79 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
           Name
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
         </label>
-        <label>
-          {profile?.hasPin ? 'New PIN (optional)' : 'PIN (optional)'}
-          <input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="4 to 8 digits" />
-        </label>
       </div>
+      <fieldset className="field profile-pin">
+        <legend className="visually-hidden">PIN</legend>
+        <div className="field-row">
+          <label>
+            {profile?.hasPin ? 'New PIN (optional)' : 'PIN (optional)'}
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={pin}
+              disabled={removePin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="4 to 8 digits"
+            />
+          </label>
+          <label>
+            {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={confirmPin}
+              disabled={removePin || pin === ''}
+              required={pin !== '' && !removePin}
+              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            />
+          </label>
+          {asksForCurrentPin && apiKey === undefined && (
+            <label>
+              Current PIN
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                required
+                value={currentPin}
+                onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              />
+            </label>
+          )}
+          {asksForCurrentPin && apiKey !== undefined && (
+            <label>
+              API key
+              <input type="password" autoComplete="off" required value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+            </label>
+          )}
+        </div>
+        {asksForCurrentPin && apiKey === undefined && (
+          <span className="field-help">
+            Changing it takes the current PIN. Forgotten it?{' '}
+            <button type="button" className="text-button" onClick={() => setApiKey('')}>
+              Use the API key instead
+            </button>{' '}
+            (it’s in config.json in the server’s data folder).
+          </span>
+        )}
+        {profile?.isMain && <span className="field-help">The main profile’s PIN also unlocks Settings away from home.</span>}
+        {profile?.hasPin && (
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={removePin}
+              onChange={(e) => {
+                setRemovePin(e.target.checked)
+                setPin('')
+                setConfirmPin('')
+              }}
+            />{' '}
+            Remove the PIN
+          </label>
+        )}
+      </fieldset>
       <div className="field profile-picture">
         <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
         <div>
@@ -1626,43 +1774,20 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
         <span className="field-label">{shownImage ? 'Colour (shown behind the picture while it loads)' : 'Colour'}</span>
         <div className="swatches" role="radiogroup" aria-label="Colour">
           {profileColours.map((c) => (
-            <button type="button" key={c} role="radio" aria-checked={c === color} aria-label={c} className="swatch" style={{ background: c }} onClick={() => setColor(c)} />
+            <button
+              type="button"
+              key={c.value}
+              role="radio"
+              aria-checked={c.value === color.toLowerCase()}
+              aria-label={c.name}
+              title={c.name}
+              className="swatch"
+              style={{ background: c.value }}
+              onClick={() => setColor(c.value)}
+            />
           ))}
         </div>
       </div>
-      {profile?.hasPin && (
-        <label className="checkbox">
-          <input type="checkbox" checked={removePin} onChange={(e) => setRemovePin(e.target.checked)} /> Remove the PIN
-        </label>
-      )}
-      {asksForCurrentPin &&
-        (apiKey === undefined ? (
-          <div>
-            <label className="field">
-              <span className="field-label">Current PIN</span>
-              <input
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                required
-                value={currentPin}
-                onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              />
-            </label>
-            <span className="field-help">
-              Forgotten it?{' '}
-              <button type="button" className="text-button" onClick={() => setApiKey('')}>
-                Use the API key instead
-              </button>{' '}
-              (it’s in config.json in the server’s data folder).
-            </span>
-          </div>
-        ) : (
-          <label className="field">
-            <span className="field-label">API key</span>
-            <input type="password" autoComplete="off" required value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-          </label>
-        ))}
       {libraries.length > 1 && (
         <fieldset className="field profile-libraries">
           <legend className="field-label">Libraries {profile ? `${profile.name} can` : 'this profile can'} see</legend>

@@ -213,6 +213,11 @@ kbd {
   margin: 4px 0 14px;
 }
 
+.api-key-form .small-print {
+  margin: 14px 0 0;
+  font-size: var(--step--1);
+}
+
 .api-key-row {
   display: flex;
   gap: 8px;
@@ -1108,7 +1113,7 @@ kbd {
   top: 48px;
   display: flex;
   flex-direction: column;
-  min-width: 200px;
+  min-width: 240px;
   padding: 8px;
   border: 1px solid var(--aisle);
   border-radius: var(--radius-panel);
@@ -1226,8 +1231,37 @@ kbd {
   cursor: pointer;
 }
 
-.pin-keys button:hover {
+.pin-keys button:hover:not(:disabled) {
   background: var(--seat-raised);
+}
+
+.pin-keys button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pin-keys .pin-delete {
+  font-size: var(--step-0);
+}
+
+/* Holds its height, so the keys don't jump when "Checking…" or an error comes and goes. */
+.pin-status,
+.pin-pad > .error {
+  min-height: 1.5em;
+  margin: 0;
+  text-align: center;
+}
+
+.pin-lockout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.pin-lockout p {
+  margin: 0;
 }
 
 /* ---------- Coming soon ---------- */

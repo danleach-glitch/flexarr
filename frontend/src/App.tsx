@@ -62,7 +62,7 @@ type ConnectionState =
   | { kind: 'loading' }
   | { kind: 'ready' }
   /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
-  | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean }
+  | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
   | { kind: 'unauthorized'; wrongKey?: boolean }
   | { kind: 'error'; message: string }
 
@@ -130,7 +130,10 @@ export default function App() {
         // asked to ("Switch profile"). Otherwise, over Tailscale the person is already known from their account.
         const asked = sessionStorage.getItem('flexarr.pickProfile') === '1' || (oldMainToken && me?.method === 'tailscale')
         const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
-        setState(profiles.length > 0 && (asked || (profiles.length > 1 && !chosen)) ? { kind: 'choose-profile', profiles, asked } : { kind: 'ready' })
+        // Asked for one profile in particular (Switch to the main profile, in Settings): straight to its PIN.
+        const initial = asked ? profiles.find((p) => p.id === sessionStorage.getItem('flexarr.pickProfileFor')) : undefined
+        sessionStorage.removeItem('flexarr.pickProfileFor')
+        setState(profiles.length > 0 && (asked || (profiles.length > 1 && !chosen)) ? { kind: 'choose-profile', profiles, asked, initial } : { kind: 'ready' })
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -159,6 +162,7 @@ export default function App() {
     return (
       <ProfilePicker
         profiles={state.profiles}
+        initial={state.initial}
         onChosen={() => {
           sessionStorage.removeItem('flexarr.pickProfile')
           sessionStorage.setItem('flexarr.profileChosen', '1')
@@ -205,9 +209,7 @@ export default function App() {
                 computer, open Flexarr, go to <strong>Settings › Connect a TV</strong> and enter <span className="connect-tv-code">{tvCode}</span>
               </p>
             ) : (
-              <p className="muted">
-                It's in config.json in the server's data folder. Away from home, open Flexarr through Tailscale instead and you'll be signed in automatically.
-              </p>
+              <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>
             )}
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
@@ -216,6 +218,11 @@ export default function App() {
               </button>
             </div>
             {state.wrongKey && <p className="error">That isn't the right key.</p>}
+            {!tvCode && (
+              <p className="muted small-print">
+                For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.
+              </p>
+            )}
           </form>
         )}
       </section>
