@@ -37,7 +37,12 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        Directory.Delete(DataDirectory, recursive: true);
+
+        // Both Dispose and DisposeAsync end up here; only the first call finds the directory.
+        if (Directory.Exists(DataDirectory))
+        {
+            Directory.Delete(DataDirectory, recursive: true);
+        }
     }
 }
 
