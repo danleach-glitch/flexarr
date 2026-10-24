@@ -1,7 +1,7 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { beaconProgress, imageUrl, reportProgress, startPlayback, stopPlayback, type PlaybackInfo } from '../api/client'
+import { ApiError, beaconProgress, imageUrl, reportProgress, startPlayback, stopPlayback, type PlaybackInfo } from '../api/client'
 import {
   Back,
   Captions,
@@ -129,6 +129,7 @@ export function PlayerPage() {
     }
   }, [])
 
+  /** Starts (or restarts) playback. True once settled: playing, or refused by a busy server (with the error shown). */
   const start = useCallback(
     async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
@@ -148,6 +149,7 @@ export function PlayerPage() {
           maxHeight: q === 'auto' ? undefined : q,
           maxBitrate: preset?.bitrate,
           forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
+          replacesSessionId: session.current,
         })
         if (!life.alive || life !== lifetime.current || request !== requests.current) {
           void stopPlayback(playback.sessionId)
@@ -161,8 +163,10 @@ export function PlayerPage() {
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
         return true
       } catch (e) {
-        if (!quiet && request === requests.current) setError(e instanceof Error ? e.message : String(e))
-        return false
+        // A server at its transcode limit is an answer, not a hiccup: say so rather than retrying.
+        const busy = e instanceof ApiError && e.status === 503
+        if ((!quiet || busy) && request === requests.current) setError(e instanceof Error ? e.message : String(e))
+        return busy
       }
     },
     [id, quality, attach],
@@ -186,11 +190,11 @@ export function PlayerPage() {
       for (let attempt = 0; attempt < 6; attempt++) {
         if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000))
         if (!life.alive) return
-        const resumed = await start(
+        const settled = await start(
           { startPositionSeconds: position, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' },
           true,
         )
-        if (resumed) return
+        if (settled) return // Playing again, or the server said why not.
       }
       if (life.alive) setError(STREAM_STOPPED)
     } finally {
