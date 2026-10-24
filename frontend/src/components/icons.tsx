@@ -136,3 +136,50 @@ export const FolderUp = (p: IconProps) => (
     <path d="M12 16v-5M9.5 13.5 12 11l2.5 2.5" />
   </svg>
 )
+export const Home = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z" />
+  </svg>
+)
+export const Tv = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3" y="6" width="18" height="13" rx="2" />
+    <path d="m8.5 2.5 3.5 3.5 3.5-3.5" />
+  </svg>
+)
+export const Music = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M9 18V5l11-2v13" />
+    <circle cx="6.5" cy="18" r="2.5" />
+    <circle cx="17.5" cy="16" r="2.5" />
+  </svg>
+)
+export const Stack = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3" y="9" width="18" height="11" rx="2" />
+    <path d="M5.5 5.5h13M8 2.5h8" />
+  </svg>
+)
+export const Compass = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m15.5 8.5-2 5-5 2 2-5Z" />
+  </svg>
+)
+export const Calendar = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3.5" y="5" width="17" height="15" rx="2" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </svg>
+)
+export const Menu = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+)
+/** Two chevrons pointing left: collapses the sidebar (flipped, expands it). */
+export const ChevronsLeft = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
+  </svg>
+)

@@ -494,7 +494,7 @@
 
 .now-playing {
   position: fixed;
-  left: 16px;
+  left: calc(var(--sidebar-width, 0px) + 16px);
   right: 16px;
   bottom: 16px;
   z-index: 50;
@@ -573,7 +573,8 @@
   }
 
   .now-playing {
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    left: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
     grid-template-columns: 44px minmax(0, 1fr) auto;
   }
 

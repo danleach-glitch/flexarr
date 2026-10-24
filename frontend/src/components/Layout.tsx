@@ -3,17 +3,37 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { askForProfile, selectProfile, signOut } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { Gear, Search } from './icons'
+import type { LibraryType } from '../api/types'
+import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Music, Search, Stack, Tv } from './icons'
 import { AddToCollectionHost } from './AddToCollection'
 import { NowPlaying } from './NowPlaying'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
+
+const libraryIcons: Record<LibraryType, typeof Film> = { Movies: Film, TvShows: Tv, Music }
+
+const railKey = 'flexarr.sidebarRail'
+
+/** The sidebar starts as an icon rail on narrower windows, until it's expanded or collapsed by hand. */
+function initialRail() {
+  try {
+    const saved = localStorage.getItem(railKey)
+    if (saved !== null) return saved === '1'
+  } catch {
+    // Storage blocked: fall back on the window width.
+  }
+  return window.innerWidth < 1200
+}
 
 export function Layout() {
   const { libraries } = useLibraries()
   const [scrolled, setScrolled] = useState(false)
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
+  const [rail, setRail] = useState(initialRail)
+  // Phones: whether the sidebar has been slid in over the page.
+  const [drawer, setDrawer] = useState(false)
+  const sidebar = useRef<HTMLElement>(null)
   const { me: access, profiles } = useSession()
   // Older servers have no /me; assume admin there, as before.
   const isAdmin = access?.isAdmin ?? true
@@ -40,6 +60,27 @@ export function Layout() {
     }
   }, [profileMenu])
 
+  // Labels are hidden on the rail, so its icons say what they are on hover.
+  const tip = (label: string) => (rail ? label : undefined)
+
+  const toggleRail = () => {
+    setRail(!rail)
+    try {
+      localStorage.setItem(railKey, rail ? '0' : '1')
+    } catch {
+      // Not remembered, which is fine.
+    }
+  }
+
+  // The drawer closes on Escape and takes focus while it's open, so the keyboard starts in it.
+  useEffect(() => {
+    if (!drawer) return
+    sidebar.current?.querySelector<HTMLElement>('.sidebar-nav a')?.focus()
+    const close = (e: KeyboardEvent) => e.key === 'Escape' && setDrawer(false)
+    document.addEventListener('keydown', close)
+    return () => document.removeEventListener('keydown', close)
+  }, [drawer])
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
     onScroll()
@@ -62,34 +103,26 @@ export function Layout() {
 
   useEffect(() => {
     setSearching(false)
+    setDrawer(false)
     window.scrollTo(0, 0)
   }, [location.pathname])
 
   return (
-    <>
+    <div className={rail ? 'shell rail' : 'shell'}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <header className={scrolled ? 'marquee solid' : 'marquee'}>
-        <Link to="/" className="wordmark" aria-label="Flexarr home">
+      {/* Over the page, beside the sidebar: search, settings and the profile on the right. Phones add the menu that
+          slides the sidebar in, and the wordmark. */}
+      <header className={scrolled ? 'topbar solid' : 'topbar'}>
+        <button className="icon-button topbar-menu" aria-label="Menu" aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
+          <MenuIcon />
+        </button>
+        <Link to="/" className="wordmark topbar-wordmark" aria-label="Flexarr home">
           <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
           flexarr
         </Link>
-        <nav aria-label="Main" className="marquee-nav">
-          <NavLink to="/" end>
-            Home
-          </NavLink>
-          {libraries.map((library) => (
-            <NavLink key={library.id} to={`/library/${library.id}`}>
-              {library.name}
-              {library.scan && <span className="scan-dot" aria-label="Scanning" />}
-            </NavLink>
-          ))}
-          <NavLink to="/collections">Collections</NavLink>
-          <NavLink to="/discover">Discover</NavLink>
-          <NavLink to="/upcoming">Coming soon</NavLink>
-        </nav>
-        <div className="marquee-tools">
+        <div className="topbar-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
             <Search />
             <span>Search</span>
@@ -155,12 +188,67 @@ export function Layout() {
           )}
         </div>
       </header>
+      {drawer && <div className="sidebar-backdrop" onClick={() => setDrawer(false)} />}
+      <aside id="sidebar" className={drawer ? 'sidebar open' : 'sidebar'} ref={sidebar}>
+        <div className="sidebar-head">
+          <Link to="/" className="wordmark" aria-label="Flexarr home">
+            <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
+            <span className="sidebar-label">flexarr</span>
+          </Link>
+          <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setDrawer(false)}>
+            <Close />
+          </button>
+        </div>
+        {/* Libraries scroll on their own below the wordmark, however many there are. */}
+        <nav aria-label="Main" className="sidebar-nav">
+          <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
+            <Home />
+            <span className="sidebar-label">Home</span>
+          </NavLink>
+          {libraries.length > 0 && (
+            <>
+              <h2 className="sidebar-heading">
+                <span className="sidebar-label">Libraries</span>
+              </h2>
+              {libraries.map((library) => {
+                const Icon = libraryIcons[library.type] ?? Film
+                return (
+                  <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
+                    <Icon />
+                    <span className="sidebar-label">{library.name}</span>
+                    {library.scan && <span className="scan-dot" aria-label="Scanning" />}
+                  </NavLink>
+                )
+              })}
+            </>
+          )}
+          <h2 className="sidebar-heading">
+            <span className="sidebar-label">Browse</span>
+          </h2>
+          <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
+            <Stack />
+            <span className="sidebar-label">Collections</span>
+          </NavLink>
+          <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
+            <Compass />
+            <span className="sidebar-label">Discover</span>
+          </NavLink>
+          <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
+            <Calendar />
+            <span className="sidebar-label">Coming soon</span>
+          </NavLink>
+        </nav>
+        <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>
+          <ChevronsLeft style={rail ? { transform: 'scaleX(-1)' } : undefined} />
+          <span className="sidebar-label">{rail ? 'Expand sidebar' : 'Collapse sidebar'}</span>
+        </button>
+      </aside>
       <main id="main" className="page">
         <Outlet />
         <AddToCollectionHost />
       </main>
       <NowPlaying />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
-    </>
+    </div>
   )
 }

@@ -15,23 +15,92 @@
   left: var(--edge);
 }
 
-.marquee {
+/* The sidebar: the wordmark, then Home, the libraries and Browse, which scroll on their own when there are many. It
+   collapses to an icon rail; on phones it's a drawer that slides in from the menu button in the top bar. Search,
+   settings and the profile stay at the top right of the page. */
+.shell {
+  --sidebar-width: 248px;
+}
+
+.shell.rail {
+  --sidebar-width: 76px;
+}
+
+.sidebar {
   position: fixed;
-  inset: 0 0 auto;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: var(--sidebar-width);
+  padding: 16px 12px 14px;
+  background: color-mix(in srgb, var(--black) 22%, var(--room));
+  box-shadow: 1px 0 0 var(--aisle);
+}
+
+.shell > .page {
+  margin-left: var(--sidebar-width);
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 44px;
+  padding-left: 6px;
+}
+
+.sidebar-head .icon-button {
+  width: 36px;
+  height: 36px;
+  color: var(--usher);
+}
+
+.sidebar-head .icon-button:hover {
+  color: var(--screen);
+}
+
+.sidebar-head .icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* The sidebar has the wordmark on wider screens, so the bar only carries it (and the menu) on phones. */
+.sidebar-head .sidebar-close,
+.topbar .topbar-menu,
+.topbar .topbar-wordmark {
+  display: none;
+}
+
+/* Transparent over heroes, solid once you scroll. */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 8px;
   height: var(--nav-height);
   padding: 0 var(--edge);
   background: linear-gradient(to bottom, rgb(14 11 17 / 0.75), transparent);
   transition: background-color 0.25s ease;
 }
 
-.marquee.solid {
+.topbar.solid {
   background: color-mix(in srgb, var(--room) 92%, transparent);
   backdrop-filter: blur(18px);
   box-shadow: 0 1px 0 var(--aisle);
+}
+
+.topbar-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .wordmark {
@@ -54,44 +123,102 @@
   margin: -4px 0;
 }
 
-.marquee-nav {
+.sidebar-nav {
+  flex: 1;
   display: flex;
-  gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  margin: 0 -12px;
+  padding: 4px 12px 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--aisle) transparent;
 }
 
-.marquee-nav a {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: var(--radius-control);
+.sidebar-heading {
+  margin: 18px 12px 6px;
+  font-family: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--usher);
+}
+
+.sidebar-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--usher);
+  font: inherit;
   font-weight: 600;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
+}
+
+.sidebar-link svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.marquee-nav a:hover {
+.sidebar-link:hover {
   color: var(--screen);
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
 }
 
-.marquee-nav a.active {
+.sidebar-link.active {
   color: var(--screen);
+  background: var(--seat-raised);
 }
 
-.marquee-nav a.active::after {
+/* The silver bar marks where you are, as the underline did in the old top bar. */
+.sidebar-link.active::before {
   content: '';
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 2px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--screen);
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--silver);
+}
+
+/* Pinned at the foot, below the libraries however far they scroll. */
+.sidebar-toggle {
+  flex: none;
+  margin-top: 4px;
+  border-top: 1px solid var(--aisle);
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
+  font-size: var(--step--1);
+  font-weight: 400;
+  color: color-mix(in srgb, var(--usher) 75%, transparent);
+}
+
+.sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sidebar-link .scan-dot {
+  margin-left: auto;
+  flex: none;
 }
 
 .scan-dot {
@@ -106,13 +233,6 @@
   50% {
     opacity: 0.25;
   }
-}
-
-.marquee-tools {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .search-trigger {
@@ -136,6 +256,59 @@
 .search-trigger svg {
   width: 18px;
   height: 18px;
+}
+
+/* The rail: icons only, labels kept for screen readers (and as tooltips). Wider screens only: on phones the
+   sidebar is always the full drawer. */
+@media (min-width: 761px) {
+  .rail .sidebar {
+    align-items: center;
+    padding-inline: 10px;
+  }
+
+  .rail .sidebar-head {
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 0;
+  }
+
+  .rail .sidebar-nav {
+    margin: 0 -10px;
+    padding-inline: 10px;
+    scrollbar-width: none;
+  }
+
+  .rail .sidebar-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .rail .sidebar-link {
+    justify-content: center;
+    width: 52px;
+    padding-inline: 0;
+  }
+
+  /* No room for a heading: a short rule between the groups instead. */
+  .rail .sidebar-heading {
+    height: 1px;
+    margin: 12px 10px;
+    background: var(--aisle);
+  }
+
+  .rail .sidebar-heading:first-child {
+    margin-block: 4px;
+    background: none;
+  }
+
+  .rail .sidebar-link .scan-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
 }
 
 kbd {
@@ -1423,24 +1596,33 @@ a.upcoming-row:hover strong {
     --nav-height: 60px;
   }
 
-  .marquee {
-    gap: 14px;
+  .shell > .page {
+    margin-left: 0;
   }
 
-  /* A blurred backdrop makes the bar the containing block for fixed children, which pulled the bottom tab bar up
-     under the header (and the avatar) once you scrolled. Phones get a solid bar instead. */
-  .marquee.solid {
+  .topbar {
+    left: 0;
+    gap: 4px;
+    padding: 0 12px 0 4px;
+  }
+
+  /* A blurred backdrop makes the bar the containing block for fixed children; phones get a solid bar instead. */
+  .topbar.solid {
     backdrop-filter: none;
     background: var(--room);
   }
 
-  .marquee-nav a {
-    flex: 1 0 auto;
-    justify-content: center;
+  .topbar .topbar-menu {
+    display: inline-grid;
   }
 
-  .wordmark {
+  .topbar .topbar-wordmark {
+    display: inline-flex;
     font-size: 1.5rem;
+  }
+
+  .topbar-tools {
+    gap: 4px;
   }
 
   .search-trigger span,
@@ -1452,33 +1634,50 @@ a.upcoming-row:hover strong {
     padding: 0 10px;
   }
 
-  .marquee-nav {
+  .sidebar {
+    z-index: 70;
+    width: min(300px, 86vw);
+    padding-top: calc(12px + env(safe-area-inset-top));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    background: var(--room);
+    box-shadow: 1px 0 0 var(--aisle), 24px 0 60px rgb(0 0 0 / 0.5);
+    transform: translateX(-102%);
+    visibility: hidden;
+    transition:
+      transform 0.25s ease,
+      visibility 0s linear 0.25s;
+  }
+
+  .sidebar.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .sidebar-head .sidebar-close {
+    display: inline-grid;
+  }
+
+  .sidebar-backdrop {
     position: fixed;
-    inset: auto 0 0;
-    /* Tabs share the width; when there are more than fit (long library names), the bar scrolls sideways rather than
-       cutting one off. (space-around would push the overflow out of reach at both ends.) */
-    justify-content: flex-start;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--room) 94%, transparent);
-    backdrop-filter: blur(18px);
-    box-shadow: 0 -1px 0 var(--aisle);
+    inset: 0;
+    z-index: 65;
+    background: rgb(10 8 12 / 0.6);
   }
 
-  .marquee-nav a {
-    padding: 8px 10px;
+  .sidebar-link {
+    min-height: 46px;
   }
 
-  /* More tabs than fit: the last visible one fades out at the edge, so it's clear the bar scrolls. It stays pinned
-     to the right edge while there's more, and sits over the bar's own padding once scrolled to the end. */
-  .marquee-nav::after {
-    content: '';
-    position: sticky;
-    right: 0;
-    flex: none;
-    width: 36px;
-    margin-left: -36px;
-    background: linear-gradient(to right, transparent, var(--room) 85%);
-    pointer-events: none;
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar,
+    .sidebar.open {
+      transition: none;
+    }
   }
 
   .hero {

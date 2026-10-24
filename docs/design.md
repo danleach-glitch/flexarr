@@ -33,7 +33,7 @@ Like ambient TV backlighting, every title carries an **ambient colour** extracte
 
 ## Layout
 
-- **Top marquee navigation** floating over the content (not a sidebar): the wordmark, libraries as tabs, then search (⌘K) and settings on the right. It is transparent over heroes and solid once you scroll.
+- **Sidebar navigation** on the left: the wordmark and Home, then the libraries, then Collections, Discover and Coming soon. It holds any number of libraries, scrolling on its own, and collapses to an icon rail. On phones it is a drawer behind a menu button. Search (⌘K), settings and the profile float at the top right of the page in a bar that is transparent over heroes and solid once you scroll.
 - **Home:** a full-bleed hero (backdrop, clear logo, one line of context, Play and More info buttons), then horizontal rows. The *Top 10* row uses giant outlined marquee numerals beside each poster, the one place where numbering is meaningful.
 - **Library:** a poster grid with sort and filter controls and an A–Z rail for jumping through large collections.
 - **Detail:** backdrop wash in ambient colour, logo or title, facts, overview, Play/Resume, Trailer, cast, then seasons as tabs with episode stills.

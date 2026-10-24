@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### A sidebar for your libraries
+- On the web, your libraries are now listed down a sidebar, under **Home**, on the left instead of across the top, so the bar no longer gets crowded when you have lots of them. **Collections**, **Discover** and **Coming soon** sit under them, and the list scrolls on its own if it gets long.
+- **Home** is at the top of the sidebar; the Flexarr logo above it takes you home too.
+- **Search**, **Settings** and your profile picture stay at the top right of the page.
+- **Collapse sidebar** at the bottom of it shrinks it to a strip of icons (hover one to see its name). The web app remembers your choice, and starts as the strip on narrower windows.
+- On phones, the ☰ button at the top left slides the sidebar in, replacing the tab bar along the bottom.
+
 ## 0.8.0 · 24 October 2026
 
 ### Version numbers
