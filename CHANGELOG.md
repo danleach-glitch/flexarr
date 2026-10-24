@@ -4,6 +4,37 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Sign-in and profiles, second pass
+- Wrong PIN guesses lock out only the device guessing. Nobody can lock you out of the main profile anymore.
+- Over Tailscale, changing settings now takes the main profile's PIN, or signing that browser in with the API key, once. Watching works as before.
+- Showing or replacing the API key asks for the main profile's PIN (or a confirmation if it has none). Replacing it can also sign out every other browser and TV, and new sign-ins are marked **New**.
+- You can replace the webhook secret from **Settings › Server**.
+- If a browser's chosen profile stops being valid (after a key or PIN change), Flexarr asks who's watching again instead of quietly using the main profile.
+- Pairing a TV is safer, and the approval screen shows its code and address prominently.
+- A damaged or unreadable list of sign-ins no longer stops browsers and TVs signing in, and long-unused browsers are cleaned up.
+- The Apple TV keeps its saved key if the Keychain can't be written, and retries connecting right after you approve it.
+- Browsers signed in by versions before per-device sign-ins keep working for 30 days, then need to sign in again.
+- Settings explains what "Only away from home" trusts, and what a reverse proxy on the Mac must send. A new config option, `loopbackNeedsForwarding`, makes such a proxy safe.
+- Artwork for things not in your library (Coming soon, downloads, requests, collections) can now only be loaded through links Flexarr hands out, so nobody else can use your server to download images.
+
+### Library safety, second pass
+- **Library health** now lists folders Flexarr is keeping on hold because they looked unmounted or cleared out. If you really emptied a folder, choose **Confirm removal** and its titles go.
+- A folder where most files vanished at once now goes through by itself after a day of scans finding the same thing. An empty folder still waits for you to confirm, or for Radarr/Sonarr to say they deleted it.
+- Watch history and collections now follow a film or show when Radarr or Sonarr rename its folder, or when it comes back up to 30 days after it was removed.
+- Deleting an episode no longer takes a briefly missing sibling episode, and its watch history, with it.
+- A film whose file is mid-upgrade no longer drops out of its franchise or shows up as one to request.
+- A malformed webhook can no longer stop the server.
+
+### Playback and speed, second pass
+- Two TVs or browsers on the same profile can now watch the same title at once without stopping each other.
+- When the server is already converting as many videos as it allows, the web player and Apple TV say the server is busy instead of retrying and then reporting a stopped stream. One profile can no longer take every conversion slot: starting another ends its oldest one.
+- The Apple TV's Home, library and detail screens pick up changes made elsewhere (watching on the web, a new download) after a minute, or when you come back to the app, and keep your place.
+- Going Back from a title to a library's full list returns you to the same spot, even after marking something watched or watching it, and the ticks are up to date. Searching or re-sorting it no longer jumps the page, and letter jumps land on the right row.
+- A show's page opens faster, Settings › Libraries no longer reloads every 2 seconds during a scan, and a request the server never answers fails after 30 seconds instead of loading forever.
+- A just-downloaded episode or film no longer shows as "on its way" in Coming soon and Downloads for a couple of minutes, and collection suggestions update straight away when a library is hidden from a profile.
+- Artwork scrolled past on the Apple TV keeps loading in the background, and a slow artwork site can no longer hold up a metadata refresh.
+- Installing on a Mac now checks the .NET runtime download against the checksum Microsoft publishes.
+
 ### Sign-ins of your own, for every browser and TV
 - Each browser and Apple TV now has a sign-in of its own. **Settings › Server** lists them, with **Sign out** for any one: a lost TV or a shared laptop, without changing the API key. Browsers you're already signed in on stay signed in.
 - Apple TVs no longer keep the server's API key. One that connects, or was set up before, swaps it for its own token. Signing out on the TV ends that token on the server too.
