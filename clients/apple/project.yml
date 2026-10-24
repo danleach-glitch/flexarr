@@ -75,6 +75,8 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.ios
             CFBundleURLSchemes: [flexarr]
+        # Only HTTPS and Apple's own crypto, which is exempt from export documentation.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.ios

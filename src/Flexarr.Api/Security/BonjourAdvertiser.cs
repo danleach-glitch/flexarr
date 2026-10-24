@@ -20,9 +20,10 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
         using var _ = lifetime.ApplicationStarted.Register(() => started.TrySetResult());
         await started.Task.WaitAsync(stoppingToken);
 
+        // A server listening only on loopback (say, behind Tailscale Funnel) can't be reached from the network: don't announce it.
         var port = server.Features.Get<IServerAddressesFeature>()?.Addresses
-            .Select(a => Uri.TryCreate(a.Replace("*", "localhost", StringComparison.Ordinal).Replace("+", "localhost", StringComparison.Ordinal), UriKind.Absolute, out var uri) ? uri : null)
-            .FirstOrDefault(u => u is { Scheme: "http" })?.Port;
+            .Select(a => Uri.TryCreate(a.Replace("*", "0.0.0.0", StringComparison.Ordinal).Replace("+", "0.0.0.0", StringComparison.Ordinal), UriKind.Absolute, out var uri) ? uri : null)
+            .FirstOrDefault(u => u is { Scheme: "http", IsLoopback: false })?.Port;
         if (port is null)
         {
             return;

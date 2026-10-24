@@ -1,4 +1,4 @@
-.PHONY: apple-install ios-install setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: apple-install ios-install ios-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -58,6 +58,23 @@ ios-install: ## Build, sign and install the iOS app on a connected iPhone or iPa
 		DEVELOPMENT_TEAM=$(TEAM) PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-iphoneos/FlexarriOS.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
+
+# Archive the iOS app and upload it to App Store Connect (paid developer account, signed in to Xcode).
+#   make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios
+# Each upload needs a higher build number, so it defaults to the current time.
+BUILD ?= $(shell date +%Y%m%d%H%M)
+ios-upload: ## Archive the iOS app and upload it to App Store Connect
+	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
+	cd clients/apple && xcodegen generate --quiet
+	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination 'generic/platform=iOS' \
+		-archivePath build/apple/FlexarriOS.xcarchive -allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(TEAM) PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
+		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
+		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
+		'</dict></plist>' > build/apple/ExportOptions.plist
+	xcodebuild -exportArchive -archivePath build/apple/FlexarriOS.xcarchive -exportOptionsPlist build/apple/ExportOptions.plist \
+		-exportPath build/apple/export -allowProvisioningUpdates
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
