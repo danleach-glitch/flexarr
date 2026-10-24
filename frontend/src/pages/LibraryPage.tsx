@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
-import { getLibraryBrowse, getLibraryGenres, getLibraryItems, scanLibrary, type ItemSummary, type Library } from '../api/client'
+import { Link, useNavigationType, useParams, useSearchParams } from 'react-router'
+import { freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepUntilChanged, kept, scanLibrary, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
-import { useWatchedChanges } from '../components/ItemMenu'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
+import { useWatchedChanges } from '../hooks/watched'
 
 const PAGE_SIZE = 200
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -48,8 +48,29 @@ function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
   )
 }
 
+/** `value`, but changing at most once every `ms` (0: straight away); the latest value always lands in the end. */
+function useThrottled<T>(value: T, ms: number): T {
+  const [shown, setShown] = useState(value)
+  const last = useRef(0)
+  useEffect(() => {
+    if (Object.is(value, shown)) return
+    const timer = setTimeout(
+      () => {
+        last.current = Date.now()
+        setShown(value)
+      },
+      Math.max(0, ms - (Date.now() - last.current)),
+    )
+    return () => clearTimeout(timer)
+  }, [value, shown, ms])
+  return shown
+}
+
 function LibraryBrowse({ library }: { library: Library }) {
-  const { data, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, library.itemCount])
+  // A scan changes the count every few seconds; these rows are heavy, so refresh them at most every 30 seconds while
+  // it runs, and once more when it's done.
+  const itemCount = useThrottled(library.itemCount, library.scan ? 30_000 : 0)
+  const { data, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount])
   useWatchedChanges(reload)
   const heading = (
     <>
@@ -81,6 +102,29 @@ function LibraryBrowse({ library }: { library: Library }) {
   )
 }
 
+const JUMP_PAGE = 500
+const JUMP_PARALLEL = 4
+
+/** A title's letter on the A–Z rail, ignoring a leading "The", "A" or "An" as the sort does. */
+function letterOf(item: ItemSummary) {
+  const first = item.title.replace(/^(the|a|an)\s+/i, '').charAt(0).toUpperCase()
+  return /[A-Z]/.test(first) ? first : '#'
+}
+
+/** What going back to a grid restores: the titles it had loaded and where it was scrolled to. */
+interface GridSnapshot {
+  items: ItemSummary[]
+  total: number | undefined
+  itemCount: number | undefined
+  scrollY: number
+}
+
+/** Adds pages to a grid, skipping titles it already has (a scan can shift what's on each page). */
+function append(loaded: ItemSummary[], pages: ItemSummary[][]) {
+  const seen = new Set(loaded.map((i) => i.id))
+  return [...loaded, ...pages.flat().filter((i) => !seen.has(i.id))]
+}
+
 function LibraryAll() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
@@ -90,14 +134,22 @@ function LibraryAll() {
   const library = libraries.find((l) => l.id === id)
   const genres = useApi((signal) => getLibraryGenres(id, signal), [id])
 
+  // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
+  const snapshotKey = `library-all ${id} ${sort} ${genre}`
+  const navigation = useNavigationType()
+  const [restored] = useState(() => (navigation === 'POP' ? kept<GridSnapshot>(snapshotKey) : undefined))
+
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [items, setItems] = useState<ItemSummary[]>([])
-  const [total, setTotal] = useState<number>()
+  const [items, setItems] = useState<ItemSummary[]>(restored?.items ?? [])
+  const [total, setTotal] = useState<number | undefined>(restored?.total)
+  // The library's size when the grid loaded, to notice titles a scan adds since.
+  const [loadedCount, setLoadedCount] = useState<number | undefined>(restored?.itemCount)
   const [error, setError] = useState<string>()
-  // Refetch when something is marked watched, so ticks and counts stay right.
+  const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
-  useWatchedChanges(useCallback(() => setVersion((v) => v + 1), []))
+  // Bumped whenever the grid starts over, so pages still arriving for the old one are dropped.
+  const generation = useRef(0)
   const grid = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -105,42 +157,114 @@ function LibraryAll() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reload when filters change, and as a scan adds items.
-  const itemCount = library?.itemCount
+  // While every title fits on one page, nothing is lost by starting over, so titles a scan finds just appear (the
+  // count is followed during render, React's way to adjust state to a prop). Beyond that, starting over would throw
+  // away "Show more" pages and the scroll position: offer it instead.
+  const small = total !== undefined && total < PAGE_SIZE && items.length >= total
+  const grown = library !== undefined && loadedCount !== undefined && library.itemCount !== loadedCount
+  const [followed, setFollowed] = useState(library?.itemCount)
+  if (small && library && library.itemCount !== followed) {
+    setFollowed(library.itemCount)
+    setVersion((v) => v + 1)
+  }
+
+  const depsKey = `${id}|${query}|${sort}|${genre}|${version}`
+  const restoredFor = useRef(restored ? depsKey : null)
   useEffect(() => {
+    if (restoredFor.current === depsKey) return
+    restoredFor.current = null
+    const run = ++generation.current
+    const countAtLoad = library?.itemCount
     const controller = new AbortController()
-    getLibraryItems(id, { search: query, sort, genre, take: PAGE_SIZE }, controller.signal)
+    const load = () => getLibraryItems(id, { search: query, sort, genre, take: PAGE_SIZE }, controller.signal)
+    // Starting over on purpose (Refresh, or new titles) skips any cached first page.
+    const pending = version ? freshly(load) : load()
+    pending
       .then((page) => {
+        if (run !== generation.current) return
         setItems(page.items)
         setTotal(page.total)
+        setLoadedCount(countAtLoad)
         setError(undefined)
       })
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e))
       })
     return () => controller.abort()
-  }, [id, query, sort, genre, itemCount, version])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- depsKey stands for the inputs; the count is read as it is
+  }, [depsKey])
+
+  // Marking something watched updates just the titles it touches, in place.
+  useWatchedChanges(
+    useCallback(
+      (ids: string[]) => {
+        const run = generation.current
+        for (const changed of ids.filter((i) => items.some((item) => item.id === i))) {
+          getItem(changed)
+            .then((detail) => run === generation.current && setItems((current) => current.map((item) => (item.id === changed ? detail.item : item))))
+            .catch(() => undefined)
+        }
+      },
+      [items],
+    ),
+  )
+
+  // Remember the grid on the way out, and scroll back to where it was when it's restored.
+  const latest = useRef<GridSnapshot>(undefined)
+  useEffect(() => {
+    latest.current = { items, total, itemCount: loadedCount, scrollY: 0 }
+  })
+  useEffect(() => {
+    if (restored) requestAnimationFrame(() => window.scrollTo(0, restored.scrollY))
+    return () => {
+      if (latest.current && !query) keepUntilChanged(snapshotKey, { ...latest.current, scrollY: window.scrollY })
+    }
+  }, [restored, query, snapshotKey])
 
   async function loadMore() {
-    const page = await getLibraryItems(id, { search: query, sort, genre, skip: items.length, take: PAGE_SIZE })
-    setItems((current) => [...current, ...page.items])
-    setTotal(page.total)
+    if (busy) return
+    const run = generation.current
+    setBusy(true)
+    try {
+      const page = await getLibraryItems(id, { search: query, sort, genre, skip: items.length, take: PAGE_SIZE })
+      if (run !== generation.current) return
+      setItems((current) => append(current, [page.items]))
+      setTotal(page.total)
+    } catch (e) {
+      if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  /** Loads everything up to the letter if needed, then scrolls to its first title. */
+  /** Loads everything up to the letter if needed (a few big pages at a time), then scrolls to its first title. */
   async function jump(letter: string) {
-    const startsWith = (item: ItemSummary) => {
-      const first = item.title.replace(/^(the|a|an)\s+/i, '').charAt(0).toUpperCase()
-      return letter === '#' ? !/[A-Z]/.test(first) : first === letter
+    if (busy) return
+    const run = generation.current
+    // Sorted A–Z, so once the grid ends past the letter there's nothing with it to find.
+    const passed = (loaded: ItemSummary[]) => {
+      const last = loaded.length ? letterOf(loaded[loaded.length - 1]) : '#'
+      return letter !== '#' && last !== '#' && last > letter
     }
     let loaded = items
-    while (!loaded.some(startsWith) && total !== undefined && loaded.length < total) {
-      const page = await getLibraryItems(id, { search: query, sort, genre, skip: loaded.length, take: PAGE_SIZE })
-      loaded = [...loaded, ...page.items]
-      setItems(loaded)
-      if (page.items.length === 0) break
+    setBusy(true)
+    try {
+      while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
+        const skips: number[] = []
+        for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += JUMP_PAGE) skips.push(skip)
+        const pages = await Promise.all(skips.map((skip) => getLibraryItems(id, { search: query, sort, genre, skip, take: JUMP_PAGE })))
+        if (run !== generation.current) return
+        const next = append(loaded, pages.map((p) => p.items))
+        if (next.length === loaded.length) break
+        loaded = next
+        setItems(loaded)
+      }
+    } catch (e) {
+      if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
     }
-    const target = loaded.find(startsWith)
+    const target = loaded.find((i) => letterOf(i) === letter)
     if (target) {
       requestAnimationFrame(() => {
         const el = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"] a`)
@@ -204,6 +328,14 @@ function LibraryAll() {
       )}
 
       {library.scan && <ScanProgress scan={library.scan} />}
+      {grown && !small && (
+        <p className="library-new" role="status">
+          {library.itemCount > (loadedCount ?? 0) ? 'New titles have arrived.' : 'Some titles have gone.'}{' '}
+          <button className="button quiet small" onClick={() => setVersion((v) => v + 1)}>
+            Refresh
+          </button>
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       {items.length === 0 && total === 0 && (
         <p className="page-message muted">
@@ -222,7 +354,7 @@ function LibraryAll() {
         {!sort && !query && items.length > 40 && (
           <nav className="alpha-rail" aria-label="Jump to letter">
             {LETTERS.map((l) => (
-              <button key={l} onClick={() => jump(l)}>
+              <button key={l} onClick={() => jump(l)} disabled={busy}>
                 {l}
               </button>
             ))}
@@ -232,7 +364,7 @@ function LibraryAll() {
 
       {total !== undefined && items.length < total && (
         <div className="load-more">
-          <button className="button quiet" onClick={loadMore}>
+          <button className="button quiet" onClick={loadMore} disabled={busy}>
             Show {Math.min(PAGE_SIZE, total - items.length)} more
           </button>
         </div>

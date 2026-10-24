@@ -733,6 +733,27 @@ kbd {
   gap: 30px 20px;
 }
 
+/* A long grid only lays out and paints the cards near the screen. That containment would clip a card's hover glow,
+   so the card under the pointer or focus renders as usual. */
+.poster-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px auto 300px;
+}
+
+.poster-grid > :hover,
+.poster-grid > :focus-within {
+  content-visibility: visible;
+}
+
+.library-new {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 24px;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
 .alpha-rail {
   position: sticky;
   top: calc(var(--nav-height) + 16px);
@@ -1387,6 +1408,10 @@ a.upcoming-row:hover strong {
   .poster-grid {
     grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
     gap: 20px 12px;
+  }
+
+  .poster-grid > * {
+    contain-intrinsic-size: auto 104px auto 210px;
   }
 
   .alpha-rail {

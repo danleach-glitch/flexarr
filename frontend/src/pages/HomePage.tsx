@@ -6,7 +6,7 @@ import { Row } from '../components/Row'
 import { UpcomingCard } from '../components/UpcomingCard'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
-import { useWatchedChanges } from '../components/ItemMenu'
+import { useWatchedChanges } from '../hooks/watched'
 
 export function HomePage() {
   const { libraries } = useLibraries()
