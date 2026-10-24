@@ -4,7 +4,7 @@
 
 Flexarr aims to be a full Plex-style media server: it organises your library, fetches metadata and artwork, and streams to your devices with direct play or on-the-fly transcoding. Unlike Plex it is fully open source, needs no cloud account, and treats [Sonarr](https://sonarr.tv), [Radarr](https://radarr.video), [Lidarr](https://lidarr.audio) and [Prowlarr](https://prowlarr.com) as first-class neighbours rather than afterthoughts.
 
-> **Status:** version 0.8, early but running a real 12,000-file library day to day. Web is the main client; the Apple TV, iPhone and iPad apps are early (see [Apple TV, iPhone and iPad](#apple-tv-iphone-and-ipad)). See the [changelog](CHANGELOG.md) and the [roadmap](docs/roadmap.md).
+> **Status:** version 0.12, early but running a real 12,000-file library day to day. Web is the main client; the Apple TV, iPhone and iPad apps are early (see [Apple TV, iPhone and iPad](#apple-tv-iphone-and-ipad)). See the [changelog](CHANGELOG.md) and the [roadmap](docs/roadmap.md).
 
 ## What it does
 
@@ -62,7 +62,7 @@ docker run -d --name flexarr \
   ghcr.io/danleach-glitch/flexarr:latest
 ```
 
-`latest` is the newest release (each is listed under [Releases](https://github.com/danleach-glitch/flexarr/releases)); pin a version such as `0.8` or `0.8.0` to upgrade when you choose, or use `main` for every change as it lands.
+`latest` is the newest release (each is listed under [Releases](https://github.com/danleach-glitch/flexarr/releases)); pin a version such as `0.12` or `0.12.1` to upgrade when you choose. Images are published for releases only. Install instructions are also at [flexarr.io](https://flexarr.io).
 
 Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in to the web app with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Server where you can sign any of them out.
 

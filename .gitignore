@@ -43,3 +43,6 @@ xcuserdata/
 
 # Apple TV device builds (make apple-install)
 /build/
+
+# Vercel project link for the landing page (site/)
+.vercel/
