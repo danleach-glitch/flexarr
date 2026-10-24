@@ -6,9 +6,10 @@ enum TabID: Hashable {
     case library(String)
     case search
     case settings
+    case profiles
 }
 
-/// tvOS top tabs: Home, one per library, Search, Settings.
+/// tvOS top tabs: Home, one per library, Search, Settings, and who's watching when there are several profiles.
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: TabID = .home
@@ -34,6 +35,14 @@ struct MainTabView: View {
                 TabStack { SettingsView() }
             } label: {
                 Text("Settings")
+            }
+            // At the far end, where the Apple TV app keeps its own profile button.
+            if model.profiles.count > 1, let current = model.currentProfile {
+                Tab(value: TabID.profiles) {
+                    ProfilePickerView(marksCurrent: true)
+                } label: {
+                    Text(current.name)
+                }
             }
         }
         .task { await model.loadLibraries() }

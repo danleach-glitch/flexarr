@@ -413,3 +413,47 @@ public struct PairingStatus: Decodable, Sendable, Equatable {
     /// Set once, when approved.
     public let apiKey: String?
 }
+
+// MARK: - Profiles
+
+/// A person in the household: their own watch history, Continue Watching and (optionally) a PIN.
+public struct Profile: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    /// "#a9c2ec"; the circle behind the initial when there's no picture.
+    public let color: String
+    public let hasPin: Bool
+    public let isMain: Bool
+    /// The profile the request that fetched this list acted for.
+    public let isCurrent: Bool
+    public let hiddenLibraryIds: [String]
+    /// The picture's server-relative URL, or nil to show the initial on the colour.
+    public let image: String?
+
+    public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
+                isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil) {
+        self.id = id
+        self.name = name
+        self.color = color
+        self.hasPin = hasPin
+        self.isMain = isMain
+        self.isCurrent = isCurrent
+        self.hiddenLibraryIds = hiddenLibraryIds
+        self.image = image
+    }
+
+    /// The first letter, shown when there's no picture.
+    public var initial: String {
+        name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
+    }
+}
+
+/// What choosing a profile returns: the token to send as `X-Flexarr-Profile` from then on.
+public struct ProfileSelection: Decodable, Sendable, Equatable {
+    public let token: String
+    public let profile: Profile
+}
+
+struct SelectProfileRequest: Codable, Sendable {
+    let pin: String?
+}

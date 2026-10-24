@@ -1,18 +1,21 @@
 import Foundation
 import Security
 
-/// A saved server connection: the address lives in UserDefaults, the API key in the Keychain.
+/// A saved server connection: the address and chosen profile live in UserDefaults, the API key in the Keychain.
 public struct ServerCredentials: Sendable, Equatable {
     public var address: URL
     public var apiKey: String
+    /// Who's watching on this device; nil until someone chooses (the server then acts as the main profile).
+    public var profileToken: String?
 
-    public init(address: URL, apiKey: String) {
+    public init(address: URL, apiKey: String, profileToken: String? = nil) {
         self.address = address
         self.apiKey = apiKey
+        self.profileToken = profileToken
     }
 
     public var client: FlexarrClient {
-        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey)
+        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken)
     }
 }
 
@@ -33,7 +36,8 @@ public struct CredentialStore: Sendable {
 
     public func load() -> ServerCredentials? {
         guard let text = defaults.string(forKey: addressKey), let url = URL(string: text) else { return nil }
-        return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "")
+        return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
+                                 profileToken: defaults.string(forKey: "\(addressKey).profile"))
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -46,11 +50,18 @@ public struct CredentialStore: Sendable {
         try writeKey(credentials.apiKey, account: account)
         defaults.set(account, forKey: addressKey)
         defaults.set(account, forKey: "\(addressKey).last")
+        saveProfile(credentials.profileToken)
+    }
+
+    /// Remembers who's watching. The token only works alongside the API key, so it needn't be in the Keychain.
+    public func saveProfile(_ token: String?) {
+        defaults.set(token, forKey: "\(addressKey).profile")
     }
 
     public func clear() {
         if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
         defaults.removeObject(forKey: addressKey)
+        defaults.removeObject(forKey: "\(addressKey).profile")
     }
 
     // MARK: Keychain

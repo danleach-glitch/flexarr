@@ -4,6 +4,11 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Profiles on Apple TV
+- When your household has more than one profile, the Apple TV asks **Who's watching?** the first time it connects, and remembers the answer.
+- The current profile's name sits at the right end of the tab bar. Open it to switch; with two profiles the other person is already highlighted, so it's one press.
+- A profile with a PIN asks for it on an on-screen keypad.
+
 ### Collections
 - A new **Collections** page. Make your own collections and add films and shows from a card's ⋯ menu or a title's page (**Add to collection**). Drag posters to put them in order.
 - **Smart collections** fill themselves from rules (type, genre, years or "this year", rating, watched or not, recently added, words in the title or description) and keep up to date, e.g. *Top 10 shows this year*.

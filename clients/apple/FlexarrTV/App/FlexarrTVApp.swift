@@ -30,12 +30,22 @@ struct RootView: View {
                 ConnectView()
                     .transition(.opacity)
             case .signedIn(let credentials):
-                MainTabView()
-                    .id(credentials.address)
-                    .transition(.opacity)
+                if !model.profilesLoaded {
+                    ProgressView().scaleEffect(1.4)
+                } else if model.needsProfileChoice {
+                    ProfilePickerView()
+                        .transition(.opacity)
+                } else {
+                    // A new profile rebuilds every tab, so nothing from the last one lingers.
+                    MainTabView()
+                        .id("\(credentials.address)#\(credentials.profileToken ?? "")")
+                        .transition(.opacity)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.35), value: model.phase)
+        .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
+        .task(id: model.credentials?.address) { await model.loadProfiles() }
         .overlay {
             if model.player.isStarting {
                 ZStack {

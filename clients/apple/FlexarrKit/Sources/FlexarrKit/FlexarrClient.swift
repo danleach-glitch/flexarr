@@ -29,11 +29,14 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
 public struct FlexarrClient: Sendable {
     public let baseURL: URL
     public let apiKey: String?
+    /// The chosen profile's token (from `selectProfile`); nil acts as the main profile.
+    public let profileToken: String?
     private let session: URLSession
 
-    public init(baseURL: URL, apiKey: String? = nil, session: URLSession = .shared) {
+    public init(baseURL: URL, apiKey: String? = nil, profileToken: String? = nil, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.apiKey = apiKey
+        self.profileToken = profileToken
         self.session = session
     }
 
@@ -122,6 +125,19 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "playback/\(sessionId)")
     }
 
+    // MARK: Profiles
+
+    public func profiles() async throws -> [Profile] {
+        try await get("profiles")
+    }
+
+    /// Checks the PIN (if the profile has one) and returns the token for `profileToken`.
+    /// A wrong PIN is a 403 whose message says so.
+    public func selectProfile(_ id: String, pin: String? = nil) async throws -> ProfileSelection {
+        let data = try await send("POST", "profiles/\(id)/select", body: SelectProfileRequest(pin: pin))
+        return try decode(ProfileSelection.self, from: data)
+    }
+
     // MARK: Pairing (connecting without typing the API key)
 
     /// Asks the server for a code to show; someone signed in as the main profile approves it in the web app.
@@ -170,6 +186,9 @@ public struct FlexarrClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let apiKey, !apiKey.isEmpty {
             request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+        }
+        if let profileToken, !profileToken.isEmpty {
+            request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile")
         }
         if let bodyData {
             request.httpBody = bodyData

@@ -96,6 +96,40 @@ struct FlexarrClientTests {
         #expect(try await polling.pairingStatus(pairing.id) == PairingStatus(status: "approved", apiKey: "the-key"))
     }
 
+    @Test func selectingAProfileSendsThePinAndReturnsItsToken() async throws {
+        let body = ##"{"token":"kid.abc123","profile":{"id":"kid","name":"Sam","color":"#e8a87c","hasPin":true,"isMain":false,"isCurrent":true,"hiddenLibraryIds":[],"image":null}}"##
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(body.utf8)))
+
+        let selection = try await client.selectProfile("kid", pin: "1234")
+
+        #expect(selection.token == "kid.abc123")
+        #expect(selection.profile.initial == "S")
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/v1/profiles/kid/select")
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"pin":"1234"}"#)
+    }
+
+    @Test func wrongPinIsAForbiddenWithTheServersMessage() async {
+        let (client, _) = stubbedClient(.init(status: 403, body: Data(#"{"title":"That PIN isn't right.","status":403}"#.utf8)))
+
+        await #expect(throws: FlexarrClientError.http(status: 403, message: "That PIN isn't right.")) {
+            try await client.selectProfile("kid", pin: "0000")
+        }
+    }
+
+    @Test func sendsTheChosenProfilesToken() async throws {
+        let host = "test-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, .init(status: 200, body: Data("[]".utf8)))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let client = FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", profileToken: "kid.abc123",
+                                   session: URLSession(configuration: configuration))
+
+        #expect(try await client.profiles().isEmpty)
+        #expect(StubProtocol.recorded(host: host).first?.value(forHTTPHeaderField: "X-Flexarr-Profile") == "kid.abc123")
+    }
+
     @Test func unauthorizedMapsToFriendlyError() async {
         let (client, _) = stubbedClient(.init(status: 401, body: Data()))
 
