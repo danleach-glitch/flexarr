@@ -327,10 +327,10 @@ kbd {
   height: 26px;
   padding: 0 7px;
   border-radius: 13px;
-  background: rgb(14 11 17 / 0.78);
+  /* Solid rather than blurred: a backdrop blur on every card is re-rendered each frame while a row scrolls. */
+  background: rgb(14 11 17 / 0.82);
   font-size: 0.75rem;
   font-weight: 800;
-  backdrop-filter: blur(6px);
 }
 
 .watched-mark svg {
@@ -414,6 +414,13 @@ kbd {
 
 .row-track > * {
   scroll-snap-align: start;
+}
+
+/* On touch screens snapping catches a flick and settles it on the nearest card; let rows glide with native momentum. */
+@media (pointer: coarse) {
+  .row-track {
+    scroll-snap-type: none;
+  }
 }
 
 .row-poster .row-track,
@@ -1126,10 +1133,9 @@ kbd {
   top: 8px;
   padding: 2px 9px;
   border-radius: 6px;
-  background: rgb(14 11 17 / 0.8);
+  background: rgb(14 11 17 / 0.84); /* solid, like .watched-mark */
   font-size: var(--step--1);
   font-weight: 800;
-  backdrop-filter: blur(6px);
 }
 
 .upcoming-page {
