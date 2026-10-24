@@ -88,10 +88,23 @@
     .button svg { width: 20px; height: 20px; }
     .facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; margin-top: 22px; color: var(--usher); font-size: 0.95rem; }
 
-    /* Screenshots */
-    .shot { border-radius: 14px; overflow: hidden; border: 1px solid var(--aisle); background: var(--seat); box-shadow: 0 30px 80px rgb(0 0 0 / 0.5); }
-    .showcase { margin-top: clamp(40px, 7vw, 72px); position: relative; }
-    .showcase::before { content: ""; position: absolute; inset: 10% 8% -4%; background: radial-gradient(closest-side, rgb(169 194 236 / 0.22), transparent); filter: blur(30px); z-index: -1; }
+    /* The hero: the app on a MacBook, an iPad and an iPhone, the frames drawn around the screenshots.
+       Everything is in percentages of the stage, so the group scales as one. */
+    .stage { position: relative; max-width: 1100px; margin: clamp(48px, 8vw, 84px) auto 0; aspect-ratio: 1100 / 640; }
+    .stage::before { content: ""; position: absolute; inset: 8% 4% -2%; background: radial-gradient(closest-side, rgb(169 194 236 / 0.22), transparent); filter: blur(40px); z-index: -1; }
+    .stage img { width: 100%; }
+    .bezel { background: #0c0a0f; border: 1px solid #3f3848; box-shadow: 0 30px 70px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.04); }
+    .mac { position: absolute; left: 13%; top: 0; width: 74%; }
+    .mac .bezel { padding: 2.2% 2.2% 3.2%; border-radius: 2.4% / 3.8%; }
+    .mac .bezel img { border-radius: 0.5% / 0.8%; }
+    .mac-base { position: relative; height: clamp(7px, 1.5vw, 17px); margin: 0 -7%; border-radius: 0 0 50% 50% / 0 0 100% 100%; background: linear-gradient(#5a5464, #2b2731); box-shadow: 0 18px 30px rgb(0 0 0 / 0.45); }
+    .mac-base::before { content: ""; position: absolute; left: 42%; right: 42%; top: 0; height: 45%; border-radius: 0 0 6px 6px; background: #1f1c24; }
+    .ipad { position: absolute; left: 0; bottom: 0; width: 26%; }
+    .ipad .bezel { padding: 5%; border-radius: 8% / 5.6%; }
+    .ipad .bezel img { border-radius: 4.5% / 3.1%; }
+    .iphone { position: absolute; right: 2%; bottom: 0; width: 14.5%; }
+    .iphone .bezel { padding: 6%; border-radius: 19% / 8.8%; }
+    .iphone .bezel img { border-radius: 14% / 6.5%; }
 
     section { padding-block: clamp(56px, 9vw, 110px); }
     .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 12px; }
@@ -99,22 +112,14 @@
     .intro { max-width: 640px; color: var(--usher); margin: 16px 0 0; }
 
     /* Features */
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 40px; }
-    .feature { background: var(--seat); border: 1px solid var(--aisle); border-radius: 16px; padding: 24px; }
-    .feature h3 { font-size: 1.7rem; margin-bottom: 8px; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 44px; }
+    .feature { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 4px 18px; align-items: start; background: var(--seat); border: 1px solid var(--aisle); border-radius: 18px; padding: 24px; }
+    .feature .icon { grid-row: span 2; width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: rgb(169 194 236 / 0.14); color: var(--silver); }
+    .feature:nth-child(3n+2) .icon { background: rgb(232 160 191 / 0.14); color: var(--rose); }
+    .feature:nth-child(3n) .icon { background: rgb(242 238 231 / 0.1); color: var(--screen); }
+    .feature .icon svg { width: 24px; height: 24px; }
+    .feature h3 { font-size: 1.75rem; }
     .feature p { margin: 0; color: var(--usher); }
-    .feature .icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--room); color: var(--silver); margin-bottom: 16px; }
-    .feature .icon svg { width: 22px; height: 22px; }
-
-    /* Gallery */
-    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 40px; }
-    .gallery figure { margin: 0; }
-    figcaption { color: var(--usher); font-size: 0.95rem; margin-top: 10px; }
-    /* Three phones and an iPad, sized to stand the same height (a phone is 2.17 times as tall as it is wide, an iPad 1.45). */
-    .devices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); gap: 18px; align-items: start; margin-top: 18px; }
-    .devices figure { margin: 0; }
-    .phone { border-radius: 30px; }
-    .tablet { border-radius: 22px; }
 
     /* Install */
     .steps { counter-reset: step; display: grid; gap: 18px; margin-top: 40px; }
@@ -151,9 +156,6 @@
 
     @media (max-width: 860px) {
       nav a:not(.github) { display: none; }
-      .gallery { grid-template-columns: 1fr; }
-      .devices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .devices .tablet-figure { grid-column: 1 / -1; }
       .step { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 22px; }
     }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
@@ -187,8 +189,13 @@
       </div>
       <p class="facts"><span>GPL-3.0</span><span>Docker or native on macOS</span><span>Hardware transcoding</span><span>No account needed</span></p>
 
-      <div class="showcase">
-        <img class="shot" src="/shots/web-home.jpg" width="1920" height="1200" alt="Flexarr's home page in a browser: a featured show with Resume and More info, the libraries in a sidebar, and a Continue watching row.">
+      <div class="stage" role="img" aria-label="Flexarr on a Mac, an iPad and an iPhone: the web app's home page, a show's page with its seasons and episodes, and a film library as a poster grid.">
+        <div class="mac">
+          <div class="bezel"><img src="/shots/web-home.jpg" width="1920" height="1200" alt=""></div>
+          <div class="mac-base"></div>
+        </div>
+        <div class="ipad"><div class="bezel"><img src="/shots/ipad-series.jpg" width="1112" height="1613" alt=""></div></div>
+        <div class="iphone"><div class="bezel"><img src="/shots/iphone-grid.jpg" width="603" height="1311" alt=""></div></div>
       </div>
     </div>
 
@@ -196,65 +203,38 @@
       <div class="wrap">
         <p class="kicker">What it does</p>
         <h2>Everything Plex does. Plus the bits it doesn't.</h2>
-        <p class="intro">Flexarr reads artwork, descriptions and cast straight from your Sonarr and Radarr, so there are no other accounts or API keys to set up. New downloads appear the moment they import.</p>
         <div class="features">
           <div class="feature">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
-            <h3>Made for the *arr stack</h3>
-            <p>Sonarr, Radarr, Lidarr and Seerr are first-class neighbours: webhooks, Coming soon, requests, fixing a match and finding a better copy all go through them.</p>
+            <h3>Made for your *arrs</h3>
+            <p>Sonarr and Radarr fill in the artwork. New downloads show up the moment they land.</p>
           </div>
           <div class="feature">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5Z"/></svg></div>
-            <h3>Plays anywhere</h3>
-            <p>Direct play when the device can, otherwise conversion as you watch with hardware acceleration, HDR to SDR, subtitles and seeking anywhere instantly.</p>
+            <h3>Plays anything</h3>
+            <p>Direct play when it can, hardware transcoding when it can't. Seek anywhere, instantly.</p>
           </div>
           <div class="feature">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5v15l9-7.5ZM19 5v14"/></svg></div>
             <h3>Skips the boring bits</h3>
-            <p>Intros, recaps and credits are found by listening across each season, so Skip Intro and Up Next just work, even for shows Plex never marked.</p>
+            <p>Intros, recaps and credits, spotted automatically. Up Next does the rest.</p>
           </div>
           <div class="feature">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a5.5 5.5 0 0 1 3.5 6"/></svg></div>
-            <h3>For the whole household</h3>
-            <p>Profiles with their own Continue Watching and history, optional PINs, and libraries each person can see. Every browser and TV signs in on its own.</p>
+            <h3>One server, whole house</h3>
+            <p>Profiles, PINs and a Continue Watching row for everyone.</p>
           </div>
           <div class="feature">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/></svg></div>
-            <h3>Away from home, safely</h3>
-            <p>Watch over Tailscale with no ports opened on your router. On your own network, devices find the server by themselves.</p>
+            <h3>Yours, anywhere</h3>
+            <p>Watch away from home over Tailscale. No ports, no cloud, no account.</p>
           </div>
           <div class="feature">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/></svg></div>
-            <h3>Bring your Plex history</h3>
-            <p>Watched state and resume points come over from Plex, matched by file, without touching Plex. Library health spots duplicates and poor copies too.</p>
+            <h3>Leave Plex behind</h3>
+            <p>Your watch history and resume points come with you, matched by file.</p>
           </div>
         </div>
-
-        <div class="gallery">
-          <figure>
-            <img class="shot" src="/shots/web-detail.jpg" width="1920" height="1200" loading="lazy" alt="A show's page in the web app: logo, facts, Play Season 3 Episode 1, genres and seasons.">
-            <figcaption>Every title takes on the colour of its artwork.</figcaption>
-          </figure>
-          <figure>
-            <img class="shot" src="/shots/web-grid.jpg" width="1920" height="1200" loading="lazy" alt="A film library as a poster grid with genre filters, search, sorting and an A to Z index.">
-            <figcaption>Hundreds of films, filtered by genre in a tap.</figcaption>
-          </figure>
-        </div>
-        <div class="devices">
-          <figure>
-            <img class="shot phone" src="/shots/iphone-series.jpg" width="603" height="1311" loading="lazy" alt="A show's page on iPhone with Play and the season picker.">
-          </figure>
-          <figure>
-            <img class="shot phone" src="/shots/iphone-episodes.jpg" width="603" height="1311" loading="lazy" alt="A season's episodes on iPhone, each with a still, title and running time.">
-          </figure>
-          <figure>
-            <img class="shot phone" src="/shots/iphone-grid.jpg" width="603" height="1311" loading="lazy" alt="A film library as a poster grid on iPhone.">
-          </figure>
-          <figure class="tablet-figure">
-            <img class="shot tablet" src="/shots/ipad-episodes.jpg" width="1112" height="1613" loading="lazy" alt="A show's page on iPad: its logo, Play, the seasons and episodes in two columns.">
-          </figure>
-        </div>
-        <p class="intro" style="margin-top:14px">On iPhone and iPad: Picture in Picture, AirPlay, Skip Intro and Up Next.</p>
       </div>
     </section>
 
