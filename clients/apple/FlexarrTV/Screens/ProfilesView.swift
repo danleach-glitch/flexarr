@@ -212,7 +212,7 @@ private struct PinPad: View {
                 .frame(height: 40)
                 Text(error ?? (checking ? "Checking" : " "))
                     .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(Color.screen)
+                    .foregroundStyle(error == nil ? Color.screen : Color.danger)
             }
             .frame(width: 640)
 

@@ -10,6 +10,8 @@ extension Color {
     static let screen = Color(rgb: RGB(hex: "#F2EEE7")!)
     static let usher = Color(rgb: RGB(hex: "#A39AAE")!)
     static let silver = Color(rgb: .silver)
+    /// Errors, as the web app's `--danger`: a soft coral that reads on the room without shouting.
+    static let danger = Color(rgb: RGB(hex: "#F08A7E")!)
 
     init(rgb: RGB) {
         self.init(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)
