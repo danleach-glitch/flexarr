@@ -57,10 +57,14 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
-builder.Services.AddHttpClient<ArrClient>();
+builder.Services.AddMemoryCache();
+// Pages that call the *arrs cut each call shorter themselves; this bounds the big ones (every film, for a refresh).
+builder.Services.AddHttpClient<ArrClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient<SeerrClient>(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
-builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30));
+// ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere.
+builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
@@ -101,6 +105,19 @@ builder.Services.AddHostedService<MarkerDetectionWorker>();
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
 builder.Services.AddHostedService<LibraryScanWorker>();
 
+// JSON, the web app and playlists shrink a lot; video segments and images are compressed already, so aren't listed.
+builder.Services.AddResponseCompression(o =>
+{
+    // Behind Tailscale or cloudflared most requests arrive as https.
+    o.EnableForHttps = true;
+    o.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    o.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    o.MimeTypes = [.. Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes,
+        "application/problem+json", "application/vnd.apple.mpegurl", "application/x-mpegURL", "text/vtt", "image/svg+xml", "application/manifest+json"];
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
+
 var app = builder.Build();
 
 // Materialise options at startup so a first-run API key is generated and logged immediately.
@@ -122,8 +139,26 @@ app.Use((http, next) =>
 });
 app.UseForwardedHeaders();
 app.UseFlexarrSecurityHeaders();
+app.UseResponseCompression();
+
+// Vite names /assets/* by content hash, so they never change; index.html must be fetched fresh to pick up a deploy.
+var webApp = new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var headers = context.Context.Response.Headers;
+        if (context.Context.Request.Path.StartsWithSegments("/assets", StringComparison.Ordinal))
+        {
+            headers.CacheControl = "public, max-age=31536000, immutable";
+        }
+        else if (context.File.Name == "index.html")
+        {
+            headers.CacheControl = "no-cache";
+        }
+    },
+};
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(webApp);
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -166,7 +201,7 @@ app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImage
 app.MapMediaBrowserEndpoints();
 
 // The web client is a SPA; let it own every non-API route.
-app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html", webApp);
 
 await app.RunAsync();
 

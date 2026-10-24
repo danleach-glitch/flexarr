@@ -39,7 +39,8 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        foreach (var arg in new[] { "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path })
+        // -i, so a file named like an option is still read as a file; local files only, whatever the file points at.
+        foreach (var arg in new[] { "-v", "error", "-protocol_whitelist", "file", "-print_format", "json", "-show_format", "-show_streams", "-i", path })
         {
             start.ArgumentList.Add(arg);
         }

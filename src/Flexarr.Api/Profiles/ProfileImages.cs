@@ -29,8 +29,16 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
                 await image.CopyToAsync(file, ct);
             }
 
+            // Read as the kind of image it is (HEIC and AVIF from phones through the mov demuxer), never as a
+            // playlist or anything else that could make ffmpeg open other files.
+            if (await InputFormatAsync(source, ct) is not { } format)
+            {
+                return false;
+            }
+
             // Centre-crop to a square, then scale: avatars are always shown as circles.
-            string[] args = ["-v", "error", "-y", "-i", source, "-vf", $"crop='min(iw,ih)':'min(iw,ih)',scale={Size}:{Size}", "-frames:v", "1", "-update", "1", "-q:v", "3", output];
+            string[] args = ["-v", "error", "-y", "-protocol_whitelist", "file", "-f", format, "-i", source,
+                "-vf", $"crop='min(iw,ih)':'min(iw,ih)',scale={Size}:{Size}", "-frames:v", "1", "-update", "1", "-q:v", "3", output];
             if (!await RunFfmpegAsync(args, ct) || !File.Exists(output))
             {
                 return false;
@@ -47,6 +55,15 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
     }
 
     public void Delete(string profileId) => File.Delete(PathFor(profileId));
+
+    private static async Task<string?> InputFormatAsync(string path, CancellationToken ct)
+    {
+        var header = new byte[12];
+        await using var file = File.OpenRead(path);
+        var read = await file.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct);
+        return Flexarr.Metadata.ImageCache.InputFormat(header.AsSpan(0, read))
+            ?? (read == 12 && header.AsSpan(4, 4).SequenceEqual("ftyp"u8) ? "mov" : null);
+    }
 
     private async Task<bool> RunFfmpegAsync(string[] args, CancellationToken ct)
     {

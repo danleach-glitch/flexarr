@@ -102,7 +102,7 @@ public static partial class Subtitles
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(embedded[0].Target)!);
-        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-i", file.Path, "-vn", "-an", "-dn" };
+        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file", "-i", file.Path, "-vn", "-an", "-dn" };
         foreach (var (track, target) in embedded)
         {
             args.AddRange(["-map", $"0:{track.StreamIndex}", "-c:s", "webvtt", "-f", "webvtt", target + ".tmp"]);
@@ -134,7 +134,9 @@ public static partial class Subtitles
         // Older sidecars are often Windows-1252 rather than UTF-8: try UTF-8 first, then fall back.
         foreach (var encoding in new[] { "UTF-8", "CP1252" })
         {
-            if (await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-sub_charenc", encoding, "-i", source, "-c:s", "webvtt", "-f", "webvtt", partial], ct).ConfigureAwait(false))
+            // Read as the subtitle format its name says, so a sidecar can't pass itself off as a playlist of other files.
+            if (await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file", .. SidecarFormat(source),
+                    "-sub_charenc", encoding, "-i", source, "-c:s", "webvtt", "-f", "webvtt", partial], ct).ConfigureAwait(false))
             {
                 File.Move(partial, target, overwrite: true);
                 return true;
@@ -144,6 +146,15 @@ public static partial class Subtitles
         File.Delete(partial);
         return false;
     }
+
+    /// <summary>ffmpeg's demuxer for a sidecar (its ass demuxer reads .ssa too).</summary>
+    internal static string[] SidecarFormat(string path) => SidecarCodecs.GetValueOrDefault(Path.GetExtension(path)) switch
+    {
+        "subrip" => ["-f", "srt"],
+        "webvtt" => ["-f", "webvtt"],
+        "ass" or "ssa" => ["-f", "ass"],
+        _ => [],
+    };
 
     private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct)
     {

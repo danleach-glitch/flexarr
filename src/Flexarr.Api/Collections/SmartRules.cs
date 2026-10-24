@@ -124,7 +124,7 @@ public sealed record CollectionSuggestionDto(string Name, string Description, Sm
 /// <summary>Collections the library would make good ones of: its directors and actors, genre-and-decade runs, the season, and the year's best.</summary>
 public static class CollectionSuggestions
 {
-    public static async Task<List<CollectionSuggestionDto>> ForAsync(FlexarrDbContext db, string profileId, IReadOnlySet<string> taken, CancellationToken ct)
+    public static async Task<List<CollectionSuggestionDto>> ForAsync(FlexarrDbContext db, string profileId, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         var ideas = new List<(string Name, string Description, SmartRules Rules)>
@@ -174,7 +174,7 @@ public static class CollectionSuggestions
             new SmartRules(Type: "movie", Genres: [g.Name], YearFrom: g.Decade, YearTo: g.Decade + 9))));
 
         var suggestions = new List<CollectionSuggestionDto>();
-        foreach (var (name, description, rules) in ideas.Where(i => !taken.Contains(i.Name)))
+        foreach (var (name, description, rules) in ideas)
         {
             var items = await rules.Query(db, profileId, now).Take(4).Summaries(profileId).ToListAsync(ct);
             if (items.Count < 3)

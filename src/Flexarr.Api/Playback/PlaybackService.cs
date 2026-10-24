@@ -267,11 +267,9 @@ public sealed class PlaybackService(
             return inProgress;
         }
 
-        var last = await mine.Where(p => p.Watched).OrderByDescending(p => p.LastPlayedAt).Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
-        if (last is not null && await NextEpisodeAsync(last, ct) is { } next
-            && !await mine.AnyAsync(p => p.MediaItemId == next.Id && p.Watched, ct))
+        if (UpNext(await EpisodesAsync(db, profile.Id, [seriesId], ct)) is { } next)
         {
-            return next;
+            return await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct);
         }
 
         var ordered = episodes.OrderBy(e => e.SeasonNumber == 0).ThenBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle);
@@ -282,27 +280,70 @@ public sealed class PlaybackService(
     /// <summary>The episode after this one: next in the season, else the first of the next season.</summary>
     public async Task<MediaItem?> NextEpisodeAsync(MediaItem episode, CancellationToken ct)
     {
-        if (episode.Kind != MediaKind.Episode || episode.ParentId is not { } seasonId)
+        if (episode.Kind != MediaKind.Episode || episode.ParentId is not { } seasonId
+            || await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is not { } seriesId)
         {
             return null;
         }
 
-        var after = episode.EpisodeNumberEnd ?? episode.EpisodeNumber ?? 0;
-        var next = await db.MediaItems.AsNoTracking()
-            .Where(e => e.ParentId == seasonId && (episode.AirDate != null ? e.AirDate > episode.AirDate : e.EpisodeNumber > after))
-            .OrderBy(e => e.SortTitle).FirstOrDefaultAsync(ct);
-        if (next is not null)
+        var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
+        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && NextAfter(episodes, current) is { } next
+            ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct)
+            : null;
+    }
+
+    /// <summary>What Up Next needs to know about an episode, and when this profile finished it (null if it hasn't).</summary>
+    internal sealed record EpisodeRef(
+        Guid Id, Guid SeriesId, Guid SeasonId, int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, string SortTitle, DateTime? WatchedAt);
+
+    /// <summary>Every episode of these shows, in one query.</summary>
+    internal static Task<List<EpisodeRef>> EpisodesAsync(FlexarrDbContext db, string profileId, IReadOnlyList<Guid> seriesIds, CancellationToken ct) =>
+        db.MediaItems.AsNoTracking()
+            .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && seriesIds.Contains(e.Parent.ParentId.Value))
+            .Select(e => new EpisodeRef(e.Id, e.Parent!.ParentId!.Value, e.ParentId!.Value, e.Parent.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd, e.AirDate, e.SortTitle,
+                e.PlaybackStates.Where(p => p.UserId == profileId && p.Watched).Select(p => (DateTime?)p.LastPlayedAt).FirstOrDefault()))
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// The unwatched episode after the last one watched, from one show's episodes. A special watched in the middle
+    /// of a run doesn't take over: Up Next carries on from the latest regular episode.
+    /// </summary>
+    internal static EpisodeRef? UpNext(IReadOnlyList<EpisodeRef> episodes)
+    {
+        var watched = episodes.Where(e => e.WatchedAt is not null).ToList();
+        var last = watched.MaxBy(e => e.WatchedAt);
+        if (last?.SeasonNumber == 0)
         {
-            return next;
+            last = watched.Where(e => e.SeasonNumber != 0).MaxBy(e => e.WatchedAt) ?? last;
         }
 
-        var season = await db.MediaItems.AsNoTracking().FirstAsync(s => s.Id == seasonId, ct);
-        var nextSeason = await db.MediaItems.AsNoTracking()
-            .Where(s => s.ParentId == season.ParentId && s.SeasonNumber > season.SeasonNumber && s.SeasonNumber > 0)
-            .OrderBy(s => s.SeasonNumber).FirstOrDefaultAsync(ct);
-        return nextSeason is null ? null
-            : await db.MediaItems.AsNoTracking().Where(e => e.ParentId == nextSeason.Id).OrderBy(e => e.SortTitle).FirstOrDefaultAsync(ct);
+        return last is not null && NextAfter(episodes, last) is { WatchedAt: null } next ? next : null;
     }
+
+    /// <summary>
+    /// The episode after <paramref name="current"/>: next in its season, else the first of the next regular season.
+    /// Daily shows go by air date, then title order, so two episodes on one day are both seen.
+    /// </summary>
+    internal static EpisodeRef? NextAfter(IReadOnlyList<EpisodeRef> episodes, EpisodeRef current)
+    {
+        var season = episodes.Where(e => e.SeasonId == current.SeasonId);
+        EpisodeRef? next;
+        if (current.AirDate is not null)
+        {
+            var byDate = season.Where(e => e.AirDate is not null)
+                .OrderBy(e => e.AirDate).ThenBy(e => e.SortTitle, StringComparer.Ordinal).ThenBy(e => e.Id).ToList();
+            next = byDate.SkipWhile(e => e.Id != current.Id).Skip(1).FirstOrDefault();
+        }
+        else
+        {
+            var after = current.EpisodeNumberEnd ?? current.EpisodeNumber ?? 0;
+            next = season.Where(e => e.EpisodeNumber > after).OrderBy(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+        }
+
+        return next ?? episodes.Where(e => e.SeasonNumber > current.SeasonNumber && e.SeasonNumber > 0)
+            .OrderBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+    }
+
 
     public static string MasterPlaylist(PlaybackSession session, bool includeSubtitles)
     {
