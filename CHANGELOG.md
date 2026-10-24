@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Changed
+- The countdown says **Next episode in…** when shuffling too, rather than calling it a random one.
+
 ## 0.13.0 · 24 October 2026
 
 ### Getting ready for the App Store

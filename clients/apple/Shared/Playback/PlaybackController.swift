@@ -508,10 +508,9 @@ final class PlaybackController: NSObject {
         if !ended { player?.play() }
     }
 
-    /// "Next Episode in 4", or the shuffle's "Next Random Episode".
+    /// "Next Episode in 4" (on shuffle too: the next one just happens to be random).
     private var nextTitle: String {
-        let base = shuffling ? "Next Random Episode" : "Next Episode"
-        return countdown.map { "\(base) in \($0)" } ?? base
+        countdown.map { "Next Episode in \($0)" } ?? "Next Episode"
     }
 
     private func updateContextualActions() {

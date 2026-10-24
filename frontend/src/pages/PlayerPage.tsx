@@ -753,7 +753,7 @@ export function PlayerPage() {
           </div>
           <div className="up-next-text">
             <span className="muted">
-              {shuffle ? 'Shuffle: next' : 'Next episode'}
+              Next episode
               {counting ? ` in ${Math.max(0, countdown)}` : ''}
             </span>
             <strong>
@@ -785,7 +785,7 @@ export function PlayerPage() {
             <Forward10 />
           </button>
           {info?.next && (
-            <button className="icon-button" onClick={playNext} aria-label={shuffle ? 'Next random episode' : 'Next episode'}>
+            <button className="icon-button" onClick={playNext} aria-label="Next episode">
               <Next />
             </button>
           )}
