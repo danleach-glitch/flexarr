@@ -1,181 +1,372 @@
-import { Link, useParams } from 'react-router'
-import { getItem, type ItemDetail, type ItemSummary, type MediaFile } from '../api/client'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
+import {
+  analyzeItem,
+  getItem,
+  getNextUp,
+  getSimilar,
+  imageUrl,
+  setWatched,
+  type Credit,
+  type ItemDetail,
+  type ItemSummary,
+  type MediaFile,
+} from '../api/client'
 import { Artwork } from '../components/Artwork'
-import { PosterCard } from '../components/PosterCard'
+import { PosterCard } from '../components/Cards'
+import { Facts } from '../components/Hero'
+import { Check, Film, Play } from '../components/icons'
+import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
-import { episodeCode, formatBitrate, formatChannels, formatDuration, formatSize, rangeLabel } from '../lib/format'
+import {
+  episodeCode,
+  episodeLabel,
+  formatBitrate,
+  formatChannels,
+  formatClock,
+  formatDuration,
+  formatSize,
+  progressOf,
+  rangeLabel,
+} from '../lib/format'
 
 export function ItemPage() {
   const { id = '' } = useParams()
-  const { data, error } = useApi((signal) => getItem(id, signal), [id])
+  const [version, setVersion] = useState(0)
+  const { data, error } = useApi((signal) => getItem(id, signal), [id, version])
 
-  if (error) return <p className="error">{error.message}</p>
-  if (!data) return <p className="muted">Loading…</p>
+  if (error) return <p className="page-message error">{error.message}</p>
+  if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
 
-  const { item, ancestors, children, files } = data
-  const best = files[0]
+  // Seasons live on their series' page.
+  if (data.item.kind === 'Season' && data.item.parentId) {
+    return <Navigate to={`/item/${data.item.parentId}?season=${data.item.seasonNumber}`} replace />
+  }
+
+  return <Detail key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
+}
+
+function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void }) {
+  const { item, ancestors } = detail
+  const series = ancestors[0]
+  const navigate = useNavigate()
+  const [trailer, setTrailer] = useState(false)
+  const nextUp = useApi((signal) => (item.kind === 'Series' ? getNextUp(item.id, signal) : Promise.resolve(undefined)), [item.id, item.userData.unwatchedCount])
+  const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
+
+  const accent = item.accentColor ?? series?.accentColor
+  const backdrop = item.artwork.backdrop ?? series?.artwork.backdrop
+  const logo = item.kind === 'Episode' ? series?.artwork.logo : item.artwork.logo
+  const progress = progressOf(item)
+  const best = detail.files[0]
+
+  async function toggleWatched() {
+    await setWatched(item.id, !item.userData.watched)
+    onChange()
+  }
+
+  const playTarget = item.kind === 'Series' ? nextUp.data : item
+  const playLabel = (() => {
+    if (item.kind === 'Series') {
+      if (!nextUp.data) return 'Play'
+      const resume = nextUp.data.userData.positionSeconds > 0
+      return `${resume ? 'Resume' : 'Play'} ${episodeCode(nextUp.data)}`
+    }
+    return progress ? `Resume from ${formatClock(item.userData.positionSeconds)}` : 'Play'
+  })()
 
   return (
-    <article className="item-page">
-      {ancestors.length > 0 && (
-        <nav className="breadcrumbs" aria-label="Breadcrumb">
-          {ancestors.map((a) => (
-            <Link key={a.id} to={`/item/${a.id}`}>
-              {a.title}
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      <header className="item-hero">
-        <Artwork title={ancestors[0]?.title ?? item.title} />
-        <div className="item-hero-text">
-          <h1>{item.title}</h1>
-          <p className="item-meta">
-            {[
-              item.kind === 'Episode' ? episodeCode(item) : null,
-              item.year,
-              formatDuration(item.durationSeconds),
+    <article className="detail" style={accent ? ({ '--ambient': accent } as CSSProperties) : undefined}>
+      <section className="detail-hero">
+        <div className="detail-art" aria-hidden="true">
+          {backdrop && <img src={imageUrl(backdrop, 1920)} alt="" />}
+        </div>
+        <div className="detail-hero-content">
+          {item.kind === 'Episode' && series && (
+            <p className="detail-kicker">
+              <Link to={`/item/${series.id}?season=${item.seasonNumber}`}>{series.title}</Link>
+              <span className="muted">{episodeLabel(item)}</span>
+            </p>
+          )}
+          {logo && item.kind !== 'Episode' ? (
+            <h1 className="detail-logo">
+              <img src={imageUrl(logo, 780)} alt={item.title} />
+            </h1>
+          ) : (
+            <h1 className="detail-title">{item.title}</h1>
+          )}
+          <Facts
+            item={item}
+            extra={[
               item.resolution,
               best ? rangeLabel[best.videoRange] : null,
-              item.kind === 'Series' ? `${children.length} ${children.length === 1 ? 'season' : 'seasons'}` : null,
-              item.kind === 'Season' ? `${children.length} ${children.length === 1 ? 'episode' : 'episodes'}` : null,
-            ]
-              .filter(Boolean)
-              .map((part) => (
-                <span key={String(part)}>{part}</span>
+              item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(undefined, { dateStyle: 'medium' }) : null,
+            ]}
+          />
+          {detail.overview && <p className="detail-overview">{detail.overview}</p>}
+          <div className="detail-actions">
+            {playTarget && (
+              <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>
+                <Play /> {playLabel}
+              </button>
+            )}
+            {progress !== null && (
+              <button className="button quiet" onClick={() => navigate(`/play/${item.id}?t=0`)}>
+                Start over
+              </button>
+            )}
+            {detail.trailerYouTubeId && (
+              <button className="button quiet" onClick={() => setTrailer(true)}>
+                <Film /> Trailer
+              </button>
+            )}
+            <button className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
+              <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
+            </button>
+          </div>
+          {progress !== null && (
+            <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% watched`}>
+              <span style={{ width: `${progress * 100}%` }} />
+            </span>
+          )}
+          {detail.genres.length > 0 && (
+            <p className="detail-genres">
+              {detail.genres.map((g) => (
+                <Link key={g} className="chip" to={`/discover?genre=${encodeURIComponent(g)}`}>
+                  {g}
+                </Link>
               ))}
-          </p>
-          <ExternalLinks detail={data} />
+            </p>
+          )}
         </div>
-      </header>
+      </section>
 
-      {item.kind === 'Series' && <ChildGrid title="Seasons" items={children} />}
-      {item.kind === 'Season' && <EpisodeList episodes={children} />}
+      <div className="detail-body">
+        {item.kind === 'Series' && <Seasons series={detail} onChange={onChange} />}
+        {detail.credits.length > 0 && <Cast credits={detail.credits} studio={detail.studio} />}
+        {similar.data && similar.data.length > 0 && (
+          <Row title="More like this">
+            {similar.data.map((s) => (
+              <PosterCard key={s.id} item={s} />
+            ))}
+          </Row>
+        )}
+        {detail.files.length > 0 && <FileInfo files={detail.files} itemId={item.id} kind={item.kind} />}
+      </div>
 
-      {files.length > 0 && (
-        <section>
-          <h2 className="section-title">{files.length > 1 ? `${files.length} versions` : 'File'}</h2>
-          {files.map((file) => (
-            <FileDetails key={file.id} file={file} />
-          ))}
-        </section>
-      )}
+      {trailer && detail.trailerYouTubeId && <TrailerDialog videoId={detail.trailerYouTubeId} title={item.title} onClose={() => setTrailer(false)} />}
     </article>
   )
 }
 
-function ExternalLinks({ detail }: { detail: ItemDetail }) {
-  const links = [
-    detail.imdbId && { label: 'IMDb', href: `https://www.imdb.com/title/${detail.imdbId}/` },
-    detail.tmdbId && { label: 'TMDB', href: `https://www.themoviedb.org/${detail.item.kind === 'Movie' ? 'movie' : 'tv'}/${detail.tmdbId}` },
-    detail.tvdbId && { label: 'TVDB', href: `https://thetvdb.com/?tab=series&id=${detail.tvdbId}` },
-  ].filter((l): l is { label: string; href: string } => !!l)
-
-  if (links.length === 0) return null
-  return (
-    <p className="external-links">
-      {links.map((l) => (
-        <a key={l.label} href={l.href} target="_blank" rel="noreferrer">
-          {l.label}
-        </a>
-      ))}
-    </p>
+function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => void }) {
+  const [params, setParams] = useSearchParams()
+  // Specials go last, as on most services.
+  const seasons = useMemo(
+    () => [...series.children].sort((a, b) => (a.seasonNumber === 0 ? 1 : 0) - (b.seasonNumber === 0 ? 1 : 0) || (a.seasonNumber ?? 0) - (b.seasonNumber ?? 0)),
+    [series.children],
   )
-}
+  const requested = params.get('season')
+  const firstUnwatched = seasons.find((s) => !s.userData.watched && s.seasonNumber !== 0)
+  const selected = seasons.find((s) => String(s.seasonNumber) === requested) ?? firstUnwatched ?? seasons[0]
+  const [version, setVersion] = useState(0)
+  const season = useApi((signal) => (selected ? getItem(selected.id, signal) : Promise.resolve(undefined)), [selected?.id, version])
 
-function ChildGrid({ title, items }: { title: string; items: ItemSummary[] }) {
+  if (!selected) return null
+
   return (
-    <section>
-      <h2 className="section-title">{title}</h2>
-      <div className="poster-grid">
-        {items.map((child) => (
-          <PosterCard key={child.id} item={child} />
+    <section className="seasons">
+      <div className="season-tabs" role="tablist" aria-label="Seasons">
+        {seasons.map((s) => (
+          <button
+            key={s.id}
+            role="tab"
+            aria-selected={s.id === selected.id}
+            className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
+            onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
+          >
+            {s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
+            {s.userData.watched && <Check aria-label="watched" />}
+          </button>
         ))}
       </div>
-    </section>
-  )
-}
-
-function EpisodeList({ episodes }: { episodes: ItemSummary[] }) {
-  return (
-    <section>
-      <h2 className="section-title">Episodes</h2>
+      <div className="season-toolbar">
+        <span className="muted">{season.data ? `${season.data.children.length} episodes` : ''}</span>
+        <button
+          className="text-button"
+          onClick={async () => {
+            await setWatched(selected.id, !selected.userData.watched)
+            setVersion((v) => v + 1)
+            onChange()
+          }}
+        >
+          {selected.userData.watched ? 'Mark season unwatched' : 'Mark season watched'}
+        </button>
+      </div>
       <ol className="episode-list">
-        {episodes.map((ep) => (
-          <li key={ep.id}>
-            <Link to={`/item/${ep.id}`}>
-              <span className="episode-number">{ep.airDate ?? (ep.episodeNumberEnd ? `${ep.episodeNumber}–${ep.episodeNumberEnd}` : ep.episodeNumber)}</span>
-              <span className="episode-title">{ep.title}</span>
-              <span className="muted">{[formatDuration(ep.durationSeconds), ep.resolution].filter(Boolean).join(' · ')}</span>
-            </Link>
-          </li>
+        {season.data?.children.map((episode) => (
+          <Episode
+            key={episode.id}
+            episode={episode}
+            overview={season.data?.childOverviews[episode.id] ?? null}
+            onToggle={async () => {
+              await setWatched(episode.id, !episode.userData.watched)
+              setVersion((v) => v + 1)
+              onChange()
+            }}
+          />
         ))}
       </ol>
     </section>
   )
 }
 
-function FileDetails({ file }: { file: MediaFile }) {
-  const video = [file.videoCodec?.toUpperCase(), file.width && file.height ? `${file.width}×${file.height}` : null, rangeLabel[file.videoRange]]
-  const audio = [file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)]
+function Episode({ episode, overview, onToggle }: { episode: ItemSummary; overview: string | null; onToggle: () => void }) {
+  const progress = progressOf(episode)
 
   return (
-    <div className="card file-card">
-      <code className="file-path">{file.path}</code>
-      {file.probeError && <p className="error">Couldn't read this file: {file.probeError}</p>}
-      <dl>
-        <dt>Container</dt>
-        <dd>{file.container?.toUpperCase() ?? '—'}</dd>
-        <dt>Video</dt>
-        <dd>{video.filter(Boolean).join(' · ') || '—'}</dd>
-        <dt>Audio</dt>
-        <dd>{audio.filter(Boolean).join(' · ') || '—'}</dd>
-        <dt>Size</dt>
-        <dd>{[formatSize(file.size), formatBitrate(file.bitrate)].filter(Boolean).join(' · ')}</dd>
-        <dt>Duration</dt>
-        <dd>{formatDuration(file.durationSeconds) ?? '—'}</dd>
-      </dl>
-      {file.streams.length > 0 && (
-        <details>
-          <summary>{file.streams.length} streams</summary>
-          <table className="streams">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Type</th>
-                <th>Codec</th>
-                <th>Language</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {file.streams.map((s) => (
-                <tr key={s.index}>
-                  <td>{s.index}</td>
-                  <td>{s.type}</td>
-                  <td>
-                    {s.codec}
-                    {s.profile ? ` (${s.profile})` : ''}
-                  </td>
-                  <td>{s.language ?? '—'}</td>
-                  <td>
-                    {[
-                      s.title,
-                      s.width && s.height ? `${s.width}×${s.height}` : null,
-                      formatChannels(s.channels),
-                      s.isDefault ? 'default' : null,
-                      s.isForced ? 'forced' : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
+    <li className={episode.userData.watched ? 'episode watched' : 'episode'}>
+      <Link to={`/play/${episode.id}`} className="episode-still" aria-label={`Play ${episode.title}`}>
+        <Artwork src={episode.artwork.thumb} title={episode.title} width={500} shape="wide" />
+        <span className="episode-play" aria-hidden="true">
+          <Play />
+        </span>
+        {progress !== null && (
+          <span className="progress">
+            <span style={{ width: `${progress * 100}%` }} />
+          </span>
+        )}
+      </Link>
+      <div className="episode-text">
+        <h3>
+          <span className="episode-number">{episode.airDate ? '' : episode.episodeNumberEnd ? `${episode.episodeNumber}–${episode.episodeNumberEnd}` : episode.episodeNumber}</span>
+          <Link to={`/item/${episode.id}`}>{episode.title}</Link>
+        </h3>
+        <p className="episode-facts muted">
+          {[formatDuration(episode.durationSeconds ?? (episode.runtimeMinutes ?? 0) * 60), episode.releaseDate && new Date(episode.releaseDate).toLocaleDateString(undefined, { dateStyle: 'medium' })]
+            .filter(Boolean)
+            .map((f) => (
+              <span key={String(f)}>{f}</span>
+            ))}
+        </p>
+        {overview && <p className="episode-overview">{overview}</p>}
+      </div>
+      <button className="icon-button watched-toggle" aria-pressed={episode.userData.watched} aria-label={episode.userData.watched ? 'Mark unwatched' : 'Mark watched'} onClick={onToggle}>
+        <Check />
+      </button>
+    </li>
+  )
+}
+
+function Cast({ credits, studio }: { credits: Credit[]; studio: string | null }) {
+  const cast = credits.filter((c) => c.role === 'Actor')
+  const crew = credits.filter((c) => c.role !== 'Actor')
+  const roles = { Director: 'Directed by', Writer: 'Written by', Creator: 'Created by', Producer: 'Produced by' } as const
+
+  return (
+    <section className="cast">
+      {cast.length > 0 && (
+        <Row title="Cast" style="people">
+          {cast.map((c) => (
+            <Link key={`${c.personId}-${c.character}`} to={`/person/${c.personId}`} className="card person-card">
+              <div className="card-frame">
+                <Artwork src={c.image} title={c.name} width={185} shape="portrait" />
+              </div>
+              <span className="card-title">{c.name}</span>
+              {c.character && <span className="card-subtitle">{c.character}</span>}
+            </Link>
+          ))}
+        </Row>
       )}
+      {(crew.length > 0 || studio) && (
+        <dl className="crew">
+          {Object.entries(roles).map(([role, label]) => {
+            const people = crew.filter((c) => c.role === role)
+            return people.length ? (
+              <div key={role}>
+                <dt>{label}</dt>
+                <dd>
+                  {people.map((p, i) => (
+                    <span key={p.personId}>
+                      {i > 0 && ', '}
+                      <Link to={`/person/${p.personId}`}>{p.name}</Link>
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            ) : null
+          })}
+          {studio && (
+            <div>
+              <dt>From</dt>
+              <dd>{studio}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </section>
+  )
+}
+
+function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string; kind: string }) {
+  const [queued, setQueued] = useState(false)
+  return (
+    <details className="file-info">
+      <summary>{files.length > 1 ? `${files.length} versions on disk` : 'File and stream details'}</summary>
+      {files.map((file) => (
+        <div key={file.id} className="file">
+          <code>{file.path}</code>
+          {file.probeError && <p className="error">This file couldn't be read: {file.probeError}</p>}
+          <dl>
+            <dt>Video</dt>
+            <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, rangeLabel[file.videoRange]].filter(Boolean).join(', ') || 'None'}</dd>
+            <dt>Audio</dt>
+            <dd>{[file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)].filter(Boolean).join(', ') || 'None'}</dd>
+            <dt>File</dt>
+            <dd>{[file.container?.toUpperCase(), formatSize(file.size), formatBitrate(file.bitrate)].filter(Boolean).join(', ')}</dd>
+            <dt>Subtitles</dt>
+            <dd>
+              {file.streams
+                .filter((s) => s.type === 'Subtitle')
+                .map((s) => s.language ?? 'unknown')
+                .join(', ') || 'None embedded'}
+            </dd>
+          </dl>
+        </div>
+      ))}
+      {kind === 'Episode' && (
+        <button
+          className="text-button"
+          disabled={queued}
+          onClick={() => analyzeItem(itemId).then(() => setQueued(true))}
+        >
+          {queued ? 'Queued: intros and credits for this season will be re-detected shortly' : 'Re-detect intros and credits for this season'}
+        </button>
+      )}
+    </details>
+  )
+}
+
+function TrailerDialog({ videoId, title, onClose }: { videoId: string; title: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="trailer" role="dialog" aria-modal="true" aria-label={`${title} trailer`} onClick={(e) => e.stopPropagation()}>
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+          title={`${title} trailer`}
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+        />
+        <button className="button quiet small trailer-close" onClick={onClose} autoFocus>
+          Close
+        </button>
+      </div>
     </div>
   )
 }

@@ -19,6 +19,8 @@ public sealed class PlaybackSession
     public string? AudioLanguage { get; init; }
     public string? SubtitleLanguage { get; init; }
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
+    public double LastPosition { get; set; }
+    public bool Paused { get; set; }
     public bool CountedAsPlay { get; set; }
 }
 

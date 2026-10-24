@@ -1,23 +1,37 @@
-/** Placeholder artwork until metadata agents bring real posters: a stable gradient per title. */
-export function Artwork({ title, shape = 'poster' }: { title: string; shape?: 'poster' | 'wide' }) {
-  let hash = 0
-  for (const char of title) hash = (hash * 31 + char.charCodeAt(0)) | 0
-  const hue = Math.abs(hash) % 360
-  const initials = title
-    .replace(/^(the|a|an)\s+/i, '')
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
+import { useState, type CSSProperties } from 'react'
+import { imageUrl } from '../api/client'
+
+/**
+ * Artwork with a typographic fallback: when there's no image (or it fails), the title is set in the
+ * marquee face on a tint of the title's ambient colour, so a missing poster still looks deliberate.
+ */
+export function Artwork({
+  src,
+  title,
+  width,
+  shape = 'poster',
+  accent,
+  eager = false,
+}: {
+  src: string | null | undefined
+  title: string
+  width: number
+  shape?: 'poster' | 'wide' | 'square' | 'portrait'
+  accent?: string | null
+  eager?: boolean
+}) {
+  const [failed, setFailed] = useState(false)
+  const url = imageUrl(src, width)
 
   return (
-    <div
-      className={`artwork artwork-${shape}`}
-      style={{ background: `linear-gradient(145deg, hsl(${hue} 45% 32%), hsl(${(hue + 40) % 360} 50% 16%))` }}
-      aria-hidden="true"
-    >
-      <span>{initials}</span>
+    <div className={`artwork artwork-${shape}`} style={accent ? { '--ambient': accent } as CSSProperties : undefined}>
+      {url && !failed ? (
+        <img src={url} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
+      ) : (
+        <span className="artwork-fallback" aria-hidden="true">
+          {title}
+        </span>
+      )}
     </div>
   )
 }

@@ -1,0 +1,233 @@
+using System.Globalization;
+using Flexarr.Api.Playback;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
+
+namespace Flexarr.Api.Endpoints;
+
+public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null);
+
+public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows);
+
+public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
+
+public sealed record SearchResultsDto(IReadOnlyList<ItemSummaryDto> Titles, IReadOnlyList<ItemSummaryDto> Episodes, IReadOnlyList<SearchPersonDto> People, IReadOnlyList<string> Genres);
+
+public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
+
+public static class DiscoveryEndpoints
+{
+    private const int RowSize = 20;
+
+    public static RouteGroupBuilder MapDiscoveryEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapGet("/home", async (FlexarrDbContext db, IServiceProvider services, CancellationToken ct) =>
+        {
+            var rows = new List<HomeRowDto>();
+            var states = db.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser);
+            var topLevel = db.MediaItems.Where(i => i.ParentId == null);
+            var unwatchedMovies = topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == PlaybackState.DefaultUser && p.Watched));
+
+            var continueWatching = await ContinueWatchingAsync(db, services.GetRequiredService<PlaybackService>(), RowSize, ct);
+            if (continueWatching.Count > 0)
+            {
+                rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
+            }
+
+            var libraries = await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct);
+            foreach (var library in libraries)
+            {
+                var recent = library.Type == LibraryType.Movies
+                    ? db.MediaItems.Where(i => i.LibraryId == library.Id && i.Kind == MediaKind.Movie).OrderByDescending(i => i.AddedAt)
+                    // A show's newest episodes bubble the show up, rather than listing every episode.
+                    : topLevel.Where(i => i.LibraryId == library.Id).OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
+                rows.Add(new HomeRowDto($"recent-{library.Id}", $"New in {library.Name}", "poster",
+                    await recent.Take(RowSize).Summaries().ToListAsync(ct), $"/library/{library.Id}?sort=added"));
+            }
+
+            rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
+                await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries().ToListAsync(ct)));
+            rows.Add(new HomeRowDto("top-shows", "Top 10 shows in your library", "top10",
+                await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries().ToListAsync(ct)));
+
+            // "Because you watched": share genres and cast with the latest thing finished.
+            var lastWatched = await states.Where(p => p.Watched).OrderByDescending(p => p.LastPlayedAt)
+                .Select(p => p.MediaItem!.Kind == MediaKind.Episode ? p.MediaItem.Parent!.Parent! : p.MediaItem)
+                .FirstOrDefaultAsync(ct);
+            if (lastWatched is not null)
+            {
+                var similar = await SimilarAsync(db, lastWatched.Id, ct);
+                if (similar.Count >= 4)
+                {
+                    rows.Add(new HomeRowDto("because", $"Because you watched {lastWatched.Title}", "poster", similar));
+                }
+            }
+
+            // A few genre rows, rotating daily so the home screen doesn't go stale.
+            var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.ParentId == null) })
+                .Where(g => g.Count >= 12).OrderByDescending(g => g.Count).Take(12).ToListAsync(ct);
+            var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
+            foreach (var genre in genres.OrderBy(g => (g.Name.GetHashCode(StringComparison.Ordinal) ^ day) & int.MaxValue).Take(3))
+            {
+                var picks = await topLevel.Where(i => i.Genres.Any(g => g.Name == genre.Name) && !i.PlaybackStates.Any(p => p.Watched))
+                    .OrderByDescending(i => i.CommunityRating).Take(RowSize).Summaries().ToListAsync(ct);
+                rows.Add(new HomeRowDto($"genre-{genre.Name}", genre.Name, "poster", picks, $"/discover?genre={Uri.EscapeDataString(genre.Name)}"));
+            }
+
+            rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster",
+                await TopRated(unwatchedMovies).Skip(10).Take(RowSize).Summaries().ToListAsync(ct)));
+
+            // Featured: well-rated things with full artwork, unwatched first, changing daily.
+            var featured = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
+                .OrderBy(i => i.PlaybackStates.Any(p => p.Watched)).ThenByDescending(i => i.LogoUrl != null)
+                .Take(60).Summaries().ToListAsync(ct);
+            var rotation = featured.OrderBy(i => (i.Id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
+
+            var ids = rotation.Select(r => r.Id).ToList();
+            var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
+            return new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList());
+        }).WithTags("Discovery");
+
+        api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CancellationToken ct) =>
+            await ContinueWatchingAsync(db, playback, Math.Clamp(take ?? 20, 1, 50), ct)).WithTags("Discovery");
+
+        api.MapGet("/items/{id:guid}/similar", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+            await SimilarAsync(db, id, ct)).WithTags("Discovery");
+
+        api.MapGet("/search", async (string q, int? take, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var term = q.Trim();
+            if (term.Length == 0)
+            {
+                return new SearchResultsDto([], [], [], []);
+            }
+
+            var limit = Math.Clamp(take ?? 12, 1, 50);
+            var contains = $"%{term.Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal)}%";
+            var prefix = $"{term.Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal)}%";
+
+            // Titles that start with the term rank above titles that merely contain it.
+            var titles = await db.MediaItems
+                .Where(i => i.ParentId == null && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
+                .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
+                .Take(limit).Summaries().ToListAsync(ct);
+            var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries().ToListAsync(ct);
+            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains) && p.Credits.Any())
+                .OrderByDescending(p => EF.Functions.Like(p.Name, prefix)).ThenByDescending(p => p.Credits.Count)
+                .Take(8)
+                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count))
+                .ToListAsync(ct);
+            var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
+            return new SearchResultsDto(titles, episodes, people, genres);
+        }).WithTags("Discovery");
+
+        api.MapGet("/genres", async (FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var genres = await db.Genres
+                .Select(g => new
+                {
+                    g.Name,
+                    Movies = g.Items.Count(i => i.Kind == MediaKind.Movie),
+                    Shows = g.Items.Count(i => i.Kind == MediaKind.Series),
+                    Candidates = g.Items.Where(i => i.BackdropUrl != null && i.CommunityRating != null)
+                        .OrderByDescending(i => i.CommunityRating).ThenByDescending(i => i.Popularity)
+                        .Select(i => new { i.Id, i.MetadataUpdatedAt }).Take(12).ToList(),
+                })
+                .Where(g => g.Movies + g.Shows > 0)
+                .OrderByDescending(g => g.Movies + g.Shows)
+                .ToListAsync(ct);
+
+            // Each genre gets its own cover: big genres share most titles, so skip ones already used.
+            var used = new HashSet<Guid>();
+            return genres.Select(g =>
+            {
+                var cover = g.Candidates.FirstOrDefault(c => used.Add(c.Id)) ?? g.Candidates.FirstOrDefault();
+                return new GenreDto(g.Name, g.Movies, g.Shows,
+                    cover is null ? null : ArtworkUrls.For(cover.Id, cover.MetadataUpdatedAt?.Ticks / 10_000_000 ?? 0, false, true, false, false).Backdrop);
+            }).ToList();
+        }).WithTags("Discovery");
+
+        api.MapGet("/genres/{name}/items", async (string name, string? kind, int? skip, int? take, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var query = db.MediaItems.Where(i => i.ParentId == null && i.Genres.Any(g => g.Name == name));
+            if (Enum.TryParse<MediaKind>(kind, ignoreCase: true, out var k))
+            {
+                query = query.Where(i => i.Kind == k);
+            }
+
+            var total = await query.CountAsync(ct);
+            var items = await TopRated(query).Skip(Math.Max(0, skip ?? 0)).Take(Math.Clamp(take ?? 60, 1, 200)).Summaries().ToListAsync(ct);
+            return new PagedDto<ItemSummaryDto>(total, items);
+        }).WithTags("Discovery");
+
+        return api;
+    }
+
+    /// <summary>Partly watched items first, then the next episode of shows in progress, most recent first.</summary>
+    public static async Task<List<ItemSummaryDto>> ContinueWatchingAsync(FlexarrDbContext db, PlaybackService playback, int limit, CancellationToken ct)
+    {
+        var states = db.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser);
+        var inProgress = await states.Where(p => !p.Watched && p.PositionSeconds > 0)
+            .OrderByDescending(p => p.LastPlayedAt).Take(limit)
+            .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent != null ? p.MediaItem.Parent.ParentId : null })
+            .ToListAsync(ct);
+
+        var since = DateTime.UtcNow.AddDays(-90);
+        var finished = await states.Where(p => p.Watched && p.LastPlayedAt > since && p.MediaItem!.Kind == MediaKind.Episode)
+            .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId })
+            .ToListAsync(ct);
+        var busy = inProgress.Select(p => p.SeriesId).Where(s => s is not null).ToHashSet();
+
+        var upNext = new List<(Guid Id, DateTime At)>();
+        foreach (var latest in finished.GroupBy(p => p.SeriesId).Select(g => g.MaxBy(p => p.LastPlayedAt)!)
+                     .Where(p => !busy.Contains(p.SeriesId)).OrderByDescending(p => p.LastPlayedAt).Take(limit))
+        {
+            var episode = await db.MediaItems.AsNoTracking().FirstAsync(i => i.Id == latest.MediaItemId, ct);
+            if (await playback.NextEpisodeAsync(episode, ct) is { } next && !await states.AnyAsync(p => p.MediaItemId == next.Id && p.Watched, ct))
+            {
+                upNext.Add((next.Id, latest.LastPlayedAt));
+            }
+        }
+
+        var order = inProgress.Select(p => (Id: p.MediaItemId, At: p.LastPlayedAt)).Concat(upNext)
+            .OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
+        var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries().ToDictionaryAsync(i => i.Id, ct);
+        return order.Where(items.ContainsKey).Select(id => items[id]).ToList();
+    }
+
+    /// <summary>Same kind, ranked by shared genres and cast, then rating.</summary>
+    public static async Task<List<ItemSummaryDto>> SimilarAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    {
+        var source = await db.MediaItems.AsNoTracking().Where(i => i.Id == id)
+            .Select(i => new { i.Kind, Genres = i.Genres.Select(g => g.Id).ToList(), People = i.Credits.Where(c => c.Order < 10 || c.Role != CreditRole.Actor).Select(c => c.PersonId).ToList() })
+            .FirstOrDefaultAsync(ct);
+        if (source is null || source.Genres.Count == 0)
+        {
+            return [];
+        }
+
+        var ranked = await db.MediaItems
+            .Where(i => i.ParentId == null && i.Kind == source.Kind && i.Id != id && i.Genres.Any(g => source.Genres.Contains(g.Id)))
+            .Select(i => new
+            {
+                i.Id,
+                Score = i.Genres.Count(g => source.Genres.Contains(g.Id)) * 2
+                    + i.Credits.Count(c => source.People.Contains(c.PersonId)) * 3
+                    + (i.CommunityRating ?? 5) / 2,
+            })
+            .OrderByDescending(x => x.Score).Take(RowSize).ToListAsync(ct);
+        var order = ranked.Select(r => r.Id).ToList();
+        var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries().ToDictionaryAsync(i => i.Id, ct);
+        return order.Select(o => items[o]).ToList();
+    }
+
+    /// <summary>Audience rating, nudged by critics where Rotten Tomatoes has a score.</summary>
+    private static IOrderedQueryable<MediaItem> TopRated(IQueryable<MediaItem> query) =>
+        query.Where(i => i.CommunityRating != null)
+            .OrderByDescending(i => i.CommunityRating + (i.CriticRating == null ? 0 : (i.CriticRating.Value - 70) / 50.0))
+            .ThenByDescending(i => i.Popularity);
+}

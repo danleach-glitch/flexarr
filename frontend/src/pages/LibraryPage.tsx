@@ -1,38 +1,48 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router'
-import { getLibraryItems, scanLibrary, type ItemSummary } from '../api/client'
-import { PosterCard } from '../components/PosterCard'
+import { useParams, useSearchParams } from 'react-router'
+import { getLibraryGenres, getLibraryItems, scanLibrary, type ItemSummary } from '../api/client'
+import { PosterCard } from '../components/Cards'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
-import { libraryTypeLabel } from '../lib/format'
+import { useApi } from '../hooks/useApi'
 
-const PAGE_SIZE = 120
+const PAGE_SIZE = 200
+const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+
+const sorts = [
+  { value: '', label: 'A–Z' },
+  { value: 'added', label: 'Recently added' },
+  { value: 'year', label: 'Newest first' },
+  { value: 'rating', label: 'Highest rated' },
+] as const
 
 export function LibraryPage() {
   const { id = '' } = useParams()
+  const [params, setParams] = useSearchParams()
+  const sort = params.get('sort') ?? ''
+  const genre = params.get('genre') ?? ''
   const { libraries, reload: reloadLibraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
+  const genres = useApi((signal) => getLibraryGenres(id, signal), [id])
 
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<ItemSummary[]>([])
   const [total, setTotal] = useState<number>()
   const [error, setError] = useState<string>()
-  const loadedFor = useRef('')
+  const grid = useRef<HTMLDivElement>(null)
 
-  // Debounce typing into the search box.
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reload the first page when the library, the search, or the library's item count changes (e.g. during a scan).
+  // Reload when filters change, and as a scan adds items.
   const itemCount = library?.itemCount
   useEffect(() => {
     const controller = new AbortController()
-    getLibraryItems(id, { search: query, take: Math.max(PAGE_SIZE, loadedFor.current === `${id}|${query}` ? items.length : 0) }, controller.signal)
+    getLibraryItems(id, { search: query, sort, genre, take: PAGE_SIZE }, controller.signal)
       .then((page) => {
-        loadedFor.current = `${id}|${query}`
         setItems(page.items)
         setTotal(page.total)
         setError(undefined)
@@ -41,68 +51,121 @@ export function LibraryPage() {
         if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e))
       })
     return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- items.length only sizes the refresh
-  }, [id, query, itemCount])
+  }, [id, query, sort, genre, itemCount])
 
   async function loadMore() {
-    const page = await getLibraryItems(id, { search: query, skip: items.length, take: PAGE_SIZE })
+    const page = await getLibraryItems(id, { search: query, sort, genre, skip: items.length, take: PAGE_SIZE })
     setItems((current) => [...current, ...page.items])
     setTotal(page.total)
   }
 
-  async function scan() {
-    await scanLibrary(id)
-    setTimeout(reloadLibraries, 2500)
+  /** Loads everything up to the letter if needed, then scrolls to its first title. */
+  async function jump(letter: string) {
+    const startsWith = (item: ItemSummary) => {
+      const first = item.title.replace(/^(the|a|an)\s+/i, '').charAt(0).toUpperCase()
+      return letter === '#' ? !/[A-Z]/.test(first) : first === letter
+    }
+    let loaded = items
+    while (!loaded.some(startsWith) && total !== undefined && loaded.length < total) {
+      const page = await getLibraryItems(id, { search: query, sort, genre, skip: loaded.length, take: PAGE_SIZE })
+      loaded = [...loaded, ...page.items]
+      setItems(loaded)
+      if (page.items.length === 0) break
+    }
+    const target = loaded.find(startsWith)
+    if (target) {
+      requestAnimationFrame(() => {
+        const el = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"] a`)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el?.focus({ preventScroll: true })
+      })
+    }
   }
 
-  if (!library) {
-    return <p className="muted">{libraries.length ? 'Library not found.' : 'Loading…'}</p>
+  function setParam(key: string, value: string) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, { replace: true })
   }
+
+  if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
 
   return (
-    <>
-      <header className="page-header">
+    <div className="library-page">
+      <header className="library-header">
         <div>
           <h1>{library.name}</h1>
           <p className="muted">
-            {libraryTypeLabel[library.type]} · {total ?? library.itemCount} {query ? 'matches' : 'items'}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : library.type === 'Movies' ? 'films' : 'shows'}
           </p>
         </div>
-        <div className="page-actions">
-          <input
-            className="search"
-            type="search"
-            placeholder={`Search ${library.name}`}
-            aria-label="Search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button className="button secondary" onClick={scan} disabled={!!library.scan}>
-            Scan
+        <div className="library-tools">
+          <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value)}>
+            {sorts.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <button
+            className="button quiet small"
+            disabled={!!library.scan}
+            onClick={() => scanLibrary(library.id).then(() => setTimeout(reloadLibraries, 2500))}
+          >
+            Scan for changes
           </button>
         </div>
       </header>
 
-      {library.scan && <ScanProgress scan={library.scan} />}
-      {error && <p className="error">{error}</p>}
-
-      {items.length === 0 && total === 0 && (
-        <p className="muted">{query ? 'Nothing matches that search.' : library.scan ? 'Items appear here as they are found.' : 'This library is empty.'}</p>
+      {genres.data && genres.data.length > 0 && (
+        <div className="genre-chips" role="group" aria-label="Filter by genre">
+          <button className="chip" aria-pressed={!genre} onClick={() => setParam('genre', '')}>
+            All
+          </button>
+          {genres.data.slice(0, 16).map((g) => (
+            <button key={g.name} className="chip" aria-pressed={genre === g.name} onClick={() => setParam('genre', genre === g.name ? '' : g.name)}>
+              {g.name}
+            </button>
+          ))}
+        </div>
       )}
 
-      <div className="poster-grid">
-        {items.map((item) => (
-          <PosterCard key={item.id} item={item} />
-        ))}
+      {library.scan && <ScanProgress scan={library.scan} />}
+      {error && <p className="error">{error}</p>}
+      {items.length === 0 && total === 0 && (
+        <p className="page-message muted">
+          {query ? `Nothing in ${library.name} matches “${query}”.` : library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}
+        </p>
+      )}
+
+      <div className="library-body">
+        <div className="poster-grid" ref={grid}>
+          {items.map((item) => (
+            <div key={item.id} data-id={item.id}>
+              <PosterCard item={item} />
+            </div>
+          ))}
+        </div>
+        {!sort && !query && items.length > 40 && (
+          <nav className="alpha-rail" aria-label="Jump to letter">
+            {LETTERS.map((l) => (
+              <button key={l} onClick={() => jump(l)}>
+                {l}
+              </button>
+            ))}
+          </nav>
+        )}
       </div>
 
       {total !== undefined && items.length < total && (
         <div className="load-more">
-          <button className="button secondary" onClick={loadMore}>
-            Show more ({(total - items.length).toLocaleString()} left)
+          <button className="button quiet" onClick={loadMore}>
+            Show {Math.min(PAGE_SIZE, total - items.length)} more
           </button>
         </div>
       )}
-    </>
+    </div>
   )
 }

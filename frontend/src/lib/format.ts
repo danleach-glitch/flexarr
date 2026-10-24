@@ -7,6 +7,15 @@ export function formatDuration(seconds: number | null | undefined): string | nul
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
+/** "1:02:05" or "4:07" for the player. */
+export function formatClock(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = String(s % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
+}
+
 export function formatSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let value = bytes
@@ -25,7 +34,7 @@ export function formatBitrate(bitsPerSecond: number | null): string | null {
 
 export function formatChannels(channels: number | null): string | null {
   if (!channels) return null
-  return { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' }[channels] ?? `${channels} ch`
+  return { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' }[channels] ?? `${channels} channels`
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -35,6 +44,14 @@ export function episodeCode(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNum
   if (item.airDate) return item.airDate
   const code = `S${pad(item.seasonNumber ?? 0)}E${pad(item.episodeNumber ?? 0)}`
   return item.episodeNumberEnd ? `${code}–E${pad(item.episodeNumberEnd)}` : code
+}
+
+/** "Season 2, episode 5" for headings and screen readers. */
+export function episodeLabel(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'>): string {
+  if (item.airDate) return new Date(item.airDate).toLocaleDateString(undefined, { dateStyle: 'long' })
+  const season = item.seasonNumber === 0 ? 'Special' : `Season ${item.seasonNumber}`
+  const episodes = item.episodeNumberEnd ? `episodes ${item.episodeNumber}–${item.episodeNumberEnd}` : `episode ${item.episodeNumber}`
+  return `${season}, ${episodes}`
 }
 
 export const rangeLabel: Record<VideoRange, string | null> = {
@@ -51,6 +68,17 @@ export function relativeTime(iso: string | null): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`
   return new Date(iso).toLocaleDateString()
+}
+
+export function year(item: Pick<ItemSummary, 'year' | 'releaseDate'>): number | null {
+  return item.year ?? (item.releaseDate ? new Date(item.releaseDate).getFullYear() : null)
+}
+
+/** Progress through an item from 0 to 1, or null when it hasn't been started. */
+export function progressOf(item: ItemSummary): number | null {
+  const duration = item.durationSeconds ?? (item.runtimeMinutes ? item.runtimeMinutes * 60 : null)
+  if (!duration || item.userData.positionSeconds <= 0) return null
+  return Math.min(1, item.userData.positionSeconds / duration)
 }
 
 export const libraryTypeLabel = { Movies: 'Movies', TvShows: 'TV Shows', Music: 'Music' } as const

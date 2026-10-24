@@ -1,0 +1,282 @@
+.settings {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1200px;
+  padding: calc(var(--nav-height) + 36px) var(--edge) 0;
+}
+
+.settings-nav {
+  position: sticky;
+  top: calc(var(--nav-height) + 36px);
+  align-self: start;
+}
+
+.settings-nav h1 {
+  font-size: var(--step-5);
+  font-weight: 800;
+  margin-bottom: 20px;
+}
+
+.settings-nav nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav a {
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  color: var(--usher);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.settings-nav a:hover {
+  color: var(--screen);
+  background: var(--seat);
+}
+
+.settings-nav a.active {
+  color: var(--screen);
+  background: var(--seat);
+  box-shadow: inset 3px 0 0 var(--silver);
+}
+
+.settings-content {
+  max-width: 820px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.settings-content section {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+}
+
+.settings-header h2 {
+  font-size: var(--step-4);
+}
+
+.settings-subhead {
+  margin-top: 20px;
+  font-size: var(--step-2);
+}
+
+.settings-lede {
+  max-width: 40rem;
+  color: var(--usher);
+}
+
+.panel + .panel {
+  margin-top: 0;
+}
+
+.library-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.library-row h3 {
+  font-size: var(--step-2);
+  margin-bottom: 4px;
+}
+
+.library-row .folder,
+.panel .folder {
+  display: block;
+  margin-top: 8px;
+  color: var(--usher);
+}
+
+.library-row .scan-progress {
+  margin: 14px 0 0;
+}
+
+.library-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.field-row label,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--step--1);
+}
+
+.field-row label.grow {
+  flex: 1 1 220px;
+}
+
+.field + .field {
+  margin-top: 18px;
+}
+
+.field select,
+.field input {
+  max-width: 420px;
+}
+
+.field-help {
+  font-weight: 400;
+  color: var(--usher);
+}
+
+.chosen-folder {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-weight: 400;
+}
+
+.folder-picker {
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  font-weight: 400;
+}
+
+.folder-picker-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--aisle);
+}
+
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.folder-list button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-list button:hover,
+.folder-list button:focus-visible {
+  background: var(--seat-raised);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.form-errors {
+  margin: 14px 0 0;
+  padding-left: 20px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--aisle);
+}
+
+.status-dot.ok {
+  background: #7fd1a0;
+}
+
+.status-dot.bad {
+  background: var(--danger);
+}
+
+.mapping {
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.mapping .text-button {
+  margin-bottom: 12px;
+}
+
+.stream {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.meter {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.api-key {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--room);
+  font-size: var(--step-0);
+  letter-spacing: 0.02em;
+  user-select: all;
+}
+
+@media (max-width: 860px) {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .settings-nav {
+    position: static;
+  }
+
+  .settings-nav nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .library-row {
+    flex-direction: column;
+  }
+
+  .library-row-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

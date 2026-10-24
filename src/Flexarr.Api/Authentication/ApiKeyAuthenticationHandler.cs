@@ -15,7 +15,7 @@ namespace Flexarr.Api.Authentication;
 /// </summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> schemeOptions,
-    IOptions<FlexarrOptions> flexarrOptions,
+    IOptionsMonitor<FlexarrOptions> flexarrOptions,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(schemeOptions, loggerFactory, encoder)
@@ -26,7 +26,7 @@ public sealed class ApiKeyAuthenticationHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var options = flexarrOptions.Value;
+        var options = flexarrOptions.CurrentValue;
 
         if (options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses
             && IsLocalAddress(Context.Connection.RemoteIpAddress))

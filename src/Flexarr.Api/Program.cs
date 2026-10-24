@@ -18,13 +18,16 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 var dataDirectory = builder.Configuration[$"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.DataDirectory)}"] ?? "data";
+Directory.CreateDirectory(dataDirectory);
 var userConfig = new ConfigurationBuilder()
-    .AddJsonFile(ServerConfigStore.PathFor(dataDirectory), optional: true, reloadOnChange: false)
+    .AddJsonFile(ServerConfigStore.PathFor(dataDirectory), optional: true, reloadOnChange: true)
     .Build();
 
+// config.json overrides appsettings and is reloaded when it changes, so settings apply without a restart.
 builder.Services.AddOptions<FlexarrOptions>()
     .BindConfiguration(FlexarrOptions.SectionName)
     .Configure(options => userConfig.Bind(options));
+builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(new ConfigurationChangeTokenSource<FlexarrOptions>(userConfig));
 builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfigStore>();
 
 builder.Services
@@ -52,7 +55,7 @@ builder.Services.AddSingleton<IMediaProbe>(sp => new FfprobeMediaProbe(sp.GetReq
 builder.Services.AddSingleton<ScanProgress>();
 builder.Services.AddScoped<LibraryScanner>();
 builder.Services.AddSingleton(sp => new TranscodeManager(
-    () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptions<FlexarrOptions>>().Value),
+    () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddSingleton<PlaybackSessions>();
 builder.Services.AddSingleton<MarkerQueue>();
@@ -94,7 +97,9 @@ app.MapGroup("/api/v1")
     .MapItemEndpoints()
     .MapFilesystemEndpoints()
     .MapPeopleEndpoints()
-    .MapPlaybackEndpoints();
+    .MapPlaybackEndpoints()
+    .MapDiscoveryEndpoints()
+    .MapSettingsEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();

@@ -86,12 +86,17 @@ public static class ItemEndpoints
                 ? await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == ancestors[0].Id, ct)
                 : entity;
 
+            // A season's episode list shows overviews; send them with it rather than one request per episode.
+            var childOverviews = entity.Kind == MediaKind.Season
+                ? await db.MediaItems.Where(i => i.ParentId == id).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
+                : new Dictionary<Guid, string?>();
+
             return Results.Ok(new ItemDetailDto(
                 item, entity.Path, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
                 entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
                 series.Genres.Select(g => g.Name).Order().ToList(),
                 series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
-                ancestors, children, credits, files.Select(ToDto).ToList()));
+                ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews));
         }).WithTags("Items");
 
         return api;

@@ -42,7 +42,8 @@ public sealed record ItemSummaryDto(
     string? ContentRating,
     int? RuntimeMinutes,
     DateOnly? ReleaseDate,
-    UserDataDto UserData);
+    UserDataDto UserData,
+    string? SeriesTitle);
 
 /// <summary>The viewer's state for an item. UnwatchedCount is set for series and seasons.</summary>
 public sealed record UserDataDto(double PositionSeconds, bool Watched, int PlayCount, DateTime? LastPlayedAt, int? UnwatchedCount);
@@ -73,7 +74,8 @@ public sealed record ItemDetailDto(
     IReadOnlyList<ItemSummaryDto> Ancestors,
     IReadOnlyList<ItemSummaryDto> Children,
     IReadOnlyList<CreditDto> Credits,
-    IReadOnlyList<FileDto> Files);
+    IReadOnlyList<FileDto> Files,
+    IReadOnlyDictionary<Guid, string?> ChildOverviews);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 
