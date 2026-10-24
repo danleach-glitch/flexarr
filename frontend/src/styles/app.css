@@ -1804,3 +1804,7 @@ a.download-attention {
 .discover-search-note {
   margin: -4px 0 18px;
 }
+
+.discover-results + .discover-results {
+  margin-top: 32px;
+}

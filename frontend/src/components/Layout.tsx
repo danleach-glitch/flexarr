@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { getMe, getProfiles, saveProfileToken, selectProfile } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
@@ -20,6 +20,21 @@ export function Layout() {
   const me = profiles.data?.find((p) => p.isCurrent)
   const other = profiles.data?.length === 2 ? profiles.data.find((p) => !p.isCurrent) : undefined
   const location = useLocation()
+
+  // The profile menu closes on a click anywhere outside it, or Escape.
+  const profileAnchor = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!profileMenu) return
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !profileAnchor.current?.contains(e.target as Node)) setProfileMenu(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [profileMenu])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -81,7 +96,7 @@ export function Layout() {
             </NavLink>
           )}
           {me && profiles.data && profiles.data.length > 1 && (
-            <div className="profile-menu-anchor">
+            <div className="profile-menu-anchor" ref={profileAnchor}>
               <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
                 <Avatar profile={me} size={34} />
               </button>

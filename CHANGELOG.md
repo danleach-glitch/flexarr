@@ -6,6 +6,8 @@ What's changed in Flexarr, newest first.
 
 ### Search everything on Discover
 - A search box on Discover finds any film or show, not just what you have. Titles in your library are marked and open as usual; anything else opens its details with **Request**.
+- Results are split into Shows and Films, and searching waits until you pause typing.
+- The profile menu closes when you click anywhere else (or press Escape).
 
 ### Quicker profile switching
 - With two profiles, the profile menu says **Switch to …** (or whoever) and switches straight away, unless that profile has a PIN.

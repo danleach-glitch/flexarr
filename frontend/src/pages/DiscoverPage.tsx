@@ -17,9 +17,11 @@ export function DiscoverPage() {
   // Search goes beyond the library: anything on TMDB, so something new can be found and requested from here.
   const query = params.get('q') ?? ''
   const [typed, setTyped] = useState(query)
+  // Debounced: searches once typing pauses (and at two letters or more); a newer search cancels the one in flight.
   useEffect(() => {
+    const term = typed.trim().length >= 2 ? typed.trim() : ''
     const timer = setTimeout(() => {
-      if (typed.trim() !== query) setParams(typed.trim() ? { q: typed.trim() } : {}, { replace: true })
+      if (term !== query) setParams(term ? { q: term } : {}, { replace: true })
     }, 350)
     return () => clearTimeout(timer)
   }, [typed, query, setParams])
@@ -85,11 +87,28 @@ export function DiscoverPage() {
                 ? `${results.data.filter((t) => t.libraryItemId).length} already in your library. Request anything else to add it.`
                 : 'Request anything to add it to your library.'}
             </p>
-            <div className="poster-grid">
-              {results.data.map((t) => (
-                <ExternalCard key={`${t.mediaType}-${t.tmdbId}`} title={t} />
-              ))}
-            </div>
+            {(
+              [
+                ['tv', 'Shows'],
+                ['movie', 'Films'],
+              ] as const
+            ).map(([type, label]) => {
+              const found = results.data!.filter((t) => t.mediaType === type)
+              return (
+                found.length > 0 && (
+                  <section key={type} className="discover-results">
+                    <h2 className="settings-subhead">
+                      {label} <span className="health-count">{found.length}</span>
+                    </h2>
+                    <div className="poster-grid">
+                      {found.map((t) => (
+                        <ExternalCard key={`${t.mediaType}-${t.tmdbId}`} title={t} />
+                      ))}
+                    </div>
+                  </section>
+                )
+              )
+            })}
           </>
         )}
       </div>
