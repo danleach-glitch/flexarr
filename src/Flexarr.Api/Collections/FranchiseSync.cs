@@ -53,13 +53,20 @@ public sealed partial class FranchiseSync(IServiceScopeFactory scopes, ILogger<F
             var arr = scope.ServiceProvider.GetRequiredService<ArrClient>();
             var options = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue;
 
-            // Films in the library by TMDB id (a film can be there twice, in two folders: either will do).
+            // Films in the library by TMDB id (a film can be there twice, in two folders: either will do, one on disk first).
+            // Films whose files are briefly missing count too: they keep their place, and aren't offered as ones to request.
             var films = new Dictionary<int, Guid>();
-            foreach (var f in await db.MediaItems.Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null).Select(i => new { i.Id, i.TmdbId }).ToListAsync(ct))
+            var present = new HashSet<int>();
+            foreach (var f in await db.MediaItems.IgnoreQueryFilters().Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null)
+                .OrderBy(i => i.MissingSince != null).Select(i => new { i.Id, i.TmdbId, Missing = i.MissingSince != null }).ToListAsync(ct))
             {
                 if (int.TryParse(f.TmdbId, System.Globalization.CultureInfo.InvariantCulture, out var tmdb))
                 {
                     films.TryAdd(tmdb, f.Id);
+                    if (!f.Missing)
+                    {
+                        present.Add(tmdb);
+                    }
                 }
             }
 
@@ -71,13 +78,14 @@ public sealed partial class FranchiseSync(IServiceScopeFactory scopes, ILogger<F
                 {
                     var ordered = series.Movies.OrderBy(m => m.Year == 0 ? int.MaxValue : m.Year).ThenBy(m => m.Title, StringComparer.Ordinal).ToList();
                     var owned = ordered.Where(m => films.ContainsKey(m.TmdbId)).ToList();
+                    var onDisk = owned.Count(m => present.Contains(m.TmdbId));
                     existing.TryGetValue(series.TmdbId, out var collection);
-                    if (owned.Count < 2 && collection is null)
+                    if (onDisk < 2 && collection is null)
                     {
                         continue;
                     }
 
-                    count += owned.Count >= 2 ? 1 : 0;
+                    count += onDisk >= 2 ? 1 : 0;
                     if (collection is null)
                     {
                         collection = new Collection { Name = Name(series.Title), Kind = CollectionKind.Franchise, TmdbCollectionId = series.TmdbId };

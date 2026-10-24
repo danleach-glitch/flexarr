@@ -67,9 +67,11 @@ public static partial class DeleteEndpoints
                 return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
             }
 
-            // Seasons and episodes go with their show (cascade); an emptied season goes too.
+            // Seasons and episodes go with their show (cascade); an emptied season goes too. Emptied for good, that is:
+            // episodes briefly missing from disk (mid-copy, say) still count, or they'd go too, with their watch history.
             await db.MediaItems.Where(i => i.Id == id).ExecuteDeleteAsync(ct);
-            if (item.Kind == MediaKind.Episode && item.ParentId is { } seasonId && !await db.MediaItems.AnyAsync(i => i.ParentId == seasonId, ct))
+            if (item.Kind == MediaKind.Episode && item.ParentId is { } seasonId
+                && !await db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.ParentId == seasonId && i.LibraryId == item.LibraryId, ct))
             {
                 await db.MediaItems.Where(i => i.Id == seasonId).ExecuteDeleteAsync(ct);
             }
