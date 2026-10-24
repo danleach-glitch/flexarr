@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.11.0 · 24 October 2026
 
 ### A tidier Server page in Settings
 - **API key:** the key sits in a field as dots, with an eye to show it and **Copy** once it's showing. There's no extra step to confirm first, unless the main profile has a PIN; then the eye asks for it.
