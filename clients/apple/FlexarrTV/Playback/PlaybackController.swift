@@ -191,8 +191,10 @@ final class PlaybackController: NSObject {
                     return
                 } catch {
                     lastError = error
-                    // The server is at its transcode limit: say so rather than retrying.
+                    // The server is at its transcode limit, or ended this stream for another screen (410): say so
+                    // rather than retrying, which would only take the stream back from that screen.
                     if case FlexarrClientError.http(status: 503, _) = error { break attempts }
+                    if case FlexarrClientError.http(status: 410, _) = error { break attempts }
                 }
             }
             dismissPlayer {

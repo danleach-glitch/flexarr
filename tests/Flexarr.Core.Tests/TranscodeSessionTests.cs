@@ -14,35 +14,108 @@ public sealed class TranscodeSessionTests : IDisposable
     public async Task Create_RefusesTranscodesBeyondTheLimit_UntilOneStops()
     {
         await using var manager = Manager(limit: 2);
-        var first = manager.Create("/in.mkv", 600, Plan);
-        manager.Create("/in.mkv", 600, Plan);
+        var first = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        await manager.CreateAsync("b", "/in.mkv", 600, Plan);
 
-        Assert.Throws<TranscodeLimitException>(() => manager.Create("/in.mkv", 600, Plan));
+        // Each holds its share (one of two), so a third profile has to wait.
+        await Assert.ThrowsAsync<TranscodeLimitException>(() => manager.CreateAsync("c", "/in.mkv", 600, Plan));
 
         await manager.StopAsync(first.Id);
-        Assert.NotNull(manager.Create("/in.mkv", 600, Plan));
+        Assert.NotNull(await manager.CreateAsync("c", "/in.mkv", 600, Plan));
+    }
+
+    [Fact]
+    public async Task OneProfile_UsesFreeSlots_WithoutEndingItsOtherScreens()
+    {
+        await using var manager = Manager(limit: 3);
+        var screens = new[]
+        {
+            await manager.CreateAsync("a", "/in.mkv", 600, Plan),
+            await manager.CreateAsync("a", "/in.mkv", 600, Plan),
+            await manager.CreateAsync("a", "/in.mkv", 600, Plan),
+        };
+
+        Assert.All(screens, s => Assert.Same(s, manager.Get(s.Id)));
+        Assert.All(screens, s => Assert.Null(manager.TakenOverReason(s.Id)));
+    }
+
+    [Fact]
+    public async Task AtTheLimit_AProfileOverItsShare_GivesUpItsOldest()
+    {
+        await using var manager = Manager(limit: 3);
+        var ended = new List<string>();
+        manager.TakenOver += ended.Add;
+        var oldest = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        var second = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        var other = await manager.CreateAsync("b", "/in.mkv", 600, Plan);
+
+        var third = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+
+        Assert.Equal([oldest.Id], ended);
+        Assert.Null(manager.Get(oldest.Id));
+        Assert.Equal(TranscodeManager.TakenOverBySameProfile, manager.TakenOverReason(oldest.Id));
+        Assert.All(new[] { second, other, third }, s => Assert.Same(s, manager.Get(s.Id)));
+    }
+
+    [Fact]
+    public async Task AtTheLimit_AProfileHoldingEverySlot_GivesOneUpForSomeoneElse()
+    {
+        await using var manager = Manager(limit: 2);
+        var oldest = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+
+        await manager.CreateAsync("b", "/in.mkv", 600, Plan);
+
+        Assert.Equal(TranscodeManager.TakenOverByOtherProfile, manager.TakenOverReason(oldest.Id));
+        Assert.Equal(2, manager.ActiveCount);
+    }
+
+    [Fact]
+    public async Task ARestartingStream_NeverEndsAnother_AndIsToldWhy()
+    {
+        await using var manager = Manager(limit: 2);
+        var first = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        var second = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+
+        var refused = await Assert.ThrowsAsync<TranscodeLimitException>(() => manager.CreateAsync("a", "/in.mkv", 600, Plan, restarting: true));
+
+        Assert.StartsWith("The stream stopped", refused.Message, StringComparison.Ordinal);
+        Assert.Same(first, manager.Get(first.Id));
+        Assert.Same(second, manager.Get(second.Id));
+    }
+
+    [Fact]
+    public async Task SimultaneousStarts_LeaveAProfileNoMoreThanItsShare_OnceTheServerIsFull()
+    {
+        await using var manager = Manager(limit: 3);
+        await manager.CreateAsync("b", "/in.mkv", 600, Plan);
+
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() => manager.CreateAsync("a", "/in.mkv", 600, Plan))));
+
+        Assert.Equal(3, manager.ActiveCount);
+        Assert.Equal(2, manager.Sessions.Count(s => s.ProfileId == "a"));
     }
 
     [Fact]
     public async Task Create_DoesNotCountSessionsThatNeverStartedFfmpeg_OnceTheyAreAFewSecondsOld()
     {
         await using var manager = Manager(limit: 2);
-        foreach (var unplayed in new[] { manager.Create("/in.mkv", 600, Plan), manager.Create("/in.mkv", 600, Plan) })
+        foreach (var unplayed in new[] { await manager.CreateAsync("a", "/in.mkv", 600, Plan), await manager.CreateAsync("a", "/in.mkv", 600, Plan) })
         {
             unplayed.StartedAt = DateTime.UtcNow.AddMinutes(-1);
         }
 
         Assert.Equal(0, manager.ActiveCount);
-        Assert.NotNull(manager.Create("/in.mkv", 600, Plan));
+        Assert.NotNull(await manager.CreateAsync("a", "/in.mkv", 600, Plan));
     }
 
     [Fact]
     public async Task Segments_ForAStoppedSession_AreRefusedWhileOthersUseEverySlot()
     {
         await using var manager = Manager(limit: 1, ffmpeg: "true");
-        var paused = manager.Create("/in.mkv", 600, Plan);
+        var paused = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         paused.StartedAt = DateTime.UtcNow.AddMinutes(-5); // ffmpeg stopped after a long pause
-        var other = manager.Create("/in.mkv", 600, Plan);
+        var other = await manager.CreateAsync("b", "/in.mkv", 600, Plan);
 
         await Assert.ThrowsAsync<TranscodeLimitException>(() => paused.GetSegmentAsync(10, CancellationToken.None));
 
@@ -66,7 +139,7 @@ public sealed class TranscodeSessionTests : IDisposable
     public async Task Release_SkipsASessionUsedSinceTheSweepLookedAtIt()
     {
         await using var manager = Manager(limit: 0);
-        var session = manager.Create("/in.mkv", 600, Plan);
+        var session = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         await File.WriteAllTextAsync(Path.Combine(session.Directory, "ffmpeg.m3u8"), "#EXTM3U\nseg0.ts\n");
         await File.WriteAllTextAsync(Path.Combine(session.Directory, "seg0.ts"), "");
 
@@ -89,7 +162,7 @@ public sealed class TranscodeSessionTests : IDisposable
         await using var manager = Manager(limit: 0);
         for (var i = 0; i < 5; i++)
         {
-            manager.Create("/in.mkv", 600, Plan);
+            await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         }
 
         Assert.Equal(5, manager.ActiveCount);
@@ -99,7 +172,7 @@ public sealed class TranscodeSessionTests : IDisposable
     public async Task Segments_AreServedOnceFfmpegListsThem_AndNewOnesAreSeenWhenThePlaylistGrows()
     {
         await using var manager = Manager(limit: 0);
-        var session = manager.Create("/in.mkv", 600, Plan);
+        var session = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         await File.WriteAllTextAsync(Path.Combine(session.Directory, "ffmpeg.m3u8"), "#EXTM3U\n#EXTINF:6.0,\nseg0.ts\n");
 
         Assert.EndsWith("seg0.ts", await session.GetSegmentAsync(0, CancellationToken.None), StringComparison.Ordinal);
@@ -112,7 +185,7 @@ public sealed class TranscodeSessionTests : IDisposable
     public async Task Release_DeletesSegmentsButKeepsTheSession()
     {
         await using var manager = Manager(limit: 0);
-        var session = manager.Create("/in.mkv", 600, Plan);
+        var session = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         await File.WriteAllTextAsync(Path.Combine(session.Directory, "ffmpeg.m3u8"), "#EXTM3U\nseg0.ts\n");
         await File.WriteAllTextAsync(Path.Combine(session.Directory, "seg0.ts"), "");
 
@@ -126,7 +199,7 @@ public sealed class TranscodeSessionTests : IDisposable
     public async Task SegmentRequests_AfterStopping_FailCleanly()
     {
         await using var manager = Manager(limit: 0);
-        var session = manager.Create("/in.mkv", 600, Plan);
+        var session = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         await manager.StopAsync(session.Id);
 
         Assert.Null(await session.GetSegmentAsync(0, CancellationToken.None));
