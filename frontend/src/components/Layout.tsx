@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { getProfiles, saveProfileToken } from '../api/client'
+import { getMe, getProfiles, saveProfileToken } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { Gear, Search } from './icons'
@@ -14,6 +14,9 @@ export function Layout() {
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
   const profiles = useApi(getProfiles, [])
+  const access = useApi(getMe, [])
+  // Older servers have no /me; assume admin there, as before.
+  const isAdmin = access.data?.isAdmin ?? true
   const me = profiles.data?.find((p) => p.isCurrent)
   const location = useLocation()
 
@@ -70,9 +73,11 @@ export function Layout() {
             <span>Search</span>
             <kbd>⌘K</kbd>
           </button>
-          <NavLink to="/settings" className="icon-button" aria-label="Settings">
-            <Gear />
-          </NavLink>
+          {isAdmin && (
+            <NavLink to="/settings" className="icon-button" aria-label="Settings">
+              <Gear />
+            </NavLink>
+          )}
           {me && profiles.data && profiles.data.length > 1 && (
             <div className="profile-menu-anchor">
               <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
@@ -92,9 +97,11 @@ export function Layout() {
                   >
                     Switch profile
                   </button>
-                  <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>
-                    Manage profiles
-                  </Link>
+                  {isAdmin && (
+                    <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>
+                      Manage profiles
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

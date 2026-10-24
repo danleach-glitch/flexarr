@@ -386,3 +386,39 @@
   align-items: center;
   margin-top: 14px;
 }
+
+.connection-note {
+  font-weight: 700;
+}
+
+.remote-url {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+
+.remote-url-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.remote-url-row code {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--room);
+  font-size: var(--step-0);
+}
+
+.tailnet-people li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.advice {
+  border-color: color-mix(in srgb, var(--silver) 40%, var(--aisle));
+}

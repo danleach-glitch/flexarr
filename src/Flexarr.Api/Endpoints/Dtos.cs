@@ -1,5 +1,5 @@
-using Flexarr.Core.Libraries;
 using System.Globalization;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 
 namespace Flexarr.Api.Endpoints;

@@ -262,3 +262,37 @@ export async function selectProfile(id: string, pin?: string) {
   saveProfileToken(result.profile.isMain ? null : result.token)
   return result.profile
 }
+
+export type NetworkZone = 'Local' | 'Tailnet' | 'Internet'
+
+export interface Me {
+  profileId: string
+  method: 'api-key' | 'tailscale' | 'local' | 'none'
+  zone: NetworkZone
+  isAdmin: boolean
+  tailscaleLogin: string | null
+}
+
+export interface RemoteAccess {
+  yourConnection: NetworkZone
+  yourTailscaleLogin: string | null
+  tailscale: {
+    installed: boolean
+    running: boolean
+    dnsName: string | null
+    ownerLogin: string | null
+    privateAccess: boolean
+    publicAccess: boolean
+    people: { login: string; name: string }[]
+    problem: string | null
+    url: string | null
+  }
+  links: { login: string; name: string; profileId: string | null }[]
+  cloudflareTunnelRunning: boolean
+  mainProfileHasPin: boolean
+}
+
+export const getMe = (signal?: AbortSignal) => apiGet<Me>('/me', signal)
+export const getRemoteAccess = (signal?: AbortSignal) => apiGet<RemoteAccess>('/remote', signal)
+export const setTailscaleAccess = (enabled: boolean) => request<RemoteAccess>('POST', '/remote/tailscale', { enabled })
+export const linkTailscale = (login: string, profileId: string | null) => request<RemoteAccess>('POST', '/remote/tailscale/links', { login, profileId })

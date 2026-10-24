@@ -70,6 +70,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         {
             e.Property(p => p.Id).HasMaxLength(64);
             e.Property(p => p.Name).HasMaxLength(60);
+            e.HasIndex(p => p.TailscaleLogin).IsUnique();
             e.HasData(new Profile { Id = PlaybackState.DefaultUser, Name = "Main profile", CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, DateTimeKind.Utc) });
         });
 

@@ -1,6 +1,7 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
@@ -49,7 +50,7 @@ public static class PlaybackEndpoints
             }
 
             return Results.Accepted();
-        }).WithTags("Playback");
+        }).WithTags("Playback").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapPost("/items/{id:guid}/watched", async (Guid id, WatchedRequest request, PlaybackService playback, CancellationToken ct) =>
             await playback.SetWatchedAsync(id, request.Watched, ct) ? Results.NoContent() : Results.NotFound())

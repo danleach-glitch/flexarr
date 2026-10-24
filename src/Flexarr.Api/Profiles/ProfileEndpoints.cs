@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +33,7 @@ public static partial class ProfileEndpoints
             db.Profiles.Add(profile);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/v1/profiles/{profile.Id}", ToDto(profile, current));
-        });
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapPut("/{id}", async (string id, ProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
         {
@@ -59,7 +60,7 @@ public static partial class ProfileEndpoints
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(profile, current));
-        });
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapDelete("/{id}", async (string id, FlexarrDbContext db, CancellationToken ct) =>
         {
@@ -70,7 +71,7 @@ public static partial class ProfileEndpoints
 
             // Watch history goes with the profile (cascade).
             return await db.Profiles.Where(p => p.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound();
-        });
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Choosing a profile returns the token clients send as X-Flexarr-Profile.
         group.MapPost("/{id}/select", async (string id, SelectProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>

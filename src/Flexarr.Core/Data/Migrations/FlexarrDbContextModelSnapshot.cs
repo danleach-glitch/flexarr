@@ -491,7 +491,13 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("PinHash")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TailscaleLogin")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TailscaleLogin")
+                        .IsUnique();
 
                     b.ToTable("Profiles");
 

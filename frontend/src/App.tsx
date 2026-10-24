@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
-import { getProfiles, getSystemStatus, profileToken, saveApiKey, UnauthorizedError, type Profile } from './api/client'
+import { getMe, getProfiles, getSystemStatus, profileToken, saveApiKey, UnauthorizedError, type Profile } from './api/client'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -63,10 +63,16 @@ export default function App() {
     const controller = new AbortController()
     getSystemStatus(controller.signal)
       // An older server without profiles still works: carry on as the main profile.
-      .then(() => getProfiles(controller.signal).catch((e: unknown) => (e instanceof UnauthorizedError ? Promise.reject(e) : [])))
-      .then((profiles) => {
+      .then(() =>
+        Promise.all([
+          getProfiles(controller.signal).catch((e: unknown) => (e instanceof UnauthorizedError ? Promise.reject(e) : [])),
+          getMe(controller.signal).catch(() => null),
+        ]),
+      )
+      .then(([profiles, me]) => {
         // Ask who's watching when the household has several profiles and this device hasn't chosen one.
-        const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1'
+        // Over Tailscale the person is already known from their Tailscale account.
+        const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
         setState(profiles.length > 1 && !chosen ? { kind: 'choose-profile', profiles } : { kind: 'ready' })
       })
       .catch((error: unknown) => {
@@ -115,7 +121,9 @@ export default function App() {
         {state.kind === 'unauthorized' && (
           <form className="api-key-form" onSubmit={submitApiKey}>
             <label htmlFor="apiKey">API key</label>
-            <p className="muted">It's in config.json in the server's data folder.</p>
+            <p className="muted">
+              It's in config.json in the server's data folder. Away from home, open Flexarr through Tailscale instead and you'll be signed in automatically.
+            </p>
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
               <button type="submit" className="button">
