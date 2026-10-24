@@ -160,7 +160,12 @@ final class PlaybackController: NSObject {
     private func recover(reason: String) {
         guard !isRecovering, let client, let current = info else { return }
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
-            dismissPlayer { self.errorMessage = reason }
+            // A stream ended to make way for another screen says so, even inside the once-a-minute limit.
+            let failed = current.sessionId
+            Task {
+                let takenOver = await Self.takenOverReason(sessionId: failed, baseURL: client.baseURL)
+                dismissPlayer { self.errorMessage = takenOver ?? reason }
+            }
             return
         }
         let position = self.position > 0 ? self.position : lastPosition
@@ -203,6 +208,17 @@ final class PlaybackController: NSObject {
         }
     }
 
+    /// Why the server ended this transcode for another viewer, if it did: its playlist answers 410 with the reason.
+    private static func takenOverReason(sessionId: String, baseURL: URL) async -> String? {
+        let url = baseURL.appending(path: "api/v1/playback/\(sessionId)/main.m3u8")
+        guard let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 410 else { return nil }
+        struct Problem: Decodable { let detail: String? }
+        return (try? JSONDecoder().decode(Problem.self, from: data))?.detail
+            ?? "This stream was ended so another screen could play."
+    }
+
+    // MARK: Progress
     // MARK: Progress
 
     private var position: Double {

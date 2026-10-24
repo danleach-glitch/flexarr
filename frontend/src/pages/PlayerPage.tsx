@@ -39,6 +39,14 @@ interface StartOptions {
   forceTranscode?: boolean
 }
 
+/** Why the server ended this transcode for another viewer, if it did (its playlist answers 410 with the reason). */
+async function takenOverReason(sessionId: string): Promise<string | undefined> {
+  const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`).catch(() => null)
+  if (response?.status !== 410) return undefined
+  const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+  return problem?.detail ?? 'This stream was ended so another screen could play.'
+}
+
 export function PlayerPage() {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
@@ -191,6 +199,9 @@ export function PlayerPage() {
   const recover = async () => {
     const el = video.current
     if (recovering.current) return
+    // A stream ended to make way for another screen says so (410), even inside the once-a-minute limit.
+    const takenOver = session.current ? await takenOverReason(session.current) : undefined
+    if (takenOver) return setError(takenOver)
     if (!el || Date.now() - lastRecovery.current < 60_000) return setError(STREAM_STOPPED)
     recovering.current = true
     lastRecovery.current = Date.now()
