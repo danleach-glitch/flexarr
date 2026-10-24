@@ -307,6 +307,58 @@ describe('Player', () => {
 
     expect(await screen.findByRole('button', { name: 'Skip intro' })).toBeInTheDocument()
   })
+
+  it('picks a stopped stream back up where it was, and says so if it stops again straight away', async () => {
+    const episode = summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1 })
+    const requests: { startPositionSeconds?: number }[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        const sessionId = `s${requests.length}`
+        return {
+          sessionId,
+          method: 'Transcode',
+          url: `/api/v1/playback/${sessionId}/master.m3u8`,
+          reasons: [],
+          durationSeconds: 1320,
+          startPositionSeconds: 0,
+          fileId: 'f1',
+          audioTracks: [],
+          selectedAudioIndex: 1,
+          subtitles: [],
+          selectedSubtitleKey: null,
+          subtitleBurnedIn: false,
+          markers: [],
+          item: episode,
+          ancestors: [],
+          next: null,
+          transcodeSummary: null,
+        }
+      },
+      'DELETE /playback/s1': undefined,
+      'DELETE /playback/s2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 352 })
+
+    // The server restarted, say: the stream ends, and the player asks for a fresh one at the same spot.
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+    })
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
+    expect(requests[1].startPositionSeconds).toBe(352)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('The stream stopped')
+    expect(requests).toHaveLength(2)
+  })
 })
 
 describe('Profiles', () => {

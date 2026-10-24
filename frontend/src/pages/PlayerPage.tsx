@@ -28,6 +28,7 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
 
 const UP_NEXT_SECONDS = 10
 const HIDE_CHROME_MS = 3000
+const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
 
 interface StartOptions {
   audioStreamIndex?: number
@@ -47,6 +48,11 @@ export function PlayerPage() {
   const hls = useRef<Hls | null>(null)
   const session = useRef<string | undefined>(undefined)
   const hideTimer = useRef<number | undefined>(undefined)
+  const recoverRef = useRef<() => Promise<void>>(async () => undefined)
+  const recovering = useRef(false)
+  const lastRecovery = useRef(0)
+  // Ends when the item changes or the page closes, so a recovery in progress gives up.
+  const lifetime = useRef({ alive: true })
 
   const [info, setInfo] = useState<PlaybackInfo>()
   const [error, setError] = useState<string>()
@@ -109,7 +115,7 @@ export function PlayerPage() {
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) player.recoverMediaError()
-        else setError('The stream stopped. The server may have had trouble converting this file.')
+        else void recoverRef.current()
       })
       player.loadSource(`${playback.url}?subtitles=false`)
       player.attachMedia(el)
@@ -122,7 +128,7 @@ export function PlayerPage() {
   }, [])
 
   const start = useCallback(
-    async (options: StartOptions = {}) => {
+    async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
       const q = options.quality ?? quality
       const preset = qualities.find((x) => x.value === q)
@@ -142,20 +148,58 @@ export function PlayerPage() {
         setInfo(playback)
         setSubtitleKey(playback.selectedSubtitleKey)
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
+        return true
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        if (!quiet) setError(e instanceof Error ? e.message : String(e))
+        return false
       }
     },
     [id, quality, attach],
   )
+
+  // A transcode lives in the server's memory, so a server restart (an upgrade, say) ends it mid-stream. Ask for a
+  // fresh one from where we were before saying anything, retrying while the server comes back up. At most once a
+  // minute: a stream that keeps stopping is a real problem worth showing.
+  const recover = async () => {
+    const el = video.current
+    if (recovering.current) return
+    if (!el || Date.now() - lastRecovery.current < 60_000) return setError(STREAM_STOPPED)
+    recovering.current = true
+    lastRecovery.current = Date.now()
+    const life = lifetime.current
+    const position = el.currentTime
+    hls.current?.destroy()
+    hls.current = null
+    setWaiting(true)
+    try {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000))
+        if (!life.alive) return
+        const resumed = await start(
+          { startPositionSeconds: position, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' },
+          true,
+        )
+        if (resumed) return
+      }
+      if (life.alive) setError(STREAM_STOPPED)
+    } finally {
+      recovering.current = false
+    }
+  }
+  useEffect(() => {
+    recoverRef.current = recover
+  })
 
   useEffect(() => {
     setUpNextCancelled(false)
     setCountdown(UP_NEXT_SECONDS)
     const t = params.get('t')
     const el = video.current
+    const life = { alive: true }
+    lifetime.current = life
     void start({ startPositionSeconds: t !== null ? Number(t) : undefined })
     return () => {
+      life.alive = false
       hls.current?.destroy()
       if (session.current) {
         beaconProgress(session.current, el?.currentTime ?? 0)
@@ -211,6 +255,7 @@ export function PlayerPage() {
     const onError = () => {
       // A browser that claimed it could play the file but can't: convert instead.
       if (info?.method === 'DirectPlay') void restartHere({ forceTranscode: true })
+      else if (info?.method === 'Transcode') void recoverRef.current()
       else setError("This file couldn't be played.")
     }
     const onEnded = () => {

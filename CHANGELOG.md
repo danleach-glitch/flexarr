@@ -12,6 +12,9 @@ What's changed in Flexarr, newest first.
 - Collections are for the whole household (made by the main profile) or just for you. Profiles kept out of a library don't see its titles in any collection.
 - **Show on Home** puts a collection on Home as a row, which you can move in **Settings › Home**.
 
+### Fixed: "The stream stopped" after a server restart
+- A converted stream lives on the server, so restarting or upgrading the server mid-film ended it, and the next seek (Skip intro, say) showed "The stream stopped". The web player now asks for a fresh stream from the same spot and carries on, retrying for up to 15 seconds while the server comes back. It only says the stream stopped if it stops again within a minute.
+
 ### Security fixes
 - The web app no longer keeps your API key in the browser. Signing in now gets you a session cookie that scripts can't read. A key saved by an earlier version is swapped for one on your next visit, and changing the API key signs every browser out. A wrong key now says so.
 - Plex import only reads Plex's own database file (`com.plexapp.plugins.library.db`) when you give it a path, not any file on the server.
