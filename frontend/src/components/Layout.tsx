@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { getMe, getProfiles, saveProfileToken } from '../api/client'
+import { getMe, getProfiles, saveProfileToken, selectProfile } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { Gear, Search } from './icons'
@@ -18,6 +18,7 @@ export function Layout() {
   // Older servers have no /me; assume admin there, as before.
   const isAdmin = access.data?.isAdmin ?? true
   const me = profiles.data?.find((p) => p.isCurrent)
+  const other = profiles.data?.length === 2 ? profiles.data.find((p) => !p.isCurrent) : undefined
   const location = useLocation()
 
   useEffect(() => {
@@ -89,14 +90,21 @@ export function Layout() {
                   <p className="muted">Watching as {me.name}</p>
                   <button
                     role="menuitem"
-                    onClick={() => {
-                      // Back to the picker: forget this device's choice and reload everything for the new profile.
-                      saveProfileToken(null)
-                      sessionStorage.removeItem('flexarr.profileChosen')
+                    onClick={async () => {
+                      // With just one other profile and no PIN to ask for, switch straight to it.
+                      if (other && !other.hasPin) {
+                        await selectProfile(other.id)
+                        sessionStorage.setItem('flexarr.profileChosen', '1')
+                      } else {
+                        // Back to the picker: forget this device's choice.
+                        saveProfileToken(null)
+                        sessionStorage.removeItem('flexarr.profileChosen')
+                      }
+                      // Reload everything for the new profile.
                       window.location.assign('/')
                     }}
                   >
-                    Switch profile
+                    {other && !other.hasPin ? `Switch to ${other.name}` : 'Switch profile'}
                   </button>
                   {isAdmin && (
                     <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>

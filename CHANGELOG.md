@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Quicker profile switching
+- With two profiles, the profile menu says **Switch to …** (or whoever) and switches straight away, unless that profile has a PIN.
+
 ### Spare copies and phone fixes
 - Fixed: Remove spare copies skipped titles whose two copies were identical; the copy Sonarr or Radarr use is now kept and the other removed.
 - Each copy of a duplicate has **Delete this copy**, for titles where the best copy and the one Sonarr or Radarr use differ (both are kept automatically). Identical copies are labelled as such.
