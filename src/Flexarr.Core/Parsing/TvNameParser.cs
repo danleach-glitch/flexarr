@@ -98,9 +98,12 @@ public static partial class TvNameParser
         }
 
         title = ReleaseJunk().Replace(title, string.Empty).Trim(' ', '-', '.', '_');
-        return title.Length == 0 || !title.Contains(' ', StringComparison.Ordinal) && title.Contains('.', StringComparison.Ordinal)
-            ? null
-            : title;
+        if (!title.Contains(' ', StringComparison.Ordinal))
+        {
+            title = title.Replace('.', ' ');
+        }
+
+        return title.Length == 0 ? null : title;
     }
 
     private static string StripPrefix(string name, string? seriesTitle)
@@ -123,7 +126,7 @@ public static partial class TvNameParser
     [GeneratedRegex(@"\b(?<y>(?:19|20)\d{2})[-._ ](?<m>\d{2})[-._ ](?<d>\d{2})\b")]
     private static partial Regex Daily();
 
-    [GeneratedRegex(@"^\s*[-.]?\s*(?<episode>\d{1,3})(?=[\s._-])")]
+    [GeneratedRegex(@"^\s*[-.]?\s*(?<episode>\d{1,4})(?=[\s._-]|$)")]
     private static partial Regex LeadingNumber();
 
     [GeneratedRegex(@"^(?<title>.+?)\s*\((?<year>(?:19|20)\d{2})\)$")]
