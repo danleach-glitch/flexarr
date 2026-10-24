@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { imageUrl } from '../api/client'
+import { imageSrcSet, imageUrl } from '../api/client'
 
 /**
  * Artwork with a typographic fallback: when there's no image (or it fails), the title is set in the
@@ -26,7 +26,7 @@ export function Artwork({
   return (
     <div className={`artwork artwork-${shape}`} style={accent ? { '--ambient': accent } as CSSProperties : undefined}>
       {url && !failed ? (
-        <img src={url} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
+        <img src={url} srcSet={imageSrcSet(src, width)} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
       ) : (
         <span className="artwork-fallback" aria-hidden="true">
           {title}
