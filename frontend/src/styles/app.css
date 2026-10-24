@@ -1721,3 +1721,63 @@ a.download-attention {
   margin: 0;
   color: color-mix(in srgb, var(--screen) 85%, transparent);
 }
+
+/* ---------- Watched toggle (films and episodes) ---------- */
+
+/* Top-right of the artwork. Solid when watched; on hover, a faint ring offers to mark it. */
+.watched-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid color-mix(in srgb, var(--screen) 75%, transparent);
+  border-radius: 50%;
+  background: rgb(14 11 17 / 0.7);
+  color: color-mix(in srgb, var(--screen) 75%, transparent);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.watched-toggle svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 3;
+}
+
+.watched-toggle.on {
+  border-color: transparent;
+  background: var(--screen);
+  color: var(--room);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.4);
+  opacity: 1;
+}
+
+.card-shell:hover .watched-toggle,
+.card-shell:focus-within .watched-toggle,
+.episode:hover .watched-toggle,
+.episode:focus-within .watched-toggle,
+.watched-toggle:focus-visible {
+  opacity: 1;
+}
+
+.watched-toggle:not(.on):hover {
+  background: color-mix(in srgb, var(--screen) 25%, rgb(14 11 17 / 0.8));
+  color: var(--screen);
+}
+
+.watched-toggle:focus-visible {
+  outline: 2px solid var(--screen);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .watched-toggle {
+    opacity: 1;
+  }
+}

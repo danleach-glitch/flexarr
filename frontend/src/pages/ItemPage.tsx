@@ -20,6 +20,7 @@ import { Check, Film, Play } from '../components/icons'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
+import { WatchedToggle } from '../components/WatchedToggle'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import {
@@ -234,8 +235,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             key={episode.id}
             episode={episode}
             overview={season.data?.childOverviews[episode.id] ?? null}
-            onToggle={async () => {
-              await setWatched(episode.id, !episode.userData.watched)
+            onChange={() => {
               setVersion((v) => v + 1)
               onChange()
             }}
@@ -246,11 +246,12 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
   )
 }
 
-function Episode({ episode, overview, onToggle }: { episode: ItemSummary; overview: string | null; onToggle: () => void }) {
+function Episode({ episode, overview, onChange }: { episode: ItemSummary; overview: string | null; onChange: () => void }) {
   const progress = progressOf(episode)
 
   return (
     <li className={episode.userData.watched ? 'episode watched' : 'episode'}>
+      <div className="episode-still-wrap">
       <Link to={`/play/${episode.id}`} className="episode-still" aria-label={`Play ${episode.title}`}>
         <Artwork src={episode.artwork.thumb} title={episode.title} width={500} shape="wide" />
         <span className="episode-play" aria-hidden="true">
@@ -262,6 +263,8 @@ function Episode({ episode, overview, onToggle }: { episode: ItemSummary; overvi
           </span>
         )}
       </Link>
+      <WatchedToggle key={`${episode.id}-${episode.userData.watched}`} item={episode} onChanged={onChange} />
+      </div>
       <div className="episode-text">
         <h3>
           <span className="episode-number">{episode.airDate ? '' : episode.episodeNumberEnd ? `${episode.episodeNumber}–${episode.episodeNumberEnd}` : episode.episodeNumber}</span>
@@ -276,9 +279,6 @@ function Episode({ episode, overview, onToggle }: { episode: ItemSummary; overvi
         </p>
         {overview && <p className="episode-overview">{overview}</p>}
       </div>
-      <button className="icon-button watched-toggle" aria-pressed={episode.userData.watched} aria-label={episode.userData.watched ? 'Mark unwatched' : 'Mark watched'} onClick={onToggle}>
-        <Check />
-      </button>
     </li>
   )
 }

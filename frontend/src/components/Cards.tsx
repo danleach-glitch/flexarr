@@ -6,6 +6,7 @@ import { itemLink } from '../lib/links'
 import { Artwork } from './Artwork'
 import { Check, More } from './icons'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
+import { WatchedToggle } from './WatchedToggle'
 
 function Progress({ item }: { item: ItemSummary }) {
   const progress = progressOf(item)
@@ -17,7 +18,11 @@ function Progress({ item }: { item: ItemSummary }) {
   )
 }
 
+const toggles = (item: ItemSummary) => item.kind === 'Movie' || item.kind === 'Episode'
+
+/** Watched state for shows and seasons (films and episodes get a WatchedToggle instead). */
 function WatchState({ item }: { item: ItemSummary }) {
+  if (toggles(item)) return null
   if (item.userData.watched) {
     return (
       <span className="watched-mark" aria-label="Watched">
@@ -81,6 +86,7 @@ function CardShell({ item, to, className, art, playLabel, children }: { item: It
         {art}
       </Link>
       {children}
+      {toggles(item) && !className.includes('top10') && <WatchedToggle key={`${item.id}-${item.userData.watched}`} item={item} />}
       {menu && (
         <button
           className="card-menu-button"

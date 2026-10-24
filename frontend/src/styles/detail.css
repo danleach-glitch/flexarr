@@ -151,11 +151,15 @@
 
 .episode {
   display: grid;
-  grid-template-columns: clamp(170px, 20vw, 280px) minmax(0, 1fr) auto;
+  grid-template-columns: clamp(170px, 20vw, 280px) minmax(0, 1fr);
   gap: 22px;
   align-items: start;
   padding: 16px 0;
   border-bottom: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
+}
+
+.episode-still-wrap {
+  position: relative;
 }
 
 .episode-still {
@@ -239,16 +243,6 @@
   color: var(--usher);
 }
 
-.watched-toggle {
-  color: var(--aisle);
-  border: 1px solid var(--aisle);
-}
-
-.watched-toggle[aria-pressed='true'] {
-  color: var(--room);
-  background: var(--ambient);
-  border-color: var(--ambient);
-}
 
 /* ---------- Cast and crew ---------- */
 
@@ -363,10 +357,6 @@
   .episode {
     grid-template-columns: 132px minmax(0, 1fr);
     gap: 14px;
-  }
-
-  .episode .watched-toggle {
-    display: none;
   }
 
   .episode-overview {

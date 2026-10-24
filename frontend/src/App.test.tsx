@@ -84,6 +84,26 @@ describe('App', () => {
     expect(marked).toEqual([{ watched: true }])
   })
 
+  it('toggles watched from the tick on a poster', async () => {
+    const posted: unknown[] = []
+    mockApi({
+      '/system/status': status,
+      '/libraries': [movies],
+      '/home': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'Latest unwatched movies', style: 'poster', items: [niceGuys], link: null }], upcoming: [], downloading: 0 },
+      'POST /items/m1/watched': (init?: RequestInit) => {
+        posted.push(JSON.parse(String(init?.body)))
+      },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark The Nice Guys as watched' }))
+    const tick = await screen.findByRole('button', { name: 'Watched: mark The Nice Guys as unwatched' })
+    expect(tick).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(tick)
+
+    await vi.waitFor(() => expect(posted).toEqual([{ watched: true }, { watched: false }]))
+  })
+
   it('asks for an API key when the server requires one, then retries with it', async () => {
     let authorized = false
     mockApi({
