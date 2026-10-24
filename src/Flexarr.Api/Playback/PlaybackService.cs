@@ -73,9 +73,10 @@ public sealed class PlaybackService(
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles,
             new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode));
 
-        // A new session for something this profile is already transcoding (an audio switch, a retry) replaces the old
-        // one, so it isn't left encoding ahead for nobody and doesn't count towards the transcode limit.
-        foreach (var previous in sessions.Active.Where(s => s.ProfileId == profile.Id && s.ItemId == item.Id && s.Transcode is not null).ToList())
+        // The player's own previous session (before an audio switch, a recovery) ends first, so it isn't left encoding
+        // ahead for nobody and doesn't count towards the transcode limit. Only that one: the same profile may be
+        // watching this title on another screen.
+        if (request.ReplacesSessionId is { } replaces && sessions.Get(replaces) is { } previous && previous.ProfileId == profile.Id)
         {
             await sessions.RemoveAsync(previous.Id);
         }
@@ -85,6 +86,17 @@ public sealed class PlaybackService(
         TranscodeSession? transcode = null;
         if (decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
         {
+            // One profile can't hold every slot: past its share, its oldest transcode makes way for this one.
+            if (transcodes.PerProfileLimit is > 0 and var share)
+            {
+                var mine = sessions.Active.Where(s => s.ProfileId == profile.Id && s.Transcode is { IsActive: true })
+                    .OrderBy(s => s.Transcode!.Created).ToList();
+                foreach (var oldest in mine.Take(mine.Count - share + 1))
+                {
+                    await sessions.RemoveAsync(oldest.Id);
+                }
+            }
+
             transcode = transcodes.Create(file.Path, duration, plan);
             id = transcode.Id;
         }

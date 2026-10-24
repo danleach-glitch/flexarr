@@ -14,8 +14,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private const int ResumeAt = 15;       // resume once playback is within this many segments
     private const int SeekTolerance = 4;   // a request this far past what's produced waits rather than restarts
 
+    /// <summary>How long a new or restarted session counts as active before ffmpeg is running.</summary>
+    private static readonly TimeSpan StartingWindow = TimeSpan.FromSeconds(30);
+
     private readonly TranscodeSettings _settings;
     private readonly ILogger _logger;
+    private readonly Action<TranscodeSession>? _reserve;
 
     // Held while ffmpeg is started, stopped, paused or resumed. Never disposed: a request may still be waiting on it.
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -32,7 +36,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private int _highestCompleted = -1;
     private (long Length, DateTime Written) _playlistStamp;
 
-    public TranscodeSession(string id, string input, double durationSeconds, TranscodePlan plan, TranscodeSettings settings, ILogger logger)
+    /// <param name="reserve">
+    /// Called before ffmpeg starts again in a session where it isn't running; throws <see cref="TranscodeLimitException"/>
+    /// when that would go over the server's limit.
+    /// </param>
+    public TranscodeSession(string id, string input, double durationSeconds, TranscodePlan plan, TranscodeSettings settings, ILogger logger,
+        Action<TranscodeSession>? reserve = null)
     {
         Id = id;
         Input = input;
@@ -40,6 +49,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         Plan = plan;
         _settings = settings;
         _logger = logger;
+        _reserve = reserve;
         Directory = System.IO.Directory.CreateDirectory(Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
     }
 
@@ -49,13 +59,21 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public TranscodePlan Plan { get; }
     public string Directory { get; }
     public int SegmentCount => FfmpegCommand.SegmentCount(DurationSeconds);
-    public DateTime LastAccess { get; private set; } = DateTime.UtcNow;
+    public DateTime Created { get; } = DateTime.UtcNow;
+    public DateTime LastAccess { get; internal set; } = DateTime.UtcNow;
     public int LastRequested { get; private set; }
     public bool IsRunning => _process is { } process && IsAlive(process);
+
+    /// <summary>When ffmpeg was last (about to be) started, or the session created.</summary>
+    internal DateTime StartedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Counts towards the server's transcode limit: ffmpeg is running, or is about to.</summary>
+    public bool IsActive => IsRunning || DateTime.UtcNow - StartedAt < StartingWindow;
 
     public string MediaPlaylist() => FfmpegCommand.MediaPlaylist(DurationSeconds);
 
     /// <summary>Returns the path of segment <paramref name="index"/> once it is complete, transcoding it if needed.</summary>
+    /// <exception cref="TranscodeLimitException">ffmpeg had stopped, and starting it again would go over the server's limit.</exception>
     public async Task<string?> GetSegmentAsync(int index, CancellationToken ct)
     {
         if (index < 0 || index >= SegmentCount)
@@ -80,6 +98,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
                 var coming = IsRunning && index >= _startSegment && index <= Math.Max(produced, _startSegment) + SeekTolerance;
                 if (!coming)
                 {
+                    // Back from a long pause (or a crash), this is a new transcode as far as the limit goes.
+                    if (!IsRunning)
+                    {
+                        _reserve?.Invoke(this);
+                    }
+
                     await StartAsync(index).ConfigureAwait(false);
                 }
                 else if (_paused)
@@ -145,12 +169,20 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Stops ffmpeg but keeps finished segments (a paused viewer may come back).</summary>
-    public async Task StopProcessAsync()
+    /// <summary>
+    /// Stops ffmpeg but keeps finished segments (a paused viewer may come back). With <paramref name="ifIdleFor"/>,
+    /// only if nothing has asked for a segment for that long, checked once nothing else is starting or stopping it.
+    /// </summary>
+    public async Task StopProcessAsync(TimeSpan? ifIdleFor = null)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (WasUsedWithin(ifIdleFor))
+            {
+                return;
+            }
+
             StopProcess();
         }
         finally
@@ -161,14 +193,15 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     /// <summary>
     /// Stops ffmpeg and deletes its segments to free the disk, keeping the session: when the viewer comes back,
-    /// the next segment they ask for starts a new transcode from there.
+    /// the next segment they ask for starts a new transcode from there. With <paramref name="ifIdleFor"/>, only if
+    /// nothing has asked for a segment for that long: a request that came in meanwhile may be about to serve one.
     /// </summary>
-    public async Task ReleaseAsync()
+    public async Task ReleaseAsync(TimeSpan? ifIdleFor = null)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_released || _disposed)
+            if (_released || _disposed || WasUsedWithin(ifIdleFor))
             {
                 return;
             }
@@ -247,6 +280,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
 
         _lastError = null;
+        StartedAt = DateTime.UtcNow;
         _startSegment = segment;
         _paused = false;
         _released = false;
@@ -282,6 +316,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         LastAccess = DateTime.UtcNow;
         LastRequested = index;
     }
+
+    private bool WasUsedWithin(TimeSpan? span) => span is { } idle && DateTime.UtcNow - LastAccess <= idle;
 
     private void DeleteSegments()
     {
