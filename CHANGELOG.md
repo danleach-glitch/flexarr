@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Search everything on Discover
+- A search box on Discover finds any film or show, not just what you have. Titles in your library are marked and open as usual; anything else opens its details with **Request**.
+
 ### Quicker profile switching
 - With two profiles, the profile menu says **Switch to …** (or whoever) and switches straight away, unless that profile has a PIN.
 

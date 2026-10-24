@@ -309,6 +309,10 @@ export interface ExternalTitle {
 export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/status', signal)
 export const getExternalDiscover = (signal?: AbortSignal) =>
   apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)
+/** Every film and show TMDB knows (through Seerr), marked when you already have them. */
+export const searchEverything = (query: string, signal?: AbortSignal) =>
+  apiGet<ExternalTitle[]>(`/requests/search?q=${encodeURIComponent(query)}`, signal)
+
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
 /** A film or show you don't have, with what Seerr knows about it. */

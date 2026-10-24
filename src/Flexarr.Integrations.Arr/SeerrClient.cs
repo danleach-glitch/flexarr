@@ -39,6 +39,16 @@ public sealed class SeerrClient(HttpClient http)
         return await response.Content.ReadFromJsonAsync<SeerrPage>(Json, ct).ConfigureAwait(false) ?? new SeerrPage(page, 0, []);
     }
 
+    /// <summary>Searches every film, show and person TMDB knows, through Seerr.</summary>
+    public async Task<SeerrPage> SearchAsync(SeerrInstance seerr, string query, CancellationToken ct)
+    {
+        // Seerr is strict about encoding: spaces must be %20, and some punctuation must be escaped too.
+        using var request = Request(seerr, HttpMethod.Get, $"search?query={Uri.EscapeDataString(query)}&page=1");
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SeerrPage>(Json, ct).ConfigureAwait(false) ?? new SeerrPage(1, 0, []);
+    }
+
     /// <summary>Requests a film, or every season of a show; Seerr passes it to Radarr or Sonarr.</summary>
     public async Task RequestAsync(SeerrInstance seerr, string mediaType, int tmdbId, CancellationToken ct)
     {

@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { getExternalDiscover, getGenreItems, getGenres, imageUrl } from '../api/client'
+import { getExternalDiscover, getGenreItems, getGenres, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
@@ -12,6 +13,17 @@ export function DiscoverPage() {
   const genres = useApi(getGenres, [])
   const external = useApi(getExternalDiscover, [])
   const items = useApi((signal) => (genre ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind])
+
+  // Search goes beyond the library: anything on TMDB, so something new can be found and requested from here.
+  const query = params.get('q') ?? ''
+  const [typed, setTyped] = useState(query)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (typed.trim() !== query) setParams(typed.trim() ? { q: typed.trim() } : {}, { replace: true })
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [typed, query, setParams])
+  const results = useApi((signal) => (query ? searchEverything(query, signal) : Promise.resolve(undefined)), [query])
 
   if (genre) {
     return (
@@ -45,10 +57,50 @@ export function DiscoverPage() {
     )
   }
 
+  const searchBox = (
+    <input
+      type="search"
+      className="discover-search"
+      placeholder="Search for any film or show"
+      aria-label="Search for any film or show"
+      value={typed}
+      onChange={(e) => setTyped(e.target.value)}
+    />
+  )
+
+  if (query) {
+    return (
+      <div className="discover-page">
+        <header className="library-header">
+          <h1>Discover</h1>
+          {searchBox}
+        </header>
+        {results.error && <p className="error">{results.error.message}</p>}
+        {results.loading && !results.data && <p className="muted">Searching…</p>}
+        {results.data && results.data.length === 0 && <p className="muted">Nothing found for “{query}”. Try a different spelling, or the original title.</p>}
+        {results.data && results.data.length > 0 && (
+          <>
+            <p className="muted discover-search-note">
+              {results.data.filter((t) => t.libraryItemId).length > 0
+                ? `${results.data.filter((t) => t.libraryItemId).length} already in your library. Request anything else to add it.`
+                : 'Request anything to add it to your library.'}
+            </p>
+            <div className="poster-grid">
+              {results.data.map((t) => (
+                <ExternalCard key={`${t.mediaType}-${t.tmdbId}`} title={t} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="discover-page">
       <header className="library-header">
         <h1>Discover</h1>
+        {searchBox}
       </header>
       {external.data && external.data.length > 0 && (
         <div className="discover-external">

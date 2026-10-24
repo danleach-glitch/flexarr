@@ -1795,3 +1795,12 @@ a.download-attention {
     opacity: 1;
   }
 }
+
+/* Search anything on Discover: in your library or not. */
+.discover-search {
+  width: min(420px, 100%);
+}
+
+.discover-search-note {
+  margin: -4px 0 18px;
+}

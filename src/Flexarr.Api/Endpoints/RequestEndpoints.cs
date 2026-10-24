@@ -115,6 +115,28 @@ public static class RequestEndpoints
             return Results.Ok(rows);
         });
 
+        // Search everything (not just the library): films and shows TMDB knows, marked if you have them.
+        group.MapGet("/search", async (string q, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (options.CurrentValue.Seerr?.Instance is not { } instance || string.IsNullOrWhiteSpace(q))
+            {
+                return Results.Ok(Array.Empty<ExternalTitleDto>());
+            }
+
+            try
+            {
+                var page = await seerr.SearchAsync(instance, q.Trim(), ct);
+                var library = await LibraryIndexAsync(db, ct);
+                var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
+                return Results.Ok(page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library))
+                    .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList());
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Problem($"Seerr didn't answer the search ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+            }
+        });
+
         group.MapGet("/title/{mediaType}/{tmdbId:int}", async (string mediaType, int tmdbId, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance || mediaType is not ("movie" or "tv"))
