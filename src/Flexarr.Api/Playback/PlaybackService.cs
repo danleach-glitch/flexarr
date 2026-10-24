@@ -145,12 +145,34 @@ public sealed class PlaybackService(
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
     {
-        var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
-        if (state is null)
+        for (var attempt = 0; ; attempt++)
         {
-            state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
-            db.PlaybackStates.Add(state);
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
+            var added = state is null;
+            if (state is null)
+            {
+                state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
+                db.PlaybackStates.Add(state);
+            }
+
+            var countedPlay = ApplyProgress(state, session, progress);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                session.CountedAsPlay |= countedPlay;
+                return;
+            }
+            catch (DbUpdateException) when (added && attempt == 0)
+            {
+                // Two first reports for the same item raced and the other inserted the row: apply this one to it.
+                db.Entry(state).State = EntityState.Detached;
+            }
         }
+    }
+
+    /// <summary>Applies a progress report to the state; true when it counted a new play.</summary>
+    private static bool ApplyProgress(PlaybackState state, PlaybackSession session, ProgressRequest progress)
+    {
 
         var duration = session.DurationSeconds > 0 ? session.DurationSeconds : (double?)null;
         var finished = progress.Ended
@@ -169,7 +191,7 @@ public sealed class PlaybackService(
             if (!session.CountedAsPlay)
             {
                 state.PlayCount++;
-                session.CountedAsPlay = true;
+                return true;
             }
         }
         else if (progress.PositionSeconds > MinResumeSeconds)
@@ -178,7 +200,7 @@ public sealed class PlaybackService(
             state.Watched = false;
         }
 
-        await db.SaveChangesAsync(ct);
+        return false;
     }
 
     /// <summary>Marks an item (or every episode of a series or season) watched or unwatched.</summary>
