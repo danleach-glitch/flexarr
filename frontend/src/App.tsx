@@ -108,6 +108,9 @@ export default function App() {
     return () => controller.abort()
   }, [attempt])
 
+  // A TV's QR code opens /link?code=…; the code is worth showing even before this device signs in.
+  const tvCode = window.location.pathname === '/link' ? new URLSearchParams(window.location.search).get('code') : null
+
   function submitApiKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const key = new FormData(event.currentTarget).get('apiKey')?.toString().trim()
@@ -149,9 +152,17 @@ export default function App() {
         {state.kind === 'unauthorized' && (
           <form className="api-key-form" onSubmit={submitApiKey}>
             <label htmlFor="apiKey">API key</label>
-            <p className="muted">
-              It's in config.json in the server's data folder. Away from home, open Flexarr through Tailscale instead and you'll be signed in automatically.
-            </p>
+            {tvCode ? (
+              // Arrived from a TV's QR code: this device has never signed in, and only a signed-in main profile can let a TV in.
+              <p className="muted">
+                To let your TV in, this device needs to sign in once with the API key (Settings › Server on a computer that’s signed in). Or skip it: on that
+                computer, open Flexarr, go to <strong>Settings › Connect a TV</strong> and enter <span className="connect-tv-code">{tvCode}</span>
+              </p>
+            ) : (
+              <p className="muted">
+                It's in config.json in the server's data folder. Away from home, open Flexarr through Tailscale instead and you'll be signed in automatically.
+              </p>
+            )}
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
               <button type="submit" className="button">

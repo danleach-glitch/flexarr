@@ -179,10 +179,23 @@ kbd {
 }
 
 .connect .wordmark {
-  display: block;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
   font-size: 3.2rem;
   margin-bottom: 24px;
+}
+
+.connect .wordmark-mark {
+  width: 2.9rem;
+  height: 2.9rem;
+}
+
+.connect-tv-code {
+  font-family: var(--display);
+  font-size: var(--step-3);
+  letter-spacing: 0.08em;
+  color: var(--screen);
 }
 
 .panel {

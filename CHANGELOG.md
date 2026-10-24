@@ -8,6 +8,7 @@ What's changed in Flexarr, newest first.
 - The server announces itself on your home network, and the Apple TV lists it: pick it with the remote.
 - The TV then shows a QR code and a short code. Scan it with your phone (or enter the code in **Settings › Connect a TV** on any device signed in as the main profile) and tap **Allow**; the TV signs itself in. Codes last ten minutes.
 - Typing an address and API key is still there, under **Enter an address instead**.
+- A phone that's never signed in to Flexarr, opening a TV's QR code, is told why it's asked for the API key (once), and how to approve from a signed-in computer instead.
 - The Apple TV app has the new logo: the icon is the three bars, and the Top Shelf shows them beside the name.
 
 ### Apple TV install
