@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first.
 
+## Unreleased
+
+### Fixed: a screen kept a stream that had stopped
+- When several screens on one profile started watching at the same moment and the server was full, one could be left with a stream that had already been stopped for another screen, instead of being told why.
+
 ## 24 October 2026
 
 ### Tidier buttons on a film's or show's page
