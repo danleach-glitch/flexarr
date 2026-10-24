@@ -115,6 +115,24 @@ public static class PlaybackEndpoints
                 ? Playlist(http, PlaybackService.SubtitlePlaylist(session, key))
                 : Results.NotFound());
 
+        // Scrubbing previews: 404 until they've been generated (the player asks again later).
+        group.MapGet("/trickplay.json", (string sid, PlaybackSessions sessions, IOptionsMonitor<FlexarrOptions> options) =>
+            sessions.Get(sid) is { } session && Trickplay.Read(options.CurrentValue.ResolvedCacheDirectory, session.FileId) is { } manifest
+                ? Results.Ok(manifest)
+                : Results.NotFound());
+
+        group.MapGet("/trickplay/{sheet:int}.jpg", (string sid, int sheet, PlaybackSessions sessions, IOptionsMonitor<FlexarrOptions> options, HttpContext http) =>
+        {
+            if (sessions.Get(sid) is not { } session)
+            {
+                return Results.NotFound();
+            }
+
+            var path = Trickplay.SheetPath(options.CurrentValue.ResolvedCacheDirectory, session.FileId, sheet);
+            http.Response.Headers[HeaderNames.CacheControl] = "public, max-age=86400";
+            return File.Exists(path) ? Results.File(path, "image/jpeg") : Results.NotFound();
+        });
+
         group.MapPost("/progress", async (string sid, ProgressRequest progress, PlaybackSessions sessions, PlaybackService playback, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
