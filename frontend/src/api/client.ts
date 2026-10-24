@@ -142,21 +142,64 @@ export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET
 // ---------- A small cache for GETs that pages repeat
 
 const FRESH_MS = 30_000
-const cache = new Map<string, { at: number; value?: unknown; pending?: Promise<unknown> }>()
+/** Most answers kept at once; the least recently used go first. */
+const MAX_ENTRIES = 100
+/** How long a shared GET may take before everyone waiting on it is told it failed. */
+export const FETCH_TIMEOUT_MS = 30_000
+
+interface Entry {
+  at: number
+  freshMs: number
+  value?: unknown
+  pending?: Promise<unknown>
+}
+
+const cache = new Map<string, Entry>()
 
 let bypass = false
 
-/** Forgets every cached answer. */
-export function clearApiCache() {
-  cache.clear()
+/** Forgets every cached answer, or just those whose path `matches`. Pages' own state (keepPage) stays. */
+export function clearApiCache(matches?: (path: string) => boolean) {
+  if (!matches) return cache.clear()
+  for (const key of [...cache.keys()]) if (matches(key.slice(key.indexOf(' ') + 1))) cache.delete(key)
 }
 
-/** Keeps a page's own state (how far down a long grid you were) until the next change clears the cache. */
-export function keepUntilChanged(key: string, value: unknown) {
-  cache.set(`page ${key}`, { at: Date.now(), value })
+/** Drops answers past their time, then the least recently used beyond the cap (a Map iterates oldest first). */
+function prune() {
+  const now = Date.now()
+  for (const [key, entry] of cache) if (!entry.pending && now - entry.at > entry.freshMs) cache.delete(key)
+  for (const key of cache.keys()) {
+    if (cache.size < MAX_ENTRIES) break
+    cache.delete(key)
+  }
 }
 
-export const kept = <T>(key: string) => cache.get(`page ${key}`)?.value as T | undefined
+// ---------- Pages' own state
+
+const MAX_PAGES = 10
+const pages = new Map<string, unknown>()
+
+/**
+ * Keeps a page's own state (how far down a long grid you were) for going back to it. It lives apart from the cache,
+ * so a change (marking something watched, a progress report) doesn't throw it away: the page squares it with what
+ * changed meanwhile. Only the last few pages are kept.
+ */
+export function keepPage(key: string, value: unknown) {
+  const full = `${profileToken() ?? ''} ${key}`
+  pages.delete(full)
+  pages.set(full, value)
+  for (const old of pages.keys()) {
+    if (pages.size <= MAX_PAGES) break
+    pages.delete(old)
+  }
+}
+
+export const keptPage = <T>(key: string) => pages.get(`${profileToken() ?? ''} ${key}`) as T | undefined
+
+/** Forgets every page's kept state. */
+export function clearKeptPages() {
+  pages.clear()
+}
 
 /** Runs `load` with its cached GETs fetched afresh (a page reloading on purpose); they must start synchronously. */
 export function freshly<T>(load: () => T): T {
@@ -170,30 +213,41 @@ export function freshly<T>(load: () => T): T {
 
 /**
  * A GET that's shared: while one is in flight, asking again joins it rather than sending another, and an answer is
- * reused for `freshMs` (any change through this client clears it first). Aborting stops only this caller's wait.
+ * reused for `freshMs` (any change through this client clears it first). Aborting stops only this caller's wait; a
+ * request the server never answers fails for everyone after FETCH_TIMEOUT_MS, and the next ask starts afresh.
  */
 function cachedGet<T>(path: string, signal?: AbortSignal, freshMs = FRESH_MS): Promise<T> {
   // Answers depend on the profile, which a header chooses.
   const key = `${profileToken() ?? ''} ${path}`
   let entry = cache.get(key)
-  if (entry && (bypass || (!entry.pending && Date.now() - entry.at > freshMs))) entry = undefined
-  if (!entry) {
-    const fresh: { at: number; value?: unknown; pending?: Promise<unknown> } = { at: Date.now() }
-    fresh.pending = apiGet<T>(path).then(
-      (value) => {
-        // Only keep it if nothing cleared the cache meanwhile.
-        if (cache.get(key) === fresh) {
-          fresh.value = value
-          fresh.at = Date.now()
-          fresh.pending = undefined
-        }
-        return value
-      },
-      (error: unknown) => {
-        if (cache.get(key) === fresh) cache.delete(key)
-        throw error
-      },
-    )
+  if (entry && (bypass || (!entry.pending && Date.now() - entry.at > entry.freshMs))) entry = undefined
+  if (entry) {
+    // Most recently used goes last.
+    cache.delete(key)
+    cache.set(key, entry)
+  } else {
+    const fresh: Entry = { at: Date.now(), freshMs }
+    const timeout = new AbortController()
+    const timer = setTimeout(() => timeout.abort(new DOMException('The server took too long to answer.', 'TimeoutError')), FETCH_TIMEOUT_MS)
+    fresh.pending = apiGet<T>(path, timeout.signal)
+      .then(
+        (value) => {
+          // Only keep it if nothing cleared the cache meanwhile.
+          if (cache.get(key) === fresh) {
+            fresh.value = value
+            fresh.at = Date.now()
+            fresh.pending = undefined
+          }
+          return value
+        },
+        (error: unknown) => {
+          if (cache.get(key) === fresh) cache.delete(key)
+          throw error
+        },
+      )
+      .finally(() => clearTimeout(timer))
+    cache.delete(key)
+    prune()
     cache.set(key, fresh)
     entry = fresh
   }
@@ -235,7 +289,9 @@ export function getLibraryItems(
     if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
   }
   const query = params.size ? `?${params}` : ''
-  return cachedGet<Paged<ItemSummary>>(`/libraries/${id}/items${query}`, signal)
+  const path = `/libraries/${id}/items${query}`
+  // A letter jump's big pages go once, straight into the grid: caching them would only crowd out everything else.
+  return (options.take ?? 0) > 200 ? apiGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
@@ -264,6 +320,9 @@ export const saveLayout = (layout: Layout) => {
 /** A library's own home page: hero and rows for just that library. */
 export const getLibraryBrowse = (id: string, signal?: AbortSignal) => cachedGet<Home>(`/libraries/${id}/browse`, signal)
 export const getItem = (id: string, signal?: AbortSignal) => cachedGet<ItemDetail>(`/items/${id}`, signal)
+/** A title page's detail: a series also brings its Up Next episode and one season (`season`, else the first unwatched). */
+export const getItemPage = (id: string, season: string | null, signal?: AbortSignal) =>
+  cachedGet<ItemDetail>(`/items/${id}?includeSeason=true${season ? `&season=${encodeURIComponent(season)}` : ''}`, signal)
 export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/similar`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })

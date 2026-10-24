@@ -7,6 +7,18 @@ const SCAN_POLL_MS = 2000
 const IDLE_POLL_MS = 30_000
 const MAX_IDLE_POLL_MS = 120_000
 
+/** Libraries whose titles may have changed between two answers: their count or last scan moved, or they came or went. */
+function changedLibraries(before: Library[], after: Library[]) {
+  const was = new Map(before.map((l) => [l.id, `${l.itemCount} ${l.lastScannedAt}`]))
+  const now = new Map(after.map((l) => [l.id, `${l.itemCount} ${l.lastScannedAt}`]))
+  return [...new Set([...was.keys(), ...now.keys()])].filter((id) => was.get(id) !== now.get(id))
+}
+
+/** Cached answers a change in those libraries can touch: their own pages, and those that gather across libraries. */
+const ACROSS_LIBRARIES = ['/home', '/genres', '/collections', '/libraries?', '/items/', '/people/']
+const touches = (ids: string[]) => (path: string) =>
+  ids.some((id) => path.startsWith(`/libraries/${id}/`)) || ACROSS_LIBRARIES.some((p) => path.startsWith(p))
+
 /**
  * Shares the library list (and live scan progress) with the sidebar and pages. It checks often during a scan, less
  * and less often while nothing changes, and not at all from a background tab. An unchanged answer keeps the same
@@ -16,6 +28,7 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
   const [libraries, setLibraries] = useState<Library[]>([])
   const [idleMs, setIdleMs] = useState(IDLE_POLL_MS)
   const last = useRef<string | undefined>(undefined)
+  const previous = useRef<Library[] | undefined>(undefined)
   const inFlight = useRef<AbortController | undefined>(undefined)
 
   const reload = useCallback(() => {
@@ -29,9 +42,11 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
           setIdleMs((ms) => Math.min(ms * 2, MAX_IDLE_POLL_MS))
           return
         }
-        // A scan moved on or titles came and went: cached pages may be out of date.
-        if (last.current !== undefined) clearApiCache()
+        // Titles came and went: cached pages showing them may be out of date (scan progress alone changes none).
+        const changed = changedLibraries(previous.current ?? next, next)
+        if (changed.length) clearApiCache(touches(changed))
         last.current = json
+        previous.current = next
         setLibraries(next)
         setIdleMs(IDLE_POLL_MS)
       })
