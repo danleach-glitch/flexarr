@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Flexarr.Api/Flexarr.Api.csproj" />
+    <Project Path="src/Flexarr.Core/Flexarr.Core.csproj" />
+    <Project Path="src/Flexarr.Integrations.Arr/Flexarr.Integrations.Arr.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Flexarr.Api.Tests/Flexarr.Api.Tests.csproj" />
+    <Project Path="tests/Flexarr.Core.Tests/Flexarr.Core.Tests.csproj" />
+  </Folder>
+</Solution>

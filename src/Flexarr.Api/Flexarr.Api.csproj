@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Flexarr</AssemblyName>
+    <RootNamespace>Flexarr.Api</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Flexarr.Core\Flexarr.Core.csproj" />
+    <ProjectReference Include="..\Flexarr.Integrations.Arr\Flexarr.Integrations.Arr.csproj" />
+  </ItemGroup>
+</Project>

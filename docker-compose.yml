@@ -1,0 +1,43 @@
+# Local development stack: Flexarr plus the *arr apps it integrates with.
+#   docker compose up -d
+# Media lives in ./dev/media (movies, tv, music) and is shared by every container
+# at the same path, so paths in *arr webhooks match what Flexarr sees.
+services:
+  flexarr:
+    build: .
+    ports: ["8383:8383"]
+    volumes:
+      - ./dev/flexarr:/config
+      - ./dev/media:/data/media
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    environment: [PUID=1000, PGID=1000, TZ=Etc/UTC]
+    ports: ["8989:8989"]
+    volumes:
+      - ./dev/sonarr:/config
+      - ./dev/media:/data/media
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    environment: [PUID=1000, PGID=1000, TZ=Etc/UTC]
+    ports: ["7878:7878"]
+    volumes:
+      - ./dev/radarr:/config
+      - ./dev/media:/data/media
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    environment: [PUID=1000, PGID=1000, TZ=Etc/UTC]
+    ports: ["8686:8686"]
+    volumes:
+      - ./dev/lidarr:/config
+      - ./dev/media:/data/media
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment: [PUID=1000, PGID=1000, TZ=Etc/UTC]
+    ports: ["9696:9696"]
+    volumes:
+      - ./dev/prowlarr:/config

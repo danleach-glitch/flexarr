@@ -1,0 +1,41 @@
+# Generate the Xcode project with: xcodegen generate
+# The .xcodeproj is build output and is not committed.
+name: Flexarr
+options:
+  bundleIdPrefix: io.github.flexarr
+  deploymentTarget:
+    tvOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  FlexarrKit:
+    path: FlexarrKit
+targets:
+  FlexarrTV:
+    type: application
+    platform: tvOS
+    sources: [FlexarrTV]
+    dependencies:
+      - package: FlexarrKit
+    info:
+      path: FlexarrTV/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        UILaunchScreen: {}
+        # Self-hosted servers are usually plain HTTP on the LAN.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Flexarr connects to your media server on the local network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.tv
+        TARGETED_DEVICE_FAMILY: "3"
+schemes:
+  FlexarrTV:
+    build:
+      targets:
+        FlexarrTV: all

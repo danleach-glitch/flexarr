@@ -1,0 +1,10 @@
+**/bin
+**/obj
+**/node_modules
+frontend/dist
+clients
+dev
+**/data
+.git
+.github
+docs

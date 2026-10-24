@@ -1,0 +1,38 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations: { required: true }
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [Server, Web client, Apple TV app, "*arr integration", Docker / install, Other]
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Flexarr version
+      description: Shown on the web client's home page or at /api/v1/system/status
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "Docker on Ubuntu 24.04, Sonarr v4.0.x, Apple TV 4K tvOS 26"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove API keys and other secrets first.
+      render: text
