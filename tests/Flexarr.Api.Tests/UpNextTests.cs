@@ -53,6 +53,27 @@ public class UpNextTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal("Tuesday", await NextUpAsync(show.Series));
     }
 
+    [Fact]
+    public async Task TitlePage_GetsUpNextAndASeasonWithTheSeries()
+    {
+        var show = await SeedAsync(("S01E01", 1, 1, null), ("S02E01", 2, 1, null), ("S02E02", 2, 2, null), ("S00E01", 0, 1, null));
+        await WatchAsync(show.Episodes["S01E01"], DateTime.UtcNow.AddDays(-1));
+
+        var page = await Client().GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{show.Series}?includeSeason=true", UriKind.Relative));
+        Assert.Equal("S02E01", page.GetProperty("nextUp").GetProperty("title").GetString());
+        // Season 1 is all watched, so the first unwatched one, with its episodes.
+        var season = page.GetProperty("season");
+        Assert.Equal(2, season.GetProperty("item").GetProperty("seasonNumber").GetInt32());
+        Assert.Equal(["S02E01", "S02E02"], season.GetProperty("children").EnumerateArray().Select(e => e.GetProperty("title").GetString()!).ToArray());
+
+        var specials = await Client().GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{show.Series}?includeSeason=true&season=0", UriKind.Relative));
+        Assert.Equal(0, specials.GetProperty("season").GetProperty("item").GetProperty("seasonNumber").GetInt32());
+
+        // Other callers (the Apple TV) get the detail as before.
+        var plain = await Client().GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{show.Series}", UriKind.Relative));
+        Assert.True(!plain.TryGetProperty("season", out var none) || none.ValueKind == JsonValueKind.Null);
+    }
+
     private HttpClient Client()
     {
         var client = factory.CreateClient();
