@@ -23,11 +23,11 @@ struct ProfileAvatar: View {
 }
 
 /// "Who's watching?": a row of avatars, then a PIN pad for a protected profile. Shown full screen
-/// on first launch when the household has several profiles, and as the profile tab afterwards.
-/// With two profiles the tab opens focused on the other one, so switching is a single press.
+/// on first launch when the household has several profiles, and from the avatar in the top right
+/// corner afterwards. With two profiles that opens focused on the other one, so switching is a single press.
 struct ProfilePickerView: View {
     @Environment(AppModel.self) private var model
-    /// In the tab, the profile watching now is marked and the other one gets focus.
+    /// Opened from the avatar: the profile watching now is marked and the other one gets focus.
     var marksCurrent = false
 
     @State private var asking: Profile?
@@ -67,8 +67,8 @@ struct ProfilePickerView: View {
                     }
                     .buttonStyle(ProfileButtonStyle())
                     .focused($focused, equals: profile.id)
-                    // Whoever's watching can't be chosen again, so focus coming down from the tab bar
-                    // lands on someone else: with two profiles, one press switches.
+                    // Whoever's watching can't be chosen again, so focus starts on someone else:
+                    // with two profiles, one press switches.
                     .disabled(switching != nil || (marksCurrent && profile.isCurrent))
                 }
             }

@@ -102,7 +102,7 @@ What's changed in Flexarr, newest first.
 
 ### Profiles on Apple TV
 - When your household has more than one profile, the Apple TV asks **Who's watching?** the first time it connects, and remembers the answer.
-- The current profile's name sits at the right end of the tab bar. Open it to switch; with two profiles the other person is already highlighted, so it's one press.
+- The current profile's picture sits in the top right corner, level with the tab bar (press right from the last tab to reach it). Open it to switch; with two profiles the other person is already highlighted, so it's one press.
 - A profile with a PIN asks for it on an on-screen keypad.
 
 ### Collections
