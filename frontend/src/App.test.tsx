@@ -594,6 +594,8 @@ describe('Player', () => {
     renderAt('/play/e1')
     await screen.findByText('Pilot')
     const video = document.querySelector('video')!
+    // The title shows before the first stream is attached; an error before then isn't a stopped transcode yet.
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s1/'))
     Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 352 })
 
     // The server restarted, say: the stream ends, and the player asks for a fresh one at the same spot.
