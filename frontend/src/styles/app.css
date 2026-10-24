@@ -923,6 +923,116 @@ kbd {
   color: var(--usher);
 }
 
+/* ---------- Coming soon ---------- */
+
+.upcoming-when {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 2px 9px;
+  border-radius: 6px;
+  background: rgb(14 11 17 / 0.8);
+  font-size: var(--step--1);
+  font-weight: 800;
+  backdrop-filter: blur(6px);
+}
+
+.upcoming-page {
+  max-width: 1100px;
+  padding: calc(var(--nav-height) + 32px) var(--edge) 0;
+}
+
+.downloads,
+.upcoming-day {
+  margin-bottom: 36px;
+}
+
+.downloads h2,
+.upcoming-day h2 {
+  font-size: var(--step-3);
+  margin-bottom: 12px;
+}
+
+.downloads ul,
+.upcoming-day ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.download {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(160px, 260px);
+  gap: 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
+}
+
+.download-poster {
+  aspect-ratio: 2 / 3;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--seat);
+}
+
+.download-poster img,
+.upcoming-still img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.download-text,
+.upcoming-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.download-meter {
+  display: grid;
+  gap: 6px;
+  font-size: var(--step--1);
+}
+
+.upcoming-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
+  text-decoration: none;
+}
+
+a.upcoming-row:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.upcoming-still {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-art);
+  overflow: hidden;
+  background: var(--seat);
+}
+
+.upcoming-overview {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--step--1);
+  margin-top: 4px;
+}
+
+.upcoming-status {
+  color: var(--usher);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
 /* ---------- Small screens ---------- */
 
 @media (max-width: 760px) {
@@ -994,5 +1104,21 @@ kbd {
   .person-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .upcoming-row {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+
+  .upcoming-status {
+    grid-column: 2;
+  }
+
+  .download {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .download-meter {
+    grid-column: 2;
   }
 }

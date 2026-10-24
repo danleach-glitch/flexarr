@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { NavLink, useParams } from 'react-router'
+import { Link, NavLink, useParams } from 'react-router'
 import {
   ApiError,
   createLibrary,
@@ -7,11 +7,13 @@ import {
   getActivity,
   getApiKey,
   getArrStatus,
+  getLibraryHealth,
   getPlexSource,
   getSettings,
   importFromPlex,
   saveSettings,
   scanLibrary,
+  searchAgain,
   testArr,
   type ArrKind,
   type ArrStatus,
@@ -25,13 +27,14 @@ import { FolderPicker } from '../components/FolderPicker'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
-import { episodeCode, formatClock, libraryTypeLabel, relativeTime } from '../lib/format'
+import { episodeCode, formatClock, formatSize, libraryTypeLabel, relativeTime } from '../lib/format'
 
 const sections = [
   { id: 'libraries', label: 'Libraries' },
   { id: 'playback', label: 'Playback' },
   { id: 'connections', label: 'Sonarr and Radarr' },
   { id: 'activity', label: 'Activity' },
+  { id: 'health', label: 'Library health' },
   { id: 'import', label: 'Bring over from Plex' },
   { id: 'server', label: 'Server' },
 ] as const
@@ -58,6 +61,7 @@ export function SettingsPage() {
         {section === 'activity' && <ActivitySection />}
         {section === 'server' && <ServerSection />}
         {section === 'import' && <ImportSection />}
+        {section === 'health' && <HealthSection />}
       </div>
     </div>
   )
@@ -683,6 +687,117 @@ function ImportSection() {
           </>
         )}
       </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- Library health
+
+function HealthSection() {
+  const { data } = useApi(getLibraryHealth, [])
+  const [requested, setRequested] = useState<Record<string, string>>({})
+  if (!data) return <p className="muted">Checking your library…</p>
+
+  async function upgrade(id: string) {
+    try {
+      await searchAgain(id)
+      setRequested((r) => ({ ...r, [id]: 'Search started' }))
+    } catch (e) {
+      setRequested((r) => ({ ...r, [id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Search failed' }))
+    }
+  }
+
+  return (
+    <section>
+      <header className="settings-header">
+        <h2>Library health</h2>
+      </header>
+      <p className="settings-lede">Things worth tidying. Flexarr never deletes your files; remove copies in Sonarr, Radarr or the Finder.</p>
+
+      <h3 className="settings-subhead">
+        Duplicate copies{data.duplicates.length > 0 && `: ${formatSize(data.reclaimableBytes)} could be freed`}
+      </h3>
+      {data.duplicates.length === 0 && <p className="muted">Every title has a single copy.</p>}
+      <div className="health-list">
+        {data.duplicates.slice(0, 50).map((d) => (
+          <details key={d.item.id} className="panel health-item">
+            <summary>
+              <span>
+                <strong>{d.seriesTitle ?? d.item.title}</strong>
+                {d.seriesTitle && (
+                  <span className="muted">
+                    {' '}
+                    {episodeCode(d.item)} {d.item.title}
+                  </span>
+                )}
+              </span>
+              <span className="muted">
+                {d.files.length} copies, {formatSize(d.reclaimableBytes)} spare
+              </span>
+            </summary>
+            <ul>
+              {d.files.map((f) => (
+                <li key={f.id} className={f.keep ? 'keep' : undefined}>
+                  <span className="tag">{f.keep ? 'Best copy' : 'Spare'}</span>
+                  <code>{f.path}</code>
+                  <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+        {data.duplicates.length > 50 && <p className="muted">And {data.duplicates.length - 50} more.</p>}
+      </div>
+
+      <h3 className="settings-subhead">Files that can't be read</h3>
+      {data.unreadable.length === 0 ? (
+        <p className="muted">Every file opened cleanly.</p>
+      ) : (
+        <div className="panel">
+          <p className="settings-lede">These are usually damaged or incomplete downloads. Replacing them in Sonarr or Radarr fixes playback.</p>
+          <ul className="plain-list">
+            {data.unreadable.map((u) => (
+              <li key={u.fileId}>
+                <code>{u.path}</code>
+                <span className="muted">{u.error}</span>
+                {u.item && (
+                  <button className="text-button" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
+                    {requested[u.item.id] ?? 'Ask Sonarr or Radarr for a new copy'}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <h3 className="settings-subhead">Standard definition films ({data.standardDefinitionTotal})</h3>
+      <p className="settings-lede">Your best copy of these is below 720p. Radarr can look for a better one.</p>
+      <div className="health-sd">
+        {data.standardDefinition.map((item) => (
+          <div key={item.id} className="health-sd-item">
+            <Link to={`/item/${item.id}`}>{item.title}</Link>
+            <span className="muted">{item.year}</span>
+            <button className="text-button" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
+              {requested[item.id] ?? 'Find a better copy'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {data.missingArtwork.length > 0 && (
+        <>
+          <h3 className="settings-subhead">Missing artwork ({data.missingArtwork.length})</h3>
+          <p className="settings-lede">These weren't found in Sonarr or Radarr. Renaming the folder to “Title (Year)” usually fixes the match.</p>
+          <ul className="plain-list">
+            {data.missingArtwork.map((item) => (
+              <li key={item.id}>
+                <Link to={`/item/${item.id}`}>{item.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   )
 }

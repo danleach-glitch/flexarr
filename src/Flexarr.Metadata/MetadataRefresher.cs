@@ -504,7 +504,9 @@ public sealed partial class MetadataRefresher(
     private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force)
     {
         var cutoff = DateTime.UtcNow - StaleAfter;
-        return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind && (force || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff));
+        // Items that didn't match last time are retried on every run (a rename or new *arr entry may fix them).
+        return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
+            && (force || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff || i.PosterUrl == null));
     }
 
     private async Task SaveEveryAsync(int count, CancellationToken ct)

@@ -101,7 +101,9 @@ app.MapGroup("/api/v1")
     .MapPlaybackEndpoints()
     .MapDiscoveryEndpoints()
     .MapSettingsEndpoints()
-    .MapImportEndpoints();
+    .MapImportEndpoints()
+    .MapUpcomingEndpoints()
+    .MapHealthEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();

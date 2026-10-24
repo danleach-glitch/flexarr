@@ -37,6 +37,8 @@ describe('App', () => {
         featured: [niceGuys],
         overviews: { m1: 'A mismatched pair of private eyes investigate a missing girl.' },
         rows: [{ id: 'top-movies', title: 'Top 10 films in your library', style: 'top10', items: [niceGuys], link: null }],
+        upcoming: [],
+        downloading: 0,
       },
     })
 
@@ -56,7 +58,7 @@ describe('App', () => {
         return authorized ? status : new Response('', { status: 401 })
       },
       '/libraries': [],
-      '/home': { featured: [], overviews: {}, rows: [] },
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
     })
 
     render(<App />)
@@ -118,7 +120,7 @@ describe('Search', () => {
   it('opens with ⌘K and goes to the highlighted result on Enter', async () => {
     mockApi({
       '/libraries': [],
-      '/home': { featured: [], overviews: {}, rows: [] },
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
       '/search': { titles: [niceGuys], episodes: [], people: [{ id: 'p1', name: 'Ryan Gosling', image: null, credits: 4 }], genres: [] },
       '/items/m1': detail(niceGuys),
       '/items/m1/similar': [],

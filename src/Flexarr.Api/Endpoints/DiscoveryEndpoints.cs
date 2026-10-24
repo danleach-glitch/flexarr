@@ -9,7 +9,7 @@ namespace Flexarr.Api.Endpoints;
 
 public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null);
 
-public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows);
+public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading);
 
 public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
 
@@ -17,7 +17,7 @@ public sealed record SearchResultsDto(IReadOnlyList<ItemSummaryDto> Titles, IRea
 
 public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
 
-public static class DiscoveryEndpoints
+public static partial class DiscoveryEndpoints
 {
     private const int RowSize = 20;
 
@@ -25,6 +25,8 @@ public static class DiscoveryEndpoints
     {
         api.MapGet("/home", async (FlexarrDbContext db, IServiceProvider services, CancellationToken ct) =>
         {
+            var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
+            var arr = services.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>();
             var rows = new List<HomeRowDto>();
             var states = db.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
@@ -87,7 +89,20 @@ public static class DiscoveryEndpoints
 
             var ids = rotation.Select(r => r.Id).ToList();
             var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
-            return new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList());
+            // Sequential: these share the DbContext with the queries above, which isn't thread-safe.
+            // Coming soon is a bonus; the home page must render even if it fails.
+            List<UpcomingDto> upcoming = [];
+            var downloading = 0;
+            try
+            {
+                upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, db, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
+                downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, db, ct)).Count;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogUpcomingFailed(services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Home"), ex);
+            }
+            return new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList(), upcoming, downloading);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CancellationToken ct) =>
@@ -230,4 +245,7 @@ public static class DiscoveryEndpoints
         query.Where(i => i.CommunityRating != null)
             .OrderByDescending(i => i.CommunityRating + (i.CriticRating == null ? 0 : (i.CriticRating.Value - 70) / 50.0))
             .ThenByDescending(i => i.Popularity);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Coming soon is unavailable")]
+    private static partial void LogUpcomingFailed(ILogger logger, Exception exception);
 }

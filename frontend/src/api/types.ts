@@ -157,10 +157,47 @@ export interface HomeRow {
   link: string | null
 }
 
+export interface DownloadState {
+  progress: number
+  timeLeft: string | null
+  status: string | null
+}
+
+export interface UpcomingItem {
+  id: string
+  kind: MediaKind
+  title: string
+  seriesTitle: string | null
+  seasonNumber: number | null
+  episodeNumber: number | null
+  date: string
+  when: string
+  overview: string | null
+  poster: string | null
+  still: string | null
+  libraryItemId: string | null
+  available: boolean
+  download: DownloadState | null
+}
+
+export interface Download {
+  id: string
+  kind: MediaKind
+  title: string
+  seriesTitle: string | null
+  seasonNumber: number | null
+  episodeNumber: number | null
+  poster: string | null
+  libraryItemId: string | null
+  state: DownloadState
+}
+
 export interface Home {
   featured: ItemSummary[]
   overviews: Record<string, string | null>
   rows: HomeRow[]
+  upcoming: UpcomingItem[]
+  downloading: number
 }
 
 export interface SearchResults {

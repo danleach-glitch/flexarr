@@ -8,6 +8,11 @@ namespace Flexarr.Api.Endpoints;
 
 public static class ImageEndpoints
 {
+    private static readonly HashSet<string> AllowedHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image.tmdb.org", "artworks.thetvdb.com", "thetvdb.com", "static.tvmaze.com", "assets.fanart.tv",
+    };
+
     /// <summary>
     /// Cached, resized artwork. Anonymous so <c>&lt;img&gt;</c> tags and TV clients can load it directly;
     /// item ids are unguessable and artwork isn't sensitive.
@@ -21,6 +26,13 @@ public static class ImageEndpoints
             var url = await ResolveAsync(db, id, kind, ct);
             return url is null ? Results.NotFound() : await ServeAsync(cache, url, w, http, ct);
         });
+
+        // Artwork for things not in the library yet (Coming soon, downloads). Only known artwork hosts, so this
+        // can't be used to make the server fetch arbitrary URLs.
+        group.MapGet("/remote", async (string url, int? w, ImageCache cache, HttpContext http, CancellationToken ct) =>
+            Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && AllowedHosts.Contains(uri.Host)
+                ? await ServeAsync(cache, url, w, http, ct)
+                : Results.BadRequest());
 
         group.MapGet("/people/{id:guid}", async (Guid id, int? w, FlexarrDbContext db, ImageCache cache, HttpContext http, CancellationToken ct) =>
         {
