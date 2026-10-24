@@ -10,6 +10,7 @@ What's changed in Flexarr, newest first.
 - The dialog shows the full path of the film's files (or the show's folder), so you can see what's being matched.
 - **Match automatically again** in the same dialog undoes the choice.
 - **Settings › Library health** has a new **Check these matches** list: films and shows Sonarr and Radarr don't manage, whose details came from searching for the folder's name. **Missing artwork** rows get **Fix match** too.
+- **Ignore** on a row in Check these matches says the match is right: it leaves the list and stays as it is. **Match automatically again** in Fix match undoes it.
 
 ### Delete titles Sonarr and Radarr don't manage
 - **Delete** used to refuse a film or show that Sonarr or Radarr don't manage. Now Flexarr deletes its video files from disk itself, along with any folders that leaves empty, but never a library's own folder or anything outside it.

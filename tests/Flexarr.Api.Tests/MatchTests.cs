@@ -129,6 +129,23 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task Ignore_KeepsTheMatchASearchFound_AndTakesItOffTheList()
+    {
+        var app = WithSonarr(new FakeSonarr());
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: true);
+        var before = await Client(app).GetFromJsonAsync<JsonObject>(new Uri("/api/v1/library-health", UriKind.Relative));
+
+        var response = await Client(app).PostAsync(new Uri($"/api/v1/items/{id}/match/keep", UriKind.Relative), null);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var after = await Client(app).GetFromJsonAsync<JsonObject>(new Uri("/api/v1/library-health", UriKind.Relative));
+        Assert.Contains(before!["matchedByTitle"]!.AsArray(), i => i!["id"]!.GetValue<Guid>() == id);
+        Assert.DoesNotContain(after!["matchedByTitle"]!.AsArray(), i => i!["id"]!.GetValue<Guid>() == id);
+        var item = await ItemAsync(app, id);
+        Assert.Equal(("Shogun", "80284", true), (item.Title, item.TvdbId, item.MatchLocked));
+    }
+
+    [Fact]
     public async Task FixMatch_IsForAdminsOnly()
     {
         var app = WithSonarr(new FakeSonarr());

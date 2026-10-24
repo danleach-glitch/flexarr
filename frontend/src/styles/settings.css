@@ -776,6 +776,12 @@
   flex-wrap: wrap;
 }
 
+.health-row-actions {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
 .health-row-text.health-row-wraps > * {
   white-space: normal;
   overflow-wrap: anywhere;

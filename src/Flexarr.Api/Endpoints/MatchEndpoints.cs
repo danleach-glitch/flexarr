@@ -194,6 +194,26 @@ public static partial class MatchEndpoints
             return Results.NoContent();
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
+        // Ignore in Library health: the match a title search found is right. Locked as it is, refreshes keep it (by its
+        // id, so Radarr or Sonarr taking it on later still links it) and it leaves Check these matches.
+        api.MapPost("/items/{id:guid}/match/keep", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var item = await db.MediaItems.FirstOrDefaultAsync(i => i.Id == id && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series), ct);
+            if (item is null)
+            {
+                return Results.NotFound();
+            }
+
+            if ((item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId) is null)
+            {
+                return Results.Problem($"{item.Title} isn't matched to anything yet. Use Fix match to choose what it is.", statusCode: 409);
+            }
+
+            item.MatchLocked = true;
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        }).WithTags("Match").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
         return api;
     }
 
