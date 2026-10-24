@@ -331,10 +331,11 @@ function LibraryAll() {
       // aims at where the target was before the cards it passes are laid out. Once there, cards drawn around it can
       // still nudge it, so settle once more.
       requestAnimationFrame(() => {
-        const el = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"] a`)
-        el?.scrollIntoView({ block: 'center' })
-        el?.focus({ preventScroll: true })
-        requestAnimationFrame(() => el?.scrollIntoView({ block: 'center' }))
+        const card = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"]`)
+        card?.scrollIntoView({ block: 'center' })
+        // The card's keyboard-reachable link (the poster link is hidden from keyboard and screen readers).
+        card?.querySelector<HTMLElement>('a:not([tabindex="-1"])')?.focus({ preventScroll: true })
+        requestAnimationFrame(() => card?.scrollIntoView({ block: 'center' }))
       })
     }
   }
