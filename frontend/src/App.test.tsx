@@ -4,6 +4,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
 import { TrailerDialog } from './components/TrailerDialog'
 import { usePolling } from './hooks/usePolling'
+import { deleteItem } from './api/client'
+import { WATCHED_CHANGED } from './hooks/watched'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
 beforeAll(() => {
@@ -434,6 +436,52 @@ describe('Player', () => {
   })
 })
 
+describe('Player watched announcement', () => {
+  it('names the episode just played when moving on to the next, and nothing at the start', async () => {
+    const pilot = summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, seriesId: 's' })
+    const second = summary({ id: 'e2', kind: 'Episode', title: 'Second', seasonNumber: 1, episodeNumber: 2, seriesId: 's' })
+    const playback = (item: typeof pilot, next: typeof pilot | null) => ({
+      sessionId: item.id,
+      method: 'DirectPlay',
+      url: `/api/v1/playback/${item.id}/stream`,
+      reasons: [],
+      durationSeconds: 1320,
+      startPositionSeconds: 0,
+      fileId: 'f1',
+      audioTracks: [],
+      selectedAudioIndex: 1,
+      subtitles: [],
+      selectedSubtitleKey: null,
+      subtitleBurnedIn: false,
+      markers: [],
+      item,
+      ancestors: [],
+      next,
+      transcodeSummary: null,
+    })
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => (JSON.parse(String(init?.body)).itemId === 'e2' ? playback(second, null) : playback(pilot, second)),
+      'DELETE /playback/e1': undefined,
+      'DELETE /playback/e2': undefined,
+    })
+    const announced: string[][] = []
+    const listener = (e: Event) => announced.push((e as CustomEvent<string[]>).detail)
+    window.addEventListener(WATCHED_CHANGED, listener)
+    try {
+      renderAt('/play/e1')
+      await screen.findByText('Pilot')
+      expect(announced).toEqual([])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next episode' }))
+      await screen.findByText('Second')
+      await vi.waitFor(() => expect(announced).toEqual([['e1', 's']]))
+    } finally {
+      window.removeEventListener(WATCHED_CHANGED, listener)
+    }
+  })
+})
+
 describe('Profiles', () => {
   it('asks who is watching when there are several profiles, and checks the PIN', async () => {
     const profiles = [
@@ -562,13 +610,134 @@ describe('Library grid', () => {
     expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Watched: mark Film 003 as unwatched' })).toHaveAttribute('aria-pressed', 'true')
     expect(pages).toEqual([0, 200])
-    // The page opens at the top, then the grid goes back to where it was.
+    // The page opens at the top, then the grid goes back to where it was, with focus on the title that was opened.
     await vi.waitFor(() => expect(scrolls).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Film 003' })).toHaveFocus())
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search Movies' }), { target: { value: 'Film 1' } })
     await vi.waitFor(() => expect(pages).toEqual([0, 200, 0]))
     await new Promise((resolve) => requestAnimationFrame(resolve))
     expect(scrolls).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Library grid going back', () => {
+  function Nav() {
+    const navigate = useNavigate()
+    return (
+      <>
+        <button onClick={() => navigate(-1)}>Back</button>
+        <button onClick={() => navigate('/item/f1')}>Elsewhere</button>
+      </>
+    )
+  }
+  function renderGrid(path = '/library/lib-movies?view=all') {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Shell />
+        <Nav />
+      </MemoryRouter>,
+    )
+  }
+  /** A small library whose answers the test can change and hold back. */
+  function server(count: number) {
+    const state = {
+      films: Array.from({ length: count }, (_, i) => summary({ id: `f${i}`, title: `Film ${i}`, year: 2000 + i })),
+      hold: undefined as Promise<void> | undefined,
+      pages: [] as string[],
+      lists: 0,
+    }
+    mockApi({
+      '/libraries': () => {
+        state.lists++
+        return [{ ...movies, scan: null, itemCount: state.films.length }]
+      },
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': async (_: RequestInit | undefined, url: URL) => {
+        const sort = url.searchParams.get('sort') ?? ''
+        state.pages.push(sort)
+        await state.hold
+        const items = sort === 'year' ? [...state.films].reverse() : state.films
+        return { total: items.length, items }
+      },
+      '/items/f1': () => detail(state.films[1]),
+      '/items/f1/similar': [],
+      'DELETE /items/f1': () => {
+        state.films = state.films.filter((f) => f.id !== 'f1')
+      },
+    })
+    return state
+  }
+  function held(state: { hold: Promise<void> | undefined }) {
+    let release = () => {}
+    state.hold = new Promise<void>((resolve) => (release = resolve))
+    return () => {
+      state.hold = undefined
+      release()
+    }
+  }
+  const titles = () => screen.getAllByRole('link', { name: /^Film \d+$/ }).map((l) => l.textContent)
+
+  it('loads afresh on Back when it was left before the first page arrived', async () => {
+    const state = server(3)
+    const release = held(state)
+    renderGrid()
+    await vi.waitFor(() => expect(state.pages).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    release()
+
+    expect(await screen.findByRole('link', { name: 'Film 2' })).toBeInTheDocument()
+  })
+
+  it('shows the new sort on Back when it was left before that sort loaded', async () => {
+    const state = server(3)
+    renderGrid()
+    await screen.findByRole('link', { name: 'Film 2' })
+    expect(titles()).toEqual(['Film 0', 'Film 1', 'Film 2'])
+
+    const release = held(state)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort by' }), { target: { value: 'year' } })
+    await vi.waitFor(() => expect(state.pages).toEqual(['', 'year']))
+    fireEvent.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    release()
+
+    await vi.waitFor(() => expect(titles()).toEqual(['Film 2', 'Film 1', 'Film 0']))
+  })
+
+  it('picks up titles that arrived while away, in a small library', async () => {
+    const state = server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+
+    // Sonarr imported one meanwhile, and the library list hears of it.
+    state.films = [...state.films, summary({ id: 'f3', title: 'Film 3' })]
+    const lists = state.lists
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await vi.waitFor(() => expect(state.lists).toBe(lists + 1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 3' })).toBeInTheDocument()
+  })
+
+  it("doesn't bring back a title deleted from its own page", async () => {
+    server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    await deleteItem('f1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await vi.waitFor(() => expect(titles()).toEqual(['Film 0', 'Film 2']))
   })
 })
 

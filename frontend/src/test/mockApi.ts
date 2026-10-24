@@ -2,7 +2,10 @@ import { vi } from 'vitest'
 
 type Handler = unknown | ((init: RequestInit | undefined, url: URL) => Response | unknown)
 
-/** Stubs fetch, answering `/api/v1<path>` from `routes` (matched by "METHOD /path" or "/path", query string ignored). */
+/**
+ * Stubs fetch, answering `/api/v1<path>` from `routes` (matched by "METHOD /path" or "/path", query string ignored). A
+ * handler may return a promise, to hold an answer back.
+ */
 export function mockApi(routes: Record<string, Handler>) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
@@ -12,7 +15,7 @@ export function mockApi(routes: Record<string, Handler>) {
     if (!key) return new Response('', { status: 404 })
 
     const handler = routes[key]
-    const result = typeof handler === 'function' ? (handler as (i?: RequestInit, u?: URL) => unknown)(init, url) : handler
+    const result: unknown = await (typeof handler === 'function' ? (handler as (i?: RequestInit, u?: URL) => unknown)(init, url) : handler)
     if (result === undefined) return new Response(null, { status: 204 })
     return result instanceof Response ? result : new Response(JSON.stringify(result))
   })
