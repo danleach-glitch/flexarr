@@ -470,6 +470,41 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("PlaybackStates");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.Profile", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PinHash")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Profiles");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = "owner",
+                            Color = "#a9c2ec",
+                            CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Main profile"
+                        });
+                });
+
             modelBuilder.Entity("GenreMediaItem", b =>
                 {
                     b.Property<int>("GenresId")
@@ -563,6 +598,12 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
                         .WithMany("PlaybackStates")
                         .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

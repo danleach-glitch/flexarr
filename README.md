@@ -25,6 +25,9 @@ Flexarr aims to be a full Plex-style media server: it organises your library, fe
 - **Coming soon**: what Sonarr and Radarr expect this month, with download progress
 - **Requests**: with Seerr connected, see what's trending that you don't have and request it in one click
 
+**For the whole household**
+- Profiles with their own Continue Watching, history and Up Next, an optional PIN, and a profile picker when Flexarr opens
+
 **Things Plex doesn't do**
 - **Bring your history over from Plex**: watched state and resume points, matched by file, without touching Plex
 - **Library health**: duplicate copies (and the space they use), unreadable files, standard-definition titles with a "find a better copy" button that asks Radarr/Sonarr

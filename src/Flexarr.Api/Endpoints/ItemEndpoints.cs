@@ -1,3 +1,4 @@
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ public static class ItemEndpoints
 
     public static RouteGroupBuilder MapItemEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/libraries/{id:guid}/items", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/libraries/{id:guid}/items", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             var query = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
             if (!string.IsNullOrWhiteSpace(search))
@@ -34,7 +35,7 @@ public static class ItemEndpoints
                 "runtime" => query.OrderBy(i => i.RuntimeMinutes).ThenBy(i => i.SortTitle),
                 _ => query.OrderBy(i => i.SortTitle).ThenBy(i => i.Year),
             };
-            var items = await ordered.Skip(Math.Max(skip ?? 0, 0)).Take(Math.Clamp(take ?? 100, 1, MaxPageSize)).Summaries().ToListAsync(ct);
+            var items = await ordered.Skip(Math.Max(skip ?? 0, 0)).Take(Math.Clamp(take ?? 100, 1, MaxPageSize)).Summaries(profile.Id).ToListAsync(ct);
             return new PagedDto<ItemSummaryDto>(total, items);
         }).WithTags("Items");
 
@@ -46,18 +47,18 @@ public static class ItemEndpoints
                 .ToListAsync(ct))
             .WithTags("Items");
 
-        api.MapGet("/items/recent", async (int? take, Guid? libraryId, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/items/recent", async (int? take, Guid? libraryId, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await db.MediaItems
                 .Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode) && (libraryId == null || i.LibraryId == libraryId))
                 .OrderByDescending(i => i.AddedAt)
                 .Take(Math.Clamp(take ?? 24, 1, 100))
-                .Summaries()
+                .Summaries(profile.Id)
                 .ToListAsync(ct))
             .WithTags("Items");
 
-        api.MapGet("/items/{id:guid}", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/items/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            var item = await db.MediaItems.Where(i => i.Id == id).Summaries().FirstOrDefaultAsync(ct);
+            var item = await db.MediaItems.Where(i => i.Id == id).Summaries(profile.Id).FirstOrDefaultAsync(ct);
             if (item is null)
             {
                 return Results.NotFound();
@@ -68,7 +69,7 @@ public static class ItemEndpoints
             var ancestors = new List<ItemSummaryDto>();
             for (var parentId = entity.ParentId; parentId is { } pid;)
             {
-                ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries().FirstAsync(ct));
+                ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstAsync(ct));
                 parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
             }
 
@@ -77,7 +78,7 @@ public static class ItemEndpoints
             var children = await (entity.Kind == MediaKind.Artist
                     ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
                     : childQuery.OrderBy(i => i.SortTitle))
-                .Summaries().ToListAsync(ct);
+                .Summaries(profile.Id).ToListAsync(ct);
             var files = await db.MediaFiles.AsNoTracking().Where(f => f.MediaItemId == id).Include(f => f.Streams)
                 .OrderByDescending(f => f.Height).ToListAsync(ct);
 

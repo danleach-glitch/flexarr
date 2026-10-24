@@ -8,7 +8,11 @@ import {
   getApiKey,
   getArrStatus,
   getLibraryHealth,
+  createProfile,
+  deleteProfile,
   getPlexSource,
+  getProfiles,
+  updateProfile,
   getSettings,
   importFromPlex,
   saveSettings,
@@ -20,10 +24,12 @@ import {
   type HardwareAcceleration,
   type Library,
   type PlexImportResult,
+  type Profile,
   type LibraryType,
   type Settings,
 } from '../api/client'
 import { FolderPicker } from '../components/FolderPicker'
+import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
@@ -31,6 +37,7 @@ import { episodeCode, formatClock, formatSize, libraryTypeLabel, relativeTime } 
 
 const sections = [
   { id: 'libraries', label: 'Libraries' },
+  { id: 'profiles', label: 'Profiles' },
   { id: 'playback', label: 'Playback' },
   { id: 'connections', label: 'Sonarr and Radarr' },
   { id: 'activity', label: 'Activity' },
@@ -56,6 +63,7 @@ export function SettingsPage() {
       </aside>
       <div className="settings-content">
         {section === 'libraries' && <LibrariesSection />}
+        {section === 'profiles' && <ProfilesSection />}
         {section === 'playback' && <PlaybackSection />}
         {section === 'connections' && <ConnectionsSection />}
         {section === 'activity' && <ActivitySection />}
@@ -627,6 +635,8 @@ function ServerSection() {
 // ---------------------------------------------------------------- Import
 
 function ImportSection() {
+  const profiles = useApi(getProfiles, [])
+  const [target, setTarget] = useState<string>()
   const [path, setPath] = useState('')
   const [lookup, setLookup] = useState(0)
   const source = useApi((signal) => getPlexSource(path || undefined, signal), [lookup])
@@ -641,7 +651,7 @@ function ImportSection() {
     setBusy(true)
     setError(undefined)
     try {
-      setResult(await importFromPlex(chosen, source.data?.path ?? undefined))
+      setResult(await importFromPlex(chosen, source.data?.path ?? undefined, target ?? profiles.data?.find((p) => p.isMain)?.id))
     } catch (e) {
       setError(e instanceof ApiError && e.messages.length ? e.messages[0] : String(e))
     } finally {
@@ -691,6 +701,18 @@ function ImportSection() {
                   {source.data.accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}: {a.watched.toLocaleString()} watched, {a.inProgress.toLocaleString()} in progress
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {profiles.data && profiles.data.length > 1 && (
+              <label className="field">
+                <span className="field-label">Into which Flexarr profile</span>
+                <select value={target ?? profiles.data.find((p) => p.isMain)?.id} onChange={(e) => setTarget(e.target.value)}>
+                  {profiles.data.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
                     </option>
                   ))}
                 </select>
@@ -828,5 +850,125 @@ function HealthSection() {
         </>
       )}
     </section>
+  )
+}
+
+// ---------------------------------------------------------------- Profiles
+
+const profileColours = ['#a9c2ec', '#e8a0bf', '#9fd8b9', '#f2c879', '#c7a6f2', '#f0a27e', '#86d0e0']
+
+function ProfilesSection() {
+  const [version, setVersion] = useState(0)
+  const { data } = useApi(getProfiles, [version])
+  const [editing, setEditing] = useState<Profile | 'new'>()
+  const reload = () => {
+    setEditing(undefined)
+    setVersion((v) => v + 1)
+  }
+
+  return (
+    <section>
+      <header className="settings-header">
+        <h2>Profiles</h2>
+        {editing === undefined && (
+          <button className="button small" onClick={() => setEditing('new')}>
+            Add a profile
+          </button>
+        )}
+      </header>
+      <p className="settings-lede">
+        Everyone in the house can have their own Continue Watching, watched history and Up Next. With more than one profile, Flexarr asks who’s watching when it opens. A
+        PIN keeps a profile private (handy for keeping kids out of yours).
+      </p>
+      {editing !== undefined && <ProfileForm profile={editing === 'new' ? undefined : editing} onDone={reload} onCancel={() => setEditing(undefined)} />}
+      {data?.map((p) => (
+        <div key={p.id} className="panel profile-row">
+          <Avatar profile={p} size={48} />
+          <div>
+            <strong>{p.name}</strong>
+            <p className="muted">{[p.isMain && 'Main profile', p.hasPin && 'PIN protected', p.isCurrent && 'You’re using this one'].filter(Boolean).join('. ')}</p>
+          </div>
+          <div className="library-row-actions">
+            <button className="button quiet small" onClick={() => setEditing(p)}>
+              Edit
+            </button>
+            {!p.isMain && (
+              <button
+                className="button danger small"
+                onClick={async () => {
+                  if (!confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`)) return
+                  await deleteProfile(p.id)
+                  reload()
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function ProfileForm({ profile, onDone, onCancel }: { profile?: Profile; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState(profile?.name ?? '')
+  const [color, setColor] = useState(profile?.color ?? profileColours[1])
+  const [pin, setPin] = useState('')
+  const [removePin, setRemovePin] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    try {
+      if (profile) await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin })
+      else await createProfile({ name, color, pin: pin || undefined })
+      onDone()
+    } catch (err) {
+      setErrors(err instanceof ApiError && err.messages.length ? err.messages : [String(err)])
+    }
+  }
+
+  return (
+    <form className="panel" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
+      <div className="field-row">
+        <label className="grow">
+          Name
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
+        </label>
+        <label>
+          {profile?.hasPin ? 'New PIN (optional)' : 'PIN (optional)'}
+          <input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="4 to 8 digits" />
+        </label>
+      </div>
+      <div className="field">
+        <span className="field-label">Colour</span>
+        <div className="swatches" role="radiogroup" aria-label="Colour">
+          {profileColours.map((c) => (
+            <button type="button" key={c} role="radio" aria-checked={c === color} aria-label={c} className="swatch" style={{ background: c }} onClick={() => setColor(c)} />
+          ))}
+        </div>
+      </div>
+      {profile?.hasPin && (
+        <label className="checkbox">
+          <input type="checkbox" checked={removePin} onChange={(e) => setRemovePin(e.target.checked)} /> Remove the PIN
+        </label>
+      )}
+      {errors.length > 0 && (
+        <ul className="error form-errors" role="alert">
+          {errors.map((m) => (
+            <li key={m}>{m}</li>
+          ))}
+        </ul>
+      )}
+      <div className="form-actions">
+        <button type="button" className="button quiet" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className="button">
+          {profile ? 'Save profile' : 'Add profile'}
+        </button>
+      </div>
+    </form>
   )
 }

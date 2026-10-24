@@ -8,7 +8,9 @@ public static class ItemQueries
     /// Projects items to summaries in SQL (no files or streams loaded). Seasons and episodes borrow artwork
     /// from their series when they have none of their own.
     /// </summary>
-    public static IQueryable<ItemSummaryDto> Summaries(this IQueryable<MediaItem> query) =>
+    /// <param name="query">The items.</param>
+    /// <param name="profileId">Whose watch state to include.</param>
+    public static IQueryable<ItemSummaryDto> Summaries(this IQueryable<MediaItem> query, string profileId) =>
         query.Select(i => new
             {
                 Item = i,
@@ -21,12 +23,12 @@ public static class ItemQueries
                 // The show for episodes and seasons; the artist for tracks and albums.
                 SeriesTitle = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.Parent!.Title
                     : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album ? i.Parent!.Title : null,
-                State = i.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser)
+                State = i.PlaybackStates.Where(p => p.UserId == profileId)
                     .Select(p => new { p.PositionSeconds, p.Watched, p.PlayCount, p.LastPlayedAt }).FirstOrDefault(),
                 Unwatched = i.Kind == MediaKind.Series
-                    ? i.Children.SelectMany(s => s.Children).Count(e => !e.PlaybackStates.Any(p => p.UserId == PlaybackState.DefaultUser && p.Watched))
+                    ? i.Children.SelectMany(s => s.Children).Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
                     : i.Kind == MediaKind.Season
-                        ? i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == PlaybackState.DefaultUser && p.Watched))
+                        ? i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
                         : (int?)null,
             })
             .Select(x => new ItemSummaryDto(

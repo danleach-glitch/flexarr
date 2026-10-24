@@ -4,6 +4,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
 using Flexarr.Api.Playback;
+using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
 using Flexarr.Core.Data;
 using Flexarr.Core.Probing;
@@ -65,6 +66,8 @@ builder.Services.AddSingleton<TrickplayQueue>();
 builder.Services.AddSingleton<SubtitleCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
@@ -108,7 +111,8 @@ app.MapGroup("/api/v1")
     .MapImportEndpoints()
     .MapUpcomingEndpoints()
     .MapHealthEndpoints()
-    .MapRequestEndpoints();
+    .MapRequestEndpoints()
+    .MapProfileEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();
