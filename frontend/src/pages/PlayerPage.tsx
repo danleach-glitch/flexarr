@@ -79,11 +79,13 @@ export function PlayerPage() {
 
   // Watching may have marked the title watched (past the credits, or to the end): leaving it tells pages that come
   // back afterwards, such as a library grid restored on Back, to refresh its tick.
-  const playedItem = useRef(info?.item)
-  playedItem.current = info?.item ?? playedItem.current
+  // Once per title, so the one announced is the one just played (Next episode moves on to another).
   const playedId = info?.item.id
-  useEffect(() => () => {
-    if (playedItem.current) announceWatched(playedItem.current)
+  useEffect(() => {
+    const played = info?.item
+    if (!played) return
+    return () => announceWatched(played)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per title; its id stands for it
   }, [playedId])
   const [previews, setPreviews] = useState<Previews | null>(null)
 
