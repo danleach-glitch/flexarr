@@ -10,9 +10,11 @@ updates:
     schedule: { interval: weekly }
     groups:
       web: { patterns: ["*"] }
-  - package-ecosystem: github-actions
+  - package-ecosystem: github-actions # pinned by commit SHA; Dependabot moves the SHA and its version comment together
     directory: /
     schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
