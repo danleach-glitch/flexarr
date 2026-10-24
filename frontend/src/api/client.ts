@@ -562,7 +562,18 @@ export const getDownloads = (signal?: AbortSignal) => apiGet<Download[]>('/downl
 
 export interface LibraryHealth {
   /** The share (0–100) of films and episodes with nothing wrong, and how many titles each problem touches. */
-  score: { score: number; titles: number; withProblems: number; duplicates: number; unreadable: number; standardDefinition: number; missingArtwork: number; fileProblems: number }
+  score: {
+    score: number
+    titles: number
+    withProblems: number
+    duplicates: number
+    unreadable: number
+    standardDefinition: number
+    missingArtwork: number
+    fileProblems: number
+    /** Films and shows without artwork, left out of the score: no Radarr or Sonarr is connected to fill it in. */
+    artworkNeedsConnection?: number
+  }
   duplicates: {
     item: import('./types').ItemSummary
     seriesTitle: string | null
@@ -593,6 +604,7 @@ export interface HeldFolder {
   confirmed: boolean
   /** Not for a folder that isn't there at all. */
   canConfirm: boolean
+  libraryType?: import('./types').LibraryType | null
 }
 
 /**
@@ -655,6 +667,8 @@ export interface PairingDetails {
 /** A TV waiting to connect, by the code it shows (main profile only). */
 export const getPairing = (code: string, signal?: AbortSignal) => apiGet<PairingDetails>(`/pairing/code/${encodeURIComponent(code.trim())}`, signal)
 export const approvePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/approve`, {})
+/** Not now, or not my TV: the code is dropped and the TV shows a new one. */
+export const declinePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/decline`, {})
 
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
@@ -778,6 +792,9 @@ export interface SignIn {
 
 export const getSignIns = (signal?: AbortSignal) => apiGet<SignIn[]>('/sign-ins', signal)
 export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${id}`)
+export const renameSignIn = (id: string, name: string) => request<void>('PATCH', `/sign-ins/${id}`, { name })
+/** Signs out every browser and TV but this one; returns how many. */
+export const signOutOthers = () => request<{ signedOut: number }>('POST', '/sign-ins/sign-out-others', {})
 
 /** Signs this browser out: the server forgets its session, and the profile chosen here is forgotten too. */
 export async function signOut() {

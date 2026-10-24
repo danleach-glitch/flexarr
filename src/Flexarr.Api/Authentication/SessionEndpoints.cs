@@ -8,6 +8,8 @@ namespace Flexarr.Api.Authentication;
 
 public sealed record DeviceSignInRequest(string? DeviceName);
 
+public sealed record SignInRename(string? Name);
+
 /// <param name="IsThisOne">The browser or device asking.</param>
 public sealed record SignInDto(string Id, SignInKind Kind, string Name, DateTime CreatedAt, DateTime LastUsedAt, NetworkZone Zone, string? Address,
     string ProfileId, string? ProfileName, bool IsThisOne);
@@ -70,6 +72,13 @@ public static class SessionEndpoints
         });
 
         group.MapDelete("/{id}", (string id, SignIns signIns) => signIns.Revoke(id) ? Results.NoContent() : Results.NotFound());
+
+        group.MapPatch("/{id}", (string id, SignInRename rename, SignIns signIns) =>
+            string.IsNullOrWhiteSpace(rename.Name) ? Results.Problem("Give it a name.", statusCode: 400)
+            : signIns.Rename(id, rename.Name) ? Results.NoContent() : Results.NotFound());
+
+        // Everything but the browser asking (which may have no sign-in of its own, at home or with the API key).
+        group.MapPost("/sign-out-others", (SignIns signIns, CurrentProfile current) => Results.Ok(new { signedOut = signIns.RevokeAllExcept(current.SignInId) }));
 
         return api;
     }

@@ -97,7 +97,8 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var confirm = await client.PostAsJsonAsync(new Uri($"/api/v1/library-health/held/{folderId}/confirm", UriKind.Relative), shown);
         var refused = await client.PostAsJsonAsync(new Uri($"/api/v1/library-health/held/{unmounted}/confirm", UriKind.Relative), shown);
 
-        Assert.Equal(("FolderEmpty", 9, true), (held.GetProperty("reason").GetString(), held.GetProperty("missing").GetInt32(), held.GetProperty("canConfirm").GetBoolean()));
+        Assert.Equal(("FolderEmpty", 9, true, "Movies"),
+            (held.GetProperty("reason").GetString(), held.GetProperty("missing").GetInt32(), held.GetProperty("canConfirm").GetBoolean(), held.GetProperty("libraryType").GetString()));
         Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Accepted, HttpStatusCode.Conflict), (stale.StatusCode, confirm.StatusCode, refused.StatusCode));
         Assert.Contains("found something different", await stale.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Contains(factory.ScanQueue.Requests, r => r.Path == path);

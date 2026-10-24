@@ -47,7 +47,7 @@ public static partial class DiscoveryEndpoints
             {
                 var movies = library.Type == LibraryType.Movies;
                 // "in {library}" only when there's more than one library of the kind to tell apart.
-                var title = $"Latest unwatched {(movies ? "movies" : "shows")}"
+                var title = $"Latest unwatched {(movies ? "films" : "shows")}"
                     + (libraries.Count(l => l.Type == library.Type) > 1 ? $" in {library.Name}" : "");
                 rows.Add(new HomeRowDto($"recent-{library.Id}", title, "poster",
                     await LatestUnwatched(topLevel.Where(i => i.LibraryId == library.Id), movies, me).Take(RowSize).Summaries(me).ToListAsync(ct),
@@ -141,7 +141,7 @@ public static partial class DiscoveryEndpoints
             var continueWatching = await ContinueWatchingAsync(db, me, RowSize, id, ct);
             rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
 
-            rows.Add(new HomeRowDto("recent", movies ? "Latest unwatched movies" : "Latest unwatched shows", "poster",
+            rows.Add(new HomeRowDto("recent", movies ? "Latest unwatched films" : "Latest unwatched shows", "poster",
                 await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
             rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
             rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",

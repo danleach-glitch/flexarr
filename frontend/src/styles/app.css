@@ -1464,6 +1464,23 @@ a.upcoming-row:hover strong {
     box-shadow: 0 -1px 0 var(--aisle);
   }
 
+  .marquee-nav a {
+    padding: 8px 10px;
+  }
+
+  /* More tabs than fit: the last visible one fades out at the edge, so it's clear the bar scrolls. It stays pinned
+     to the right edge while there's more, and sits over the bar's own padding once scrolled to the end. */
+  .marquee-nav::after {
+    content: '';
+    position: sticky;
+    right: 0;
+    flex: none;
+    width: 36px;
+    margin-left: -36px;
+    background: linear-gradient(to right, transparent, var(--room) 85%);
+    pointer-events: none;
+  }
+
   .hero {
     min-height: 78vh;
   }
@@ -1870,6 +1887,15 @@ a.download-attention {
 .confirm-dialog p {
   margin: 0;
   color: color-mix(in srgb, var(--screen) 85%, transparent);
+}
+
+.confirm-dialog-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.confirm-dialog-path {
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Watched toggle (films and episodes) ---------- */

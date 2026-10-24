@@ -149,6 +149,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     /// </summary>
     public static bool UnfitName(string? name) => name is not null && PathComparison.Printable(name) != name;
 
+    /// <summary>"That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one.</summary>
+    public bool Decline(string code) => ByCode(code) is { } pending && _pending.TryRemove(pending.Id, out _);
+
     private static string? Name(string? name) => string.IsNullOrWhiteSpace(name) ? null : name.Trim()[..Math.Min(name.Trim().Length, 60)];
 
     private Pending? ByCode(string code)
@@ -226,6 +229,12 @@ public static class PairingEndpoints
                     when => $"Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}."),
                 _ => Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404),
             };
+        });
+        // Declining is harmless either way, so a missing code isn't an error.
+        group.MapPost("/{code}/decline", (string code, Pairings pairings) =>
+        {
+            pairings.Decline(code);
+            return Results.NoContent();
         });
         return api;
     }

@@ -59,7 +59,9 @@ import {
   type Settings,
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ConnectTv } from '../components/ConnectTv'
+import { CopyButton } from '../components/CopyButton'
 import { FolderPicker } from '../components/FolderPicker'
 import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
@@ -743,15 +745,41 @@ function ServerSection() {
   const { settings, save, saved, saveError } = useSettings()
   const [key, setKey] = useState<string>()
   const [keyError, setKeyError] = useState<string>()
+  // After a new key: how many browsers and TVs were signed out with it.
+  const [rotated, setRotated] = useState<{ signedOut: number }>()
   const [auth, setAuth] = useState<Settings['authenticationRequired']>()
   // Showing or replacing the key asks again first: for the main profile's PIN when it has one.
   const [ask, setAsk] = useState<'reveal' | 'rotate'>()
   const [signInsVersion, setSignInsVersion] = useState(0)
   const [webhookSecret, setWebhookSecret] = useState<string>()
+  const [askSecret, setAskSecret] = useState(false)
+  const [secretState, setSecretState] = useState<{ busy?: boolean; error?: string; done?: boolean }>({})
   const profiles = useApi(getProfiles, [])
   const main = profiles.data?.find((p) => p.isMain)
   const mainHasPin = main?.hasPin ?? false
   const origin = window.location.origin
+  const askForm = useRef<HTMLFormElement>(null)
+  const opener = useRef<HTMLButtonElement | null>(null)
+  const keyArea = useRef<HTMLDivElement>(null)
+
+  // Keyboard and screen reader users land on what to do next: the PIN, or the button that goes ahead.
+  useEffect(() => {
+    if (!ask) return
+    askForm.current?.querySelector<HTMLElement>('input[name="pin"], button[type="submit"]')?.focus()
+  }, [ask, mainHasPin])
+
+  function open(which: 'reveal' | 'rotate', button: HTMLButtonElement) {
+    opener.current = button
+    setKeyError(undefined)
+    setAsk(which)
+  }
+
+  function cancel() {
+    setAsk(undefined)
+    setKeyError(undefined)
+    // The buttons were disabled while asking; once they're back, return to the one that asked.
+    requestAnimationFrame(() => opener.current?.focus())
+  }
 
   async function confirmKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -761,27 +789,39 @@ function ServerSection() {
     try {
       if (ask === 'reveal') {
         setKey((await revealApiKey(confirmation)).apiKey)
+        setRotated(undefined)
       } else {
-        const rotated = await rotateApiKey({ ...confirmation, signOutOthers: form.get('signOutOthers') === 'on' })
-        setKey(rotated.apiKey)
-        if (rotated.signedOut > 0) setSignInsVersion((n) => n + 1)
+        const result = await rotateApiKey({ ...confirmation, signOutOthers: form.get('signOutOthers') === 'on' })
+        setKey(result.apiKey)
+        setRotated({ signedOut: result.signedOut })
+        if (result.signedOut > 0) setSignInsVersion((n) => n + 1)
       }
       setAsk(undefined)
+      requestAnimationFrame(() => keyArea.current?.querySelector<HTMLElement>('button')?.focus())
     } catch (e) {
       setKeyError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
     }
   }
 
+  function hideKey() {
+    setKey(undefined)
+    setRotated(undefined)
+    requestAnimationFrame(() => keyArea.current?.querySelector<HTMLElement>('button')?.focus())
+  }
+
   async function newWebhookSecret() {
-    if (!confirm('Make a new webhook secret? Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses.')) return
+    setSecretState({ busy: true })
     try {
       setWebhookSecret((await rotateWebhookSecret()).webhookSecret)
+      setAskSecret(false)
+      setSecretState({ done: true })
     } catch (e) {
-      alert(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setSecretState({ error: e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e) })
     }
   }
 
   if (!settings) return <p className="muted">Loading…</p>
+  const secret = webhookSecret ?? settings.webhookSecret
   return (
     <section>
       <header className="settings-header">
@@ -806,17 +846,21 @@ function ServerSection() {
         {(auth ?? settings.authenticationRequired) === 'DisabledForLocalAddresses' && (
           <div className="panel advice">
             <p>
-              Anyone who can reach this server from your network gets in as the main profile, which can change settings. Devices at home are trusted with the
-              server: one watching as another profile can drop that profile and act as the main one, so a PIN doesn’t keep someone at home out of settings.
-              Choose “Always” if that matters.
+              <strong>Anyone on your Wi-Fi can change settings.</strong> Devices at home get in as the main profile, and a PIN doesn’t keep them out. Choose
+              “Always” if that matters.
             </p>
-            <p>
-              If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to <code>trustedProxies</code> in config.json, or visitors
-              through it are treated as the internet and asked for the key. A reverse proxy on this computer must send <code>X-Forwarded-For</code> (in nginx,{' '}
-              <code>proxy_set_header X-Forwarded-For $remote_addr;</code>), or everyone through it looks like this computer and gets in. To be safe, set{' '}
-              <code>"loopbackNeedsForwarding": true</code> in config.json: requests from this computer that don’t say who they’re for then count as the
-              internet (a browser on this computer will need the key too).
-            </p>
+            <details className="advice-more">
+              <summary>Using a reverse proxy?</summary>
+              <p>
+                If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to <code>trustedProxies</code> in config.json, or visitors
+                through it are treated as the internet and asked for the key.
+              </p>
+              <p>
+                A reverse proxy on this computer must send <code>X-Forwarded-For</code> (in nginx, <code>proxy_set_header X-Forwarded-For $remote_addr;</code>), or
+                everyone through it looks like this computer and gets in. To be safe, set <code>"loopbackNeedsForwarding": true</code> in config.json: requests
+                from this computer that don’t say who they’re for then count as the internet (a browser on this computer will need the key too).
+              </p>
+            </details>
           </div>
         )}
         <SaveBar saved={saved} error={saveError} />
@@ -827,23 +871,47 @@ function ServerSection() {
         <p className="settings-lede">
           Sign in to a new browser, or set up an app, with this key. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.
         </p>
-        {key ? (
-          <code className="api-key">{key}</code>
-        ) : (
-          <button className="button quiet small" onClick={() => setAsk('reveal')} disabled={ask !== undefined}>
-            Show API key
+        {rotated && (
+          <p className="key-note" role="status">
+            New key made. The old one stopped working.
+            {rotated.signedOut > 0
+              ? ` ${rotated.signedOut.toLocaleString()} ${rotated.signedOut === 1 ? 'browser or TV was' : 'browsers and TVs were'} signed out.`
+              : ' Browsers and TVs signed in below keep working.'}
+          </p>
+        )}
+        <div className="key-row" ref={keyArea}>
+          {key ? (
+            <>
+              <code className="api-key">{key}</code>
+              <CopyButton text={key} what="the API key" />
+              <button className="button quiet small" onClick={hideKey}>
+                Hide
+              </button>
+            </>
+          ) : (
+            <button className="button quiet small" onClick={(e) => open('reveal', e.currentTarget)} disabled={ask !== undefined}>
+              Show API key
+            </button>
+          )}
+          <button className="button quiet small" onClick={(e) => open('rotate', e.currentTarget)} disabled={ask !== undefined}>
+            Make a new key
           </button>
-        )}{' '}
-        <button className="button quiet small" onClick={() => setAsk('rotate')} disabled={ask !== undefined}>
-          Make a new key
-        </button>
+        </div>
         {ask && (
-          <form className="key-confirm" onSubmit={(e) => void confirmKey(e)}>
+          <form
+            ref={askForm}
+            className="key-confirm"
+            aria-label={ask === 'reveal' ? 'Show the API key' : 'Make a new API key'}
+            onSubmit={(e) => void confirmKey(e)}
+            onKeyDown={(e) => e.key === 'Escape' && cancel()}
+          >
             {ask === 'reveal' ? (
-              <p className="field-help">Anyone who sees the key can manage this server.{mainHasPin ? ' Enter the main profile’s PIN to show it.' : ''}</p>
+              <p className="field-help" id="key-confirm-help">
+                Anyone who sees the key can manage this server.{mainHasPin ? ' Enter the main profile’s PIN to show it.' : ''}
+              </p>
             ) : (
               <>
-                <p className="field-help">
+                <p className="field-help" id="key-confirm-help">
                   Browsers and TVs signed in below keep working, unless you sign them out too. Anything you gave the old key itself (Sonarr or Radarr’s Emby
                   connection, scripts, an older TV app) will need the new one.
                 </p>
@@ -856,14 +924,14 @@ function ServerSection() {
             {mainHasPin && (
               <label className="field">
                 <span className="field-label">Main profile’s PIN</span>
-                <input name="pin" type="password" inputMode="numeric" autoComplete="off" required />
+                <input name="pin" type="password" inputMode="numeric" autoComplete="off" required aria-describedby="key-confirm-help" />
               </label>
             )}
             <div className="form-actions">
-              <button type="button" className="button quiet small" onClick={() => setAsk(undefined)}>
+              <button type="button" className="button quiet small" onClick={cancel}>
                 Cancel
               </button>
-              <button type="submit" className="button small">
+              <button type="submit" className="button small" aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
                 {ask === 'reveal' ? 'Show the key' : 'Replace the key'}
               </button>
             </div>
@@ -885,16 +953,42 @@ function ServerSection() {
           In Sonarr and Radarr, add a Webhook connection under Settings › Connect so new downloads appear straight away. If they run in Docker on this machine, use{' '}
           <code>host.docker.internal</code> instead of this address.
         </p>
-        {(['sonarr', 'radarr', 'lidarr'] as const).map((app) => (
-          <code key={app} className="folder">
-            {origin}/api/v1/webhooks/{app}?secret={webhookSecret ?? settings.webhookSecret ?? '…'}
-          </code>
-        ))}
+        {secretState.done && (
+          <p className="key-note" role="status">
+            New secret made. Give Sonarr, Radarr and Lidarr these new addresses: until then they can’t start scans.
+          </p>
+        )}
+        <ul className="plain-list webhook-list">
+          {(['sonarr', 'radarr', 'lidarr'] as const).map((app) => {
+            const address = `${origin}/api/v1/webhooks/${app}?secret=${secret ?? '…'}`
+            return (
+              <li key={app}>
+                <code className="folder">{address}</code>
+                {secret && <CopyButton text={address} what={`the ${app[0].toUpperCase()}${app.slice(1)} address`} />}
+              </li>
+            )
+          })}
+        </ul>
         <p className="field-help">The secret in these addresses can only start scans. Webhooks set up earlier with the API key keep working.</p>
-        <button className="button quiet small" onClick={() => void newWebhookSecret()}>
+        <button className="button quiet small" onClick={() => setAskSecret(true)}>
           Make a new secret
         </button>
       </div>
+      {askSecret && (
+        <ConfirmDialog
+          title="Make a new webhook secret?"
+          confirmLabel={secretState.busy ? 'Making it…' : 'Make a new secret'}
+          busy={secretState.busy}
+          error={secretState.error}
+          onConfirm={() => void newWebhookSecret()}
+          onClose={() => {
+            setAskSecret(false)
+            setSecretState({})
+          }}
+        >
+          <p>Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses.</p>
+        </ConfirmDialog>
+      )}
 
       <h3 className="settings-subhead">Storage</h3>
       <div className="panel">
@@ -1238,6 +1332,17 @@ function HealthSection() {
                   <strong>{n.toLocaleString()}</strong> {label}
                 </li>
               ))}
+            {data.held.length > 0 && (
+              <li>
+                <strong>{data.held.length.toLocaleString()}</strong> {data.held.length === 1 ? 'folder' : 'folders'} on hold
+              </li>
+            )}
+            {(score.artworkNeedsConnection ?? 0) > 0 && (
+              <li>
+                <strong>{score.artworkNeedsConnection!.toLocaleString()}</strong> without artwork:{' '}
+                <Link to="/settings/connections">connect Radarr or Sonarr</Link> to fill it in
+              </li>
+            )}
           </ul>
         </div>
       </div>
@@ -1305,7 +1410,11 @@ function HealthSection() {
                     <button className="text-button" onClick={() => removeCopy(f.id)}>
                       Delete this copy
                     </button>
-                    {copyErrors[f.id] && <span className="error">{copyErrors[f.id]}</span>}
+                    {copyErrors[f.id] && (
+                      <span className="error" role="alert">
+                        {copyErrors[f.id]}
+                      </span>
+                    )}
                   </li>
                 )
               })}
@@ -1351,7 +1460,15 @@ function HealthSection() {
       </HealthGroup>
 
       {data.missingArtwork.length > 0 && (
-        <HealthGroup title="Missing artwork" count={data.missingArtwork.length} lede="Not found in Sonarr or Radarr. Renaming the folder to “Title (Year)” usually fixes the match.">
+        <HealthGroup
+          title="Missing artwork"
+          count={data.missingArtwork.length}
+          lede={
+            score.missingArtwork === 0 && (score.artworkNeedsConnection ?? 0) > 0
+              ? 'Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.'
+              : 'Not found in Sonarr or Radarr. Renaming the folder to “Title (Year)” usually fixes the match.'
+          }
+        >
           {data.missingArtwork.map((item) => (
             <div key={item.id} className="health-row">
               <HealthRowMain item={item} detail="No poster or details" />
@@ -1361,29 +1478,22 @@ function HealthSection() {
       )}
 
       {confirmAll && (
-        <div className="dialog-backdrop" onClick={() => setConfirmAll(false)}>
-          <div className="panel confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="spares-title" onClick={(e) => e.stopPropagation()}>
-            <h2 id="spares-title">Remove {data.duplicates.length.toLocaleString()} spare copies?</h2>
-            <p>
-              This deletes the spare files from disk, freeing {formatSize(data.reclaimableBytes)}. For each title the best copy, and the one Sonarr or Radarr use, are kept.
-              You can’t undo this.
-            </p>
-            <div className="form-actions">
-              <button className="button quiet" onClick={() => setConfirmAll(false)} autoFocus>
-                Keep them
-              </button>
-              <button
-                className="button danger"
-                onClick={() => {
-                  setConfirmAll(false)
-                  void removeSpares(data.duplicates.map((d) => d.item.id))
-                }}
-              >
-                Remove spare copies
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={`Remove ${data.duplicates.length.toLocaleString()} spare copies?`}
+          cancelLabel="Keep them"
+          confirmLabel="Remove spare copies"
+          danger
+          onClose={() => setConfirmAll(false)}
+          onConfirm={() => {
+            setConfirmAll(false)
+            void removeSpares(data.duplicates.map((d) => d.item.id))
+          }}
+        >
+          <p>
+            This deletes the spare files from disk, freeing {formatSize(data.reclaimableBytes)}. For each title the best copy, and the one Sonarr or Radarr use, are kept.
+            You can’t undo this.
+          </p>
+        </ConfirmDialog>
       )}
     </section>
   )
@@ -1423,14 +1533,17 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
       lede="Scans are keeping these folders’ titles, in case a drive or share is having trouble. Titles you deleted on purpose stay listed until you confirm it."
     >
       {folders.map((f) => (
-        <div key={f.folderId} className="health-row">
+        <div key={f.folderId} className="health-row health-row-held">
           <span className="health-row-main">
-            <span className="health-row-text">
-              <strong title={f.path}>
-                {f.library}: {f.path}
-              </strong>
+            <span className="health-row-text health-row-wraps">
+              <strong>{f.library}</strong>
+              <code className="health-row-path">{f.path}</code>
               <span className="muted">{why(f)}</span>
-              {errors[f.folderId] && <span className="error">{errors[f.folderId]}</span>}
+              {errors[f.folderId] && (
+                <span className="error" role="alert">
+                  {errors[f.folderId]}
+                </span>
+              )}
             </span>
           </span>
           {f.canConfirm &&
@@ -1444,26 +1557,32 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
         </div>
       ))}
       {asking && (
-        <div className="dialog-backdrop" onClick={() => setAsking(null)}>
-          <div className="panel confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="held-title" onClick={(e) => e.stopPropagation()}>
-            <h2 id="held-title">Are {asking.missing.toLocaleString()} files really gone?</h2>
-            <p>
-              Flexarr hides the titles in {asking.path} it can’t find and removes them a day later; their watch history is kept for 30 days in case they come back. No files are touched. If the
-              drive is just disconnected, reconnect it instead.
-            </p>
-            <div className="form-actions">
-              <button className="button quiet" onClick={() => setAsking(null)} autoFocus>
-                Keep them
-              </button>
-              <button className="button danger" onClick={() => void confirm(asking)}>
-                Confirm removal
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={`Remove ${asking.missing.toLocaleString()} ${heldNoun(asking)} from ${asking.library}?`}
+          cancelLabel="Not yet"
+          confirmLabel="Remove from Flexarr"
+          danger
+          onClose={() => setAsking(null)}
+          onConfirm={() => void confirm(asking)}
+        >
+          <p>Flexarr can’t find them in this folder:</p>
+          <p>
+            <code className="confirm-dialog-path">{asking.path}</code>
+          </p>
+          <p>
+            Flexarr hides them now and removes them a day later. Watch history is kept for 30 days in case they come back. No files are touched. If the
+            drive is just disconnected, reconnect it instead.
+          </p>
+        </ConfirmDialog>
       )}
     </HealthGroup>
   )
+}
+
+/** What a held folder's missing files are, by the kind of library: "4 films". */
+function heldNoun(f: HeldFolder) {
+  const one = f.missing === 1
+  return f.libraryType === 'Movies' ? (one ? 'film' : 'films') : f.libraryType === 'TvShows' ? (one ? 'episode' : 'episodes') : f.libraryType === 'Music' ? (one ? 'track' : 'tracks') : one ? 'file' : 'files'
 }
 
 /** In place of a search button: Sonarr or Radarr already have a new copy on the way. */

@@ -763,7 +763,12 @@ export function PlayerPage() {
           </div>
 
           <div className="menu-anchor">
-            <button className="player-quality" aria-expanded={menu === 'quality'} onClick={() => setMenu(menu === 'quality' ? null : 'quality')}>
+            <button
+              className="player-quality"
+              aria-expanded={menu === 'quality'}
+              aria-label={`Quality: ${quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}`}
+              onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
+            >
               {quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}
             </button>
             {menu === 'quality' && (
