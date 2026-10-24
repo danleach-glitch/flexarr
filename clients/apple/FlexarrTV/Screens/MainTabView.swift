@@ -93,6 +93,16 @@ struct TabStack<Content: View>: View {
     }
 }
 
+/// How long a screen's data counts as current. tvOS keeps apps alive for days, and changes made elsewhere
+/// (watching on the web, a new download) reach a screen only when it fetches again.
+enum Freshness {
+    static let maxAge: TimeInterval = 60
+
+    static func isStale(_ loadedAt: Date?) -> Bool {
+        loadedAt.map { Date().timeIntervalSince($0) > maxAge } ?? true
+    }
+}
+
 /// Loading, error and empty states in plain words.
 struct StatusView: View {
     enum State {

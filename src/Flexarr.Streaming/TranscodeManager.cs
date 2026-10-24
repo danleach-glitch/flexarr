@@ -20,15 +20,22 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
     public IEnumerable<TranscodeSession> Sessions => _sessions.Values;
 
-    /// <summary>Transcodes someone is watching now. Ones left paused long enough for ffmpeg to stop don't count.</summary>
-    public int ActiveCount
+    /// <summary>
+    /// Transcodes using the machine: ffmpeg running (or paused for being far ahead), or just created or restarted.
+    /// One left paused long enough for ffmpeg to stop, or created and never played, doesn't count.
+    /// </summary>
+    public int ActiveCount => _sessions.Values.Count(s => s.IsActive);
+
+    /// <summary>
+    /// Most transcodes one profile may hold at once (0 = no limit): all but one of the server's, so one viewer
+    /// (or one misbehaving client) can't take every slot. Starting another replaces that profile's oldest.
+    /// </summary>
+    public int PerProfileLimit => settings().MaxConcurrentTranscodes switch
     {
-        get
-        {
-            var now = DateTime.UtcNow;
-            return _sessions.Values.Count(s => s.IsRunning || now - s.LastAccess < StopAfterIdle);
-        }
-    }
+        <= 0 => 0,
+        1 => 1,
+        var limit => limit - 1,
+    };
 
     /// <exception cref="TranscodeLimitException">The server is already running as many transcodes as it's allowed.</exception>
     public TranscodeSession Create(string input, double durationSeconds, TranscodePlan plan)
@@ -42,9 +49,28 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             }
 
             var id = NewId();
-            var session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger);
+            var session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve);
             _sessions[id] = session;
             return session;
+        }
+    }
+
+    /// <summary>
+    /// Called by a session about to start ffmpeg again after it stopped (after a long pause, say): counts it as
+    /// active again, unless the others are already using every slot.
+    /// </summary>
+    /// <exception cref="TranscodeLimitException">The others are using every slot.</exception>
+    private void Reserve(TranscodeSession session)
+    {
+        var limit = settings().MaxConcurrentTranscodes;
+        lock (_createLock)
+        {
+            if (limit > 0 && _sessions.Values.Count(s => s != session && s.IsActive) >= limit)
+            {
+                throw new TranscodeLimitException(limit);
+            }
+
+            session.StartedAt = DateTime.UtcNow;
         }
     }
 
@@ -70,11 +96,11 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                 if (idle > ReleaseAfterIdle)
                 {
                     // Free the disk but keep the session, so a viewer back from a long pause carries on.
-                    await session.ReleaseAsync().ConfigureAwait(false);
+                    await session.ReleaseAsync(ReleaseAfterIdle).ConfigureAwait(false);
                 }
                 else if (idle > StopAfterIdle)
                 {
-                    await session.StopProcessAsync().ConfigureAwait(false);
+                    await session.StopProcessAsync(StopAfterIdle).ConfigureAwait(false);
                 }
                 else
                 {

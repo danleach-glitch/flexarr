@@ -256,6 +256,8 @@ export interface PlaybackRequest {
   maxHeight?: number
   startPositionSeconds?: number
   forceTranscode?: boolean
+  /** This player's previous session, which the new one takes over from (only that one ends). */
+  replacesSessionId?: string
 }
 
 export interface AudioTrack {

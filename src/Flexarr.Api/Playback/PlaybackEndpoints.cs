@@ -97,7 +97,18 @@ public static class PlaybackEndpoints
                 return Results.NotFound();
             }
 
-            var path = await transcode.GetSegmentAsync(segment, ct);
+            string? path;
+            try
+            {
+                path = await transcode.GetSegmentAsync(segment, ct);
+            }
+            catch (TranscodeLimitException ex)
+            {
+                // Back from a long pause to find the others using every slot. The player gives up and its recovery
+                // asks for a new session, which is refused with this same message for the viewer to see.
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+            }
+
             return path is null ? Results.Problem("The segment couldn't be converted.", statusCode: 500) : Results.File(path, "video/mp2t");
         });
 

@@ -8,6 +8,9 @@ struct HomeView: View {
     @State private var featuredIndex = 0
     /// `model.refreshToken` when `home` was last fetched.
     @State private var loadedToken: Int?
+    @State private var loadedAt: Date?
+    @State private var isVisible = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -22,9 +25,16 @@ struct HomeView: View {
             }
         }
         .task(id: model.refreshToken) {
-            // Coming back from a detail screen runs this again; fetch only when something changed.
-            guard loadedToken != model.refreshToken else { return }
+            // Coming back from a detail screen or another tab runs this again; fetch only when something changed
+            // here, or what's shown is old enough that something may have changed elsewhere.
+            guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
             await load()
+        }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .onChange(of: scenePhase) { _, phase in
+            // Back to the app after a while (tvOS keeps it running for days).
+            if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
         }
     }
 
@@ -56,6 +66,7 @@ struct HomeView: View {
             let loaded = try await client.home()
             home = loaded
             loadedToken = token
+            loadedAt = Date()
             error = nil
         } catch {
             if home == nil { self.error = ConnectionError(error).message }

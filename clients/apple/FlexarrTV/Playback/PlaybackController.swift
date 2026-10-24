@@ -171,22 +171,28 @@ final class PlaybackController: NSObject {
         let retry = PlaybackRequest(
             itemId: current.item.id, profile: .tvOS(hdr: AVPlayer.eligibleForHDRPlayback), fileId: current.fileId,
             audioStreamIndex: current.selectedAudioIndex, subtitleKey: current.selectedSubtitleKey ?? "off",
-            startPositionSeconds: position)
+            startPositionSeconds: position, replacesSessionId: failed)
         Task {
             defer { isRecovering = false }
-            try? await client.stopPlayback(sessionId: failed)
             var lastError: Error?
-            for attempt in 0..<6 {
+            attempts: for attempt in 0..<6 {
                 if attempt > 0 { try? await Task.sleep(for: .seconds(3)) }
                 guard self.info?.sessionId == failed else { return } // Closed (or moved on) meanwhile.
                 do {
                     let info = try await client.startPlayback(retry)
+                    // The player may have closed, or moved on to another title, while that was out.
+                    guard self.info?.sessionId == failed else {
+                        try? await client.stopPlayback(sessionId: info.sessionId)
+                        return
+                    }
                     let item = try makeItem(for: info)
                     player?.replaceCurrentItem(with: item)
                     attach(info)
                     return
                 } catch {
                     lastError = error
+                    // The server is at its transcode limit: say so rather than retrying.
+                    if case FlexarrClientError.http(status: 503, _) = error { break attempts }
                 }
             }
             dismissPlayer {
@@ -279,6 +285,10 @@ final class PlaybackController: NSObject {
             try? await client.stopPlayback(sessionId: finished)
             do {
                 let info = try await client.startPlayback(request(for: next.id, startAt: nil))
+                guard self.info?.sessionId == finished else { // Closed meanwhile.
+                    try? await client.stopPlayback(sessionId: info.sessionId)
+                    return
+                }
                 let item = try makeItem(for: info)
                 player?.replaceCurrentItem(with: item)
                 attach(info)
