@@ -71,6 +71,20 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task Pairing_AddressedToSomeoneElsesName_IsRefused()
+    {
+        // A page on attacker.example that pointed its own name at this server, open in a browser on the home network.
+        var started = await (await Tv("192.168.1.74").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Real TV" })).Content.ReadFromJsonAsync<JsonElement>();
+        using var start = new HttpRequestMessage(HttpMethod.Post, Api("/pairing")) { Content = JsonContent.Create(new { deviceName = "Living room Apple TV" }) };
+        start.Headers.Host = "attacker.example:8383";
+        using var poll = new HttpRequestMessage(HttpMethod.Get, Api($"/pairing/{started.GetProperty("id").GetString()}"));
+        poll.Headers.Host = "attacker.example:8383";
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await Tv("192.168.1.75").SendAsync(start)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Tv("192.168.1.75").SendAsync(poll)).StatusCode);
+    }
+
+    [Fact]
     public async Task OneAddress_CantTakeEveryPairingSlot()
     {
         var tv = Tv("192.168.1.71");
