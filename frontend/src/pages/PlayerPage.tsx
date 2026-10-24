@@ -65,6 +65,27 @@ export function PlayerPage() {
   const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
 
   const duration = info?.durationSeconds ?? 0
+  const [previews, setPreviews] = useState<Previews | null>(null)
+
+  // Scrubbing previews are made the first time a file plays; check now, then again while they're being made.
+  useEffect(() => {
+    if (!info) return
+    setPreviews(null)
+    let cancelled = false
+    let attempts = 0
+    const base = `/api/v1/playback/${info.sessionId}`
+    const check = async () => {
+      const response = await fetch(`${base}/trickplay.json`).catch(() => null)
+      if (cancelled) return
+      if (response?.ok) setPreviews({ ...((await response.json()) as Omit<Previews, 'base'>), base })
+      else if (++attempts < 12) timer = window.setTimeout(check, 20_000)
+    }
+    let timer = window.setTimeout(check, 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [info])
 
   // ---------- Session lifecycle
 
@@ -465,7 +486,7 @@ export function PlayerPage() {
       )}
 
       <footer className="player-controls">
-        <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} onSeek={seekTo} />
+        <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? <Pause /> : <Play />}
@@ -592,18 +613,50 @@ function MenuItem({ selected, onClick, children }: { selected: boolean; onClick:
   )
 }
 
-/** Seek bar with buffered range, intro/credits marks and a time readout while hovering or dragging. */
+interface Previews {
+  base: string
+  interval: number
+  width: number
+  height: number
+  columns: number
+  rows: number
+  count: number
+}
+
+/** The thumbnail for a moment, cut out of its sprite sheet with background positioning. */
+function PreviewFrame({ previews, at }: { previews: Previews; at: number }) {
+  const index = Math.min(previews.count - 1, Math.floor(at / previews.interval))
+  const perSheet = previews.columns * previews.rows
+  const sheet = Math.floor(index / perSheet)
+  const cell = index % perSheet
+  return (
+    <span
+      className="scrubber-preview"
+      style={{
+        width: previews.width,
+        height: previews.height,
+        backgroundImage: `url(${previews.base}/trickplay/${sheet}.jpg)`,
+        backgroundPosition: `-${(cell % previews.columns) * previews.width}px -${Math.floor(cell / previews.columns) * previews.height}px`,
+        backgroundSize: `${previews.columns * previews.width}px ${previews.rows * previews.height}px`,
+      }}
+    />
+  )
+}
+
+/** Seek bar with buffered range, intro/credits marks, and a preview frame and time while hovering or dragging. */
 function Scrubber({
   time,
   duration,
   bufferedTo,
   markers,
+  previews,
   onSeek,
 }: {
   time: number
   duration: number
   bufferedTo: number
   markers: PlaybackInfo['markers']
+  previews: Previews | null
   onSeek: (seconds: number) => void
 }) {
   const bar = useRef<HTMLDivElement>(null)
@@ -651,6 +704,7 @@ function Scrubber({
       </div>
       {hover !== null && (
         <span className="scrubber-tooltip" style={{ left: pct(hover) }}>
+          {previews && <PreviewFrame previews={previews} at={hover} />}
           {formatClock(hover)}
         </span>
       )}

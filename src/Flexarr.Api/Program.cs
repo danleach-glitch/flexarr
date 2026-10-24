@@ -60,6 +60,8 @@ builder.Services.AddSingleton(sp => new TranscodeManager(
     sp.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddSingleton<PlaybackSessions>();
 builder.Services.AddSingleton<MarkerQueue>();
+builder.Services.AddSingleton<TrickplayQueue>();
+builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();

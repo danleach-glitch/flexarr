@@ -15,6 +15,7 @@ public sealed class PlaybackService(
     PlaybackSessions sessions,
     TranscodeManager transcodes,
     MarkerQueue markerQueue,
+    TrickplayQueue trickplay,
     IOptionsMonitor<FlexarrOptions> options)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
@@ -38,7 +39,13 @@ public sealed class PlaybackService(
             return null;
         }
 
-        if (file.MarkersScannedAt is null && item.ParentId is { } seasonId)
+        if (file.Streams.Any(s => s.Type == StreamType.Video)
+            && Trickplay.Read(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).CacheDirectory, file.Id) is null)
+        {
+            trickplay.Enqueue(file.Id);
+        }
+
+        if (file.MarkersScannedAt is null && item.ParentId is { } seasonId && item.Kind == MediaKind.Episode)
         {
             markerQueue.Prioritize(seasonId); // Analyse this season now so skip-intro is ready for the next episode.
         }
