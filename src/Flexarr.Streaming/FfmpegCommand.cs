@@ -1,0 +1,143 @@
+using System.Globalization;
+
+namespace Flexarr.Streaming;
+
+/// <summary>Builds ffmpeg arguments for HLS transcodes that can start at any segment.</summary>
+public static class FfmpegCommand
+{
+    public const int SegmentSeconds = 6;
+
+    /// <summary>
+    /// Arguments to produce segments <paramref name="startSegment"/>.. of <paramref name="input"/> into
+    /// <paramref name="outputDirectory"/>. Keyframes are forced every <see cref="SegmentSeconds"/> so every
+    /// restart lines up with the pre-generated VOD playlist, and timestamps are offset to the segment's real
+    /// position so segments from different runs stitch together.
+    /// </summary>
+    public static IReadOnlyList<string> Hls(string input, TranscodePlan plan, int startSegment, string outputDirectory, TranscodeSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var hw = settings.Resolved;
+        var start = (startSegment * SegmentSeconds).ToString(CultureInfo.InvariantCulture);
+        var burn = plan.BurnSubtitle;
+        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y" };
+
+        // Decode on the GPU. Keep frames on the GPU unless subtitles need burning in (overlay runs on the CPU).
+        switch (hw)
+        {
+            case HardwareAcceleration.VideoToolbox:
+                args.AddRange(["-hwaccel", "videotoolbox"]);
+                if (burn is null)
+                {
+                    args.AddRange(["-hwaccel_output_format", "videotoolbox_vld"]);
+                }
+
+                break;
+            case HardwareAcceleration.Vaapi:
+                args.AddRange(["-hwaccel", "vaapi", "-hwaccel_device", settings.VaapiDevice]);
+                if (burn is null)
+                {
+                    args.AddRange(["-hwaccel_output_format", "vaapi"]);
+                }
+
+                break;
+            case HardwareAcceleration.Qsv:
+                args.AddRange(["-hwaccel", "qsv"]);
+                break;
+            case HardwareAcceleration.Nvenc:
+                args.AddRange(["-hwaccel", "cuda"]);
+                if (burn is null)
+                {
+                    args.AddRange(["-hwaccel_output_format", "cuda"]);
+                }
+
+                break;
+        }
+
+        args.AddRange(["-ss", start, "-i", input]);
+        if (burn?.ExternalPath is { } subtitleFile)
+        {
+            args.AddRange(["-ss", start, "-i", subtitleFile]);
+        }
+
+        // ---- Video
+        var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
+        var width = plan.TargetWidth.ToString(CultureInfo.InvariantCulture);
+        if (burn is not null)
+        {
+            var subtitleInput = burn.ExternalPath is null ? $"[0:{burn.StreamIndex}]" : "[1:0]";
+            var tail = hw == HardwareAcceleration.Vaapi ? ",format=nv12,hwupload" : ",format=yuv420p";
+            args.AddRange(["-filter_complex", $"[0:{plan.VideoStreamIndex}]{subtitleInput}overlay,scale={width}:{height}{tail}[v]", "-map", "[v]"]);
+        }
+        else
+        {
+            args.AddRange(["-map", $"0:{plan.VideoStreamIndex}"]);
+            var filter = hw switch
+            {
+                // scale_vt also converts HDR (PQ/HLG) to SDR BT.709 on the media engine.
+                HardwareAcceleration.VideoToolbox => $"scale_vt=w={width}:h={height}" + (plan.ToneMap ? ":color_matrix=bt709:color_primaries=bt709:color_transfer=bt709" : ""),
+                HardwareAcceleration.Vaapi => $"scale_vaapi=w={width}:h={height}:format=nv12" + (plan.ToneMap ? ",tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709" : ""),
+                HardwareAcceleration.Nvenc => $"scale_cuda={width}:{height}:format=yuv420p",
+                _ => $"scale={width}:{height},format=yuv420p",
+            };
+            args.AddRange(["-vf", filter]);
+        }
+
+        var bitrate = plan.VideoBitrate.ToString(CultureInfo.InvariantCulture);
+        var maxrate = ((long)(plan.VideoBitrate * 1.3)).ToString(CultureInfo.InvariantCulture);
+        var bufsize = (plan.VideoBitrate * 2).ToString(CultureInfo.InvariantCulture);
+        args.AddRange(hw switch
+        {
+            HardwareAcceleration.VideoToolbox => ["-c:v", "h264_videotoolbox", "-profile:v", "high", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize, "-allow_sw", "1"],
+            HardwareAcceleration.Vaapi => ["-c:v", "h264_vaapi", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
+            HardwareAcceleration.Qsv => ["-c:v", "h264_qsv", "-preset", "veryfast", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
+            HardwareAcceleration.Nvenc => ["-c:v", "h264_nvenc", "-preset", "p4", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
+            _ => ["-c:v", "libx264", "-preset", settings.SoftwarePreset, "-crf", "21", "-maxrate", maxrate, "-bufsize", bufsize, "-sc_threshold", "0"],
+        });
+        args.AddRange(["-force_key_frames", $"expr:gte(t,n_forced*{SegmentSeconds})", "-g", "1000", "-keyint_min", "1"]);
+
+        // ---- Audio
+        if (plan.AudioStreamIndex is { } audioIndex)
+        {
+            args.AddRange(["-map", $"0:{audioIndex}"]);
+            args.AddRange(plan.CopyAudio
+                ? ["-c:a", "copy"]
+                : ["-c:a", "aac", "-ac", plan.AudioChannels.ToString(CultureInfo.InvariantCulture), "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
+        }
+
+        // ---- HLS output
+        args.AddRange([
+            "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
+            "-max_muxing_queue_size", "2048",
+            "-output_ts_offset", start,
+            "-f", "hls",
+            "-hls_time", SegmentSeconds.ToString(CultureInfo.InvariantCulture),
+            "-hls_list_size", "0",
+            "-hls_playlist_type", "event",
+            "-start_number", startSegment.ToString(CultureInfo.InvariantCulture),
+            "-hls_segment_filename", Path.Combine(outputDirectory, "seg%d.ts"),
+            Path.Combine(outputDirectory, "ffmpeg.m3u8"),
+        ]);
+        return args;
+    }
+
+    /// <summary>A full VOD playlist of fixed-length segments, so players can seek anywhere immediately.</summary>
+    public static string MediaPlaylist(double durationSeconds)
+    {
+        var count = SegmentCount(durationSeconds);
+        var builder = new System.Text.StringBuilder();
+        builder.Append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:")
+            .Append(SegmentSeconds + 1)
+            .Append("\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+        for (var i = 0; i < count; i++)
+        {
+            var length = Math.Min(SegmentSeconds, durationSeconds - (i * SegmentSeconds));
+            builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{length:F3},\n{i}.ts\n");
+        }
+
+        return builder.Append("#EXT-X-ENDLIST\n").ToString();
+    }
+
+    public static int SegmentCount(double durationSeconds) => Math.Max(1, (int)Math.Ceiling(durationSeconds / SegmentSeconds));
+}

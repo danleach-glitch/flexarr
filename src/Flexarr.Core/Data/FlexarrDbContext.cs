@@ -11,6 +11,11 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<MediaItem> MediaItems => Set<MediaItem>();
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<MediaStream> MediaStreams => Set<MediaStream>();
+    public DbSet<Genre> Genres => Set<Genre>();
+    public DbSet<Person> People => Set<Person>();
+    public DbSet<Credit> Credits => Set<Credit>();
+    public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
+    public DbSet<MediaMarker> MediaMarkers => Set<MediaMarker>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -38,12 +43,34 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasMany(i => i.Files).WithOne(f => f.MediaItem).HasForeignKey(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });
             e.HasIndex(i => i.Path);
+            e.HasIndex(i => i.AddedAt);
+            e.HasMany(i => i.Genres).WithMany(g => g.Items).UsingEntity(j => j.ToTable("MediaItemGenres"));
+            e.HasMany(i => i.Credits).WithOne(c => c.MediaItem).HasForeignKey(c => c.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Genre>().HasIndex(g => g.Name).IsUnique();
+
+        modelBuilder.Entity<Person>(e =>
+        {
+            e.HasIndex(p => p.TmdbId);
+            e.HasIndex(p => p.TvMazeId);
+            e.HasIndex(p => p.Name);
+            e.HasMany(p => p.Credits).WithOne(c => c.Person).HasForeignKey(c => c.PersonId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MediaFile>(e =>
         {
             e.HasIndex(f => f.Path).IsUnique();
             e.HasMany(f => f.Streams).WithOne().HasForeignKey(s => s.MediaFileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(f => f.Markers).WithOne().HasForeignKey(m => m.MediaFileId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PlaybackState>(e =>
+        {
+            e.HasKey(p => new { p.UserId, p.MediaItemId });
+            e.Property(p => p.UserId).HasMaxLength(64);
+            e.HasOne(p => p.MediaItem).WithMany(i => i.PlaybackStates).HasForeignKey(p => p.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(p => new { p.UserId, p.LastPlayedAt });
         });
     }
 }

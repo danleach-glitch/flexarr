@@ -2,8 +2,11 @@ using System.Threading.Channels;
 
 namespace Flexarr.Core.Scanning;
 
-/// <summary>A request to (re)scan part of a library. <see cref="Path"/> may be a file or a folder.</summary>
-public sealed record LibraryScanRequest(string Path, string Reason);
+/// <summary>
+/// A request to (re)scan part of a library. <see cref="Path"/> may be a file or a folder.
+/// Metadata for new or stale items is refreshed afterwards; <see cref="ForceMetadata"/> refreshes everything.
+/// </summary>
+public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false);
 
 public interface ILibraryScanQueue
 {

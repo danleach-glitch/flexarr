@@ -3,6 +3,8 @@
     <Project Path="src/Flexarr.Api/Flexarr.Api.csproj" />
     <Project Path="src/Flexarr.Core/Flexarr.Core.csproj" />
     <Project Path="src/Flexarr.Integrations.Arr/Flexarr.Integrations.Arr.csproj" />
+    <Project Path="src/Flexarr.Metadata/Flexarr.Metadata.csproj" />
+    <Project Path="src/Flexarr.Streaming/Flexarr.Streaming.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Flexarr.Api.Tests/Flexarr.Api.Tests.csproj" />
