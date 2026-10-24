@@ -47,6 +47,13 @@ public sealed class FlexarrOptions
     public List<string> KnownHosts { get; set; } = [];
 
     /// <summary>
+    /// Requests from this machine that don't say who they're forwarding for (no X-Forwarded-For) count as the
+    /// internet, not as this machine. Turn on when a reverse proxy runs here: one that doesn't send X-Forwarded-For
+    /// would otherwise make every visitor look local. A browser on this machine then needs the key too.
+    /// </summary>
+    public bool LoopbackNeedsForwarding { get; set; }
+
+    /// <summary>
     /// Until when the sign-ins earlier versions handed out (one browser cookie shared by all, profile tokens that ignore
     /// the PIN) still work, so browsers can swap them for their own. Set to 30 days after the first run of a version
     /// with per-device sign-ins; after it, they're refused.
