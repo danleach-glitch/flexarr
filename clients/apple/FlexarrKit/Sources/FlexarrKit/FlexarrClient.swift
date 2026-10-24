@@ -12,7 +12,7 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            "The server didn’t accept this device. Enter the API key from Settings › Server on the web, or connect through Tailscale with a Tailscale account the server knows (Settings › Remote access)."
+            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Server on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access."
         case .http(let status, let message):
             message ?? "The server answered with an error (HTTP \(status))."
         case .unexpectedResponse:
@@ -32,12 +32,16 @@ public struct FlexarrClient: Sendable {
     /// The chosen profile's token (from `selectProfile`); nil acts as the main profile.
     public let profileToken: String?
     private let session: URLSession
+    /// Called whenever the server answers 401, so an app can notice its saved sign-in has stopped working.
+    private let onUnauthorized: (@Sendable () -> Void)?
 
-    public init(baseURL: URL, apiKey: String? = nil, profileToken: String? = nil, session: URLSession = .shared) {
+    public init(baseURL: URL, apiKey: String? = nil, profileToken: String? = nil, session: URLSession = .shared,
+                onUnauthorized: (@Sendable () -> Void)? = nil) {
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.profileToken = profileToken
         self.session = session
+        self.onUnauthorized = onUnauthorized
     }
 
     /// Turns what a person typed ("mini.local", "192.168.1.5:8383", "http://host:8383/")
@@ -227,6 +231,7 @@ public struct FlexarrClient: Sendable {
             }
             return data
         case 401:
+            onUnauthorized?()
             throw FlexarrClientError.unauthorized
         default:
             throw FlexarrClientError.http(status: http.statusCode, message: Self.problemMessage(data))

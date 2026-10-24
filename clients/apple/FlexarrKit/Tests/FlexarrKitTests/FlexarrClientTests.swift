@@ -69,6 +69,13 @@ private func stubbedClient(_ stub: StubProtocol.Stub, apiKey: String? = "secret"
     return (client, host)
 }
 
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func add() { lock.withLock { count += 1 } }
+}
+
 struct FlexarrClientTests {
     @Test func sendsApiKeyHeaderAndDecodesStatus() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("system-status")))
@@ -149,7 +156,34 @@ struct FlexarrClientTests {
         let (client, _) = stubbedClient(.init(status: 401, body: Data()))
 
         await #expect(throws: FlexarrClientError.unauthorized) { try await client.home() }
-        #expect(FlexarrClientError.unauthorized.errorDescription?.contains("API key") == true)
+        // Apple TVs connect with a code now, so that comes first.
+        #expect(FlexarrClientError.unauthorized.errorDescription?.contains("Connect it again with a code") == true)
+    }
+
+    @Test func unauthorizedIsReportedToTheApp() async {
+        let host = "test-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, .init(status: 401, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let count = Counter()
+        let client = FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "revoked",
+                                   session: URLSession(configuration: configuration), onUnauthorized: { count.add() })
+
+        await #expect(throws: FlexarrClientError.unauthorized) { try await client.home() }
+        #expect(count.value == 1)
+    }
+
+    @Test func otherFailuresAreNotReportedAsSignedOut() async {
+        let host = "test-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, .init(status: 503, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let count = Counter()
+        let client = FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret",
+                                   session: URLSession(configuration: configuration), onUnauthorized: { count.add() })
+
+        await #expect(throws: FlexarrClientError.self) { try await client.home() }
+        #expect(count.value == 0)
     }
 
     @Test func htmlFallbackIsNotAFlexarrServer() async {
