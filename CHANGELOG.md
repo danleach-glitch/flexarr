@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.9.0 · 24 October 2026
 
 ### A sidebar for your libraries
 - On the web, your libraries are now listed down a sidebar, under **Home**, on the left instead of across the top, so the bar no longer gets crowded when you have lots of them. **Collections**, **Discover** and **Coming soon** sit under them, and the list scrolls on its own if it gets long.
