@@ -339,6 +339,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("LogoUrl")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("MatchLocked")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("MetadataSource")
                         .HasColumnType("TEXT");
 

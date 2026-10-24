@@ -583,6 +583,8 @@ export interface LibraryHealth {
   reclaimableBytes: number
   unreadable: { fileId: string; path: string; error: string; item: import('./types').ItemSummary | null }[]
   missingArtwork: import('./types').ItemSummary[]
+  /** Films and shows Sonarr and Radarr don't manage, matched by searching for the folder name. */
+  matchedByTitle: import('./types').ItemSummary[]
   standardDefinition: import('./types').ItemSummary[]
   standardDefinitionTotal: number
   /** Titles Sonarr or Radarr are already downloading, by item id. */
@@ -634,6 +636,31 @@ export const deleteCopy = (fileId: string) => request<{ removed: number; freedBy
 export const removeDuplicates = (itemId: string) =>
   request<{ removed: number; freedBytes: number; skipped: { path: string; reason: string }[] }>('POST', `/items/${itemId}/remove-duplicates`)
 export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)
+
+/** A show (TVDB id) or film (TMDB id) a library item could be, from Sonarr's or Radarr's search. */
+export interface MatchCandidate {
+  id: number
+  title: string
+  year: number | null
+  overview: string | null
+  poster: string | null
+  network: string | null
+  /** What the item is matched to now. */
+  current: boolean
+  /** The Sonarr or Radarr instance that already has it, and its folder there; null if it would be added. */
+  managedBy: string | null
+  managedPath: string | null
+}
+
+export const searchMatches = (itemId: string, q: string, signal?: AbortSignal) =>
+  apiGet<MatchCandidate[]>(`/items/${itemId}/match?q=${encodeURIComponent(q)}`, signal)
+
+/** Matches the item to a show or film for good, adding it to Sonarr or Radarr (unmonitored, no search) if they don't have it. */
+export const fixMatch = (itemId: string, id: number) =>
+  request<{ instance: string; added: boolean; complete: boolean }>('POST', `/items/${itemId}/match`, { id })
+
+/** Back to automatic matching. */
+export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/match`)
 
 export interface ExternalTitle {
   tmdbId: number

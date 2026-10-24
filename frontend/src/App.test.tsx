@@ -480,6 +480,7 @@ describe('Settings', () => {
         reclaimableBytes: 0,
         unreadable: [],
         missingArtwork: [],
+        matchedByTitle: [],
         standardDefinition: [],
         standardDefinitionTotal: 0,
         downloading: {},

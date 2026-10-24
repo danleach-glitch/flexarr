@@ -4,6 +4,16 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Fix match
+- A wrong match can now be fixed by hand: **Fix match** on a film's or show's page (admins only) searches Sonarr or Radarr. Pick the right one and Flexarr keeps that choice through every refresh.
+- Whatever you pick is managed by Sonarr or Radarr. If they don't have it yet, it's added from its existing folder, unmonitored and without a search, so nothing is downloaded. If they already use the folder for a different title, Flexarr says so and leaves it to you to change it there.
+- **Match automatically again** in the same dialog undoes the choice.
+- **Settings › Library health** has a new **Check these matches** list: films and shows Sonarr and Radarr don't manage, whose details came from searching for the folder's name. **Missing artwork** rows get **Fix match** too.
+
+### Fixed: shows matched to the wrong title by a search
+- Shows and films that Sonarr and Radarr didn't have were matched by searching for the folder's name and taking the first result, so *Shōgun* (2024) came up as *Shogun* (1980). The search now prefers a result with exactly the same title, accents included.
+- A title found by search was then left alone for a week. Now it's checked against Sonarr and Radarr every day, and straight away when they tell Flexarr they've added it, so it switches to their match.
+
 ### Fourth pass: clearer screens, and fixes found by a UX review
 - **Apple TV:** if it's signed out from the web, it goes back to the connect screen with a new code instead of getting stuck on an error. If it can't find your server it tells you what to check, a replaced connect code is marked **New code**, and posters the server was too busy for appear a few seconds later.
 - **Another screen took over:** Flexarr says so plainly and offers **Watch here instead**, which tells you the other screen will stop. When the server is busy, the message says so in plain words and **Try again** no longer stops anyone else.

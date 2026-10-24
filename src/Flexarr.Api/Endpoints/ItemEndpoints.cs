@@ -134,7 +134,7 @@ public static class ItemEndpoints
             entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
-            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews);
+            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked);
     }
 
     private static FileDto ToDto(MediaFile f) => new(

@@ -62,6 +62,7 @@ import { Artwork } from '../components/Artwork'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ConnectTv } from '../components/ConnectTv'
 import { CopyButton } from '../components/CopyButton'
+import { FixMatchDialog } from '../components/FixMatchDialog'
 import { FolderPicker } from '../components/FolderPicker'
 import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
@@ -1257,6 +1258,7 @@ function HealthSection() {
   const [removing, setRemoving] = useState<{ done: number; total: number; freed: number; kept: number; failed: number } | null>(null)
   const [copyErrors, setCopyErrors] = useState<Record<string, string>>({})
   const [confirmAll, setConfirmAll] = useState(false)
+  const [matching, setMatching] = useState<ItemSummary>()
   if (!data) return <p className="muted">Checking your library…</p>
 
   async function upgrade(id: string) {
@@ -1459,6 +1461,23 @@ function HealthSection() {
         ))}
       </HealthGroup>
 
+      {data.matchedByTitle.length > 0 && (
+        <HealthGroup
+          title="Check these matches"
+          count={data.matchedByTitle.length}
+          lede="Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr."
+        >
+          {data.matchedByTitle.map((item) => (
+            <div key={item.id} className="health-row">
+              <HealthRowMain item={item} detail="Matched by title" />
+              <button className="button quiet small" onClick={() => setMatching(item)}>
+                Fix match
+              </button>
+            </div>
+          ))}
+        </HealthGroup>
+      )}
+
       {data.missingArtwork.length > 0 && (
         <HealthGroup
           title="Missing artwork"
@@ -1466,16 +1485,23 @@ function HealthSection() {
           lede={
             score.missingArtwork === 0 && (score.artworkNeedsConnection ?? 0) > 0
               ? 'Artwork comes from Radarr and Sonarr. Connect them in Settings › Connections to fill it in.'
-              : 'Not found in Sonarr or Radarr. Renaming the folder to “Title (Year)” usually fixes the match.'
+              : 'Not found in Sonarr or Radarr. Fix the match to choose the right title, or rename the folder to “Title (Year)”.'
           }
         >
           {data.missingArtwork.map((item) => (
             <div key={item.id} className="health-row">
               <HealthRowMain item={item} detail="No poster or details" />
+              {(item.kind === 'Movie' || item.kind === 'Series') && (
+                <button className="button quiet small" onClick={() => setMatching(item)}>
+                  Fix match
+                </button>
+              )}
             </div>
           ))}
         </HealthGroup>
       )}
+
+      {matching && <FixMatchDialog item={matching} onFixed={reload} onClose={() => setMatching(undefined)} />}
 
       {confirmAll && (
         <ConfirmDialog

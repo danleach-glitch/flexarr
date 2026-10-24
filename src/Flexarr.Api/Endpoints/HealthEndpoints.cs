@@ -7,6 +7,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
+using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -32,6 +33,7 @@ public sealed record LibraryHealthDto(
     long ReclaimableBytes,
     IReadOnlyList<UnreadableDto> Unreadable,
     IReadOnlyList<ItemSummaryDto> MissingArtwork,
+    IReadOnlyList<ItemSummaryDto> MatchedByTitle,
     IReadOnlyList<ItemSummaryDto> StandardDefinition,
     int StandardDefinitionTotal,
     IReadOnlyDictionary<Guid, DownloadStateDto> Downloading,
@@ -87,6 +89,12 @@ public static partial class HealthEndpoints
 
             var missing = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
 
+            // Films and shows Sonarr and Radarr don't manage, so their details came from searching for the folder's
+            // name: worth a look, as a search can pick the wrong one (a remake, an older show of the same name).
+            var byTitle = await db.MediaItems
+                .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && (i.MetadataSource == MetadataRefresher.RadarrLookup || i.MetadataSource == MetadataRefresher.SonarrLookup) && !i.MatchLocked)
+                .OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
+
             // Films and shows whose best copy is standard definition: candidates for an upgrade search.
             var sd = db.MediaItems.Where(i => i.Kind == MediaKind.Movie && i.Files.Any() && i.Files.Max(f => f.Height) < 700 && i.Files.Max(f => f.Width) < 1200);
             // The score counts each film or episode once, however many problems it has.
@@ -123,6 +131,7 @@ public static partial class HealthEndpoints
                 duplicates.Sum(d => d.ReclaimableBytes),
                 unreadable.Select(u => new UnreadableDto(u.Id, u.Path, u.ProbeError!, unreadableItems.GetValueOrDefault(u.MediaItemId))).ToList(),
                 missing,
+                byTitle,
                 await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
                 await sd.CountAsync(ct),
                 downloading,

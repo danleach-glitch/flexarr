@@ -29,6 +29,9 @@ public sealed partial class MetadataRefresher(
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
     private const int MaxCast = 24;
 
+    /// <summary>The source of a film's or show's details when they came from searching for its folder's name.</summary>
+    public const string RadarrLookup = "Radarr lookup", SonarrLookup = "Sonarr lookup";
+
     private Dictionary<string, Genre>? _genres;
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
@@ -59,6 +62,43 @@ public sealed partial class MetadataRefresher(
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
+    }
+
+    /// <summary>
+    /// Refreshes one film or show now (e.g. after Fix match), cast included. The caller loads it with its genres and
+    /// credits, and saves.
+    /// </summary>
+    /// <returns>true when matched in Radarr or Sonarr, false when found by lookup, null when unmatched.</returns>
+    public async Task<bool?> RefreshItemAsync(MediaItem item, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        // A match fixed by hand is fetched by its id alone; otherwise the folder decides, which needs the whole list.
+        IReadOnlyList<MediaItem>? only = item.MatchLocked ? [item] : null;
+        bool? result;
+        if (item.Kind == MediaKind.Movie)
+        {
+            var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
+            var known = (await KnownAsync(radarrs, only, i => i.TmdbId, arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
+                .Select(k => (k.Instance, Movie: k.Entry)).ToList();
+            result = await RefreshMovieAsync(item, Index(known, k => MapPath(k.Movie.Path)), Index(known, k => k.Movie.ImdbId),
+                Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null), radarrs, force: true, ct).ConfigureAwait(false);
+        }
+        else if (item.Kind == MediaKind.Series)
+        {
+            var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
+            var known = (await KnownAsync(sonarrs, only, i => i.TvdbId, arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
+                .Select(k => (k.Instance, Series: k.Entry)).ToList();
+            result = await RefreshOneSeriesAsync(item, Index(known, k => MapPath(k.Series.Path)),
+                Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null), Index(known, k => k.Series.ImdbId),
+                sonarrs, force: true, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            throw new ArgumentException($"Only films and shows are matched, not {item.Kind}.", nameof(item));
+        }
+
+        item.MetadataUpdatedAt = DateTime.UtcNow;
+        return result;
     }
 
     // ------------------------------------------------------------------ Movies
@@ -119,7 +159,11 @@ public sealed partial class MetadataRefresher(
         bool force,
         CancellationToken ct)
     {
-        if ((Find(byPath, item.Path) ?? Find(byImdb, item.ImdbId) ?? Find(byTmdb, item.TmdbId)) is (var instance, var movie))
+        // A match fixed by hand is found by its TMDB id only: the folder may be one Radarr has as a different film.
+        var hit = item.MatchLocked
+            ? Find(byTmdb, item.TmdbId)
+            : Find(byPath, item.Path) ?? Find(byImdb, item.ImdbId) ?? Find(byTmdb, item.TmdbId);
+        if (hit is (var instance, var movie))
         {
             await ApplyMovieAsync(item, movie, instance, ct).ConfigureAwait(false);
             if (force || item.Credits.Count == 0)
@@ -141,13 +185,14 @@ public sealed partial class MetadataRefresher(
 
     private async Task<RadarrMovie?> LookupMovieAsync(ArrInstance radarr, MediaItem item, CancellationToken ct)
     {
-        var term = item.ImdbId is { } imdb ? $"imdb:{imdb}"
+        var term = item.MatchLocked && item.TmdbId is { } locked ? $"tmdb:{locked}"
+            : item.ImdbId is { } imdb ? $"imdb:{imdb}"
             : item.TmdbId is { } tmdb ? $"tmdb:{tmdb}"
             : $"{item.Title} {item.Year}".Trim();
         try
         {
             var results = await arr.LookupMoviesAsync(radarr, term, ct).ConfigureAwait(false);
-            return results.FirstOrDefault(m => item.Year is null || Math.Abs(m.Year - item.Year.Value) <= 1);
+            return item.MatchLocked ? (results.Count > 0 ? results[0] : null) : BestByTitle(results, item, m => m.Title, m => m.Year);
         }
         catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
@@ -175,7 +220,7 @@ public sealed partial class MetadataRefresher(
         item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
         item.TmdbId = movie.TmdbId > 0 ? movie.TmdbId.ToString(CultureInfo.InvariantCulture) : item.TmdbId;
         item.ArrId = instance is null ? null : movie.Id;
-        item.MetadataSource = instance?.Name ?? "Radarr lookup";
+        item.MetadataSource = instance?.Name ?? RadarrLookup;
         await ApplyImagesAsync(item, movie.Images, movie.RemotePoster, ct).ConfigureAwait(false);
         await SetGenresAsync(item, movie.Genres, ct).ConfigureAwait(false);
     }
@@ -301,7 +346,11 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         bool? result = null;
-        if ((Find(byPath, item.Path) ?? Find(byTvdb, item.TvdbId) ?? Find(byImdb, item.ImdbId)) is (var instance, var series))
+        // A match fixed by hand is found by its TVDB id only: the folder may be one Sonarr has as a different show.
+        var hit = item.MatchLocked
+            ? Find(byTvdb, item.TvdbId)
+            : Find(byPath, item.Path) ?? Find(byTvdb, item.TvdbId) ?? Find(byImdb, item.ImdbId);
+        if (hit is (var instance, var series))
         {
             await ApplySeriesAsync(item, series, instance, ct).ConfigureAwait(false);
             await ApplyEpisodesAsync(item, series, instance, ct).ConfigureAwait(false);
@@ -328,7 +377,7 @@ public sealed partial class MetadataRefresher(
         try
         {
             var results = await arr.LookupSeriesAsync(sonarr, term, ct).ConfigureAwait(false);
-            return results.FirstOrDefault(s => item.Year is null || s.Year == 0 || Math.Abs(s.Year - item.Year.Value) <= 1);
+            return item.MatchLocked ? (results.Count > 0 ? results[0] : null) : BestByTitle(results, item, s => s.Title, s => s.Year);
         }
         catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
@@ -354,7 +403,7 @@ public sealed partial class MetadataRefresher(
         item.ImdbId = NullIfEmpty(series.ImdbId) ?? item.ImdbId;
         item.TvMazeId = series.TvMazeId > 0 ? series.TvMazeId.ToString(CultureInfo.InvariantCulture) : item.TvMazeId;
         item.ArrId = instance is null ? null : series.Id;
-        item.MetadataSource = instance?.Name ?? "Sonarr lookup";
+        item.MetadataSource = instance?.Name ?? SonarrLookup;
         await ApplyImagesAsync(item, series.Images, series.RemotePoster, ct).ConfigureAwait(false);
         await SetGenresAsync(item, series.Genres, ct).ConfigureAwait(false);
     }
@@ -540,11 +589,29 @@ public sealed partial class MetadataRefresher(
         var now = DateTime.UtcNow;
         var cutoff = now - StaleAfter;
         var retryCutoff = now - RetryUnmatchedAfter;
-        // Items that didn't match last time are retried daily (a rename or new *arr entry may fix them). A new *arr
-        // entry also arrives as a webhook, whose folder is refreshed straight away.
+        // Items that didn't match last time, or were only found by a title search, are retried daily (a rename or new
+        // *arr entry may fix them). A new *arr entry also arrives as a webhook, whose folder is refreshed straight away.
         return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
             && (force || also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff
-                || (i.PosterUrl == null && i.MetadataUpdatedAt < retryCutoff)));
+                || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup) && !i.MatchLocked))
+                    && i.MetadataUpdatedAt < retryCutoff)));
+    }
+
+    /// <summary>
+    /// The search result most likely to be this item: within a year of its year (when known), then the same title
+    /// (accents and all, so "Shōgun" isn't taken for "Shogun"), then the same title ignoring accents and punctuation,
+    /// then whatever the search ranked first.
+    /// </summary>
+    public static T? BestByTitle<T>(IReadOnlyList<T> results, MediaItem item, Func<T, string> title, Func<T, int> year) where T : class
+    {
+        var candidates = results.Where(r => item.Year is null || year(r) == 0 || Math.Abs(year(r) - item.Year.Value) <= 1).ToList();
+        var wanted = item.Title.Normalize(System.Text.NormalizationForm.FormC);
+        return candidates.FirstOrDefault(r => string.Equals(title(r).Normalize(System.Text.NormalizationForm.FormC), wanted, StringComparison.OrdinalIgnoreCase))
+            ?? candidates.FirstOrDefault(r => Loose(title(r)) == Loose(wanted))
+            ?? candidates.FirstOrDefault();
+
+        static string Loose(string s) => new(s.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     }
 
     /// <summary>The films or series in (or containing) the given folders.</summary>
@@ -563,11 +630,14 @@ public sealed partial class MetadataRefresher(
 
     /// <summary>
     /// A title's TMDB or TVDB id, or for the one title in the folders just scanned that has none yet, the id its webhook
-    /// gave. Not when those folders hold more than one title: then which one it belongs to isn't known.
+    /// gave. That one is also preferred over an id a title search found, which may be the wrong title's. Not when those
+    /// folders hold more than one title: then which one it belongs to isn't known.
     /// </summary>
     private static Func<MediaItem, string?> Hinted(List<Guid> within, int? hint, Func<MediaItem, string?> own) =>
         hint is > 0 && within.Count == 1
-            ? i => own(i) ?? (i.Id == within[0] ? hint.Value.ToString(CultureInfo.InvariantCulture) : null)
+            ? i => i.Id == within[0] && (own(i) is null || (i.MetadataSource is RadarrLookup or SonarrLookup && !i.MatchLocked))
+                ? hint.Value.ToString(CultureInfo.InvariantCulture)
+                : own(i)
             : own;
 
     /// <summary>

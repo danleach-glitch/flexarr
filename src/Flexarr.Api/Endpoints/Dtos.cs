@@ -79,6 +79,7 @@ public sealed record ItemDetailDto(
     IReadOnlyList<CreditDto> Credits,
     IReadOnlyList<FileDto> Files,
     IReadOnlyDictionary<Guid, string?> ChildOverviews,
+    bool MatchLocked,
     ItemSummaryDto? NextUp = null,
     ItemDetailDto? Season = null);
 

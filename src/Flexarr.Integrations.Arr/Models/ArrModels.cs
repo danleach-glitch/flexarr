@@ -28,6 +28,7 @@ public sealed record RadarrMovie
     public string? Path { get; init; }
     public bool HasFile { get; init; }
     public bool Monitored { get; init; }
+    public int QualityProfileId { get; init; }
     public int TmdbId { get; init; }
     public string? ImdbId { get; init; }
     public string? Certification { get; init; }
@@ -75,6 +76,7 @@ public sealed record SonarrSeries
     public int Year { get; init; }
     public string? Overview { get; init; }
     public string? Path { get; init; }
+    public int QualityProfileId { get; init; }
     public int TvdbId { get; init; }
     public int TvMazeId { get; init; }
     public int TmdbId { get; init; }
@@ -155,6 +157,10 @@ public sealed record RadarrCollectionMovie
     public string? Overview { get; init; }
     public IReadOnlyList<ArrImage> Images { get; init; } = [];
 }
+
+public sealed record ArrQualityProfile(int Id, string Name);
+
+public sealed record ArrRootFolder(int Id, string Path);
 
 /// <summary>A file Sonarr or Radarr tracks (a movie file, or an episode file), with its path as they see it.</summary>
 public sealed record ArrFile(int Id, string? Path);

@@ -20,6 +20,7 @@ import { Check, Film, Play } from '../components/icons'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
+import { FixMatchDialog } from '../components/FixMatchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
 import { useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
@@ -65,8 +66,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const navigate = useNavigate()
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [matching, setMatching] = useState(false)
   const { me } = useSession()
   const canDelete = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
+  const canFixMatch = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series')
   const nextUp = detail.nextUp ?? undefined
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
 
@@ -146,6 +149,11 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 Add to collection
               </button>
             )}
+            {canFixMatch && (
+              <button className="button quiet" onClick={() => setMatching(true)}>
+                Fix match
+              </button>
+            )}
             {canDelete && (
               <button className="button quiet danger" onClick={() => setDeleting(true)}>
                 Delete
@@ -190,6 +198,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           onDeleted={() => navigate(item.kind === 'Episode' && series ? `/item/${series.id}?season=${item.seasonNumber}` : `/library/${item.libraryId}`, { replace: true })}
         />
       )}
+      {matching && <FixMatchDialog item={item} path={detail.path} locked={detail.matchLocked} onFixed={onChange} onClose={() => setMatching(false)} />}
       {trailer && detail.trailerYouTubeId && <TrailerDialog videoId={detail.trailerYouTubeId} title={item.title} onClose={() => setTrailer(false)} />}
     </article>
   )
