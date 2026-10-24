@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Better TV file name reading (thanks, LetMeSleep8h)
+- Anime-style absolute episode numbers are understood ("One Piece - 1015", "Cowboy Bebop - 26").
+- Scene-style names spelled with dots get readable episode titles, and titles that really contain dots ("S.O.B.s", "WUPHF.com") are no longer dropped.
+
 ### Fixed: Discover search only found films
 - Search, Discover, Coming soon and requests hid every new show from a profile kept out of *any* TV library (yours hides one). They now hide a kind of title only when the profile can't see any library of that kind.
 

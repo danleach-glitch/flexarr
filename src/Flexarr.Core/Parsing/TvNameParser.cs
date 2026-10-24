@@ -90,6 +90,9 @@ public static partial class TvNameParser
     /// <summary>Sonarr names put the title between " - " and the first "[quality]" tag.</summary>
     private static string? EpisodeTitle(string afterEpisode)
     {
+        // Scene names spell everything with dots ("Show.S01E02.Episode.Title.1080p.WEB"); other names keep the dots
+        // that belong in a title ("S.O.B.s", "Damonschildren.org").
+        var scene = !afterEpisode.Contains(' ', StringComparison.Ordinal);
         var title = afterEpisode.TrimStart(' ', '-', '.', '_');
         var bracket = title.IndexOf('[', StringComparison.Ordinal);
         if (bracket >= 0)
@@ -98,9 +101,12 @@ public static partial class TvNameParser
         }
 
         title = ReleaseJunk().Replace(title, string.Empty).Trim(' ', '-', '.', '_');
-        return title.Length == 0 || !title.Contains(' ', StringComparison.Ordinal) && title.Contains('.', StringComparison.Ordinal)
-            ? null
-            : title;
+        if (scene)
+        {
+            title = title.Replace('.', ' ').Trim();
+        }
+
+        return title.Length == 0 ? null : title;
     }
 
     private static string StripPrefix(string name, string? seriesTitle)
@@ -123,7 +129,7 @@ public static partial class TvNameParser
     [GeneratedRegex(@"\b(?<y>(?:19|20)\d{2})[-._ ](?<m>\d{2})[-._ ](?<d>\d{2})\b")]
     private static partial Regex Daily();
 
-    [GeneratedRegex(@"^\s*[-.]?\s*(?<episode>\d{1,3})(?=[\s._-])")]
+    [GeneratedRegex(@"^\s*[-.]?\s*(?<episode>\d{1,4})(?=[\s._-]|$)")]
     private static partial Regex LeadingNumber();
 
     [GeneratedRegex(@"^(?<title>.+?)\s*\((?<year>(?:19|20)\d{2})\)$")]
