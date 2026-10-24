@@ -20,6 +20,7 @@ import {
   deleteProfile,
   getPlexSource,
   getRemoteAccess,
+  keepMatch,
   linkTailscale,
   setTailscaleAccess,
   getAllLibraries,
@@ -1465,14 +1466,31 @@ function HealthSection() {
         <HealthGroup
           title="Check these matches"
           count={data.matchedByTitle.length}
-          lede="Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr."
+          lede="Sonarr and Radarr don’t manage these, so their details came from searching for the folder’s name, which can find the wrong one: an older show with the same name, or a remake. Fixing a match adds the title to Sonarr or Radarr. Ignore one that’s right and it stays as it is."
         >
           {data.matchedByTitle.map((item) => (
             <div key={item.id} className="health-row">
-              <HealthRowMain item={item} detail="Matched by title" />
-              <button className="button quiet small" onClick={() => setMatching(item)}>
-                Fix match
-              </button>
+              <HealthRowMain item={item} detail={requested[item.id] ?? 'Matched by title'} />
+              <div className="health-row-actions">
+                <button
+                  className="button quiet small"
+                  disabled={requested[item.id] === 'Keeping this match…'}
+                  onClick={async () => {
+                    setRequested((r) => ({ ...r, [item.id]: 'Keeping this match…' }))
+                    try {
+                      await keepMatch(item.id)
+                      reload()
+                    } catch (e) {
+                      setRequested((r) => ({ ...r, [item.id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t keep this match' }))
+                    }
+                  }}
+                >
+                  Ignore
+                </button>
+                <button className="button quiet small" onClick={() => setMatching(item)}>
+                  Fix match
+                </button>
+              </div>
             </div>
           ))}
         </HealthGroup>

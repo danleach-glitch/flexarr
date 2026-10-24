@@ -667,6 +667,8 @@ export const fixMatch = (itemId: string, id: number) =>
 
 /** Back to automatic matching. */
 export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/match`)
+/** Keeps the match a title search found (Library health's Ignore): refreshes leave it as it is. */
+export const keepMatch = (itemId: string) => request<void>('POST', `/items/${itemId}/match/keep`)
 
 export interface ExternalTitle {
   tmdbId: number
