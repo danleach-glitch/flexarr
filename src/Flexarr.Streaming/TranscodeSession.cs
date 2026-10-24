@@ -54,6 +54,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     }
 
     public string Id { get; }
+
+    /// <summary>The profile watching, for the per-profile share of the transcode limit.</summary>
+    public string ProfileId { get; init; } = "";
     public string Input { get; }
     public double DurationSeconds { get; }
     public TranscodePlan Plan { get; }

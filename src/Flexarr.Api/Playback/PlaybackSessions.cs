@@ -27,10 +27,21 @@ public sealed class PlaybackSession
     public bool CountedAsPlay { get; set; }
 }
 
-public sealed partial class PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger)
+public sealed partial class PlaybackSessions
 {
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
+    private readonly TranscodeManager transcodes;
+    private readonly ILogger<PlaybackSessions> logger;
+
+    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger)
+    {
+        this.transcodes = transcodes;
+        this.logger = logger;
+
+        // A transcode ended to make way for another viewer takes its playback with it.
+        transcodes.TakenOver += id => _sessions.TryRemove(id, out _);
+    }
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
 

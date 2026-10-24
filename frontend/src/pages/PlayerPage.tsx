@@ -141,7 +141,7 @@ export function PlayerPage() {
     }
   }, [])
 
-  /** Starts (or restarts) playback. True once settled: playing, or refused by a busy server (with the error shown). */
+  /** Starts (or restarts) playback. True once settled: playing, or refused (busy server, stream taken over) with the error shown. */
   const start = useCallback(
     async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
@@ -175,8 +175,9 @@ export function PlayerPage() {
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
         return true
       } catch (e) {
-        // A server at its transcode limit is an answer, not a hiccup: say so rather than retrying.
-        const busy = e instanceof ApiError && e.status === 503
+        // A server at its transcode limit, or a stream ended for another screen (410), is an answer, not a hiccup:
+        // say so rather than retrying, which would only take the stream back from the other screen.
+        const busy = e instanceof ApiError && (e.status === 503 || e.status === 410)
         if ((!quiet || busy) && request === requests.current) setError(e instanceof Error ? e.message : String(e))
         return busy
       }

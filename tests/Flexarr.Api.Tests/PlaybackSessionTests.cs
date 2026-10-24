@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -33,26 +34,101 @@ public sealed class PlaybackSessionTests : IDisposable
     }
 
     [Fact]
-    public async Task OneProfile_CantTakeEveryTranscodeSlot_ItsOldestMakesWay()
+    public async Task ThreeScreensOnOneProfile_AllPlay_WhileTheServerHasSlots()
     {
         var movie = await AddMovieAsync();
         var client = Client();
 
-        // The default limit is 3, so one profile gets 2.
-        var first = await StartAsync(client, movie);
-        var second = await StartAsync(client, movie);
-        var third = await StartAsync(client, movie);
+        // The default limit is 3.
+        var screens = new[] { await StartAsync(client, movie), await StartAsync(client, movie), await StartAsync(client, movie) };
 
-        Assert.False(await ExistsAsync(client, first));
-        Assert.True(await ExistsAsync(client, second));
-        Assert.True(await ExistsAsync(client, third));
+        foreach (var screen in screens)
+        {
+            Assert.True(await ExistsAsync(client, screen));
+        }
     }
 
-    private HttpClient Client()
+    [Fact]
+    public async Task AtTheLimit_AProfilesOldestScreenMakesWay_IsToldWhy_AndItsRecoveryTakesNothing()
+    {
+        var movie = await AddMovieAsync();
+        var owner = Client();
+        var guest = Client(await NewProfileTokenAsync());
+
+        var first = await StartAsync(owner, movie);
+        var second = await StartAsync(owner, movie);
+        var other = await StartAsync(guest, movie);
+        var third = await StartAsync(owner, movie);
+
+        var gone = await owner.GetAsync(new Uri($"/api/v1/playback/{first}/main.m3u8", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.Gone, gone.StatusCode);
+        Assert.Contains("Another screen on this profile", await gone.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Gone, (await owner.GetAsync(new Uri($"/api/v1/playback/{first}/3.ts", UriKind.Relative))).StatusCode);
+
+        // The ended screen's player tries to get its stream back: it's told why instead, and nobody else is ended.
+        var recovery = await PostStartAsync(owner, movie, replaces: first);
+        Assert.Equal(HttpStatusCode.Gone, recovery.StatusCode);
+        foreach (var playing in new[] { second, other, third })
+        {
+            Assert.True(await ExistsAsync(owner, playing));
+        }
+    }
+
+    [Fact]
+    public async Task RestartingAStreamTheServerForgot_EndsNobody_AndSaysTheServerIsBusy()
+    {
+        var movie = await AddMovieAsync();
+        var client = Client();
+        var screens = new[] { await StartAsync(client, movie), await StartAsync(client, movie), await StartAsync(client, movie) };
+
+        var restart = await PostStartAsync(client, movie, replaces: "0123456789abcdef0123456789abcdef");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, restart.StatusCode);
+        Assert.Contains("The stream stopped", await restart.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        foreach (var screen in screens)
+        {
+            Assert.True(await ExistsAsync(client, screen));
+        }
+    }
+
+    [Fact]
+    public async Task SimultaneousStarts_CantTakeMoreThanAProfilesShare()
+    {
+        var movie = await AddMovieAsync();
+        var guest = Client(await NewProfileTokenAsync());
+        var other = await StartAsync(guest, movie);
+        var owner = Client();
+
+        var started = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => StartAsync(owner, movie)));
+
+        Assert.True(await ExistsAsync(guest, other));
+        var playing = 0;
+        foreach (var screen in started)
+        {
+            playing += await ExistsAsync(owner, screen, goneIsFalse: true) ? 1 : 0;
+        }
+
+        Assert.Equal(2, playing);
+    }
+
+    private HttpClient Client(string? profileToken = null)
     {
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        if (profileToken is not null)
+        {
+            client.DefaultRequestHeaders.Add("X-Flexarr-Profile", profileToken);
+        }
+
         return client;
+    }
+
+    private async Task<string> NewProfileTokenAsync()
+    {
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = $"Guest {Guid.NewGuid():N}" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var selected = await Client().PostAsJsonAsync(new Uri($"/api/v1/profiles/{created.GetProperty("id").GetString()}/select", UriKind.Relative), new { });
+        return (await selected.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
     }
 
     private async Task<Guid> AddMovieAsync()
@@ -83,23 +159,27 @@ public sealed class PlaybackSessionTests : IDisposable
         return movie.Id;
     }
 
+    private static Task<HttpResponseMessage> PostStartAsync(HttpClient client, Guid item, string? replaces = null) =>
+        client.PostAsJsonAsync(new Uri("/api/v1/playback", UriKind.Relative),
+            new { itemId = item, profile = new { }, forceTranscode = true, replacesSessionId = replaces });
+
     private static async Task<string> StartAsync(HttpClient client, Guid item, string? replaces = null)
     {
-        var response = await client.PostAsJsonAsync(new Uri("/api/v1/playback", UriKind.Relative),
-            new { itemId = item, profile = new { }, forceTranscode = true, replacesSessionId = replaces });
+        var response = await PostStartAsync(client, item, replaces);
         response.EnsureSuccessStatusCode();
         var info = await response.Content.ReadFromJsonAsync<StartedPlayback>();
         Assert.Equal("Transcode", info!.Method);
         return info.SessionId;
     }
 
-    private static async Task<bool> ExistsAsync(HttpClient client, string session)
+    private static async Task<bool> ExistsAsync(HttpClient client, string session, bool goneIsFalse = false)
     {
         var response = await client.GetAsync(new Uri($"/api/v1/playback/{session}/main.m3u8", UriKind.Relative));
         return response.StatusCode switch
         {
             HttpStatusCode.OK => true,
             HttpStatusCode.NotFound => false,
+            HttpStatusCode.Gone when goneIsFalse => false,
             var other => throw new InvalidOperationException($"Unexpected {other}"),
         };
     }

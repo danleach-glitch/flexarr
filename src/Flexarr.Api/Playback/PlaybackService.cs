@@ -76,9 +76,22 @@ public sealed class PlaybackService(
         // The player's own previous session (before an audio switch, a recovery) ends first, so it isn't left encoding
         // ahead for nobody and doesn't count towards the transcode limit. Only that one: the same profile may be
         // watching this title on another screen.
-        if (request.ReplacesSessionId is { } replaces && sessions.Get(replaces) is { } previous && previous.ProfileId == profile.Id)
+        var restarting = false;
+        if (request.ReplacesSessionId is { } replaces)
         {
-            await sessions.RemoveAsync(previous.Id);
+            if (sessions.Get(replaces) is { } previous && previous.ProfileId == profile.Id)
+            {
+                await sessions.RemoveAsync(previous.Id);
+            }
+            else if (transcodes.TakenOverReason(replaces) is { } reason)
+            {
+                // Its stream was ended for another screen: taking it back is for the viewer to choose, not a recovery.
+                throw new PlaybackTakenOverException(reason);
+            }
+            else
+            {
+                restarting = true; // The stream it replaces is gone (the server restarted, say).
+            }
         }
 
         var duration = file.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60;
@@ -86,18 +99,7 @@ public sealed class PlaybackService(
         TranscodeSession? transcode = null;
         if (decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
         {
-            // One profile can't hold every slot: past its share, its oldest transcode makes way for this one.
-            if (transcodes.PerProfileLimit is > 0 and var share)
-            {
-                var mine = sessions.Active.Where(s => s.ProfileId == profile.Id && s.Transcode is { IsActive: true })
-                    .OrderBy(s => s.Transcode!.Created).ToList();
-                foreach (var oldest in mine.Take(mine.Count - share + 1))
-                {
-                    await sessions.RemoveAsync(oldest.Id);
-                }
-            }
-
-            transcode = transcodes.Create(file.Path, duration, plan);
+            transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting);
             id = transcode.Id;
         }
 
@@ -418,3 +420,6 @@ public sealed class PlaybackService(
         return (last?.AudioLanguage, last?.SubtitleLanguage);
     }
 }
+
+/// <summary>A player asked to carry on a stream that was ended to make way for another viewer.</summary>
+public sealed class PlaybackTakenOverException(string reason) : Exception(reason);
