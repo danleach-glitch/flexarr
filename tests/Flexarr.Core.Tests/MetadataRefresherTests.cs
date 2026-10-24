@@ -107,6 +107,23 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.NotNull((await _db.MediaItems.SingleAsync()).MetadataUpdatedAt);
     }
 
+    [Fact]
+    public async Task ArtworkDroppedMidDownload_DoesNotEndTheRefresh()
+    {
+        await AddMovieAsync("Dune", null, poster: null);
+        await AddMovieAsync("Heat", null, poster: null);
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":1,"title":"Dune","year":2021,"path":"/movies/Dune","images":[{"coverType":"poster","remoteUrl":"https://image.test/dune.jpg"}]},
+             {"id":2,"title":"Heat","year":1995,"path":"/movies/Heat","images":[{"coverType":"poster","remoteUrl":"https://image.test/heat.jpg"}]}]
+            """;
+        _radarr.DropArtwork = true;
+
+        var result = await Refresher().RefreshLibraryAsync(_library, force: false, default);
+
+        Assert.Equal(2, result.FromArr);
+        Assert.All(await _db.MediaItems.ToListAsync(), i => Assert.Equal($"https://image.test/{i.Title.ToLowerInvariant()}.jpg", i.PosterUrl));
+    }
+
     private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster, int? arrId = null, string? tmdbId = null)
     {
         _db.MediaItems.Add(new MediaItem
@@ -151,6 +168,9 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         public int Requests;
         public bool TimeOut;
 
+        /// <summary>Artwork (from image.test) starts to arrive, then the connection closes.</summary>
+        public bool DropArtwork;
+
         /// <summary>Bodies by path and query.</summary>
         public Dictionary<string, string> Responses { get; } = [];
 
@@ -165,8 +185,46 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
                 throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing.");
             }
 
+            if (DropArtwork && request.RequestUri!.Host == "image.test")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
+            }
+
             var body = Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
         }
+    }
+
+    /// <summary>The start of an answer, then the connection closes, as HttpClient reports it.</summary>
+    private sealed class DroppingStream : Stream
+    {
+        private bool _sent;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_sent)
+            {
+                throw new HttpIOException(HttpRequestError.ResponseEnded, "The response ended prematurely.");
+            }
+
+            _sent = true;
+            buffer.Span[0] = (byte)'[';
+            return ValueTask.FromResult(1);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

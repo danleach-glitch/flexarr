@@ -40,6 +40,15 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
     private static readonly SemaphoreSlim DownloadSlots = new(MaxDownloads, MaxDownloads);
 
+    /// <summary>
+    /// Images that couldn't be fetched, and when to try again (<see cref="Environment.TickCount64"/>), so a page asking
+    /// for them again gets its answer at once rather than another trip to the artwork host. Locked with <see cref="InFlight"/>.
+    /// </summary>
+    private static readonly Dictionary<string, long> Failed = new(StringComparer.Ordinal);
+
+    /// <summary>Remembered failures past this are thrown away (expired ones first), so the list can't grow without end.</summary>
+    private const int MaxFailed = 4096;
+
     private static long _lastTrim = long.MinValue / 2; // so the first write checks
     private static int _trimming;
 
@@ -58,6 +67,12 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// on a TV and straight back isn't fetched twice, but one scrolled far past stops taking a download slot.
     /// </summary>
     internal TimeSpan AbandonAfter { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long an image the host says is gone, or a host that can't be reached at all, isn't asked for again.</summary>
+    internal TimeSpan GoneFor { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>How long after a failure that may well pass (a server error, a timeout, a dropped connection).</summary>
+    internal TimeSpan UnavailableFor { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Returns the path of a cached copy at least <paramref name="width"/> wide, or null if it can't be fetched.</summary>
     /// <param name="remoteUrl">An https URL, or (from the library scanner only) a file:// or embedded:// one.</param>
@@ -83,6 +98,16 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         Job? job;
         lock (InFlight)
         {
+            if (Failed.TryGetValue(target, out var retryAt))
+            {
+                if (Environment.TickCount64 < retryAt)
+                {
+                    return null;
+                }
+
+                Failed.Remove(target);
+            }
+
             if (!InFlight.TryGetValue(target, out job))
             {
                 if (InFlight.Count >= MaxJobs)
@@ -116,30 +141,66 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(job.Abandoned.Token);
             timeout.CancelAfter(WorkTimeout);
-            return await FetchAsync(remoteUrl, snapped, job.Target, timeout.Token).ConfigureAwait(false);
+            return await FetchAsync(remoteUrl, snapped, job, timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             if (!job.Abandoned.IsCancellationRequested)
             {
                 LogDownloadFailed(remoteUrl, 0); // timed out
+                job.RetryAfter = UnavailableFor;
             }
 
             return null;
         }
         finally
         {
-            // Done with: the next request finds the file or, if this failed, tries again. Abandoned work was taken
-            // out already, and newer work for the same image may be there in its place.
+            // Done with: the next request finds the file or, if this failed, the failure (for a while; then it's
+            // tried again). Abandoned work was taken out already, and newer work for the same image may be there in
+            // its place.
             lock (InFlight)
             {
                 if (InFlight.TryGetValue(job.Target, out var current) && current == job)
                 {
                     InFlight.Remove(job.Target);
+                    if (job.RetryAfter > TimeSpan.Zero)
+                    {
+                        Remember(job.Target, job.RetryAfter);
+                    }
                 }
             }
         }
     }
+
+    /// <summary>Notes a failed image until <paramref name="retryAfter"/> from now. Called under the <see cref="InFlight"/> lock.</summary>
+    private static void Remember(string target, TimeSpan retryAfter)
+    {
+        var now = Environment.TickCount64;
+        if (Failed.Count >= MaxFailed)
+        {
+            foreach (var expired in Failed.Where(f => f.Value <= now).Select(f => f.Key).ToList())
+            {
+                Failed.Remove(expired);
+            }
+
+            if (Failed.Count >= MaxFailed)
+            {
+                Failed.Clear();
+            }
+        }
+
+        Failed[target] = now + (long)retryAfter.TotalMilliseconds;
+    }
+
+    /// <summary>How long after a download the host answered with this HTTP status it isn't tried again.</summary>
+    private TimeSpan RetryAfterStatus(int status) =>
+        status is >= 500 or 408 or 429 ? UnavailableFor : GoneFor;
+
+    /// <summary>How long after a request that got no answer: a host that doesn't exist or refuses is gone for a while.</summary>
+    private TimeSpan RetryAfterError(HttpRequestException ex) =>
+        ex.StatusCode is { } status ? RetryAfterStatus((int)status)
+        : ex.HttpRequestError is HttpRequestError.NameResolutionError or HttpRequestError.ConnectionError or HttpRequestError.SecureConnectionError ? GoneFor
+        : UnavailableFor;
 
     /// <summary>A waiter has its answer or gave up. Once the last has gone, the work stops after <see cref="AbandonAfter"/>.</summary>
     private void Leave(Job job)
@@ -175,7 +236,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         job.Abandoned.Cancel();
     }
 
-    /// <summary>A shared download and resize, and how many are waiting for it. Everything but the token is changed under the <see cref="InFlight"/> lock.</summary>
+    /// <summary>A shared download and resize, and how many are waiting for it. Everything but the token and <see cref="RetryAfter"/> is changed under the <see cref="InFlight"/> lock.</summary>
     private sealed class Job(string target)
     {
         public string Target { get; } = target;
@@ -183,12 +244,16 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         public int Waiters { get; set; }
         public int Version { get; set; }
 
+        /// <summary>Set by the work itself when it fails: how long the failure is remembered (zero: not at all).</summary>
+        public TimeSpan RetryAfter { get; set; }
+
         /// <summary>Not disposed: it has no timer to free, and a late Cancel mustn't throw.</summary>
         public CancellationTokenSource Abandoned { get; } = new();
     }
 
-    private async Task<string?> FetchAsync(string remoteUrl, int snapped, string target, CancellationToken ct)
+    private async Task<string?> FetchAsync(string remoteUrl, int snapped, Job job, CancellationToken ct)
     {
+        var target = job.Target;
         if (Cached(target) is { } raced)
         {
             return raced;
@@ -227,7 +292,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             await DownloadSlots.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                if (!await DownloadAsync(uri, remoteUrl, source, ct).ConfigureAwait(false))
+                if (!await DownloadAsync(uri, remoteUrl, source, job, ct).ConfigureAwait(false))
                 {
                     return null;
                 }
@@ -241,6 +306,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             if (downloaded is null)
             {
                 LogNotAnImage(remoteUrl);
+                job.RetryAfter = GoneFor;
                 return null;
             }
 
@@ -260,6 +326,15 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         catch (HttpRequestException ex)
         {
             LogDownloadFailed(remoteUrl, (int?)ex.StatusCode ?? 0);
+            job.RetryAfter = RetryAfterError(ex);
+            return null;
+        }
+        catch (IOException ex)
+        {
+            // The host closing the connection mid-image (HttpIOException), or the disk: this image has failed, not
+            // whatever asked for it (a whole metadata refresh, say).
+            LogFetchFailed(remoteUrl, ex);
+            job.RetryAfter = UnavailableFor;
             return null;
         }
         finally
@@ -312,7 +387,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// Fetches at most <see cref="MaxDownloadBytes"/>, following redirects by hand: only to https on the same site
     /// (thetvdb.com to artworks.thetvdb.com, say), so an artwork host can't point the server anywhere else.
     /// </summary>
-    private async Task<bool> DownloadAsync(Uri uri, string remoteUrl, string path, CancellationToken cancel)
+    private async Task<bool> DownloadAsync(Uri uri, string remoteUrl, string path, Job job, CancellationToken cancel)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         timeout.CancelAfter(DownloadTimeout);
@@ -326,6 +401,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
                 if (hops >= MaxRedirects || !SameSite(uri, next))
                 {
                     LogRedirectRefused(remoteUrl, next.ToString());
+                    job.RetryAfter = GoneFor;
                     return false;
                 }
 
@@ -336,6 +412,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxDownloadBytes)
             {
                 LogDownloadFailed(remoteUrl, (int)response.StatusCode);
+                job.RetryAfter = response.IsSuccessStatusCode ? GoneFor : RetryAfterStatus((int)response.StatusCode);
                 return false;
             }
 
@@ -349,6 +426,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
                 if (total > MaxDownloadBytes)
                 {
                     LogDownloadFailed(remoteUrl, (int)response.StatusCode);
+                    job.RetryAfter = GoneFor;
                     return false;
                 }
 
@@ -586,6 +664,9 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not download artwork {Url} (HTTP {Status})")]
     private partial void LogDownloadFailed(string url, int status);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not fetch artwork {Url}")]
+    private partial void LogFetchFailed(string url, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Artwork {Url} redirected to {Location}, which isn't followed")]
     private partial void LogRedirectRefused(string url, string location);

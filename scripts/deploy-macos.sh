@@ -49,27 +49,32 @@ runtime="$(sed -n 's/.*"version": "\([0-9]*\.[0-9]*\).*/\1/p' "$repo/global.json
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 curl -sSfL "https://builds.dotnet.microsoft.com/dotnet/release-metadata/$runtime/releases.json" -o "$work/releases.json"
-ssh "$host" '~/.dotnet/dotnet --list-runtimes 2>/dev/null || true' > "$work/installed.txt"
-# Prints "<version>" when that patch is installed on $host, else "<version> <url> <sha512>" of its archive.
-latest="$(python3 -I - "$work/releases.json" "$rid" "$work/installed.txt" <<'PY'
+# Prints "<ASP.NET Core version> <.NET runtime version> <archive url> <archive sha512>" for the latest patch.
+latest="$(python3 -I - "$work/releases.json" "$rid" <<'PY'
 import json, re, sys
 metadata = json.load(open(sys.argv[1]))
 release = next(r for r in metadata["releases"] if r["release-version"] == metadata["latest-release"])
 version = release["aspnetcore-runtime"]["version"]
-if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
-    sys.exit(f"unexpected ASP.NET Core version {version!r} in the release metadata")
-installed = {line.split()[1] for line in open(sys.argv[3]) if line.startswith("Microsoft.AspNetCore.App ") and len(line.split()) > 1}
-if version in installed:
-    print(version)
-    sys.exit()
+netcore = release["runtime"]["version"]
+for v in (version, netcore):
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", v):
+        sys.exit(f"unexpected runtime version {v!r} in the release metadata")
 file = next(f for f in release["aspnetcore-runtime"]["files"] if f["name"] == f"aspnetcore-runtime-{sys.argv[2]}.tar.gz")
 if not file["url"].startswith("https://builds.dotnet.microsoft.com/") or not re.fullmatch(r"[0-9a-fA-F]{128}", file["hash"]):
     sys.exit(f"unexpected release metadata for {file['name']}")
-print(version, file["url"], file["hash"].lower())
+print(version, netcore, file["url"], file["hash"].lower())
 PY
 )"
-read -r version url sha512 <<< "$latest"
-if [ -n "${url:-}" ]; then
+read -r version netcore url sha512 <<< "$latest"
+# Installed means every part of that patch is in place, down to the last folder the archive unpacks (host/fxr), so a
+# half-finished install from an older deploy script counts as missing and is repaired.
+installed="$(ssh "$host" "cd ~/.dotnet 2>/dev/null \
+  && test -f shared/Microsoft.AspNetCore.App/$version/Microsoft.AspNetCore.App.deps.json \
+  && test -f shared/Microsoft.NETCore.App/$netcore/Microsoft.NETCore.App.deps.json \
+  && test -f shared/Microsoft.NETCore.App/$netcore/libcoreclr.dylib \
+  && test -f host/fxr/$netcore/libhostfxr.dylib \
+  && ./dotnet --list-runtimes >/dev/null 2>&1 && echo yes || true")"
+if [ "$installed" != yes ]; then
   echo "    installing ASP.NET Core $version runtime"
   # Downloaded here and checked against the SHA-512 in Microsoft's release metadata before it's unpacked on $host.
   # Anything unexpected stops the deploy rather than installing it.
@@ -78,8 +83,33 @@ if [ -n "${url:-}" ]; then
     echo "$url doesn't match the SHA-512 Microsoft publishes for it; not installing it" >&2
     exit 1
   fi
-  # -U replaces files rather than writing into them: the running server has the shared host libraries mapped.
-  ssh "$host" "mkdir -p ~/.dotnet && tar -xzUf - -C ~/.dotnet" < "$work/runtime.tar.gz"
+  # Unpacked into a staging folder beside the runtime (same disk), then each version folder is renamed into place, so
+  # an interrupted install never leaves a half-written runtime where the server would pick it up. Staging folders left
+  # by an earlier interrupted deploy are removed first. Other installed versions are never touched.
+  stage=".dotnet/.staging-$$"
+  ssh "$host" "mkdir -p ~/.dotnet && find ~/.dotnet -maxdepth 1 -name '.staging-*' -exec rm -rf {} + && mkdir ~/$stage \
+  && tar -xzf - -C ~/$stage" < "$work/runtime.tar.gz"
+  ssh "$host" bash -s -- "$stage" <<'REMOTE'
+set -euo pipefail
+cd ~/.dotnet
+stage="$HOME/$1"
+# The .NET runtime before ASP.NET Core, which needs it: the server only rolls forward to an ASP.NET Core patch once
+# everything under it is in place.
+for dir in "$stage"/host/fxr/* "$stage"/shared/Microsoft.NETCore.App/* "$stage"/shared/*/*; do
+  [ -d "$dir" ] || continue
+  dest="${dir#"$stage"/}"
+  mkdir -p "$(dirname "$dest")"
+  # The same version already there is a leftover of an interrupted install: set it aside (removed with the staging
+  # folder) and put the complete copy in its place.
+  if [ -e "$dest" ]; then mv "$dest" "$stage/replaced-$(echo "$dest" | tr / _)"; fi
+  mv "$dir" "$dest"
+done
+# rename(2) replaces these whole, so a running server keeps the copy it has open.
+for file in dotnet LICENSE.txt ThirdPartyNotices.txt; do
+  if [ -e "$stage/$file" ]; then mv -f "$stage/$file" "$file"; fi
+done
+rm -rf "$stage"
+REMOTE
 else
   echo "    ASP.NET Core $version runtime is up to date"
 fi

@@ -667,10 +667,11 @@ public sealed partial class MetadataRefresher(
 
     /// <summary>
     /// A request that failed or timed out: HttpClient reports a timeout as a <see cref="TaskCanceledException"/>,
-    /// which only means "stop" when <paramref name="ct"/> was cancelled.
+    /// which only means "stop" when <paramref name="ct"/> was cancelled, and a connection dropped while the answer was
+    /// being read as an <see cref="IOException"/> (<see cref="HttpIOException"/>).
     /// </summary>
     private static bool IsNetworkFailure(Exception ex, CancellationToken ct) =>
-        ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
+        ex is HttpRequestException or IOException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     // macOS can hand back decomposed Unicode (e + combining accent) where the *arr apps store composed "é";
     // compare composed forms so "Léon" matches "Léon".
