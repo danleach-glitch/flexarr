@@ -7,13 +7,13 @@ namespace Flexarr.Api.Tests;
 public class NetworkZoneTests
 {
     [Theory]
-    [InlineData("192.168.1.83", NetworkZone.Local)]
+    [InlineData("192.168.1.50", NetworkZone.Local)]
     [InlineData("10.0.0.5", NetworkZone.Local)]
     [InlineData("127.0.0.1", NetworkZone.Local)]
     [InlineData("100.64.218.96", NetworkZone.Tailnet)]
     [InlineData("fd7a:115c:a1e0::1", NetworkZone.Tailnet)]
     [InlineData("100.128.0.1", NetworkZone.Internet)] // just outside 100.64.0.0/10
-    [InlineData("94.204.188.138", NetworkZone.Internet)]
+    [InlineData("198.51.100.7", NetworkZone.Internet)]
     public void ClassifiesAddresses(string address, NetworkZone expected) =>
         Assert.Equal(expected, NetworkZones.Classify(IPAddress.Parse(address)));
 

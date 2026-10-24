@@ -1,10 +1,10 @@
 [
  {
   "id": "01a16be8-9af2-7409-b7ea-3dc6e5b59de9",
-  "name": "Claire’s Shows",
+  "name": "Family Shows",
   "type": "TvShows",
   "folders": [
-   "/Volumes/Media/data/claire-shows"
+   "/media/family-shows"
   ],
   "itemCount": 18,
   "lastScannedAt": "2026-10-24T04:10:33.887361",
@@ -15,7 +15,7 @@
   "name": "Movies",
   "type": "Movies",
   "folders": [
-   "/Volumes/Media/data/movies"
+   "/media/movies"
   ],
   "itemCount": 859,
   "lastScannedAt": "2026-10-24T04:10:35.05415",
@@ -26,7 +26,7 @@
   "name": "TV Shows",
   "type": "TvShows",
   "folders": [
-   "/Volumes/Media/data/tv"
+   "/media/tv"
   ],
   "itemCount": 282,
   "lastScannedAt": "2026-10-24T04:10:36.888321",

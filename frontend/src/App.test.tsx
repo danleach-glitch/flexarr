@@ -206,7 +206,7 @@ describe('Profiles', () => {
   it('asks who is watching when there are several profiles, and checks the PIN', async () => {
     const profiles = [
       { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: false, isMain: true, isCurrent: true },
-      { id: 'c1', name: 'Claire', color: '#e8a0bf', hasPin: true, isMain: false, isCurrent: false },
+      { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: true, isMain: false, isCurrent: false },
     ]
     let sentPin: string | undefined
     mockApi({
@@ -221,7 +221,7 @@ describe('Profiles', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: /Claire/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Sam/ }))
     fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '2468' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
 

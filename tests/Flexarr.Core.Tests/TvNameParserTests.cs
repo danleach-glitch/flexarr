@@ -8,7 +8,7 @@ public class TvNameParserTests
     [InlineData("A Man on the Inside (2024) - S01E02 - The Man Who Knew Too Much About Bridges [WEBRip-1080p][AAC 5.1][h265].mp4", 1, 2, null, "The Man Who Knew Too Much About Bridges")]
     [InlineData("30 Rock (2006) - S06E06-E07 - Hey Baby Whats Wrong [HDTV-720p][AC3 5.1][h264].mkv", 6, 6, 7, "Hey Baby Whats Wrong")]
     [InlineData("Arrested Development (2003) - S01E08-E13 - My Mother The Car...Beef Consomme [SDTV][AAC 2.0][x264].mkv", 1, 8, 13, "My Mother The Car...Beef Consomme")]
-    [InlineData("Celebrity Gogglebox (2019) - S07E01 - Episode 1 [ALL4][WEBDL-1080p][AAC 2.0][x264]-FUZEER.mkv", 7, 1, null, "Episode 1")]
+    [InlineData("Celebrity Gogglebox (2019) - S07E01 - Episode 1 [WEBDL-1080p][AAC 2.0][x264].mkv", 7, 1, null, "Episode 1")]
     [InlineData("show.name.s02e05.720p.hdtv.x264-grp.mkv", 2, 5, null, null)]
     [InlineData("Show S01E01E02E03.mkv", 1, 1, 3, null)]
     [InlineData("Spaced 1x07 Ends.avi", 1, 7, null, "Ends")]
@@ -27,7 +27,7 @@ public class TvNameParserTests
     public void ParseEpisode_SpecialsWithBareNumber()
     {
         var parsed = TvNameParser.ParseEpisode(
-            "Only Fools And Horses 03 Thicker Than Water 1983 DVDRip HEVC H265 BONE.mp4",
+            "Only Fools And Horses 03 Thicker Than Water 1983 DVDRip HEVC H265.mp4",
             seasonFromFolder: 0,
             seriesTitle: "Only Fools and Horses");
 

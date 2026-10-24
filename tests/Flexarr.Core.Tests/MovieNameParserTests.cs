@@ -11,7 +11,7 @@ public class MovieNameParserTests
     [InlineData("Arrival.2016.2160p.UHD.mkv", "Arrival", 2016)]
     [InlineData("Mr. Nobody (2009)", "Mr. Nobody", 2009)]
     [InlineData("1917 (2019)", "1917", 2019)]
-    [InlineData("All of You (2025) {imdb-tt30852384} - [ATVP][WEBDL-1080p][EAC3 Atmos 5.1][h264]-FLUX.mkv", "All of You", 2025)]
+    [InlineData("All of You (2025) {imdb-tt30852384} - [WEBDL-1080p][EAC3 Atmos 5.1][h264].mkv", "All of You", 2025)]
     [InlineData("Hail, Caesar! (2016)", "Hail, Caesar!", 2016)]
     [InlineData("Some Home Video", "Some Home Video", null)]
     public void Parse_ExtractsTitleAndYear(string input, string expectedTitle, int? expectedYear)

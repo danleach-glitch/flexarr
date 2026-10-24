@@ -72,7 +72,7 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
 
     [Fact]
     public async Task HomeNetwork_IsLetIn_WithoutAKey() =>
-        Assert.Equal(HttpStatusCode.OK, await GetAsync(Status, ("X-Test-Peer", "192.168.1.83")));
+        Assert.Equal(HttpStatusCode.OK, await GetAsync(Status, ("X-Test-Peer", "192.168.1.50")));
 
     [Theory]
     [InlineData("CF-Connecting-IP", "203.0.113.7")]
@@ -87,17 +87,17 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     [Fact]
     public async Task TailscaleIdentity_ViaTailscaleServe_SignsInAsTheLinkedProfile()
     {
-        await LinkAsync("claire@example.com", "Claire");
+        await LinkAsync("sam@example.com", "Sam");
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/profiles");
         request.Headers.Add("X-Test-Peer", "127.0.0.1");
         request.Headers.Add("X-Forwarded-For", "100.70.1.2");
-        request.Headers.Add("Tailscale-User-Login", "claire@example.com");
+        request.Headers.Add("Tailscale-User-Login", "sam@example.com");
         var response = await factory.CreateClient().SendAsync(request);
         var profiles = await response.Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("Claire", profiles.EnumerateArray().Single(p => p.GetProperty("isCurrent").GetBoolean()).GetProperty("name").GetString());
+        Assert.Equal("Sam", profiles.EnumerateArray().Single(p => p.GetProperty("isCurrent").GetBoolean()).GetProperty("name").GetString());
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         // A LAN device can't claim to be someone over Tailscale; it just gets the home-network rule (main profile).
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/profiles");
         request.Headers.Add("X-Test-Peer", "192.168.1.50");
-        request.Headers.Add("Tailscale-User-Login", "claire-forged@example.com");
+        request.Headers.Add("Tailscale-User-Login", "sam-forged@example.com");
         var profiles = await (await factory.CreateClient().SendAsync(request)).Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.True(profiles.EnumerateArray().Single(p => p.GetProperty("isCurrent").GetBoolean()).GetProperty("isMain").GetBoolean());

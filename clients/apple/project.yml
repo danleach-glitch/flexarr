@@ -25,17 +25,41 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         # Self-hosted servers are usually plain HTTP on the LAN.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: Flexarr connects to your media server on the local network.
+        # flexarr://item/<id> opens a title, flexarr://play/<id> plays it.
+        CFBundleURLTypes:
+          - CFBundleURLName: io.github.flexarr.tv
+            CFBundleURLSchemes: [flexarr]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.tv
         TARGETED_DEVICE_FAMILY: "3"
+        ASSETCATALOG_COMPILER_APPICON_NAME: App Icon & Top Shelf Image
+  # Remote-driven smoke test that walks the app against a live server and saves screenshots.
+  # Skipped unless FLEXARR_SERVER and FLEXARR_KEY are passed (as TEST_RUNNER_FLEXARR_*).
+  FlexarrTVUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    sources: [FlexarrTVUITests]
+    dependencies:
+      - target: FlexarrTV
+      - package: FlexarrKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.tv.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: FlexarrTV
 schemes:
   FlexarrTV:
     build:
       targets:
         FlexarrTV: all
+    test:
+      targets:
+        - FlexarrTVUITests

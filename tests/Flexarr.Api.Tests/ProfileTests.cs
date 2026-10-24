@@ -30,18 +30,18 @@ public class ProfileTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [Fact]
     public async Task PinProtectedProfile_NeedsThePin_AndItsTokenSelectsIt()
     {
-        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = "Claire", color = "#e5a0c0", pin = "2468" }))
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = "Sam", color = "#e5a0c0", pin = "2468" }))
             .Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetString();
 
         var wrong = await Client().PostAsJsonAsync(new Uri($"/api/v1/profiles/{id}/select", UriKind.Relative), new { pin = "1111" });
         var right = await Client().PostAsJsonAsync(new Uri($"/api/v1/profiles/{id}/select", UriKind.Relative), new { pin = "2468" });
         var token = (await right.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
-        var asClaire = await Client(token).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/profiles", UriKind.Relative));
+        var asSam = await Client(token).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/profiles", UriKind.Relative));
         var forged = await Client($"{id}.0000").GetFromJsonAsync<JsonElement>(new Uri("/api/v1/profiles", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
-        Assert.Equal(id, asClaire.EnumerateArray().Single(p => p.GetProperty("isCurrent").GetBoolean()).GetProperty("id").GetString());
+        Assert.Equal(id, asSam.EnumerateArray().Single(p => p.GetProperty("isCurrent").GetBoolean()).GetProperty("id").GetString());
         Assert.Equal("owner", forged.EnumerateArray().Single(p => p.GetProperty("isCurrent").GetBoolean()).GetProperty("id").GetString());
     }
 
