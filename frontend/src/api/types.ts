@@ -312,6 +312,7 @@ export interface Settings {
   authenticationRequired: 'Enabled' | 'DisabledForLocalAddresses'
   pathMappings: { from: string; to: string }[]
   arr: ArrConnection[]
+  seerr: { baseUrl: string; hasApiKey: boolean } | null
   dataDirectory: string
   ffmpegPath: string
   ffprobePath: string
@@ -322,6 +323,7 @@ export interface SettingsUpdate {
   authenticationRequired?: Settings['authenticationRequired']
   pathMappings?: Settings['pathMappings']
   arr?: { name: string; kind: ArrKind; baseUrl: string; apiKey?: string }[]
+  seerr?: { baseUrl: string; apiKey?: string }
 }
 
 export interface ArrStatus {

@@ -198,3 +198,21 @@ export interface LibraryHealth {
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
 export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)
+
+export interface ExternalTitle {
+  tmdbId: number
+  mediaType: 'movie' | 'tv'
+  title: string
+  year: number | null
+  overview: string | null
+  poster: string | null
+  backdrop: string | null
+  rating: number
+  availability: 'None' | 'Requested' | 'PartlyAvailable' | 'Available'
+  libraryItemId: string | null
+}
+
+export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/status', signal)
+export const getExternalDiscover = (signal?: AbortSignal) =>
+  apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)
+export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })

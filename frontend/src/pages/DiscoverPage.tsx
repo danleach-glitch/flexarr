@@ -1,5 +1,7 @@
 import { Link, useSearchParams } from 'react-router'
-import { getGenreItems, getGenres, imageUrl } from '../api/client'
+import { getExternalDiscover, getGenreItems, getGenres, imageUrl } from '../api/client'
+import { ExternalCard } from '../components/ExternalCard'
+import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
 
@@ -8,6 +10,7 @@ export function DiscoverPage() {
   const genre = params.get('genre')
   const kind = params.get('kind') ?? ''
   const genres = useApi(getGenres, [])
+  const external = useApi(getExternalDiscover, [])
   const items = useApi((signal) => (genre ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind])
 
   if (genre) {
@@ -47,6 +50,18 @@ export function DiscoverPage() {
       <header className="library-header">
         <h1>Discover</h1>
       </header>
+      {external.data && external.data.length > 0 && (
+        <div className="discover-external">
+          {external.data.map((row) => (
+            <Row key={row.id} title={row.title}>
+              {row.items.map((t) => (
+                <ExternalCard key={`${t.mediaType}-${t.tmdbId}`} title={t} />
+              ))}
+            </Row>
+          ))}
+          <h2 className="section-title">Your library by genre</h2>
+        </div>
+      )}
       <div className="genre-grid">
         {genres.data?.map((g) => (
           <Link key={g.name} to={`/discover?genre=${encodeURIComponent(g.name)}`} className="genre-tile">

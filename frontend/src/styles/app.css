@@ -754,6 +754,33 @@ kbd {
   color: var(--usher);
 }
 
+.discover-external {
+  margin: 0 calc(-1 * var(--edge)) 12px;
+  display: grid;
+  gap: 32px;
+}
+
+.discover-external .section-title {
+  margin: 12px var(--edge) 0;
+  font-size: var(--step-3);
+}
+
+.external-card .card-frame {
+  margin-bottom: 0;
+}
+
+.external-card .button {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.external-state {
+  margin-top: 8px;
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--silver);
+}
+
 /* ---------- Person ---------- */
 
 .person-header {

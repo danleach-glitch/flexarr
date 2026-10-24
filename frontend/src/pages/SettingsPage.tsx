@@ -340,12 +340,14 @@ function ConnectionsSection() {
   const status = useApi(getArrStatus, [settings])
   const [connections, setConnections] = useState<DraftConnection[]>([])
   const [mappings, setMappings] = useState<Settings['pathMappings']>([])
+  const [seerr, setSeerr] = useState({ baseUrl: '', apiKey: '', hasApiKey: false })
   const [tests, setTests] = useState<Record<number, ArrStatus | 'testing'>>({})
 
   useEffect(() => {
     if (!settings) return
     setConnections(settings.arr.map((a) => ({ ...a, apiKey: '' })))
     setMappings(settings.pathMappings)
+    setSeerr({ baseUrl: settings.seerr?.baseUrl ?? '', apiKey: '', hasApiKey: settings.seerr?.hasApiKey ?? false })
   }, [settings])
 
   if (!settings) return <p className="muted">Loading…</p>
@@ -363,7 +365,11 @@ function ConnectionsSection() {
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          void save({ arr: connections.map((c) => ({ name: c.name, kind: c.kind, baseUrl: c.baseUrl, apiKey: c.apiKey || undefined })), pathMappings: mappings })
+          void save({
+            arr: connections.map((c) => ({ name: c.name, kind: c.kind, baseUrl: c.baseUrl, apiKey: c.apiKey || undefined })),
+            pathMappings: mappings,
+            seerr: { baseUrl: seerr.baseUrl, apiKey: seerr.apiKey || undefined },
+          })
         }}
       >
         {connections.map((c, i) => {
@@ -432,6 +438,28 @@ function ConnectionsSection() {
         >
           Add a connection
         </button>
+
+        <h3 className="settings-subhead">Requests</h3>
+        <p className="settings-lede">
+          Connect Seerr (or Overseerr or Jellyseerr) to see what's trending that you don't have yet, and request it in one click. Requests follow your Seerr rules.
+        </p>
+        <div className="panel">
+          <div className="field-row">
+            <label className="grow">
+              Seerr address
+              <input type="url" value={seerr.baseUrl} placeholder="http://localhost:5055" onChange={(e) => setSeerr({ ...seerr, baseUrl: e.target.value })} />
+            </label>
+            <label className="grow">
+              API key
+              <input
+                type="password"
+                value={seerr.apiKey}
+                placeholder={seerr.hasApiKey ? 'Saved; type to replace' : 'Settings › General in Seerr'}
+                onChange={(e) => setSeerr({ ...seerr, apiKey: e.target.value })}
+              />
+            </label>
+          </div>
+        </div>
 
         <h3 className="settings-subhead">Path mappings</h3>
         <p className="settings-lede">

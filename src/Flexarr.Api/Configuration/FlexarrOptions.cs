@@ -37,6 +37,9 @@ public sealed class FlexarrOptions
 
     public TranscodingOptions Transcoding { get; set; } = new();
 
+    /// <summary>Optional Seerr/Overseerr/Jellyseerr server for "not in your library" discovery and requests.</summary>
+    public SeerrOptions? Seerr { get; set; }
+
     /// <summary>Rewrites paths received from *arr apps (typically running in Docker) to local paths.</summary>
     public List<PathMapping> PathMappings { get; set; } = [];
 }
@@ -49,4 +52,12 @@ public sealed class TranscodingOptions
 
     /// <summary>Upper limit for any one stream in bits per second (0 = none), e.g. to protect a slow uplink.</summary>
     public long MaxStreamingBitrate { get; set; }
+}
+
+public sealed class SeerrOptions
+{
+    public string BaseUrl { get; set; } = "";
+    public string ApiKey { get; set; } = "";
+
+    public SeerrInstance? Instance => Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && ApiKey.Length > 0 ? new SeerrInstance(url, ApiKey) : null;
 }
