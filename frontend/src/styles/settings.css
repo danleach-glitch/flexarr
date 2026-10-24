@@ -722,3 +722,10 @@
 .health-more {
   margin: 10px 0;
 }
+
+.health-downloading {
+  flex: none;
+  border-color: var(--silver);
+  color: var(--silver);
+  white-space: nowrap;
+}

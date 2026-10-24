@@ -133,7 +133,7 @@ public static class UpcomingEndpoints
     }
 
     /// <summary>Queue entries keyed by "sonarr-{episodeId}" / "radarr-{movieId}".</summary>
-    private static async Task<Dictionary<string, DownloadStateDto>> QueueAsync(FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    internal static async Task<Dictionary<string, DownloadStateDto>> QueueAsync(FlexarrOptions options, ArrClient arr, CancellationToken ct)
     {
         var map = new Dictionary<string, DownloadStateDto>(StringComparer.Ordinal);
         foreach (var instance in options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr))

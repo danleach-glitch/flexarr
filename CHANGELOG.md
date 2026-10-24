@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Smaller fixes
+- Cards write episodes out in full: "Season 21 | Episode 08", with the episode's name beneath.
+- Library health shows when Sonarr or Radarr are already downloading a new copy ("Downloading 45%"), instead of offering another search.
+
 ### Library health, redesigned
 - A **health score**: the share of films and episodes with no problems, with a breakdown of what's affecting the rest.
 - Every problem is a tidy row: poster, title (show, episode number and name for episodes), the file name and what's wrong, with its action on the right.

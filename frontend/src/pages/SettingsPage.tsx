@@ -23,6 +23,7 @@ import {
   getLayout,
   saveLayout,
   type ItemSummary,
+  type LibraryHealth,
   type Layout,
   type RowChoice,
   importPlexAvatars,
@@ -1062,11 +1063,14 @@ function HealthSection() {
         {data.unreadable.map((u) => (
           <div key={u.fileId} className="health-row">
             <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${u.error.split(': ').at(-1)?.toLowerCase()}`} />
-            {u.item && (
-              <button className="button quiet small" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
-                {requested[u.item.id] ?? 'Get a new copy'}
-              </button>
-            )}
+            {u.item &&
+              (data.downloading[u.item.id] ? (
+                <DownloadingNote state={data.downloading[u.item.id]} />
+              ) : (
+                <button className="button quiet small" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
+                  {requested[u.item.id] ?? 'Get a new copy'}
+                </button>
+              ))}
           </div>
         ))}
       </HealthGroup>
@@ -1075,9 +1079,13 @@ function HealthSection() {
         {data.standardDefinition.map((item) => (
           <div key={item.id} className="health-row">
             <HealthRowMain item={item} detail="Best copy is SD" />
-            <button className="button quiet small" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
-              {requested[item.id] ?? 'Find a better copy'}
-            </button>
+            {data.downloading[item.id] ? (
+              <DownloadingNote state={data.downloading[item.id]} />
+            ) : (
+              <button className="button quiet small" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
+                {requested[item.id] ?? 'Find a better copy'}
+              </button>
+            )}
           </div>
         ))}
       </HealthGroup>
@@ -1122,6 +1130,18 @@ function HealthSection() {
 }
 
 const fileName = (path: string) => path.split('/').at(-1) ?? path
+
+/** In place of a search button: Sonarr or Radarr already have a new copy on the way. */
+function DownloadingNote({ state }: { state: LibraryHealth['downloading'][string] }) {
+  const status = state.status?.toLowerCase() ?? ''
+  const text =
+    state.progress >= 0.999 || status.includes('import')
+      ? 'Downloaded, waiting to import'
+      : status.includes('queued') || status.includes('delay')
+        ? 'Queued to download'
+        : `Downloading ${Math.round(state.progress * 100)}%`
+  return <span className="tag health-downloading">{text}</span>
+}
 
 /** A titled group of problems with a count, a line on what it means, and an optional action for all of them. */
 function HealthGroup({ title, count, lede, empty, action, children }: { title: string; count: number; lede: string; empty?: string; action?: ReactNode; children: ReactNode }) {

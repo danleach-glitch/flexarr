@@ -268,6 +268,8 @@ export interface LibraryHealth {
   missingArtwork: import('./types').ItemSummary[]
   standardDefinition: import('./types').ItemSummary[]
   standardDefinitionTotal: number
+  /** Titles Sonarr or Radarr are already downloading, by item id. */
+  downloading: Record<string, { progress: number; timeLeft: string | null; status: string | null }>
 }
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)

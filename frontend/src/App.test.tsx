@@ -76,7 +76,7 @@ describe('App', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Resume S01E05' })).toBeInTheDocument()
     // The card's text links to the show, the season and the episode.
     expect(screen.getByRole('link', { name: 'Severance' })).toHaveAttribute('href', '/item/s1')
-    expect(screen.getByRole('link', { name: 'S01E05' })).toHaveAttribute('href', '/item/s1?season=1')
+    expect(screen.getByRole('link', { name: 'Season 01 | Episode 05' })).toHaveAttribute('href', '/item/s1?season=1')
     expect(screen.getByRole('link', { name: 'Pilot' })).toHaveAttribute('href', '/item/e5')
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' }))
 

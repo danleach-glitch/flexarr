@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
-import { episodeCode, progressOf, year } from '../lib/format'
+import { episodeCode, episodeHeading, progressOf, year } from '../lib/format'
 import { itemLink } from '../lib/links'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
@@ -123,8 +123,8 @@ function EpisodeText({ item }: { item: ItemSummary }) {
   return (
     <>
       <span className="card-title">{show ? <Link to={`/item/${show}`}>{item.seriesTitle ?? item.title}</Link> : (item.seriesTitle ?? item.title)}</span>
+      <span className="card-subtitle">{show ? <Link to={`/item/${show}?season=${item.seasonNumber}`}>{episodeHeading(item)}</Link> : episodeHeading(item)}</span>
       <span className="card-subtitle">
-        {show ? <Link to={`/item/${show}?season=${item.seasonNumber}`}>{episodeCode(item)}</Link> : episodeCode(item)}{' '}
         <Link to={`/item/${item.id}`}>{item.title}</Link>
       </span>
     </>

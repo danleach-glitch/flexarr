@@ -28,7 +28,8 @@ public sealed record LibraryHealthDto(
     IReadOnlyList<UnreadableDto> Unreadable,
     IReadOnlyList<ItemSummaryDto> MissingArtwork,
     IReadOnlyList<ItemSummaryDto> StandardDefinition,
-    int StandardDefinitionTotal);
+    int StandardDefinitionTotal,
+    IReadOnlyDictionary<Guid, DownloadStateDto> Downloading);
 
 public sealed record SkippedFileDto(string Path, string Reason);
 
@@ -42,7 +43,8 @@ public static partial class HealthEndpoints
 {
     public static RouteGroupBuilder MapHealthEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/library-health", async (FlexarrDbContext db, CurrentProfile profile, HealthCheck check, CancellationToken ct) =>
+        api.MapGet("/library-health", async (FlexarrDbContext db, CurrentProfile profile, HealthCheck check, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
+            CancellationToken ct) =>
         {
             // Duplicates: more than one file for one movie or episode. The best copy (resolution, then bitrate) is kept.
             var files = await db.MediaFiles.AsNoTracking()
@@ -81,6 +83,18 @@ public static partial class HealthEndpoints
                 titles == 0 ? 100 : (int)Math.Floor(100.0 * Math.Max(0, titles - troubled.Count) / titles),
                 titles, troubled.Count, ids.Count, unreadable.Select(u => u.MediaItemId).Distinct().Count(), sdIds.Count, artless.Count, fileProblems.Count);
 
+            // Titles Sonarr or Radarr are already downloading, so the page offers no second search for them.
+            var queue = await UpcomingEndpoints.QueueAsync(options.CurrentValue, arr, ct);
+            var fixable = unreadable.Select(u => u.MediaItemId).Concat(sdIds).Concat(fileProblems).Distinct().ToList();
+            var downloading = new Dictionary<Guid, DownloadStateDto>();
+            foreach (var i in await db.MediaItems.Where(i => fixable.Contains(i.Id) && i.ArrId != null).Select(i => new { i.Id, i.Kind, i.ArrId }).ToListAsync(ct))
+            {
+                if (queue.TryGetValue($"{(i.Kind == MediaKind.Movie ? "radarr" : "sonarr")}-{i.ArrId}", out var state))
+                {
+                    downloading[i.Id] = state;
+                }
+            }
+
             return new LibraryHealthDto(
                 score,
                 duplicates,
@@ -88,7 +102,8 @@ public static partial class HealthEndpoints
                 unreadable.Select(u => new UnreadableDto(u.Id, u.Path, u.ProbeError!, unreadableItems.GetValueOrDefault(u.MediaItemId))).ToList(),
                 missing,
                 await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
-                await sd.CountAsync(ct));
+                await sd.CountAsync(ct),
+                downloading);
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // The Health check button: look at every file on disk (in the background), then report what's wrong.
