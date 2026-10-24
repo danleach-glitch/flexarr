@@ -15,6 +15,7 @@ import {
   Replay10,
   Volume,
 } from '../components/icons'
+import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 
@@ -75,6 +76,15 @@ export function PlayerPage() {
   const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
 
   const duration = info?.durationSeconds ?? 0
+
+  // Watching may have marked the title watched (past the credits, or to the end): leaving it tells pages that come
+  // back afterwards, such as a library grid restored on Back, to refresh its tick.
+  const playedItem = useRef(info?.item)
+  playedItem.current = info?.item ?? playedItem.current
+  const playedId = info?.item.id
+  useEffect(() => () => {
+    if (playedItem.current) announceWatched(playedItem.current)
+  }, [playedId])
   const [previews, setPreviews] = useState<Previews | null>(null)
 
   // Scrubbing previews are made the first time a file plays; check now, then again while they're being made.
