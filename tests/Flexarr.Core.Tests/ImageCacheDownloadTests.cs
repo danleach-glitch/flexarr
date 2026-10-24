@@ -119,6 +119,73 @@ public sealed class ImageCacheDownloadTests : IDisposable
         Assert.Null(path);
     }
 
+    [Fact]
+    public async Task AConnectionDroppedMidImage_IsAFailedImage_NotAnException()
+    {
+        var host = new ScriptedArtwork(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
+        var cache = Cache(host);
+
+        var path = await cache.GetAsync("https://image.tmdb.org/t/p/original/dropped.jpg", 342, default).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Null(path);
+        Assert.Empty(Directory.EnumerateFiles(_dir, "*.download", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task AMissingImage_IsAnsweredAtOnce_UntilItsWorthAskingAgain()
+    {
+        var host = new ScriptedArtwork(() => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var cache = Cache(host);
+        cache.GoneFor = TimeSpan.FromMilliseconds(500);
+        const string url = "https://image.tmdb.org/t/p/original/gone.jpg";
+
+        Assert.Null(await cache.GetAsync(url, 342, default));
+        Assert.Null(await cache.GetAsync(url, 342, default));
+        Assert.Equal(1, host.Requests);
+
+        Assert.Null(await cache.GetAsync(url, 780, default)); // another width is another download
+        Assert.Equal(2, host.Requests);
+
+        await Task.Delay(700);
+        Assert.Null(await cache.GetAsync(url, 342, default));
+        Assert.Equal(3, host.Requests);
+    }
+
+    [Fact]
+    public async Task AHostThatCantBeFound_IsRememberedAsLongAsAMissingImage()
+    {
+        var host = new ScriptedArtwork(() => throw new HttpRequestException(HttpRequestError.NameResolutionError));
+        var cache = Cache(host);
+        cache.UnavailableFor = TimeSpan.Zero;
+        const string url = "https://image.tmdb.org/t/p/original/offline.jpg";
+
+        Assert.Null(await cache.GetAsync(url, 342, default));
+        Assert.Null(await cache.GetAsync(url, 342, default));
+
+        Assert.Equal(1, host.Requests);
+    }
+
+    [Fact]
+    public async Task AServerError_IsOnlyRememberedBriefly()
+    {
+        var status = HttpStatusCode.ServiceUnavailable;
+        var host = new ScriptedArtwork(() => status == HttpStatusCode.OK
+            ? new HttpResponseMessage(status) { Content = new ByteArrayContent(Jpeg) }
+            : new HttpResponseMessage(status));
+        var cache = Cache(host);
+        cache.UnavailableFor = TimeSpan.FromMilliseconds(300);
+        const string url = "https://image.tmdb.org/t/p/original/busy.jpg";
+
+        Assert.Null(await cache.GetAsync(url, 342, default));
+        Assert.Null(await cache.GetAsync(url, 342, default));
+        Assert.Equal(1, host.Requests);
+
+        status = HttpStatusCode.OK;
+        await Task.Delay(500);
+        Assert.NotNull(await cache.GetAsync(url, 342, default));
+        Assert.Equal(2, host.Requests);
+    }
+
     private ImageCache Cache(HttpMessageHandler handler) => new(new HttpClient(handler), new Settings(_dir), NullLogger<ImageCache>.Instance);
 
     private sealed class Settings(string cache) : IMetadataSettings
@@ -154,6 +221,51 @@ public sealed class ImageCacheDownloadTests : IDisposable
 
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = Drip ? new StreamContent(new DripStream()) : new ByteArrayContent(Jpeg) };
         }
+    }
+
+    /// <summary>An artwork host that answers every request the same way.</summary>
+    private sealed class ScriptedArtwork(Func<HttpResponseMessage> answer) : HttpMessageHandler
+    {
+        public int Requests;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Requests);
+            return Task.FromResult(answer());
+        }
+    }
+
+    /// <summary>The start of an image, then the connection closes, as HttpClient reports it.</summary>
+    private sealed class DroppingStream : Stream
+    {
+        private bool _sent;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_sent)
+            {
+                throw new HttpIOException(HttpRequestError.ResponseEnded, "The response ended prematurely.");
+            }
+
+            _sent = true;
+            Jpeg.CopyTo(buffer.Span);
+            return ValueTask.FromResult(Jpeg.Length);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class DripStream : Stream
