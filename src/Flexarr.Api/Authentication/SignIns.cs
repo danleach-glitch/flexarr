@@ -107,7 +107,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
                 return null;
             }
 
-            if (signIn.Kind == SignInKind.Browser && now - signIn.LastUsedAt > BrowserIdleLimit)
+            if (Expired(signIn, now))
             {
                 Loaded().Remove(hash);
                 SaveLocked();
@@ -128,6 +128,19 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     {
         lock (_lock)
         {
+            // Browsers left unused too long are signed out here as well, not only when they next turn up.
+            var now = clock.GetUtcNow().UtcDateTime;
+            var expired = Loaded().Values.Where(s => Expired(s, now)).ToList();
+            foreach (var signIn in expired)
+            {
+                Loaded().Remove(signIn.TokenHash);
+            }
+
+            if (expired.Count > 0)
+            {
+                SaveLocked();
+            }
+
             return Loaded().Values.OrderByDescending(s => s.LastUsedAt).ToList();
         }
     }
@@ -146,6 +159,27 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             SaveLocked();
             LogRevoked(found.Kind, found.Name);
             return true;
+        }
+    }
+
+    /// <summary>Signs out every browser and device except <paramref name="keepId"/> (the one asking); returns how many.</summary>
+    public int RevokeAllExcept(string? keepId)
+    {
+        lock (_lock)
+        {
+            var others = Loaded().Values.Where(s => s.Id != keepId).ToList();
+            foreach (var signIn in others)
+            {
+                Loaded().Remove(signIn.TokenHash);
+            }
+
+            if (others.Count > 0)
+            {
+                SaveLocked();
+                LogRevokedAll(others.Count);
+            }
+
+            return others.Count;
         }
     }
 
@@ -171,33 +205,85 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             return _byHash;
         }
 
-        var list = new List<SignIn>();
+        List<SignIn?> list = [];
         try
         {
             if (File.Exists(FilePath))
             {
-                list = JsonSerializer.Deserialize<List<SignIn>>(File.ReadAllText(FilePath), Json) ?? [];
+                list = JsonSerializer.Deserialize<List<SignIn?>>(File.ReadAllText(FilePath), Json) ?? [];
             }
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            // A damaged file signs everyone out (the API key still works) rather than stopping the server.
+            // A damaged or unreadable file (made root's by a sudo run, say) signs everyone out (the API key still
+            // works) rather than stopping the server. It's kept aside, not overwritten, in case it can be put back.
             LogUnreadable(FilePath, ex.Message);
+            _keepAsideBeforeSaving = true;
         }
 
+        // Skip what a hand edit may have left: empty entries, and a token or id listed twice.
+        var byHash = new Dictionary<string, SignIn>(StringComparer.Ordinal);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var pruned = false;
         foreach (var signIn in list)
         {
+            if (signIn is null || string.IsNullOrEmpty(signIn.TokenHash) || string.IsNullOrEmpty(signIn.Id) || byHash.ContainsKey(signIn.TokenHash) || !ids.Add(signIn.Id))
+            {
+                continue;
+            }
+
+            if (Expired(signIn, now))
+            {
+                pruned = true;
+                continue;
+            }
+
+            signIn.Name ??= signIn.Kind == SignInKind.Browser ? "A browser" : "A device";
+            byHash[signIn.TokenHash] = signIn;
             _savedLastUsed[signIn.Id] = signIn.LastUsedAt;
         }
 
-        return _byHash = list.ToDictionary(s => s.TokenHash, StringComparer.Ordinal);
+        _byHash = byHash;
+        if (pruned)
+        {
+            SaveLocked();
+        }
+
+        return byHash;
     }
 
+    /// <summary>A browser left unused for six months is signed out.</summary>
+    private static bool Expired(SignIn signIn, DateTime now) => signIn.Kind == SignInKind.Browser && now - signIn.LastUsedAt > BrowserIdleLimit;
+
+    private bool _keepAsideBeforeSaving;
+
+    /// <summary>
+    /// Writes the list. If that fails (a full disk, a folder that isn't ours), sign-ins carry on in memory, and the
+    /// failure is logged rather than failing the request.
+    /// </summary>
     private void SaveLocked()
     {
         var all = Loaded().Values.OrderBy(s => s.CreatedAt).ToList();
-        Directory.CreateDirectory(options.CurrentValue.DataDirectory);
-        ServerConfigStore.WritePrivately(FilePath, JsonSerializer.Serialize(all, Json));
+        try
+        {
+            Directory.CreateDirectory(options.CurrentValue.DataDirectory);
+            if (_keepAsideBeforeSaving && File.Exists(FilePath))
+            {
+                var aside = $"{FilePath}.unreadable-{clock.GetUtcNow():yyyyMMddHHmmss}";
+                File.Move(FilePath, aside, overwrite: true);
+                LogKeptAside(aside);
+            }
+
+            _keepAsideBeforeSaving = false;
+            ServerConfigStore.WritePrivately(FilePath, JsonSerializer.Serialize(all, Json));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogUnwritable(FilePath, ex.Message);
+            return;
+        }
+
         _savedLastUsed.Clear();
         foreach (var signIn in all)
         {
@@ -213,4 +299,13 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't read {Path} ({Reason}); browsers and devices will need to sign in again")]
     private partial void LogUnreadable(string path, string reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Signed out {Count} browsers and devices")]
+    private partial void LogRevokedAll(int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Kept the unreadable sign-in list as {Path}")]
+    private partial void LogKeptAside(string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't save {Path} ({Reason}); sign-ins made or signed out now last until Flexarr restarts")]
+    private partial void LogUnwritable(string path, string reason);
 }
