@@ -768,20 +768,63 @@ kbd {
 }
 
 .alpha-rail button {
+  position: relative;
   width: 28px;
-  height: 22px;
+  height: 24px;
   padding: 0;
   border: 0;
+  border-radius: 6px;
   background: none;
   color: var(--usher);
-  font-size: 0.72rem;
+  font-size: var(--step--1);
   font-weight: 700;
   cursor: pointer;
 }
 
-.alpha-rail button:hover,
+.alpha-rail button:hover:not(:disabled),
+.alpha-rail button.jumping {
+  color: var(--screen);
+  background: var(--seat-raised);
+}
+
+/* Drawn inside the letter, so the ring doesn't sit over its neighbours. */
 .alpha-rail button:focus-visible {
   color: var(--screen);
+  outline: 2px solid var(--screen);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+/* No titles start with it. */
+.alpha-rail button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.alpha-rail[aria-busy='true'] button:not(.jumping) {
+  cursor: progress;
+}
+
+/* Beside the letter while the titles up to it load. */
+.alpha-loading {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--seat-raised);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+  color: var(--screen);
+  font-size: var(--step--1);
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Phones get a letter picker instead of the rail. */
+.alpha-picker {
+  display: none;
 }
 
 .load-more {
@@ -1425,6 +1468,18 @@ a.upcoming-row:hover strong {
 
   .alpha-rail {
     display: none;
+  }
+
+  /* A solid bar under the header that the cards scroll beneath, rather than a button over their own controls. */
+  .alpha-picker {
+    position: sticky;
+    top: var(--nav-height);
+    z-index: 5;
+    display: flex;
+    justify-content: flex-end;
+    margin: -8px 0 0;
+    padding: 8px 0;
+    background: var(--room);
   }
 
   .library-body {
