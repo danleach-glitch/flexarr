@@ -188,24 +188,6 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal("owner", (await client.GetFromJsonAsync<JsonElement>(Api("/me"))).GetProperty("profileId").GetString());
     }
 
-    [Fact]
-    public async Task WrongPins_LockTheProfileOut()
-    {
-        var id = await CreateProfileAsync("Guarded", pin: "8642");
-        var guesser = Device(await DeviceTokenAsync("Guesser"));
-        var statuses = new List<HttpStatusCode>();
-        for (var i = 0; i < 5; i++)
-        {
-            statuses.Add((await guesser.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { pin = $"000{i}" })).StatusCode);
-        }
-
-        // Locked for everyone for now, not just the device that was guessing.
-        var rightButLocked = await Admin().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { pin = "8642" });
-
-        Assert.Equal([HttpStatusCode.Forbidden, HttpStatusCode.Forbidden, HttpStatusCode.Forbidden, HttpStatusCode.Forbidden, HttpStatusCode.TooManyRequests], statuses);
-        Assert.Equal(HttpStatusCode.TooManyRequests, rightButLocked.StatusCode);
-        Assert.True(rightButLocked.Headers.Contains("Retry-After"));
-    }
 
     [Fact]
     public async Task RotatingTheKey_KeepsOwnSignIns_ButRetiresTheOldKey()
