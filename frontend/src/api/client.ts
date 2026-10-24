@@ -256,6 +256,17 @@ export interface LibraryHealth {
 }
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
+
+export interface HealthCheckReport {
+  running: boolean
+  checked: number
+  total: number
+  finishedAt: string | null
+  problems: { file: { fileId: string; itemId: string; path: string; problem: 'Missing' | 'Empty' | 'Unreadable'; detail: string | null }; item: ItemSummary | null }[]
+}
+
+export const getHealthCheck = (signal?: AbortSignal) => apiGet<HealthCheckReport>('/library-health/check', signal)
+export const startHealthCheck = () => request<void>('POST', '/library-health/check')
 export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)
 
 export interface ExternalTitle {

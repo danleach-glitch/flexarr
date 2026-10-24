@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
 import { episodeCode, progressOf, year } from '../lib/format'
 import { itemLink } from '../lib/links'
+import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
 import { Check, More } from './icons'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
@@ -61,7 +62,7 @@ function subtitle(item: ItemSummary): string | null {
  * `playLabel` is for artwork that plays rather than opens; when the artwork opens the same page as the title link,
  * it's left out of the tab order and hidden from screen readers so each card has one link to its page.
  */
-function CardShell({ item, to, className, art, playLabel, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; children?: ReactNode }) {
+function CardShell({ item, to, className, art, playLabel, onOpen, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; onOpen?: () => void; children?: ReactNode }) {
   const [menuAt, setMenuAt] = useState<MenuPoint | null>(null)
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
   const menu = hasMenu(item)
@@ -81,6 +82,14 @@ function CardShell({ item, to, className, art, playLabel, children }: { item: It
       <Link
         to={to}
         className="card-art"
+        onClick={
+          onOpen
+            ? (e) => {
+                e.preventDefault()
+                onOpen()
+              }
+            : undefined
+        }
         {...(playLabel ? { 'aria-label': playLabel } : children ? { 'aria-hidden': true, tabIndex: -1 } : { 'aria-label': cardLabel(item) })}
       >
         {art}
@@ -122,11 +131,16 @@ function EpisodeText({ item }: { item: ItemSummary }) {
   )
 }
 
-export function PosterCard({ item }: { item: ItemSummary }) {
+/** `playLoneEpisode`: a show with just one unwatched episode plays it from the poster (Latest unwatched rows). */
+export function PosterCard({ item, playLoneEpisode = false }: { item: ItemSummary; playLoneEpisode?: boolean }) {
+  const play = usePlay()
+  const lone = playLoneEpisode && item.kind === 'Series' && item.userData.unwatchedCount === 1
   return (
     <CardShell
       item={item}
       to={itemLink(item)}
+      onOpen={lone ? () => play(item) : undefined}
+      playLabel={lone ? `Play the new episode of ${item.title}` : undefined}
       className="poster-card"
       art={
         <div className="card-frame">

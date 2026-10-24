@@ -62,6 +62,7 @@ builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAg
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<ProfileImages>();
+builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
 builder.Services.AddScoped<MetadataRefresher>();
 

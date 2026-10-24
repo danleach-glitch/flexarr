@@ -10,7 +10,7 @@ export function HomeRows({ rows }: { rows: HomeRow[] }) {
         ? row.items.map((item, i) => <Top10Card key={item.id} item={item} rank={i + 1} />)
         : row.style === 'wide'
           ? row.items.map((item) => <WideCard key={item.id} item={item} />)
-          : row.items.map((item) => <PosterCard key={item.id} item={item} />)}
+          : row.items.map((item) => <PosterCard key={item.id} item={item} playLoneEpisode={row.id.startsWith('recent')} />)}
     </Row>
   ))
 }

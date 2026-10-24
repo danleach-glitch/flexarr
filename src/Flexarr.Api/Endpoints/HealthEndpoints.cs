@@ -23,6 +23,10 @@ public sealed record LibraryHealthDto(
     IReadOnlyList<ItemSummaryDto> StandardDefinition,
     int StandardDefinitionTotal);
 
+public sealed record FileProblemReportDto(FileProblemDto File, ItemSummaryDto? Item);
+
+public sealed record HealthCheckReportDto(bool Running, int Checked, int Total, DateTime? FinishedAt, IReadOnlyList<FileProblemReportDto> Problems);
+
 public static class HealthEndpoints
 {
     public static RouteGroupBuilder MapHealthEndpoints(this RouteGroupBuilder api)
@@ -63,6 +67,22 @@ public static class HealthEndpoints
                 missing,
                 await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
                 await sd.CountAsync(ct));
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // The Health check button: look at every file on disk (in the background), then report what's wrong.
+        api.MapPost("/library-health/check", (HealthCheck check) =>
+        {
+            check.Start();
+            return Results.Accepted("/api/v1/library-health/check");
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        api.MapGet("/library-health/check", async (HealthCheck check, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var status = check.Status;
+            var ids = status.Problems.Select(p => p.ItemId).Distinct().ToList();
+            var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
+            return new HealthCheckReportDto(status.Running, status.Checked, status.Total, status.FinishedAt,
+                status.Problems.Select(p => new FileProblemReportDto(p, items.GetValueOrDefault(p.ItemId))).ToList());
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Asks Radarr or Sonarr to search for this film, episode, season or series again (e.g. to upgrade quality).

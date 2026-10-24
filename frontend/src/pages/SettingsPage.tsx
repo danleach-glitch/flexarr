@@ -16,6 +16,8 @@ import {
   linkTailscale,
   setTailscaleAccess,
   getAllLibraries,
+  getHealthCheck,
+  startHealthCheck,
   getLayout,
   saveLayout,
   type Layout,
@@ -829,8 +831,96 @@ function PlexPictures({ path }: { path?: string }) {
 
 // ---------------------------------------------------------------- Library health
 
+function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
+  const check = useApi(getHealthCheck, [])
+  const [requested, setRequested] = useState<Record<string, string>>({})
+  const running = check.data?.running ?? false
+
+  // Poll while a check runs; when it finishes, the rest of the report reloads too.
+  useEffect(() => {
+    if (!running) return
+    const timer = setInterval(check.reload, 1500)
+    return () => {
+      clearInterval(timer)
+      onFinished()
+    }
+  }, [running, check.reload, onFinished])
+
+  const report = check.data
+  const labels = { Missing: 'Missing from disk', Empty: 'Empty files', Unreadable: 'Still unreadable' } as const
+  return (
+    <div className="panel health-check">
+      <div className="health-check-head">
+        <div>
+          <strong>Health check</strong>
+          <p className="muted">
+            {running && report
+              ? `Checking files: ${report.checked.toLocaleString()} of ${report.total.toLocaleString()}`
+              : report?.finishedAt
+                ? `Last checked ${relativeTime(report.finishedAt)}: ${report.total.toLocaleString()} files, ${report.problems.length ? `${report.problems.length.toLocaleString()} with problems` : 'no problems'}.`
+                : 'Looks at every file: whether it’s still on disk, not empty, and readable.'}
+          </p>
+        </div>
+        <button
+          className="button"
+          disabled={running}
+          onClick={async () => {
+            await startHealthCheck()
+            check.reload()
+          }}
+        >
+          {running ? 'Checking…' : 'Run health check'}
+        </button>
+      </div>
+      {running && report && report.total > 0 && (
+        <span className="scan-track" aria-hidden="true">
+          <span style={{ width: `${(report.checked / report.total) * 100}%` }} />
+        </span>
+      )}
+      {!running &&
+        (['Missing', 'Empty', 'Unreadable'] as const).map((kind) => {
+          const found = report?.problems.filter((p) => p.file.problem === kind) ?? []
+          if (found.length === 0) return null
+          return (
+            <div key={kind} className="health-check-group">
+              <h4>
+                {labels[kind]} ({found.length.toLocaleString()})
+              </h4>
+              <ul className="health-check-list">
+                {found.slice(0, 100).map(({ file, item }) => (
+                  <li key={file.fileId}>
+                    <span>
+                      <strong>{item ? (item.seriesTitle ? `${item.seriesTitle} ${episodeCode(item)}` : item.title) : 'Unknown title'}</strong>
+                      <code>{file.path}</code>
+                    </span>
+                    {item && (
+                      <button
+                        className="button quiet small"
+                        disabled={!!requested[item.id]}
+                        onClick={async () => {
+                          try {
+                            await searchAgain(item.id)
+                            setRequested((r) => ({ ...r, [item.id]: 'Search started' }))
+                          } catch (e) {
+                            setRequested((r) => ({ ...r, [item.id]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Search failed' }))
+                          }
+                        }}
+                      >
+                        {requested[item.id] ?? 'Search again'}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+    </div>
+  )
+}
+
 function HealthSection() {
-  const { data } = useApi(getLibraryHealth, [])
+  const { data, reload } = useApi(getLibraryHealth, [])
   const [requested, setRequested] = useState<Record<string, string>>({})
   if (!data) return <p className="muted">Checking your library…</p>
 
@@ -848,7 +938,8 @@ function HealthSection() {
       <header className="settings-header">
         <h2>Library health</h2>
       </header>
-      <p className="settings-lede">Things worth tidying. Flexarr never deletes your files; remove copies in Sonarr, Radarr or the Finder.</p>
+      <p className="settings-lede">Things worth tidying. Nothing here deletes anything; remove spare copies in Sonarr, Radarr or the Finder.</p>
+      <HealthCheckPanel onFinished={reload} />
 
       <h3 className="settings-subhead">
         Duplicate copies{data.duplicates.length > 0 && `: ${formatSize(data.reclaimableBytes)} could be freed`}

@@ -506,3 +506,54 @@
 .row-list-move .icon-button:disabled {
   opacity: 0.3;
 }
+
+.health-check {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.health-check-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.health-check-head p {
+  margin: 4px 0 0;
+}
+
+.health-check-group h4 {
+  margin: 6px 0 8px;
+  font-size: var(--step-0);
+}
+
+.health-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.health-check-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.health-check-list li > span {
+  display: grid;
+  min-width: 0;
+}
+
+.health-check-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--step--1);
+  color: var(--usher);
+}

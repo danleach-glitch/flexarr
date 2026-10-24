@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { imageUrl, type ItemSummary } from '../api/client'
 import { usePlay } from '../hooks/usePlay'
-import { episodeCode, formatDuration, year } from '../lib/format'
+import { episodeHeading, formatDuration, year } from '../lib/format'
 import { Info, Play } from './icons'
 
 const ROTATE_MS = 10_000
@@ -40,7 +40,7 @@ export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; 
   const navigate = useNavigate()
   const item = items[index]
   const resuming = index === 0 ? resume : undefined
-  const episode = resuming?.kind === 'Episode' ? episodeCode(resuming) : undefined
+  const episode = resuming?.kind === 'Episode' ? episodeHeading(resuming) : undefined
 
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
