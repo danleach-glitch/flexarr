@@ -63,6 +63,25 @@ describe('API cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it("gives up on a letter jump's big page the server never answers, or when its caller aborts", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(
+      (_: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const stalled = getLibraryItems('l', { skip: 500, take: 500 })
+    const failure = expect(stalled).rejects.toMatchObject({ name: 'TimeoutError' })
+    await vi.advanceTimersByTimeAsync(FETCH_TIMEOUT_MS)
+    await failure
+
+    const controller = new AbortController()
+    const left = getLibraryItems('l', { skip: 1000, take: 500 }, controller.signal)
+    controller.abort()
+    await expect(left).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('forgets cached answers on a change, but not a page kept for going back', async () => {
     const fetchMock = mockApi({ '/libraries/l/genres': [], 'POST /items/i/watched': undefined })
     keepPage('grid', { scrollY: 900 })

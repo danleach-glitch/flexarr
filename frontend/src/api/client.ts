@@ -147,6 +147,19 @@ const MAX_ENTRIES = 100
 /** How long a shared GET may take before everyone waiting on it is told it failed. */
 export const FETCH_TIMEOUT_MS = 30_000
 
+/** A GET that fails after FETCH_TIMEOUT_MS if the server hasn't answered, or as soon as `signal` aborts. */
+function timedGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const timeout = new AbortController()
+  const timer = setTimeout(() => timeout.abort(new DOMException('The server took too long to answer.', 'TimeoutError')), FETCH_TIMEOUT_MS)
+  const onAbort = () => timeout.abort(signal?.reason)
+  if (signal?.aborted) onAbort()
+  else signal?.addEventListener('abort', onAbort, { once: true })
+  return apiGet<T>(path, timeout.signal).finally(() => {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+  })
+}
+
 interface Entry {
   at: number
   freshMs: number
@@ -196,6 +209,11 @@ export function keepPage(key: string, value: unknown) {
 
 export const keptPage = <T>(key: string) => pages.get(`${profileToken() ?? ''} ${key}`) as T | undefined
 
+/** Forgets one page's kept state. */
+export function forgetPage(key: string) {
+  pages.delete(`${profileToken() ?? ''} ${key}`)
+}
+
 /** Forgets every page's kept state. */
 export function clearKeptPages() {
   pages.clear()
@@ -227,25 +245,21 @@ function cachedGet<T>(path: string, signal?: AbortSignal, freshMs = FRESH_MS): P
     cache.set(key, entry)
   } else {
     const fresh: Entry = { at: Date.now(), freshMs }
-    const timeout = new AbortController()
-    const timer = setTimeout(() => timeout.abort(new DOMException('The server took too long to answer.', 'TimeoutError')), FETCH_TIMEOUT_MS)
-    fresh.pending = apiGet<T>(path, timeout.signal)
-      .then(
-        (value) => {
-          // Only keep it if nothing cleared the cache meanwhile.
-          if (cache.get(key) === fresh) {
-            fresh.value = value
-            fresh.at = Date.now()
-            fresh.pending = undefined
-          }
-          return value
-        },
-        (error: unknown) => {
-          if (cache.get(key) === fresh) cache.delete(key)
-          throw error
-        },
-      )
-      .finally(() => clearTimeout(timer))
+    fresh.pending = timedGet<T>(path).then(
+      (value) => {
+        // Only keep it if nothing cleared the cache meanwhile.
+        if (cache.get(key) === fresh) {
+          fresh.value = value
+          fresh.at = Date.now()
+          fresh.pending = undefined
+        }
+        return value
+      },
+      (error: unknown) => {
+        if (cache.get(key) === fresh) cache.delete(key)
+        throw error
+      },
+    )
     cache.delete(key)
     prune()
     cache.set(key, fresh)
@@ -291,7 +305,7 @@ export function getLibraryItems(
   const query = params.size ? `?${params}` : ''
   const path = `/libraries/${id}/items${query}`
   // A letter jump's big pages go once, straight into the grid: caching them would only crowd out everything else.
-  return (options.take ?? 0) > 200 ? apiGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
+  return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
@@ -326,8 +340,14 @@ export const getItemPage = (id: string, season: string | null, signal?: AbortSig
 export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/similar`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
+const deleted = new Set<string>()
 /** Deletes a film, show or episode and its files through Radarr or Sonarr (main profile only). */
-export const deleteItem = (id: string) => request<void>('DELETE', `/items/${id}`)
+export async function deleteItem(id: string) {
+  await request<void>('DELETE', `/items/${id}`)
+  deleted.add(id)
+}
+/** Whether `id` was deleted from this browser (a page kept for going back may still show it). */
+export const wasDeleted = (id: string) => deleted.has(id)
 export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
 export const getPerson = (id: string, signal?: AbortSignal) => cachedGet<Person>(`/people/${id}`, signal)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)

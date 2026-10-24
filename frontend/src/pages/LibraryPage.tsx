@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, type ItemSummary, type Library } from '../api/client'
+import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
@@ -112,17 +112,25 @@ function letterOf(item: ItemSummary) {
 }
 
 /**
- * What going back to a grid restores: the titles it had loaded and where it was scrolled to. The place is the first
- * card on screen and how far it sat from the top (only cards near the screen are laid out, so a pixel offset lands
- * elsewhere once the grid is rebuilt), with scrollY in case that title has gone.
+ * What going back to a grid restores: the titles it had loaded, where it was scrolled to and the card that was opened
+ * (for keyboard focus). The place is the first card on screen and how far it sat from the top (only cards near the
+ * screen are laid out, so a pixel offset lands elsewhere once the grid is rebuilt), with scrollY in case that title
+ * has gone. Only a grid that finished loading for its own sort and filter is kept.
  */
 interface GridSnapshot {
   items: ItemSummary[]
-  total: number | undefined
+  total: number
   itemCount: number | undefined
   scrollY: number
   anchor: { id: string; top: number } | undefined
+  opened: string | undefined
   savedAt: number
+}
+
+/** A kept grid to go back to, unless it never finished loading or shows a title deleted since (start afresh then). */
+function restorable(snapshot: GridSnapshot | undefined) {
+  if (!snapshot || snapshot.total === undefined || snapshot.items.some((i) => wasDeleted(i.id))) return undefined
+  return snapshot
 }
 
 /** The first card at least partly below the top of the screen (cards run top to bottom, so a binary search). */
@@ -157,7 +165,7 @@ function LibraryAll() {
   // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
   const snapshotKey = `library-all ${id} ${sort} ${genre}`
   const navigation = useNavigationType()
-  const [restored] = useState(() => (navigation === 'POP' ? keptPage<GridSnapshot>(snapshotKey) : undefined))
+  const [restored] = useState(() => (navigation === 'POP' ? restorable(keptPage<GridSnapshot>(snapshotKey)) : undefined))
 
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
@@ -165,6 +173,9 @@ function LibraryAll() {
   const [total, setTotal] = useState<number | undefined>(restored?.total)
   // The library's size when the grid loaded, to notice titles a scan adds since.
   const [loadedCount, setLoadedCount] = useState<number | undefined>(restored?.itemCount)
+  // The grid (sort, filter and search) the titles were loaded for: until a new one's first page lands, they're the old one's.
+  const gridKey = `${snapshotKey} ${query}`
+  const [loadedFor, setLoadedFor] = useState(restored ? gridKey : undefined)
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
@@ -182,7 +193,8 @@ function LibraryAll() {
   // away "Show more" pages and the scroll position: offer it instead.
   const small = total !== undefined && total < PAGE_SIZE && items.length >= total
   const grown = library !== undefined && loadedCount !== undefined && library.itemCount !== loadedCount
-  const [followed, setFollowed] = useState(library?.itemCount)
+  // A restored grid follows from the count it was loaded with, so titles that came or went while away show up.
+  const [followed, setFollowed] = useState(restored ? restored.itemCount : library?.itemCount)
   if (small && library && library.itemCount !== followed) {
     setFollowed(library.itemCount)
     setVersion((v) => v + 1)
@@ -195,6 +207,7 @@ function LibraryAll() {
     restoredFor.current = null
     const run = ++generation.current
     const countAtLoad = library?.itemCount
+    const loadingFor = gridKey
     const controller = new AbortController()
     const load = () => getLibraryItems(id, { search: query, sort, genre, take: PAGE_SIZE }, controller.signal)
     // Starting over on purpose (Refresh, or new titles) skips any cached first page.
@@ -205,6 +218,7 @@ function LibraryAll() {
         setItems(page.items)
         setTotal(page.total)
         setLoadedCount(countAtLoad)
+        setLoadedFor(loadingFor)
         setError(undefined)
       })
       .catch((e: unknown) => {
@@ -242,23 +256,29 @@ function LibraryAll() {
       } else {
         window.scrollTo(0, restored.scrollY)
       }
+      // Keyboard focus goes back to the card that was opened, so Tab carries on from there.
+      const opened = restored.opened ? grid.current?.querySelector<HTMLElement>(`[data-id="${restored.opened}"] a:not([tabindex="-1"])`) : undefined
+      opened?.focus({ preventScroll: true })
     })
     const changed = watchedSince(restored.savedAt)
     if (changed.length) refresh(changed)
   }, [restored, refresh])
 
-  // Remember the grid on the way out (not a search's results). A layout effect, so the cards are still on screen to
-  // measure.
-  const latest = useRef({ items, total, itemCount: loadedCount, query, snapshotKey })
+  // Remember the grid on the way out (not a search's results, nor one that hadn't loaded yet for its sort and filter:
+  // that one starts afresh). A layout effect, so the cards are still on screen to measure.
+  const opened = useRef<string>(restored?.opened)
+  const latest = useRef({ items, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey })
   useEffect(() => {
-    latest.current = { items, total, itemCount: loadedCount, query, snapshotKey }
+    latest.current = { items, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey }
   })
   useLayoutEffect(() => {
     const element = grid.current
     return () => {
-      const { query, snapshotKey, ...loaded } = latest.current
+      const { query, snapshotKey, current, total, ...loaded } = latest.current
       if (query) return
-      keepPage(snapshotKey, { ...loaded, scrollY: window.scrollY, anchor: firstOnScreen(element), savedAt: Date.now() } satisfies GridSnapshot)
+      if (!current || total === undefined) return forgetPage(snapshotKey)
+      const snapshot: GridSnapshot = { ...loaded, total, scrollY: window.scrollY, anchor: firstOnScreen(element), opened: opened.current, savedAt: Date.now() }
+      keepPage(snapshotKey, snapshot)
     }
   }, [])
 
@@ -389,7 +409,14 @@ function LibraryAll() {
       )}
 
       <div className="library-body">
-        <div className={library.type === 'Music' ? 'poster-grid square' : 'poster-grid'} ref={grid}>
+        <div
+          className={library.type === 'Music' ? 'poster-grid square' : 'poster-grid'}
+          ref={grid}
+          onClick={(e) => {
+            const card = e.target instanceof Element ? e.target.closest('a')?.closest<HTMLElement>('[data-id]') : undefined
+            if (card) opened.current = card.dataset.id
+          }}
+        >
           {items.map((item) => (
             <div key={item.id} data-id={item.id}>
               <PosterCard item={item} />
