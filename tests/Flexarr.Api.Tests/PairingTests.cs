@@ -101,6 +101,41 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task ADeviceName_ThatCouldForgeALogLine_IsRefused()
+    {
+        var forged = await Tv("192.168.1.76").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Den\n[INF] Signed in a new Device" });
+        var started = await (await Tv("192.168.1.76").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Den" })).Content.ReadFromJsonAsync<JsonElement>();
+        var renamed = await Admin().PostAsJsonAsync(Api($"/pairing/code/{started.GetProperty("code").GetString()}/approve"), new { deviceName = "Den‮vt" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, renamed.StatusCode);
+    }
+
+    [Fact]
+    public async Task AtMostTenTvs_AreApprovedInAnHour()
+    {
+        // Each approval is a new sign-in, so a script in the approver's page can't make them by the thousand.
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var results = new List<HttpStatusCode>();
+        HttpResponseMessage? last = null;
+        for (var i = 0; i < 11; i++)
+        {
+            var tv = server.CreateClient();
+            tv.DefaultRequestHeaders.Add("X-Test-Peer", $"192.168.1.{100 + i}");
+            var started = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = $"TV {i}" })).Content.ReadFromJsonAsync<JsonElement>();
+            last = await admin.PostAsJsonAsync(Api($"/pairing/code/{started.GetProperty("code").GetString()}/approve"), new { });
+            results.Add(last.StatusCode);
+            await tv.GetAsync(Api($"/pairing/{started.GetProperty("id").GetString()}")); // collects its token, freeing the slot
+        }
+
+        Assert.Equal([.. Enumerable.Repeat(HttpStatusCode.NoContent, 10), HttpStatusCode.TooManyRequests], results);
+        Assert.True(last!.Headers.RetryAfter?.Delta > TimeSpan.FromMinutes(50));
+        Assert.True((await last.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("retryAfterSeconds").GetInt32() > 3000);
+    }
+
+    [Fact]
     public async Task Approval_NeedsAJsonBody()
     {
         var started = await (await Tv("192.168.1.73").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Den" })).Content.ReadFromJsonAsync<JsonElement>();

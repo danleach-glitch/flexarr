@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
+using Flexarr.Core.Paths;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Authentication;
@@ -40,6 +41,12 @@ public sealed class SignIn
     /// key. It's signed out sooner when left unused, and when the main profile's PIN changes.
     /// </summary>
     public bool PinVerified { get; init; }
+
+    /// <summary>
+    /// For a <see cref="PinVerified"/> sign-in, the Tailscale login it was earned with: it only works for requests that
+    /// come with that login, and goes when the login is unlinked.
+    /// </summary>
+    public string? TailscaleLogin { get; init; }
 }
 
 /// <summary>
@@ -72,7 +79,8 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
-    public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false)
+    public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false,
+        string? tailscaleLogin = null)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -88,6 +96,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             Address = address,
             ProfileId = profileId,
             PinVerified = pinVerified,
+            TailscaleLogin = tailscaleLogin,
         };
 
         lock (_lock)
@@ -96,7 +105,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             SaveLocked();
         }
 
-        LogIssued(kind, signIn.Name, zone);
+        LogIssued(kind, PathComparison.Printable(signIn.Name), zone);
         return (signIn, token);
     }
 
@@ -167,7 +176,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
             Loaded().Remove(found.TokenHash);
             SaveLocked();
-            LogRevoked(found.Kind, found.Name);
+            LogRevoked(found.Kind, PathComparison.Printable(found.Name));
             return true;
         }
     }
@@ -199,6 +208,27 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         lock (_lock)
         {
             var earned = Loaded().Values.Where(s => s.PinVerified && s.Id != keepId).ToList();
+            foreach (var signIn in earned)
+            {
+                Loaded().Remove(signIn.TokenHash);
+            }
+
+            if (earned.Count > 0)
+            {
+                SaveLocked();
+                LogRevokedAll(earned.Count);
+            }
+
+            return earned.Count;
+        }
+    }
+
+    /// <summary>Signs out every browser that signed in with the main profile's PIN using the Tailscale login <paramref name="login"/>.</summary>
+    public int RevokeEarnedBy(string login)
+    {
+        lock (_lock)
+        {
+            var earned = Loaded().Values.Where(s => s.PinVerified && string.Equals(s.TailscaleLogin, login, StringComparison.OrdinalIgnoreCase)).ToList();
             foreach (var signIn in earned)
             {
                 Loaded().Remove(signIn.TokenHash);

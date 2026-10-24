@@ -58,16 +58,26 @@ public static class RemoteAccessEndpoints
             return Results.Ok(await DescribeAsync(http, tailscale, db, ct));
         });
 
-        group.MapPost("/tailscale/links", async (TailscaleLinkRequest request, HttpContext http, TailscaleService tailscale, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapPost("/tailscale/links", async (TailscaleLinkRequest request, HttpContext http, TailscaleService tailscale, FlexarrDbContext db, SignIns signIns,
+            CancellationToken ct) =>
         {
             // One profile per Tailscale account: unlink it wherever it was first.
+            var before = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin == request.Login).Select(p => p.Id).FirstOrDefaultAsync(ct);
             await db.Profiles.Where(p => p.TailscaleLogin == request.Login).ExecuteUpdateAsync(u => u.SetProperty(p => p.TailscaleLogin, (string?)null), ct);
             if (request.ProfileId is { } id)
             {
                 if (await db.Profiles.Where(p => p.Id == id).ExecuteUpdateAsync(u => u.SetProperty(p => p.TailscaleLogin, request.Login), ct) == 0)
                 {
+                    // It's unlinked now (as if it had been chosen for nobody), so what it signed in goes too.
+                    signIns.RevokeEarnedBy(request.Login);
                     return Results.NotFound();
                 }
+            }
+
+            // Browsers that signed in as the main profile with its PIN over this login go when it's unlinked or moved.
+            if (request.ProfileId != before)
+            {
+                signIns.RevokeEarnedBy(request.Login);
             }
 
             return Results.Ok(await DescribeAsync(http, tailscale, db, ct));

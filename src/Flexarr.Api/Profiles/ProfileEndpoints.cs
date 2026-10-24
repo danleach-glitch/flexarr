@@ -164,9 +164,9 @@ public static partial class ProfileEndpoints
 
             if (profile.PinHash is not null)
             {
-                var (caller, browser) = PinCaller(http, current);
+                var (callers, browser) = PinCaller(http, current);
                 // Someone who may already manage the server could change the PIN anyway, so others' guesses don't hold them up.
-                var (result, retryAfter) = await guard.CheckAsync(profile.Id, caller, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
+                var (result, retryAfter) = await guard.CheckAsync(profile.Id, callers, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
                 if (result == PinCheck.LockedOut)
                 {
                     return TooManyPins(http, retryAfter);
@@ -187,9 +187,10 @@ public static partial class ProfileEndpoints
             {
                 // Over Tailscale the identity alone doesn't manage the server. The PIN signs this browser in as the
                 // main profile instead: an HttpOnly cookie of its own, listed in Settings, that can be signed out and
-                // lapses when left unused. (At home the main profile manages the server already.)
+                // lapses when left unused. It only works with the Tailscale login that earned it, still linked to a
+                // profile. (At home the main profile manages the server already.)
                 var (_, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
-                    http.Connection.RemoteIpAddress?.ToString(), pinVerified: true);
+                    http.Connection.RemoteIpAddress?.ToString(), pinVerified: true, tailscaleLogin: http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value);
                 ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
             }
 
@@ -227,14 +228,15 @@ public static partial class ProfileEndpoints
     public const string BrowserCookieName = "flexarr.browser";
 
     /// <summary>
-    /// Who is guessing a PIN, for <see cref="PinGuard"/>: the browser or device's sign-in, else the address (each
-    /// device has its own on the tailnet), along with the browser's own id, which it's given now if it has none.
+    /// Who is guessing a PIN, for <see cref="PinGuard"/>: the browser or device's sign-in, else the address, along with
+    /// the browser's own id, which it's given now if it has none. Over Tailscale it's the login as well as the address:
+    /// one person has several devices, each with two tailnet addresses, and none of them earns fresh attempts.
     /// </summary>
-    internal static (string Caller, string? Browser) PinCaller(HttpContext http, CurrentProfile current)
+    internal static (IReadOnlyList<string> Callers, string? Browser) PinCaller(HttpContext http, CurrentProfile current)
     {
         if (current.SignInId is { } signIn)
         {
-            return ($"sign-in:{signIn}", null);
+            return ([$"sign-in:{signIn}"], null);
         }
 
         var browser = http.Request.Cookies[BrowserCookieName];
@@ -251,7 +253,8 @@ public static partial class ProfileEndpoints
             });
         }
 
-        return ($"address:{http.Connection.RemoteIpAddress?.ToString() ?? "unknown"}", browser);
+        var address = $"address:{http.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login ? [$"tailscale:{login.ToLowerInvariant()}", address] : [address], browser);
     }
 
     /// <summary>Null when the request may change the main profile's PIN: it holds the API key, or gives the current PIN.</summary>
@@ -275,8 +278,8 @@ public static partial class ProfileEndpoints
             return Results.Problem("Enter the main profile's current PIN to change it.", statusCode: 403);
         }
 
-        var (caller, browser) = PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, caller, () => main.CheckPin(request.CurrentPin), ct, mayManage: true, browser);
+        var (callers, browser) = PinCaller(http, current);
+        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.CurrentPin), ct, mayManage: true, browser);
         return result switch
         {
             PinCheck.Right => null,
@@ -286,13 +289,22 @@ public static partial class ProfileEndpoints
     }
 
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>
-    internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter)
+    internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter) =>
+        TryAgainLater(http, retryAfter, when => $"Too many wrong PINs. Try again in {when}.");
+
+    /// <summary>
+    /// A 429 whose message says how long to wait, with Retry-After and the same number of seconds as
+    /// <c>retryAfterSeconds</c> in the body, so the web app can count down.
+    /// </summary>
+    internal static IResult TryAgainLater(HttpContext http, TimeSpan retryAfter, Func<string, string> message)
     {
-        var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(message);
+        var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
         http.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var minutes = (int)Math.Ceiling(retryAfter.TotalMinutes);
+        var minutes = (int)Math.Ceiling(seconds / 60.0);
         var when = seconds < 60 ? $"{seconds} second{(seconds == 1 ? "" : "s")}" : minutes <= 1 ? "a minute" : $"{minutes} minutes";
-        return Results.Problem($"Too many wrong PINs. Try again in {when}.", statusCode: 429);
+        return Results.Problem(message(when), statusCode: 429, extensions: new Dictionary<string, object?> { ["retryAfterSeconds"] = seconds });
     }
 
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>

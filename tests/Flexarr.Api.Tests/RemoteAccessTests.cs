@@ -6,6 +6,7 @@ using Flexarr.Core.Media;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -320,6 +321,39 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
 
         Assert.Equal(HttpStatusCode.OK, changed);
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
+    }
+
+    [Fact]
+    public async Task ThePinsSignIn_OnlyWorksWithTheTailscaleLoginThatEarnedIt_WhileItsLinked()
+    {
+        await LinkAsync("owner-bound@example.com", null);
+        await LinkAsync("teen-bound@example.com", "Teen bound");
+        var owner = ViaTailscale("100.70.1.25", "owner-bound@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+        var teen = ViaTailscale("100.70.1.26", "teen-bound@example.com");
+        await SetMainPinAsync("8024");
+        try
+        {
+            var (cookie, _) = await ChooseMainWithPinAsync(owner, "8024");
+
+            // tailscale serve sends the login on every request, so the owner's own browser carries on as before.
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
+            // Copied to someone else's device, it's ignored.
+            Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. teen, ("Cookie", cookie)]));
+
+            // Unlinked, it no longer manages the server, even from the owner's own device.
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                await db.Profiles.Where(p => p.TailscaleLogin == "owner-bound@example.com").ExecuteUpdateAsync(u => u.SetProperty(p => p.TailscaleLogin, (string?)null));
+            }
+
+            Assert.NotEqual(HttpStatusCode.OK, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
     }
 
     /// <summary>Chooses the main profile with its PIN; returns the sign-in cookie that sets, and the profile token.</summary>

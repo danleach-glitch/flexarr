@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
+using Flexarr.Core.Paths;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
@@ -23,22 +25,35 @@ public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime 
 /// <param name="DeviceName">A name to list the TV under instead of the one it gave.</param>
 public sealed record PairingApprovalRequest(string? DeviceName = null);
 
+public enum PairingApproval
+{
+    Approved,
+    NotWaiting,
+
+    /// <summary>As many TVs as may be connected in an hour have been.</summary>
+    TooMany,
+}
+
 /// <summary>
 /// Connecting a TV without typing: the TV, on the home network or tailnet, asks for a code and shows it (and a QR code
 /// linking to it); someone signed in as the main profile approves it in the web app; the TV, polling with its secret
 /// id, is handed a token of its own. Codes last ten minutes and only a few can be waiting at once, from any one address
-/// or altogether.
+/// or altogether. At most ten are approved in an hour: each is a sign-in of its own, so a script that got into the
+/// approver's page mustn't be able to make them by the thousand.
 /// </summary>
 public sealed class Pairings(SignIns signIns, TimeProvider clock)
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
     private const int MaxWaiting = 10;
     private const int MaxWaitingPerAddress = 3;
+    private const int MaxApprovedPerHour = 10;
+    private static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(1);
 
     // No 0/O, 1/I/L: codes are read off a TV and typed on a phone.
     private const string Alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
+    private readonly Queue<DateTime> _approvedAt = new();
 
     private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address)
     {
@@ -92,17 +107,47 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     public PairingDetailsDto? Find(string code) =>
         ByCode(code) is { } p ? new PairingDetailsDto(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone) : null;
 
-    public bool Approve(string code, string? deviceName = null)
+    /// <param name="retryAfter">With <see cref="PairingApproval.TooMany"/>, how long until another may be approved.</param>
+    public PairingApproval Approve(string code, string? deviceName, out TimeSpan retryAfter)
     {
+        retryAfter = TimeSpan.Zero;
         if (ByCode(code) is not { } pending)
         {
-            return false;
+            return PairingApproval.NotWaiting;
         }
 
-        pending.DeviceName = Name(deviceName) ?? pending.DeviceName;
-        pending.Approved = true;
-        return true;
+        var now = clock.GetUtcNow().UtcDateTime;
+        lock (_approvedAt)
+        {
+            while (_approvedAt.TryPeek(out var oldest) && now - oldest >= ApprovalWindow)
+            {
+                _approvedAt.Dequeue();
+            }
+
+            if (_approvedAt.Count >= MaxApprovedPerHour)
+            {
+                retryAfter = _approvedAt.Peek() + ApprovalWindow - now;
+                return PairingApproval.TooMany;
+            }
+
+            if (pending.Approved)
+            {
+                return PairingApproval.NotWaiting; // approved alongside, by another request
+            }
+
+            pending.DeviceName = Name(deviceName) ?? pending.DeviceName;
+            pending.Approved = true;
+            _approvedAt.Enqueue(now);
+        }
+
+        return PairingApproval.Approved;
     }
+
+    /// <summary>
+    /// A name with a line break, a bidi control or another invisible character, which could forge a log line or
+    /// disguise what the list of devices shows.
+    /// </summary>
+    public static bool UnfitName(string? name) => name is not null && PathComparison.Printable(name) != name;
 
     private static string? Name(string? name) => string.IsNullOrWhiteSpace(name) ? null : name.Trim()[..Math.Min(name.Trim().Length, 60)];
 
@@ -144,6 +189,11 @@ public static class PairingEndpoints
                 return Results.Problem("A TV can only connect this way from your home network or over Tailscale. Type the API key on the TV instead.", statusCode: 403);
             }
 
+            if (Pairings.UnfitName(request.DeviceName))
+            {
+                return Results.Problem(UnfitNameMessage, statusCode: 400);
+            }
+
             return pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString()) is { } started
                 ? Results.Ok(started)
                 : Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
@@ -162,8 +212,23 @@ public static class PairingEndpoints
         group.MapGet("/{code}", (string code, Pairings pairings) =>
             pairings.Find(code) is { } details ? Results.Ok(details) : Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404));
         // Approval takes a JSON body, which a form on another website can't send.
-        group.MapPost("/{code}/approve", (string code, PairingApprovalRequest approval, Pairings pairings) =>
-            pairings.Approve(code, approval.DeviceName) ? Results.NoContent() : Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404));
+        group.MapPost("/{code}/approve", (string code, PairingApprovalRequest approval, HttpContext http, Pairings pairings) =>
+        {
+            if (Pairings.UnfitName(approval.DeviceName))
+            {
+                return Results.Problem(UnfitNameMessage, statusCode: 400);
+            }
+
+            return pairings.Approve(code, approval.DeviceName, out var retryAfter) switch
+            {
+                PairingApproval.Approved => Results.NoContent(),
+                PairingApproval.TooMany => ProfileEndpoints.TryAgainLater(http, retryAfter,
+                    when => $"Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}."),
+                _ => Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404),
+            };
+        });
         return api;
     }
+
+    private const string UnfitNameMessage = "That name has a line break or a hidden character in it. Use letters, numbers and spaces.";
 }
