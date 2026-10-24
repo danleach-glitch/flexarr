@@ -158,6 +158,17 @@ final class ScreenshotTour: XCTestCase {
         throw XCTSkip("Nothing in Home plays with subtitles on")
     }
 
+    /// One title's page, for the website: TEST_RUNNER_FLEXARR_ITEM=<id>.
+    func test7Item() async throws {
+        guard let id = ProcessInfo.processInfo.environment["FLEXARR_ITEM"] else { throw XCTSkip("Set TEST_RUNNER_FLEXARR_ITEM") }
+        app.open(URL(string: "flexarr://item/\(id)")!)
+        // iOS asks before following a link from outside the app.
+        let open = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Open"]
+        if open.waitForExistence(timeout: 3) { open.tap() }
+        pause(8)
+        shot("item")
+    }
+
     // MARK: Helpers
 
     /// Tabs are found by their label: in the tab bar on iPhone, the bar along the top on iPad.
