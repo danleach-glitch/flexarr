@@ -150,7 +150,18 @@ public static class ImageEndpoints
         // and then it's fetched again, once. Once open, a trim can't take it away.
         for (var attempt = 0; ; attempt++)
         {
-            var path = await cache.GetAsync(url, width, ct);
+            string? path;
+            try
+            {
+                path = await cache.GetAsync(url, width, ct);
+            }
+            catch (ImageCacheBusyException)
+            {
+                // Not a missing image, so not a 404: one asked for again in a moment is likely to come.
+                http.Response.Headers[HeaderNames.RetryAfter] = "5";
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+
             if (path is null)
             {
                 return Results.NotFound();

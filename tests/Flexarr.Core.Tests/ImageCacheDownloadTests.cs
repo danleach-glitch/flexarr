@@ -6,6 +6,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Core.Tests;
 
+/// <summary>Alone: the cache's work and its limits are shared by the whole process.</summary>
+[CollectionDefinition(nameof(ImageCacheDownloadTests), DisableParallelization = true)]
+public sealed class ImageCacheDownloadCollection;
+
+[Collection(nameof(ImageCacheDownloadTests))]
 public sealed class ImageCacheDownloadTests : IDisposable
 {
     /// <summary>Enough of a JPEG for the cache to take it as one.</summary>
@@ -34,6 +39,71 @@ public sealed class ImageCacheDownloadTests : IDisposable
         Assert.NotNull(path);
         Assert.True(File.Exists(path));
         Assert.Equal(1, host.Requests);
+    }
+
+    [Fact]
+    public async Task WorkNobodyWaitsFor_StopsAfterTheGracePeriod()
+    {
+        using var host = new SlowArtwork();
+        var cache = Cache(host);
+        cache.AbandonAfter = TimeSpan.FromMilliseconds(100);
+        const string url = "https://image.tmdb.org/t/p/original/scrolled-far-past.jpg";
+
+        using var scrolledAway = new CancellationTokenSource();
+        var first = cache.GetAsync(url, 342, scrolledAway.Token);
+        await host.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await scrolledAway.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+
+        await host.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10)); // the download itself stopped
+
+        // Asked for again later: fetched afresh, not handed the stopped work's failure.
+        host.Release.SetResult();
+        var path = await cache.GetAsync(url, 342, default).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.NotNull(path);
+        Assert.Equal(2, host.Requests);
+    }
+
+    [Fact]
+    public async Task Downloads_RunAFewAtATime()
+    {
+        using var host = new SlowArtwork();
+        var cache = Cache(host);
+
+        var all = Enumerable.Range(0, 20).Select(i => cache.GetAsync($"https://image.tmdb.org/t/p/original/page-{i}.jpg", 342, default)).ToList();
+        for (var waited = 0; host.Requests < ImageCache.MaxDownloads && waited < 200; waited++)
+        {
+            await Task.Delay(50);
+        }
+
+        await Task.Delay(300); // time for any more to start, if they could
+        Assert.Equal(ImageCache.MaxDownloads, host.Requests);
+
+        host.Release.SetResult();
+        var paths = await Task.WhenAll(all).WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.All(paths, Assert.NotNull);
+        Assert.Equal(20, host.Requests);
+    }
+
+    [Fact]
+    public async Task PastTheLimit_NewImagesAreRefused_ButSharedOnesStillJoin()
+    {
+        using var host = new SlowArtwork();
+        var cache = Cache(host);
+        string Url(int i) => $"https://image.tmdb.org/t/p/original/flood-{i}.jpg";
+
+        var all = Enumerable.Range(0, ImageCache.MaxJobs).Select(i => cache.GetAsync(Url(i), 342, default)).ToList();
+
+        await Assert.ThrowsAsync<ImageCacheBusyException>(() => cache.GetAsync(Url(ImageCache.MaxJobs), 342, default));
+        all.Add(cache.GetAsync(Url(0), 342, default));
+
+        host.Release.SetResult();
+        var paths = await Task.WhenAll(all).WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.All(paths, Assert.NotNull);
+        Assert.Equal(ImageCache.MaxJobs, host.Requests);
+
+        // Room again once they're done.
+        Assert.NotNull(await cache.GetAsync(Url(ImageCache.MaxJobs), 342, default).WaitAsync(TimeSpan.FromSeconds(10)));
     }
 
     [Fact]
@@ -66,12 +136,22 @@ public sealed class ImageCacheDownloadTests : IDisposable
         public bool Drip;
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref Requests);
             Started.TrySetResult();
-            await Release.Task.WaitAsync(cancellationToken);
+            try
+            {
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Cancelled.TrySetResult();
+                throw;
+            }
+
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = Drip ? new StreamContent(new DripStream()) : new ByteArrayContent(Jpeg) };
         }
     }

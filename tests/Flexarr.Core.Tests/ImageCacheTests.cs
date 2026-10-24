@@ -79,14 +79,16 @@ public class ImageCacheTests
             var older = Write("ab_w500.png", 20);
             var recent = Write("ac_w500.jpg", 1);
             var newest = Write("ad_w500.jpg", 0);
-            var partial = Write("ae_w500.0123.tmp.jpg", 40); // still being written
+            var downloading = Write("af_w500.jpg.0123.download", 0); // still being written, and counted
+            var leftResize = Write("ae_w500.0123.tmp.jpg", 1); // left by a crash
+            var leftDownload = Write("ag_w500.jpg.4567.download", 1);
 
-            var removed = ImageCache.Trim(directory, 3000); // 4000 bytes of images: trim to 2700
+            var removed = ImageCache.Trim(directory, 3000); // 5000 bytes: trim to 2700
 
-            Assert.Equal(2, removed);
-            Assert.False(File.Exists(oldest));
-            Assert.False(File.Exists(older));
-            Assert.True(File.Exists(recent) && File.Exists(newest) && File.Exists(partial));
+            Assert.Equal(5, removed);
+            Assert.False(File.Exists(oldest) || File.Exists(older) || File.Exists(recent));
+            Assert.False(File.Exists(leftResize) || File.Exists(leftDownload));
+            Assert.True(File.Exists(newest) && File.Exists(downloading));
             Assert.Equal(0, ImageCache.Trim(directory, 3000));
         }
         finally

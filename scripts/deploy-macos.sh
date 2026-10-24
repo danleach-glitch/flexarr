@@ -4,7 +4,7 @@
 #   scripts/deploy-macos.sh <ssh-host>      e.g. scripts/deploy-macos.sh mini
 #
 # Layout on the target (no admin rights needed):
-#   ~/.dotnet         ASP.NET Core runtime, installed on first deploy
+#   ~/.dotnet         ASP.NET Core runtime, brought up to its latest patch on every deploy
 #   ~/.flexarr/app    binaries (replaced on every deploy)
 #   ~/.flexarr/data   config.json (API key, path mappings), database, caches — never touched by deploys
 #   ~/.flexarr/logs   flexarr.log
@@ -43,31 +43,45 @@ cp -R "$repo/frontend/dist" "$out/wwwroot"
 
 echo "==> Installing on $host"
 runtime="$(sed -n 's/.*"version": "\([0-9]*\.[0-9]*\).*/\1/p' "$repo/global.json")"
-if ! ssh "$host" "~/.dotnet/dotnet --list-runtimes 2>/dev/null | grep -q 'Microsoft.AspNetCore.App $runtime'"; then
-  echo "    installing ASP.NET Core $runtime runtime"
-  # The latest $runtime release's archive, downloaded here and checked against the SHA-512 in Microsoft's release
-  # metadata before it's unpacked on $host. Anything unexpected stops the deploy rather than installing it.
-  work="$(mktemp -d)"
-  trap 'rm -rf "$work"' EXIT
-  curl -sSfL "https://builds.dotnet.microsoft.com/dotnet/release-metadata/$runtime/releases.json" -o "$work/releases.json"
-  archive="$(python3 -I - "$work/releases.json" "$rid" <<'PY'
+# The latest $runtime patch, every deploy: the app is framework-dependent and runs on the newest patch installed, so
+# this is how it gets ASP.NET Core and Kestrel security fixes. Earlier patches are left in place. If the release
+# metadata can't be read, the deploy stops rather than carrying on with whatever is there.
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+curl -sSfL "https://builds.dotnet.microsoft.com/dotnet/release-metadata/$runtime/releases.json" -o "$work/releases.json"
+ssh "$host" '~/.dotnet/dotnet --list-runtimes 2>/dev/null || true' > "$work/installed.txt"
+# Prints "<version>" when that patch is installed on $host, else "<version> <url> <sha512>" of its archive.
+latest="$(python3 -I - "$work/releases.json" "$rid" "$work/installed.txt" <<'PY'
 import json, re, sys
 metadata = json.load(open(sys.argv[1]))
 release = next(r for r in metadata["releases"] if r["release-version"] == metadata["latest-release"])
+version = release["aspnetcore-runtime"]["version"]
+if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+    sys.exit(f"unexpected ASP.NET Core version {version!r} in the release metadata")
+installed = {line.split()[1] for line in open(sys.argv[3]) if line.startswith("Microsoft.AspNetCore.App ") and len(line.split()) > 1}
+if version in installed:
+    print(version)
+    sys.exit()
 file = next(f for f in release["aspnetcore-runtime"]["files"] if f["name"] == f"aspnetcore-runtime-{sys.argv[2]}.tar.gz")
 if not file["url"].startswith("https://builds.dotnet.microsoft.com/") or not re.fullmatch(r"[0-9a-fA-F]{128}", file["hash"]):
     sys.exit(f"unexpected release metadata for {file['name']}")
-print(file["url"], file["hash"].lower())
+print(version, file["url"], file["hash"].lower())
 PY
 )"
-  url="${archive% *}"
-  sha512="${archive#* }"
+read -r version url sha512 <<< "$latest"
+if [ -n "${url:-}" ]; then
+  echo "    installing ASP.NET Core $version runtime"
+  # Downloaded here and checked against the SHA-512 in Microsoft's release metadata before it's unpacked on $host.
+  # Anything unexpected stops the deploy rather than installing it.
   curl -sSfL "$url" -o "$work/runtime.tar.gz"
   if [ "$(shasum -a 512 "$work/runtime.tar.gz" | cut -d' ' -f1)" != "$sha512" ]; then
     echo "$url doesn't match the SHA-512 Microsoft publishes for it; not installing it" >&2
     exit 1
   fi
-  ssh "$host" "mkdir -p ~/.dotnet && tar -xzf - -C ~/.dotnet" < "$work/runtime.tar.gz"
+  # -U replaces files rather than writing into them: the running server has the shared host libraries mapped.
+  ssh "$host" "mkdir -p ~/.dotnet && tar -xzUf - -C ~/.dotnet" < "$work/runtime.tar.gz"
+else
+  echo "    ASP.NET Core $version runtime is up to date"
 fi
 root="$(ssh "$host" 'echo $HOME/.flexarr')"
 dotnet_root="$(ssh "$host" 'echo $HOME/.dotnet')"
