@@ -20,8 +20,11 @@ public sealed record UnreadableDto(Guid FileId, string Path, string Error, ItemS
 
 /// <summary>
 /// The share of films and episodes with nothing wrong (0–100), and how many titles each kind of problem touches.
+/// <see cref="ArtworkNeedsConnection"/>: films and shows without artwork that no Radarr or Sonarr is connected to fill
+/// in; they're left out of the score and <see cref="MissingArtwork"/>.
 /// </summary>
-public sealed record HealthScoreDto(int Score, int Titles, int WithProblems, int Duplicates, int Unreadable, int StandardDefinition, int MissingArtwork, int FileProblems);
+public sealed record HealthScoreDto(int Score, int Titles, int WithProblems, int Duplicates, int Unreadable, int StandardDefinition, int MissingArtwork, int FileProblems,
+    int ArtworkNeedsConnection = 0);
 
 public sealed record LibraryHealthDto(
     HealthScoreDto Score,
@@ -38,7 +41,8 @@ public sealed record LibraryHealthDto(
 /// A library folder whose scans keep its files rather than hide the ones they can't find, as it looked unmounted or
 /// cleared out. <see cref="CanConfirm"/>: the removal can be confirmed (not for a folder that isn't there at all).
 /// </summary>
-public sealed record HeldFolderDto(int FolderId, string Library, string Path, FolderHold Reason, int Missing, int Known, DateTime Since, int Scans, bool Confirmed, bool CanConfirm);
+public sealed record HeldFolderDto(int FolderId, string Library, string Path, FolderHold Reason, int Missing, int Known, DateTime Since, int Scans, bool Confirmed, bool CanConfirm,
+    LibraryType? LibraryType = null);
 
 /// <summary>What Library health showed for a held folder when its removal was confirmed.</summary>
 public sealed record HeldConfirmation(DateTime Since, int Missing, int Known);
@@ -88,12 +92,18 @@ public static partial class HealthEndpoints
             // The score counts each film or episode once, however many problems it has.
             var titles = await db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode, ct);
             var sdIds = await sd.Select(i => i.Id).ToListAsync(ct);
-            var artless = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).Select(i => i.Id).ToListAsync(ct);
+            // Film and show artwork comes from Radarr and Sonarr: with neither connected, it isn't something to fix here.
+            // (The score is of films and episodes, so artists without a photo don't count either.)
+            var arrKinds = options.CurrentValue.Arr.Select(a => a.Kind).ToHashSet();
+            var artlessVideo = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
+                .Select(i => new { i.Id, i.Kind }).ToListAsync(ct);
+            var artless = artlessVideo.Where(i => arrKinds.Contains(i.Kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr)).Select(i => i.Id).ToList();
             var fileProblems = check.Status.Problems.Select(p => p.ItemId).Distinct().ToList();
             var troubled = new HashSet<Guid>([.. ids, .. unreadable.Select(u => u.MediaItemId), .. sdIds, .. artless, .. fileProblems]);
             var score = new HealthScoreDto(
                 titles == 0 ? 100 : (int)Math.Floor(100.0 * Math.Max(0, titles - troubled.Count) / titles),
-                titles, troubled.Count, ids.Count, unreadable.Select(u => u.MediaItemId).Distinct().Count(), sdIds.Count, artless.Count, fileProblems.Count);
+                titles, troubled.Count, ids.Count, unreadable.Select(u => u.MediaItemId).Distinct().Count(), sdIds.Count, artless.Count, fileProblems.Count,
+                artlessVideo.Count - artless.Count);
 
             // Titles Sonarr or Radarr are already downloading, so the page offers no second search for them.
             var queue = await UpcomingEndpoints.QueueAsync(options.CurrentValue, arr, ct);
@@ -297,9 +307,9 @@ public static partial class HealthEndpoints
     {
         var held = await db.LibraryFolders.Where(f => f.Hold != null).OrderBy(f => f.Path).ToListAsync(ct);
         var ids = held.Select(f => f.LibraryId).ToList();
-        var names = await db.Libraries.IgnoreQueryFilters().Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, l => l.Name, ct);
-        return held.Select(f => new HeldFolderDto(f.Id, names.GetValueOrDefault(f.LibraryId, ""), f.Path, f.Hold!.Value, f.HeldMissing, f.HeldKnown,
-            f.HeldSince ?? DateTime.UtcNow, f.HeldScans, f.RemovalConfirmed, f.Hold != FolderHold.FolderMissing)).ToList();
+        var libraries = await db.Libraries.IgnoreQueryFilters().Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, l => new { l.Name, l.Type }, ct);
+        return held.Select(f => new HeldFolderDto(f.Id, libraries.GetValueOrDefault(f.LibraryId)?.Name ?? "", f.Path, f.Hold!.Value, f.HeldMissing, f.HeldKnown,
+            f.HeldSince ?? DateTime.UtcNow, f.HeldScans, f.RemovalConfirmed, f.Hold != FolderHold.FolderMissing, libraries.GetValueOrDefault(f.LibraryId)?.Type)).ToList();
     }
 
     /// <summary>

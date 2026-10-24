@@ -172,6 +172,27 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>Gives a browser or device a name people recognise ("Kitchen iPad"); false if it isn't signed in.</summary>
+    public bool Rename(string id, string name)
+    {
+        lock (_lock)
+        {
+            if (Loaded().Values.FirstOrDefault(s => s.Id == id) is not { } signIn)
+            {
+                return false;
+            }
+
+            var trimmed = name.Trim();
+            if (trimmed.Length > 0 && trimmed != signIn.Name)
+            {
+                signIn.Name = trimmed[..Math.Min(trimmed.Length, 80)];
+                SaveLocked();
+            }
+
+            return true;
+        }
+    }
+
     /// <summary>Signs out every browser and device except <paramref name="keepId"/> (the one asking); returns how many.</summary>
     public int RevokeAllExcept(string? keepId)
     {

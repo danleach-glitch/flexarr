@@ -181,6 +181,55 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ASignIn_CanBeRenamed()
+    {
+        var (browser, _) = await SignInBrowserAsync();
+        await DeviceTokenAsync("Apple TV 4K");
+        var tv = (await browser.GetFromJsonAsync<JsonElement>(Api("/sign-ins"))).EnumerateArray().First(s => s.GetProperty("name").GetString() == "Apple TV 4K");
+        var id = tv.GetProperty("id").GetString();
+
+        var renamed = await browser.PatchAsJsonAsync(Api($"/sign-ins/{id}"), new { name = "  Kitchen TV  " });
+        var blank = await browser.PatchAsJsonAsync(Api($"/sign-ins/{id}"), new { name = " " });
+        var unknown = await browser.PatchAsJsonAsync(Api("/sign-ins/nope"), new { name = "Hall" });
+
+        Assert.Equal(HttpStatusCode.NoContent, renamed.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        var listed = await browser.GetFromJsonAsync<JsonElement>(Api("/sign-ins"));
+        Assert.Equal("Kitchen TV", listed.EnumerateArray().Single(s => s.GetProperty("id").GetString() == id).GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task SigningOutEveryOtherBrowserAndTv_KeepsTheOneAsking()
+    {
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        async Task<HttpClient> Browser()
+        {
+            var client = server.CreateClient();
+            using var signIn = new HttpRequestMessage(HttpMethod.Post, Api("/session"));
+            signIn.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+            client.DefaultRequestHeaders.Add("Cookie", (await client.SendAsync(signIn)).Headers.GetValues("Set-Cookie").Single().Split(';')[0]);
+            client.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+            return client;
+        }
+
+        var mine = await Browser();
+        var other = await Browser();
+        var tv = server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "TV" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString());
+
+        var result = await (await mine.PostAsJsonAsync(Api("/sign-ins/sign-out-others"), new { })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(2, result.GetProperty("signedOut").GetInt32());
+        Assert.Equal(HttpStatusCode.OK, (await mine.GetAsync(Api("/system/status"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await other.GetAsync(Api("/system/status"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await tv.GetAsync(Api("/system/status"))).StatusCode);
+    }
+
+    [Fact]
     public async Task TheWebhookSecret_CanBeReplaced()
     {
         using var server = new FlexarrApiFactory();

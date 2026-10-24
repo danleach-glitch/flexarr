@@ -60,6 +60,23 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task DecliningACode_EndsIt_SoTheTvAsksForANewOne()
+    {
+        var tv = Tv("192.168.1.71");
+        var admin = Admin();
+        var started = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Not mine" })).Content.ReadFromJsonAsync<JsonElement>();
+        var code = started.GetProperty("code").GetString()!;
+
+        var strangerDeclines = await tv.PostAsJsonAsync(Api($"/pairing/code/{code}/decline"), new { });
+        var declined = await admin.PostAsJsonAsync(Api($"/pairing/code/{code}/decline"), new { });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, strangerDeclines.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, declined.StatusCode);
+        Assert.Equal("expired", (await tv.GetFromJsonAsync<JsonElement>(Api($"/pairing/{started.GetProperty("id").GetString()}"))).GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsJsonAsync(Api($"/pairing/code/{code}/approve"), new { })).StatusCode);
+    }
+
+    [Fact]
     public async Task Pairing_FromTheInternet_IsRefused()
     {
         var stranger = factory.CreateClient();
