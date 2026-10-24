@@ -113,6 +113,9 @@ app.MapGroup("/api/v1")
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();
 
+// Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
+app.MapMediaBrowserEndpoints();
+
 // The web client is a SPA; let it own every non-API route.
 app.MapFallbackToFile("index.html");
 
