@@ -2,6 +2,7 @@ import type {
   Activity,
   ArrStatus,
   DirectoryListing,
+  Download,
   Genre,
   Home,
   ItemDetail,
@@ -16,6 +17,7 @@ import type {
   Settings,
   SettingsUpdate,
   SystemStatus,
+  UpcomingItem,
 } from './types'
 
 export type * from './types'
@@ -176,3 +178,23 @@ export interface PlexImportResult {
 export const getPlexSource = (path?: string, signal?: AbortSignal) =>
   apiGet<PlexSource>(`/import/plex${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
 export const importFromPlex = (accountId: number, path?: string) => request<PlexImportResult>('POST', '/import/plex', { accountId, path })
+
+export const getUpcoming = (days = 21, signal?: AbortSignal) => apiGet<UpcomingItem[]>(`/upcoming?days=${days}`, signal)
+export const getDownloads = (signal?: AbortSignal) => apiGet<Download[]>('/downloads', signal)
+
+export interface LibraryHealth {
+  duplicates: {
+    item: import('./types').ItemSummary
+    seriesTitle: string | null
+    files: { id: string; path: string; size: number; resolution: string | null; videoCodec: string | null; bitrate: number | null; keep: boolean }[]
+    reclaimableBytes: number
+  }[]
+  reclaimableBytes: number
+  unreadable: { fileId: string; path: string; error: string; item: import('./types').ItemSummary | null }[]
+  missingArtwork: import('./types').ItemSummary[]
+  standardDefinition: import('./types').ItemSummary[]
+  standardDefinitionTotal: number
+}
+
+export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
+export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)

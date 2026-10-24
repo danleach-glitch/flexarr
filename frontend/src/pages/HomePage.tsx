@@ -3,6 +3,7 @@ import { getHome } from '../api/client'
 import { PosterCard, Top10Card, WideCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { Row } from '../components/Row'
+import { UpcomingCard } from '../components/UpcomingCard'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 
@@ -38,6 +39,13 @@ export function HomePage() {
                 : row.items.map((item) => <PosterCard key={item.id} item={item} />)}
           </Row>
         ))}
+        {data.upcoming.length > 0 && (
+          <Row title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
+            {data.upcoming.map((item) => (
+              <UpcomingCard key={item.id} item={item} />
+            ))}
+          </Row>
+        )}
       </div>
     </>
   )

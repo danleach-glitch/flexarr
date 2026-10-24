@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PersonPage } from './pages/PersonPage'
+import { UpcomingPage } from './pages/UpcomingPage'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/app.css'
@@ -34,6 +35,7 @@ export function Shell() {
             <Route path="item/:id" element={<ItemPage />} />
             <Route path="person/:id" element={<PersonPage />} />
             <Route path="discover" element={<DiscoverPage />} />
+            <Route path="upcoming" element={<UpcomingPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="settings/:section" element={<SettingsPage />} />
             <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />

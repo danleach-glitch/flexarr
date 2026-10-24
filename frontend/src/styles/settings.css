@@ -287,3 +287,65 @@
   border-radius: var(--radius-control);
   background: var(--room);
 }
+
+.health-list {
+  display: grid;
+  gap: 8px;
+}
+
+.health-item summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.health-item ul,
+.plain-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.health-item li,
+.plain-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.health-item li .tag {
+  justify-self: start;
+}
+
+.health-item li.keep .tag {
+  border-color: var(--silver);
+  color: var(--silver);
+}
+
+.health-sd {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 24px;
+}
+
+.health-sd-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+
+.health-sd-item a {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.health-sd-item a:hover {
+  text-decoration: underline;
+}
+
+.panel > p + .field {
+  margin-top: 16px;
+}

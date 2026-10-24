@@ -55,6 +55,7 @@ export function Layout() {
             </NavLink>
           ))}
           <NavLink to="/discover">Discover</NavLink>
+          <NavLink to="/upcoming">Coming soon</NavLink>
         </nav>
         <div className="marquee-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
