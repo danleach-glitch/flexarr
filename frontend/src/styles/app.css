@@ -2002,6 +2002,136 @@ a.download-attention {
   overflow-y: auto;
 }
 
+/* ---------- Fix match ---------- */
+
+.fix-match {
+  width: min(640px, 100%);
+  max-height: 84vh;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.fix-match h2 {
+  font-size: var(--step-3);
+}
+
+.fix-match > p {
+  margin: 0;
+}
+
+.fix-match-search {
+  display: flex;
+  gap: 8px;
+}
+
+.fix-match-search input {
+  flex: 1;
+  min-width: 0;
+}
+
+.fix-match-results {
+  overflow-y: auto;
+  min-height: 120px;
+  margin: 0 -8px;
+}
+
+.fix-match-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fix-match-result {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fix-match-result:hover:not(:disabled) {
+  background: var(--seat-raised);
+}
+
+.fix-match-result[aria-selected='true'] {
+  border-color: var(--ambient);
+  background: color-mix(in srgb, var(--ambient) 14%, transparent);
+}
+
+.fix-match-result:disabled {
+  cursor: default;
+}
+
+.fix-match-result img,
+.fix-match-noposter {
+  width: 46px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-art);
+  object-fit: cover;
+  background: var(--aisle);
+}
+
+.fix-match-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fix-match-text .muted {
+  font-weight: 400;
+  font-size: var(--step--1);
+}
+
+.fix-match-overview {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--step--1);
+  color: color-mix(in srgb, var(--screen) 80%, transparent);
+}
+
+.fix-match-result .tag {
+  white-space: nowrap;
+}
+
+.fix-match-result .tag.keep {
+  border-color: var(--ambient);
+  color: var(--ambient);
+}
+
+.fix-match-note {
+  font-size: var(--step--1);
+}
+
+.fix-match .form-actions {
+  margin-top: 0;
+}
+
+.fix-match-reset {
+  margin-right: auto;
+}
+
+@media (max-width: 640px) {
+  .fix-match-result {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .fix-match-result .tag {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
 .collection-editor h2,
 .add-to-collection h2 {
   margin-bottom: 18px;

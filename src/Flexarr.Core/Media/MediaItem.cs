@@ -89,6 +89,13 @@ public sealed class MediaItem
     public int? ArrId { get; set; }
 
     public string? TvMazeId { get; set; }
+
+    /// <summary>
+    /// Matched by hand (Fix match): refreshes keep the chosen TVDB id (shows) or TMDB id (films) instead of matching
+    /// by folder or title again.
+    /// </summary>
+    public bool MatchLocked { get; set; }
+
     public string? MetadataSource { get; set; }
     public DateTime? MetadataUpdatedAt { get; set; }
 

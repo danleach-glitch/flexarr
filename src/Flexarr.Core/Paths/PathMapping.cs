@@ -31,5 +31,24 @@ public static class PathMapper
         return Trim(best.To) + path[from.Length..];
     }
 
+    /// <summary>The reverse of <see cref="Map"/>: a path as Flexarr sees it, as the other app sees it.</summary>
+    public static string Unmap(string path, IEnumerable<PathMapping> mappings)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(mappings);
+
+        var best = mappings
+            .Where(m => !string.IsNullOrWhiteSpace(m.To) && PathComparison.IsUnder(path, Trim(m.To)))
+            .MaxBy(m => Trim(m.To).Length);
+
+        if (best is null)
+        {
+            return path;
+        }
+
+        var to = Trim(best.To);
+        return Trim(best.From) + path[to.Length..];
+    }
+
     private static string Trim(string path) => path.Length > 1 ? path.TrimEnd('/', '\\') : path;
 }

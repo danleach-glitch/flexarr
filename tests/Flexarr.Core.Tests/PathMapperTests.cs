@@ -18,4 +18,12 @@ public class PathMapperTests
     [InlineData("/other/path", "/other/path")]
     public void Map_RewritesMatchingPrefix(string input, string expected) =>
         Assert.Equal(expected, PathMapper.Map(input, Mappings));
+
+    [Theory]
+    [InlineData("/Volumes/Media/data/tv/Shōgun", "/data/tv/Shōgun")]
+    [InlineData("/Volumes/TV/30 Rock", "/data/tv/30 Rock")]
+    [InlineData("/Volumes/Media/database", "/Volumes/Media/database")] // only whole path segments match
+    [InlineData("/other/path", "/other/path")]
+    public void Unmap_ReversesTheMapping(string input, string expected) =>
+        Assert.Equal(expected, PathMapper.Unmap(input, Mappings));
 }

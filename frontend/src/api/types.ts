@@ -145,6 +145,8 @@ export interface ItemDetail {
   credits: Credit[]
   files: MediaFile[]
   childOverviews: Record<string, string | null>
+  /** Matched by hand with Fix match: refreshes keep the chosen show or film. */
+  matchLocked: boolean
 }
 
 export interface Person {

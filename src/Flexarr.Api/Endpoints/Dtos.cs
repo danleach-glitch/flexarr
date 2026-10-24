@@ -78,7 +78,8 @@ public sealed record ItemDetailDto(
     IReadOnlyList<ItemSummaryDto> Children,
     IReadOnlyList<CreditDto> Credits,
     IReadOnlyList<FileDto> Files,
-    IReadOnlyDictionary<Guid, string?> ChildOverviews);
+    IReadOnlyDictionary<Guid, string?> ChildOverviews,
+    bool MatchLocked);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 
