@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.9.1 · 24 October 2026
 
 ### Settings without the main sidebar
 - **Settings** no longer shows the main sidebar next to its own list of sections. The Flexarr logo at the top left takes you back home.
