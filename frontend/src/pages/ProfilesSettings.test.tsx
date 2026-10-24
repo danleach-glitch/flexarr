@@ -44,9 +44,11 @@ describe('Profile form', () => {
     const edits = await screen.findAllByRole('button', { name: 'Edit' })
     fireEvent.click(edits[0])
     expect(await screen.findByRole('form', { name: 'Edit Dan' })).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    // The form stands in for Dan's row, so the only Edit left is Kids'.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
 
     const form = await screen.findByRole('form', { name: 'Edit Kids' })
+    expect(screen.queryByRole('form', { name: 'Edit Dan' })).not.toBeInTheDocument()
     expect(within(form).getByLabelText('Name')).toHaveValue('Kids')
     expect(within(form).getByRole('checkbox', { name: 'Movies' })).not.toBeChecked()
     fireEvent.click(within(form).getByRole('button', { name: 'Save profile' }))
