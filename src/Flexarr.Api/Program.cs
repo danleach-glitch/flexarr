@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
@@ -66,6 +67,8 @@ builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
 builder.Services.AddHostedService<BonjourAdvertiser>();
+builder.Services.AddSingleton<FranchiseSync>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FranchiseSync>());
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
 builder.Services.AddScoped<MetadataRefresher>();
 
@@ -146,6 +149,7 @@ app.MapGroup("/api/v1")
     .MapDeleteEndpoints()
     .MapLayoutEndpoints()
     .MapPairingApprovalEndpoints()
+    .MapCollectionEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()

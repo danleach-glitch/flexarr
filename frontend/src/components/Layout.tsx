@@ -4,6 +4,7 @@ import { getMe, getProfiles, saveProfileToken, selectProfile } from '../api/clie
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { Gear, Search } from './icons'
+import { AddToCollectionHost } from './AddToCollection'
 import { NowPlaying } from './NowPlaying'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
@@ -81,6 +82,7 @@ export function Layout() {
               {library.scan && <span className="scan-dot" aria-label="Scanning" />}
             </NavLink>
           ))}
+          <NavLink to="/collections">Collections</NavLink>
           <NavLink to="/discover">Discover</NavLink>
           <NavLink to="/upcoming">Coming soon</NavLink>
         </nav>
@@ -134,6 +136,7 @@ export function Layout() {
       </header>
       <main id="main" className="page">
         <Outlet />
+        <AddToCollectionHost />
       </main>
       <NowPlaying />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}

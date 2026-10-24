@@ -17,6 +17,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
     public DbSet<MediaMarker> MediaMarkers => Set<MediaMarker>();
     public DbSet<Profile> Profiles => Set<Profile>();
+    public DbSet<Collection> Collections => Set<Collection>();
+    public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -81,6 +83,23 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(p => p.Name).HasMaxLength(60);
             e.HasIndex(p => p.TailscaleLogin).IsUnique();
             e.HasData(new Profile { Id = PlaybackState.DefaultUser, Name = "Main profile", CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, DateTimeKind.Utc) });
+        });
+
+        modelBuilder.Entity<Collection>(e =>
+        {
+            e.Property(c => c.Name).HasMaxLength(120);
+            e.Property(c => c.OwnerProfileId).HasMaxLength(64);
+            // A profile's personal collections go with it.
+            e.HasOne<Profile>().WithMany().HasForeignKey(c => c.OwnerProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(c => c.Items).WithOne().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => c.TmdbCollectionId);
+        });
+
+        modelBuilder.Entity<CollectionItem>(e =>
+        {
+            e.HasKey(i => new { i.CollectionId, i.MediaItemId });
+            // A title that leaves the library leaves its collections.
+            e.HasOne(i => i.MediaItem).WithMany().HasForeignKey(i => i.MediaItemId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

@@ -24,11 +24,14 @@ public static class LayoutEndpoints
     {
         var group = api.MapGroup("/settings/layout").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapGet("/", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        group.MapGet("/", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
             var libraries = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type != LibraryType.Music).OrderBy(l => l.Name).ToListAsync(ct);
+            var me = profile.Id;
+            var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
+                .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
             var layout = options.CurrentValue.Layout;
-            return new LayoutDto(Merge(HomeRows(libraries), layout.Home), Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows));
+            return new LayoutDto(Merge([.. HomeRows(libraries), .. collections], layout.Home), Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows));
         });
 
         group.MapPut("/", (LayoutUpdate update, IOptionsMonitor<FlexarrOptions> options) =>

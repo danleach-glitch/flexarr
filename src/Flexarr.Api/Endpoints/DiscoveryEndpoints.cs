@@ -113,6 +113,9 @@ public static partial class DiscoveryEndpoints
                 }
             }
 
+            // Collections chosen for Home (household ones and this profile's own).
+            rows.AddRange(await Collections.CollectionEndpoints.HomeRowsAsync(db, profile, RowSize, ct));
+
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
             var shown = rows.Where(r => r.Items.Count > 0 || (r.Id == "upcoming" && upcoming.Count > 0));

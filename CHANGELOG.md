@@ -4,6 +4,14 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Collections
+- A new **Collections** page. Make your own collections and add films and shows from a card's ⋯ menu or a title's page (**Add to collection**). Drag posters to put them in order.
+- **Smart collections** fill themselves from rules (type, genre, years or "this year", rating, watched or not, recently added, words in the title or description) and keep up to date, e.g. *Top 10 shows this year*.
+- **Film series** come from Radarr automatically: every series with two or more of its films in your library (James Bond, Back to the Future…), in release order. Films you don't have yet are shown greyed out, with **Request**. Hide a series you don't want and it stays hidden.
+- **Suggestions from your library**: directors and actors you have plenty of, genres by decade, the season (Halloween, Christmas) and the year's best. One click adds one.
+- Collections are for the whole household (made by the main profile) or just for you. Profiles kept out of a library don't see its titles in any collection.
+- **Show on Home** puts a collection on Home as a row, which you can move in **Settings › Home**.
+
 ### Security fixes
 - The web app no longer keeps your API key in the browser. Signing in now gets you a session cookie that scripts can't read. A key saved by an earlier version is swapped for one on your next visit, and changing the API key signs every browser out. A wrong key now says so.
 - Plex import only reads Plex's own database file (`com.plexapp.plugins.library.db`) when you give it a path, not any file on the server.

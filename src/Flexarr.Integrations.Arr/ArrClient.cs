@@ -22,6 +22,10 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<RadarrMovie>> GetMoviesAsync(ArrInstance radarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<RadarrMovie>>(radarr, "movie", ct);
 
+    /// <summary>Radarr's film series (TMDB collections), each with all its films.</summary>
+    public Task<IReadOnlyList<RadarrCollection>> GetCollectionsAsync(ArrInstance radarr, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<RadarrCollection>>(radarr, "collection", ct);
+
     public Task<RadarrMovie> GetMovieAsync(ArrInstance radarr, int movieId, CancellationToken ct = default) =>
         GetAsync<RadarrMovie>(radarr, $"movie/{movieId}", ct);
 

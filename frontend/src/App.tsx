@@ -5,6 +5,7 @@ import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
+import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExternalTitlePage } from './pages/ExternalTitlePage'
 import { HomePage } from './pages/HomePage'
@@ -65,6 +66,8 @@ export function Shell() {
               <Route path="library/:id" element={<LibraryPage />} />
               <Route path="item/:id" element={<ItemPage />} />
               <Route path="person/:id" element={<PersonPage />} />
+              <Route path="collections" element={<CollectionsPage />} />
+              <Route path="collection/:id" element={<CollectionPage />} />
               <Route path="discover" element={<DiscoverPage />} />
               <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
               <Route path="upcoming" element={<UpcomingPage />} />

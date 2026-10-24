@@ -67,6 +67,83 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("LibraryFolders");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.Collection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackdropUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Hidden")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MissingJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PosterUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RulesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ShowOnHome")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TmdbCollectionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerProfileId");
+
+                    b.HasIndex("TmdbCollectionId");
+
+                    b.ToTable("Collections");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.CollectionItem", b =>
+                {
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CollectionId", "MediaItemId");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.ToTable("CollectionItems");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.Credit", b =>
                 {
                     b.Property<int>("Id")
@@ -543,6 +620,31 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.Collection", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerProfileId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.CollectionItem", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.Collection", null)
+                        .WithMany("Items")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.Credit", b =>
                 {
                     b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
@@ -642,6 +744,11 @@ namespace Flexarr.Core.Data.Migrations
             modelBuilder.Entity("Flexarr.Core.Libraries.Library", b =>
                 {
                     b.Navigation("Folders");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.Collection", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaFile", b =>

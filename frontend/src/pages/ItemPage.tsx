@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
+import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   analyzeItem,
@@ -136,6 +137,11 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             <button className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
               <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
             </button>
+            {(item.kind === 'Movie' || item.kind === 'Series') && (
+              <button className="button quiet" onClick={() => openAddToCollection(item)}>
+                Add to collection
+              </button>
+            )}
             {canDelete && (
               <button className="button quiet danger" onClick={() => setDeleting(true)}>
                 Delete

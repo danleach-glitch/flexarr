@@ -200,6 +200,89 @@ export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/a
 export const getPerson = (id: string, signal?: AbortSignal) => apiGet<Person>(`/people/${id}`, signal)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)
 export const getGenres = (signal?: AbortSignal) => apiGet<Genre[]>('/genres', signal)
+
+// ---------- Collections
+
+export type CollectionKind = 'Manual' | 'Smart' | 'Franchise'
+
+/** What a smart collection holds; every rule is optional. */
+export interface SmartRules {
+  libraryIds?: string[] | null
+  type?: 'movie' | 'series' | null
+  genres?: string[] | null
+  yearFrom?: number | null
+  yearTo?: number | null
+  thisYear?: boolean
+  minRating?: number | null
+  watched?: 'watched' | 'unwatched' | null
+  addedWithinDays?: number | null
+  personId?: string | null
+  contains?: string | null
+  sort?: 'rating' | 'added' | 'year' | 'title' | 'popularity'
+  limit?: number
+}
+
+export interface CollectionSummary {
+  id: string
+  name: string
+  description: string | null
+  kind: CollectionKind
+  personal: boolean
+  canEdit: boolean
+  itemCount: number
+  watchedCount: number
+  missingCount: number
+  posters: string[]
+  poster: string | null
+  showOnHome: boolean
+  hidden: boolean
+}
+
+export interface MissingTitle {
+  tmdbId: number
+  title: string
+  year: number | null
+  overview: string | null
+  poster: string | null
+}
+
+export interface CollectionDetail {
+  summary: CollectionSummary
+  backdrop: string | null
+  items: ItemSummary[]
+  missing: MissingTitle[]
+  rules: SmartRules | null
+}
+
+export interface CollectionSuggestion {
+  name: string
+  description: string
+  rules: SmartRules
+  count: number
+  posters: string[]
+}
+
+export interface ItemCollection {
+  id: string
+  name: string
+  kind: CollectionKind
+  personal: boolean
+  contains: boolean
+  canEdit: boolean
+}
+
+export type CollectionChanges = { name?: string; description?: string; personal?: boolean; rules?: SmartRules; showOnHome?: boolean; hidden?: boolean }
+
+export const getCollections = (signal?: AbortSignal, hidden = false) => apiGet<CollectionSummary[]>(`/collections${hidden ? '?hidden=true' : ''}`, signal)
+export const getCollection = (id: string, signal?: AbortSignal) => apiGet<CollectionDetail>(`/collections/${id}`, signal)
+export const getCollectionSuggestions = (signal?: AbortSignal) => apiGet<CollectionSuggestion[]>('/collections/suggestions', signal)
+export const createCollection = (changes: CollectionChanges & { name: string }) => request<CollectionSummary>('POST', '/collections', changes)
+export const updateCollection = (id: string, changes: CollectionChanges) => request<CollectionSummary>('PUT', `/collections/${id}`, changes)
+export const deleteCollection = (id: string) => request<void>('DELETE', `/collections/${id}`)
+export const addToCollection = (id: string, itemId: string) => request<void>('POST', `/collections/${id}/items`, { itemId })
+export const removeFromCollection = (id: string, itemId: string) => request<void>('DELETE', `/collections/${id}/items/${itemId}`)
+export const reorderCollection = (id: string, itemIds: string[]) => request<void>('PUT', `/collections/${id}/order`, { itemIds })
+export const getItemCollections = (itemId: string, signal?: AbortSignal) => apiGet<ItemCollection[]>(`/items/${itemId}/collections`, signal)
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
 

@@ -1821,3 +1821,241 @@ a.download-attention {
 .discover-results + .discover-results {
   margin-top: 32px;
 }
+
+/* ---------- Collections */
+
+.collections-page,
+.collection-page {
+  position: relative;
+  padding: calc(var(--nav-height) + 32px) var(--edge) 0;
+}
+
+.collections-section {
+  margin-top: 40px;
+}
+
+.collections-section h2 {
+  margin-bottom: 16px;
+}
+
+/* Artwork made from a collection's titles: four posters in a grid, or one. */
+.collage {
+  display: grid;
+  aspect-ratio: 2 / 3;
+  background: var(--seat-raised);
+}
+
+.collage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.collage-four {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+
+.collage-empty {
+  place-items: center;
+  padding: 12px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: var(--step-2);
+  font-weight: 800;
+  color: var(--usher);
+}
+
+.collection-poster {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
+.collection-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.collection-suggestion {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px 10px 10px;
+  border-radius: var(--radius-control);
+  background: var(--seat);
+}
+
+.collection-suggestion .collage {
+  border-radius: var(--radius-art);
+  overflow: hidden;
+}
+
+.collection-suggestion .collage-empty {
+  font-size: var(--step--1);
+}
+
+.collection-suggestion div:not(.collage) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.collection-suggestion .muted {
+  font-size: var(--step--1);
+}
+
+/* A franchise's backdrop fades into the page behind its header. */
+.collection-backdrop {
+  position: absolute;
+  inset: 0 0 auto;
+  height: min(70vh, 640px);
+  z-index: -1;
+  overflow: hidden;
+}
+
+.collection-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+  mask-image: linear-gradient(to bottom, #000 30%, transparent);
+}
+
+.collection-header {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: clamp(20px, 4vw, 48px);
+  align-items: end;
+  margin-bottom: 36px;
+}
+
+.collection-art {
+  border-radius: var(--radius-art);
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.5);
+}
+
+.collection-art img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
+.collection-text .detail-overview {
+  max-width: 62ch;
+}
+
+.collection-text .detail-kicker {
+  display: flex;
+  gap: 12px;
+}
+
+.collection-empty,
+.collection-hint {
+  margin-bottom: 18px;
+}
+
+.collection-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: grab;
+}
+
+.collection-item.dragging {
+  opacity: 0.4;
+}
+
+.collection-remove {
+  align-self: flex-start;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+/* Films in the series that aren't in the library: greyed until requested. */
+.missing-card .card-frame img {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.missing-card:hover .card-frame img,
+.missing-card:focus-within .card-frame img {
+  filter: none;
+  opacity: 1;
+}
+
+.missing-card .card-frame {
+  margin-bottom: 8px;
+}
+
+.collection-editor,
+.add-to-collection {
+  width: min(640px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.collection-editor h2,
+.add-to-collection h2 {
+  margin-bottom: 18px;
+}
+
+.choice-row {
+  border: 0;
+  padding: 0;
+}
+
+.choice-row .checkbox {
+  margin-top: 8px;
+  font-weight: 400;
+}
+
+.smart-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+}
+
+.smart-rules .field-row label.checkbox {
+  flex-direction: row;
+  align-self: flex-end;
+  margin: 0 0 10px;
+}
+
+.collection-choices {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.collection-choices .checkbox {
+  margin-top: 10px;
+}
+
+.collection-choices .muted {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: var(--step--1);
+}
+
+@media (max-width: 640px) {
+  .collection-header {
+    grid-template-columns: 110px 1fr;
+    align-items: start;
+  }
+
+  .collection-header .detail-title {
+    font-size: var(--step-4);
+  }
+}

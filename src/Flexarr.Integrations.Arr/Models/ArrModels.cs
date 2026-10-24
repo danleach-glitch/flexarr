@@ -136,6 +136,26 @@ public sealed record ArrQueueItem
     public double Progress => Size > 0 ? 1 - Sizeleft / Size : 0;
 }
 
+/// <summary>A film series (a TMDB collection) as Radarr knows it: every film in it, owned or not.</summary>
+public sealed record RadarrCollection
+{
+    public int Id { get; init; }
+    public required string Title { get; init; }
+    public int TmdbId { get; init; }
+    public string? Overview { get; init; }
+    public IReadOnlyList<ArrImage> Images { get; init; } = [];
+    public IReadOnlyList<RadarrCollectionMovie> Movies { get; init; } = [];
+}
+
+public sealed record RadarrCollectionMovie
+{
+    public int TmdbId { get; init; }
+    public required string Title { get; init; }
+    public int Year { get; init; }
+    public string? Overview { get; init; }
+    public IReadOnlyList<ArrImage> Images { get; init; } = [];
+}
+
 /// <summary>A file Sonarr or Radarr tracks (a movie file, or an episode file), with its path as they see it.</summary>
 public sealed record ArrFile(int Id, string? Path);
 

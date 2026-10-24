@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { setWatched, type ItemSummary } from '../api/client'
+import { openAddToCollection } from './AddToCollection'
 import { usePlay } from '../hooks/usePlay'
 import { episodeCode, progressOf } from '../lib/format'
 
@@ -72,6 +73,7 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider')
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item.id, !item.userData.watched) })
+      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Episode':
       actions.push({ label: `${resumable ? 'Resume' : 'Play'} ${episodeCode(item)}`, run: go(`/play/${item.id}`) })
@@ -86,6 +88,7 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
     case 'Series':
       actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
       actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item.id, !item.userData.watched) })
+      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
   }
 
