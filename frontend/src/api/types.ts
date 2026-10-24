@@ -145,6 +145,10 @@ export interface ItemDetail {
   credits: Credit[]
   files: MediaFile[]
   childOverviews: Record<string, string | null>
+  /** A series' Up Next episode, when asked for with its page (getItemPage). */
+  nextUp?: ItemSummary | null
+  /** The season a series' page opens on, with its episodes (getItemPage). */
+  season?: ItemDetail | null
 }
 
 export interface Person {

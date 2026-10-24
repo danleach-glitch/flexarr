@@ -78,7 +78,9 @@ public sealed record ItemDetailDto(
     IReadOnlyList<ItemSummaryDto> Children,
     IReadOnlyList<CreditDto> Credits,
     IReadOnlyList<FileDto> Files,
-    IReadOnlyDictionary<Guid, string?> ChildOverviews);
+    IReadOnlyDictionary<Guid, string?> ChildOverviews,
+    ItemSummaryDto? NextUp = null,
+    ItemDetailDto? Season = null);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 

@@ -127,9 +127,16 @@ export function SettingsPage() {
 function LibrariesSection() {
   // The nav's list (which polls during scans) leaves out libraries hidden from this profile; Settings shows them all.
   const { libraries: visible, reload: reloadVisible } = useLibraries()
-  // Follow the nav's list as scans change counts, but not its every poll.
-  const all = useApi(getAllLibraries, [visible.map((l) => `${l.id}:${l.itemCount}:${l.scan ? 1 : 0}`).join()])
-  const libraries = all.data ?? visible
+  // Fetch the full list again when libraries come and go or a scan finishes; counts and progress during a scan come
+  // from the nav's polled list, so its every poll doesn't send another request.
+  const all = useApi(getAllLibraries, [visible.map((l) => `${l.id}:${l.lastScannedAt}`).join()])
+  const libraries = useMemo(() => {
+    const live = new Map(visible.map((l) => [l.id, l]))
+    return (all.data ?? visible).map((l) => {
+      const polled = live.get(l.id)
+      return polled ? { ...l, itemCount: polled.itemCount, scan: polled.scan, lastScannedAt: polled.lastScannedAt } : l
+    })
+  }, [all.data, visible])
   const reload = () => {
     reloadVisible()
     all.reload()
