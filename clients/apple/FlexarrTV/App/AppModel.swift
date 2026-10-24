@@ -83,8 +83,15 @@ final class AppModel {
         } catch {
             throw ConnectionError(error)
         }
+        let typed = credentials
         credentials = await withOwnToken(credentials)
-        try store.save(credentials)
+        do {
+            try store.save(credentials)
+        } catch {
+            // Not kept, so nobody would hold the new token: sign it out rather than leave it in the list.
+            if credentials != typed { try? await credentials.client.signOut() }
+            throw error
+        }
         upgradeChecked = true
         libraries = []
         resetProfiles()
@@ -120,9 +127,14 @@ final class AppModel {
         if !upgradeChecked, let credentials {
             upgradeChecked = true
             let own = await withOwnToken(credentials)
-            // Only switch once it's saved, so a Keychain failure leaves the working key in place.
-            if own != credentials, (try? store.save(own)) != nil {
-                phase = .signedIn(own)
+            // Only switch once it's saved, so a Keychain failure leaves the working key in place, and the token
+            // nobody could keep is signed out again (or every launch would add another to the server's list).
+            if own != credentials {
+                if (try? store.save(own)) != nil {
+                    phase = .signedIn(own)
+                } else {
+                    try? await own.client.signOut()
+                }
             }
         }
         guard let client else { return }
