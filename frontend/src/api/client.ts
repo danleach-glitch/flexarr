@@ -437,9 +437,17 @@ export function stopPlayback(sessionId: string) {
 export const getSettings = (signal?: AbortSignal) => cachedGet<Settings>('/settings', signal)
 export const saveSettings = (update: SettingsUpdate) => request<Settings>('PUT', '/settings', update)
 /** Shows the server's API key (main profile only). A POST, so only Flexarr's own pages can ask. */
-export const revealApiKey = () => request<{ apiKey: string }>('POST', '/settings/api-key/reveal', {})
+/** The server asks again: the main profile's PIN when it has one, otherwise `confirm`. */
+export interface KeyConfirmation {
+  pin?: string
+  confirm?: boolean
+}
+export const revealApiKey = (confirmation: KeyConfirmation) => request<{ apiKey: string }>('POST', '/settings/api-key/reveal', confirmation)
 /** Replaces the API key. Browsers and TVs signed in with their own token carry on. */
-export const rotateApiKey = () => request<{ apiKey: string }>('POST', '/settings/api-key/rotate', {})
+export const rotateApiKey = (confirmation: KeyConfirmation & { signOutOthers?: boolean }) =>
+  request<{ apiKey: string; signedOut: number }>('POST', '/settings/api-key/rotate', confirmation)
+/** Replaces the secret in the webhook addresses; Sonarr, Radarr and Lidarr need the new ones. */
+export const rotateWebhookSecret = () => request<{ webhookSecret: string }>('POST', '/settings/webhook-secret/rotate', {})
 export const getArrStatus = (signal?: AbortSignal) => apiGet<ArrStatus[]>('/arr/status', signal)
 export const testArr = (connection: { name: string; kind: string; baseUrl: string; apiKey?: string }) =>
   request<ArrStatus>('POST', '/arr/test', connection)

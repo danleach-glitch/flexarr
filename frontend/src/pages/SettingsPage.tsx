@@ -8,6 +8,7 @@ import {
   getMe,
   revealApiKey,
   rotateApiKey,
+  rotateWebhookSecret,
   signIn,
   UnauthorizedError,
   getArrStatus,
@@ -685,20 +686,39 @@ function ServerSection() {
   const [key, setKey] = useState<string>()
   const [keyError, setKeyError] = useState<string>()
   const [auth, setAuth] = useState<Settings['authenticationRequired']>()
+  // Showing or replacing the key asks again first: for the main profile's PIN when it has one.
+  const [ask, setAsk] = useState<'reveal' | 'rotate'>()
+  const [signInsVersion, setSignInsVersion] = useState(0)
+  const [webhookSecret, setWebhookSecret] = useState<string>()
+  const profiles = useApi(getProfiles, [])
+  const mainHasPin = profiles.data?.some((p) => p.isMain && p.hasPin) ?? false
   const origin = window.location.origin
 
-  async function rotate() {
-    if (
-      !confirm(
-        'Make a new API key? Browsers and TVs signed in below keep working. Anything you gave the old key itself (Sonarr or Radarr’s Emby connection, scripts, an older TV app) will need the new one.',
-      )
-    )
-      return
+  async function confirmKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const confirmation = { pin: form.get('pin')?.toString() || undefined, confirm: true }
     setKeyError(undefined)
     try {
-      setKey((await rotateApiKey()).apiKey)
+      if (ask === 'reveal') {
+        setKey((await revealApiKey(confirmation)).apiKey)
+      } else {
+        const rotated = await rotateApiKey({ ...confirmation, signOutOthers: form.get('signOutOthers') === 'on' })
+        setKey(rotated.apiKey)
+        if (rotated.signedOut > 0) setSignInsVersion((n) => n + 1)
+      }
+      setAsk(undefined)
     } catch (e) {
       setKeyError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+    }
+  }
+
+  async function newWebhookSecret() {
+    if (!confirm('Make a new webhook secret? Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses.')) return
+    try {
+      setWebhookSecret((await rotateWebhookSecret()).webhookSecret)
+    } catch (e) {
+      alert(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
     }
   }
 
@@ -725,11 +745,20 @@ function ServerSection() {
           <span className="field-help">“Only away from home” lets devices on your own network in without a key.</span>
         </label>
         {(auth ?? settings.authenticationRequired) === 'DisabledForLocalAddresses' && (
-          <p className="panel advice">
-            Anyone who can reach this server from your network gets in as the main profile, which can change settings. If Flexarr sits behind a reverse proxy
-            in Docker or on another computer, add that proxy to <code>trustedProxies</code> in config.json, or visitors through it are treated as the
-            internet and asked for the key.
-          </p>
+          <div className="panel advice">
+            <p>
+              Anyone who can reach this server from your network gets in as the main profile, which can change settings. Devices at home are trusted with the
+              server: one watching as another profile can drop that profile and act as the main one, so a PIN doesn’t keep someone at home out of settings.
+              Choose “Always” if that matters.
+            </p>
+            <p>
+              If Flexarr sits behind a reverse proxy in Docker or on another computer, add that proxy to <code>trustedProxies</code> in config.json, or visitors
+              through it are treated as the internet and asked for the key. A reverse proxy on this computer must send <code>X-Forwarded-For</code> (in nginx,{' '}
+              <code>proxy_set_header X-Forwarded-For $remote_addr;</code>), or everyone through it looks like this computer and gets in. To be safe, set{' '}
+              <code>"loopbackNeedsForwarding": true</code> in config.json: requests from this computer that don’t say who they’re for then count as the
+              internet (a browser on this computer will need the key too).
+            </p>
+          </div>
         )}
         <SaveBar saved={saved} error={saveError} />
       </form>
@@ -742,20 +771,45 @@ function ServerSection() {
         {key ? (
           <code className="api-key">{key}</code>
         ) : (
-          <button
-            className="button quiet small"
-            onClick={() =>
-              revealApiKey()
-                .then((k) => setKey(k.apiKey))
-                .catch((e: unknown) => setKeyError(String(e)))
-            }
-          >
+          <button className="button quiet small" onClick={() => setAsk('reveal')} disabled={ask !== undefined}>
             Show API key
           </button>
         )}{' '}
-        <button className="button quiet small" onClick={() => void rotate()}>
+        <button className="button quiet small" onClick={() => setAsk('rotate')} disabled={ask !== undefined}>
           Make a new key
         </button>
+        {ask && (
+          <form className="key-confirm" onSubmit={(e) => void confirmKey(e)}>
+            {ask === 'reveal' ? (
+              <p className="field-help">Anyone who sees the key can manage this server.{mainHasPin ? ' Enter the main profile’s PIN to show it.' : ''}</p>
+            ) : (
+              <>
+                <p className="field-help">
+                  Browsers and TVs signed in below keep working, unless you sign them out too. Anything you gave the old key itself (Sonarr or Radarr’s Emby
+                  connection, scripts, an older TV app) will need the new one.
+                </p>
+                <label className="checkbox">
+                  <input type="checkbox" name="signOutOthers" /> Also sign out every other browser and TV (do this if the key may have got out: anyone who had it
+                  could have signed in)
+                </label>
+              </>
+            )}
+            {mainHasPin && (
+              <label className="field">
+                <span className="field-label">Main profile’s PIN</span>
+                <input name="pin" type="password" inputMode="numeric" autoComplete="off" required />
+              </label>
+            )}
+            <div className="form-actions">
+              <button type="button" className="button quiet small" onClick={() => setAsk(undefined)}>
+                Cancel
+              </button>
+              <button type="submit" className="button small">
+                {ask === 'reveal' ? 'Show the key' : 'Replace the key'}
+              </button>
+            </div>
+          </form>
+        )}
         {keyError && (
           <p className="error" role="alert">
             {keyError}
@@ -764,7 +818,7 @@ function ServerSection() {
       </div>
 
       <h3 className="settings-subhead">Signed-in browsers and TVs</h3>
-      <SignIns />
+      <SignIns key={signInsVersion} />
 
       <h3 className="settings-subhead">Webhooks</h3>
       <div className="panel">
@@ -774,10 +828,13 @@ function ServerSection() {
         </p>
         {(['sonarr', 'radarr', 'lidarr'] as const).map((app) => (
           <code key={app} className="folder">
-            {origin}/api/v1/webhooks/{app}?secret={settings.webhookSecret ?? '…'}
+            {origin}/api/v1/webhooks/{app}?secret={webhookSecret ?? settings.webhookSecret ?? '…'}
           </code>
         ))}
         <p className="field-help">The secret in these addresses can only start scans. Webhooks set up earlier with the API key keep working.</p>
+        <button className="button quiet small" onClick={() => void newWebhookSecret()}>
+          Make a new secret
+        </button>
       </div>
 
       <h3 className="settings-subhead">Storage</h3>

@@ -277,6 +277,15 @@ describe('Settings', () => {
     expect(await screen.findByText(/Settings are for the main profile/)).toBeInTheDocument()
   })
 
+  it('over Tailscale, explains how the owner gets to settings', async () => {
+    mockApi({ '/libraries': [], '/me': { profileId: 'owner', method: 'tailscale', zone: 'Tailnet', isAdmin: false, tailscaleLogin: 'dan@example.com' } })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText(/Choose the main profile with its PIN/)).toBeInTheDocument()
+    expect(screen.getByLabelText('API key')).toBeInTheDocument()
+  })
+
   it('reveals the API key with a POST, lists sign-ins and signs one out', async () => {
     const fetchMock = mockApi({
       '/libraries': [],
@@ -304,7 +313,11 @@ describe('Settings', () => {
 
     expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show API key' }))
+    // It asks again first (the main profile has no PIN here, so just a yes).
+    fireEvent.click(await screen.findByRole('button', { name: 'Show the key' }))
     expect(await screen.findByText('the-key')).toBeInTheDocument()
+    const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
+    expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ confirm: true })
     expect(await screen.findByText('Living room')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sign-ins/s1') && init?.method === 'DELETE')).toBe(true))
@@ -447,6 +460,24 @@ describe('Profiles', () => {
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(sentPin).toBe('2468')
     expect(localStorage.getItem('flexarr.profile')).toBe('c1.sig')
+  })
+
+  it('asks again when the server no longer honours the profile chosen here', async () => {
+    // Chosen before the API key changed: the server now treats this browser as the main profile.
+    localStorage.setItem('flexarr.profile', 'c1.old-signature')
+    mockApi({
+      '/system/status': status,
+      '/profiles': [
+        { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: false, isMain: true, isCurrent: true, hiddenLibraryIds: [] },
+        { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: false, isMain: false, isCurrent: false, hiddenLibraryIds: [] },
+      ],
+      '/me': { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Sam/ })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
   })
 })
 

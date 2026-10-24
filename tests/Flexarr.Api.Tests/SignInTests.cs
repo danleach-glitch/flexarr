@@ -134,12 +134,67 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         forged.DefaultRequestHeaders.Add("Origin", "https://attacker.example");
 
         var fromElsewhere = await forged.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { });
-        var fromTheApp = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { });
+        var fromTheApp = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
 
         Assert.Equal(HttpStatusCode.Forbidden, fromElsewhere.StatusCode);
         Assert.Equal(FlexarrApiFactory.ApiKey, (await fromTheApp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("apiKey").GetString());
         // Reading it is no longer a GET that any script or tag on the page could make.
         Assert.NotEqual(HttpStatusCode.OK, (await browser.GetAsync(Api("/settings/api-key"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ShowingTheKey_AsksAgain_ForTheMainProfilesPinWhenItHasOne()
+    {
+        var (browser, _) = await SignInBrowserAsync();
+        var unconfirmed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { });
+
+        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "1593" });
+        var justConfirmed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
+        var wrongPin = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = "0000" });
+        var rightPin = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = "1593" });
+        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
+
+        Assert.Equal(HttpStatusCode.BadRequest, unconfirmed.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, justConfirmed.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, wrongPin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rightPin.StatusCode);
+    }
+
+    [Fact]
+    public async Task RotatingTheKey_CanSignOutEveryOtherBrowserAndDevice()
+    {
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var tv = server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "TV" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString());
+        var minted = server.CreateClient(); // what someone holding a leaked key could have made for themselves
+        minted.DefaultRequestHeaders.Add("X-Api-Key", (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Not mine" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString());
+
+        var rotated = await (await admin.PostAsJsonAsync(Api("/settings/api-key/rotate"), new { signOutOthers = true })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(2, rotated.GetProperty("signedOut").GetInt32());
+        Assert.Equal(HttpStatusCode.Unauthorized, (await tv.GetAsync(Api("/system/status"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await minted.GetAsync(Api("/system/status"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task TheWebhookSecret_CanBeReplaced()
+    {
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var old = (await admin.GetFromJsonAsync<JsonElement>(Api("/settings"))).GetProperty("webhookSecret").GetString();
+
+        var fresh = (await (await admin.PostAsJsonAsync(Api("/settings/webhook-secret/rotate"), new { })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("webhookSecret").GetString();
+        var anonymous = server.CreateClient();
+
+        Assert.NotEqual(old, fresh);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync(Api($"/webhooks/radarr?secret={old}"), new { eventType = "Test" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.PostAsJsonAsync(Api($"/webhooks/radarr?secret={fresh}"), new { eventType = "Test" })).StatusCode);
     }
 
     [Fact]
