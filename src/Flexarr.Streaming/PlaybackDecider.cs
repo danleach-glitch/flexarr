@@ -120,9 +120,18 @@ public static class PlaybackDecider
             reasons.Add("Picture-based subtitles have to be burned in");
         }
 
-        if (reasons.Count == 0 || video is null)
+        if (reasons.Count == 0)
         {
             return new PlaybackDecision(PlaybackMethod.DirectPlay, reasons, audio, subtitle, null);
+        }
+
+        if (video is null)
+        {
+            // Audio only (music): convert to AAC when the client can't play the original.
+            return audio is null
+                ? new PlaybackDecision(PlaybackMethod.DirectPlay, reasons, audio, subtitle, null)
+                : new PlaybackDecision(PlaybackMethod.Transcode, reasons, audio, subtitle,
+                    new TranscodePlan(-1, audio.Index, 0, 0, 0, false, false, Math.Clamp(Math.Min(audio.Channels ?? 2, profile.MaxAudioChannels), 1, 6), null, audio.Codec));
         }
 
         // Size by the 16:9 equivalent so a 1920×800 scope film counts as 1080p, not 800p.

@@ -18,7 +18,9 @@ public static class FfmpegCommand
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(settings);
 
-        var hw = settings.Resolved;
+        // Audio-only plans (music) have no video stream, so nothing to decode on the GPU.
+        var audioOnly = plan.VideoStreamIndex < 0;
+        var hw = audioOnly ? HardwareAcceleration.None : settings.Resolved;
         var start = (startSegment * SegmentSeconds).ToString(CultureInfo.InvariantCulture);
         var burn = plan.BurnSubtitle;
         var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y" };
@@ -62,6 +64,17 @@ public static class FfmpegCommand
         }
 
         // ---- Video
+        if (!audioOnly)
+        {
+            AddVideo(args, plan, burn, hw, settings);
+        }
+
+        AddAudioAndOutput(args, plan, start, startSegment, outputDirectory);
+        return args;
+    }
+
+    private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings)
+    {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
         var width = plan.TargetWidth.ToString(CultureInfo.InvariantCulture);
         if (burn is not null)
@@ -96,7 +109,10 @@ public static class FfmpegCommand
             _ => ["-c:v", "libx264", "-preset", settings.SoftwarePreset, "-crf", "21", "-maxrate", maxrate, "-bufsize", bufsize, "-sc_threshold", "0"],
         });
         args.AddRange(["-force_key_frames", $"expr:gte(t,n_forced*{SegmentSeconds})", "-g", "1000", "-keyint_min", "1"]);
+    }
 
+    private static void AddAudioAndOutput(List<string> args, TranscodePlan plan, string start, int startSegment, string outputDirectory)
+    {
         // ---- Audio
         if (plan.AudioStreamIndex is { } audioIndex)
         {
@@ -119,7 +135,6 @@ public static class FfmpegCommand
             "-hls_segment_filename", Path.Combine(outputDirectory, "seg%d.ts"),
             Path.Combine(outputDirectory, "ffmpeg.m3u8"),
         ]);
-        return args;
     }
 
     /// <summary>A full VOD playlist of fixed-length segments, so players can seek anywhere immediately.</summary>

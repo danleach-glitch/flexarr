@@ -72,7 +72,12 @@ public static class ItemEndpoints
                 parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
             }
 
-            var children = await db.MediaItems.Where(i => i.ParentId == id).OrderBy(i => i.SortTitle).Summaries().ToListAsync(ct);
+            // An artist's albums read newest first; everything else in its natural order.
+            var childQuery = db.MediaItems.Where(i => i.ParentId == id);
+            var children = await (entity.Kind == MediaKind.Artist
+                    ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
+                    : childQuery.OrderBy(i => i.SortTitle))
+                .Summaries().ToListAsync(ct);
             var files = await db.MediaFiles.AsNoTracking().Where(f => f.MediaItemId == id).Include(f => f.Streams)
                 .OrderByDescending(f => f.Height).ToListAsync(ct);
 

@@ -1,5 +1,5 @@
 export type LibraryType = 'Movies' | 'TvShows' | 'Music'
-export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode'
+export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track'
 export type VideoRange = 'Sdr' | 'Hdr10' | 'Hlg' | 'DolbyVision'
 export type StreamType = 'Video' | 'Audio' | 'Subtitle'
 export type CreditRole = 'Actor' | 'Director' | 'Writer' | 'Producer' | 'Creator'
@@ -76,7 +76,10 @@ export interface ItemSummary {
   runtimeMinutes: number | null
   releaseDate: string | null
   userData: UserData
+  /** The show for episodes and seasons; the artist for tracks and albums. */
   seriesTitle: string | null
+  discNumber: number | null
+  trackNumber: number | null
 }
 
 export interface Paged<T> {

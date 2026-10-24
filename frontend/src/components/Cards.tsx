@@ -38,6 +38,10 @@ function subtitle(item: ItemSummary): string | null {
       return item.childCount === 1 ? '1 episode' : `${item.childCount} episodes`
     case 'Episode':
       return episodeCode(item)
+    case 'Artist':
+      return item.childCount === 1 ? '1 album' : `${item.childCount} albums`
+    case 'Album':
+      return [item.seriesTitle, item.year].filter(Boolean).join(', ')
     default:
       return year(item)?.toString() ?? null
   }
@@ -47,7 +51,7 @@ export function PosterCard({ item }: { item: ItemSummary }) {
   return (
     <Link to={itemLink(item)} className="card poster-card" style={item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined}>
       <div className="card-frame">
-        <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} />
+        <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape={item.kind === 'Artist' || item.kind === 'Album' ? 'square' : 'poster'} />
         <WatchState item={item} />
         <Progress item={item} />
       </div>

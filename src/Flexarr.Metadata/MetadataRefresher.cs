@@ -39,6 +39,7 @@ public sealed partial class MetadataRefresher(
         {
             LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, ct).ConfigureAwait(false),
             LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, ct).ConfigureAwait(false),
+            LibraryType.Music => await RefreshMusicAsync(library.Id, force, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
     }
@@ -206,6 +207,25 @@ public sealed partial class MetadataRefresher(
             person.ImageUrl = credit.Images.FirstOrDefault(i => i.CoverType == "headshot")?.RemoteUrl ?? person.ImageUrl;
             item.Credits.Add(new Credit { PersonId = person.Id, Role = role, Character = NullIfEmpty(credit.Character), Order = order++ });
         }
+    }
+
+    // ------------------------------------------------------------------ Music
+
+    /// <summary>Music metadata comes from tags and local artwork at scan time; this adds ambient colours.</summary>
+    private async Task<MetadataRefreshResult> RefreshMusicAsync(Guid libraryId, bool force, CancellationToken ct)
+    {
+        var items = await db.MediaItems
+            .Where(i => i.LibraryId == libraryId && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Artist) && i.PosterUrl != null && (force || i.AccentColor == null))
+            .ToListAsync(ct).ConfigureAwait(false);
+        foreach (var item in items)
+        {
+            item.AccentColor = await images.AccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
+            item.MetadataUpdatedAt = DateTime.UtcNow;
+            item.MetadataSource = "Tags";
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return new MetadataRefreshResult(0, items.Count, 0);
     }
 
     // ------------------------------------------------------------------ TV

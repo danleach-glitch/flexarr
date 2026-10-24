@@ -97,7 +97,7 @@ export function LibraryPage() {
         <div>
           <h1>{library.name}</h1>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : library.type === 'Movies' ? 'films' : 'shows'}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists' }[library.type]}
           </p>
         </div>
         <div className="library-tools">

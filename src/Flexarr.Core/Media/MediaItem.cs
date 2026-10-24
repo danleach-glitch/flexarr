@@ -6,11 +6,14 @@ public enum MediaKind
     Series,
     Season,
     Episode,
+    Artist,
+    Album,
+    Track,
 }
 
 /// <summary>
-/// A browsable thing: a movie, or a node in the series → season → episode tree.
-/// Playable items (movies, episodes) own one or more <see cref="MediaFile"/>s.
+/// A browsable thing: a movie, or a node in the series → season → episode or artist → album → track tree.
+/// Playable items (movies, episodes, tracks) own one or more <see cref="MediaFile"/>s.
 /// </summary>
 public sealed class MediaItem
 {
@@ -36,6 +39,12 @@ public sealed class MediaItem
 
     /// <summary>Daily shows are identified by air date instead of episode number.</summary>
     public DateOnly? AirDate { get; set; }
+
+    public int? DiscNumber { get; set; }
+    public int? TrackNumber { get; set; }
+
+    /// <summary>MusicBrainz release id for albums, artist id for artists.</summary>
+    public string? MusicBrainzId { get; set; }
 
     public string? TvdbId { get; set; }
     public string? TmdbId { get; set; }

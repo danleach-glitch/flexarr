@@ -211,6 +211,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("CriticRating")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("DiscNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("EpisodeNumber")
                         .HasColumnType("INTEGER");
 
@@ -235,6 +238,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("MetadataUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MusicBrainzId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OriginalTitle")
@@ -283,6 +289,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<string>("TmdbId")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("TrackNumber")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("TrailerYouTubeId")
                         .HasColumnType("TEXT");

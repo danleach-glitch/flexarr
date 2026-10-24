@@ -126,11 +126,6 @@ public static class LibraryEndpoints
             errors["name"] = ["Name is required."];
         }
 
-        if (request.Type == LibraryType.Music)
-        {
-            errors["type"] = ["Music libraries aren't supported yet."];
-        }
-
         if (request.Folders is not { Count: > 0 })
         {
             errors["folders"] = ["Add at least one folder."];

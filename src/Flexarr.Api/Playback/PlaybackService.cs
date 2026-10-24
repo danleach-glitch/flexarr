@@ -24,7 +24,7 @@ public sealed class PlaybackService(
     public async Task<PlaybackInfoDto?> StartAsync(PlaybackRequest request, CancellationToken ct)
     {
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
-        if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode))
+        if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track))
         {
             return null;
         }

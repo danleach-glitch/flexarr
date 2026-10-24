@@ -43,6 +43,18 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void AudioOnly_SkipsVideoAndHardware()
+    {
+        var plan = new TranscodePlan(-1, 0, 0, 0, 0, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null, "wmav2");
+
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.wma", plan, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
+
+        Assert.DoesNotContain("-hwaccel", args, StringComparison.Ordinal);
+        Assert.DoesNotContain("-c:v", args, StringComparison.Ordinal);
+        Assert.Contains("-map 0:0 -c:a aac -ac 2", args, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MediaPlaylist_ListsEverySegment_WithAShortLastOne()
     {
         var playlist = FfmpegCommand.MediaPlaylist(20);

@@ -143,6 +143,38 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Null((await _db.MediaFiles.SingleAsync()).ProbeError);
     }
 
+    [Fact]
+    public async Task Music_BuildsArtistAlbumTrackTree_FromTagsAndFolders()
+    {
+        var root = Touch(
+            "music/Radiohead/OK Computer (1997)/01 - Airbag.flac",
+            "music/Radiohead/OK Computer (1997)/02 - Paranoid Android.flac",
+            "music/Radiohead/OK Computer (1997)/cover.jpg",
+            "music/Various/Drive OST/03 - Nightcall.mp3",
+            "music/Untagged Artist/Some Album/07 Song Name.mp3");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1/12", ["date"] = "1997-05-21" };
+        _probe.Tags["02 - Paranoid Android.flac"] = new() { ["ARTIST"] = "Radiohead", ["ALBUM"] = "OK Computer", ["TITLE"] = "Paranoid Android", ["TRACK"] = "2" };
+        // Compilation: the album artist groups it, not the track artist.
+        _probe.Tags["03 - Nightcall.mp3"] = new() { ["artist"] = "Kavinsky", ["album_artist"] = "Various Artists", ["album"] = "Drive (Original Motion Picture Soundtrack)", ["title"] = "Nightcall", ["track"] = "3" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(4, result.Added);
+        var artists = await _db.MediaItems.Where(i => i.Kind == MediaKind.Artist).OrderBy(i => i.SortTitle).Select(i => i.Title).ToListAsync();
+        Assert.Equal(["Radiohead", "Untagged Artist", "Various Artists"], artists);
+
+        var okComputer = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Title == "OK Computer");
+        Assert.Equal(1997, okComputer.Year);
+        Assert.StartsWith("file://", okComputer.PosterUrl, StringComparison.Ordinal);
+        Assert.Equal(["Airbag", "Paranoid Android"], okComputer.Children.OrderBy(t => t.SortTitle).Select(t => t.Title));
+        Assert.Equal(okComputer.PosterUrl, (await _db.MediaItems.SingleAsync(i => i.Title == "Radiohead")).PosterUrl);
+
+        var untagged = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Track && i.Title == "Song Name");
+        Assert.Equal(7, untagged.TrackNumber);
+        Assert.Equal("Some Album", (await _db.MediaItems.SingleAsync(i => i.Id == untagged.ParentId)).Title);
+    }
+
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
 
     private async Task<Library> AddLibrary(LibraryType type, string folder)
@@ -170,6 +202,9 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         public int Calls;
         public bool Fail;
 
+        /// <summary>Tags to report, by file name.</summary>
+        public Dictionary<string, Dictionary<string, string>> Tags { get; } = [];
+
         public Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref Calls);
@@ -178,11 +213,14 @@ public sealed class LibraryScannerTests : IAsyncLifetime
                 throw new MediaProbeException("Invalid data found when processing input");
             }
 
+            var tags = Tags.TryGetValue(Path.GetFileName(path), out var t)
+                ? new Dictionary<string, string>(t, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             return Task.FromResult(new ProbeResult("mkv", 1800, 5_000_000, VideoRange.Sdr,
             [
                 new MediaStream { Index = 0, Type = StreamType.Video, Codec = "hevc", Width = 1920, Height = 1080 },
                 new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "eac3", Channels = 6, IsDefault = true },
-            ]));
+            ]) { Tags = tags });
         }
     }
 }

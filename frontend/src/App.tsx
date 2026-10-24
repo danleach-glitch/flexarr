@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { getSystemStatus, saveApiKey, UnauthorizedError } from './api/client'
 import { Layout } from './components/Layout'
+import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { HomePage } from './pages/HomePage'
@@ -26,22 +27,24 @@ type ConnectionState = { kind: 'loading' } | { kind: 'ready' } | { kind: 'unauth
 export function Shell() {
   return (
     <LibrariesProvider>
-      <Suspense fallback={null}>
-        <Routes>
-          <Route path="play/:id" element={<PlayerPage />} />
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="library/:id" element={<LibraryPage />} />
-            <Route path="item/:id" element={<ItemPage />} />
-            <Route path="person/:id" element={<PersonPage />} />
-            <Route path="discover" element={<DiscoverPage />} />
-            <Route path="upcoming" element={<UpcomingPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="settings/:section" element={<SettingsPage />} />
-            <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
-          </Route>
-        </Routes>
-      </Suspense>
+      <AudioPlayerProvider>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="play/:id" element={<PlayerPage />} />
+            <Route element={<Layout />}>
+              <Route index element={<HomePage />} />
+              <Route path="library/:id" element={<LibraryPage />} />
+              <Route path="item/:id" element={<ItemPage />} />
+              <Route path="person/:id" element={<PersonPage />} />
+              <Route path="discover" element={<DiscoverPage />} />
+              <Route path="upcoming" element={<UpcomingPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/:section" element={<SettingsPage />} />
+              <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </AudioPlayerProvider>
     </LibrariesProvider>
   )
 }

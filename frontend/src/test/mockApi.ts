@@ -63,6 +63,8 @@ export function summary(overrides: Record<string, unknown>) {
     releaseDate: null,
     userData: { positionSeconds: 0, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null },
     seriesTitle: null,
+    discNumber: null,
+    trackNumber: null,
     ...overrides,
   }
 }
