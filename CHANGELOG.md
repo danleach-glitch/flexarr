@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Apple TV install
+- `make apple-install` builds the Apple TV app and installs it on a paired Apple TV in one step (see the README). With a free Apple ID, run it again every 7 days.
+
 ### Better TV file name reading (thanks, LetMeSleep8h)
 - Anime-style absolute episode numbers are understood ("One Piece - 1015", "Cowboy Bebop - 26").
 - Scene-style names spelled with dots get readable episode titles, and titles that really contain dots ("S.O.B.s", "WUPHF.com") are no longer dropped.

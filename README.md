@@ -4,7 +4,7 @@
 
 Flexarr aims to be a full Plex-style media server: it organises your library, fetches metadata and artwork, and streams to your devices with direct play or on-the-fly transcoding. Unlike Plex it is fully open source, needs no cloud account, and treats [Sonarr](https://sonarr.tv), [Radarr](https://radarr.video), [Lidarr](https://lidarr.audio) and [Prowlarr](https://prowlarr.com) as first-class neighbours rather than afterthoughts.
 
-> **Status:** early, but it runs a real 12,000-file library day to day. Web is the main client; the Apple TV app is in progress. See the [roadmap](docs/roadmap.md).
+> **Status:** early, but it runs a real 12,000-file library day to day. Web is the main client; the Apple TV app is early (see [Apple TV](#apple-tv)). See the [roadmap](docs/roadmap.md).
 
 ## What it does
 
@@ -73,6 +73,16 @@ In each app go to **Settings → Connect → + → Webhook** and set:
 - **Triggers:** On Import, On Upgrade, On Rename, On Delete
 
 Press **Test** — Flexarr answers with `200 OK`. See [docs/arr-integration.md](docs/arr-integration.md) for details.
+
+## Apple TV
+
+The tvOS app (in `clients/apple`) installs from Xcode onto your own Apple TV:
+
+1. Sign Xcode in to your Apple ID (Xcode › Settings › Accounts). A free one works.
+2. Pair the Apple TV: on the TV, open Settings › Remotes and Devices › Remote App and Devices; on the Mac, open Devices and Simulators (⇧⌘2) and pair it.
+3. Run `make apple-install TEAM=<your team id> BUNDLE_ID=com.yourname.flexarr.tv`. Your team id is in Xcode › Settings › Accounts; the identifier just needs to be unique to you.
+
+With a free Apple ID the app stops opening after 7 days; run the same command again. On the TV, connect to `http://<server>:8383` with your API key, or through Tailscale without one.
 
 ## Development
 
