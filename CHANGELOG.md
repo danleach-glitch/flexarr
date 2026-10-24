@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.12.0 · 24 October 2026
 
 ### Flexarr for iPhone and iPad
 - A new app for iPhone and iPad, alongside the Apple TV app: Home with Continue Watching and the rows you've set up, your libraries, search, title pages with seasons and episodes, and profiles with their PINs.
