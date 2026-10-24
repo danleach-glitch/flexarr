@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Link, useNavigationType, useParams, useSearchParams } from 'react-router'
 import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
@@ -66,12 +66,71 @@ function useThrottled<T>(value: T, ms: number): T {
   return shown
 }
 
+/** Where a card on a page of rows is: its row's heading and its link (the same title can sit in several rows). */
+interface CardPlace {
+  row: string | undefined
+  href: string
+}
+
+/** The card `target` is part of, inside `container`, by its keyboard-reachable link. */
+function placeOf(target: EventTarget | Element | null, container: HTMLElement | null): CardPlace | undefined {
+  const card = target instanceof Element ? target.closest('.card') : null
+  if (!card || !container?.contains(card)) return undefined
+  const href = card.querySelector('a:not([tabindex="-1"])')?.getAttribute('href')
+  return href ? { row: card.closest('.row')?.querySelector('h2')?.textContent ?? undefined, href } : undefined
+}
+
+/**
+ * Going back to a page of rows puts keyboard focus on the card that was opened (or had focus when you left), so Tab
+ * carries on from there. Spread the result on the rows' container.
+ */
+function useFocusReturn(key: string, ready: boolean) {
+  const container = useRef<HTMLDivElement>(null)
+  const navigation = useNavigationType()
+  const [target] = useState(() => (navigation === 'POP' ? keptPage<CardPlace>(key) : undefined))
+  const clicked = useRef<CardPlace>(undefined)
+  const done = useRef(false)
+
+  useEffect(() => {
+    if (!ready || !target || done.current) return
+    done.current = true
+    // After the page's own scroll to the top on arrival.
+    requestAnimationFrame(() => {
+      const links = (scope: Element | null | undefined) =>
+        Array.from(scope?.querySelectorAll<HTMLElement>('a:not([tabindex="-1"])') ?? []).filter((a) => a.getAttribute('href') === target.href)
+      const rows = Array.from(container.current?.querySelectorAll('.row') ?? [])
+      const row = rows.find((r) => r.querySelector('h2')?.textContent === target.row)
+      const link = links(row)[0] ?? links(container.current)[0]
+      if (!link) return
+      link.closest('.card')?.scrollIntoView({ block: 'center', inline: 'nearest' })
+      link.focus({ preventScroll: true })
+    })
+  }, [ready, target])
+
+  // On the way out, remember the card with focus, else the one clicked to leave. A layout effect, so the rows are
+  // still there; run again once they've arrived, to have hold of them.
+  useLayoutEffect(() => {
+    const element = container.current
+    return () => {
+      const place = placeOf(document.activeElement, element) ?? clicked.current
+      if (place) keepPage(key, place)
+      else forgetPage(key)
+    }
+  }, [key, ready])
+
+  const onClick = (e: MouseEvent) => {
+    if (e.target instanceof Element && e.target.closest('a')) clicked.current = placeOf(e.target, container.current)
+  }
+  return { ref: container, onClick }
+}
+
 function LibraryBrowse({ library }: { library: Library }) {
   // A scan changes the count every few seconds; these rows are heavy, so refresh them at most every 30 seconds while
   // it runs, and once more when it's done.
   const itemCount = useThrottled(library.itemCount, library.scan ? 30_000 : 0)
   const { data, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount])
   useWatchedChanges(reload)
+  const focusReturn = useFocusReturn(`library-browse ${library.id}`, !!data && data.rows.length > 0)
   const heading = (
     <>
       <h1 className="library-title">{library.name}</h1>
@@ -95,7 +154,7 @@ function LibraryBrowse({ library }: { library: Library }) {
   return (
     <>
       <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} top={heading} />
-      <div className="rows">
+      <div className="rows" {...focusReturn}>
         <HomeRows rows={data.rows} />
       </div>
     </>
@@ -147,6 +206,31 @@ function firstOnScreen(grid: HTMLElement | null) {
   return card?.dataset.id ? { id: card.dataset.id, top: card.getBoundingClientRect().top } : undefined
 }
 
+/** The id of the grid card that holds keyboard focus, if one does. */
+function focusedCard(grid: HTMLElement | null) {
+  const focused = document.activeElement
+  return focused && grid?.contains(focused) ? (focused.closest<HTMLElement>('[data-id]')?.dataset.id ?? undefined) : undefined
+}
+
+/** Whether an element is on screen or within half a screen of it. */
+function nearScreen(element: Element) {
+  const { top, bottom } = element.getBoundingClientRect()
+  const margin = window.innerHeight / 2
+  return bottom > -margin && top < window.innerHeight + margin
+}
+
+/**
+ * Letters with nothing to jump to: none among the titles loaded, and either every title is loaded or (sorted A–Z) the
+ * grid has already loaded past the letter. "#" also covers accented titles, which sort after Z, so it's only known once
+ * everything is loaded. There's no list of letters from the server; this needs nothing more than the grid has.
+ */
+function emptyLetters(items: ItemSummary[], total: number | undefined) {
+  const found = new Set(items.map(letterOf))
+  const complete = total !== undefined && items.length >= total
+  const last = items.length ? letterOf(items[items.length - 1]) : '#'
+  return new Set(LETTERS.filter((l) => !found.has(l) && (complete || (l !== '#' && last !== '#' && last > l))))
+}
+
 /** Adds pages to a grid, skipping titles it already has (a scan can shift what's on each page). */
 function append(loaded: ItemSummary[], pages: ItemSummary[][]) {
   const seen = new Set(loaded.map((i) => i.id))
@@ -178,6 +262,8 @@ function LibraryAll() {
   const [loadedFor, setLoadedFor] = useState(restored ? gridKey : undefined)
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  // The letter being jumped to while the titles up to it load.
+  const [jumping, setJumping] = useState<string>()
   const [version, setVersion] = useState(0)
   // Bumped whenever the grid starts over, so pages still arriving for the old one are dropped.
   const generation = useRef(0)
@@ -256,17 +342,19 @@ function LibraryAll() {
       } else {
         window.scrollTo(0, restored.scrollY)
       }
-      // Keyboard focus goes back to the card that was opened, so Tab carries on from there.
+      // Keyboard focus goes back to the card that was opened, so Tab carries on from there, unless the place restored
+      // is somewhere else (the next Tab would scroll away to it).
       const opened = restored.opened ? grid.current?.querySelector<HTMLElement>(`[data-id="${restored.opened}"] a:not([tabindex="-1"])`) : undefined
-      opened?.focus({ preventScroll: true })
+      if (opened && nearScreen(opened)) opened.focus({ preventScroll: true })
     })
     const changed = watchedSince(restored.savedAt)
     if (changed.length) refresh(changed)
   }, [restored, refresh])
 
   // Remember the grid on the way out (not a search's results, nor one that hadn't loaded yet for its sort and filter:
-  // that one starts afresh). A layout effect, so the cards are still on screen to measure.
-  const opened = useRef<string>(restored?.opened)
+  // that one starts afresh). A layout effect, so the cards are still on screen to measure. The card opened is the one
+  // with focus then, else the one clicked to leave (Safari doesn't focus a link you click): only from this visit.
+  const opened = useRef<string>(undefined)
   const latest = useRef({ items, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey })
   useEffect(() => {
     latest.current = { items, total, itemCount: loadedCount, query, snapshotKey, current: loadedFor === gridKey }
@@ -277,7 +365,7 @@ function LibraryAll() {
       const { query, snapshotKey, current, total, ...loaded } = latest.current
       if (query) return
       if (!current || total === undefined) return forgetPage(snapshotKey)
-      const snapshot: GridSnapshot = { ...loaded, total, scrollY: window.scrollY, anchor: firstOnScreen(element), opened: opened.current, savedAt: Date.now() }
+      const snapshot: GridSnapshot = { ...loaded, total, scrollY: window.scrollY, anchor: firstOnScreen(element), opened: focusedCard(element) ?? opened.current, savedAt: Date.now() }
       keepPage(snapshotKey, snapshot)
     }
   }, [])
@@ -311,6 +399,7 @@ function LibraryAll() {
     setBusy(true)
     try {
       while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
+        setJumping(letter)
         const skips: number[] = []
         for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += JUMP_PAGE) skips.push(skip)
         const pages = await Promise.all(skips.map((skip) => getLibraryItems(id, { search: query, sort, genre, skip, take: JUMP_PAGE })))
@@ -324,6 +413,7 @@ function LibraryAll() {
       if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
+      setJumping(undefined)
     }
     const target = loaded.find((i) => letterOf(i) === letter)
     if (target) {
@@ -346,6 +436,9 @@ function LibraryAll() {
     else next.delete(key)
     setParams(next, { replace: true })
   }
+
+  const empty = useMemo(() => emptyLetters(items, total), [items, total])
+  const letters = !sort && !query && items.length > 40
 
   if (!library) return null
 
@@ -410,6 +503,22 @@ function LibraryAll() {
       )}
 
       <div className="library-body">
+        {letters && (
+          // Phones have no room for the rail: a compact picker instead, kept in reach while scrolling.
+          <label className="alpha-picker">
+            <span className="visually-hidden">Jump to letter</span>
+            <select value="" onChange={(e) => {
+                if (e.target.value) void jump(e.target.value)
+              }}>
+              <option value="">{jumping ? 'Loading…' : 'Jump to…'}</option>
+              {LETTERS.map((l) => (
+                <option key={l} value={l} disabled={empty.has(l)}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div
           className={library.type === 'Music' ? 'poster-grid square' : 'poster-grid'}
           ref={grid}
@@ -424,14 +533,30 @@ function LibraryAll() {
             </div>
           ))}
         </div>
-        {!sort && !query && items.length > 40 && (
-          <nav className="alpha-rail" aria-label="Jump to letter">
+        {letters && (
+          <nav className="alpha-rail" aria-label="Jump to letter" aria-busy={jumping ? true : undefined}>
             {LETTERS.map((l) => (
-              <button key={l} onClick={() => jump(l)} disabled={busy}>
+              <button
+                key={l}
+                className={jumping === l ? 'jumping' : undefined}
+                onClick={() => jump(l)}
+                disabled={empty.has(l)}
+                aria-label={l === '#' ? 'Numbers and symbols' : undefined}
+              >
                 {l}
+                {jumping === l && (
+                  <span className="alpha-loading" aria-hidden="true">
+                    Loading…
+                  </span>
+                )}
               </button>
             ))}
           </nav>
+        )}
+        {letters && (
+          <p className="visually-hidden" role="status">
+            {jumping ? `Loading titles up to ${jumping === '#' ? 'numbers and symbols' : jumping}…` : ''}
+          </p>
         )}
       </div>
 

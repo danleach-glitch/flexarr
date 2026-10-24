@@ -203,6 +203,44 @@ describe('Library page', () => {
     expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'All films' })).toHaveAttribute('href', '/library/lib-movies?view=all')
   })
+
+  it('puts focus back on the card opened from Browse, in the row it was opened from', async () => {
+    const heat = summary({ id: 'm2', title: 'Heat', year: 1995 })
+    mockApi({
+      '/libraries': [movies],
+      '/libraries/lib-movies/browse': {
+        featured: [niceGuys],
+        overviews: {},
+        rows: [
+          { id: 'genre-Crime', title: 'Crime', style: 'poster', items: [niceGuys, heat], link: null },
+          { id: 'recent', title: 'Recently added', style: 'poster', items: [heat], link: null },
+        ],
+        upcoming: [],
+        downloading: 0,
+      },
+      '/items/m2': detail(heat),
+      '/items/m2/similar': [],
+    })
+    function Back() {
+      const navigate = useNavigate()
+      return <button onClick={() => navigate(-1)}>Back</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/library/lib-movies']}>
+        <Shell />
+        <Back />
+      </MemoryRouter>,
+    )
+    const row = (title: string) => screen.getByRole('heading', { name: title }).closest('section') as HTMLElement
+
+    await screen.findByRole('heading', { name: 'Recently added' })
+    fireEvent.click(within(row('Recently added')).getByRole('link', { name: 'Heat' }))
+    await screen.findByRole('heading', { level: 1, name: 'Heat' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await screen.findByRole('heading', { name: 'Recently added' })
+    await vi.waitFor(() => expect(within(row('Recently added')).getByRole('link', { name: 'Heat' })).toHaveFocus())
+  })
 })
 
 describe('Series page', () => {
@@ -770,6 +808,23 @@ describe('Library grid', () => {
     expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
   })
 
+  it('dims letters with nothing to jump to, once the grid has loaded past them', async () => {
+    grid()
+    renderAt('/library/lib-movies?view=all')
+
+    const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+    // Every title so far starts with F, and the grid is sorted A–Z: A to E are known to be empty, the rest aren't yet.
+    expect(within(rail).getByRole('button', { name: 'E' })).toBeDisabled()
+    expect(within(rail).getByRole('button', { name: 'F' })).toBeEnabled()
+    expect(within(rail).getByRole('button', { name: 'G' })).toBeEnabled()
+    expect(within(rail).getByRole('button', { name: 'Numbers and symbols' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show 10 more' }))
+    await screen.findByRole('link', { name: 'Film 209' })
+    expect(within(rail).getByRole('button', { name: 'G' })).toBeDisabled()
+    expect(within(rail).getByRole('button', { name: 'Numbers and symbols' })).toBeDisabled()
+  })
+
   it('marks a title watched in place, keeping the pages already loaded', async () => {
     const fetched: string[] = []
     const pages = grid((id) => fetched.push(id))
@@ -928,6 +983,62 @@ describe('Library grid going back', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
     expect(await screen.findByRole('link', { name: 'Film 3' })).toBeInTheDocument()
+  })
+
+  const frame = () => new Promise((resolve) => requestAnimationFrame(resolve))
+
+  it('puts focus back on the title that had it when leaving', async () => {
+    server(3)
+    renderGrid()
+    ;(await screen.findByRole('link', { name: 'Film 2' })).focus()
+    fireEvent.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Film 2' })).toHaveFocus())
+  })
+
+  it("doesn't put focus back on a title opened on an earlier visit", async () => {
+    server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Film 1' })).toHaveFocus())
+
+    // This time it's left by something outside the grid.
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' })
+    elsewhere.focus()
+    fireEvent.click(elsewhere)
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await screen.findByRole('link', { name: 'Film 2' })
+    await frame()
+    await frame()
+
+    expect(screen.getByRole('link', { name: 'Film 1' })).not.toHaveFocus()
+  })
+
+  it("doesn't put focus on the opened title when the place restored is far from it", async () => {
+    server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    // Film 1 is now two screens below where the grid goes back to.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = this.closest('[data-id="f1"]') ? 3 * window.innerHeight : 0
+      return { top, bottom: top + 300, left: 0, right: 0, width: 0, height: 300, x: 0, y: top, toJSON: () => ({}) } as DOMRect
+    })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      await screen.findByRole('link', { name: 'Film 2' })
+      await frame()
+      await frame()
+
+      expect(screen.getByRole('link', { name: 'Film 1' })).not.toHaveFocus()
+    } finally {
+      rect.mockRestore()
+    }
   })
 
   it("doesn't bring back a title deleted from its own page", async () => {
