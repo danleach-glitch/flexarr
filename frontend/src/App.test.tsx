@@ -426,13 +426,133 @@ describe('Player', () => {
     })
     await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
     expect(requests[1].startPositionSeconds).toBe(352)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 
     act(() => {
       video.dispatchEvent(new Event('error'))
     })
-    expect(await screen.findByRole('alert')).toHaveTextContent('The stream stopped')
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('The stream stopped')
     expect(requests).toHaveLength(2)
+  })
+
+  const transcode = (sessionId: string) => ({
+    sessionId,
+    method: 'Transcode',
+    url: `/api/v1/playback/${sessionId}/master.m3u8`,
+    reasons: [],
+    durationSeconds: 1320,
+    startPositionSeconds: 0,
+    fileId: 'f1',
+    audioTracks: [],
+    selectedAudioIndex: 1,
+    subtitles: [],
+    selectedSubtitleKey: null,
+    subtitleBurnedIn: false,
+    markers: [],
+    item: summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1 }),
+    ancestors: [],
+    next: null,
+    transcodeSummary: null,
+  })
+  const problem = (status: number, detail: string) => new Response(JSON.stringify({ detail }), { status })
+  const takenOver = 'Someone started watching on another screen, so this one had to stop.'
+
+  it('says another screen took over, and Watch here instead starts afresh rather than being refused again', async () => {
+    const requests: { replacesSessionId?: string }[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        // The first stream was ended for another screen: asking with its id is refused for as long as the server remembers.
+        if (requests.at(-1)!.replacesSessionId === 's1') return problem(410, takenOver)
+        return transcode(`s${requests.length}`)
+      },
+      'DELETE /playback/s1': undefined,
+      'DELETE /playback/s3': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+    })
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent(takenOver)
+    expect(dialog).toHaveTextContent('The other screen will stop')
+    const watchHere = within(dialog).getByRole('button', { name: 'Watch here instead' })
+    expect(watchHere).toHaveFocus()
+    // Nothing behind it can be used meanwhile.
+    expect(screen.queryByRole('button', { name: 'Play' })).not.toBeInTheDocument()
+
+    fireEvent.click(watchHere)
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s3/'))
+    expect(requests.map((r) => r.replacesSessionId)).toEqual([undefined, 's1', undefined])
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('says another screen took over when the stream itself says so, without asking for it back', async () => {
+    const requests: unknown[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        return transcode(`s${requests.length}`)
+      },
+      '/playback/s1/main.m3u8': problem(410, takenOver),
+      'DELETE /playback/s2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    act(() => {
+      document.querySelector('video')!.dispatchEvent(new Event('error'))
+    })
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(takenOver)
+    expect(requests).toHaveLength(1)
+  })
+
+  it('recovers once when the stream errors twice while asking why it stopped', async () => {
+    const requests: unknown[] = []
+    const answers: ((response: Response) => void)[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        return transcode(`s${requests.length}`)
+      },
+      '/playback/s1/main.m3u8': () => new Promise<Response>((resolve) => answers.push(resolve)),
+      'DELETE /playback/s1': undefined,
+      'DELETE /playback/s2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+      video.dispatchEvent(new Event('error'))
+    })
+    await act(async () => answers.forEach((answer) => answer(new Response('', { status: 404 }))))
+
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
+    expect(requests).toHaveLength(2)
+    expect(screen.queryByText(/The stream stopped/)).not.toBeInTheDocument()
+  })
+
+  it('says plainly when the server is busy, with Try again', async () => {
+    mockApi({
+      '/libraries': [],
+      'POST /playback': problem(503, 'Flexarr is busy playing on other screens. Try again when one of them finishes.'),
+    })
+
+    renderAt('/play/e1')
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Flexarr is busy playing on other screens')
+    expect(within(dialog).getByRole('button', { name: 'Try again' })).toHaveFocus()
   })
 })
 
