@@ -27,27 +27,35 @@ public sealed record UpcomingDto(
     string? Still,
     Guid? LibraryItemId,
     bool Available,
-    DownloadStateDto? Download);
+    DownloadStateDto? Download,
+    string? Source = null,
+    string? ManageUrl = null);
 
-public sealed record DownloadDto(string Id, MediaKind Kind, string Title, string? SeriesTitle, int? SeasonNumber, int? EpisodeNumber, string? Poster, Guid? LibraryItemId, DownloadStateDto State);
+/// <param name="Source">The Sonarr or Radarr instance it's in, by name.</param>
+/// <param name="ManageUrl">That instance's queue, where a stuck download is sorted out.</param>
+public sealed record DownloadDto(string Id, MediaKind Kind, string Title, string? SeriesTitle, int? SeasonNumber, int? EpisodeNumber, string? Poster, Guid? LibraryItemId, DownloadStateDto State,
+    string? Source = null, string? ManageUrl = null);
 
 public static class UpcomingEndpoints
 {
     public static RouteGroupBuilder MapUpcomingEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, CancellationToken ct) =>
-            await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, db, ct)).WithTags("Upcoming");
+        api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
+            await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, db, request.Host.Host, ct)).WithTags("Upcoming");
 
-        api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, CancellationToken ct) =>
-            await DownloadsAsync(options.CurrentValue, arr, db, ct)).WithTags("Upcoming");
+        api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
+            await DownloadsAsync(options.CurrentValue, arr, db, request.Host.Host, ct)).WithTags("Upcoming");
 
         return api;
     }
 
-    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, FlexarrDbContext db, CancellationToken ct)
+    /// <param name="host">The host the browser reached Flexarr on, for links into *arr apps configured as localhost.</param>
+    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, FlexarrDbContext db, string? host, CancellationToken ct)
     {
-        var start = DateTime.UtcNow.Date.AddDays(-1);
-        var end = DateTime.UtcNow.Date.AddDays(days);
+        // From this week's Monday, so a calendar's first week is complete.
+        var today = DateTime.UtcNow.Date;
+        var start = today.AddDays(-(((int)today.DayOfWeek + 6) % 7) - 1);
+        var end = today.AddDays(days);
         var queue = await QueueAsync(options, arr, ct);
         var series = await SeriesIndexAsync(db, ct);
         // Not ToDictionary: a film can be in the library twice (two folders), sharing one TMDB id.
@@ -71,7 +79,8 @@ public static class UpcomingEndpoints
                     episode.SeasonNumber, episode.EpisodeNumber, date, "Airs", episode.Overview,
                     Remote(show?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(episode.Images.FirstOrDefault(i => i.CoverType == "screenshot")?.RemoteUrl ?? show?.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
-                    itemId, episode.HasFile, download));
+                    itemId, episode.HasFile, download, sonarr.Name,
+                    show?.TitleSlug is { } slug ? WebUrl(sonarr, host, $"series/{slug}") : null));
             }
         }
 
@@ -90,7 +99,8 @@ public static class UpcomingEndpoints
                     $"radarr-{radarr.Name}-{movie.Id}", MediaKind.Movie, movie.Title, null, null, null, date, when, movie.Overview,
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
-                    movies.GetValueOrDefault(movie.TmdbId.ToString(CultureInfo.InvariantCulture)), movie.HasFile, download));
+                    movies.GetValueOrDefault(movie.TmdbId.ToString(CultureInfo.InvariantCulture)), movie.HasFile, download, radarr.Name,
+                    movie.TitleSlug is { } slug ? WebUrl(radarr, host, $"movie/{slug}") : null));
             }
         }
 
@@ -99,7 +109,7 @@ public static class UpcomingEndpoints
         return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind)).OrderBy(r => r.Date).ToList();
     }
 
-    public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, FlexarrDbContext db, CancellationToken ct)
+    public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, FlexarrDbContext db, string? host, CancellationToken ct)
     {
         var series = await SeriesIndexAsync(db, ct);
         var downloads = new List<DownloadDto>();
@@ -108,12 +118,13 @@ public static class UpcomingEndpoints
             foreach (var q in await SafeAsync(() => arr.GetQueueAsync(instance, ct)))
             {
                 var state = new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status);
+                var queuePage = WebUrl(instance, host, "activity/queue");
                 downloads.Add(instance.Kind == ArrKind.Sonarr
                     ? new DownloadDto($"q-{instance.Name}-{q.Id}", MediaKind.Episode, q.Episode?.Title ?? q.Title ?? "Episode", q.Series?.Title,
                         q.Episode?.SeasonNumber, q.Episode?.EpisodeNumber, Remote(q.Series?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
-                        q.Series is null ? null : series.GetValueOrDefault(q.Series.TvdbId.ToString(CultureInfo.InvariantCulture)), state)
+                        q.Series is null ? null : series.GetValueOrDefault(q.Series.TvdbId.ToString(CultureInfo.InvariantCulture)), state, instance.Name, queuePage)
                     : new DownloadDto($"q-{instance.Name}-{q.Id}", MediaKind.Movie, q.Movie?.Title ?? q.Title ?? "Film", null, null, null,
-                        Remote(q.Movie?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl), null, state));
+                        Remote(q.Movie?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl), null, state, instance.Name, queuePage));
             }
         }
 
@@ -159,6 +170,22 @@ public static class UpcomingEndpoints
         {
             return [];
         }
+    }
+
+    /// <summary>
+    /// A page in a Sonarr/Radarr web UI. An instance configured as localhost is only localhost to this server, so the
+    /// browser is sent to the same host it reached Flexarr on, at the *arr's port.
+    /// </summary>
+    internal static string WebUrl(ArrInstance instance, string? host, string path)
+    {
+        var url = new UriBuilder(instance.BaseUrl);
+        if (instance.BaseUrl.IsLoopback && !string.IsNullOrEmpty(host))
+        {
+            url.Host = host;
+        }
+
+        url.Path = $"{url.Path.TrimEnd('/')}/{path}";
+        return url.Uri.ToString();
     }
 
     private static string? Remote(string? url) => url is null ? null : $"/api/v1/images/remote?url={Uri.EscapeDataString(url)}";

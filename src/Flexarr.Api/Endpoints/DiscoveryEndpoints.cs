@@ -100,8 +100,8 @@ public static partial class DiscoveryEndpoints
             var downloading = 0;
             try
             {
-                upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, db, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
-                downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, db, ct)).Count;
+                upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
+                downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, db, null, ct)).Count;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

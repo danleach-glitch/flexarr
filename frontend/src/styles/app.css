@@ -1153,7 +1153,7 @@ kbd {
 }
 
 .upcoming-page {
-  max-width: 1100px;
+  max-width: 1480px;
   padding: calc(var(--nav-height) + 32px) var(--edge) 0;
 }
 
@@ -1354,9 +1354,10 @@ a.upcoming-row:hover strong {
 }
 
 /* Browse puts the library's name and views over the hero, below the navigation. */
+/* Same place and size as the heading on a library's All view, so switching views doesn't move it. */
 .hero-top {
   position: absolute;
-  top: calc(var(--nav-height) + 18px);
+  top: calc(var(--nav-height) + 32px);
   left: var(--edge);
   right: var(--edge);
   z-index: 2;
@@ -1367,12 +1368,14 @@ a.upcoming-row:hover strong {
 }
 
 .library-title {
-  margin: 0;
-  font-family: var(--display);
-  font-size: var(--step-3);
+  font-size: var(--step-6);
   font-weight: 800;
-  letter-spacing: -0.01em;
   text-shadow: 0 2px 18px rgb(0 0 0 / 0.5);
+}
+
+/* Keep the featured title clear of the library heading on short screens. */
+.hero:has(.hero-top) {
+  padding-top: calc(var(--nav-height) + 32px + var(--step-6) + 48px);
 }
 
 .view-switch {
@@ -1399,4 +1402,132 @@ a.upcoming-row:hover strong {
 .view-switch a[aria-current='page'] {
   background: var(--screen);
   color: var(--room);
+}
+
+/* ---------- Coming soon calendar ---------- */
+
+.calendar {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 48px;
+}
+
+.calendar-weekdays,
+.calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-weekdays span {
+  padding: 0 10px;
+  color: var(--usher);
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 132px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--seat);
+}
+
+.calendar-day[data-past] {
+  background: color-mix(in srgb, var(--seat) 45%, transparent);
+}
+
+.calendar-day[data-past] .calendar-entry {
+  opacity: 0.6;
+}
+
+.calendar-day[data-today] {
+  box-shadow: inset 0 0 0 2px var(--silver);
+}
+
+.calendar-date {
+  font-family: var(--display);
+  font-size: var(--step-1);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--usher);
+}
+
+.calendar-day[data-today] .calendar-date {
+  color: var(--screen);
+}
+
+.calendar-entry {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 5px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  font-size: var(--step--1);
+  line-height: 1.3;
+}
+
+a.calendar-entry:hover,
+a.calendar-entry:focus-visible {
+  background: var(--aisle);
+}
+
+.calendar-entry[data-ready] .calendar-text .muted {
+  color: var(--silver);
+}
+
+.calendar-poster {
+  aspect-ratio: 2 / 3;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--aisle);
+}
+
+.calendar-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.calendar-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.calendar-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-attention {
+  color: var(--screen);
+  font-weight: 700;
+}
+
+a.download-attention {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A week of seven columns doesn't fit a phone; list the days instead. */
+.upcoming-agenda {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .calendar {
+    display: none;
+  }
+
+  .upcoming-agenda {
+    display: block;
+  }
 }

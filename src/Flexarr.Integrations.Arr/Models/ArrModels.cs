@@ -15,6 +15,9 @@ public sealed record RadarrMovie
 {
     public int Id { get; init; }
     public required string Title { get; init; }
+
+    /// <summary>The film's address in Radarr's web UI: /movie/{titleSlug}.</summary>
+    public string? TitleSlug { get; init; }
     public string? OriginalTitle { get; init; }
     public string? SortTitle { get; init; }
     public int Year { get; init; }
@@ -62,6 +65,9 @@ public sealed record SonarrSeries
 {
     public int Id { get; init; }
     public required string Title { get; init; }
+
+    /// <summary>The show's address in Sonarr's web UI: /series/{titleSlug}.</summary>
+    public string? TitleSlug { get; init; }
     public string? SortTitle { get; init; }
     public int Year { get; init; }
     public string? Overview { get; init; }

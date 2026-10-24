@@ -181,6 +181,10 @@ export interface UpcomingItem {
   libraryItemId: string | null
   available: boolean
   download: DownloadState | null
+  /** The Sonarr or Radarr instance it comes from, by name. */
+  source?: string | null
+  /** Its page in that app's web UI. */
+  manageUrl?: string | null
 }
 
 export interface Download {
@@ -193,6 +197,9 @@ export interface Download {
   poster: string | null
   libraryItemId: string | null
   state: DownloadState
+  source?: string | null
+  /** The Sonarr/Radarr queue it's in, where a stuck download is sorted out. */
+  manageUrl?: string | null
 }
 
 export interface Home {
