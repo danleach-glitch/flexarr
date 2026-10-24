@@ -16,10 +16,14 @@ public sealed class FakeArr : HttpMessageHandler
 
     public ConcurrentQueue<string> Requests { get; } = new();
 
+    /// <summary>Runs as each request arrives, before it's answered.</summary>
+    public Action<HttpRequestMessage>? OnRequest { get; set; }
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var key = $"{request.Method} {request.RequestUri!.PathAndQuery}";
         Requests.Enqueue(key);
+        OnRequest?.Invoke(request);
         return Task.FromResult(Responses.TryGetValue(key, out var body)
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.NotFound));
