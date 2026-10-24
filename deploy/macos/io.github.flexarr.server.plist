@@ -1,18 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Installed to ~/Library/LaunchAgents by scripts/deploy-macos.sh; __ROOT__ is replaced at install time. -->
+<!--
+  Installed to ~/Library/LaunchAgents by scripts/deploy-macos.sh; __ROOT__ and __DOTNET__ are replaced at install time.
+  Flexarr runs under Microsoft's signed `dotnet` host rather than its own apphost: macOS privacy (TCC) grants such as
+  access to external drives are tied to the executable's signature, and the host's stays the same across deploys.
+-->
 <plist version="1.0">
 <dict>
   <key>Label</key>
   <string>io.github.flexarr.server</string>
   <key>ProgramArguments</key>
   <array>
-    <string>__ROOT__/app/Flexarr</string>
+    <string>__DOTNET__</string>
+    <string>__ROOT__/app/Flexarr.dll</string>
   </array>
   <key>WorkingDirectory</key>
   <string>__ROOT__/app</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>DOTNET_ROOT</key>
+    <string>__DOTNET_ROOT__</string>
     <key>ASPNETCORE_ENVIRONMENT</key>
     <string>Production</string>
     <key>Flexarr__DataDirectory</key>

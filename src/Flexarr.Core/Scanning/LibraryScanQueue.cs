@@ -9,6 +9,8 @@ public interface ILibraryScanQueue
 {
     ValueTask EnqueueAsync(LibraryScanRequest request, CancellationToken cancellationToken = default);
 
+    bool TryDequeue(out LibraryScanRequest request);
+
     IAsyncEnumerable<LibraryScanRequest> ReadAllAsync(CancellationToken cancellationToken);
 }
 
@@ -19,6 +21,8 @@ public sealed class LibraryScanQueue : ILibraryScanQueue
 
     public ValueTask EnqueueAsync(LibraryScanRequest request, CancellationToken cancellationToken = default) =>
         _channel.Writer.WriteAsync(request, cancellationToken);
+
+    public bool TryDequeue(out LibraryScanRequest request) => _channel.Reader.TryRead(out request!);
 
     public IAsyncEnumerable<LibraryScanRequest> ReadAllAsync(CancellationToken cancellationToken) =>
         _channel.Reader.ReadAllAsync(cancellationToken);

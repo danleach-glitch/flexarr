@@ -19,6 +19,9 @@ public sealed class FlexarrOptions
     /// <summary>API key for clients and *arr webhooks. Generated and persisted on first run when empty.</summary>
     public string? ApiKey { get; set; }
 
+    /// <summary>ffprobe executable; resolved from PATH by default.</summary>
+    public string FfprobePath { get; set; } = "ffprobe";
+
     public AuthenticationRequired AuthenticationRequired { get; set; } = AuthenticationRequired.Enabled;
 
     public List<ArrInstance> Arr { get; set; } = [];

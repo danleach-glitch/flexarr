@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Flexarr.Core.Parsing;
 
-public sealed record ParsedMovieName(string Title, int? Year);
+public sealed record ParsedMovieName(string Title, int? Year, ExternalIds Ids);
 
 /// <summary>
 /// Parses movie titles from folder or file names following the common
@@ -27,13 +27,15 @@ public static partial class MovieNameParser
             stem = stem[..^extension.Length];
         }
 
+        (stem, var ids) = ExternalIdParser.Extract(stem);
+
         var match = TitleYear().Match(stem);
         if (match.Success)
         {
-            return new ParsedMovieName(Clean(match.Groups["title"].Value), int.Parse(match.Groups["year"].Value, CultureInfo.InvariantCulture));
+            return new ParsedMovieName(Clean(match.Groups["title"].Value), int.Parse(match.Groups["year"].Value, CultureInfo.InvariantCulture), ids);
         }
 
-        return new ParsedMovieName(Clean(Tags().Replace(stem, string.Empty)), null);
+        return new ParsedMovieName(Clean(Tags().Replace(stem, string.Empty)), null, ids);
     }
 
     private static string Clean(string title)

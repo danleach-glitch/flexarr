@@ -8,6 +8,7 @@ public static class ArrWebhookTranslator
     private static readonly HashSet<string> ScanEvents = new(StringComparer.OrdinalIgnoreCase)
     {
         "Download",          // import / upgrade
+        "ImportComplete",    // Sonarr: all files of a release imported
         "Rename",
         "SeriesAdd",
         "SeriesDelete",
