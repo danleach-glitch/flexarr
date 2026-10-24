@@ -54,7 +54,7 @@ public static class WebhookEndpoints
                 var requests = ArrWebhookTranslator.ToScanRequests(kind, payload);
                 if (requests.Any(r => PathComparison.HasControlCharacters(r.Path)))
                 {
-                    return Results.Problem("A path in the webhook holds a control character.", statusCode: 400);
+                    return Results.Problem("A path in the webhook holds a control, line-separator or text-direction character.", statusCode: 400);
                 }
 
                 var mappings = options.CurrentValue.PathMappings;

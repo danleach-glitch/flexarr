@@ -322,6 +322,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("EpisodeNumberEnd")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("HandedOverAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ImdbId")
                         .HasColumnType("TEXT");
 

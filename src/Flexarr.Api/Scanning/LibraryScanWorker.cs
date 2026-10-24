@@ -110,7 +110,13 @@ public sealed partial class LibraryScanWorker(
     {
         var all = requests.ToList();
         var distinct = all.GroupBy(r => PathComparison.Key(r.Path))
-            .Select(g => g.First() with { ForceMetadata = g.Any(r => r.ForceMetadata), Deleted = g.All(r => r.Deleted) })
+            .Select(g => g.First() with
+            {
+                ForceMetadata = g.Any(r => r.ForceMetadata),
+                Deleted = g.All(r => r.Deleted),
+                TmdbId = g.Select(r => r.TmdbId).FirstOrDefault(id => id is not null),
+                TvdbId = g.Select(r => r.TvdbId).FirstOrDefault(id => id is not null),
+            })
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
@@ -154,7 +160,7 @@ public sealed partial class LibraryScanWorker(
             // A metadata refresh also retries files ffprobe couldn't read.
             var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
             var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
-            LogScanFinished(library.Name, target, result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
+            LogScanFinished(library.Name, PathComparison.Printable(target), result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
                 result.Unmatched, result.ProbeFailures, seconds);
         }
 
@@ -167,7 +173,7 @@ public sealed partial class LibraryScanWorker(
             var within = scopes.Any(s => folders.Any(f => PathComparison.IsUnder(f, s))) ? [] : scopes;
 
             var started = TimeProvider.System.GetTimestamp();
-            var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, within, ct);
+            var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
             if (refreshed.FromArr + refreshed.FromLookup + refreshed.Unmatched > 0)
             {
                 var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;

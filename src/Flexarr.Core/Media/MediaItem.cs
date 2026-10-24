@@ -60,6 +60,12 @@ public sealed class MediaItem
     /// </summary>
     public DateTime? MissingSince { get; set; }
 
+    /// <summary>
+    /// When this missing item's watch history and collections were handed to the title that replaced it (see
+    /// <see cref="Scanning.WatchHistoryCarryOver"/>). It isn't handed over again unless it comes back and goes missing anew.
+    /// </summary>
+    public DateTime? HandedOverAt { get; set; }
+
     // ---- Metadata (filled by metadata providers; null until then) ----
 
     public string? OriginalTitle { get; set; }

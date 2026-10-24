@@ -13,7 +13,7 @@ public sealed record ArrWebhookPayload
     public string? DeleteReason { get; init; }
 
     // Sonarr
-    public PathItem? Series { get; init; }
+    public SeriesItem? Series { get; init; }
     public FileItem? EpisodeFile { get; init; }
     public IReadOnlyList<FileItem>? EpisodeFiles { get; init; }
 
@@ -27,7 +27,9 @@ public sealed record ArrWebhookPayload
 
     public sealed record PathItem(string? Title, string? Path);
 
-    public sealed record MovieItem(string? Title, string? FolderPath);
+    public sealed record SeriesItem(string? Title, string? Path, int? TvdbId = null);
+
+    public sealed record MovieItem(string? Title, string? FolderPath, int? TmdbId = null);
 
     public sealed record FileItem(string? Path, string? RelativePath);
 }

@@ -7,8 +7,10 @@ namespace Flexarr.Core.Scanning;
 /// Metadata for new or stale items is refreshed afterwards; <see cref="ForceMetadata"/> refreshes everything.
 /// <see cref="Deleted"/>: Sonarr, Radarr or Lidarr said they deleted what's at the path, so its files going is expected
 /// even when that leaves the library folder empty (which otherwise looks like a drive that hasn't mounted).
+/// <see cref="TmdbId"/>, <see cref="TvdbId"/>: the film's or show's id as the webhook gave it, so a title new to Flexarr
+/// can have its details fetched alone rather than with the whole Radarr or Sonarr library.
 /// </summary>
-public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false);
+public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false, int? TmdbId = null, int? TvdbId = null);
 
 public interface ILibraryScanQueue
 {

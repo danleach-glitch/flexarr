@@ -127,7 +127,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     continue;
                 }
 
-                if (deleted && folder is not null)
+                if (deleted && !full && await ShowsOtherFilesAsync(library.Id, root, existing.Values.Concat(duplicates), cancellationToken).ConfigureAwait(false))
+                {
+                    // Radarr/Sonarr deleted one title while the rest of the folder looks unmounted: only that title's
+                    // files go. The folder stays held, and nothing is purged while it looks like this.
+                    held = true;
+                }
+                else if (deleted && folder is not null)
                 {
                     folder.ReleasedAt ??= DateTime.UtcNow; // Emptied by Radarr/Sonarr: later scans let what it hid go too.
                 }
@@ -197,7 +203,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     if (error is not null)
                     {
                         failures++;
-                        LogProbeFailed(file.FullName, error);
+                        LogProbeFailed(PathComparison.Printable(file.FullName), PathComparison.Printable(error));
                     }
 
                     if (match is not null)
@@ -211,7 +217,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     if (item is null)
                     {
                         unmatched++;
-                        LogUnmatched(file.FullName);
+                        LogUnmatched(PathComparison.Printable(file.FullName));
                         continue;
                     }
 
@@ -334,6 +340,16 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         return ids.Count == 0 ? [] : await files.Where(f => ids.Contains(f.Id)).ToListAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>Whether the library shows any file in <paramref name="root"/> besides <paramref name="these"/>.</summary>
+    private async Task<bool> ShowsOtherFilesAsync(Guid libraryId, string root, IEnumerable<MediaFile> these, CancellationToken ct)
+    {
+        var ids = these.Select(f => f.Id).ToList();
+        var prefix = root.TrimEnd('/') + "/";
+        return await db.MediaFiles.IgnoreQueryFilters()
+            .AnyAsync(f => f.MediaItem!.LibraryId == libraryId && f.MissingSince == null && f.Path.StartsWith(prefix) && !ids.Contains(f.Id), ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Whether a suspicious-looking folder's files stay as they are this scan, recording the hold for Library health.
     /// It's let through when someone confirmed the removal there, or (for <see cref="FolderHold.MostFilesGone"/>) when
@@ -382,26 +398,36 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         return false;
     }
 
-    private static void Hold(LibraryFolder folder, FolderHold reason, int hiding, int known, DateTime now)
+    private void Hold(LibraryFolder folder, FolderHold reason, int hiding, int known, DateTime now)
     {
         folder.Hold = reason;
         folder.HeldSince = now;
         folder.HeldScans = 1;
         folder.HeldMissing = hiding;
         folder.HeldKnown = known;
-        folder.RemovalConfirmed = false;
+        Unconfirm(folder);
         folder.ReleasedAt = null;
     }
 
-    private static void Clear(LibraryFolder folder, DateTime? releasedAt)
+    private void Clear(LibraryFolder folder, DateTime? releasedAt)
     {
         folder.Hold = null;
         folder.HeldSince = null;
         folder.HeldScans = 0;
         folder.HeldMissing = 0;
         folder.HeldKnown = 0;
-        folder.RemovalConfirmed = false;
+        Unconfirm(folder);
         folder.ReleasedAt = releasedAt;
+    }
+
+    /// <summary>
+    /// Written even if it was false when this scan loaded the folder: a "Confirm removal" saved while it ran was for
+    /// the numbers shown then, not the ones this scan has just recorded.
+    /// </summary>
+    private void Unconfirm(LibraryFolder folder)
+    {
+        folder.RemovalConfirmed = false;
+        db.Entry(folder).Property(f => f.RemovalConfirmed).IsModified = true;
     }
 
     private static bool IsEmpty(string directory)

@@ -40,4 +40,27 @@ public class PathComparisonTests
         Assert.Equal("/tv/Show\0", PathComparison.Key("/tv/Show\0"));
         Assert.Equal("/tv/Show?x", PathComparison.Printable("/tv/Show\nx"));
     }
+
+    [Theory]
+    [InlineData("/tv/Show\u2028x")]   // line separator
+    [InlineData("/tv/Show\u2029x")]   // paragraph separator
+    [InlineData("/tv/Show\u202Ex")]   // right-to-left override
+    [InlineData("/tv/Show\u2067x")]   // right-to-left isolate
+    public void UnicodeLineAndBidiControls_AreRefused_AndNotLogged(string path)
+    {
+        Assert.True(PathComparison.HasControlCharacters(path));
+        Assert.Equal("/tv/Show?x", PathComparison.Printable(path));
+    }
+
+    [Fact]
+    public void Printable_HidesFormattingCharacters_ButKeepsJoiners()
+    {
+        Assert.Equal("/tv/A?B?C", PathComparison.Printable("/tv/A\u200EB\uFEFFC"));
+        Assert.Equal("/music/\U0001F469\u200D\U0001F4BB/\u0645\u06CC\u200C\u062E\u0648\u0627\u0645", PathComparison.Printable("/music/\U0001F469\u200D\U0001F4BB/\u0645\u06CC\u200C\u062E\u0648\u0627\u0645"));
+        Assert.False(PathComparison.HasControlCharacters("/music/\U0001F469\u200D\U0001F4BB"));
+    }
+
+    [Fact]
+    public void AFileOnDisk_WithAFormattingCharacter_StillCompares() =>
+        Assert.True(PathComparison.IsUnder("/tv/Show\u200E/S01E01.mkv", "/tv"));
 }

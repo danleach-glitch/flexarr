@@ -216,10 +216,12 @@ public static class UpcomingEndpoints
         Interlocked.Exchange(ref _arrCalls, new CancellationTokenSource()).Cancel();
     }
 
-    private static MemoryCacheEntryOptions Expiring(TimeSpan ttl) => new MemoryCacheEntryOptions
+    /// <param name="ttl">How long to keep it.</param>
+    /// <param name="asked">The token current when the call was made: forgetting since then drops this answer too.</param>
+    private static MemoryCacheEntryOptions Expiring(TimeSpan ttl, CancellationToken asked) => new MemoryCacheEntryOptions
     {
         AbsoluteExpirationRelativeToNow = ttl,
-        ExpirationTokens = { new Microsoft.Extensions.Primitives.CancellationChangeToken(_arrCalls.Token) },
+        ExpirationTokens = { new Microsoft.Extensions.Primitives.CancellationChangeToken(asked) },
     };
 
     /// <summary>
@@ -233,18 +235,29 @@ public static class UpcomingEndpoints
             return hit;
         }
 
+        // Taken before asking: an answer that was under way when a webhook said things changed may predate the change,
+        // so it's used for this page but not kept.
+        var asked = _arrCalls.Token;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(CallTimeout);
         try
         {
             var result = await call(timeout.Token);
-            cache?.Set(key, result, Expiring(ttl));
+            if (!asked.IsCancellationRequested)
+            {
+                cache?.Set(key, result, Expiring(ttl, asked));
+            }
+
             return result;
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
             || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
-            cache?.Set(key, (IReadOnlyList<T>)[], Expiring(FailureTtl));
+            if (!asked.IsCancellationRequested)
+            {
+                cache?.Set(key, (IReadOnlyList<T>)[], Expiring(FailureTtl, asked));
+            }
+
             return [];
         }
     }

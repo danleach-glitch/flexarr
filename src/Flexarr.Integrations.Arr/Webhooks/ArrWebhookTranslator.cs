@@ -54,11 +54,14 @@ public static class ArrWebhookTranslator
             _ => Array.Empty<string?>(),
         };
 
+        // A title just added has no ids in Flexarr yet; Radarr's or Sonarr's let its metadata be fetched on its own.
+        var tmdbId = source == ArrKind.Radarr && payload.Movie?.TmdbId > 0 ? payload.Movie.TmdbId : null;
+        var tvdbId = source == ArrKind.Sonarr && payload.Series?.TvdbId > 0 ? payload.Series.TvdbId : null;
         return paths
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!.Normalize(System.Text.NormalizationForm.FormC))
             .Distinct(StringComparer.Ordinal)
-            .Select(p => new LibraryScanRequest(p!, reason, Deleted: deleted))
+            .Select(p => new LibraryScanRequest(p!, reason, Deleted: deleted, TmdbId: tmdbId, TvdbId: tvdbId))
             .ToList();
     }
 }

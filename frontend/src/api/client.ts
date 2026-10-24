@@ -579,8 +579,12 @@ export interface HeldFolder {
   canConfirm: boolean
 }
 
-/** The held folder's files really are gone: the next scan (started now) hides them. */
-export const confirmHeldRemoval = (folderId: number) => request<void>('POST', `/library-health/held/${folderId}/confirm`)
+/**
+ * The held folder's files really are gone: the next scan (started now) hides them. Sends the numbers shown, so it's
+ * refused if a scan has found something different since.
+ */
+export const confirmHeldRemoval = (f: HeldFolder) =>
+  request<void>('POST', `/library-health/held/${f.folderId}/confirm`, { since: f.since, missing: f.missing, known: f.known })
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
 

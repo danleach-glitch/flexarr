@@ -36,18 +36,26 @@ public sealed partial class MetadataRefresher(
     public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct) =>
         RefreshLibraryAsync(library, force, [], ct);
 
+    public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, IReadOnlyCollection<string> within, CancellationToken ct) =>
+        RefreshLibraryAsync(library, force, within, null, null, ct);
+
     /// <param name="library">The library to refresh.</param>
     /// <param name="force">Refresh everything, not just what's new or stale.</param>
     /// <param name="within">Folders just scanned: the films and series in them are refreshed even if they're not stale.</param>
+    /// <param name="tmdbId">
+    /// The TMDB id Radarr's webhook gave for the film in <paramref name="within"/>, for asking Radarr for just that one
+    /// when Flexarr doesn't know its id yet. Only used to fetch: what comes back must still match the film's folder.
+    /// </param>
+    /// <param name="tvdbId">The same for a show, with the TVDB id from Sonarr's webhook.</param>
     /// <param name="ct">Stops the refresh.</param>
-    public async Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    public async Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, IReadOnlyCollection<string> within, int? tmdbId, int? tvdbId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(within);
         return library.Type switch
         {
-            LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, ct).ConfigureAwait(false),
-            LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, ct).ConfigureAwait(false),
+            LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, tmdbId, ct).ConfigureAwait(false),
+            LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, tvdbId, ct).ConfigureAwait(false),
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
@@ -55,7 +63,7 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ Movies
 
-    private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tmdbId, CancellationToken ct)
     {
         // Nothing due: don't download Radarr's whole library to find out.
         var also = await WithinAsync(libraryId, MediaKind.Movie, within, ct).ConfigureAwait(false);
@@ -67,7 +75,7 @@ public sealed partial class MetadataRefresher(
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
-        var known = (await KnownAsync(radarrs, onlyWithin ? items : null, i => i.TmdbId,
+        var known = (await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
                 arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
             .Select(k => (k.Instance, Movie: k.Entry)).ToList();
 
@@ -237,7 +245,7 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ TV
 
-    private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tvdbId, CancellationToken ct)
     {
         var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
         var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
@@ -248,7 +256,7 @@ public sealed partial class MetadataRefresher(
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
         var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
-        var known = (await KnownAsync(sonarrs, onlyWithin ? items : null, i => i.TvdbId,
+        var known = (await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
                 arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
             .Select(k => (k.Instance, Series: k.Entry)).ToList();
 
@@ -552,6 +560,15 @@ public sealed partial class MetadataRefresher(
         return candidates.Where(c => within.Any(w => PathComparison.IsUnder(c.Path!, w) || PathComparison.IsUnder(w, c.Path!)))
             .Select(c => c.Id).ToList();
     }
+
+    /// <summary>
+    /// A title's TMDB or TVDB id, or for the one title in the folders just scanned that has none yet, the id its webhook
+    /// gave. Not when those folders hold more than one title: then which one it belongs to isn't known.
+    /// </summary>
+    private static Func<MediaItem, string?> Hinted(List<Guid> within, int? hint, Func<MediaItem, string?> own) =>
+        hint is > 0 && within.Count == 1
+            ? i => own(i) ?? (i.Id == within[0] ? hint.Value.ToString(CultureInfo.InvariantCulture) : null)
+            : own;
 
     /// <summary>
     /// What Radarr or Sonarr have that may match <paramref name="only"/>. When just a webhook's titles are due, only
