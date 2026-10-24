@@ -1,0 +1,216 @@
+{
+ "item": {
+  "id": "01a16bea-3440-7f19-bdfd-2e504f015469",
+  "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+  "parentId": null,
+  "kind": "Movie",
+  "title": "The Invite",
+  "year": 2026,
+  "seasonNumber": null,
+  "episodeNumber": null,
+  "episodeNumberEnd": null,
+  "airDate": null,
+  "childCount": 0,
+  "durationSeconds": 6426.048,
+  "resolution": "1080p",
+  "addedAt": "2026-10-23T20:55:20",
+  "artwork": {
+   "poster": "/api/v1/images/items/01a16bea-3440-7f19-bdfd-2e504f015469/poster?v=63928409931",
+   "backdrop": "/api/v1/images/items/01a16bea-3440-7f19-bdfd-2e504f015469/backdrop?v=63928409931",
+   "logo": null,
+   "thumb": null
+  },
+  "accentColor": "#997845",
+  "communityRating": 7.4,
+  "criticRating": 96,
+  "contentRating": "R",
+  "runtimeMinutes": 107,
+  "releaseDate": "2026-06-25",
+  "userData": {
+   "positionSeconds": 0,
+   "watched": false,
+   "playCount": 0,
+   "lastPlayedAt": null,
+   "unwatchedCount": null
+  },
+  "seriesTitle": null
+ },
+ "path": "/Volumes/Media/data/movies/The Invite (2026)",
+ "originalTitle": null,
+ "overview": "Joe and Angela's marriage is on thin ice. When they invite their enigmatic upstairs neighbors for a dinner party, the night spirals into unexpected places. Have they reignited the spark or lit the match that burns it all down?",
+ "studio": "Annapurna Pictures",
+ "status": "released",
+ "trailerYouTubeId": "nelkiuezJxg",
+ "genres": [
+  "Comedy",
+  "Drama",
+  "Romance"
+ ],
+ "tvdbId": null,
+ "tmdbId": "950028",
+ "imdbId": "tt14173636",
+ "ancestors": [],
+ "children": [],
+ "credits": [
+  {
+   "personId": "01a16bf8-68b5-7b93-8b88-86c8f37db4b6",
+   "name": "Olivia Wilde",
+   "role": "Actor",
+   "character": "Angela",
+   "image": "/api/v1/images/people/01a16bf8-68b5-7b93-8b88-86c8f37db4b6"
+  },
+  {
+   "personId": "01a16bf9-a5ee-7cb0-8c50-526e2b21799a",
+   "name": "Seth Rogen",
+   "role": "Actor",
+   "character": "Joe",
+   "image": "/api/v1/images/people/01a16bf9-a5ee-7cb0-8c50-526e2b21799a"
+  },
+  {
+   "personId": "01a16bfa-7cd5-78f3-881c-b7aaf90f5772",
+   "name": "Penélope Cruz",
+   "role": "Actor",
+   "character": "Piña",
+   "image": "/api/v1/images/people/01a16bfa-7cd5-78f3-881c-b7aaf90f5772"
+  },
+  {
+   "personId": "01a16bf8-62d1-72bf-ba78-bb48f365cd86",
+   "name": "Edward Norton",
+   "role": "Actor",
+   "character": "Hawk",
+   "image": "/api/v1/images/people/01a16bf8-62d1-72bf-ba78-bb48f365cd86"
+  },
+  {
+   "personId": "01a16bf8-68b5-7b93-8b88-86c8f37db4b6",
+   "name": "Olivia Wilde",
+   "role": "Director",
+   "character": null,
+   "image": "/api/v1/images/people/01a16bf8-68b5-7b93-8b88-86c8f37db4b6"
+  },
+  {
+   "personId": "01a16bf9-d7b0-7a75-8714-f10dba23a829",
+   "name": "Rashida Jones",
+   "role": "Writer",
+   "character": null,
+   "image": "/api/v1/images/people/01a16bf9-d7b0-7a75-8714-f10dba23a829"
+  },
+  {
+   "personId": "01a16bfd-665a-7220-a939-10fab10e560c",
+   "name": "Will McCormack",
+   "role": "Writer",
+   "character": null,
+   "image": "/api/v1/images/people/01a16bfd-665a-7220-a939-10fab10e560c"
+  }
+ ],
+ "files": [
+  {
+   "id": "01a16bea-3440-7b2f-b296-022bdbfd0d35",
+   "path": "/Volumes/Media/data/movies/The Invite (2026)/The Invite (2026) {tmdb-950028} - [HMAX][WEBDL-1080p][EAC3 5.1][x264]-FUZEER.mkv",
+   "size": 7158277714,
+   "container": "mkv",
+   "durationSeconds": 6426.048,
+   "bitrate": 8911577,
+   "videoCodec": "h264",
+   "width": 1920,
+   "height": 1038,
+   "videoRange": "Sdr",
+   "audioCodec": "eac3",
+   "audioChannels": 6,
+   "probeError": null,
+   "streams": [
+    {
+     "index": 0,
+     "type": "Video",
+     "codec": "h264",
+     "profile": "High",
+     "language": "eng",
+     "title": null,
+     "isDefault": true,
+     "isForced": false,
+     "width": 1920,
+     "height": 1038,
+     "channels": null
+    },
+    {
+     "index": 1,
+     "type": "Audio",
+     "codec": "eac3",
+     "profile": null,
+     "language": "eng",
+     "title": "United States",
+     "isDefault": true,
+     "isForced": false,
+     "width": null,
+     "height": null,
+     "channels": 6
+    },
+    {
+     "index": 2,
+     "type": "Audio",
+     "codec": "eac3",
+     "profile": null,
+     "language": "spa",
+     "title": "Latin America",
+     "isDefault": false,
+     "isForced": false,
+     "width": null,
+     "height": null,
+     "channels": 2
+    },
+    {
+     "index": 3,
+     "type": "Subtitle",
+     "codec": "subrip",
+     "profile": null,
+     "language": "eng",
+     "title": "English (United States)",
+     "isDefault": false,
+     "isForced": false,
+     "width": null,
+     "height": null,
+     "channels": null
+    },
+    {
+     "index": 4,
+     "type": "Subtitle",
+     "codec": "subrip",
+     "profile": null,
+     "language": "eng",
+     "title": "English (United States) (SDH)",
+     "isDefault": false,
+     "isForced": false,
+     "width": null,
+     "height": null,
+     "channels": null
+    },
+    {
+     "index": 5,
+     "type": "Subtitle",
+     "codec": "subrip",
+     "profile": null,
+     "language": "spa",
+     "title": "Spanish (Latin America)",
+     "isDefault": false,
+     "isForced": false,
+     "width": null,
+     "height": null,
+     "channels": null
+    },
+    {
+     "index": 6,
+     "type": "Subtitle",
+     "codec": "subrip",
+     "profile": null,
+     "language": "spa",
+     "title": "Spanish (Latin America) (SDH)",
+     "isDefault": false,
+     "isForced": false,
+     "width": null,
+     "height": null,
+     "channels": null
+    }
+   ]
+  }
+ ],
+ "childOverviews": {}
+}

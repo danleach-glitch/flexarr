@@ -1,0 +1,358 @@
+{
+ "featured": [
+  {
+   "id": "01a16beb-0034-7d4e-8037-c249052ffa37",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": null,
+   "kind": "Series",
+   "title": "Curb Your Enthusiasm",
+   "year": 2000,
+   "seasonNumber": null,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 12,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2010-06-20T01:11:08",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/poster?v=63928410029",
+    "backdrop": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/backdrop?v=63928410029",
+    "logo": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/logo?v=63928410029",
+    "thumb": null
+   },
+   "accentColor": "#264c99",
+   "communityRating": 8.8,
+   "criticRating": null,
+   "contentRating": "TV-MA",
+   "runtimeMinutes": 33,
+   "releaseDate": "2000-10-15",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 120
+   },
+   "seriesTitle": null
+  },
+  {
+   "id": "01a16bea-a963-7d31-a88d-0ed56a5f3b2a",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": null,
+   "kind": "Series",
+   "title": "Better Call Saul",
+   "year": 2015,
+   "seasonNumber": null,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 6,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2015-02-09T04:18:02",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-a963-7d31-a88d-0ed56a5f3b2a/poster?v=63928409646",
+    "backdrop": "/api/v1/images/items/01a16bea-a963-7d31-a88d-0ed56a5f3b2a/backdrop?v=63928409646",
+    "logo": "/api/v1/images/items/01a16bea-a963-7d31-a88d-0ed56a5f3b2a/logo?v=63928409646",
+    "thumb": null
+   },
+   "accentColor": "#997f54",
+   "communityRating": 9,
+   "criticRating": null,
+   "contentRating": "TV-MA",
+   "runtimeMinutes": 50,
+   "releaseDate": "2015-02-08",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 63
+   },
+   "seriesTitle": null
+  }
+ ],
+ "overviews": {
+  "01a16bea-a963-7d31-a88d-0ed56a5f3b2a": "See the rise of Jimmy McGill, a small-time lawyer searching for his destiny, but hustling to make ends meet. Working alongside, and often against Jimmy, is ‘fixer’ Mike Ehrmantraut. The series tracks Jimmy's evolution into Saul Goodman, the man who puts the word ‘criminal’ in ‘criminal lawyer’.",
+  "01a16beb-0034-7d4e-8037-c249052ffa37": "An unscripted series that brings the off-kilter comic vision of Larry David, who plays himself in a parallel universe in which he can’t seem to do anything right, and, by his standards, neither can anyone else."
+ },
+ "rows": [
+  {
+   "id": "continue",
+   "title": "Continue watching",
+   "style": "wide",
+   "items": [
+    {
+     "id": "01a16bea-cd18-7cae-8ca3-c20b4da2def2",
+     "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+     "parentId": "01a16bea-cd18-7b89-b5dc-04e13e66fb13",
+     "kind": "Episode",
+     "title": "Bit by a Dead Bee",
+     "year": null,
+     "seasonNumber": 2,
+     "episodeNumber": 3,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 0,
+     "durationSeconds": 2831.264,
+     "resolution": "1080p",
+     "addedAt": "2024-03-18T02:13:44",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/poster?v=63928410012",
+      "backdrop": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/backdrop?v=63928410012",
+      "logo": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/logo?v=63928410012",
+      "thumb": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/thumb?v=63928410012"
+     },
+     "accentColor": "#b39c31",
+     "communityRating": null,
+     "criticRating": null,
+     "contentRating": null,
+     "runtimeMinutes": 47,
+     "releaseDate": "2009-03-22",
+     "userData": {
+      "positionSeconds": 1501.427693,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": "2026-10-24T04:10:54.973171",
+      "unwatchedCount": null
+     },
+     "seriesTitle": "Breaking Bad"
+    }
+   ],
+   "link": null
+  },
+  {
+   "id": "recent-01a16be8-9af2-7409-b7ea-3dc6e5b59de9",
+   "title": "New in Claire’s Shows",
+   "style": "poster",
+   "items": [
+    {
+     "id": "01a16bee-c9bd-7b68-9b83-559ff222bcc4",
+     "libraryId": "01a16be8-9af2-7409-b7ea-3dc6e5b59de9",
+     "parentId": null,
+     "kind": "Series",
+     "title": "The Celebrity Traitors: Uncloaked",
+     "year": 2025,
+     "seasonNumber": null,
+     "episodeNumber": null,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 1,
+     "durationSeconds": null,
+     "resolution": null,
+     "addedAt": "2026-10-16T14:47:04",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16bee-c9bd-7b68-9b83-559ff222bcc4/poster?v=63928409577",
+      "backdrop": "/api/v1/images/items/01a16bee-c9bd-7b68-9b83-559ff222bcc4/backdrop?v=63928409577",
+      "logo": null,
+      "thumb": null
+     },
+     "accentColor": "#996326",
+     "communityRating": 6.6,
+     "criticRating": null,
+     "contentRating": null,
+     "runtimeMinutes": 29,
+     "releaseDate": "2025-10-08",
+     "userData": {
+      "positionSeconds": 0,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": null,
+      "unwatchedCount": 8
+     },
+     "seriesTitle": null
+    },
+    {
+     "id": "01a16bee-c9bd-789b-b644-8113dd127717",
+     "libraryId": "01a16be8-9af2-7409-b7ea-3dc6e5b59de9",
+     "parentId": null,
+     "kind": "Series",
+     "title": "The Celebrity Traitors",
+     "year": 2025,
+     "seasonNumber": null,
+     "episodeNumber": null,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 2,
+     "durationSeconds": null,
+     "resolution": null,
+     "addedAt": "2026-10-02T20:44:00",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16bee-c9bd-789b-b644-8113dd127717/poster?v=63928409576",
+      "backdrop": "/api/v1/images/items/01a16bee-c9bd-789b-b644-8113dd127717/backdrop?v=63928409576",
+      "logo": null,
+      "thumb": null
+     },
+     "accentColor": "#996426",
+     "communityRating": 8.6,
+     "criticRating": null,
+     "contentRating": "TV-MA",
+     "runtimeMinutes": 64,
+     "releaseDate": "2025-10-08",
+     "userData": {
+      "positionSeconds": 0,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": null,
+      "unwatchedCount": 17
+     },
+     "seriesTitle": null
+    },
+    {
+     "id": "01a16bee-cec7-7cd6-9ad8-518e2321ae42",
+     "libraryId": "01a16be8-9af2-7409-b7ea-3dc6e5b59de9",
+     "parentId": null,
+     "kind": "Series",
+     "title": "The Traitors (US)",
+     "year": 2023,
+     "seasonNumber": null,
+     "episodeNumber": null,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 1,
+     "durationSeconds": null,
+     "resolution": null,
+     "addedAt": "2026-09-26T02:36:35",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16bee-cec7-7cd6-9ad8-518e2321ae42/poster?v=63928409584",
+      "backdrop": "/api/v1/images/items/01a16bee-cec7-7cd6-9ad8-518e2321ae42/backdrop?v=63928409584",
+      "logo": "/api/v1/images/items/01a16bee-cec7-7cd6-9ad8-518e2321ae42/logo?v=63928409584",
+      "thumb": null
+     },
+     "accentColor": "#994926",
+     "communityRating": 7.7,
+     "criticRating": null,
+     "contentRating": "TV-MA",
+     "runtimeMinutes": 58,
+     "releaseDate": "2023-01-12",
+     "userData": {
+      "positionSeconds": 0,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": null,
+      "unwatchedCount": 7
+     },
+     "seriesTitle": null
+    }
+   ],
+   "link": "/library/01a16be8-9af2-7409-b7ea-3dc6e5b59de9?sort=added"
+  },
+  {
+   "id": "top-movies",
+   "title": "Top 10 films in your library",
+   "style": "top10",
+   "items": [
+    {
+     "id": "01a16bea-3440-7552-81c5-efc6783c60fa",
+     "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+     "parentId": null,
+     "kind": "Movie",
+     "title": "The Godfather",
+     "year": 1972,
+     "seasonNumber": null,
+     "episodeNumber": null,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 0,
+     "durationSeconds": 10629.184,
+     "resolution": "1080p",
+     "addedAt": "2024-11-10T08:39:54",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16bea-3440-7552-81c5-efc6783c60fa/poster?v=63928409918",
+      "backdrop": "/api/v1/images/items/01a16bea-3440-7552-81c5-efc6783c60fa/backdrop?v=63928409918",
+      "logo": null,
+      "thumb": null
+     },
+     "accentColor": "#994726",
+     "communityRating": 9.2,
+     "criticRating": 97,
+     "contentRating": "R",
+     "runtimeMinutes": 175,
+     "releaseDate": "1972-03-14",
+     "userData": {
+      "positionSeconds": 0,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": null,
+      "unwatchedCount": null
+     },
+     "seriesTitle": null
+    },
+    {
+     "id": "01a16bea-49de-707b-a576-49deefe003c3",
+     "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+     "parentId": null,
+     "kind": "Movie",
+     "title": "The Shawshank Redemption",
+     "year": 1994,
+     "seasonNumber": null,
+     "episodeNumber": null,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 0,
+     "durationSeconds": 8553.472,
+     "resolution": "1080p",
+     "addedAt": "2023-09-22T09:15:43",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16bea-49de-707b-a576-49deefe003c3/poster?v=63928409953",
+      "backdrop": "/api/v1/images/items/01a16bea-49de-707b-a576-49deefe003c3/backdrop?v=63928409953",
+      "logo": null,
+      "thumb": null
+     },
+     "accentColor": "#994f26",
+     "communityRating": 9.3,
+     "criticRating": 89,
+     "contentRating": "R",
+     "runtimeMinutes": 142,
+     "releaseDate": "1994-09-23",
+     "userData": {
+      "positionSeconds": 0,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": null,
+      "unwatchedCount": null
+     },
+     "seriesTitle": null
+    },
+    {
+     "id": "01a16be9-994f-7bba-ae32-b2dda551c2a6",
+     "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+     "parentId": null,
+     "kind": "Movie",
+     "title": "12 Angry Men",
+     "year": 1957,
+     "seasonNumber": null,
+     "episodeNumber": null,
+     "episodeNumberEnd": null,
+     "airDate": null,
+     "childCount": 0,
+     "durationSeconds": 5776.02,
+     "resolution": "1080p",
+     "addedAt": "2024-06-05T15:55:24",
+     "artwork": {
+      "poster": "/api/v1/images/items/01a16be9-994f-7bba-ae32-b2dda551c2a6/poster?v=63928409591",
+      "backdrop": "/api/v1/images/items/01a16be9-994f-7bba-ae32-b2dda551c2a6/backdrop?v=63928409591",
+      "logo": null,
+      "thumb": null
+     },
+     "accentColor": "#a64a29",
+     "communityRating": 9,
+     "criticRating": 100,
+     "contentRating": "NR",
+     "runtimeMinutes": 97,
+     "releaseDate": "1957-04-10",
+     "userData": {
+      "positionSeconds": 0,
+      "watched": false,
+      "playCount": 0,
+      "lastPlayedAt": null,
+      "unwatchedCount": null
+     },
+     "seriesTitle": null
+    }
+   ],
+   "link": null
+  }
+ ]
+}

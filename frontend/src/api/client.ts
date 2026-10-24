@@ -158,3 +158,21 @@ export function imageUrl(url: string | null | undefined, width: number): string 
   if (!url) return undefined
   return `${url}${url.includes('?') ? '&' : '?'}w=${width}`
 }
+
+export interface PlexSource {
+  path: string | null
+  found: boolean
+  accounts: { id: number; name: string; watched: number; inProgress: number }[]
+}
+
+export interface PlexImportResult {
+  matched: number
+  watched: number
+  inProgress: number
+  unmatched: number
+  keptNewer: number
+}
+
+export const getPlexSource = (path?: string, signal?: AbortSignal) =>
+  apiGet<PlexSource>(`/import/plex${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
+export const importFromPlex = (accountId: number, path?: string) => request<PlexImportResult>('POST', '/import/plex', { accountId, path })

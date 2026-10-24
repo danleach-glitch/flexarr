@@ -1,0 +1,36 @@
+{
+ "id": "01a16beb-0034-7180-b7bb-b30b35ec2c53",
+ "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+ "parentId": "01a16beb-0034-7b48-ba81-e715e10f93db",
+ "kind": "Episode",
+ "title": "The Pants Tent",
+ "year": null,
+ "seasonNumber": 1,
+ "episodeNumber": 1,
+ "episodeNumberEnd": null,
+ "airDate": null,
+ "childCount": 0,
+ "durationSeconds": 1730.395,
+ "resolution": "1080p",
+ "addedAt": "2017-08-29T03:44:21",
+ "artwork": {
+  "poster": "/api/v1/images/items/01a16beb-0034-7180-b7bb-b30b35ec2c53/poster?v=63928410028",
+  "backdrop": "/api/v1/images/items/01a16beb-0034-7180-b7bb-b30b35ec2c53/backdrop?v=63928410028",
+  "logo": "/api/v1/images/items/01a16beb-0034-7180-b7bb-b30b35ec2c53/logo?v=63928410028",
+  "thumb": "/api/v1/images/items/01a16beb-0034-7180-b7bb-b30b35ec2c53/thumb?v=63928410028"
+ },
+ "accentColor": "#264c99",
+ "communityRating": null,
+ "criticRating": null,
+ "contentRating": null,
+ "runtimeMinutes": 29,
+ "releaseDate": "2000-10-15",
+ "userData": {
+  "positionSeconds": 0,
+  "watched": false,
+  "playCount": 0,
+  "lastPlayedAt": null,
+  "unwatchedCount": null
+ },
+ "seriesTitle": "Curb Your Enthusiasm"
+}

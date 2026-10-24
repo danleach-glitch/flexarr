@@ -1,0 +1,243 @@
+{
+ "titles": [
+  {
+   "id": "01a16bea-3fd3-7625-bbb3-4ff21ea68411",
+   "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+   "parentId": null,
+   "kind": "Movie",
+   "title": "The Nightmare Before Christmas",
+   "year": 1993,
+   "seasonNumber": null,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 0,
+   "durationSeconds": 4596.64,
+   "resolution": "1080p",
+   "addedAt": "2026-10-07T12:16:54",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-3fd3-7625-bbb3-4ff21ea68411/poster?v=63928409938",
+    "backdrop": "/api/v1/images/items/01a16bea-3fd3-7625-bbb3-4ff21ea68411/backdrop?v=63928409938",
+    "logo": null,
+    "thumb": null
+   },
+   "accentColor": "#362699",
+   "communityRating": 7.9,
+   "criticRating": 95,
+   "contentRating": "PG",
+   "runtimeMinutes": 76,
+   "releaseDate": "1993-10-09",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": null
+   },
+   "seriesTitle": null
+  },
+  {
+   "id": "01a16bea-2a2c-719b-bbd4-9e09efa96903",
+   "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+   "parentId": null,
+   "kind": "Movie",
+   "title": "The End of Oak Street",
+   "year": 2026,
+   "seasonNumber": null,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 0,
+   "durationSeconds": 5984.672,
+   "resolution": "1080p",
+   "addedAt": "2026-09-15T00:30:43",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-2a2c-719b-bbd4-9e09efa96903/poster?v=63928409898",
+    "backdrop": "/api/v1/images/items/01a16bea-2a2c-719b-bbd4-9e09efa96903/backdrop?v=63928409898",
+    "logo": null,
+    "thumb": null
+   },
+   "accentColor": null,
+   "communityRating": 6.2,
+   "criticRating": 86,
+   "contentRating": "PG-13",
+   "runtimeMinutes": 100,
+   "releaseDate": "2026-08-12",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": null
+   },
+   "seriesTitle": null
+  },
+  {
+   "id": "01a16bea-3440-7728-82a5-de9a36bd84ee",
+   "libraryId": "01a16be6-5a0b-790c-8734-28f147909cd9",
+   "parentId": null,
+   "kind": "Movie",
+   "title": "The Imitation Game",
+   "year": 2014,
+   "seasonNumber": null,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 0,
+   "durationSeconds": 6853.812145,
+   "resolution": "1080p",
+   "addedAt": "2023-09-13T12:44:50",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-3440-7728-82a5-de9a36bd84ee/poster?v=63928409922",
+    "backdrop": "/api/v1/images/items/01a16bea-3440-7728-82a5-de9a36bd84ee/backdrop?v=63928409922",
+    "logo": null,
+    "thumb": null
+   },
+   "accentColor": "#994757",
+   "communityRating": 8,
+   "criticRating": 90,
+   "contentRating": "PG-13",
+   "runtimeMinutes": 113,
+   "releaseDate": "2014-11-14",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": null
+   },
+   "seriesTitle": null
+  }
+ ],
+ "episodes": [
+  {
+   "id": "01a16bea-607b-706c-a6a7-adf155f190cf",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16bea-6079-700c-a15e-ba99553a0d19",
+   "kind": "Episode",
+   "title": "The Fighting Irish",
+   "year": null,
+   "seasonNumber": 1,
+   "episodeNumber": 17,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 0,
+   "durationSeconds": 1299.552,
+   "resolution": "720p",
+   "addedAt": "2023-02-18T07:32:15",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-607b-706c-a6a7-adf155f190cf/poster?v=63928409607",
+    "backdrop": "/api/v1/images/items/01a16bea-607b-706c-a6a7-adf155f190cf/backdrop?v=63928409607",
+    "logo": "/api/v1/images/items/01a16bea-607b-706c-a6a7-adf155f190cf/logo?v=63928409607",
+    "thumb": "/api/v1/images/items/01a16bea-607b-706c-a6a7-adf155f190cf/thumb?v=63928409607"
+   },
+   "accentColor": "#997b48",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": 22,
+   "releaseDate": "2007-03-08",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": null
+   },
+   "seriesTitle": "30 Rock"
+  },
+  {
+   "id": "01a16bea-607b-71af-82fa-14fd109922ce",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16bea-6079-700c-a15e-ba99553a0d19",
+   "kind": "Episode",
+   "title": "The Source Awards",
+   "year": null,
+   "seasonNumber": 1,
+   "episodeNumber": 16,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 0,
+   "durationSeconds": 1298.144,
+   "resolution": "720p",
+   "addedAt": "2023-02-18T07:43:03",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-607b-71af-82fa-14fd109922ce/poster?v=63928409607",
+    "backdrop": "/api/v1/images/items/01a16bea-607b-71af-82fa-14fd109922ce/backdrop?v=63928409607",
+    "logo": "/api/v1/images/items/01a16bea-607b-71af-82fa-14fd109922ce/logo?v=63928409607",
+    "thumb": "/api/v1/images/items/01a16bea-607b-71af-82fa-14fd109922ce/thumb?v=63928409607"
+   },
+   "accentColor": "#997b48",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": 22,
+   "releaseDate": "2007-03-01",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": null
+   },
+   "seriesTitle": "30 Rock"
+  },
+  {
+   "id": "01a16bea-607b-7486-bc09-196519cdd814",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16bea-6079-700c-a15e-ba99553a0d19",
+   "kind": "Episode",
+   "title": "The C Word",
+   "year": null,
+   "seasonNumber": 1,
+   "episodeNumber": 14,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 0,
+   "durationSeconds": 1314.784,
+   "resolution": "720p",
+   "addedAt": "2023-02-18T08:21:48",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-607b-7486-bc09-196519cdd814/poster?v=63928409607",
+    "backdrop": "/api/v1/images/items/01a16bea-607b-7486-bc09-196519cdd814/backdrop?v=63928409607",
+    "logo": "/api/v1/images/items/01a16bea-607b-7486-bc09-196519cdd814/logo?v=63928409607",
+    "thumb": "/api/v1/images/items/01a16bea-607b-7486-bc09-196519cdd814/thumb?v=63928409607"
+   },
+   "accentColor": "#997b48",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": 22,
+   "releaseDate": "2007-02-15",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": null
+   },
+   "seriesTitle": "30 Rock"
+  }
+ ],
+ "people": [
+  {
+   "id": "01a16bf9-ae3d-71ed-b8fd-72bf790a2722",
+   "name": "Theresa Randle",
+   "image": "/api/v1/images/people/01a16bf9-ae3d-71ed-b8fd-72bf790a2722",
+   "credits": 3
+  },
+  {
+   "id": "01a16bfb-0843-7b7b-8826-2be56b300e11",
+   "name": "Theo James",
+   "image": "/api/v1/images/people/01a16bfb-0843-7b7b-8826-2be56b300e11",
+   "credits": 3
+  },
+  {
+   "id": "01a16bfa-e4c0-76de-a0d6-56e3f058f371",
+   "name": "Theodore Melfi",
+   "image": "/api/v1/images/people/01a16bfa-e4c0-76de-a0d6-56e3f058f371",
+   "credits": 2
+  }
+ ],
+ "genres": []
+}
