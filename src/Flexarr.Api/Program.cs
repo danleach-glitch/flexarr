@@ -42,15 +42,33 @@ builder.Services
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(FlexarrClaims.AdminPolicy, policy => policy.AddRequirements(new AdminRequirement()));
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminHandler>();
+builder.Services.AddSingleton<SignIns>();
+builder.Services.AddSingleton<PinGuard>();
 
-// Tailscale serve and cloudflared proxy from this machine; trust their forwarded headers, and only theirs.
+// Tailscale serve and cloudflared proxy from this machine; trust their forwarded headers, and otherwise only those of
+// proxies listed in TrustedProxies (a reverse proxy in Docker or on another machine). Anything else forwarded counts
+// as the internet (see NetworkZones).
+var trustedProxies = builder.Configuration.GetSection($"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.TrustedProxies)}").Get<List<string>>() ?? [];
+trustedProxies.AddRange(userConfig.GetSection("trustedProxies").Get<List<string>>() ?? []);
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
     o.ForwardLimit = 1;
     o.KnownProxies.Clear();
+    o.KnownIPNetworks.Clear();
     o.KnownProxies.Add(System.Net.IPAddress.Loopback);
     o.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+    foreach (var proxy in trustedProxies)
+    {
+        if (System.Net.IPNetwork.TryParse(proxy, out var network))
+        {
+            o.KnownIPNetworks.Add(network);
+        }
+        else if (System.Net.IPAddress.TryParse(proxy, out var address))
+        {
+            o.KnownProxies.Add(address);
+        }
+    }
 });
 
 builder.Services.ConfigureHttpJsonOptions(o =>
@@ -95,6 +113,7 @@ builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
 builder.Services.AddSingleton<TailscaleService>();
+builder.Services.AddSingleton<ITailnetWhois>(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
@@ -121,11 +140,13 @@ app.UseFlexarrSecurityHeaders();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
+app.UseFlexarrRequestForgeryGuard();
 app.UseAuthorization();
 
-app.MapOpenApi();
+// The API description is for development; a public server needn't hand out a map of itself.
 if (app.Environment.IsDevelopment())
 {
+    app.MapOpenApi();
     app.MapScalarApiReference();
 }
 

@@ -28,7 +28,8 @@ public sealed record SettingsDto(
     SeerrConnectionDto? Seerr,
     string DataDirectory,
     string FfmpegPath,
-    string FfprobePath);
+    string FfprobePath,
+    string? WebhookSecret = null);
 
 public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey);
 
@@ -67,9 +68,14 @@ public static class SettingsEndpoints
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
-            if (update.Arr?.FirstOrDefault(a => !Uri.TryCreate(a.BaseUrl, UriKind.Absolute, out _)) is { } bad)
+            if (update.Arr?.FirstOrDefault(a => WebAddress(a.BaseUrl) is null) is { } bad)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = [$"{bad.Name}: “{bad.BaseUrl}” isn't a valid URL."] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = [$"{bad.Name}: “{bad.BaseUrl}” isn't a valid http or https address."] });
+            }
+
+            if (update.Seerr is { BaseUrl.Length: > 0 } badSeerr && WebAddress(badSeerr.BaseUrl) is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
             }
 
             ServerConfigStore.Update(current.DataDirectory, config =>
@@ -91,23 +97,26 @@ public static class SettingsEndpoints
 
                 if (update.Seerr is { } seerr)
                 {
+                    // An omitted key keeps the saved one, but only for the server it was saved for.
+                    var savedKey = current.Seerr is { } saved && SameServer(saved.BaseUrl, seerr.BaseUrl) ? saved.ApiKey : "";
                     config["seerr"] = seerr.BaseUrl.Length == 0 ? null : new JsonObject
                     {
                         ["baseUrl"] = seerr.BaseUrl.Trim(),
-                        ["apiKey"] = string.IsNullOrWhiteSpace(seerr.ApiKey) ? current.Seerr?.ApiKey ?? "" : seerr.ApiKey.Trim(),
+                        ["apiKey"] = string.IsNullOrWhiteSpace(seerr.ApiKey) ? savedKey : seerr.ApiKey.Trim(),
                     };
                 }
 
                 if (update.Arr is { } arr)
                 {
-                    // An omitted API key keeps the saved one, so the UI never needs to read keys back.
+                    // An omitted API key keeps the saved one, so the UI never needs to read keys back; but only for the
+                    // server it was saved for, so changing the address can't send the key somewhere else.
                     var saved = current.Arr.ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
                     config["arr"] = new JsonArray([.. arr.Select(a => (JsonNode)new JsonObject
                     {
                         ["name"] = a.Name.Trim(),
                         ["kind"] = a.Kind.ToString(),
                         ["baseUrl"] = a.BaseUrl.Trim(),
-                        ["apiKey"] = string.IsNullOrWhiteSpace(a.ApiKey) ? saved.GetValueOrDefault(a.Name)?.ApiKey ?? "" : a.ApiKey.Trim(),
+                        ["apiKey"] = string.IsNullOrWhiteSpace(a.ApiKey) ? SavedKey(saved.GetValueOrDefault(a.Name), a.BaseUrl) ?? "" : a.ApiKey.Trim(),
                     })]);
                 }
             });
@@ -117,19 +126,36 @@ public static class SettingsEndpoints
             return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct)));
         });
 
-        group.MapGet("/api-key", (IOptionsMonitor<FlexarrOptions> options) => new { apiKey = options.CurrentValue.ApiKey });
+        // Showing the key is a POST, so it needs the web app's own header (see RequestForgery) and can't be read by a
+        // cross-site <script> or <img>.
+        group.MapPost("/api-key/reveal", (IOptionsMonitor<FlexarrOptions> options) => new { apiKey = options.CurrentValue.ApiKey });
+
+        // A new key. Browsers and devices with their own sign-in carry on; anything given the old key itself (Sonarr and
+        // Radarr's Emby connection, scripts, Apple TVs set up before per-device sign-ins) needs the new one.
+        group.MapPost("/api-key/rotate", async (IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            var key = Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+            ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["apiKey"] = key);
+            for (var i = 0; i < 20 && options.CurrentValue.ApiKey != key; i++)
+            {
+                await Task.Delay(100, ct);
+            }
+
+            return Results.Ok(new { apiKey = key });
+        });
 
         api.MapGet("/arr/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
             await Task.WhenAll(options.CurrentValue.Arr.Select(a => StatusAsync(client, a, ct)))).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapPost("/arr/test", async (ArrConnectionUpdate connection, IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
         {
+            // The saved key is only tried against the server it was saved for.
             var key = string.IsNullOrWhiteSpace(connection.ApiKey)
-                ? options.CurrentValue.Arr.FirstOrDefault(a => a.Name.Equals(connection.Name, StringComparison.OrdinalIgnoreCase))?.ApiKey
+                ? SavedKey(options.CurrentValue.Arr.FirstOrDefault(a => a.Name.Equals(connection.Name, StringComparison.OrdinalIgnoreCase)), connection.BaseUrl)
                 : connection.ApiKey;
-            if (!Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var url) || key is null)
+            if (WebAddress(connection.BaseUrl) is not { } url || key is null)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = ["Enter a URL and API key."] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = ["Enter an http or https address and the API key."] });
             }
 
             return Results.Ok(await StatusAsync(client, new ArrInstance { Name = connection.Name, Kind = connection.Kind, BaseUrl = url, ApiKey = key }, ct));
@@ -179,7 +205,20 @@ public static class SettingsEndpoints
         o.Seerr is { BaseUrl.Length: > 0 } s ? new SeerrConnectionDto(s.BaseUrl, s.ApiKey.Length > 0) : null,
         Path.GetFullPath(o.DataDirectory),
         o.FfmpegPath,
-        o.FfprobePath);
+        o.FfprobePath,
+        o.WebhookSecret);
+
+    /// <summary>An absolute http or https address; anything else (file:, ftp:) is refused.</summary>
+    private static Uri? WebAddress(string? text) =>
+        Uri.TryCreate(text?.Trim(), UriKind.Absolute, out var url) && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps) ? url : null;
+
+    /// <summary>Same scheme, host and port: where a saved key may be sent.</summary>
+    private static bool SameServer(string? saved, string? given) =>
+        WebAddress(saved) is { } a && WebAddress(given) is { } b
+        && a.Scheme == b.Scheme && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port;
+
+    private static string? SavedKey(ArrInstance? saved, string? baseUrl) =>
+        saved is not null && SameServer(saved.BaseUrl.ToString(), baseUrl) ? saved.ApiKey : null;
 
     private static async Task<ArrStatusDto> StatusAsync(ArrClient client, ArrInstance instance, CancellationToken ct)
     {

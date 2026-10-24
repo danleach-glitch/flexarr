@@ -8,53 +8,67 @@ using Microsoft.Extensions.Options;
 namespace Flexarr.Api.Profiles;
 
 /// <summary>
-/// The profile a request acts for: one chosen in the profile picker (an <c>X-Flexarr-Profile</c> token, PIN
-/// checked when it was issued), else the profile linked to the caller's Tailscale account, else the main profile.
+/// The profile a request acts for, worked out when it signed in (see
+/// <see cref="Authentication.ApiKeyAuthenticationHandler"/>): the one chosen on that browser or device, else one
+/// chosen in the profile picker (an <c>X-Flexarr-Profile</c> token, PIN checked when it was issued), else the profile
+/// linked to the caller's Tailscale account, else the main profile.
 /// </summary>
 public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<FlexarrOptions> options)
 {
     public const string Header = "X-Flexarr-Profile";
 
-    private string? _id;
-
-    public string Id => _id ??= Resolve();
+    public string Id => http.HttpContext?.User.FindFirst(FlexarrClaims.Profile)?.Value ?? PlaybackState.DefaultUser;
 
     /// <summary>
-    /// May change settings and manage the server: the API key, the home-network rule, or the main profile.
-    /// Other profiles can browse and watch.
+    /// May change settings and manage the server: the API key, the home-network rule, or the main profile. That's the
+    /// API key itself, or the main profile on any other sign-in. Other profiles can browse and watch.
     /// </summary>
-    public bool IsAdmin
+    public bool IsAdmin => http.HttpContext?.User.HasClaim(FlexarrClaims.Admin, "true") == true;
+
+    /// <summary>The credential is trusted with the server, so it may switch to a main profile without a PIN.</summary>
+    public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;
+
+    /// <summary>The browser or device sign-in this request used, if any.</summary>
+    public string? SignInId => http.HttpContext?.User.FindFirst(FlexarrClaims.SignIn)?.Value;
+
+    /// <summary>
+    /// "{profileId}.{signature}": the signature binds the token to this server's API key and the profile's current
+    /// PIN, so changing the PIN (or the key) retires tokens handed out before.
+    /// </summary>
+    public string TokenFor(Profile profile)
     {
-        get
+        ArgumentNullException.ThrowIfNull(profile);
+        return $"{profile.Id}.{Sign(options.CurrentValue.ApiKey, $"profile:{profile.Id}:{profile.PinHash}")}";
+    }
+
+    /// <summary>The profile id a token names, if its signature is right for <paramref name="pinHash"/>.</summary>
+    public static bool Verifies(string? apiKey, string profileId, string? pinHash, string signature)
+    {
+        ArgumentNullException.ThrowIfNull(signature);
+        var given = Encoding.UTF8.GetBytes(signature);
+        // Tokens from before PINs were part of the signature still work until the key changes.
+        return CryptographicOperations.FixedTimeEquals(given, Encoding.UTF8.GetBytes(Sign(apiKey, $"profile:{profileId}:{pinHash}")))
+            | CryptographicOperations.FixedTimeEquals(given, Encoding.UTF8.GetBytes(Sign(apiKey, $"profile:{profileId}")));
+    }
+
+    /// <summary>
+    /// A profile picture's URL. &lt;img&gt; tags and the Apple TV fetch it without signing in, so it carries a signature:
+    /// only someone who was shown the profile list can work it out.
+    /// </summary>
+    public string? ImageUrlFor(Profile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (profile.ImageUpdatedAt is not { } at)
         {
-            var method = http.HttpContext?.User.FindFirst(FlexarrClaims.Method)?.Value;
-            return method is "api-key" or "local" || Id == PlaybackState.DefaultUser;
-        }
-    }
-
-    /// <summary>"{profileId}.{signature}": the signature binds the token to this server's API key.</summary>
-    public string TokenFor(string profileId) => $"{profileId}.{Sign(profileId)}";
-
-    private string Resolve()
-    {
-        var context = http.HttpContext;
-        var token = context?.Request.Headers[Header].FirstOrDefault();
-        var dot = token?.LastIndexOf('.') ?? -1;
-        if (token is not null && dot > 0)
-        {
-            var id = token[..dot];
-            if (CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(token[(dot + 1)..]), Encoding.UTF8.GetBytes(Sign(id))))
-            {
-                return id;
-            }
+            return null;
         }
 
-        return context?.User.FindFirst(FlexarrClaims.Profile)?.Value ?? PlaybackState.DefaultUser;
+        var version = at.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return $"/api/v1/profiles/{profile.Id}/image?v={version}&s={ImageSignature(options.CurrentValue.ApiKey, profile.Id, version)}";
     }
 
-    private string Sign(string profileId)
-    {
-        var key = Encoding.UTF8.GetBytes(options.CurrentValue.ApiKey ?? "");
-        return Convert.ToHexStringLower(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"profile:{profileId}")))[..32];
-    }
+    public static string ImageSignature(string? apiKey, string profileId, string version) => Sign(apiKey, $"image:{profileId}:{version}");
+
+    private static string Sign(string? apiKey, string text) =>
+        Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(apiKey ?? ""), Encoding.UTF8.GetBytes(text)))[..32];
 }

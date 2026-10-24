@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 
 namespace Flexarr.Api.Security;
@@ -19,14 +21,25 @@ public sealed record TailscaleState(
     public string? Url => DnsName is null ? null : $"https://{DnsName}:{TailscaleService.Port}";
 }
 
+/// <summary>Who a tailnet address belongs to, according to Tailscale itself.</summary>
+public interface ITailnetWhois
+{
+    /// <summary>The Tailscale login of the person whose device has <paramref name="address"/>, or null if unknown.</summary>
+    Task<string?> LoginAsync(IPAddress address, CancellationToken ct);
+}
+
 /// <summary>
 /// Drives the local <c>tailscale</c> command: reads the tailnet's state and publishes Flexarr on it with
 /// <c>tailscale serve</c>, which gives it an HTTPS address, a certificate, and each visitor's verified identity.
 /// Flexarr uses its own port (8443) so anything already served on 443 is left alone.
 /// </summary>
-public sealed partial class TailscaleService(ILogger<TailscaleService> logger)
+public sealed partial class TailscaleService(ILogger<TailscaleService> logger, TimeProvider clock) : ITailnetWhois
 {
     public const int Port = 8443;
+
+    private static readonly TimeSpan WhoisLifetime = TimeSpan.FromMinutes(1);
+
+    private readonly ConcurrentDictionary<IPAddress, (string? Login, DateTime At)> _whois = new();
 
     private static readonly string[] Candidates =
     [
@@ -122,7 +135,47 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger)
         return ok ? null : error;
     }
 
-    private static async Task<(bool Ok, string Output, string Error)> RunAsync(CancellationToken ct, params string[] args)
+    /// <summary>
+    /// Asks Tailscale who owns a tailnet address (<c>tailscale whois</c>), remembered for a minute. Used to check the
+    /// identity <c>tailscale serve</c> puts on a request against the address it says the request came from.
+    /// </summary>
+    public async Task<string?> LoginAsync(IPAddress address, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        var now = clock.GetUtcNow().UtcDateTime;
+        if (_whois.TryGetValue(address, out var cached) && now - cached.At < WhoisLifetime)
+        {
+            return cached.Login;
+        }
+
+        string? login = null;
+        if (Cli is not null)
+        {
+            var (ok, json, _) = await RunAsync(TimeSpan.FromSeconds(5), ct, "whois", "--json", address.ToString());
+            if (ok)
+            {
+                try
+                {
+                    using var whois = JsonDocument.Parse(json);
+                    login = whois.RootElement.TryGetProperty("UserProfile", out var user) && user.TryGetProperty("LoginName", out var name)
+                        ? name.GetString()
+                        : null;
+                }
+                catch (JsonException)
+                {
+                    // Not what whois normally prints: treat the address as unknown.
+                }
+            }
+        }
+
+        _whois[address] = (login, now);
+        return login;
+    }
+
+    private static Task<(bool Ok, string Output, string Error)> RunAsync(CancellationToken ct, params string[] args) =>
+        RunAsync(TimeSpan.FromSeconds(20), ct, args);
+
+    private static async Task<(bool Ok, string Output, string Error)> RunAsync(TimeSpan limit, CancellationToken ct, params string[] args)
     {
         var start = new ProcessStartInfo(Cli!) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in args)
@@ -131,7 +184,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger)
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        timeout.CancelAfter(limit);
         try
         {
             using var process = Process.Start(start)!;

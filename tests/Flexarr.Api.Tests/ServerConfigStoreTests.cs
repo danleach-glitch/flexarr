@@ -28,11 +28,44 @@ public sealed class ServerConfigStoreTests : IDisposable
     [Fact]
     public void KeepsConfiguredApiKey()
     {
-        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing" };
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook" };
 
         new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options);
 
         Assert.Equal("existing", options.ApiKey);
         Assert.False(File.Exists(Path.Combine(_dir, ServerConfigStore.FileName)));
+    }
+
+    [Fact]
+    public void ConfigFile_IsReadableOnlyByItsOwner()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var path = Path.Combine(_dir, ServerConfigStore.FileName);
+        File.WriteAllText(path, "{}");
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook" };
+
+        new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options); // an existing file is tightened
+        var tightened = File.GetUnixFileMode(path);
+        ServerConfigStore.Update(_dir, config => config["seerr"] = null); // and rewritten ones stay that way
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, tightened);
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+    }
+
+    [Fact]
+    public void GeneratesAWebhookSecret_SeparateFromTheApiKey()
+    {
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing" };
+
+        new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options);
+
+        var saved = JsonNode.Parse(File.ReadAllText(Path.Combine(_dir, ServerConfigStore.FileName)))!;
+        Assert.Equal(32, options.WebhookSecret!.Length);
+        Assert.Equal(options.WebhookSecret, saved["webhookSecret"]!.GetValue<string>());
     }
 }
