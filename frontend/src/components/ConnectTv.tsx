@@ -2,8 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, approvePairing, getPairing, type PairingDetails } from '../api/client'
 
 /**
- * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving hands the TV
- * this server's access, so only the main profile can.
+ * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving gives the TV a
+ * sign-in of its own, so only the main profile can.
  */
 export function ConnectTv({ initialCode = '' }: { initialCode?: string }) {
   const [code, setCode] = useState(initialCode)
@@ -68,8 +68,16 @@ export function ConnectTv({ initialCode = '' }: { initialCode?: string }) {
         <>
           <h2>Connect {details.deviceName}?</h2>
           <p className="muted">
-            It showed the code <strong>{details.code}</strong>. Allowing it gives it access to this Flexarr server, like any other device you’ve signed in.
+            It showed the code <strong>{details.code}</strong> and asked from {details.zone === 'Tailnet' ? 'Tailscale' : 'your home network'}
+            {details.requestedFrom ? ` (${details.requestedFrom})` : ''}. Allowing it gives it access to this Flexarr server, like any other device you’ve
+            signed in. You can sign it out later in Settings › Server.
           </p>
+          {details.zone !== 'Local' && (
+            <p className="panel advice">
+              This request didn’t come from your home network. Only allow it if you started it on your own TV just now: if someone sent you this link, choose
+              Not now.
+            </p>
+          )}
           {error && (
             <p className="error" role="alert">
               {error}

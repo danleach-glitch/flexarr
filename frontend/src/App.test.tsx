@@ -261,6 +261,59 @@ describe('Settings', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
   })
+
+  it('stays closed to a profile that isn’t the main one', async () => {
+    mockApi({ '/libraries': [], '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null } })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText(/Settings are for the main profile/)).toBeInTheDocument()
+  })
+
+  it('reveals the API key with a POST, lists sign-ins and signs one out', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/settings': {
+        authenticationRequired: 'Enabled',
+        transcoding: {},
+        availableHardwareAcceleration: [],
+        pathMappings: [],
+        arr: [],
+        seerr: null,
+        dataDirectory: '/data',
+        ffmpegPath: 'ffmpeg',
+        ffprobePath: 'ffprobe',
+        webhookSecret: 'hook-secret',
+      },
+      'POST /settings/api-key/reveal': { apiKey: 'the-key' },
+      '/sign-ins': [
+        { id: 's1', kind: 'Device', name: 'Living room', createdAt: '2026-01-01T00:00:00Z', lastUsedAt: new Date().toISOString(), zone: 'Local', address: '192.168.1.9', profileId: 'owner', profileName: 'Dan', isThisOne: false },
+      ],
+      'DELETE /sign-ins/s1': undefined,
+    })
+    vi.stubGlobal('confirm', () => true)
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show API key' }))
+    expect(await screen.findByText('the-key')).toBeInTheDocument()
+    expect(await screen.findByText('Living room')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sign-ins/s1') && init?.method === 'DELETE')).toBe(true))
+  })
+
+  it('warns before approving a TV that didn’t ask from the home network', async () => {
+    mockApi({
+      '/libraries': [],
+      '/pairing/code/ABC-DEF': { code: 'ABC-DEF', deviceName: 'Living room', expiresAt: new Date().toISOString(), requestedFrom: '100.70.1.2', zone: 'Tailnet' },
+    })
+
+    renderAt('/link?code=ABC-DEF')
+
+    expect(await screen.findByRole('heading', { name: 'Connect Living room?' })).toBeInTheDocument()
+    expect(screen.getByText(/didn’t come from your home network/)).toBeInTheDocument()
+  })
 })
 
 describe('Player', () => {
