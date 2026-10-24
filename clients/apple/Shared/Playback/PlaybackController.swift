@@ -3,13 +3,14 @@ import AVKit
 import FlexarrKit
 import Observation
 import os
+import SwiftUI
 import UIKit
 
-private let log = Logger(subsystem: "io.github.flexarr.tv", category: "playback")
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "playback")
 
 /// Owns one playback session at a time: starts it on the server, presents
-/// AVPlayerViewController, reports progress, offers Skip Intro / Next Episode as
-/// contextual actions, auto-advances, and stops the session on exit.
+/// AVPlayerViewController, reports progress, offers Skip Intro / Next Episode (contextual actions on
+/// Apple TV, a floating button on iPhone and iPad), auto-advances, and stops the session on exit.
 @MainActor
 @Observable
 final class PlaybackController: NSObject {
@@ -47,6 +48,14 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var lastPosition: Double = 0
     /// What `retry` asks for (nil: nothing to offer).
     @ObservationIgnored private var retryRequest: PlaybackRequest?
+    #if os(iOS)
+    /// Skip Intro / Next Episode, over the player.
+    @ObservationIgnored private var promptButton: UIButton?
+    /// Playing on in Picture in Picture: the player was put away, but the session goes on.
+    @ObservationIgnored private var isInPictureInPicture = false
+    /// Picture in Picture is ending by coming back to the full player, rather than by being closed.
+    @ObservationIgnored private var isRestoringFromPictureInPicture = false
+    #endif
 
     private static let reportInterval: TimeInterval = 10
     private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
@@ -101,7 +110,15 @@ final class PlaybackController: NSObject {
     }
 
     private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
-        PlaybackRequest(itemId: itemId, profile: .tvOS(hdr: AVPlayer.eligibleForHDRPlayback), startPositionSeconds: startAt)
+        PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt)
+    }
+
+    private static var deviceProfile: DeviceProfile {
+        #if os(tvOS)
+        .tvOS(hdr: AVPlayer.eligibleForHDRPlayback)
+        #else
+        .iOS(hdr: AVPlayer.eligibleForHDRPlayback)
+        #endif
     }
 
     private func makeItem(for info: PlaybackInfo) throws -> AVPlayerItem {
@@ -117,10 +134,26 @@ final class PlaybackController: NSObject {
         let player = AVPlayer(playerItem: item)
         player.appliesMediaSelectionCriteriaAutomatically = true
 
+        #if os(tvOS)
         let controller = AVPlayerViewController()
+        controller.appliesPreferredDisplayCriteriaAutomatically = true
+        #else
+        let controller = PlayerViewController()
+        controller.modalPresentationStyle = .fullScreen
+        controller.allowsPictureInPicturePlayback = true
+        controller.onDismissed = { [weak self, weak controller] in
+            // Put away for Picture in Picture, the session carries on there.
+            guard let self, let controller, controller === viewController, !isInPictureInPicture else { return }
+            viewController = nil
+            stop()
+        }
+        // Sound on with the ring switch off, and playing on in Picture in Picture or with the screen locked.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        promptButton = makePromptButton(in: controller)
+        #endif
         controller.player = player
         controller.delegate = self
-        controller.appliesPreferredDisplayCriteriaAutomatically = true
 
         self.player = player
         self.viewController = controller
@@ -206,7 +239,7 @@ final class PlaybackController: NSObject {
         let position = self.position > 0 ? self.position : lastPosition
         let failed = current.sessionId
         let retry = PlaybackRequest(
-            itemId: current.item.id, profile: .tvOS(hdr: AVPlayer.eligibleForHDRPlayback), fileId: current.fileId,
+            itemId: current.item.id, profile: Self.deviceProfile, fileId: current.fileId,
             audioStreamIndex: current.selectedAudioIndex, subtitleKey: current.selectedSubtitleKey ?? "off",
             startPositionSeconds: position, replacesSessionId: failed)
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
@@ -311,6 +344,7 @@ final class PlaybackController: NSObject {
     // MARK: Markers and next episode
 
     private func updateContextualActions() {
+        #if os(tvOS)
         guard let viewController else { return }
         switch prompt {
         case .none:
@@ -329,7 +363,58 @@ final class PlaybackController: NSObject {
                 },
             ]
         }
+        #else
+        guard let promptButton else { return }
+        let title: String? = switch prompt {
+        case .none: nil
+        case .skip(let type, _): type == .recap ? "Skip Recap" : "Skip Intro"
+        case .nextEpisode: "Next Episode"
+        }
+        if let title {
+            promptButton.configuration?.title = title
+            promptButton.configuration?.image = UIImage(systemName: prompt == .nextEpisode ? "forward.fill" : "forward.end.fill")
+        }
+        UIView.animate(withDuration: 0.2) { promptButton.alpha = title == nil ? 0 : 1 }
+        promptButton.isUserInteractionEnabled = title != nil
+        #endif
     }
+
+    #if os(iOS)
+    /// A pill in the corner above the scrubber, like the TV's contextual action.
+    private func makePromptButton(in controller: AVPlayerViewController) -> UIButton {
+        var configuration = UIButton.Configuration.filled()
+        configuration.baseBackgroundColor = UIColor(Color.screen).withAlphaComponent(0.95)
+        configuration.baseForegroundColor = UIColor(Color.room)
+        configuration.cornerStyle = .capsule
+        configuration.imagePadding = 8
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 20)
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = .systemFont(ofSize: 16, weight: .semibold)
+            return attributes
+        }
+        let button = UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in
+            MainActor.assumeIsolated { self?.promptTapped() }
+        })
+        button.alpha = 0
+        button.isUserInteractionEnabled = false
+        button.translatesAutoresizingMaskIntoConstraints = false
+        controller.view.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.trailingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            button.bottomAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.bottomAnchor, constant: -84),
+        ])
+        return button
+    }
+
+    private func promptTapped() {
+        switch prompt {
+        case .none: break
+        case .skip(_, let end): skip(to: end)
+        case .nextEpisode: advance()
+        }
+    }
+    #endif
 
     private func skip(to end: Double) {
         player?.seek(to: CMTime(seconds: end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
@@ -411,6 +496,8 @@ final class PlaybackController: NSObject {
         stop()
         guard let controller = viewController else { completion?(); return }
         viewController = nil
+        // In Picture in Picture the player isn't on screen, and dismissing it would never call back.
+        guard controller.presentingViewController != nil else { completion?(); return }
         controller.dismiss(animated: true) { completion?() }
     }
 
@@ -472,6 +559,7 @@ final class PlaybackController: NSObject {
 }
 
 extension PlaybackController: AVPlayerViewControllerDelegate {
+    #if os(tvOS)
     nonisolated func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
         MainActor.assumeIsolated {
             guard playerViewController === viewController else { return }
@@ -479,4 +567,53 @@ extension PlaybackController: AVPlayerViewControllerDelegate {
             stop()
         }
     }
+    #else
+    nonisolated func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+        MainActor.assumeIsolated { isInPictureInPicture = true }
+    }
+
+    nonisolated func playerViewController(_ playerViewController: AVPlayerViewController,
+                                          failedToStartPictureInPictureWithError error: any Error) {
+        MainActor.assumeIsolated { isInPictureInPicture = false }
+    }
+
+    /// Back to the full player from Picture in Picture.
+    nonisolated func playerViewController(_ playerViewController: AVPlayerViewController,
+                                          restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+        // AVKit asks, and takes the answer, on the main thread; the handler just isn't marked Sendable.
+        nonisolated(unsafe) let completionHandler = completionHandler
+        MainActor.assumeIsolated {
+            guard playerViewController === viewController, let presenter = Self.topViewController() else {
+                completionHandler(false)
+                return
+            }
+            isRestoringFromPictureInPicture = true
+            presenter.present(playerViewController, animated: true) { completionHandler(true) }
+        }
+    }
+
+    /// Picture in Picture closed without coming back to the player: that's the end of watching.
+    nonisolated func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
+        MainActor.assumeIsolated {
+            isInPictureInPicture = false
+            defer { isRestoringFromPictureInPicture = false }
+            guard !isRestoringFromPictureInPicture, playerViewController === viewController,
+                  playerViewController.presentingViewController == nil else { return }
+            viewController = nil
+            stop()
+        }
+    }
+    #endif
 }
+
+#if os(iOS)
+/// The player, saying when it's been closed (its X, or a swipe down). On Apple TV the delegate says so.
+final class PlayerViewController: AVPlayerViewController {
+    var onDismissed: (() -> Void)?
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed { onDismissed?() }
+    }
+}
+#endif

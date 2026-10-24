@@ -4,7 +4,7 @@
 
 Flexarr aims to be a full Plex-style media server: it organises your library, fetches metadata and artwork, and streams to your devices with direct play or on-the-fly transcoding. Unlike Plex it is fully open source, needs no cloud account, and treats [Sonarr](https://sonarr.tv), [Radarr](https://radarr.video), [Lidarr](https://lidarr.audio) and [Prowlarr](https://prowlarr.com) as first-class neighbours rather than afterthoughts.
 
-> **Status:** version 0.8, early but running a real 12,000-file library day to day. Web is the main client; the Apple TV app is early (see [Apple TV](#apple-tv)). See the [changelog](CHANGELOG.md) and the [roadmap](docs/roadmap.md).
+> **Status:** version 0.8, early but running a real 12,000-file library day to day. Web is the main client; the Apple TV, iPhone and iPad apps are early (see [Apple TV, iPhone and iPad](#apple-tv-iphone-and-ipad)). See the [changelog](CHANGELOG.md) and the [roadmap](docs/roadmap.md).
 
 ## What it does
 
@@ -49,7 +49,7 @@ Flexarr aims to be a full Plex-style media server: it organises your library, fe
 | `src/Flexarr.Streaming` | Playback decisions, FFmpeg/HLS transcoding, subtitles, scrubbing previews, intro/credits detection |
 | `src/Flexarr.Integrations.Arr` | Sonarr / Radarr / Lidarr / Seerr clients and webhook handling |
 | `frontend/` | Web client (React + TypeScript + Vite) |
-| `clients/apple/` | Apple clients: `FlexarrKit` (shared Swift package) and the tvOS app |
+| `clients/apple/` | Apple clients: `FlexarrKit` (shared Swift package), `Shared/` app code, and the tvOS and iOS apps |
 | `docs/` | Architecture, \*arr integration, roadmap |
 
 ## Quick start (Docker)
@@ -84,15 +84,17 @@ In each app go to **Settings → Connect → + → Webhook** and set:
 
 Press **Test** — Flexarr answers with `200 OK`. See [docs/arr-integration.md](docs/arr-integration.md) for details.
 
-## Apple TV
+## Apple TV, iPhone and iPad
 
-The tvOS app (in `clients/apple`) installs from Xcode onto your own Apple TV:
+The apps (in `clients/apple`) install from Xcode onto your own devices. For an Apple TV:
 
 1. Sign Xcode in to your Apple ID (Xcode › Settings › Accounts). A free one works.
 2. Pair the Apple TV: on the TV, open Settings › Remotes and Devices › Remote App and Devices; on the Mac, open Devices and Simulators (⇧⌘2) and pair it.
 3. Run `make apple-install TEAM=<your team id> BUNDLE_ID=com.yourname.flexarr.tv`. Your team id is in Xcode › Settings › Accounts; the identifier just needs to be unique to you.
 
-With a free Apple ID the app stops opening after 7 days; run the same command again. On the TV, pick your server and approve the code it shows in the web app (Settings › Connect a TV), or type the API key; either way the TV gets a sign-in of its own rather than keeping the key.
+For an iPhone or iPad, connect it to the Mac (or pair it over Wi-Fi in Devices and Simulators), turn on Developer Mode on the device (Settings › Privacy & Security), then run `make ios-install TEAM=<your team id> BUNDLE_ID=com.yourname.flexarr.ios`.
+
+With a free Apple ID the apps stop opening after 7 days; run the same command again. In the app, pick your server and approve the code it shows in the web app (Settings › Connect a TV; on an iPhone, **Approve in Safari** opens it for you), or type the API key; either way the device gets a sign-in of its own rather than keeping the key. On iPhone and iPad, films play in Picture in Picture, over AirPlay and with the screen locked.
 
 ## Development
 
@@ -103,7 +105,7 @@ make setup     # restore .NET + npm dependencies
 make dev-api   # server on http://localhost:8383 (hot reload)
 make dev-web   # web client on http://localhost:5173 (proxies /api to the server)
 make test      # server + web tests
-make apple     # generate the Xcode project and build the tvOS app
+make apple     # generate the Xcode project and build the tvOS and iOS apps
 ```
 
 `docker compose up -d` starts Flexarr together with Sonarr, Radarr, Lidarr and Prowlarr for integration testing.

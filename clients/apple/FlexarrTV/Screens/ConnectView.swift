@@ -134,16 +134,13 @@ private struct PairWithServer: View {
     @Environment(AppModel.self) private var model
     let server: DiscoveredServer
     let onBack: () -> Void
-    @State private var pairing: PairingStart?
-    @State private var error: String?
-    /// The code on screen replaced one that ran out, so anyone part-way through typing the old one notices.
-    @State private var renewedAt: Date?
+    @State private var pairing: Pairing?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            if let pairing {
+            if let pairing, let start = pairing.current {
                 HStack(alignment: .top, spacing: 44) {
-                    QRCode(text: link(for: pairing).absoluteString)
+                    QRCode(text: pairing.link(for: start).absoluteString)
                         .frame(width: 300, height: 300)
                     VStack(alignment: .leading, spacing: 18) {
                         Text("Scan with your phone")
@@ -153,11 +150,11 @@ private struct PairWithServer: View {
                             .font(.system(size: 25))
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(pairing.code)
+                        Text(start.code)
                             .font(.marquee(96, weight: .black))
                             .foregroundStyle(Color.screen)
                             .kerning(6)
-                        if renewedAt != nil {
+                        if pairing.renewedAt != nil {
                             Label("New code", systemImage: "arrow.clockwise")
                                 .font(.system(size: 30, weight: .semibold))
                                 .foregroundStyle(Color.silver)
@@ -167,10 +164,10 @@ private struct PairWithServer: View {
                 Text("Connecting to \(server.name). Waiting for approval…")
                     .font(.system(size: 24))
                     .foregroundStyle(Color.usher)
-            } else if error == nil {
+            } else if pairing?.error == nil {
                 ProgressView()
             }
-            if let error {
+            if let error = pairing?.error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Color.screen)
@@ -178,76 +175,10 @@ private struct PairWithServer: View {
             Button("Back", action: onBack)
                 .buttonStyle(ActionButtonStyle(prominent: false))
         }
-        .task(id: server) { await pair() }
-    }
-
-    private func link(for pairing: PairingStart) -> URL {
-        server.address.appending(path: "link").appending(queryItems: [URLQueryItem(name: "code", value: pairing.code)])
-    }
-
-    /// Signs in with the token the server just handed over. It's only handed over once, so a network blip here
-    /// is retried a few times rather than starting over with a new code (and leaving a sign-in nobody holds).
-    private func connect(with token: String) async throws {
-        var attempt = 0
-        while true {
-            do {
-                try await model.connect(address: server.address.absoluteString, apiKey: token)
-                return
-            } catch {
-                // Back was pressed (a cancelled request can also fail as a URL error).
-                if error is CancellationError || Task.isCancelled {
-                    abandon(token)
-                    throw CancellationError()
-                }
-                attempt += 1
-                guard attempt < 5 else {
-                    // Give up on this one: sign it out (best effort) so it doesn't linger in the list.
-                    abandon(token)
-                    throw error
-                }
-                self.error = "Connecting… (\(ConnectionError(error).message))"
-                do {
-                    try await Task.sleep(for: .seconds(2 * attempt))
-                } catch {
-                    abandon(token)
-                    throw error
-                }
-            }
-        }
-    }
-
-    /// The approved token wasn't kept, so sign it out (best effort) rather than leave it in the list with nobody
-    /// holding it. Detached: this task may be cancelled (Back) at any moment, which would cancel the request too.
-    private func abandon(_ token: String) {
-        let client = FlexarrClient(baseURL: server.address, apiKey: token)
-        Task.detached { try? await client.signOut() }
-    }
-
-    /// Gets a code, then polls until it's approved (and signs in) or expires (and gets a new one).
-    private func pair() async {
-        let client = FlexarrClient(baseURL: server.address)
-        while !Task.isCancelled {
-            do {
-                let started = try await client.startPairing(deviceName: UIDevice.current.name)
-                if let shown = pairing, shown.code != started.code { renewedAt = Date() }
-                pairing = started
-                error = nil
-                while !Task.isCancelled {
-                    try await Task.sleep(for: .seconds(2))
-                    if let renewedAt, Date().timeIntervalSince(renewedAt) > 10 { self.renewedAt = nil }
-                    let status = try await client.pairingStatus(started.id)
-                    if status.status == "approved", let key = status.apiKey {
-                        try await connect(with: key)
-                        return
-                    }
-                    if status.status == "expired" { break } // a fresh code next time round
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                self.error = ConnectionError(error).message
-                try? await Task.sleep(for: .seconds(5))
-            }
+        .task(id: server) {
+            let pairing = Pairing(server: server)
+            self.pairing = pairing
+            await pairing.run(model: model)
         }
     }
 }

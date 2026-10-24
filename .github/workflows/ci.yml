@@ -64,3 +64,7 @@ jobs:
           xcodegen generate
           xcodebuild -project Flexarr.xcodeproj -scheme FlexarrTV \
             -destination 'generic/platform=tvOS' CODE_SIGNING_ALLOWED=NO build
+      - name: Build iOS app
+        run: |
+          xcodebuild -project Flexarr.xcodeproj -scheme FlexarriOS \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build

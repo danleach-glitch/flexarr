@@ -303,6 +303,14 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
             maxBitrate: 0
         )
     }
+
+    /// What AVPlayer on iPhone and iPad can direct play: the same formats as Apple TV (AVPlayer mixes surround
+    /// down for headphones and speakers, and passes it on over AirPlay).
+    public static func iOS(hdr: Bool) -> DeviceProfile {
+        var profile = tvOS(hdr: hdr)
+        profile.client = "ios"
+        return profile
+    }
 }
 
 public struct PlaybackRequest: Codable, Sendable, Hashable {

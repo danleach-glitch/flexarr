@@ -27,7 +27,7 @@ struct SettingsView: View {
                         .padding(.bottom, 16)
                     row("Address", model.credentials?.address.absoluteString ?? "")
                     if let status {
-                        row("Version", Self.shortVersion(status.version))
+                        row("Version", ServerVersion.short(status.version))
                         row("Running on", status.osDescription)
                         row("Runtime", status.runtimeVersion)
                         row("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
@@ -75,13 +75,6 @@ struct SettingsView: View {
         .padding(.vertical, 14)
     }
 
-    /// "0.1.0+d4c892c6190c…" reads better as "0.1.0 (d4c892c)".
-    static func shortVersion(_ version: String) -> String {
-        let parts = version.split(separator: "+", maxSplits: 1)
-        guard parts.count == 2 else { return version }
-        return "\(parts[0]) (\(parts[1].prefix(7)))"
-    }
-
     private func load() async {
         guard let client = model.client else { return }
         do {
@@ -92,8 +85,3 @@ struct SettingsView: View {
     }
 }
 
-extension Bundle {
-    var shortVersion: String {
-        (infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
-    }
-}

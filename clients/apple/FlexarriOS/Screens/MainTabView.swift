@@ -1,0 +1,121 @@
+import FlexarrKit
+import SwiftUI
+
+enum TabID: Hashable {
+    case home
+    case libraries
+    case search
+    case settings
+}
+
+/// Home, Libraries, Search and Settings along the bottom (a sidebar on iPad).
+struct MainTabView: View {
+    @Environment(AppModel.self) private var model
+    @State private var selection: TabID = .home
+
+    var body: some View {
+        TabView(selection: $selection) {
+            Tab("Home", systemImage: "house.fill", value: TabID.home) {
+                TabStack(handlesDeepLinks: true) { HomeView() }
+            }
+            Tab("Libraries", systemImage: "square.grid.2x2.fill", value: TabID.libraries) {
+                TabStack { LibrariesView() }
+            }
+            Tab("Search", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
+                TabStack { SearchView() }
+            }
+            Tab("Settings", systemImage: "gearshape.fill", value: TabID.settings) {
+                TabStack { SettingsView() }
+            }
+        }
+        .tabViewStyle(.sidebarAdaptable)
+        .task { await model.loadLibraries() }
+        .onChange(of: model.pendingRoute) { _, route in
+            if route != nil { selection = .home }
+        }
+    }
+}
+
+/// A navigation stack per tab with the shared destinations.
+struct TabStack<Content: View>: View {
+    @Environment(AppModel.self) private var model
+    @State private var router = Router()
+    var handlesDeepLinks = false
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        @Bindable var router = router
+        NavigationStack(path: $router.path) {
+            content()
+                .navigationDestination(for: Route.self) { route in
+                    destination(route)
+                }
+        }
+        .environment(router)
+        .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
+        .onAppear(perform: consumeDeepLink)
+    }
+
+    private func consumeDeepLink() {
+        guard handlesDeepLinks, let route = model.pendingRoute else { return }
+        router.push(route)
+        model.pendingRoute = nil
+    }
+
+    @ViewBuilder
+    private func destination(_ route: Route) -> some View {
+        switch route {
+        case .item(let item):
+            DetailView(id: item.id, preview: item)
+        case .itemID(let id):
+            DetailView(id: id, preview: nil)
+        case .person(let id, let name):
+            PersonView(id: id, name: name)
+        case .library(let library, let sort):
+            LibraryView(library: library, initialSort: sort)
+        }
+    }
+}
+
+/// The libraries this profile can see, each opening its poster grid.
+struct LibrariesView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+
+    var body: some View {
+        Group {
+            if model.libraries.isEmpty {
+                if let error = model.librariesError {
+                    StatusView(state: .failed(error) { Task { await model.loadLibraries() } })
+                } else {
+                    StatusView(state: .loading)
+                }
+            } else {
+                List(model.libraries) { library in
+                    Button { router.push(.library(library, .title)) } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: library.type == .tvShows ? "tv" : "film")
+                                .font(.title3)
+                                .foregroundStyle(Color.silver)
+                                .frame(width: 32)
+                            Text(library.name)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Color.screen)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Color.usher)
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .listRowBackground(Color.seat)
+                }
+                .scrollContentBackground(.hidden)
+                .refreshable { await model.loadLibraries() }
+            }
+        }
+        .background(RoomBackground(ambient: nil))
+        .navigationTitle("Libraries")
+    }
+}

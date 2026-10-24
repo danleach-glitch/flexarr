@@ -18,10 +18,10 @@ Web and Apple TV are the first-class clients. Done items stay listed so the shap
 ## Next
 
 - **Apple TV app:** browsing, detail pages, profiles and AVPlayer playback with skip intro and Up Next are in; Collections next
+- **iPhone and iPad app:** the same as the Apple TV app, with Picture in Picture and AirPlay; Collections and downloads for offline next
 - **Profiles, part two:** parental ratings
 - **PostgreSQL** as an alternative to SQLite (#14)
 - **File watching** for libraries not managed by the *arr apps (#3)
-- **iOS/iPadOS** from the shared `FlexarrKit`
 
 ## Later
 

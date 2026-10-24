@@ -18,13 +18,13 @@ final class AppModel {
     private(set) var profiles: [Profile] = []
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
-    /// The household has several profiles and nobody has chosen one on this Apple TV yet.
+    /// The household has several profiles and nobody has chosen one on this device yet.
     private(set) var needsProfileChoice = false
     /// Bumped whenever watch state changes (playback ended, marked watched) so screens reload.
     private(set) var refreshToken = 0
     /// Set by deep links (`flexarr://item/<id>`); the selected tab's stack pushes it.
     var pendingRoute: Route?
-    /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this Apple TV.
+    /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
 
     let store = CredentialStore()
@@ -57,7 +57,7 @@ final class AppModel {
         player.onSessionEnded = { [weak self] in self?.invalidate() }
     }
 
-    /// The signed-in client. A 401 from it checks whether this Apple TV has been signed out on the server.
+    /// The signed-in client. A 401 from it checks whether this device has been signed out on the server.
     var client: FlexarrClient? {
         guard case .signedIn(let credentials) = phase else { return nil }
         return credentials.client { [weak self] in
@@ -78,7 +78,7 @@ final class AppModel {
     }
 
     /// Validates the address and key against `/system/status`, then saves them. A typed-in API key is swapped
-    /// for this Apple TV's own token first, so the key itself isn't kept here.
+    /// for this device's own token first, so the key itself isn't kept here.
     func connect(address: String, apiKey: String) async throws {
         guard let url = FlexarrClient.normalizeAddress(address) else { throw FlexarrClientError.invalidAddress }
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -105,7 +105,7 @@ final class AppModel {
     }
 
     func signOut() {
-        // Tell the server too, so this Apple TV's token stops working; best effort, the TV forgets it either way.
+        // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
         if let client = credentials?.client { Task { try? await client.signOut() } }
         forget()
     }
@@ -139,7 +139,7 @@ final class AppModel {
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
             guard credentials == refused else { return }
-            signedOutNotice = "This Apple TV was signed out. Connect it again to keep watching."
+            signedOutNotice = "This \(ThisDevice.name) was signed out. Connect it again to keep watching."
             forget()
         }
     }
@@ -147,7 +147,7 @@ final class AppModel {
     /// Set once this launch has checked whether the saved key should be swapped for a token of its own.
     private var upgradeChecked = false
 
-    /// The same sign-in with this Apple TV's own token in place of the server's API key, if it holds the key
+    /// The same sign-in with this device's own token in place of the server's API key, if it holds the key
     /// (as Apple TVs set up by earlier versions do). Unchanged if it doesn't, or the server is too old to offer one.
     private func withOwnToken(_ credentials: ServerCredentials) async -> ServerCredentials {
         guard !credentials.apiKey.isEmpty,
@@ -190,7 +190,7 @@ final class AppModel {
         #endif
     }
 
-    /// Makes `profile` the one watching on this Apple TV (remembered across launches). A wrong
+    /// Makes `profile` the one watching on this device (remembered across launches). A wrong
     /// PIN throws the server's message. Every screen reloads, since history and libraries differ.
     func switchProfile(to profile: Profile, pin: String? = nil) async throws {
         guard var credentials else { return }
@@ -289,9 +289,9 @@ struct ConnectionError: LocalizedError {
             case .cannotConnectToHost, .networkConnectionLost:
                 message = "The server isn't answering at that address. Make sure Flexarr is running and the port is right (usually 8383)."
             case .timedOut:
-                message = "The server took too long to answer. Is it on the same network as this Apple TV?"
+                message = "The server took too long to answer. Is it on the same network as this \(ThisDevice.name)?"
             case .notConnectedToInternet:
-                message = "This Apple TV isn't connected to a network."
+                message = "This \(ThisDevice.name) isn't connected to a network."
             case .appTransportSecurityRequiresSecureConnection:
                 message = "Plain http only works for local addresses (.local names or IP addresses). Use https for anything else."
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
@@ -307,6 +307,20 @@ struct ConnectionError: LocalizedError {
     }
 
     var errorDescription: String? { message }
+}
+
+/// What this device is called in messages: "Apple TV", "iPhone" or "iPad".
+enum ThisDevice {
+    #if os(tvOS)
+    static let name = "Apple TV"
+    #else
+    /// Set once at launch (`UIDevice` is main-actor only, and messages are made anywhere); iPhone until then.
+    nonisolated(unsafe) static var name = "iPhone"
+
+    @MainActor static func identify() {
+        name = UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+    }
+    #endif
 }
 
 /// Navigation destinations shared by every tab.

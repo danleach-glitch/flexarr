@@ -111,3 +111,12 @@ struct PlaybackPromptTests {
         #expect(info.prompt(at: 2820) == .nextEpisode)
     }
 }
+
+struct DeviceProfileTests {
+    @Test func iPhoneAndIPadPlayWhatAppleTVPlays() {
+        let tv = DeviceProfile.tvOS(hdr: true), phone = DeviceProfile.iOS(hdr: true)
+        #expect(phone.client == "ios")
+        #expect(phone.videoCodecs == tv.videoCodecs && phone.audioCodecs == tv.audioCodecs && phone.containers == tv.containers)
+        #expect(DeviceProfile.iOS(hdr: false).hdr == false)
+    }
+}

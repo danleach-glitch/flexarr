@@ -327,7 +327,7 @@ struct DetailView: View {
     private func fileInfo(_ file: MediaFile) -> some View {
         let video = [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.videoRange == .sdr ? nil : file.videoRange.label]
             .compactMap { $0 }.joined(separator: " ")
-        let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(Self.channels)].compactMap { $0 }.joined(separator: " ")
+        let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return HStack(spacing: 50) {
             if !video.isEmpty { labeled("Video", video) }
             if !audio.isEmpty { labeled("Audio", audio) }
@@ -341,16 +341,6 @@ struct DetailView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 21, weight: .semibold)).foregroundStyle(Color.usher)
             Text(value).font(.system(size: 25)).foregroundStyle(Color.screen.opacity(0.85))
-        }
-    }
-
-    private static func channels(_ count: Int) -> String {
-        switch count {
-        case 1: "Mono"
-        case 2: "Stereo"
-        case 6: "5.1"
-        case 8: "7.1"
-        default: "\(count) ch"
         }
     }
 
@@ -483,14 +473,3 @@ struct EpisodeCard: View {
     }
 }
 
-extension VideoRange {
-    var label: String {
-        switch self {
-        case .sdr: "SDR"
-        case .hdr10: "HDR10"
-        case .hlg: "HLG"
-        case .dolbyVision: "Dolby Vision"
-        case .unknown: ""
-        }
-    }
-}

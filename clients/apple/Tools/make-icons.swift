@@ -1,5 +1,5 @@
-// Renders the tvOS brand assets (layered app icon + top shelf) for Flexarr.
-// usage (from clients/apple): swift Tools/make-icons.swift FlexarrTV/Assets.xcassets
+// Renders the brand assets for Flexarr: the tvOS layered app icon and top shelf, and the iPhone/iPad app icon.
+// usage (from clients/apple): swift Tools/make-icons.swift FlexarrTV/Assets.xcassets FlexarriOS/Assets.xcassets
 import AppKit
 import Foundation
 
@@ -140,3 +140,21 @@ try writeContents(brand, [
 ])
 try writeContents(root, ["info": info])
 print("wrote \(brand.path)")
+
+// iPhone and iPad: one 1024 icon, the TV icon's room and mark squared up (iOS rounds the corners), and the room colour
+// for the launch screen.
+if CommandLine.arguments.count > 2 {
+    let ios = URL(fileURLWithPath: CommandLine.arguments[2])
+    let icon = ios.appending(path: "AppIcon.appiconset")
+    try? fm.removeItem(at: icon)
+    try fm.createDirectory(at: icon, withIntermediateDirectories: true)
+    try png(width: 1024, height: 1024) { ctx, size in
+        background(ctx, size)
+        logo(ctx, size, height: 0.72, withName: false)
+    }.write(to: icon.appending(path: "AppIcon.png"))
+    try writeContents(icon, ["images": [["filename": "AppIcon.png", "idiom": "universal", "platform": "ios", "size": "1024x1024"]], "info": info])
+    try writeContents(ios.appending(path: "LaunchBackground.colorset"), ["colors": [["idiom": "universal", "color": ["color-space": "srgb",
+        "components": ["red": "0x1B", "green": "0x17", "blue": "0x20", "alpha": "1.000"]]]], "info": info])
+    try writeContents(ios, ["info": info])
+    print("wrote \(icon.path)")
+}

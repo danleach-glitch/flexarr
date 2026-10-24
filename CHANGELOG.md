@@ -2,6 +2,14 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Flexarr for iPhone and iPad
+- A new app for iPhone and iPad, alongside the Apple TV app: Home with Continue Watching and the rows you've set up, your libraries, search, title pages with seasons and episodes, and profiles with their PINs.
+- Films and episodes resume where you left off, skip intros and recaps with a tap, and move on to the next episode. They keep playing in Picture in Picture, over AirPlay and with the screen locked.
+- It finds your server on the network by itself. Approve the code it shows in Safari on the same phone, or in **Settings › Connect a TV** on any device signed in to Flexarr, or type the server's address and API key.
+- It installs from Xcode onto your own device for now: see the README.
+
 ## 0.11.0 · 24 October 2026
 
 ### A tidier Server page in Settings
