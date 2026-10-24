@@ -557,3 +557,27 @@
   font-size: var(--step--1);
   color: var(--usher);
 }
+
+.changelog {
+  max-width: 46rem;
+}
+
+.changelog-entry {
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.changelog-entry h4 {
+  margin: 0 0 6px;
+  font-size: var(--step-0);
+}
+
+.changelog-entry ul {
+  margin: 0;
+  padding-left: 1.2em;
+  color: color-mix(in srgb, var(--screen) 85%, transparent);
+}
+
+.changelog-entry li + li {
+  margin-top: 4px;
+}

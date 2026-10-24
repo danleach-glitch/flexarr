@@ -13,6 +13,19 @@ public static class SystemEndpoints
     {
         var group = api.MapGroup("/system").WithTags("System");
 
+        // What's changed, as Markdown (Settings › Changelog). Built into the server, so it matches the running version.
+        group.MapGet("/changelog", () =>
+        {
+            using var stream = typeof(SystemEndpoints).Assembly.GetManifestResourceStream("CHANGELOG.md");
+            if (stream is null)
+            {
+                return Results.NotFound();
+            }
+
+            using var reader = new StreamReader(stream);
+            return Results.Text(reader.ReadToEnd(), "text/markdown; charset=utf-8");
+        });
+
         group.MapGet("/status", () => new SystemStatus(
             "Flexarr",
             Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0",

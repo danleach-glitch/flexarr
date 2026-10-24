@@ -13,7 +13,7 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG TARGETARCH
 ARG VERSION=0.1.0
 WORKDIR /src
-COPY global.json Directory.Build.props Directory.Packages.props .editorconfig ./
+COPY global.json Directory.Build.props Directory.Packages.props .editorconfig CHANGELOG.md ./
 COPY src/ src/
 # Docker says amd64, .NET says x64.
 RUN arch=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \

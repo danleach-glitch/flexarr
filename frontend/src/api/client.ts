@@ -81,12 +81,18 @@ export function saveApiKey(key: string) {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+/** The API key and chosen profile, as request headers. */
+function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {}
   const key = apiKey()
   if (key) headers['X-Api-Key'] = key
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
+  return headers
+}
+
+async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
   const file = body instanceof Blob
   if (body !== undefined) headers['Content-Type'] = file ? body.type || 'application/octet-stream' : 'application/json'
@@ -120,6 +126,13 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET', path, undefined, signal)
 
 export const getSystemStatus = (signal?: AbortSignal) => apiGet<SystemStatus>('/system/status', signal)
+
+/** CHANGELOG.md as built into the running server. */
+export async function getChangelog(signal?: AbortSignal) {
+  const response = await fetch('/api/v1/system/changelog', { signal, headers: authHeaders() })
+  if (!response.ok) throw new ApiError(response.status, response.statusText, [])
+  return response.text()
+}
 
 export const getLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/libraries', signal)
 /** Every library, including ones hidden from the current profile (Settings; main profile only). */
