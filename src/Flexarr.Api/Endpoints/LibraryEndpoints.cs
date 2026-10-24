@@ -1,3 +1,4 @@
+using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
@@ -13,8 +14,14 @@ public static class LibraryEndpoints
     {
         var group = api.MapGroup("/libraries").WithTags("Libraries");
 
-        group.MapGet("/", async (FlexarrDbContext db, ScanProgress progress, CancellationToken ct) =>
+        // all=true (admins, for Settings) lists libraries hidden from the current profile too.
+        group.MapGet("/", async (bool? all, FlexarrDbContext db, CurrentProfile profile, ScanProgress progress, CancellationToken ct) =>
         {
+            if (all == true && profile.IsAdmin)
+            {
+                db.HiddenLibraryIds = [];
+            }
+
             var counts = await db.MediaItems.Where(i => i.ParentId == null)
                 .GroupBy(i => i.LibraryId).Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(g => g.Key, g => g.Count, ct);
@@ -49,6 +56,7 @@ public static class LibraryEndpoints
 
         group.MapPut("/{id:guid}", async (Guid id, LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, CancellationToken ct) =>
         {
+            db.HiddenLibraryIds = []; // Settings manages every library
             var library = await db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync(l => l.Id == id, ct);
             if (library is null)
             {
@@ -84,10 +92,12 @@ public static class LibraryEndpoints
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
-            await db.Libraries.Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound()).RequireAuthorization(FlexarrClaims.AdminPolicy);
+            await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapPost("/{id:guid}/scan", async (Guid id, bool? refreshMetadata, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>
         {
+            db.HiddenLibraryIds = []; // Settings manages every library
             var library = await db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync(l => l.Id == id, ct);
             if (library is null)
             {

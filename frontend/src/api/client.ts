@@ -120,6 +120,8 @@ export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET
 export const getSystemStatus = (signal?: AbortSignal) => apiGet<SystemStatus>('/system/status', signal)
 
 export const getLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/libraries', signal)
+/** Every library, including ones hidden from the current profile (Settings; main profile only). */
+export const getAllLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/libraries?all=true', signal)
 export const createLibrary = (library: LibraryRequest) => request<Library>('POST', '/libraries', library)
 export const updateLibrary = (id: string, library: LibraryRequest) => request<Library>('PUT', `/libraries/${id}`, library)
 export const deleteLibrary = (id: string) => request<void>('DELETE', `/libraries/${id}`)
@@ -248,11 +250,15 @@ export interface Profile {
   hasPin: boolean
   isMain: boolean
   isCurrent: boolean
+  /** Libraries this profile can't see anywhere. */
+  hiddenLibraryIds: string[]
 }
 
+type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[] }
+
 export const getProfiles = (signal?: AbortSignal) => apiGet<Profile[]>('/profiles', signal)
-export const createProfile = (profile: { name: string; color: string; pin?: string }) => request<Profile>('POST', '/profiles', profile)
-export const updateProfile = (id: string, profile: { name: string; color: string; pin?: string; removePin?: boolean }) =>
+export const createProfile = (profile: Omit<ProfileChanges, 'removePin'>) => request<Profile>('POST', '/profiles', profile)
+export const updateProfile = (id: string, profile: ProfileChanges) =>
   request<Profile>('PUT', `/profiles/${id}`, profile)
 export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
 

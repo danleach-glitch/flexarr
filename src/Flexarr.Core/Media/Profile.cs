@@ -23,6 +23,9 @@ public sealed class Profile
     /// <summary>The Tailscale account (login name) that signs in as this profile over Tailscale.</summary>
     public string? TailscaleLogin { get; set; }
 
+    /// <summary>Libraries this profile doesn't see anywhere: navigation, home, search, Discover or playback.</summary>
+    public List<Guid> HiddenLibraryIds { get; set; } = [];
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
