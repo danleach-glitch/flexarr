@@ -4,6 +4,44 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Sign-ins of your own, for every browser and TV
+- Each browser and Apple TV now has a sign-in of its own. **Settings › Server** lists them, with **Sign out** for any one: a lost TV or a shared laptop, without changing the API key. Browsers you're already signed in on stay signed in.
+- Apple TVs no longer keep the server's API key. One that connects, or was set up before, swaps it for its own token. Signing out on the TV ends that token on the server too.
+- **Make a new key** in Settings › Server replaces the API key without signing out your browsers and TVs.
+- Only the main profile can change settings, connect TVs or delete media, even on a browser or TV someone signed in earlier. To change settings again, switch back to the main profile (with its PIN).
+- Wrong PINs lock the profile for a while, longer each time.
+- TVs can only ask to connect from your home network or over Tailscale. The approval page shows where the request came from and warns if it isn't your home network.
+- Sonarr, Radarr and Lidarr webhooks use their own secret instead of the API key (Settings › Server shows the new addresses). Old webhook addresses keep working.
+- Other websites can no longer use your browser to change things on Flexarr.
+- On a reverse proxy in Docker or on another computer, visitors now have to sign in instead of counting as your home network. List the proxy in `trustedProxies` in config.json.
+- Subtitle names taken from inside media files can no longer tamper with a stream.
+
+### Your library and watch history are safer
+- If a library drive or network share hasn't mounted when Flexarr scans, nothing is removed: your library and every profile's watch history are kept until it comes back.
+- Titles whose files disappear are hidden rather than deleted, and come back with their watch history and collections if the files return within a day.
+- Upgrading a film or episode in Radarr or Sonarr no longer resets its watched status.
+- Folders with accented names no longer show up as a second copy of a series after a Sonarr import.
+- New episodes get their real titles and descriptions as soon as Sonarr imports them.
+- A slow or unresponsive Radarr, Sonarr or artwork server can no longer shut Flexarr down.
+
+### Playback
+- Resuming a video after a long pause now carries on where you left off, instead of failing.
+- On Apple TV, if a stream stops (a server restart, say), playback picks back up where it was instead of closing the player.
+- The server converts at most 3 videos at once by default (Transcoding › MaxConcurrentTranscodes). Beyond that, the player says the server is busy instead of slowing everyone down.
+- Switching audio tracks or retrying no longer leaves the old conversion running in the background.
+- Up Next no longer jumps to the next special after you watch one mid-season; it carries on with the regular episodes. Daily shows with two episodes on the same day no longer skip the second.
+- The player loads faster and runs more smoothly, and switching titles quickly can no longer start the wrong one.
+
+### Faster everywhere
+- Home and library pages load faster, and a slow or offline Sonarr/Radarr no longer holds Home up for long.
+- The Collections page opens much faster with many film series.
+- The library's All view keeps your place: scans and marking things watched no longer throw you back to the first 200 titles, and going back to it returns you to where you were scrolled. When a scan adds titles to a big library, a **Refresh** button appears.
+- Jumping to a letter in a large library is much faster.
+- Pages load faster when you go back and forth, download less data, and Flexarr stops checking the server from tabs you aren't looking at.
+- Featured backdrops and posters download at the size your screen needs, and the artwork cache keeps itself under 4 GB.
+- Scans after an import are faster, and files that can't be read are no longer re-checked on every scan.
+- On Apple TV, returning from a title's page keeps your place in the library instead of jumping back to the top.
+
 ### Profiles on Apple TV
 - When your household has more than one profile, the Apple TV asks **Who's watching?** the first time it connects, and remembers the answer.
 - The current profile's name sits at the right end of the tab bar. Open it to switch; with two profiles the other person is already highlighted, so it's one press.
