@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router'
-import { getLibraryGenres, getLibraryItems, scanLibrary, type ItemSummary } from '../api/client'
+import { Link, useParams, useSearchParams } from 'react-router'
+import { getLibraryBrowse, getLibraryGenres, getLibraryItems, scanLibrary, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
+import { Hero } from '../components/Hero'
+import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
@@ -16,7 +18,68 @@ const sorts = [
   { value: 'rating', label: 'Highest rated' },
 ] as const
 
+/**
+ * Two ways into a library: Browse (a home page of rows for just this library) and All (every title, with sort,
+ * genre and letter jumps). Links that sort or filter open All.
+ */
 export function LibraryPage() {
+  const { id = '' } = useParams()
+  const [params] = useSearchParams()
+  const { libraries } = useLibraries()
+  const library = libraries.find((l) => l.id === id)
+  if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
+
+  const all = library.type === 'Music' || params.get('view') === 'all' || params.has('sort') || params.has('genre')
+  return all ? <LibraryAll key={id} /> : <LibraryBrowse key={id} library={library} />
+}
+
+function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
+  if (library.type === 'Music') return null
+  return (
+    <nav className="view-switch" aria-label={`${library.name} views`}>
+      <Link to={`/library/${library.id}`} aria-current={all ? undefined : 'page'}>
+        Browse
+      </Link>
+      <Link to={`/library/${library.id}?view=all`} aria-current={all ? 'page' : undefined}>
+        {library.type === 'Movies' ? 'All films' : 'All shows'}
+      </Link>
+    </nav>
+  )
+}
+
+function LibraryBrowse({ library }: { library: Library }) {
+  const { data, error } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, library.itemCount])
+  const heading = (
+    <>
+      <h1 className="library-title">{library.name}</h1>
+      <ViewSwitch library={library} all={false} />
+    </>
+  )
+
+  if (error) return <p className="page-message error">{error.message}</p>
+  if (!data) return <div className="hero hero-loading" aria-busy="true" />
+  if (data.rows.length === 0) {
+    return (
+      <div className="library-page">
+        <header className="library-header">
+          <div className="library-heading">{heading}</div>
+        </header>
+        <p className="page-message muted">{library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} top={heading} />
+      <div className="rows">
+        <HomeRows rows={data.rows} />
+      </div>
+    </>
+  )
+}
+
+function LibraryAll() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const sort = params.get('sort') ?? ''
@@ -89,13 +152,16 @@ export function LibraryPage() {
     setParams(next, { replace: true })
   }
 
-  if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
+  if (!library) return null
 
   return (
     <div className="library-page">
       <header className="library-header">
         <div>
-          <h1>{library.name}</h1>
+          <div className="library-heading">
+            <h1>{library.name}</h1>
+            <ViewSwitch library={library} all />
+          </div>
           <p className="muted">
             {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists' }[library.type]}
           </p>

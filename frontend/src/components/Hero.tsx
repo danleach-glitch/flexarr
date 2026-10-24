@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { imageUrl, type ItemSummary } from '../api/client'
 import { usePlay } from '../hooks/usePlay'
@@ -33,7 +33,7 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
 }
 
 /** `resume`, when given, is what the first title picks up from: the episode for a show you're partway through. */
-export function Hero({ items, overviews, resume }: { items: ItemSummary[]; overviews?: Record<string, string | null>; resume?: ItemSummary }) {
+export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; overviews?: Record<string, string | null>; resume?: ItemSummary; top?: ReactNode }) {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const play = usePlay()
@@ -63,6 +63,7 @@ export function Hero({ items, overviews, resume }: { items: ItemSummary[]; overv
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
+      {top && <div className="hero-top">{top}</div>}
       <div className="hero-art" aria-hidden="true">
         {items.map((it, i) => (
           <img key={it.id} src={imageUrl(it.artwork.backdrop, 1920)} alt="" className={i === index ? 'shown' : undefined} />

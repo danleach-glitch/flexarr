@@ -147,6 +147,8 @@ export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
   apiGet<{ name: string; count: number }[]>(`/libraries/${id}/genres`, signal)
 
 export const getHome = (signal?: AbortSignal) => apiGet<Home>('/home', signal)
+/** A library's own home page: hero and rows for just that library. */
+export const getLibraryBrowse = (id: string, signal?: AbortSignal) => apiGet<Home>(`/libraries/${id}/browse`, signal)
 export const getItem = (id: string, signal?: AbortSignal) => apiGet<ItemDetail>(`/items/${id}`, signal)
 export const getSimilar = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/similar`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => apiGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)

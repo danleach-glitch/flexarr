@@ -86,11 +86,31 @@ describe('Library page', () => {
       '/libraries/lib-movies/items': { total: 1, items: [niceGuys] },
     })
 
-    renderAt('/library/lib-movies')
+    renderAt('/library/lib-movies?view=all')
 
     expect(await screen.findByRole('link', { name: /The Nice Guys/ })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Crime' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('4 of 10')
+    expect(screen.getByRole('link', { name: 'All films' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('opens on Browse: rows for just this library, with a way to every title', async () => {
+    mockApi({
+      '/libraries': [movies],
+      '/libraries/lib-movies/browse': {
+        featured: [niceGuys],
+        overviews: {},
+        rows: [{ id: 'genre-Crime', title: 'Crime', style: 'poster', items: [niceGuys], link: '/library/lib-movies?view=all&genre=Crime' }],
+        upcoming: [],
+        downloading: 0,
+      },
+    })
+
+    renderAt('/library/lib-movies')
+
+    expect(await screen.findByRole('heading', { name: 'Crime' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'All films' })).toHaveAttribute('href', '/library/lib-movies?view=all')
   })
 })
 

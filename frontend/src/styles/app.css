@@ -1343,3 +1343,60 @@ a.upcoming-row:hover strong {
     grid-column: 2;
   }
 }
+
+/* ---------- Library views ---------- */
+
+.library-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+}
+
+/* Browse puts the library's name and views over the hero, below the navigation. */
+.hero-top {
+  position: absolute;
+  top: calc(var(--nav-height) + 18px);
+  left: var(--edge);
+  right: var(--edge);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+}
+
+.library-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: var(--step-3);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.5);
+}
+
+.view-switch {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--room) 72%, transparent);
+  border: 1px solid var(--aisle);
+}
+
+.view-switch a {
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: var(--step--1);
+  color: var(--usher);
+  text-decoration: none;
+}
+
+.view-switch a:hover {
+  color: var(--screen);
+}
+
+.view-switch a[aria-current='page'] {
+  background: var(--screen);
+  color: var(--room);
+}

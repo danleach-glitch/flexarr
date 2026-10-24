@@ -90,22 +90,7 @@ public static partial class DiscoveryEndpoints
                 .Take(60).Summaries(me).ToListAsync(ct);
             var rotation = featured.OrderBy(i => (i.Id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
 
-            // Lead with whatever you were last watching: the show for an episode, so the hero has its artwork.
-            var resume = continueWatching.FirstOrDefault();
-            if (resume is not null)
-            {
-                var leadId = resume.Kind == MediaKind.Episode
-                    ? await db.MediaItems.Where(i => i.Id == resume.Id).Select(i => i.Parent!.ParentId).FirstOrDefaultAsync(ct)
-                    : resume.Id;
-                if (leadId is { } id && await db.MediaItems.Where(i => i.Id == id).Summaries(me).FirstOrDefaultAsync(ct) is { } lead)
-                {
-                    rotation = [lead, .. rotation.Where(r => r.Id != lead.Id).Take(4)];
-                }
-                else
-                {
-                    resume = null;
-                }
-            }
+            (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
 
             var ids = rotation.Select(r => r.Id).ToList();
             var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
@@ -127,6 +112,63 @@ public static partial class DiscoveryEndpoints
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
             await ContinueWatchingAsync(db, playback, profile.Id, Math.Clamp(take ?? 20, 1, 50), ct)).WithTags("Discovery");
+
+        // A library's own home page: what you're watching in it, what's new, the best of it, and its main genres.
+        api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PlaybackService playback, CancellationToken ct) =>
+        {
+            if (await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct) is not { } library)
+            {
+                return Results.NotFound();
+            }
+
+            var me = profile.Id;
+            var movies = library.Type == LibraryType.Movies;
+            var noun = movies ? "films" : "shows";
+            var all = $"/library/{id}?view=all";
+            var topLevel = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
+            var unwatched = topLevel.Where(i => !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
+            var rows = new List<HomeRowDto>();
+
+            // Continue Watching across everything, narrowed to this library.
+            var continueWatching = (await ContinueWatchingAsync(db, playback, me, 60, ct)).Where(i => i.LibraryId == id).Take(RowSize).ToList();
+            rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
+
+            var recent = movies
+                ? topLevel.OrderByDescending(i => i.AddedAt)
+                : topLevel.OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
+            rows.Add(new HomeRowDto("recent", movies ? "Recently added" : "New episodes", "poster", await recent.Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
+            rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
+            rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",
+                await topLevel.Where(i => i.Year != null).OrderByDescending(i => i.Year).ThenByDescending(i => i.Popularity).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=year"));
+            rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster", await TopRated(unwatched).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=rating"));
+            if (!movies)
+            {
+                var started = db.PlaybackStates.Where(p => p.UserId == me && p.MediaItem!.Kind == MediaKind.Episode).Select(p => p.MediaItem!.Parent!.ParentId).Distinct();
+                rows.Add(new HomeRowDto("unstarted", "Shows you haven't started", "poster",
+                    await TopRated(topLevel.Where(s => !started.Contains(s.Id))).Take(RowSize).Summaries(me).ToListAsync(ct)));
+            }
+
+            // The library's biggest genres, biggest first, unwatched and best-rated first within each.
+            var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null) })
+                .Where(g => g.Count >= 8).OrderByDescending(g => g.Count).Take(8).ToListAsync(ct);
+            foreach (var genre in genres)
+            {
+                var picks = await TopRated(topLevel.Where(i => i.Genres.Any(g => g.Name == genre.Name)))
+                    .ThenBy(i => i.PlaybackStates.Any(p => p.UserId == me && p.Watched)).Take(RowSize).Summaries(me).ToListAsync(ct);
+                rows.Add(new HomeRowDto($"genre-{genre.Name}", genre.Name, "poster", picks, $"{all}&genre={Uri.EscapeDataString(genre.Name)}"));
+            }
+
+            var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
+            var featured = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
+                .OrderBy(i => i.PlaybackStates.Any(p => p.UserId == me && p.Watched)).ThenByDescending(i => i.LogoUrl != null)
+                .Take(60).Summaries(me).ToListAsync(ct);
+            var rotation = featured.OrderBy(i => (i.Id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
+            (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
+            var ids = rotation.Select(r => r.Id).ToList();
+            var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
+
+            return Results.Ok(new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList(), [], 0, resume));
+        }).WithTags("Discovery");
 
         api.MapGet("/items/{id:guid}/similar", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await SimilarAsync(db, id, profile.Id, ct)).WithTags("Discovery");
@@ -261,6 +303,28 @@ public static partial class DiscoveryEndpoints
     }
 
     /// <summary>Audience rating, nudged by critics where Rotten Tomatoes has a score.</summary>
+    /// <summary>
+    /// Puts whatever you were last watching first in a hero rotation: the show for an episode, so the hero has its
+    /// artwork. Returns the rotation and what its first title resumes (null if nothing is in progress).
+    /// </summary>
+    private static async Task<(List<ItemSummaryDto> Rotation, ItemSummaryDto? Resume)> LeadWithContinueWatchingAsync(
+        FlexarrDbContext db, string profileId, List<ItemSummaryDto> continueWatching, List<ItemSummaryDto> rotation, CancellationToken ct)
+    {
+        if (continueWatching.Count == 0)
+        {
+            return (rotation, null);
+        }
+
+        var resume = continueWatching[0];
+
+        var leadId = resume.Kind == MediaKind.Episode
+            ? await db.MediaItems.Where(i => i.Id == resume.Id).Select(i => i.Parent!.ParentId).FirstOrDefaultAsync(ct)
+            : resume.Id;
+        return leadId is { } id && await db.MediaItems.Where(i => i.Id == id).Summaries(profileId).FirstOrDefaultAsync(ct) is { } lead
+            ? ([lead, .. rotation.Where(r => r.Id != lead.Id).Take(4)], resume)
+            : (rotation, null);
+    }
+
     private static IOrderedQueryable<MediaItem> TopRated(IQueryable<MediaItem> query) =>
         query.Where(i => i.CommunityRating != null)
             .OrderByDescending(i => i.CommunityRating + (i.CriticRating == null ? 0 : (i.CriticRating.Value - 70) / 50.0))

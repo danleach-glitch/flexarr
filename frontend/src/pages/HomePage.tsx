@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import { getHome } from '../api/client'
-import { PosterCard, Top10Card, WideCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
+import { HomeRows } from '../components/HomeRows'
 import { Row } from '../components/Row'
 import { UpcomingCard } from '../components/UpcomingCard'
 import { useLibraries } from '../hooks/librariesContext'
@@ -30,15 +30,7 @@ export function HomePage() {
     <>
       <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />
       <div className="rows">
-        {data.rows.map((row) => (
-          <Row key={row.id} title={row.title} link={row.link} style={row.style}>
-            {row.style === 'top10'
-              ? row.items.map((item, i) => <Top10Card key={item.id} item={item} rank={i + 1} />)
-              : row.style === 'wide'
-                ? row.items.map((item) => <WideCard key={item.id} item={item} />)
-                : row.items.map((item) => <PosterCard key={item.id} item={item} />)}
-          </Row>
-        ))}
+        <HomeRows rows={data.rows} />
         {data.upcoming.length > 0 && (
           <Row title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
             {data.upcoming.map((item) => (
