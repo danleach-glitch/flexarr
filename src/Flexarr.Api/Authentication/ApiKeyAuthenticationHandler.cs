@@ -19,12 +19,13 @@ namespace Flexarr.Api.Authentication;
 /// <list type="number">
 /// <item>A key, as an <c>X-Api-Key</c> header or <c>apikey</c> query parameter: the server's API key (scripts, *arr
 /// apps, Apple TVs set up before per-device sign-ins), or a device's own token (an Apple TV once it's connected).</item>
-/// <item>The web app's session cookie, which a browser gets in exchange for the API key so it never keeps the key.
-/// Each browser has its own, which can be signed out from Settings.</item>
+/// <item>The web app's session cookie, which a browser gets in exchange for the API key (so it never keeps the key),
+/// or over Tailscale for choosing the main profile with its PIN. Each browser has its own, which can be signed out
+/// from Settings.</item>
 /// <item>A Tailscale identity: <c>tailscale serve</c> adds the sender's verified login to requests from your tailnet.
 /// Only believed when the connection came from this machine, for a tailnet address that Tailscale confirms belongs to
-/// that login, and mapped to the profile linked to that Tailscale account. Managing the server over Tailscale also
-/// takes the main profile's PIN or the browser's own sign-in.</item>
+/// that login, and mapped to the profile linked to that Tailscale account. It never manages the server: that takes
+/// the browser's own sign-in.</item>
 /// <item>The home network, when "only away from home" is chosen. Never applies to tunnelled traffic.</item>
 /// </list>
 /// Then it works out the profile the request acts for and whether it may manage the server (see
@@ -183,7 +184,7 @@ public sealed class ApiKeyAuthenticationHandler(
     /// <summary>A browser signed in by an earlier version: swap its shared cookie for its own session, which can be signed out.</summary>
     private async Task<SignIn> UpgradeLegacyCookieAsync()
     {
-        var chosen = (await ChosenProfileAsync(Context.RequestServices.GetRequiredService<FlexarrDbContext>()))?.Id;
+        var chosen = await ChosenProfileAsync(Context.RequestServices.GetRequiredService<FlexarrDbContext>());
         var now = DateTime.UtcNow;
         foreach (var (stale, _) in Upgrading.Where(u => u.Value.IsValueCreated && now - u.Value.Value.SignIn.CreatedAt > TimeSpan.FromMinutes(1)))
         {
@@ -251,15 +252,15 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             var basis = linkedProfile ?? PlaybackState.DefaultUser;
             trusted = method != Methods.Tailscale || basis == PlaybackState.DefaultUser;
-            var chosen = await ChosenProfileAsync(db);
-            profile = chosen?.Id ?? basis;
+            profile = await ChosenProfileAsync(db) ?? basis;
             admin = method switch
             {
                 Methods.ApiKey => true,
                 // Another program on this machine can pose as a tailnet user (it only needs one of their devices'
                 // addresses), so over Tailscale the identity alone watches as the main profile but doesn't manage the
-                // server: that takes the main profile chosen with its PIN, or this browser signed in with the API key.
-                Methods.Tailscale => profile == PlaybackState.DefaultUser && chosen is { WithPin: true },
+                // server. Choosing the main profile with its PIN signs this browser in (see ProfileEndpoints), and that
+                // sign-in manages it; a profile token, which is the same in every browser, never does.
+                Methods.Tailscale => false,
                 _ => profile == PlaybackState.DefaultUser,
             };
         }
@@ -288,11 +289,8 @@ public sealed class ApiKeyAuthenticationHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
 
-    /// <param name="WithPin">The token was issued after its PIN was checked (the profile has one, and it hasn't changed).</param>
-    private sealed record Chosen(string Id, bool WithPin);
-
     /// <summary>The profile named by a valid <c>X-Flexarr-Profile</c> token, if it still exists.</summary>
-    private async Task<Chosen?> ChosenProfileAsync(FlexarrDbContext db)
+    private async Task<string?> ChosenProfileAsync(FlexarrDbContext db)
     {
         var token = Request.Headers[CurrentProfile.Header].FirstOrDefault();
         var dot = token?.LastIndexOf('.') ?? -1;
@@ -309,13 +307,7 @@ public sealed class ApiKeyAuthenticationHandler(
             return null;
         }
 
-        var signature = token[(dot + 1)..];
-        if (found.PinHash is not null && CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, signature, acceptLegacy: false))
-        {
-            return new Chosen(id, WithPin: true);
-        }
-
-        return CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, signature, options.AcceptsLegacySignIns(DateTime.UtcNow)) ? new Chosen(id, WithPin: false) : null;
+        return CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
     }
 
     private static bool IsApiKey(string provided, string? key) =>

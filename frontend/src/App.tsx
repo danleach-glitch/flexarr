@@ -61,7 +61,8 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage').then((m) => (
 type ConnectionState =
   | { kind: 'loading' }
   | { kind: 'ready' }
-  | { kind: 'choose-profile'; profiles: Profile[] }
+  /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
+  | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean }
   | { kind: 'unauthorized'; wrongKey?: boolean }
   | { kind: 'error'; message: string }
 
@@ -116,15 +117,20 @@ export default function App() {
         // A stored choice the server no longer honours (the key or the PIN changed, or the profile went) would
         // quietly watch as someone else, often the main profile: forget it and ask again.
         const token = profileToken()
-        if (token && me && token.slice(0, token.lastIndexOf('.')) !== me.profileId) {
+        const tokenFor = token?.slice(0, token.lastIndexOf('.'))
+        // Earlier versions kept the main profile's token after its PIN, to manage the server over Tailscale. The PIN
+        // now signs the browser in instead, so that token goes, and over Tailscale the picker asks for the PIN again.
+        const oldMainToken = me !== null && tokenFor === 'owner'
+        if (token && me && (oldMainToken || tokenFor !== me.profileId)) {
           saveProfileToken(null)
           sessionStorage.removeItem('flexarr.profileChosen')
           clearApiCache()
         }
-        // Ask who's watching when the household has several profiles and this device hasn't chosen one.
-        // Over Tailscale the person is already known from their Tailscale account.
+        // Ask who's watching when the household has several profiles and this device hasn't chosen one, or when
+        // asked to ("Switch profile"). Otherwise, over Tailscale the person is already known from their account.
+        const asked = sessionStorage.getItem('flexarr.pickProfile') === '1' || (oldMainToken && me?.method === 'tailscale')
         const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
-        setState(profiles.length > 1 && !chosen ? { kind: 'choose-profile', profiles } : { kind: 'ready' })
+        setState(profiles.length > 0 && (asked || (profiles.length > 1 && !chosen)) ? { kind: 'choose-profile', profiles, asked } : { kind: 'ready' })
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -154,9 +160,20 @@ export default function App() {
       <ProfilePicker
         profiles={state.profiles}
         onChosen={() => {
+          sessionStorage.removeItem('flexarr.pickProfile')
           sessionStorage.setItem('flexarr.profileChosen', '1')
           setState({ kind: 'ready' })
         }}
+        // Carry on as before: opening the picker didn't give up the profile chosen here.
+        onCancel={
+          state.asked
+            ? () => {
+                sessionStorage.removeItem('flexarr.pickProfile')
+                sessionStorage.setItem('flexarr.profileChosen', '1')
+                setState({ kind: 'ready' })
+              }
+            : undefined
+        }
       />
     )
   }

@@ -73,7 +73,7 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
-    public async Task Strikes_AreForgotten_AfterAQuietSpell()
+    public async Task Strikes_AreHalved_AfterAQuietSpell()
     {
         var clock = new ManualClock();
         var guard = new PinGuard(clock);
@@ -90,6 +90,79 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
 
         Assert.Equal(PinCheck.LockedOut, locked.Result);
         Assert.Equal(PinCheck.Right, later.Result);
+    }
+
+    [Fact]
+    public async Task APatientGuesser_IsLockedOutAgain_SoonAfterAQuietSpell()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // Eight wrong PINs, each waiting out the lockout it earns (none for the first three, then 30 s doubling).
+        for (var i = 1; i <= 8; i++)
+        {
+            await guard.CheckAsync("kid", "patient", () => false, CancellationToken.None);
+            clock.Now += i < 4 ? TimeSpan.FromSeconds(1) : TimeSpan.FromSeconds(30 * Math.Pow(2, i - 4) + 1);
+        }
+
+        clock.Now += PinGuard.QuietPeriod;
+        // Half the strikes are kept, so one more wrong PIN locks it out straight away.
+        await guard.CheckAsync("kid", "patient", () => false, CancellationToken.None);
+        var next = await guard.CheckAsync("kid", "patient", () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, next.Result);
+    }
+
+    [Fact]
+    public async Task ABrowserThatKnowsThePin_IsntLockedOut_ByGuessesFromItsAddress()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        await guard.CheckAsync("owner", "address:10.0.0.2", () => true, CancellationToken.None, browser: "owners-laptop");
+        for (var i = 0; i < 4; i++)
+        {
+            await guard.CheckAsync("owner", "address:10.0.0.2", () => false, CancellationToken.None, browser: $"kids-tablet-{i}");
+        }
+
+        clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
+        var owner = await guard.CheckAsync("owner", "address:10.0.0.2", () => true, CancellationToken.None, browser: "owners-laptop");
+        // A new cookie doesn't buy the guesser fresh attempts.
+        var freshCookie = await guard.CheckAsync("owner", "address:10.0.0.2", () => true, CancellationToken.None, browser: "kids-tablet-new");
+
+        Assert.Equal(PinCheck.Right, owner.Result);
+        Assert.Equal(PinCheck.LockedOut, freshCookie.Result);
+    }
+
+    [Fact]
+    public async Task ChangingTheMainPin_TakesTheCurrentOne_OrTheApiKey()
+    {
+        var browser = factory.CreateClient();
+        using (var signIn = new HttpRequestMessage(HttpMethod.Post, Api("/session")))
+        {
+            signIn.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+            browser.DefaultRequestHeaders.Add("Cookie", Assert.Single((await browser.SendAsync(signIn)).Headers.GetValues("Set-Cookie")).Split(';')[0]);
+            browser.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+        }
+
+        var first = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "13579" });
+        var removedWithout = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
+        var changedWithout = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "0000" });
+        var wrong = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "0000", currentPin = "1111" });
+        var revealed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
+        var renamed = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner" });
+        var changed = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "24680", currentPin = "13579" });
+        var wrongKey = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true, apiKey = "not-the-key" });
+        var forgotten = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true, apiKey = FlexarrApiFactory.ApiKey });
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode); // a first PIN needs nothing more
+        Assert.Equal(HttpStatusCode.Forbidden, removedWithout.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, changedWithout.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, revealed.StatusCode); // the PIN is still there, still guarding the key
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode); // other changes don't ask
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, wrongKey.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, forgotten.StatusCode);
+        Assert.False((await forgotten.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
     }
 
     private sealed class ManualClock : TimeProvider

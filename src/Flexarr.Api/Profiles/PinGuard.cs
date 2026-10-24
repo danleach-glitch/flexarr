@@ -15,38 +15,54 @@ public enum PinCheck
 /// doubling each time (up to an hour); the profile itself is only throttled, to one attempt every few seconds, so
 /// someone else with the right PIN gets in after a short wait. A caller that may already manage the server (the API
 /// key, or a browser or device signed in as the main profile) isn't held up by other people's guesses at all. A right
-/// PIN clears the caller's strikes, and strikes are forgotten after a quiet spell.
+/// PIN clears the caller's strikes, and after each quiet spell half of them are forgotten.
+/// <para>
+/// Callers without a sign-in are told apart by address, which several people can share (a household's devices behind
+/// one gateway). A browser that has given a profile's right PIN before gets a count of its own for that profile, so
+/// someone else's guesses from the same address don't lock it out. A browser that hasn't shares the address's count,
+/// so throwing away its cookie doesn't earn a guesser fresh attempts.
+/// </para>
 /// </summary>
 public sealed class PinGuard(TimeProvider clock)
 {
     private const int FreeAttempts = 4;
+    private const int MaxKnownBrowsers = 10_000;
     private static readonly TimeSpan FirstLockout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan LongestLockout = TimeSpan.FromHours(1);
 
     /// <summary>Once a profile has had several wrong PINs, from anyone: the most often it's tried.</summary>
     public static readonly TimeSpan ProfileThrottle = TimeSpan.FromSeconds(5);
 
-    /// <summary>Strikes are forgotten after this long without a wrong PIN (once any lockout is over).</summary>
+    /// <summary>After this long without a wrong PIN (once any lockout is over), half the strikes are forgotten.</summary>
     public static readonly TimeSpan QuietPeriod = TimeSpan.FromMinutes(30);
 
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
+
+    /// <summary>"{profile}|{browser}" for browsers that have given that profile's right PIN.</summary>
+    private readonly ConcurrentDictionary<string, byte> _knownBrowsers = new(StringComparer.Ordinal);
 
     private sealed class Strikes
     {
         public int Count;
         public DateTime LastWrong;
         public DateTime LockedUntil;
+
+        /// <summary>When half the strikes were last forgotten.</summary>
+        public DateTime HalvedAt;
     }
 
     /// <summary>
     /// Runs <paramref name="check"/> for <paramref name="profileId"/> on behalf of <paramref name="caller"/>, unless
     /// either is held off. <paramref name="mayManage"/> callers skip the profile-wide throttle and don't add to it.
+    /// <paramref name="browser"/> is the asking browser's own id, when it has one but no sign-in.
     /// </summary>
-    public async Task<(PinCheck Result, TimeSpan RetryAfter)> CheckAsync(string profileId, string caller, Func<bool> check, CancellationToken ct, bool mayManage = false)
+    public async Task<(PinCheck Result, TimeSpan RetryAfter)> CheckAsync(string profileId, string caller, Func<bool> check, CancellationToken ct, bool mayManage = false,
+        string? browser = null)
     {
         ArgumentNullException.ThrowIfNull(check);
-        var callerKey = $"caller:{caller}";
+        var known = browser is not null && _knownBrowsers.ContainsKey($"{profileId}|{browser}");
+        var callerKey = known ? $"browser:{browser}" : $"caller:{caller}";
         var profileKey = $"profile:{profileId}";
 
         // Guesses at one profile queue up behind each other; a caller exempt from the profile's count has its own line.
@@ -70,6 +86,16 @@ public sealed class PinGuard(TimeProvider clock)
             if (check())
             {
                 _strikes.TryRemove(callerKey, out _);
+                if (browser is not null && !known)
+                {
+                    if (_knownBrowsers.Count >= MaxKnownBrowsers)
+                    {
+                        _knownBrowsers.Clear(); // they just share their address's count again
+                    }
+
+                    _knownBrowsers.TryAdd($"{profileId}|{browser}", 0);
+                }
+
                 return (PinCheck.Right, TimeSpan.Zero);
             }
 
@@ -99,11 +125,19 @@ public sealed class PinGuard(TimeProvider clock)
 
         lock (strikes)
         {
-            var quietSince = strikes.LockedUntil > strikes.LastWrong ? strikes.LockedUntil : strikes.LastWrong;
+            // Half the strikes go with each quiet spell, so a patient guesser climbs back up the lockouts quickly.
+            var quietSince = new[] { strikes.LockedUntil, strikes.LastWrong, strikes.HalvedAt }.Max();
             if (now - quietSince > QuietPeriod)
             {
-                _strikes.TryRemove(key, out _);
-                return TimeSpan.Zero;
+                var spells = (int)Math.Min(31, (now - quietSince) / QuietPeriod);
+                strikes.Count >>= spells;
+                if (strikes.Count == 0)
+                {
+                    _strikes.TryRemove(key, out _);
+                    return TimeSpan.Zero;
+                }
+
+                strikes.HalvedAt = quietSince + QuietPeriod * spells;
             }
 
             if (throttleOnly)

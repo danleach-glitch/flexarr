@@ -182,9 +182,10 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(limit);
+        Process? process = null;
         try
         {
-            using var process = Process.Start(start)!;
+            process = Process.Start(start)!;
             var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
             var error = process.StandardError.ReadToEndAsync(timeout.Token);
             await process.WaitForExitAsync(timeout.Token);
@@ -192,7 +193,29 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or OperationCanceledException)
         {
+            if (ex is OperationCanceledException)
+            {
+                // A stuck tailscale would otherwise be left running, and a whois that timed out is asked again at once.
+                Stop(process);
+            }
+
             return (false, "", ex is OperationCanceledException ? TimedOut : ex.Message);
+        }
+        finally
+        {
+            process?.Dispose();
+        }
+    }
+
+    private static void Stop(Process? process)
+    {
+        try
+        {
+            process?.Kill(entireProcessTree: true);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            // It finished (or was never started) in the meantime.
         }
     }
 

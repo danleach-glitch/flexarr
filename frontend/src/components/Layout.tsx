@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { saveProfileToken, selectProfile } from '../api/client'
+import { askForProfile, selectProfile } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
 import { Gear, Search } from './icons'
@@ -17,6 +17,8 @@ export function Layout() {
   const { me: access, profiles } = useSession()
   // Older servers have no /me; assume admin there, as before.
   const isAdmin = access?.isAdmin ?? true
+  // Over Tailscale the owner's account isn't admin until the main profile's PIN is given; Settings explains how.
+  const ownerOverTailscale = access?.method === 'tailscale' && access.profileId === 'owner'
   const me = profiles?.find((p) => p.isCurrent)
   const other = profiles?.length === 2 ? profiles.find((p) => !p.isCurrent) : undefined
   const location = useLocation()
@@ -91,7 +93,7 @@ export function Layout() {
             <span>Search</span>
             <kbd>⌘K</kbd>
           </button>
-          {isAdmin && (
+          {(isAdmin || ownerOverTailscale) && (
             <NavLink to="/settings" className="icon-button" aria-label="Settings">
               <Gear />
             </NavLink>
@@ -109,12 +111,14 @@ export function Layout() {
                     onClick={async () => {
                       // With just one other profile and no PIN to ask for, switch straight to it.
                       if (other && !other.hasPin) {
-                        await selectProfile(other.id)
-                        sessionStorage.setItem('flexarr.profileChosen', '1')
+                        // Refused (over Tailscale, a main profile without a PIN): the picker says why.
+                        await selectProfile(other.id).then(
+                          () => sessionStorage.setItem('flexarr.profileChosen', '1'),
+                          () => askForProfile(),
+                        )
                       } else {
-                        // Back to the picker: forget this device's choice.
-                        saveProfileToken(null)
-                        sessionStorage.removeItem('flexarr.profileChosen')
+                        // Back to the picker, even over Tailscale where the account already says who's watching.
+                        askForProfile()
                       }
                       // Reload everything for the new profile.
                       window.location.assign('/')

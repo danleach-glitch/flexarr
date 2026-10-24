@@ -66,6 +66,19 @@ export function saveProfileToken(token: string | null) {
 }
 
 /**
+ * Shows the profile picker on the next load, even over Tailscale or with one profile. The profile chosen here stays
+ * until another is picked, so backing out of the picker changes nothing.
+ */
+export function askForProfile() {
+  try {
+    sessionStorage.removeItem('flexarr.profileChosen')
+    sessionStorage.setItem('flexarr.pickProfile', '1')
+  } catch {
+    // Storage unavailable.
+  }
+}
+
+/**
  * Signs this browser in: the API key goes to the server once, and comes back as an HttpOnly session cookie of this
  * browser's own, so the key is never kept anywhere scripts can read it. Local-network and Tailscale visitors may not
  * need this at all.
@@ -671,7 +684,8 @@ export interface Profile {
   image: string | null
 }
 
-type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[] }
+/** Changing or removing the main profile's PIN takes `currentPin`, or `apiKey` if it's forgotten. */
+type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
 
 export const getProfiles = (signal?: AbortSignal) => cachedGet<Profile[]>('/profiles', signal, 5 * 60_000)
 export const createProfile = (profile: Omit<ProfileChanges, 'removePin'>) => request<Profile>('POST', '/profiles', profile)
@@ -684,8 +698,11 @@ export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/p
 /** Switches to a profile (checking its PIN) and remembers it on this device. */
 export async function selectProfile(id: string, pin?: string) {
   const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin })
-  // The main profile's token is kept when it has a PIN: over Tailscale, it's what lets this browser manage the server.
-  saveProfileToken(result.profile.isMain && !result.profile.hasPin ? null : result.token)
+  // The main profile needs no token: it's the default, and over Tailscale its PIN signs this browser in instead (an
+  // HttpOnly cookie). Its token is the same in every browser, so it isn't kept where scripts can read it.
+  saveProfileToken(result.profile.isMain ? null : result.token)
+  // This browser may have just been signed in, which the cache can't tell from the token: ask afresh.
+  clearApiCache()
   return result.profile
 }
 

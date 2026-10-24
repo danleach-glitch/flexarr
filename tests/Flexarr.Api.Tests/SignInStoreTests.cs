@@ -59,6 +59,20 @@ public sealed class SignInStoreTests : IDisposable
     }
 
     [Fact]
+    public void ABrowserSignedInWithThePin_LapsesSooner()
+    {
+        var weeksAgo = DateTime.UtcNow.AddDays(-20).ToString("O");
+        File.WriteAllText(FilePath, $$"""
+            [
+              { "id": "k", "kind": "Browser", "name": "With the key", "tokenHash": "h1", "createdAt": "{{weeksAgo}}", "lastUsedAt": "{{weeksAgo}}" },
+              { "id": "p", "kind": "Browser", "name": "With the PIN", "tokenHash": "h2", "createdAt": "{{weeksAgo}}", "lastUsedAt": "{{weeksAgo}}", "pinVerified": true }
+            ]
+            """);
+
+        Assert.Equal("With the key", Assert.Single(Store().List()).Name);
+    }
+
+    [Fact]
     public void AnUnreadableFile_IsKeptAside_AndSigningInStillWorks()
     {
         if (OperatingSystem.IsWindows())
