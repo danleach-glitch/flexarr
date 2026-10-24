@@ -1898,6 +1898,17 @@ a.download-attention {
   overflow-wrap: anywhere;
 }
 
+.delete-files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  max-height: 30vh;
+  overflow-y: auto;
+  font-size: var(--step--1);
+}
+
 /* ---------- Watched toggle (films and episodes) ---------- */
 
 /* Top-right of the artwork. Solid when watched; on hover, a faint ring offers to mark it. */

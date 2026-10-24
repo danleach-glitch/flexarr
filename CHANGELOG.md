@@ -11,6 +11,10 @@ What's changed in Flexarr, newest first.
 - **Match automatically again** in the same dialog undoes the choice.
 - **Settings › Library health** has a new **Check these matches** list: films and shows Sonarr and Radarr don't manage, whose details came from searching for the folder's name. **Missing artwork** rows get **Fix match** too.
 
+### Delete titles Sonarr and Radarr don't manage
+- **Delete** used to refuse a film or show that Sonarr or Radarr don't manage. Now Flexarr deletes its video files from disk itself, along with any folders that leaves empty, but never a library's own folder or anything outside it.
+- The dialog checks first, says whether Sonarr, Radarr or Flexarr will do the deleting, and lists the files when it's Flexarr.
+
 ### Fixed: shows matched to the wrong title by a search
 - Shows and films that Sonarr and Radarr didn't have were matched by searching for the folder's name and taking the first result, so *Shōgun* (2024) came up as *Shogun* (1980). The search now prefers a result with exactly the same title, accents included.
 - A title found by search was then left alone for a week. Now it's checked against Sonarr and Radarr every day, and straight away when they tell Flexarr they've added it, so it switches to their match.

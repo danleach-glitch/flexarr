@@ -11,26 +11,67 @@ namespace Flexarr.Api.Tests;
 public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
 {
     [Fact]
-    public async Task TitlesSonarrAndRadarrDontManage_AreNeverDeleted()
+    public async Task AFilmSonarrAndRadarrDontManage_IsDeletedFromDisk_WithTheFolderItLeavesEmpty()
     {
-        Guid film;
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
-            var movie = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Home Video", SortTitle = "home video" };
-            db.AddRange(library, movie);
-            await db.SaveChangesAsync();
-            film = movie.Id;
-        }
+        var root = Directory.CreateTempSubdirectory("flexarr-delete-").FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(root, "Home Video (2020)")).FullName;
+        var video = Path.Combine(folder, "Home Video (2020).mkv");
+        File.WriteAllText(video, "video");
+        File.WriteAllText(Path.Combine(folder, ".DS_Store"), "finder");
+        var film = await AddFilmAsync(root, video);
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var plan = await client.GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{film}/deletion", UriKind.Relative));
+        var response = await client.DeleteAsync(new Uri($"/api/v1/items/{film}", UriKind.Relative));
+
+        Assert.Null(plan!.ManagedBy);
+        Assert.Equal([video], plan.Files);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.False(Directory.Exists(folder));
+        Assert.True(Directory.Exists(root)); // the library's own folder stays, empty or not
+        using var check = factory.Services.CreateScope();
+        Assert.False(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == film));
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AFileOutsideTheLibrarysFolders_IsNeverDeleted()
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-delete-").FullName;
+        var elsewhere = Directory.CreateTempSubdirectory("flexarr-elsewhere-").FullName;
+        var video = Path.Combine(elsewhere, "Home Video.mkv");
+        File.WriteAllText(video, "video");
+        var film = await AddFilmAsync(root, video);
 
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
         var response = await client.DeleteAsync(new Uri($"/api/v1/items/{film}", UriKind.Relative));
 
-        using var check = factory.Services.CreateScope();
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.True(File.Exists(video));
+        using var check = factory.Services.CreateScope();
         Assert.True(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == film));
+        Directory.Delete(root, recursive: true);
+        Directory.Delete(elsewhere, recursive: true);
+    }
+
+    private sealed record DeletionPlan(string? ManagedBy, string[] Files);
+
+    /// <summary>A film no Radarr manages, in a films library whose folder is <paramref name="root"/>.</summary>
+    private async Task<Guid> AddFilmAsync(string root, string video)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+        var movie = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Home Video", SortTitle = "home video",
+            Files = [new MediaFile { Path = video, Size = 5 }],
+        };
+        db.AddRange(library, movie);
+        await db.SaveChangesAsync();
+        return movie.Id;
     }
 
     [Fact]
