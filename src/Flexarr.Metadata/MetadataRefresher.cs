@@ -66,18 +66,10 @@ public sealed partial class MetadataRefresher(
         }
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
-        var known = new List<(ArrInstance Instance, RadarrMovie Movie)>();
-        foreach (var radarr in radarrs)
-        {
-            try
-            {
-                known.AddRange((await arr.GetMoviesAsync(radarr, ct).ConfigureAwait(false)).Select(m => (radarr, m)));
-            }
-            catch (Exception ex) when (IsNetworkFailure(ex, ct))
-            {
-                LogArrUnavailable(radarr.Name, ex.Message);
-            }
-        }
+        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        var known = (await KnownAsync(radarrs, onlyWithin ? items : null, i => i.TmdbId,
+                arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
+            .Select(k => (k.Instance, Movie: k.Entry)).ToList();
 
         var byPath = Index(known, k => MapPath(k.Movie.Path));
         var byImdb = Index(known, k => k.Movie.ImdbId);
@@ -255,18 +247,10 @@ public sealed partial class MetadataRefresher(
         }
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
-        var known = new List<(ArrInstance Instance, SonarrSeries Series)>();
-        foreach (var sonarr in sonarrs)
-        {
-            try
-            {
-                known.AddRange((await arr.GetSeriesAsync(sonarr, ct).ConfigureAwait(false)).Select(s => (sonarr, s)));
-            }
-            catch (Exception ex) when (IsNetworkFailure(ex, ct))
-            {
-                LogArrUnavailable(sonarr.Name, ex.Message);
-            }
-        }
+        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        var known = (await KnownAsync(sonarrs, onlyWithin ? items : null, i => i.TvdbId,
+                arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
+            .Select(k => (k.Instance, Series: k.Entry)).ToList();
 
         var byPath = Index(known, k => MapPath(k.Series.Path));
         var byTvdb = Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null);
@@ -565,6 +549,85 @@ public sealed partial class MetadataRefresher(
             .Select(i => new { i.Id, i.Path }).ToListAsync(ct).ConfigureAwait(false);
         return candidates.Where(c => within.Any(w => PathComparison.IsUnder(c.Path!, w) || PathComparison.IsUnder(w, c.Path!)))
             .Select(c => c.Id).ToList();
+    }
+
+    /// <summary>
+    /// What Radarr or Sonarr have that may match <paramref name="only"/>. When just a webhook's titles are due, only
+    /// those are asked for (by their Radarr/Sonarr id, else their TMDB/TVDB id) rather than the whole library, which can
+    /// run to megabytes on every import. A title with neither, or a null <paramref name="only"/>, needs the whole list.
+    /// </summary>
+    /// <param name="instances">The Radarr or Sonarr instances.</param>
+    /// <param name="only">The titles due, if they're all from the folders just scanned; else null.</param>
+    /// <param name="externalId">The title's TMDB (films) or TVDB (shows) id.</param>
+    /// <param name="all">Fetches an instance's whole library.</param>
+    /// <param name="byArrId">Fetches one title by the instance's own id.</param>
+    /// <param name="byExternalId">Fetches the titles (none or one) with a TMDB or TVDB id.</param>
+    /// <param name="ct">Stops the fetch.</param>
+    private async Task<List<(ArrInstance Instance, T Entry)>> KnownAsync<T>(
+        List<ArrInstance> instances,
+        IReadOnlyList<MediaItem>? only,
+        Func<MediaItem, string?> externalId,
+        Func<ArrInstance, CancellationToken, Task<IReadOnlyList<T>>> all,
+        Func<ArrInstance, int, CancellationToken, Task<T>> byArrId,
+        Func<ArrInstance, int, CancellationToken, Task<IReadOnlyList<T>>> byExternalId,
+        CancellationToken ct)
+    {
+        var known = new List<(ArrInstance Instance, T Entry)>();
+        if (only is not null && only.All(i => i.ArrId is not null && instances.Any(a => a.Name == i.MetadataSource) || ExternalId(i) is not null))
+        {
+            foreach (var item in only)
+            {
+                if (item.ArrId is { } arrId && instances.FirstOrDefault(a => a.Name == item.MetadataSource) is { } source)
+                {
+                    try
+                    {
+                        known.Add((source, await byArrId(source, arrId, ct).ConfigureAwait(false)));
+                        continue;
+                    }
+                    catch (Exception ex) when (IsNetworkFailure(ex, ct))
+                    {
+                        // Gone from that instance (a 404), or it's down: try the other id.
+                        LogArrUnavailable(source.Name, ex.Message);
+                    }
+                }
+
+                if (ExternalId(item) is not { } id)
+                {
+                    continue;
+                }
+
+                foreach (var instance in instances)
+                {
+                    try
+                    {
+                        known.AddRange((await byExternalId(instance, id, ct).ConfigureAwait(false)).Select(e => (instance, e)));
+                    }
+                    catch (Exception ex) when (IsNetworkFailure(ex, ct))
+                    {
+                        LogArrUnavailable(instance.Name, ex.Message);
+                    }
+                }
+            }
+
+            return known;
+        }
+
+        foreach (var instance in instances)
+        {
+            try
+            {
+                known.AddRange((await all(instance, ct).ConfigureAwait(false)).Select(e => (instance, e)));
+            }
+            catch (Exception ex) when (IsNetworkFailure(ex, ct))
+            {
+                LogArrUnavailable(instance.Name, ex.Message);
+            }
+        }
+
+        return known;
+
+        int? ExternalId(MediaItem item) =>
+            int.TryParse(externalId(item), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n > 0 ? n : null;
     }
 
     private async Task SaveEveryAsync(int count, CancellationToken ct)
