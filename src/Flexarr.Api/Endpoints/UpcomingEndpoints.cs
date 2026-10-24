@@ -1,5 +1,6 @@
 using System.Globalization;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
@@ -93,7 +94,9 @@ public static class UpcomingEndpoints
             }
         }
 
-        return results.OrderBy(r => r.Date).ToList();
+        // Something not in a library this profile can see is shown only if it's kept out of no library of that kind.
+        var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
+        return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind)).OrderBy(r => r.Date).ToList();
     }
 
     public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, FlexarrDbContext db, CancellationToken ct)
@@ -114,7 +117,8 @@ public static class UpcomingEndpoints
             }
         }
 
-        return downloads.OrderByDescending(d => d.State.Progress).ToList();
+        var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
+        return downloads.Where(d => d.LibraryItemId is not null || !hidden.Hides(d.Kind)).OrderByDescending(d => d.State.Progress).ToList();
     }
 
     /// <summary>Queue entries keyed by "sonarr-{episodeId}" / "radarr-{movieId}".</summary>

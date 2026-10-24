@@ -205,8 +205,8 @@ describe('Player', () => {
 describe('Profiles', () => {
   it('asks who is watching when there are several profiles, and checks the PIN', async () => {
     const profiles = [
-      { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: false, isMain: true, isCurrent: true },
-      { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: true, isMain: false, isCurrent: false },
+      { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: false, isMain: true, isCurrent: true, hiddenLibraryIds: [] },
+      { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: true, isMain: false, isCurrent: false, hiddenLibraryIds: [] },
     ]
     let sentPin: string | undefined
     mockApi({
@@ -214,7 +214,7 @@ describe('Profiles', () => {
       '/profiles': profiles,
       'POST /profiles/c1/select': (init?: RequestInit) => {
         sentPin = JSON.parse(String(init?.body)).pin
-        return { token: 'c1.sig', profile: { ...profiles[1], isCurrent: true } }
+        return { token: 'c1.sig', profile: { ...profiles[1], isCurrent: true, hiddenLibraryIds: [] } }
       },
       '/libraries': [],
       '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },

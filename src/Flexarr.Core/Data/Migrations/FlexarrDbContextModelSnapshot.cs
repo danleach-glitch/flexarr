@@ -483,6 +483,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.PrimitiveCollection<string>("HiddenLibraryIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(60)
@@ -507,6 +511,7 @@ namespace Flexarr.Core.Data.Migrations
                             Id = "owner",
                             Color = "#a9c2ec",
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            HiddenLibraryIds = "[]",
                             Name = "Main profile"
                         });
                 });

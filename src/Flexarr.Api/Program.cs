@@ -16,6 +16,7 @@ using Flexarr.Streaming;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
@@ -66,6 +67,8 @@ builder.Services.AddDbContext<FlexarrDbContext>((sp, db) =>
 {
     var options = sp.GetRequiredService<IOptions<FlexarrOptions>>().Value;
     db.UseSqlite($"Data Source={Path.Combine(options.DataDirectory, "flexarr.db")}");
+    // Items hidden from a profile should also drop out of the things that point at them (watch history, credits).
+    db.ConfigureWarnings(w => w.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
 });
 
 builder.Services.AddSingleton<IMediaProbe>(sp => new FfprobeMediaProbe(sp.GetRequiredService<IOptions<FlexarrOptions>>().Value.FfprobePath));
@@ -121,6 +124,7 @@ app.MapHealthChecks("/health");
 
 app.MapGroup("/api/v1")
     .RequireAuthorization()
+    .ApplyLibraryVisibility()
     .MapSystemEndpoints()
     .MapWebhookEndpoints()
     .MapLibraryEndpoints()

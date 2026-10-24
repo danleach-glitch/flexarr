@@ -1,5 +1,6 @@
 using System.Globalization;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
@@ -63,13 +64,15 @@ public static class RequestEndpoints
             }
 
             var library = await LibraryIndexAsync(db, ct);
+            var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
             var rows = new List<ExternalRowDto>();
             foreach (var (id, list, title) in Lists)
             {
                 try
                 {
                     var page = await seerr.DiscoverAsync(instance, list, 1, ct);
-                    rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library)).ToList()));
+                    rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library))
+                        .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
                 }
                 catch (HttpRequestException)
                 {
@@ -80,8 +83,13 @@ public static class RequestEndpoints
             return Results.Ok(rows);
         });
 
-        group.MapPost("/", async (TitleRequest request, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, CancellationToken ct) =>
+        group.MapPost("/", async (TitleRequest request, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
         {
+            if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
+            {
+                return Results.Problem(request.MediaType == "movie" ? "This profile can't request films." : "This profile can't request shows.", statusCode: 403);
+            }
+
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
                 return Results.Problem("Requests need a Seerr server. Add one under Settings › Sonarr and Radarr.", statusCode: 409);
@@ -105,6 +113,8 @@ public static class RequestEndpoints
 
         return api;
     }
+
+    private static MediaKind KindOf(string mediaType) => mediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
 
     private static ExternalTitleDto ToDto(SeerrResult r, Dictionary<string, Guid> library)
     {

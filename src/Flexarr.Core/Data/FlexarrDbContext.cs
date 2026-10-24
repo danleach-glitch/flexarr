@@ -18,6 +18,12 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<MediaMarker> MediaMarkers => Set<MediaMarker>();
     public DbSet<Profile> Profiles => Set<Profile>();
 
+    /// <summary>
+    /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
+    /// every query (use <c>IgnoreQueryFilters</c> to see them). Empty for background work, which sees everything.
+    /// </summary>
+    public IReadOnlyList<Guid> HiddenLibraryIds { get; set; } = [];
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         ArgumentNullException.ThrowIfNull(configurationBuilder);
@@ -34,12 +40,15 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(l => l.Name).HasMaxLength(200);
             e.HasMany(l => l.Folders).WithOne().HasForeignKey(f => f.LibraryId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany<MediaItem>().WithOne().HasForeignKey(i => i.LibraryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(l => !HiddenLibraryIds.Contains(l.Id));
         });
 
         modelBuilder.Entity<LibraryFolder>().HasIndex(f => f.Path).IsUnique();
 
         modelBuilder.Entity<MediaItem>(e =>
         {
+            // Every item (seasons and episodes too) carries its library, so hiding one hides all of it.
+            e.HasQueryFilter(i => !HiddenLibraryIds.Contains(i.LibraryId));
             e.HasOne(i => i.Parent).WithMany(i => i.Children).HasForeignKey(i => i.ParentId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(i => i.Files).WithOne(f => f.MediaItem).HasForeignKey(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });

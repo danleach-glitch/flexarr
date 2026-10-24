@@ -14,6 +14,7 @@ import {
   getRemoteAccess,
   linkTailscale,
   setTailscaleAccess,
+  getAllLibraries,
   getProfiles,
   updateProfile,
   getSettings,
@@ -84,7 +85,14 @@ export function SettingsPage() {
 // ---------------------------------------------------------------- Libraries
 
 function LibrariesSection() {
-  const { libraries, reload } = useLibraries()
+  // The nav's list (which polls during scans) leaves out libraries hidden from this profile; Settings shows them all.
+  const { libraries: visible, reload: reloadVisible } = useLibraries()
+  const all = useApi(getAllLibraries, [visible])
+  const libraries = all.data ?? visible
+  const reload = () => {
+    reloadVisible()
+    all.reload()
+  }
   const [adding, setAdding] = useState(false)
 
   return (
@@ -866,6 +874,7 @@ const profileColours = ['#a9c2ec', '#e8a0bf', '#9fd8b9', '#f2c879', '#c7a6f2', '
 function ProfilesSection() {
   const [version, setVersion] = useState(0)
   const { data } = useApi(getProfiles, [version])
+  const libraries = useApi(getAllLibraries, []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
   const reload = () => {
     setEditing(undefined)
@@ -886,13 +895,17 @@ function ProfilesSection() {
         Everyone in the house can have their own Continue Watching, watched history and Up Next. With more than one profile, Flexarr asks who’s watching when it opens. A
         PIN keeps a profile private (handy for keeping kids out of yours).
       </p>
-      {editing !== undefined && <ProfileForm profile={editing === 'new' ? undefined : editing} onDone={reload} onCancel={() => setEditing(undefined)} />}
+      {editing !== undefined && (
+        <ProfileForm profile={editing === 'new' ? undefined : editing} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
+      )}
       {data?.map((p) => (
         <div key={p.id} className="panel profile-row">
           <Avatar profile={p} size={48} />
           <div>
             <strong>{p.name}</strong>
-            <p className="muted">{[p.isMain && 'Main profile', p.hasPin && 'PIN protected', p.isCurrent && 'You’re using this one'].filter(Boolean).join('. ')}</p>
+            <p className="muted">
+              {[p.isMain && 'Main profile', p.hasPin && 'PIN protected', hiddenSummary(p, libraries), p.isCurrent && 'You’re using this one'].filter(Boolean).join('. ')}
+            </p>
           </div>
           <div className="library-row-actions">
             <button className="button quiet small" onClick={() => setEditing(p)}>
@@ -917,8 +930,15 @@ function ProfilesSection() {
   )
 }
 
-function ProfileForm({ profile, onDone, onCancel }: { profile?: Profile; onDone: () => void; onCancel: () => void }) {
+/** "Can't see Movies", or nothing when the profile sees every library. */
+function hiddenSummary(profile: Profile, libraries: Library[]) {
+  const names = libraries.filter((l) => profile.hiddenLibraryIds.includes(l.id)).map((l) => l.name)
+  return names.length > 0 && `Can’t see ${names.join(', ')}`
+}
+
+function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profile; libraries: Library[]; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(profile?.name ?? '')
+  const [hidden, setHidden] = useState<string[]>(profile?.hiddenLibraryIds ?? [])
   const [color, setColor] = useState(profile?.color ?? profileColours[1])
   const [pin, setPin] = useState('')
   const [removePin, setRemovePin] = useState(false)
@@ -927,8 +947,8 @@ function ProfileForm({ profile, onDone, onCancel }: { profile?: Profile; onDone:
   async function submit(e: FormEvent) {
     e.preventDefault()
     try {
-      if (profile) await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin })
-      else await createProfile({ name, color, pin: pin || undefined })
+      if (profile) await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden })
+      else await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden })
       onDone()
     } catch (err) {
       setErrors(err instanceof ApiError && err.messages.length ? err.messages : [String(err)])
@@ -959,6 +979,22 @@ function ProfileForm({ profile, onDone, onCancel }: { profile?: Profile; onDone:
         <label className="checkbox">
           <input type="checkbox" checked={removePin} onChange={(e) => setRemovePin(e.target.checked)} /> Remove the PIN
         </label>
+      )}
+      {libraries.length > 1 && (
+        <fieldset className="field profile-libraries">
+          <legend className="field-label">Libraries {profile ? `${profile.name} can` : 'this profile can'} see</legend>
+          <p className="muted">Unticked libraries are hidden everywhere on this profile: home, search, Discover, Coming soon and requests.</p>
+          {libraries.map((l) => (
+            <label key={l.id} className="checkbox">
+              <input
+                type="checkbox"
+                checked={!hidden.includes(l.id)}
+                onChange={(e) => setHidden(e.target.checked ? hidden.filter((id) => id !== l.id) : [...hidden, l.id])}
+              />{' '}
+              {l.name}
+            </label>
+          ))}
+        </fieldset>
       )}
       {errors.length > 0 && (
         <ul className="error form-errors" role="alert">

@@ -6,9 +6,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Profiles;
 
-public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent);
+public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds);
 
-public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin);
+/// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
+public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin, IReadOnlyList<Guid>? HiddenLibraryIds = null);
 
 public sealed record SelectProfileRequest(string? Pin);
 
@@ -28,7 +29,7 @@ public static partial class ProfileEndpoints
                 return problem;
             }
 
-            var profile = new Profile { Id = Profile.NewId(), Name = request.Name.Trim(), Color = request.Color ?? "#a9c2ec" };
+            var profile = new Profile { Id = Profile.NewId(), Name = request.Name.Trim(), Color = request.Color ?? "#a9c2ec", HiddenLibraryIds = request.HiddenLibraryIds?.Distinct().ToList() ?? [] };
             profile.SetPin(request.Pin);
             db.Profiles.Add(profile);
             await db.SaveChangesAsync(ct);
@@ -49,6 +50,11 @@ public static partial class ProfileEndpoints
 
             profile.Name = request.Name.Trim();
             profile.Color = request.Color ?? profile.Color;
+            if (request.HiddenLibraryIds is { } hidden)
+            {
+                profile.HiddenLibraryIds = hidden.Distinct().ToList();
+            }
+
             if (request.RemovePin == true)
             {
                 profile.SetPin(null);
@@ -94,7 +100,7 @@ public static partial class ProfileEndpoints
         return api;
     }
 
-    private static ProfileDto ToDto(Profile p, CurrentProfile current) => new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id);
+    private static ProfileDto ToDto(Profile p, CurrentProfile current) => new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds);
 
     private static IResult? Validate(ProfileRequest request)
     {

@@ -422,3 +422,13 @@
 .advice {
   border-color: color-mix(in srgb, var(--silver) 40%, var(--aisle));
 }
+
+.profile-libraries {
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-libraries .checkbox {
+  margin-top: 8px;
+}
