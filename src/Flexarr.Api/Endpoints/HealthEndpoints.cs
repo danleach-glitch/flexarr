@@ -38,10 +38,10 @@ public sealed record LibraryHealthDto(
 /// A library folder whose scans keep its files rather than hide the ones they can't find, as it looked unmounted or
 /// cleared out. <see cref="CanConfirm"/>: the removal can be confirmed (not for a folder that isn't there at all).
 /// </summary>
+public sealed record HeldFolderDto(int FolderId, string Library, string Path, FolderHold Reason, int Missing, int Known, DateTime Since, int Scans, bool Confirmed, bool CanConfirm);
+
 /// <summary>What Library health showed for a held folder when its removal was confirmed.</summary>
 public sealed record HeldConfirmation(DateTime Since, int Missing, int Known);
-
-public sealed record HeldFolderDto(int FolderId, string Library, string Path, FolderHold Reason, int Missing, int Known, DateTime Since, int Scans, bool Confirmed, bool CanConfirm);
 
 public sealed record SkippedFileDto(string Path, string Reason);
 
