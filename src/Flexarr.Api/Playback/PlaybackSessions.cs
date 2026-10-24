@@ -8,6 +8,9 @@ public sealed class PlaybackSession
 {
     public required string Id { get; init; }
     public required Guid ItemId { get; init; }
+
+    /// <summary>Whose history progress is recorded against (stream requests carry no profile of their own).</summary>
+    public required string ProfileId { get; init; }
     public required Guid FileId { get; init; }
     public required string FilePath { get; init; }
     public required string? Container { get; init; }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
@@ -17,6 +18,7 @@ public sealed class PlaybackService(
     MarkerQueue markerQueue,
     TrickplayQueue trickplay,
     SubtitleCache subtitleCache,
+    CurrentProfile profile,
     IOptionsMonitor<FlexarrOptions> options)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
@@ -51,7 +53,7 @@ public sealed class PlaybackService(
             markerQueue.Prioritize(seasonId); // Analyse this season now so skip-intro is ready for the next episode.
         }
 
-        var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == PlaybackState.DefaultUser && p.MediaItemId == item.Id, ct);
+        var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
         var preferences = await LanguagePreferencesAsync(item, ct);
         var subtitles = Subtitles.For(file);
         subtitleCache.Prefetch(file, subtitles);
@@ -85,6 +87,7 @@ public sealed class PlaybackService(
         {
             Id = id,
             ItemId = item.Id,
+            ProfileId = profile.Id,
             FileId = file.Id,
             FilePath = file.Path,
             Container = file.Container,
@@ -100,11 +103,11 @@ public sealed class PlaybackService(
         var start = request.StartPositionSeconds
             ?? (state is { Watched: false, PositionSeconds: > MinResumeSeconds } && state.PositionSeconds < duration * WatchedThreshold ? state.PositionSeconds : 0);
 
-        var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries().FirstAsync(ct);
+        var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var ancestors = new List<ItemSummaryDto>();
         for (var parentId = item.ParentId; parentId is { } pid;)
         {
-            ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries().FirstAsync(ct));
+            ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstAsync(ct));
             parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
         }
 
@@ -129,16 +132,16 @@ public sealed class PlaybackService(
             file.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList(),
             summary,
             ancestors,
-            next is null ? null : await db.MediaItems.Where(i => i.Id == next.Id).Summaries().FirstAsync(ct),
+            next is null ? null : await db.MediaItems.Where(i => i.Id == next.Id).Summaries(profile.Id).FirstAsync(ct),
             decision.Transcode is { } t ? $"{t.TargetHeight}p H.264 at {t.VideoBitrate / 1_000_000.0:0.#} Mbps" + (t.ToneMap ? ", HDR converted to SDR" : "") : null);
     }
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
     {
-        var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == PlaybackState.DefaultUser && p.MediaItemId == session.ItemId, ct);
+        var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
         if (state is null)
         {
-            state = new PlaybackState { MediaItemId = session.ItemId };
+            state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
             db.PlaybackStates.Add(state);
         }
 
@@ -187,7 +190,7 @@ public sealed class PlaybackService(
             _ => [itemId],
         };
 
-        var existing = await db.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser && targets.Contains(p.MediaItemId))
+        var existing = await db.PlaybackStates.Where(p => p.UserId == profile.Id && targets.Contains(p.MediaItemId))
             .ToDictionaryAsync(p => p.MediaItemId, ct);
         foreach (var id in targets)
         {
@@ -198,7 +201,7 @@ public sealed class PlaybackService(
                     continue;
                 }
 
-                state = new PlaybackState { MediaItemId = id };
+                state = new PlaybackState { UserId = profile.Id, MediaItemId = id };
                 db.PlaybackStates.Add(state);
             }
 
@@ -222,7 +225,7 @@ public sealed class PlaybackService(
     public async Task<MediaItem?> NextUpAsync(Guid seriesId, CancellationToken ct)
     {
         var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == seriesId);
-        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == PlaybackState.DefaultUser && p.MediaItem!.Parent!.ParentId == seriesId);
+        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profile.Id && p.MediaItem!.Parent!.ParentId == seriesId);
 
         var inProgress = await mine.Where(p => !p.Watched && p.PositionSeconds > 0).OrderByDescending(p => p.LastPlayedAt)
             .Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
@@ -239,7 +242,7 @@ public sealed class PlaybackService(
         }
 
         var ordered = episodes.OrderBy(e => e.SeasonNumber == 0).ThenBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle);
-        return await ordered.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == PlaybackState.DefaultUser && p.Watched), ct)
+        return await ordered.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched), ct)
             ?? await ordered.FirstOrDefaultAsync(ct);
     }
 
@@ -313,7 +316,7 @@ public sealed class PlaybackService(
     /// <summary>Audio and subtitle languages last used for this item or, for an episode, anywhere in its series.</summary>
     private async Task<(string? Audio, string? Subtitle)> LanguagePreferencesAsync(MediaItem item, CancellationToken ct)
     {
-        var related = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == PlaybackState.DefaultUser);
+        var related = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profile.Id);
         related = item.Kind == MediaKind.Episode && item.ParentId is { } seasonId
             ? related.Where(p => p.MediaItem!.Parent!.ParentId == db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).First())
             : related.Where(p => p.MediaItemId == item.Id);

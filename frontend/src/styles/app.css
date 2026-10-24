@@ -950,6 +950,160 @@ kbd {
   color: var(--usher);
 }
 
+/* ---------- Profiles ---------- */
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  color: var(--room);
+  font-family: var(--display);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.profile-menu-anchor {
+  position: relative;
+}
+
+.profile-button {
+  display: grid;
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.profile-menu {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 8px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-panel);
+  background: var(--seat);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
+}
+
+.profile-menu p {
+  padding: 6px 10px 8px;
+  font-size: var(--step--1);
+}
+
+.profile-menu button,
+.profile-menu a {
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-menu button:hover,
+.profile-menu a:hover {
+  background: var(--seat-raised);
+}
+
+.profile-picker {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 24px;
+}
+
+.profile-picker .wordmark {
+  font-size: 2.2rem;
+}
+
+.profile-picker h1 {
+  font-size: var(--step-5);
+  font-weight: 800;
+  text-align: center;
+}
+
+.profile-choices {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 28px;
+  margin: 0;
+  padding: 0;
+}
+
+.profile-choices button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 0;
+  border-radius: var(--radius-panel);
+  background: none;
+  font-size: var(--step-1);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-choices button:hover .avatar,
+.profile-choices button:focus-visible .avatar {
+  box-shadow: 0 0 0 4px var(--room), 0 0 0 7px var(--screen);
+}
+
+.profile-locked {
+  font-size: var(--step--1);
+  margin-top: -8px;
+}
+
+.pin-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.pin-pad h1 {
+  font-size: var(--step-3);
+}
+
+.pin-display {
+  width: 220px;
+  text-align: center;
+  font-size: var(--step-3);
+  letter-spacing: 0.4em;
+}
+
+.pin-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 10px;
+}
+
+.pin-keys button {
+  height: 60px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  background: var(--seat);
+  font-size: var(--step-1);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pin-keys button:hover {
+  background: var(--seat-raised);
+}
+
 /* ---------- Coming soon ---------- */
 
 .upcoming-when {

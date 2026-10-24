@@ -141,7 +141,7 @@ public static class SettingsEndpoints
             var streams = new List<StreamActivityDto>();
             foreach (var session in sessions.Active.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2)))
             {
-                var item = await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries().FirstOrDefaultAsync(ct);
+                var item = await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries(session.ProfileId).FirstOrDefaultAsync(ct);
                 if (item is null)
                 {
                     continue;

@@ -3,7 +3,7 @@ namespace Flexarr.Core.Media;
 /// <summary>Where someone is in an item, and whether they've seen it. One row per user and playable item.</summary>
 public sealed class PlaybackState
 {
-    /// <summary>Single-user for now; multi-user support will key this to accounts.</summary>
+    /// <summary>The main profile, which always exists (see <see cref="Profile"/>).</summary>
     public const string DefaultUser = "owner";
 
     public string UserId { get; set; } = DefaultUser;

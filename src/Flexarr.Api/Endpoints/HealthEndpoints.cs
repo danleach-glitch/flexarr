@@ -1,4 +1,5 @@
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
@@ -25,7 +26,7 @@ public static class HealthEndpoints
 {
     public static RouteGroupBuilder MapHealthEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/library-health", async (FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/library-health", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             // Duplicates: more than one file for one movie or episode. The best copy (resolution, then bitrate) is kept.
             var files = await db.MediaFiles.AsNoTracking()
@@ -34,7 +35,7 @@ public static class HealthEndpoints
                 .ToListAsync(ct);
             var groups = files.GroupBy(f => f.MediaItemId).ToList();
             var ids = groups.Select(g => g.Key).ToList();
-            var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries().ToDictionaryAsync(i => i.Id, ct);
+            var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
 
             var duplicates = groups.Select(g =>
                 {
@@ -48,9 +49,9 @@ public static class HealthEndpoints
 
             var unreadable = await db.MediaFiles.AsNoTracking().Where(f => f.ProbeError != null)
                 .Select(f => new { f.Id, f.Path, f.ProbeError, f.MediaItemId }).ToListAsync(ct);
-            var unreadableItems = await db.MediaItems.Where(i => unreadable.Select(u => u.MediaItemId).Contains(i.Id)).Summaries().ToDictionaryAsync(i => i.Id, ct);
+            var unreadableItems = await db.MediaItems.Where(i => unreadable.Select(u => u.MediaItemId).Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
 
-            var missing = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).OrderBy(i => i.SortTitle).Take(100).Summaries().ToListAsync(ct);
+            var missing = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
 
             // Films and shows whose best copy is standard definition: candidates for an upgrade search.
             var sd = db.MediaItems.Where(i => i.Kind == MediaKind.Movie && i.Files.Any() && i.Files.Max(f => f.Height) < 700 && i.Files.Max(f => f.Width) < 1200);
@@ -59,7 +60,7 @@ public static class HealthEndpoints
                 duplicates.Sum(d => d.ReclaimableBytes),
                 unreadable.Select(u => new UnreadableDto(u.Id, u.Path, u.ProbeError!, unreadableItems.GetValueOrDefault(u.MediaItemId))).ToList(),
                 missing,
-                await sd.OrderBy(i => i.SortTitle).Take(60).Summaries().ToListAsync(ct),
+                await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
                 await sd.CountAsync(ct));
         }).WithTags("Library health");
 

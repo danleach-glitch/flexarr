@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
-import { getSystemStatus, saveApiKey, UnauthorizedError } from './api/client'
+import { getProfiles, getSystemStatus, profileToken, saveApiKey, UnauthorizedError, type Profile } from './api/client'
+import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
@@ -21,7 +22,12 @@ import './styles/settings.css'
 const PlayerPage = lazy(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
-type ConnectionState = { kind: 'loading' } | { kind: 'ready' } | { kind: 'unauthorized' } | { kind: 'error'; message: string }
+type ConnectionState =
+  | { kind: 'loading' }
+  | { kind: 'ready' }
+  | { kind: 'choose-profile'; profiles: Profile[] }
+  | { kind: 'unauthorized' }
+  | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
 export function Shell() {
@@ -56,7 +62,13 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController()
     getSystemStatus(controller.signal)
-      .then(() => setState({ kind: 'ready' }))
+      // An older server without profiles still works: carry on as the main profile.
+      .then(() => getProfiles(controller.signal).catch((e: unknown) => (e instanceof UnauthorizedError ? Promise.reject(e) : [])))
+      .then((profiles) => {
+        // Ask who's watching when the household has several profiles and this device hasn't chosen one.
+        const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1'
+        setState(profiles.length > 1 && !chosen ? { kind: 'choose-profile', profiles } : { kind: 'ready' })
+      })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) setState({ kind: 'unauthorized' })
@@ -72,6 +84,18 @@ export default function App() {
     saveApiKey(key)
     setState({ kind: 'loading' })
     setAttempt((n) => n + 1)
+  }
+
+  if (state.kind === 'choose-profile') {
+    return (
+      <ProfilePicker
+        profiles={state.profiles}
+        onChosen={() => {
+          sessionStorage.setItem('flexarr.profileChosen', '1')
+          setState({ kind: 'ready' })
+        }}
+      />
+    )
   }
 
   if (state.kind === 'ready') {

@@ -10,7 +10,10 @@ public sealed record PlexAccountDto(long Id, string Name, int Watched, int InPro
 
 public sealed record PlexSourceDto(string? Path, bool Found, IReadOnlyList<PlexAccountDto> Accounts);
 
-public sealed record PlexImportRequest(long AccountId, string? Path = null);
+/// <param name="AccountId">The Plex account whose history to read.</param>
+/// <param name="Path">Plex's database, if not in a standard place.</param>
+/// <param name="ProfileId">The Flexarr profile to import into; the main profile when omitted.</param>
+public sealed record PlexImportRequest(long AccountId, string? Path = null, string? ProfileId = null);
 
 public sealed record PlexImportResult(int Matched, int Watched, int InProgress, int Unmatched, int KeptNewer);
 
@@ -104,7 +107,13 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
             byPath.TryAdd(Normalize(f.Path), (f.MediaItemId, f.DurationSeconds));
         }
 
-        var states = await db.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser).ToDictionaryAsync(p => p.MediaItemId, ct);
+        var profileId = request.ProfileId ?? PlaybackState.DefaultUser;
+        if (!await db.Profiles.AnyAsync(p => p.Id == profileId, ct))
+        {
+            throw new FileNotFoundException("That Flexarr profile doesn't exist.");
+        }
+
+        var states = await db.PlaybackStates.Where(p => p.UserId == profileId).ToDictionaryAsync(p => p.MediaItemId, ct);
         int matched = 0, watched = 0, inProgress = 0, keptNewer = 0;
 
         // Several files (versions) can belong to one item; the latest viewing wins.
@@ -122,7 +131,7 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
 
             if (state is null)
             {
-                state = new PlaybackState { MediaItemId = group.Key };
+                state = new PlaybackState { UserId = profileId, MediaItemId = group.Key };
                 db.PlaybackStates.Add(state);
                 states[group.Key] = state;
             }

@@ -23,6 +23,7 @@ import type {
 export type * from './types'
 
 const API_KEY_STORAGE = 'flexarr.apiKey'
+const PROFILE_STORAGE = 'flexarr.profile'
 
 /** Thrown when the server rejects the request for a missing or wrong API key. */
 export class UnauthorizedError extends Error {
@@ -52,6 +53,26 @@ function apiKey(): string | null {
   }
 }
 
+function stored(name: string): string | null {
+  try {
+    return localStorage.getItem(name)
+  } catch {
+    return null
+  }
+}
+
+/** The chosen profile's token (sent as X-Flexarr-Profile); null means the main profile. */
+export const profileToken = () => stored(PROFILE_STORAGE)
+
+export function saveProfileToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(PROFILE_STORAGE, token)
+    else localStorage.removeItem(PROFILE_STORAGE)
+  } catch {
+    // Storage unavailable: the profile lasts until the page reloads.
+  }
+}
+
 export function saveApiKey(key: string) {
   try {
     localStorage.setItem(API_KEY_STORAGE, key)
@@ -64,6 +85,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   const headers: Record<string, string> = {}
   const key = apiKey()
   if (key) headers['X-Api-Key'] = key
+  const profile = profileToken()
+  if (profile) headers['X-Flexarr-Profile'] = profile
   if (body !== undefined) headers['Content-Type'] = 'application/json'
 
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
@@ -177,7 +200,8 @@ export interface PlexImportResult {
 
 export const getPlexSource = (path?: string, signal?: AbortSignal) =>
   apiGet<PlexSource>(`/import/plex${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
-export const importFromPlex = (accountId: number, path?: string) => request<PlexImportResult>('POST', '/import/plex', { accountId, path })
+export const importFromPlex = (accountId: number, path?: string, profileId?: string) =>
+  request<PlexImportResult>('POST', '/import/plex', { accountId, path, profileId })
 
 export const getUpcoming = (days = 21, signal?: AbortSignal) => apiGet<UpcomingItem[]>(`/upcoming?days=${days}`, signal)
 export const getDownloads = (signal?: AbortSignal) => apiGet<Download[]>('/downloads', signal)
@@ -216,3 +240,25 @@ export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: b
 export const getExternalDiscover = (signal?: AbortSignal) =>
   apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
+
+export interface Profile {
+  id: string
+  name: string
+  color: string
+  hasPin: boolean
+  isMain: boolean
+  isCurrent: boolean
+}
+
+export const getProfiles = (signal?: AbortSignal) => apiGet<Profile[]>('/profiles', signal)
+export const createProfile = (profile: { name: string; color: string; pin?: string }) => request<Profile>('POST', '/profiles', profile)
+export const updateProfile = (id: string, profile: { name: string; color: string; pin?: string; removePin?: boolean }) =>
+  request<Profile>('PUT', `/profiles/${id}`, profile)
+export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
+
+/** Switches to a profile (checking its PIN) and remembers it on this device. */
+export async function selectProfile(id: string, pin?: string) {
+  const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin })
+  saveProfileToken(result.profile.isMain ? null : result.token)
+  return result.profile
+}

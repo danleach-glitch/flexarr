@@ -3,4 +3,7 @@ import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 // Testing Library only auto-cleans when test globals are enabled; without this, each test's DOM leaks into the next.
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  sessionStorage.clear()
+})

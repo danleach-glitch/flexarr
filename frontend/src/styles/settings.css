@@ -349,3 +349,40 @@
 .panel > p + .field {
   margin-top: 16px;
 }
+
+.profile-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.profile-row p {
+  margin: 2px 0 0;
+  font-size: var(--step--1);
+}
+
+.swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.swatch {
+  width: 34px;
+  height: 34px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--screen);
+  box-shadow: 0 0 0 3px var(--room) inset;
+}
+
+.checkbox {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}

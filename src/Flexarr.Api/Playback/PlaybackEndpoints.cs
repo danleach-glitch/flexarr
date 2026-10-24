@@ -1,5 +1,6 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
@@ -18,9 +19,9 @@ public static class PlaybackEndpoints
             await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound())
             .WithTags("Playback");
 
-        api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CancellationToken ct) =>
+        api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
             await playback.NextUpAsync(id, ct) is { } episode
-                ? Results.Ok(await db.MediaItems.Where(i => i.Id == episode.Id).Summaries().FirstAsync(ct))
+                ? Results.Ok(await db.MediaItems.Where(i => i.Id == episode.Id).Summaries(profile.Id).FirstAsync(ct))
                 : Results.NoContent())
             .WithTags("Playback");
 

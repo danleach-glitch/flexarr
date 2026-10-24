@@ -16,6 +16,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Credit> Credits => Set<Credit>();
     public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
     public DbSet<MediaMarker> MediaMarkers => Set<MediaMarker>();
+    public DbSet<Profile> Profiles => Set<Profile>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -65,11 +66,19 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasMany(f => f.Markers).WithOne().HasForeignKey(m => m.MediaFileId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Profile>(e =>
+        {
+            e.Property(p => p.Id).HasMaxLength(64);
+            e.Property(p => p.Name).HasMaxLength(60);
+            e.HasData(new Profile { Id = PlaybackState.DefaultUser, Name = "Main profile", CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, DateTimeKind.Utc) });
+        });
+
         modelBuilder.Entity<PlaybackState>(e =>
         {
             e.HasKey(p => new { p.UserId, p.MediaItemId });
             e.Property(p => p.UserId).HasMaxLength(64);
             e.HasOne(p => p.MediaItem).WithMany(i => i.PlaybackStates).HasForeignKey(p => p.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Profile>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(p => new { p.UserId, p.LastPlayedAt });
         });
     }
