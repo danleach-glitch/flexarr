@@ -8,6 +8,8 @@ import {
   getMe,
   revealApiKey,
   rotateApiKey,
+  signIn,
+  UnauthorizedError,
   getArrStatus,
   getRequestStatus,
   getLibraryHealth,
@@ -89,7 +91,9 @@ export function SettingsPage() {
   if (me.data && !me.data.isAdmin) {
     return (
       <div className="settings">
-        <p className="page-message muted">Settings are for the main profile. Switch to it from the profile menu to change them.</p>
+        {me.data.method === 'tailscale' && me.data.profileId === 'owner' ? <TailscaleAdminNote /> : (
+          <p className="page-message muted">Settings are for the main profile. Switch to it from the profile menu to change them.</p>
+        )}
       </div>
     )
   }
@@ -120,6 +124,44 @@ export function SettingsPage() {
         {section === 'import' && <ImportSection />}
         {section === 'health' && <HealthSection />}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Over Tailscale the owner's account watches as the main profile but doesn't manage the server on its own: another
+ * program on the server could pose as it. The main profile's PIN, or the API key, proves it's really them.
+ */
+function TailscaleAdminNote() {
+  const [error, setError] = useState<string>()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const key = new FormData(event.currentTarget).get('apiKey')?.toString().trim()
+    if (!key) return
+    setError(undefined)
+    signIn(key)
+      .then(() => window.location.reload())
+      .catch((e: unknown) => setError(e instanceof UnauthorizedError ? 'That isn’t the right key.' : String(e)))
+  }
+
+  return (
+    <div className="panel">
+      <p className="settings-lede">
+        Over Tailscale, changing settings takes one more step, because another program on the server could pose as your Tailscale account. Choose the main
+        profile with its PIN from the profile menu (give it a PIN in Settings › Profiles from home first), or sign this browser in with the API key:
+      </p>
+      <form className="api-key-row" onSubmit={submit}>
+        <input name="apiKey" type="password" autoComplete="off" aria-label="API key" required />
+        <button type="submit" className="button">
+          Sign in
+        </button>
+      </form>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

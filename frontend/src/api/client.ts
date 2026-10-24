@@ -656,7 +656,8 @@ export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/p
 /** Switches to a profile (checking its PIN) and remembers it on this device. */
 export async function selectProfile(id: string, pin?: string) {
   const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin })
-  saveProfileToken(result.profile.isMain ? null : result.token)
+  // The main profile's token is kept when it has a PIN: over Tailscale, it's what lets this browser manage the server.
+  saveProfileToken(result.profile.isMain && !result.profile.hasPin ? null : result.token)
   return result.profile
 }
 

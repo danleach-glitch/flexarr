@@ -46,6 +46,17 @@ public sealed class FlexarrOptions
     /// </summary>
     public List<string> KnownHosts { get; set; } = [];
 
+    /// <summary>
+    /// Until when the sign-ins earlier versions handed out (one browser cookie shared by all, profile tokens that ignore
+    /// the PIN) still work, so browsers can swap them for their own. Set to 30 days after the first run of a version
+    /// with per-device sign-ins; after it, they're refused.
+    /// </summary>
+    public DateTime? LegacySignInsUntil { get; set; }
+
+    /// <summary>Whether <see cref="LegacySignInsUntil"/> hasn't passed yet.</summary>
+    public bool AcceptsLegacySignIns(DateTime utcNow) =>
+        LegacySignInsUntil is { } until && utcNow < (until.Kind == DateTimeKind.Local ? until.ToUniversalTime() : until);
+
     /// <summary>ffprobe executable; resolved from PATH by default.</summary>
     public string FfprobePath { get; set; } = "ffprobe";
 

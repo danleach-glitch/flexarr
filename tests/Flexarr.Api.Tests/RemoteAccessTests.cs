@@ -232,6 +232,41 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", Lan));
     }
 
+    [Fact]
+    public async Task TheOwnersTailscaleIdentity_Alone_DoesntManageTheServer_UntilTheMainProfilesPinIsGiven()
+    {
+        // Another program on the server could claim this identity, given one of the owner's tailnet addresses.
+        await LinkAsync("owner-pin@example.com", null);
+        var owner = ViaTailscale("100.70.1.20", "owner-pin@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+        await SetMainPinAsync("2468");
+        try
+        {
+            using var select = new HttpRequestMessage(HttpMethod.Post, "/api/v1/profiles/owner/select") { Content = JsonContent.Create(new { pin = "2468" }) };
+            foreach (var (name, value) in owner)
+            {
+                select.Headers.Add(name, value);
+            }
+
+            var token = (await (await factory.CreateClient().SendAsync(select)).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/libraries", owner)); // still watches as the main profile
+            Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", owner));
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", [.. owner, ("X-Flexarr-Profile", token)]));
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
+    }
+
+    private async Task SetMainPinAsync(string? pin)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.SetPin(pin);
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>Links a Tailscale login to a new profile, or to the main profile when no name is given.</summary>
     private async Task LinkAsync(string login, string? profileName)
     {

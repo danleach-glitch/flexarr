@@ -41,7 +41,10 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
     public static void WritePrivately(string path, string contents)
     {
         var temp = path + ".tmp";
-        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
+        // A temporary file left by an interrupted write keeps its own permissions if reused, so start afresh: the new
+        // one is created private, before anything is written to it.
+        File.Delete(temp);
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
         if (!OperatingSystem.IsWindows())
         {
             options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
@@ -50,12 +53,6 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
         using (var writer = new StreamWriter(temp, new System.Text.UTF8Encoding(false), options))
         {
             writer.Write(contents);
-        }
-
-        // Create mode only applies to new files: tighten a temporary file left by an interrupted write too.
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(temp, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
 
         File.Move(temp, path, overwrite: true);
@@ -90,6 +87,15 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
             var secret = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
             options.ImageSecret = secret;
             Update(options.DataDirectory, config => config["imageSecret"] = secret);
+        }
+
+        // Browsers and profile tokens from before per-device sign-ins get a month to move over, counted from now.
+        if (options.LegacySignInsUntil is null)
+        {
+            Directory.CreateDirectory(options.DataDirectory);
+            var until = DateTime.UtcNow.AddDays(30);
+            options.LegacySignInsUntil = until;
+            Update(options.DataDirectory, config => config["legacySignInsUntil"] = until.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
         }
     }
 

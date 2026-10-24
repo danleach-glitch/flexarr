@@ -41,14 +41,18 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
         return $"{profile.Id}.{Sign(options.CurrentValue.ApiKey, $"profile:{profile.Id}:{profile.PinHash}")}";
     }
 
-    /// <summary>The profile id a token names, if its signature is right for <paramref name="pinHash"/>.</summary>
-    public static bool Verifies(string? apiKey, string profileId, string? pinHash, string signature)
+    /// <summary>
+    /// Whether a token's signature is right for <paramref name="profileId"/> and its current <paramref name="pinHash"/>.
+    /// Tokens from before PINs were part of the signature also pass while <paramref name="acceptLegacy"/> (the month
+    /// after upgrading; see <see cref="FlexarrOptions.LegacySignInsUntil"/>).
+    /// </summary>
+    public static bool Verifies(string? apiKey, string profileId, string? pinHash, string signature, bool acceptLegacy)
     {
         ArgumentNullException.ThrowIfNull(signature);
         var given = Encoding.UTF8.GetBytes(signature);
-        // Tokens from before PINs were part of the signature still work until the key changes.
-        return CryptographicOperations.FixedTimeEquals(given, Encoding.UTF8.GetBytes(Sign(apiKey, $"profile:{profileId}:{pinHash}")))
-            | CryptographicOperations.FixedTimeEquals(given, Encoding.UTF8.GetBytes(Sign(apiKey, $"profile:{profileId}")));
+        var current = CryptographicOperations.FixedTimeEquals(given, Encoding.UTF8.GetBytes(Sign(apiKey, $"profile:{profileId}:{pinHash}")));
+        var legacy = CryptographicOperations.FixedTimeEquals(given, Encoding.UTF8.GetBytes(Sign(apiKey, $"profile:{profileId}")));
+        return current || acceptLegacy && legacy;
     }
 
     /// <summary>

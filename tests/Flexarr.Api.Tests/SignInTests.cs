@@ -100,6 +100,31 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.DoesNotContain(ApiKeyAuthenticationHandler.LegacySessionValue(FlexarrApiFactory.ApiKey), renewed, StringComparison.Ordinal);
     }
 
+    /// <summary>A profile token as earlier versions signed it, without the PIN.</summary>
+    private static string LegacyProfileToken(string id) =>
+        $"{id}.{Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData(System.Text.Encoding.UTF8.GetBytes(FlexarrApiFactory.ApiKey), System.Text.Encoding.UTF8.GetBytes($"profile:{id}")))[..32]}";
+
+    [Fact]
+    public async Task EarlierVersionsSignIns_StopWorking_AfterTheirMonth()
+    {
+        var kid = await CreateProfileAsync("Legacy kid");
+        var withinTheMonth = Admin();
+        withinTheMonth.DefaultRequestHeaders.Add("X-Flexarr-Profile", LegacyProfileToken(kid));
+        Assert.Equal(kid, (await withinTheMonth.GetFromJsonAsync<JsonElement>(Api("/me"))).GetProperty("profileId").GetString());
+
+        using var server = new FlexarrApiFactory();
+        using var later = server.WithWebHostBuilder(b => b.UseSetting("Flexarr:LegacySignInsUntil", "2020-01-01T00:00:00Z"));
+        var oldCookie = later.CreateClient();
+        oldCookie.DefaultRequestHeaders.Add("Cookie", $"{ApiKeyAuthenticationHandler.SessionCookieName}={ApiKeyAuthenticationHandler.LegacySessionValue(FlexarrApiFactory.ApiKey)}");
+        var admin = later.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var laterKid = (await (await admin.PostAsJsonAsync(Api("/profiles"), new { name = "Legacy kid" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        admin.DefaultRequestHeaders.Add("X-Flexarr-Profile", LegacyProfileToken(laterKid));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await oldCookie.GetAsync(Api("/system/status"))).StatusCode);
+        Assert.Equal("owner", (await admin.GetFromJsonAsync<JsonElement>(Api("/me"))).GetProperty("profileId").GetString());
+    }
+
     [Fact]
     public async Task WritesWithTheCookie_FromAnotherWebsite_AreRefused()
     {
