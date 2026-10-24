@@ -1404,69 +1404,93 @@ a.upcoming-row:hover strong {
   color: var(--room);
 }
 
-/* ---------- Coming soon calendar ---------- */
+/* ---------- Coming soon: a row per day ---------- */
 
-.calendar {
+.day-rows {
+  list-style: none;
+  margin: 0 0 48px;
+  padding: 0;
+}
+
+.day-row {
   display: grid;
-  gap: 6px;
-  margin-bottom: 48px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
 }
 
-.calendar-weekdays,
-.calendar-week {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+/* Weeks start on Monday: a heavier rule marks each new week. */
+.day-row:nth-child(7n + 1) {
+  border-top: 2px solid var(--aisle);
 }
 
-.calendar-weekdays span {
-  padding: 0 10px;
-  color: var(--usher);
-  font-size: var(--step--1);
-  font-weight: 700;
+.day-row[data-empty] {
+  padding: 4px 0;
 }
 
-.calendar-day {
+.day-row[data-past] {
+  opacity: 0.55;
+}
+
+.day-row-date {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 132px;
-  padding: 8px;
-  border-radius: 10px;
-  background: var(--seat);
-}
-
-.calendar-day[data-past] {
-  background: color-mix(in srgb, var(--seat) 45%, transparent);
-}
-
-.calendar-day[data-past] .calendar-entry {
-  opacity: 0.6;
-}
-
-.calendar-day[data-today] {
-  box-shadow: inset 0 0 0 2px var(--silver);
-}
-
-.calendar-date {
+  gap: 2px;
+  margin: 0;
   font-family: var(--display);
+  line-height: 1;
+}
+
+.day-row-weekday {
   font-size: var(--step-1);
   font-weight: 800;
-  line-height: 1;
+}
+
+.day-row-day {
+  font-family: var(--text);
+  font-size: var(--step--1);
+  font-weight: 600;
   color: var(--usher);
 }
 
-.calendar-day[data-today] .calendar-date {
-  color: var(--screen);
+.day-row[data-today] .day-row-weekday {
+  color: var(--silver);
+}
+
+.day-row[data-empty] .day-row-weekday {
+  font-size: var(--step-0);
+  color: var(--usher);
+}
+
+.day-row-nothing {
+  font-size: var(--step--1);
+}
+
+.day-row-entries {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 250px;
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 2px;
+}
+
+.day-row-entries::-webkit-scrollbar {
+  display: none;
 }
 
 .calendar-entry {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 5px;
-  border-radius: 6px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--seat);
   color: inherit;
   text-decoration: none;
   font-size: var(--step--1);
@@ -1507,6 +1531,17 @@ a.calendar-entry:focus-visible {
   white-space: nowrap;
 }
 
+@media (max-width: 600px) {
+  .day-row {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .day-row-entries {
+    grid-auto-columns: 210px;
+  }
+}
+
 .download-attention {
   color: var(--screen);
   font-weight: 700;
@@ -1515,19 +1550,4 @@ a.calendar-entry:focus-visible {
 a.download-attention {
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-/* A week of seven columns doesn't fit a phone; list the days instead. */
-.upcoming-agenda {
-  display: none;
-}
-
-@media (max-width: 900px) {
-  .calendar {
-    display: none;
-  }
-
-  .upcoming-agenda {
-    display: block;
-  }
 }

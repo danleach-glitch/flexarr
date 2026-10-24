@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { getDownloads, getUpcoming, imageUrl, type Download, type DownloadState, type UpcomingItem } from '../api/client'
 import { useApi } from '../hooks/useApi'
-import { dayLabel, friendlyTimeLeft, timeLabel } from '../lib/dates'
+import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 
 const WEEKS = 5
@@ -30,7 +30,6 @@ export function UpcomingPage() {
     byDay.set(key, [...(byDay.get(key) ?? []), item])
   }
   const todayKey = dayKey(today)
-  const ahead = [...byDay.entries()].filter(([key]) => new Date(key) >= new Date(today.getFullYear(), today.getMonth(), today.getDate()))
 
   return (
     <div className="upcoming-page">
@@ -55,68 +54,36 @@ export function UpcomingPage() {
       {upcoming.data && upcoming.data.length === 0 && <p className="muted">Nothing is scheduled. Monitored shows and films will appear here as their dates approach.</p>}
 
       {upcoming.data && upcoming.data.length > 0 && (
-        <>
-          {/* Wide screens: a calendar of weeks. */}
-          <div className="calendar" role="grid" aria-label="Release calendar">
-            <div className="calendar-weekdays" role="row">
-              {calendarDays.slice(0, 7).map((d) => (
-                <span key={d.getDay()} role="columnheader">
-                  {d.toLocaleDateString(undefined, { weekday: 'short' })}
-                </span>
-              ))}
-            </div>
-            {Array.from({ length: WEEKS }, (_, w) => (
-              <div key={w} className="calendar-week" role="row">
-                {calendarDays.slice(w * 7, w * 7 + 7).map((d) => {
-                  const key = dayKey(d)
-                  const items = byDay.get(key) ?? []
-                  const past = d < new Date(today.getFullYear(), today.getMonth(), today.getDate())
-                  return (
-                    <div key={key} role="gridcell" className="calendar-day" data-today={key === todayKey || undefined} data-past={past || undefined}>
-                      <span className="calendar-date">
-                        {d.getDate() === 1 || (w === 0 && d.getDay() === 1) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : d.getDate()}
-                        {key === todayKey && <span className="visually-hidden"> (today)</span>}
-                      </span>
-                      {groupBySeries(items).map((group) => (
-                        <CalendarEntry key={group[0].id} items={group} />
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-
-          {/* Narrow screens: day by day, from today. */}
-          <div className="upcoming-agenda">
-            {ahead.map(([key, items]) => (
-              <section key={key} className="upcoming-day">
-                <h2>{dayLabel(items[0].date)}</h2>
-                <ol>
-                  {items.map((item) => (
-                    <li key={item.id}>
-                      <EntryLink item={item} className="upcoming-row">
-                        <span className="upcoming-still">{item.still && <img src={imageUrl(item.still, 342)} alt="" loading="lazy" />}</span>
-                        <span className="upcoming-text">
-                          <strong>{item.seriesTitle ?? item.title}</strong>
-                          <span>{subtitle(item)}</span>
-                          {item.overview && <span className="muted upcoming-overview">{item.overview}</span>}
-                        </span>
-                        <span className="upcoming-status">{status(item) ?? (item.kind === 'Episode' ? timeLabel(item.date) : null)}</span>
-                      </EntryLink>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ))}
-          </div>
-        </>
+        <ol className="day-rows" aria-label="Release calendar">
+          {calendarDays.map((d) => {
+            const key = dayKey(d)
+            const items = byDay.get(key) ?? []
+            const past = d < new Date(today.getFullYear(), today.getMonth(), today.getDate())
+            return (
+              <li key={key} className="day-row" data-today={key === todayKey || undefined} data-past={past || undefined} data-empty={items.length === 0 || undefined}>
+                <h2 className="day-row-date">
+                  <span className="day-row-weekday">{key === todayKey ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                  <span className="day-row-day">{d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
+                </h2>
+                {items.length > 0 ? (
+                  <div className="day-row-entries">
+                    {groupBySeries(items).map((group) => (
+                      <CalendarEntry key={group[0].id} items={group} />
+                    ))}
+                  </div>
+                ) : (
+                  <span className="muted day-row-nothing">Nothing scheduled</span>
+                )}
+              </li>
+            )
+          })}
+        </ol>
       )}
     </div>
   )
 }
 
-/** A show's episodes on the same day (a whole season dropping at once) share one calendar entry. */
+/** A show's episodes on the same day (a whole season dropping at once) share one entry. */
 function groupBySeries(items: UpcomingItem[]) {
   const groups = new Map<string, UpcomingItem[]>()
   for (const item of items) {
