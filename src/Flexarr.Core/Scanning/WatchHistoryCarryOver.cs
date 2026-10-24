@@ -18,6 +18,12 @@ public static class WatchHistoryCarryOver
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(doomed);
 
+        await AddTombstonesAsync(db, doomed, ct).ConfigureAwait(false);
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    private static async Task AddTombstonesAsync(FlexarrDbContext db, IQueryable<MediaItem> doomed, CancellationToken ct)
+    {
         var rows = await doomed
             .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Episode)
             .Where(i => i.PlaybackStates.Any() || db.CollectionItems.Any(c => c.MediaItemId == i.Id))
@@ -51,13 +57,13 @@ public static class WatchHistoryCarryOver
                 Collections = row.Collections,
             });
         }
-
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Gives items on disk the history and collections of missing items and tombstones with the same ids. A profile
-    /// that already has a state for the new item, or a collection that already holds it, keeps what it has.
+    /// that already has a state for the new item, or a collection that already holds it, keeps what it has. A missing
+    /// item is handed over once: what of a show's history has nowhere to go yet is left as tombstones, for when those
+    /// episodes come back.
     /// </summary>
     /// <returns>How many watch states were carried over.</returns>
     public static async Task<int> CarryOverAsync(FlexarrDbContext db, CancellationToken ct)
@@ -70,6 +76,7 @@ public static class WatchHistoryCarryOver
         var items = db.MediaItems.IgnoreQueryFilters();
         var missing = await items
             .Where(i => i.MissingSince != null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series)
+                && (i.HandedOverAt == null || i.HandedOverAt < i.MissingSince)
                 && (i.TmdbId != null || i.TvdbId != null || i.ImdbId != null))
             .Select(i => new Title(i.Id, i.Kind, i.TmdbId, i.TvdbId, i.ImdbId))
             .ToListAsync(ct).ConfigureAwait(false);
@@ -93,7 +100,11 @@ public static class WatchHistoryCarryOver
             return 0;
         }
 
+        // What this run adds, so two sources for one title don't both add a row. Not by asking the change tracker: after
+        // a full scan it holds every file and item in the library, and re-checks them all on each look.
+        var added = new Added();
         var carried = 0;
+        var handedOver = new List<Guid>();
         foreach (var from in missing)
         {
             if (present.FirstOrDefault(p => p.Same(from)) is not { } to)
@@ -101,24 +112,41 @@ public static class WatchHistoryCarryOver
                 continue;
             }
 
-            await CopyCollectionsAsync(db, from.Id, to.Id, ct).ConfigureAwait(false);
+            await CopyCollectionsAsync(db, added, from.Id, to.Id, ct).ConfigureAwait(false);
             if (from.Kind == MediaKind.Movie)
             {
-                carried += await CopyPlaybackAsync(db, from.Id, to.Id, ct).ConfigureAwait(false);
-                continue;
+                carried += await CopyPlaybackAsync(db, added, [(from.Id, to.Id)], ct).ConfigureAwait(false);
             }
-
-            var toEpisodes = await EpisodesAsync(db, to.Id, ct).ConfigureAwait(false);
-            foreach (var (key, episodeId) in await EpisodesAsync(db, from.Id, ct).ConfigureAwait(false))
+            else
             {
-                if (toEpisodes.TryGetValue(key, out var target))
+                var toEpisodes = await EpisodesAsync(db, to.Id, ct).ConfigureAwait(false);
+                var pairs = new List<(Guid From, Guid To)>();
+                var leftOver = new List<Guid>();
+                foreach (var (key, episodeId) in await EpisodesAsync(db, from.Id, ct).ConfigureAwait(false))
                 {
-                    carried += await CopyPlaybackAsync(db, episodeId, target, ct).ConfigureAwait(false);
+                    if (toEpisodes.TryGetValue(key, out var target))
+                    {
+                        pairs.Add((episodeId, target));
+                    }
+                    else
+                    {
+                        leftOver.Add(episodeId);
+                    }
+                }
+
+                carried += await CopyPlaybackAsync(db, added, pairs, ct).ConfigureAwait(false);
+                if (leftOver.Count > 0)
+                {
+                    // Not back (yet) under the new folder: kept as if removed, so they're picked up when they are.
+                    await AddTombstonesAsync(db, items.Where(i => leftOver.Contains(i.Id)), ct).ConfigureAwait(false);
                 }
             }
+
+            handedOver.Add(from.Id);
         }
 
         var episodesBySeries = new Dictionary<Guid, Dictionary<(int?, int?, DateOnly?), Guid>>();
+        HashSet<string>? users = null;
         foreach (var tombstone in tombstones)
         {
             var kind = tombstone.Kind == MediaKind.Episode ? MediaKind.Series : tombstone.Kind;
@@ -141,12 +169,28 @@ public static class WatchHistoryCarryOver
                 }
             }
 
-            carried += await RestoreAsync(db, tombstone, target, ct).ConfigureAwait(false);
+            users ??= (await db.Profiles.Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+            carried += await RestoreAsync(db, added, users, tombstone, target, ct).ConfigureAwait(false);
             db.WatchTombstones.Remove(tombstone);
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        if (handedOver.Count > 0)
+        {
+            // Done with: later scans skip it (and its show's left-overs are tombstones now) unless it goes missing anew.
+            var now = DateTime.UtcNow;
+            await items.Where(i => handedOver.Contains(i.Id)).ExecuteUpdateAsync(u => u.SetProperty(i => i.HandedOverAt, now), ct).ConfigureAwait(false);
+        }
+
         return carried;
+    }
+
+    /// <summary>The watch states and collection memberships this run has added but not yet saved.</summary>
+    private sealed class Added
+    {
+        public HashSet<(Guid MediaItemId, string UserId)> States { get; } = [];
+
+        public HashSet<(Guid CollectionId, Guid MediaItemId)> Memberships { get; } = [];
     }
 
     private sealed record Title(Guid Id, MediaKind Kind, string? TmdbId, string? TvdbId, string? ImdbId)
@@ -173,18 +217,37 @@ public static class WatchHistoryCarryOver
         return byKey;
     }
 
-    private static async Task<int> CopyPlaybackAsync(FlexarrDbContext db, Guid from, Guid to, CancellationToken ct)
+    /// <param name="db">The database.</param>
+    /// <param name="added">What this run has added so far.</param>
+    /// <param name="pairs">Each item whose states are copied, with the item that gets them: a whole show's at once.</param>
+    /// <param name="ct">Stops the copy.</param>
+    private static async Task<int> CopyPlaybackAsync(FlexarrDbContext db, Added added, List<(Guid From, Guid To)> pairs, CancellationToken ct)
     {
-        var states = await db.PlaybackStates.AsNoTracking().Where(p => p.MediaItemId == from).ToListAsync(ct).ConfigureAwait(false);
+        if (pairs.Count == 0)
+        {
+            return 0;
+        }
+
+        var fromIds = pairs.Select(p => p.From).ToList();
+        var states = await db.PlaybackStates.AsNoTracking().Where(p => fromIds.Contains(p.MediaItemId)).ToListAsync(ct).ConfigureAwait(false);
         if (states.Count == 0)
         {
             return 0;
         }
 
-        var had = (await db.PlaybackStates.Where(p => p.MediaItemId == to).Select(p => p.UserId).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+        var target = pairs.ToDictionary(p => p.From, p => p.To);
+        var toIds = states.Select(s => target[s.MediaItemId]).Distinct().ToList();
+        var had = (await db.PlaybackStates.Where(p => toIds.Contains(p.MediaItemId)).Select(p => new { p.MediaItemId, p.UserId })
+            .ToListAsync(ct).ConfigureAwait(false)).Select(p => (p.MediaItemId, p.UserId)).ToHashSet();
         var copied = 0;
-        foreach (var state in states.Where(s => !had.Contains(s.UserId) && !db.PlaybackStates.Local.Any(l => l.MediaItemId == to && l.UserId == s.UserId)))
+        foreach (var state in states)
         {
+            var to = target[state.MediaItemId];
+            if (had.Contains((to, state.UserId)) || !added.States.Add((to, state.UserId)))
+            {
+                continue;
+            }
+
             state.MediaItemId = to;
             state.MediaItem = null;
             db.PlaybackStates.Add(state);
@@ -194,14 +257,14 @@ public static class WatchHistoryCarryOver
         return copied;
     }
 
-    private static async Task CopyCollectionsAsync(FlexarrDbContext db, Guid from, Guid to, CancellationToken ct)
+    private static async Task CopyCollectionsAsync(FlexarrDbContext db, Added added, Guid from, Guid to, CancellationToken ct)
     {
         var memberships = await db.CollectionItems.AsNoTracking().Where(c => c.MediaItemId == from)
             .Select(c => new TombstoneCollection(c.CollectionId, c.Position)).ToListAsync(ct).ConfigureAwait(false);
-        await AddCollectionsAsync(db, memberships, to, ct).ConfigureAwait(false);
+        await AddCollectionsAsync(db, added, memberships, to, ct).ConfigureAwait(false);
     }
 
-    private static async Task AddCollectionsAsync(FlexarrDbContext db, List<TombstoneCollection> memberships, Guid to, CancellationToken ct)
+    private static async Task AddCollectionsAsync(FlexarrDbContext db, Added added, List<TombstoneCollection> memberships, Guid to, CancellationToken ct)
     {
         if (memberships.Count == 0)
         {
@@ -212,20 +275,19 @@ public static class WatchHistoryCarryOver
         var stillThere = (await db.Collections.Where(c => ids.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct).ConfigureAwait(false)).ToHashSet();
         var already = (await db.CollectionItems.Where(c => c.MediaItemId == to).Select(c => c.CollectionId).ToListAsync(ct).ConfigureAwait(false)).ToHashSet();
         foreach (var m in memberships.Where(m => stillThere.Contains(m.CollectionId) && !already.Contains(m.CollectionId)
-            && !db.CollectionItems.Local.Any(l => l.CollectionId == m.CollectionId && l.MediaItemId == to)))
+            && added.Memberships.Add((m.CollectionId, to))))
         {
             db.CollectionItems.Add(new CollectionItem { CollectionId = m.CollectionId, MediaItemId = to, Position = m.Position });
         }
     }
 
-    private static async Task<int> RestoreAsync(FlexarrDbContext db, WatchTombstone tombstone, Guid to, CancellationToken ct)
+    private static async Task<int> RestoreAsync(FlexarrDbContext db, Added added, HashSet<string> users, WatchTombstone tombstone, Guid to, CancellationToken ct)
     {
-        await AddCollectionsAsync(db, tombstone.Collections, to, ct).ConfigureAwait(false);
+        await AddCollectionsAsync(db, added, tombstone.Collections, to, ct).ConfigureAwait(false);
         var had = (await db.PlaybackStates.Where(p => p.MediaItemId == to).Select(p => p.UserId).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
-        var users = (await db.Profiles.Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
         var restored = 0;
         foreach (var p in tombstone.Playback.Where(p => users.Contains(p.UserId) && !had.Contains(p.UserId)
-            && !db.PlaybackStates.Local.Any(l => l.MediaItemId == to && l.UserId == p.UserId)))
+            && added.States.Add((to, p.UserId))))
         {
             db.PlaybackStates.Add(new PlaybackState
             {

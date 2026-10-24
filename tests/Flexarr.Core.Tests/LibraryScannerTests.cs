@@ -299,6 +299,57 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FilmBackUnderANewFolder_IsHandedOverOnce()
+    {
+        var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = dune.Id, Watched = true, PlayCount = 2 });
+        await _db.SaveChangesAsync();
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+
+        // Watched again from the start under its new folder, then a scan while the old item waits out its grace period.
+        _db.ChangeTracker.Clear();
+        var renamed = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Movie && i.TmdbId == "438631");
+        await _db.PlaybackStates.Where(p => p.MediaItemId == renamed.Id).ExecuteDeleteAsync();
+        await Scanner().ScanAsync(library, null, default);
+
+        Assert.False(await _db.PlaybackStates.AnyAsync(p => p.MediaItemId == renamed.Id));
+        Assert.NotNull((await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().SingleAsync(i => i.Id == dune.Id)).HandedOverAt);
+    }
+
+    [Fact]
+    public async Task ShowBackUnderANewFolder_KeepsTheHistoryOfEpisodesThatArriveLater()
+    {
+        var root = Touch("tv/Show {tvdb-81189}/Season 01/Show - S01E01.mkv", "tv/Show {tvdb-81189}/Season 01/Show - S01E02.mkv", "tv/Other/Season 01/Other - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+        var episodes = await _db.MediaItems.Where(i => i.Kind == MediaKind.Episode && i.Parent!.Parent!.TvdbId == "81189").ToListAsync();
+        _db.PlaybackStates.AddRange(episodes.Select(e => new PlaybackState { MediaItemId = e.Id, Watched = true, PlayCount = e.EpisodeNumber!.Value }));
+        await _db.SaveChangesAsync();
+
+        // Sonarr moves the show to a new folder, the second episode a little after the first.
+        var moved = Path.Combine(tv, "Show (2008) {tvdb-81189}", "Season 01");
+        Directory.CreateDirectory(moved);
+        File.Move(Path.Combine(tv, "Show {tvdb-81189}", "Season 01", "Show - S01E01.mkv"), Path.Combine(moved, "Show - S01E01.mkv"));
+        File.Move(Path.Combine(tv, "Show {tvdb-81189}", "Season 01", "Show - S01E02.mkv"), Path.Combine(root, "E02.mkv"));
+        Directory.Delete(Path.Combine(tv, "Show {tvdb-81189}"), recursive: true);
+        await Scanner().ScanAsync(library, null, default);
+        File.Move(Path.Combine(root, "E02.mkv"), Path.Combine(moved, "Show - S01E02.mkv"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        var counts = await _db.PlaybackStates.Where(p => p.MediaItem!.MissingSince == null && p.MediaItem.Parent!.Parent!.Path!.EndsWith("Show (2008) {tvdb-81189}"))
+            .OrderBy(p => p.MediaItem!.EpisodeNumber).Select(p => p.PlayCount).ToListAsync();
+        Assert.Equal([1, 2], counts);
+        Assert.Equal(0, await _db.WatchTombstones.CountAsync());
+    }
+
+    [Fact]
     public async Task FilmBackAfterItWasRemoved_GetsItsWatchStateBackFromTheTombstone()
     {
         var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv", "movies/Up (2009)/Up (2009).mkv");
