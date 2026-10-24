@@ -24,15 +24,21 @@ public sealed record SettingsDto(
     AuthenticationRequired AuthenticationRequired,
     IReadOnlyList<PathMapping> PathMappings,
     IReadOnlyList<ArrConnectionDto> Arr,
+    SeerrConnectionDto? Seerr,
     string DataDirectory,
     string FfmpegPath,
     string FfprobePath);
+
+public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey);
+
+public sealed record SeerrConnectionUpdate(string BaseUrl, string? ApiKey);
 
 public sealed record SettingsUpdate(
     TranscodingOptions? Transcoding,
     AuthenticationRequired? AuthenticationRequired,
     IReadOnlyList<PathMapping>? PathMappings,
-    IReadOnlyList<ArrConnectionUpdate>? Arr);
+    IReadOnlyList<ArrConnectionUpdate>? Arr,
+    SeerrConnectionUpdate? Seerr = null);
 
 public sealed record ArrStatusDto(string Name, ArrKind Kind, bool Ok, string? Version, string? Error);
 
@@ -80,6 +86,15 @@ public static class SettingsEndpoints
                 if (update.PathMappings is { } mappings)
                 {
                     config["pathMappings"] = JsonSerializer.SerializeToNode(mappings.Where(m => m.From.Length > 0 && m.To.Length > 0), Json);
+                }
+
+                if (update.Seerr is { } seerr)
+                {
+                    config["seerr"] = seerr.BaseUrl.Length == 0 ? null : new JsonObject
+                    {
+                        ["baseUrl"] = seerr.BaseUrl.Trim(),
+                        ["apiKey"] = string.IsNullOrWhiteSpace(seerr.ApiKey) ? current.Seerr?.ApiKey ?? "" : seerr.ApiKey.Trim(),
+                    };
                 }
 
                 if (update.Arr is { } arr)
@@ -160,6 +175,7 @@ public static class SettingsEndpoints
         o.AuthenticationRequired,
         o.PathMappings,
         o.Arr.Select(a => new ArrConnectionDto(a.Name, a.Kind, a.BaseUrl.ToString().TrimEnd('/'), !string.IsNullOrEmpty(a.ApiKey))).ToList(),
+        o.Seerr is { BaseUrl.Length: > 0 } s ? new SeerrConnectionDto(s.BaseUrl, s.ApiKey.Length > 0) : null,
         Path.GetFullPath(o.DataDirectory),
         o.FfmpegPath,
         o.FfprobePath);

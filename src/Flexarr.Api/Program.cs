@@ -41,6 +41,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpClient<ArrClient>();
+builder.Services.AddHttpClient<SeerrClient>(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
@@ -106,7 +107,8 @@ app.MapGroup("/api/v1")
     .MapSettingsEndpoints()
     .MapImportEndpoints()
     .MapUpcomingEndpoints()
-    .MapHealthEndpoints();
+    .MapHealthEndpoints()
+    .MapRequestEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();
