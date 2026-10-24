@@ -33,7 +33,8 @@ public sealed partial class FranchiseSync(IServiceScopeFactory scopes, ILogger<F
             {
                 await SyncAsync(stoppingToken);
             }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or DbUpdateException)
+            // Anything but shutdown is logged and tried again at the next tick, rather than stopping the server.
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
                 LogFailed(ex);
             }

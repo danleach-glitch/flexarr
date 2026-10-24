@@ -108,7 +108,11 @@ Directory.CreateDirectory(app.Services.GetRequiredService<IOptions<FlexarrOption
 
 using (var scope = app.Services.CreateScope())
 {
-    await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Database.MigrateAsync();
+    var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+    await db.Database.MigrateAsync();
+    // Readers (the web app, players) don't wait on a scan's writes, or the other way round. Stored in the file, but
+    // a database created or restored elsewhere may not have it.
+    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
 }
 
 app.Use((http, next) =>

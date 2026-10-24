@@ -31,6 +31,46 @@ public class ArrWebhookTranslatorTests
         Assert.Equal("/movies/Dune (2021)", request.Path);
     }
 
+    [Theory]
+    [InlineData(ArrKind.Radarr, "MovieFileDelete", "Upgrade", false)]
+    [InlineData(ArrKind.Sonarr, "EpisodeFileDelete", "upgrade", false)]
+    [InlineData(ArrKind.Radarr, "MovieFileDelete", "Manual", true)]
+    [InlineData(ArrKind.Sonarr, "EpisodeFileDelete", "missingFromDisk", true)]
+    [InlineData(ArrKind.Sonarr, "EpisodeFileDelete", null, true)]
+    public void FileDelete_ForAnUpgrade_IsIgnored(ArrKind source, string eventType, string? reason, bool scans)
+    {
+        var payload = new ArrWebhookPayload
+        {
+            EventType = eventType,
+            DeleteReason = reason,
+            Series = new("Severance", "/tv/Severance"),
+            Movie = new("Dune", "/movies/Dune (2021)"),
+        };
+
+        Assert.Equal(scans, ArrWebhookTranslator.ToScanRequests(source, payload).Count == 1);
+    }
+
+    [Fact]
+    public void Payload_ReadsDeleteReason()
+    {
+        var payload = System.Text.Json.JsonSerializer.Deserialize<ArrWebhookPayload>(
+            """{"eventType":"MovieFileDelete","deleteReason":"upgrade","movie":{"title":"Dune","folderPath":"/movies/Dune (2021)"}}""",
+            System.Text.Json.JsonSerializerOptions.Web);
+
+        Assert.Equal("upgrade", payload!.DeleteReason);
+        Assert.Empty(ArrWebhookTranslator.ToScanRequests(ArrKind.Radarr, payload));
+    }
+
+    [Fact]
+    public void Paths_AreComposedUnicode()
+    {
+        var payload = new ArrWebhookPayload { EventType = "Download", Series = new("Léon", "/tv/Léon") };
+
+        var request = Assert.Single(ArrWebhookTranslator.ToScanRequests(ArrKind.Sonarr, payload));
+
+        Assert.Equal("/tv/Léon", request.Path);
+    }
+
     [Fact]
     public void LidarrAlbumDownload_ScansArtistFolder()
     {

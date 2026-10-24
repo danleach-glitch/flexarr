@@ -26,19 +26,28 @@ public sealed partial class MetadataRefresher(
     ILogger<MetadataRefresher> logger)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
+    private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
     private const int MaxCast = 24;
 
     private Dictionary<string, Genre>? _genres;
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
 
-    public async Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct)
+    public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct) =>
+        RefreshLibraryAsync(library, force, [], ct);
+
+    /// <param name="library">The library to refresh.</param>
+    /// <param name="force">Refresh everything, not just what's new or stale.</param>
+    /// <param name="within">Folders just scanned: the films and series in them are refreshed even if they're not stale.</param>
+    /// <param name="ct">Stops the refresh.</param>
+    public async Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(within);
         return library.Type switch
         {
-            LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, ct).ConfigureAwait(false),
-            LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, ct).ConfigureAwait(false),
+            LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, ct).ConfigureAwait(false),
+            LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, ct).ConfigureAwait(false),
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
@@ -46,8 +55,16 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ Movies
 
-    private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
+        // Nothing due: don't download Radarr's whole library to find out.
+        var also = await WithinAsync(libraryId, MediaKind.Movie, within, ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        if (items.Count == 0)
+        {
+            return new MetadataRefreshResult(0, 0, 0);
+        }
+
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var known = new List<(ArrInstance Instance, RadarrMovie Movie)>();
         foreach (var radarr in radarrs)
@@ -56,7 +73,7 @@ public sealed partial class MetadataRefresher(
             {
                 known.AddRange((await arr.GetMoviesAsync(radarr, ct).ConfigureAwait(false)).Select(m => (radarr, m)));
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (IsNetworkFailure(ex, ct))
             {
                 LogArrUnavailable(radarr.Name, ex.Message);
             }
@@ -65,8 +82,6 @@ public sealed partial class MetadataRefresher(
         var byPath = Index(known, k => MapPath(k.Movie.Path));
         var byImdb = Index(known, k => k.Movie.ImdbId);
         var byTmdb = Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null);
-
-        var items = await Stale(libraryId, MediaKind.Movie, force).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
         int fromArr = 0, fromLookup = 0, unmatched = 0;
 
         foreach (var item in items)
@@ -80,7 +95,7 @@ public sealed partial class MetadataRefresher(
                     default: unmatched++; break;
                 }
             }
-            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
             {
                 LogItemFailed(ex, item.Title);
                 unmatched++;
@@ -134,7 +149,7 @@ public sealed partial class MetadataRefresher(
             var results = await arr.LookupMoviesAsync(radarr, term, ct).ConfigureAwait(false);
             return results.FirstOrDefault(m => item.Year is null || Math.Abs(m.Year - item.Year.Value) <= 1);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogLookupFailed(term, ex.Message);
             return null;
@@ -172,7 +187,7 @@ public sealed partial class MetadataRefresher(
         {
             credits = await arr.GetCreditsAsync(radarr, movieId, ct).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogArrUnavailable(radarr.Name, ex.Message);
             return;
@@ -230,8 +245,15 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ TV
 
-    private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
+        var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        if (items.Count == 0)
+        {
+            return new MetadataRefreshResult(0, 0, 0);
+        }
+
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
         var known = new List<(ArrInstance Instance, SonarrSeries Series)>();
         foreach (var sonarr in sonarrs)
@@ -240,7 +262,7 @@ public sealed partial class MetadataRefresher(
             {
                 known.AddRange((await arr.GetSeriesAsync(sonarr, ct).ConfigureAwait(false)).Select(s => (sonarr, s)));
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (IsNetworkFailure(ex, ct))
             {
                 LogArrUnavailable(sonarr.Name, ex.Message);
             }
@@ -249,8 +271,6 @@ public sealed partial class MetadataRefresher(
         var byPath = Index(known, k => MapPath(k.Series.Path));
         var byTvdb = Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null);
         var byImdb = Index(known, k => k.Series.ImdbId);
-
-        var items = await Stale(libraryId, MediaKind.Series, force).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
         int fromArr = 0, fromLookup = 0, unmatched = 0;
 
         foreach (var item in items)
@@ -264,7 +284,7 @@ public sealed partial class MetadataRefresher(
                     default: unmatched++; break;
                 }
             }
-            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
             {
                 LogItemFailed(ex, item.Title);
                 unmatched++;
@@ -318,7 +338,7 @@ public sealed partial class MetadataRefresher(
             var results = await arr.LookupSeriesAsync(sonarr, term, ct).ConfigureAwait(false);
             return results.FirstOrDefault(s => item.Year is null || s.Year == 0 || Math.Abs(s.Year - item.Year.Value) <= 1);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogLookupFailed(term, ex.Message);
             return null;
@@ -377,7 +397,7 @@ public sealed partial class MetadataRefresher(
         {
             arrEpisodes = await arr.GetEpisodesAsync(sonarr, arrSeries.Id, ct).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogArrUnavailable(sonarr.Name, ex.Message);
             return;
@@ -521,12 +541,30 @@ public sealed partial class MetadataRefresher(
         }
     }
 
-    private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force)
+    private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
     {
-        var cutoff = DateTime.UtcNow - StaleAfter;
-        // Items that didn't match last time are retried on every run (a rename or new *arr entry may fix them).
+        var now = DateTime.UtcNow;
+        var cutoff = now - StaleAfter;
+        var retryCutoff = now - RetryUnmatchedAfter;
+        // Items that didn't match last time are retried daily (a rename or new *arr entry may fix them). A new *arr
+        // entry also arrives as a webhook, whose folder is refreshed straight away.
         return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
-            && (force || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff || i.PosterUrl == null));
+            && (force || also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff
+                || (i.PosterUrl == null && i.MetadataUpdatedAt < retryCutoff)));
+    }
+
+    /// <summary>The films or series in (or containing) the given folders.</summary>
+    private async Task<List<Guid>> WithinAsync(Guid libraryId, MediaKind kind, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
+        if (within.Count == 0)
+        {
+            return [];
+        }
+
+        var candidates = await db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind && i.Path != null)
+            .Select(i => new { i.Id, i.Path }).ToListAsync(ct).ConfigureAwait(false);
+        return candidates.Where(c => within.Any(w => PathComparison.IsUnder(c.Path!, w) || PathComparison.IsUnder(w, c.Path!)))
+            .Select(c => c.Id).ToList();
     }
 
     private async Task SaveEveryAsync(int count, CancellationToken ct)
@@ -534,8 +572,23 @@ public sealed partial class MetadataRefresher(
         if (count % 25 == 0)
         {
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            // Seasons and episodes of series already done aren't needed again; tracking them all would make every
+            // later save check the whole TV library for changes.
+            foreach (var entry in db.ChangeTracker.Entries<MediaItem>()
+                .Where(e => e.State == EntityState.Unchanged && e.Entity.Kind is MediaKind.Season or MediaKind.Episode).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
         }
     }
+
+    /// <summary>
+    /// A request that failed or timed out: HttpClient reports a timeout as a <see cref="TaskCanceledException"/>,
+    /// which only means "stop" when <paramref name="ct"/> was cancelled.
+    /// </summary>
+    private static bool IsNetworkFailure(Exception ex, CancellationToken ct) =>
+        ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     // macOS can hand back decomposed Unicode (e + combining accent) where the *arr apps store composed "é";
     // compare composed forms so "Léon" matches "Léon".

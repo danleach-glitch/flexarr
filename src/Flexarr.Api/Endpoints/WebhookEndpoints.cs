@@ -1,4 +1,5 @@
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Security;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
@@ -38,7 +39,9 @@ public static class WebhookEndpoints
 
                 return Results.Accepted(value: new { queued = requests.Count });
             })
-            .WithTags("Webhooks");
+            .WithTags("Webhooks")
+            // A webhook can point the scanner at any path; the *arr apps authenticate with the API key, which is admin.
+            .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }

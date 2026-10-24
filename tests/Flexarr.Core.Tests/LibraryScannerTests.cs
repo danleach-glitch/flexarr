@@ -80,7 +80,7 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Rescan_SkipsUnchanged_ProbesChanged_RemovesMissingAndPrunes()
+    public async Task Rescan_SkipsUnchanged_ProbesChanged_HidesMissing_ThenPrunesAfterGracePeriod()
     {
         var root = Touch(
             "tv/Show/Season 01/Show - S01E01.mkv",
@@ -94,10 +94,116 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Directory.Delete(Path.Combine(root, "tv/Other"), recursive: true);
         var result = await Scanner().ScanAsync(library, null, default);
 
-        Assert.Equal((0, 1, 1, 1), (result.Added, result.Updated, result.Removed, result.Unchanged));
+        Assert.Equal((0, 1, 0, 1, 1), (result.Added, result.Updated, result.Removed, result.Unchanged, result.Missing));
         Assert.Equal(1, _probe.Calls);
-        Assert.False(await _db.MediaItems.AnyAsync(i => i.Title == "Other"), "empty series should be pruned");
+        Assert.False(await _db.MediaItems.AnyAsync(i => i.Title == "Other"), "a series whose files are gone should be hidden");
         Assert.Equal(2, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
+        Assert.Equal(3, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.Kind == MediaKind.Episode));
+
+        // Still gone after the grace period: removed for good.
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow - LibraryScanner.MissingGracePeriod - TimeSpan.FromMinutes(1)));
+        var later = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(1, later.Removed);
+        Assert.False(await _db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.Title == "Other"), "empty series should be pruned");
+        Assert.Equal(2, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.Kind == MediaKind.Episode));
+    }
+
+    [Fact]
+    public async Task MissingFile_ThatComesBack_KeepsItsItemAndWatchState()
+    {
+        var root = Touch("movies/Dune (2021)/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = dune.Id, Watched = true, PlayCount = 1 });
+        await _db.SaveChangesAsync();
+
+        // Mid-upgrade: the old file is deleted before the new one has finished copying in.
+        var file = Path.Combine(root, "movies/Dune (2021)/Dune (2021).mkv");
+        File.Move(file, file + ".partial");
+        var during = await Scanner().ScanAsync(library, Path.Combine(root, "movies/Dune (2021)"), default);
+        Assert.Equal((0, 1), (during.Removed, during.Missing));
+        Assert.False(await _db.MediaItems.AnyAsync(i => i.Id == dune.Id), "a film with no files should be hidden");
+        Assert.True(await _db.MediaItems.AnyAsync(i => i.Title == "Heat"));
+
+        File.Move(file + ".partial", Path.Combine(root, "movies/Dune (2021)/Dune (2021) [Remux-2160p].mkv"));
+        await Scanner().ScanAsync(library, Path.Combine(root, "movies/Dune (2021)"), default);
+
+        _db.ChangeTracker.Clear(); // The scanner shared this context; read back what was saved.
+        var back = await _db.MediaItems.Include(i => i.Files).SingleAsync(i => i.Title == "Dune");
+        Assert.Equal(dune.Id, back.Id);
+        Assert.EndsWith("[Remux-2160p].mkv", Assert.Single(back.Files).Path, StringComparison.Ordinal);
+        Assert.True((await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == dune.Id)).Watched);
+    }
+
+    [Fact]
+    public async Task EmptyRoot_HidesAndRemovesNothing()
+    {
+        var root = Touch("tv/A/Season 01/A - S01E01.mkv", "tv/B/Season 01/B - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.Where(f => f.Path.Contains("/B/")).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-30)));
+
+        // An unmounted share leaves its (empty) mount point behind.
+        Directory.Delete(Path.Combine(tv, "A"), recursive: true);
+        Directory.Delete(Path.Combine(tv, "B"), recursive: true);
+        var full = await Scanner().ScanAsync(library, null, default);
+        var scoped = await Scanner().ScanAsync(library, Path.Combine(tv, "A"), default);
+
+        Assert.Equal((0, 0, 0, 0), (full.Removed, full.Missing, scoped.Removed, scoped.Missing));
+        Assert.Equal(1, await _db.MediaFiles.CountAsync());
+        Assert.Equal(2, await _db.MediaFiles.IgnoreQueryFilters().CountAsync()); // Not even long-missing files go.
+    }
+
+    [Fact]
+    public async Task MostOfALibraryVanishing_HidesNothing()
+    {
+        var root = Touch(Enumerable.Range(1, 12).Select(n => $"movies/Film {n} (2000)/Film {n} (2000).mkv").ToArray());
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+
+        for (var n = 1; n <= 7; n++)
+        {
+            Directory.Delete(Path.Combine(movies, $"Film {n} (2000)"), recursive: true);
+        }
+
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(0, result.Missing);
+        Assert.Equal(12, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie));
+    }
+
+    [Fact]
+    public async Task ScopedScan_WithOtherUnicodeSpelling_MatchesTheExistingSeries()
+    {
+        var decomposed = "Léon";
+        var composed = decomposed.Normalize(System.Text.NormalizationForm.FormC);
+        var root = Touch($"tv/{decomposed}/Season 01/{decomposed} - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+
+        var result = await Scanner().ScanAsync(library, Path.Combine(tv, composed), default);
+
+        Assert.Equal((0, 1, 0), (result.Added, result.Unchanged, result.Missing));
+        Assert.Equal(1, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.Kind == MediaKind.Series));
+        Assert.Equal(1, await _db.MediaFiles.IgnoreQueryFilters().CountAsync());
+    }
+
+    [Fact]
+    public async Task Scope_EscapingTheRoot_IsIgnored()
+    {
+        var root = Touch("tv/A/Season 01/A - S01E01.mkv", "elsewhere/B/Season 01/B - S01E01.mkv");
+        var library = await AddLibrary(LibraryType.TvShows, Path.Combine(root, "tv"));
+
+        var result = await Scanner().ScanAsync(library, Path.Combine(root, "tv", "..", "elsewhere", "B"), default);
+
+        Assert.Equal(0, result.Added);
+        Assert.False(await _db.MediaFiles.AnyAsync());
     }
 
     [Fact]
@@ -128,18 +234,21 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ProbeFailure_StillAddsFile_AndRetriesNextScan()
+    public async Task ProbeFailure_StillAddsFile_AndRetriesWhenChangedOrAsked()
     {
         var root = Touch("movies/Broken (2020)/Broken (2020).mkv");
         var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
         _probe.Fail = true;
 
         var first = await Scanner().ScanAsync(library, null, default);
+        var unchanged = await Scanner().ScanAsync(library, null, default);
         _probe.Fail = false;
-        var second = await Scanner().ScanAsync(library, null, default);
+        var asked = await Scanner().ScanAsync(library, null, retryFailedProbes: true, default);
 
         Assert.Equal((1, 1), (first.Added, first.ProbeFailures));
-        Assert.Equal(1, second.Updated);
+        Assert.Equal((1, 0), (unchanged.Unchanged, unchanged.ProbeFailures));
+        Assert.Equal(2, _probe.Calls);
+        Assert.Equal(1, asked.Updated);
         Assert.Null((await _db.MediaFiles.SingleAsync()).ProbeError);
     }
 

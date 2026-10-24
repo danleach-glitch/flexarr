@@ -9,6 +9,9 @@ public sealed record ArrWebhookPayload
     public string EventType { get; init; } = string.Empty;
     public string? InstanceName { get; init; }
 
+    /// <summary>Why a file was deleted (Sonarr/Radarr *FileDelete): e.g. <c>upgrade</c>, <c>manual</c>, <c>missingFromDisk</c>.</summary>
+    public string? DeleteReason { get; init; }
+
     // Sonarr
     public PathItem? Series { get; init; }
     public FileItem? EpisodeFile { get; init; }

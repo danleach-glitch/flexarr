@@ -10,28 +10,58 @@ using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Core.Scanning;
 
-public sealed record ScanResult(int Added, int Updated, int Removed, int Unchanged, int Unmatched, int ProbeFailures);
+/// <param name="Removed">Files removed for good, having been missing for longer than the grace period.</param>
+/// <param name="Missing">Files found gone this scan: hidden, but kept (with their items' watch state) for now.</param>
+public sealed record ScanResult(int Added, int Updated, int Removed, int Unchanged, int Unmatched, int ProbeFailures, int Missing = 0);
 
 /// <summary>
 /// Reconciles the database with what is on disk for a library, or a folder within it:
-/// adds new files, re-probes changed ones, removes missing ones and prunes empty items.
+/// adds new files, re-probes changed ones, hides missing ones and removes those gone for longer than a grace period.
 /// </summary>
 public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe probe, ScanProgress progress, ILogger<LibraryScanner> logger)
 {
     private const int BatchSize = 50;
     private const int ProbeConcurrency = 4;
 
-    public async Task<ScanResult> ScanAsync(Library library, string? scope, CancellationToken cancellationToken)
+    /// <summary>A full scan of a folder with this many files or more refuses to hide over half of them at once.</summary>
+    private const int MassRemovalMinimum = 10;
+
+    /// <summary>
+    /// How long a file stays missing (hidden, its item's watch history and collections kept) before it's removed for
+    /// good. Long enough to outlast a drive that mounts late or an *arr upgrade copying the new file across volumes.
+    /// </summary>
+    public static readonly TimeSpan MissingGracePeriod = TimeSpan.FromHours(24);
+
+    public Task<ScanResult> ScanAsync(Library library, string? scope, CancellationToken cancellationToken) =>
+        ScanAsync(library, scope, retryFailedProbes: false, cancellationToken);
+
+    /// <param name="library">The library to scan.</param>
+    /// <param name="scope">A folder or file in the library to limit the scan to; null for all of it.</param>
+    /// <param name="retryFailedProbes">Probe files ffprobe couldn't read again even if they haven't changed.</param>
+    /// <param name="cancellationToken">Stops the scan.</param>
+    public async Task<ScanResult> ScanAsync(Library library, string? scope, bool retryFailedProbes, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(library);
+        try
+        {
+            return await ScanCoreAsync(library, scope, retryFailedProbes, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            progress.End();
+        }
+    }
 
+    private async Task<ScanResult> ScanCoreAsync(Library library, string? scope, bool retryFailedProbes, CancellationToken cancellationToken)
+    {
         var roots = library.Folders.Select(f => f.Path).ToList();
         var targets = scope is null
             ? roots.Select(r => (Root: r, Scope: r)).ToList()
-            : roots.Where(r => PathComparison.IsUnder(scope, r)).Select(r => (Root: r, Scope: scope)).ToList();
+            : roots.Where(r => PathComparison.IsUnder(scope, r)).Select(r => (Root: r, Scope: OnDiskSpelling(r, scope))).ToList();
 
-        var state = await ItemIndex.LoadAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
-        int added = 0, updated = 0, removed = 0, unchanged = 0, unmatched = 0, failures = 0;
+        var state = await ItemIndex.LoadAsync(db, library, scope is null ? null : targets, cancellationToken).ConfigureAwait(false);
+        int added = 0, updated = 0, removed = 0, unchanged = 0, unmatched = 0, failures = 0, missing = 0;
+        var held = false; // A folder looked unmounted: remove nothing this time.
 
         foreach (var (root, target) in targets)
         {
@@ -39,29 +69,62 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             {
                 // An unmounted drive must not look like "everything was deleted".
                 LogRootMissing(root);
+                held = true;
                 continue;
             }
 
-            var existing = await db.MediaFiles
+            // Missing files too, so one that comes back picks up where it left off.
+            var existing = new Dictionary<string, MediaFile>(StringComparer.Ordinal);
+            var duplicates = new List<MediaFile>();
+            var known = await db.MediaFiles.IgnoreQueryFilters()
                 .Where(f => f.MediaItem!.LibraryId == library.Id && (f.Path == target || f.Path.StartsWith(target + "/")))
-                .ToDictionaryAsync(f => f.Path, StringComparer.Ordinal, cancellationToken)
+                .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
+            foreach (var file in known)
+            {
+                if (!existing.TryAdd(PathComparison.Key(file.Path), file))
+                {
+                    duplicates.Add(file); // The same file in another Unicode spelling, added before paths were compared composed.
+                }
+            }
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music).ToList();
+            if (existing.Count > 0 && IsEmpty(root))
+            {
+                // A network share or external drive that hasn't mounted yet often leaves an empty folder behind.
+                LogRootEmpty(root, existing.Count);
+                held = true;
+                continue;
+            }
+
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music)
+                .Where(f => PathComparison.IsUnder(f.FullName, root))
+                .ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var work = new List<(FileInfo File, MediaFile? Existing)>();
 
             foreach (var file in onDisk)
             {
-                seen.Add(file.FullName);
-                if (existing.TryGetValue(file.FullName, out var known)
-                    && known.Size == file.Length && known.ModifiedAt == file.LastWriteTimeUtc && known.ProbeError is null)
+                var key = PathComparison.Key(file.FullName);
+                if (!seen.Add(key))
+                {
+                    continue;
+                }
+
+                existing.TryGetValue(key, out var match);
+                if (match is not null)
+                {
+                    match.MissingSince = null;
+                }
+
+                // Files ffprobe couldn't read are tried again when they change (or when asked), not on every scan.
+                if (match is not null && match.Size == file.Length && match.ModifiedAt == file.LastWriteTimeUtc
+                    && (match.ProbeError is null || !retryFailedProbes))
                 {
                     unchanged++;
                 }
                 else
                 {
-                    work.Add((file, known));
+                    work.Add((file, match));
                 }
             }
 
@@ -82,7 +145,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     }
                 }).ConfigureAwait(false);
 
-                foreach (var (file, known) in batch)
+                // One query for the streams being replaced, rather than one per file.
+                var changedIds = batch.Where(w => w.Existing is not null).Select(w => w.Existing!.Id).ToList();
+                if (changedIds.Count > 0)
+                {
+                    await db.MediaStreams.Where(s => changedIds.Contains(s.MediaFileId)).LoadAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                foreach (var (file, match) in batch)
                 {
                     var (result, error) = probes[file.FullName];
                     if (error is not null)
@@ -91,10 +161,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         LogProbeFailed(file.FullName, error);
                     }
 
-                    if (known is not null)
+                    if (match is not null)
                     {
-                        await db.Entry(known).Collection(f => f.Streams).LoadAsync(cancellationToken).ConfigureAwait(false);
-                        Apply(known, file, result, error);
+                        Apply(match, file, result, error);
                         updated++;
                         continue;
                     }
@@ -117,22 +186,84 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 progress.Advance(batch.Length);
             }
 
-            foreach (var gone in existing.Values.Where(f => !seen.Contains(f.Path)))
+            var gone = existing.Values.Where(f => !seen.Contains(PathComparison.Key(f.Path))).Concat(duplicates)
+                .Where(f => f.MissingSince is null)
+                .ToList();
+            if (PathComparison.IsUnder(root, target) && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
-                db.MediaFiles.Remove(gone);
-                removed++;
+                // Most of a library vanishing at once is far likelier a mount or permissions problem than a clear-out.
+                LogMassRemoval(root, gone.Count, existing.Count);
+                held = true;
+            }
+            else
+            {
+                var now = DateTime.UtcNow;
+                foreach (var file in gone)
+                {
+                    file.MissingSince = now;
+                    missing++;
+                }
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        if (!held)
+        {
+            removed = await RemoveExpiredAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        }
+
         await PruneEmptyItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        progress.End();
 
-        return new ScanResult(added, updated, removed, unchanged, unmatched, failures);
+        return new ScanResult(added, updated, removed, unchanged, unmatched, failures, missing);
+    }
+
+    /// <summary>
+    /// <paramref name="scope"/> as the library's own scans spell it: the configured root, then each name as it is on
+    /// disk. A webhook may send "é" composed where the folder was created decomposed (or the reverse); matching the
+    /// stored paths keeps the scan from taking the folder for a new series.
+    /// </summary>
+    private static string OnDiskSpelling(string root, string scope)
+    {
+        var rootKey = PathComparison.Key(root);
+        var relative = PathComparison.Key(scope)[rootKey.Length..];
+        var current = root.Length > 1 ? root.TrimEnd('/') : root;
+        foreach (var segment in relative.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] names;
+            try
+            {
+                names = Directory.Exists(current) ? Directory.EnumerateFileSystemEntries(current).Select(n => Path.GetFileName(n)).ToArray() : [];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                names = [];
+            }
+
+            var composed = segment.Normalize(System.Text.NormalizationForm.FormC);
+            var name = names.FirstOrDefault(n => n == segment)
+                ?? names.FirstOrDefault(n => n.Normalize(System.Text.NormalizationForm.FormC) == composed)
+                ?? segment;
+            current = Path.Combine(current, name);
+        }
+
+        return current;
+    }
+
+    private static bool IsEmpty(string directory)
+    {
+        try
+        {
+            return !Directory.EnumerateFileSystemEntries(directory).Any();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
     }
 
     private static void Apply(MediaFile target, FileInfo file, ProbeResult? result, string? error)
@@ -164,10 +295,47 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.AudioChannels = audio?.Channels;
     }
 
+    /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
+    private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow - MissingGracePeriod;
+        return await db.MediaFiles.IgnoreQueryFilters()
+            .Where(f => f.MissingSince != null && f.MissingSince < cutoff && f.MediaItem!.LibraryId == libraryId)
+            .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Hides playable items whose files are all missing, then the seasons/albums and series/artists with nothing left
+    /// to show; and brings back any whose files have reappeared.
+    /// </summary>
+    private async Task MarkMissingItemsAsync(Guid libraryId, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+
+        var playable = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track);
+        await playable.Where(i => i.MissingSince == null && i.Files.All(f => f.MissingSince != null))
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.MissingSince, now), ct).ConfigureAwait(false);
+        await playable.Where(i => i.MissingSince != null && i.Files.Any(f => f.MissingSince == null))
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.MissingSince, (DateTime?)null), ct).ConfigureAwait(false);
+
+        await MarkContainersAsync(items.Where(i => i.Kind == MediaKind.Season || i.Kind == MediaKind.Album)).ConfigureAwait(false);
+        await MarkContainersAsync(items.Where(i => i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist)).ConfigureAwait(false);
+
+        async Task MarkContainersAsync(IQueryable<MediaItem> containers)
+        {
+            await containers.Where(i => i.MissingSince == null && i.Children.All(c => c.MissingSince != null))
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.MissingSince, now), ct).ConfigureAwait(false);
+            await containers.Where(i => i.MissingSince != null && i.Children.Any(c => c.MissingSince == null))
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.MissingSince, (DateTime?)null), ct).ConfigureAwait(false);
+        }
+    }
+
     /// <summary>Removes playable items without files, then the albums/seasons and artists/series left empty.</summary>
     private async Task PruneEmptyItemsAsync(Guid libraryId, CancellationToken ct)
     {
-        var items = db.MediaItems.Where(i => i.LibraryId == libraryId);
+        // Missing files still count: their items wait out the grace period with them.
+        var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
         await items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track) && !i.Files.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
@@ -175,6 +343,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Library folder {Root} is missing; skipping so its items are not removed")]
     private partial void LogRootMissing(string root);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Library folder {Root} is empty but held {Known} files; skipping so its items are not removed (is the drive or share mounted?)")]
+    private partial void LogRootEmpty(string root, int known);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Missing} of the {Known} files in {Root} have gone at once; keeping them all in case the drive or share is having trouble")]
+    private partial void LogMassRemoval(string root, int missing, int known);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not probe {Path}: {Error}")]
     private partial void LogProbeFailed(string path, string error);
@@ -188,15 +362,48 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         private readonly Dictionary<string, MediaItem> _byPath = new(StringComparer.Ordinal);
         private readonly Dictionary<(Guid Parent, int Number), MediaItem> _byNumber = [];
 
-        public static async Task<ItemIndex> LoadAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct)
+        /// <param name="db">The database.</param>
+        /// <param name="library">The library being scanned.</param>
+        /// <param name="scoped">The folders a scoped scan covers, or null for the whole library.</param>
+        /// <param name="ct">Stops the load.</param>
+        public static async Task<ItemIndex> LoadAsync(FlexarrDbContext db, Library library, IReadOnlyList<(string Root, string Scope)>? scoped, CancellationToken ct)
         {
             var index = new ItemIndex(db);
-            foreach (var item in await db.MediaItems.Where(i => i.LibraryId == libraryId).ToListAsync(ct).ConfigureAwait(false))
+
+            // Missing items too: a file that reappears goes back to its old item, with its watch history.
+            // Tracks are never looked up, and a scan of one series only needs that series' seasons and episodes.
+            var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == library.Id);
+            var parents = await items
+                .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album)
+                .ToListAsync(ct).ConfigureAwait(false);
+            parents.ForEach(index.Track);
+            if (library.Type != LibraryType.TvShows)
             {
-                index.Track(item);
+                return index;
             }
 
+            var seasons = items.Where(i => i.Kind == MediaKind.Season);
+            var episodes = items.Where(i => i.Kind == MediaKind.Episode);
+            var folders = scoped?.Select(t => SeriesFolder(t.Root, t.Scope)).ToList();
+            if (folders is not null && folders.All(f => f is not null))
+            {
+                var seriesIds = parents.Where(i => i.Kind == MediaKind.Series && i.Path is not null && folders.Contains(PathComparison.Key(i.Path)))
+                    .Select(i => i.Id).ToList();
+                seasons = seasons.Where(i => i.ParentId != null && seriesIds.Contains(i.ParentId.Value));
+                episodes = episodes.Where(i => i.Parent!.ParentId != null && seriesIds.Contains(i.Parent.ParentId.Value));
+            }
+
+            (await seasons.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
+            (await episodes.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             return index;
+        }
+
+        /// <summary>The series folder (first level under the root) a scope is in, or null when it's the whole root.</summary>
+        private static string? SeriesFolder(string root, string scope)
+        {
+            var rootKey = PathComparison.Key(root);
+            var first = PathComparison.Key(scope)[rootKey.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            return first is null ? null : PathComparison.Key(Path.Combine(rootKey, first));
         }
 
         /// <param name="library">The library being scanned.</param>
@@ -295,7 +502,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         {
             // root/Movie (Year)/file.mkv → the folder is the movie; root/Movie (Year).mkv → the file is.
             var path = Path.Combine(root, segments[0]);
-            if (_byPath.TryGetValue(path, out var movie))
+            if (_byPath.TryGetValue(PathComparison.Key(path), out var movie))
             {
                 return movie;
             }
@@ -331,7 +538,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 return null;
             }
 
-            if (!_byPath.TryGetValue(seriesPath, out var series))
+            if (!_byPath.TryGetValue(PathComparison.Key(seriesPath), out var series))
             {
                 series = Add(new MediaItem
                 {
@@ -397,7 +604,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             switch (item.Kind)
             {
                 case MediaKind.Movie or MediaKind.Series when item.Path is not null:
-                    _byPath[item.Path] = item;
+                    _byPath[PathComparison.Key(item.Path)] = item;
                     break;
                 case MediaKind.Season when item.ParentId is { } p && item.SeasonNumber is { } s:
                     _byNumber[(p, s)] = item;

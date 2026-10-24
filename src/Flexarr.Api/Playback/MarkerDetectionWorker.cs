@@ -40,7 +40,8 @@ public sealed partial class MarkerDetectionWorker(
                 var busy = sessions.Active.Any(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(2));
                 await Task.Delay(!worked ? TimeSpan.FromMinutes(10) : busy ? TimeSpan.FromSeconds(20) : TimeSpan.FromSeconds(1), stoppingToken);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            // Only shutdown ends the loop: a timeout inside (a TaskCanceledException) is just a failed pass.
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
                 LogFailed(ex);
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
@@ -77,7 +78,7 @@ public sealed partial class MarkerDetectionWorker(
             .Take(20).ToListAsync(ct);
         foreach (var file in movies)
         {
-            Save(db, file, await detector.ChapterMarkersAsync(file.Path, ct));
+            await SaveAsync(db, file, await detector.ChapterMarkersAsync(file.Path, ct), ct);
         }
 
         await db.SaveChangesAsync(ct);
@@ -99,7 +100,7 @@ public sealed partial class MarkerDetectionWorker(
         var found = await detector.DetectSeasonAsync(files, ct);
         foreach (var file in files)
         {
-            Save(db, file, found[file.Id]);
+            await SaveAsync(db, file, found[file.Id], ct);
         }
 
         // Other versions of the same episodes aren't analysed; don't keep picking this season.
@@ -113,9 +114,9 @@ public sealed partial class MarkerDetectionWorker(
             found.Values.Count(m => m.Any(x => x.Type == MarkerType.Credits)), TimeProvider.System.GetElapsedTime(started).TotalSeconds);
     }
 
-    private static void Save(FlexarrDbContext db, MediaFile file, IEnumerable<DetectedMarker> markers)
+    private static async Task SaveAsync(FlexarrDbContext db, MediaFile file, IEnumerable<DetectedMarker> markers, CancellationToken ct)
     {
-        db.MediaMarkers.RemoveRange(db.MediaMarkers.Where(m => m.MediaFileId == file.Id));
+        await db.MediaMarkers.Where(m => m.MediaFileId == file.Id).ExecuteDeleteAsync(ct);
         db.MediaMarkers.AddRange(markers.Select(m => new MediaMarker
         {
             MediaFileId = file.Id,

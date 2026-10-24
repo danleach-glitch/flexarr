@@ -129,6 +129,18 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", tailnet));
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings/api-key", tailnet));
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/filesystem", tailnet));
+
+        // Webhooks start scans of any path they name: the *arr apps send them with the API key.
+        using var webhook = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/sonarr")
+        {
+            Content = JsonContent.Create(new { eventType = "Download", series = new { title = "Andor", path = "/tv/Andor" } }),
+        };
+        foreach (var (name, value) in tailnet)
+        {
+            webhook.Headers.TryAddWithoutValidation(name, value);
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await factory.CreateClient().SendAsync(webhook)).StatusCode);
     }
 
     /// <summary>Links a Tailscale login to a new profile, or to the main profile when no name is given.</summary>
