@@ -127,7 +127,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     continue;
                 }
 
-                if (deleted && folder is not null)
+                if (deleted && !full && await ShowsOtherFilesAsync(library.Id, root, existing.Values.Concat(duplicates), cancellationToken).ConfigureAwait(false))
+                {
+                    // Radarr/Sonarr deleted one title while the rest of the folder looks unmounted: only that title's
+                    // files go. The folder stays held, and nothing is purged while it looks like this.
+                    held = true;
+                }
+                else if (deleted && folder is not null)
                 {
                     folder.ReleasedAt ??= DateTime.UtcNow; // Emptied by Radarr/Sonarr: later scans let what it hid go too.
                 }
@@ -332,6 +338,16 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             .ToListAsync(ct).ConfigureAwait(false);
         var ids = candidates.Where(f => PathComparison.IsUnder(f.Path, target)).Select(f => f.Id).ToList();
         return ids.Count == 0 ? [] : await files.Where(f => ids.Contains(f.Id)).ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether the library shows any file in <paramref name="root"/> besides <paramref name="these"/>.</summary>
+    private async Task<bool> ShowsOtherFilesAsync(Guid libraryId, string root, IEnumerable<MediaFile> these, CancellationToken ct)
+    {
+        var ids = these.Select(f => f.Id).ToList();
+        var prefix = root.TrimEnd('/') + "/";
+        return await db.MediaFiles.IgnoreQueryFilters()
+            .AnyAsync(f => f.MediaItem!.LibraryId == libraryId && f.MissingSince == null && f.Path.StartsWith(prefix) && !ids.Contains(f.Id), ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>

@@ -258,6 +258,37 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OneTitleDeletedByRadarr_WhileTheFolderLooksUnmounted_LetsOnlyThatTitleGo()
+    {
+        var root = Touch("movies/A (2001)/A (2001).mkv", "movies/B (2002)/B (2002).mkv", "movies/C (2003)/C (2003).mkv", "movies/Old (1990)/Old (1990).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        Directory.Delete(Path.Combine(movies, "Old (1990)"), recursive: true);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddHours(-23)));
+
+        // The share drops; Radarr, which still sees it, deletes A.
+        foreach (var film in new[] { "A (2001)", "B (2002)", "C (2003)" })
+        {
+            Directory.Delete(Path.Combine(movies, film), recursive: true);
+        }
+
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        var deleted = await Scanner().ScanAsync(library, Path.Combine(movies, "A (2001)"), retryFailedProbes: false, deleted: true, default);
+        var folder = await _db.LibraryFolders.AsNoTracking().SingleAsync();
+        var full = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((1, 0), (deleted.Missing, deleted.Removed)); // Nothing purged while the folder looks unmounted.
+        Assert.Equal((FolderHold.FolderEmpty, (DateTime?)null), (folder.Hold, folder.ReleasedAt));
+        Assert.Equal(0, full.Missing);
+        Assert.Equal(["B", "C"], await _db.MediaItems.OrderBy(i => i.Title).Select(i => i.Title).ToListAsync());
+    }
+
+    [Fact]
     public async Task DeletedFolder_SentInAnotherUnicodeSpelling_IsHidden()
     {
         var decomposed = "Léon".Normalize(System.Text.NormalizationForm.FormD);
