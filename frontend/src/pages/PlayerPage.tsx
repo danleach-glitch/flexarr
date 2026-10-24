@@ -1,4 +1,4 @@
-import Hls from 'hls.js'
+import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { beaconProgress, imageUrl, reportProgress, startPlayback, stopPlayback, type PlaybackInfo } from '../api/client'
@@ -53,6 +53,8 @@ export function PlayerPage() {
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
   const lifetime = useRef({ alive: true })
+  // Counts playback requests, so only the latest one's answer is used.
+  const requests = useRef(0)
 
   const [info, setInfo] = useState<PlaybackInfo>()
   const [error, setError] = useState<string>()
@@ -132,6 +134,10 @@ export function PlayerPage() {
       setError(undefined)
       const q = options.quality ?? quality
       const preset = qualities.find((x) => x.value === q)
+      // Leaving for another title (or asking again, say for another quality) while this request is out makes its
+      // answer stale: that session is stopped rather than played over the newer one.
+      const life = lifetime.current
+      const request = ++requests.current
       try {
         const playback = await startPlayback({
           itemId: id,
@@ -143,6 +149,11 @@ export function PlayerPage() {
           maxBitrate: preset?.bitrate,
           forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
         })
+        if (!life.alive || life !== lifetime.current || request !== requests.current) {
+          void stopPlayback(playback.sessionId)
+          // Nothing left for this request to do: a newer one (or none, the page has moved on) is in charge.
+          return true
+        }
         if (session.current && session.current !== playback.sessionId) void stopPlayback(session.current)
         session.current = playback.sessionId
         setInfo(playback)
@@ -150,7 +161,7 @@ export function PlayerPage() {
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
         return true
       } catch (e) {
-        if (!quiet) setError(e instanceof Error ? e.message : String(e))
+        if (!quiet && request === requests.current) setError(e instanceof Error ? e.message : String(e))
         return false
       }
     },
@@ -238,10 +249,12 @@ export function PlayerPage() {
   useEffect(() => {
     const el = video.current
     if (!el) return
+    // timeupdate fires about four times a second; whole seconds are all the controls show, and React skips a
+    // render when the value hasn't changed.
     const onTime = () => {
-      setTime(el.currentTime)
+      setTime(Math.floor(el.currentTime))
       for (let i = 0; i < el.buffered.length; i++) {
-        if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(el.buffered.end(i))
+        if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(Math.floor(el.buffered.end(i)))
       }
     }
     const onPlay = () => setPlaying(true)
@@ -287,19 +300,24 @@ export function PlayerPage() {
 
   // Subtitles sit clear of the bottom edge, and rise above the controls while they're showing. Cues are placed by
   // their top edge as a percentage of the video's height (Chrome ignores lineAlign), so each cue's own height (its
-  // lines at the ::cue font size in player.css) is allowed for and multi-line cues grow upwards.
+  // lines at the ::cue font size in player.css) is allowed for and multi-line cues grow upwards. A track's cues (a
+  // film has a thousand or two) are all placed once, when they've loaded or the space changes; after that each
+  // cuechange touches only the cues on screen.
   const controls = useRef<HTMLElement>(null)
   useEffect(() => {
     const el = video.current
     const tracks = el?.textTracks
     if (!el || !tracks || typeof VTTCue === 'undefined') return
+    let placed = new WeakSet<TextTrack>()
     const place = () => {
       const height = el.getBoundingClientRect().height || innerHeight
       const lift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : height * 0.08
       const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * 1.3 + 2
       for (const track of Array.from(el.textTracks)) {
         if (track.mode !== 'showing' || !track.cues) continue
-        for (const cue of Array.from(track.cues)) {
+        const cues = placed.has(track) ? track.activeCues : track.cues
+        if (track.cues.length) placed.add(track)
+        for (const cue of Array.from(cues ?? [])) {
           if (!(cue instanceof VTTCue)) continue
           const lines = cue.text.split('\n').length
           cue.snapToLines = false
@@ -314,12 +332,16 @@ export function PlayerPage() {
     for (const track of Array.from(tracks)) watch(track)
     tracks.addEventListener('addtrack', onAdd)
     tracks.addEventListener('change', place)
-    window.addEventListener('resize', place)
+    const onResize = () => {
+      placed = new WeakSet()
+      place()
+    }
+    window.addEventListener('resize', onResize)
     return () => {
       for (const track of Array.from(tracks)) track.removeEventListener('cuechange', place)
       tracks.removeEventListener('addtrack', onAdd)
       tracks.removeEventListener('change', place)
-      window.removeEventListener('resize', place)
+      window.removeEventListener('resize', onResize)
     }
   }, [chrome, subtitleKey])
 

@@ -2,7 +2,7 @@ import type Hls from 'hls.js'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { imageUrl, reportProgress, startPlayback, stopPlayback, type ItemSummary } from '../api/client'
 import { detectProfile } from '../lib/profile'
-import { AudioPlayerContext, type AudioPlayer } from './audioPlayerContext'
+import { AudioPlayerContext, AudioTimeContext, type AudioPlayer } from './audioPlayerContext'
 
 /**
  * Music playback that survives navigation: one <audio> element for the whole app, a queue, and
@@ -33,7 +33,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setDuration(info.durationSeconds)
 
     if (info.method === 'Transcode' && !el.canPlayType('application/vnd.apple.mpegurl')) {
-      const { default: HlsPlayer } = await import('hls.js')
+      const { default: HlsPlayer } = await import('hls.js/light')
       const player = new HlsPlayer()
       player.loadSource(info.url)
       player.attachMedia(el)
@@ -52,7 +52,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const el = audio.current
     if (!el) return
-    const onTime = () => setTime(el.currentTime)
+    const onTime = () => setTime(Math.floor(el.currentTime))
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
     const onEnded = () => {
@@ -116,13 +116,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [current, toggle, next, previous])
 
   const value = useMemo<AudioPlayer>(
-    () => ({ queue, index, current, playing, time, duration, play, toggle, next, previous, seek, stop }),
-    [queue, index, current, playing, time, duration, play, toggle, next, previous, seek, stop],
+    () => ({ queue, index, current, playing, duration, play, toggle, next, previous, seek, stop }),
+    [queue, index, current, playing, duration, play, toggle, next, previous, seek, stop],
   )
   return (
     <AudioPlayerContext value={value}>
-      {children}
-      <audio ref={audio} hidden />
+      <AudioTimeContext value={time}>
+        {children}
+        <audio ref={audio} hidden />
+      </AudioTimeContext>
     </AudioPlayerContext>
   )
 }
