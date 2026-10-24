@@ -45,7 +45,17 @@ public sealed partial class PlaybackSessions
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
 
-    public void Add(PlaybackSession session) => _sessions[session.Id] = session;
+    public void Add(PlaybackSession session)
+    {
+        _sessions[session.Id] = session;
+
+        // Another screen's start can end this transcode before its playback gets here, when TakenOver had nothing to
+        // remove. The reason is recorded before TakenOver fires, so one of the two always catches it.
+        if (transcodes.TakenOverReason(session.Id) is not null)
+        {
+            _sessions.TryRemove(session.Id, out _);
+        }
+    }
 
     public PlaybackSession? Get(string id)
     {

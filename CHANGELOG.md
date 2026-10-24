@@ -11,6 +11,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Your profile picture on Apple TV
 - The current profile's picture sits in the top right corner, level with the tab bar (press right from the last tab to reach it), replacing its name at the end of the tab bar. Open it to switch.
 
+### Fixed: a screen kept a stream that had stopped
+- When several screens on one profile started watching at the same moment and the server was full, one could be left with a stream that had already been stopped for another screen, instead of being told why.
+
 ### Tidier buttons on a film's or show's page
 - The buttons fit on one line again: **Play**, **Trailer** and **Mark as watched**, then **⋯** for the rest: **Play from the start**, **Add to collection**, **Fix match** and **Delete**.
 
