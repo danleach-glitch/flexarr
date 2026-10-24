@@ -33,16 +33,27 @@ export class UnauthorizedError extends Error {
   }
 }
 
-/** A non-2xx response. `messages` holds validation errors from ASP.NET problem details, if any. */
+/**
+ * A non-2xx response. `messages` holds validation errors from ASP.NET problem details, if any; `retryAfterSeconds`, how
+ * long the server asked to wait (too many wrong PINs), when it said.
+ */
 export class ApiError extends Error {
   readonly status: number
   readonly messages: string[]
+  readonly retryAfterSeconds?: number
 
-  constructor(status: number, statusText: string, messages: string[]) {
+  constructor(status: number, statusText: string, messages: string[], retryAfterSeconds?: number) {
     super(messages[0] ?? `${status} ${statusText}`)
     this.status = status
     this.messages = messages
+    this.retryAfterSeconds = retryAfterSeconds
   }
+}
+
+/** Seconds from a number or a whole-seconds string, if it is one. */
+function seconds(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : NaN
+  return Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
 function stored(name: string): string | null {
@@ -67,12 +78,15 @@ export function saveProfileToken(token: string | null) {
 
 /**
  * Shows the profile picker on the next load, even over Tailscale or with one profile. The profile chosen here stays
- * until another is picked, so backing out of the picker changes nothing.
+ * until another is picked, so backing out of the picker changes nothing. With `profileId`, the picker goes straight to
+ * that profile (its PIN).
  */
-export function askForProfile() {
+export function askForProfile(profileId?: string) {
   try {
     sessionStorage.removeItem('flexarr.profileChosen')
     sessionStorage.setItem('flexarr.pickProfile', '1')
+    if (profileId) sessionStorage.setItem('flexarr.pickProfileFor', profileId)
+    else sessionStorage.removeItem('flexarr.pickProfileFor')
   } catch {
     // Storage unavailable.
   }
@@ -136,13 +150,15 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   }
   if (!response.ok) {
     let messages: string[] = []
+    let retryAfter = seconds(response.headers.get('Retry-After'))
     try {
-      const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string; detail?: string }
+      const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string; detail?: string; retryAfterSeconds?: unknown }
       messages = problem.errors ? Object.values(problem.errors).flat() : [problem.detail ?? problem.title].filter((m): m is string => !!m)
+      retryAfter = seconds(problem.retryAfterSeconds) ?? retryAfter
     } catch {
       // Not a JSON problem response.
     }
-    throw new ApiError(response.status, response.statusText, messages)
+    throw new ApiError(response.status, response.statusText, messages, retryAfter)
   }
   if (response.status === 202 || response.status === 204) {
     return undefined as T
