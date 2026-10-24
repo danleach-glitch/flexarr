@@ -64,7 +64,7 @@ public static class MediaBrowserEndpoints
             var updates = request.Updates.Where(u => !string.IsNullOrWhiteSpace(u.Path)).ToList();
             if (updates.Any(u => PathComparison.HasControlCharacters(u.Path) || u.UpdateType is { } type && PathComparison.HasControlCharacters(type)))
             {
-                return Results.Problem("A path in the update holds a control character.", statusCode: 400);
+                return Results.Problem("A path in the update holds a control, line-separator or text-direction character.", statusCode: 400);
             }
 
             foreach (var update in updates)

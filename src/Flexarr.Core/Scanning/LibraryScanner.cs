@@ -197,7 +197,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     if (error is not null)
                     {
                         failures++;
-                        LogProbeFailed(file.FullName, error);
+                        LogProbeFailed(PathComparison.Printable(file.FullName), PathComparison.Printable(error));
                     }
 
                     if (match is not null)
@@ -211,7 +211,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     if (item is null)
                     {
                         unmatched++;
-                        LogUnmatched(file.FullName);
+                        LogUnmatched(PathComparison.Printable(file.FullName));
                         continue;
                     }
 

@@ -154,7 +154,7 @@ public sealed partial class LibraryScanWorker(
             // A metadata refresh also retries files ffprobe couldn't read.
             var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
             var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
-            LogScanFinished(library.Name, target, result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
+            LogScanFinished(library.Name, PathComparison.Printable(target), result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
                 result.Unmatched, result.ProbeFailures, seconds);
         }
 
