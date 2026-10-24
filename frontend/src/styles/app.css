@@ -1098,6 +1098,12 @@ a.upcoming-row:hover strong {
     min-height: 78vh;
   }
 
+  .hero-art::after {
+    background:
+      linear-gradient(to top, var(--room) 6%, color-mix(in srgb, var(--room) 70%, transparent) 50%, transparent 80%),
+      radial-gradient(ellipse 90% 50% at 0% 100%, color-mix(in srgb, var(--ambient) 30%, transparent), transparent 70%);
+  }
+
   .hero-pager {
     display: none;
   }
