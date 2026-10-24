@@ -1866,6 +1866,10 @@ a.download-attention {
   outline: none;
 }
 
+.item-menu button.danger {
+  color: var(--danger);
+}
+
 .item-menu hr {
   margin: 5px 6px;
   border: 0;

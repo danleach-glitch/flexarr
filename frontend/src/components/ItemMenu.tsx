@@ -15,12 +15,52 @@ export interface MenuPoint {
 /** Films and TV get menus; music has its own pages. */
 export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series'].includes(item.kind)
 
-type Action = { label: string; run: () => void | Promise<void> } | 'divider'
+export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
 
 /** Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) */
 export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoint; onClose: () => void }) {
   const navigate = useNavigate()
   const play = usePlay()
+  const mark = (target: Pick<ItemSummary, 'id' | 'parentId' | 'seriesId'>, watched: boolean) => async () => {
+    await setWatched(target.id, watched)
+    announceWatched(target)
+  }
+  const go = (to: string) => () => navigate(to)
+  const resumable = progressOf(item) !== null
+  const showId = item.kind === 'Series' ? item.id : (item.seriesId ?? (item.kind === 'Season' ? item.parentId : null))
+  const show = item.seriesTitle ?? 'the show'
+
+  const actions: MenuAction[] = []
+  switch (item.kind) {
+    case 'Movie':
+      actions.push({ label: resumable ? 'Resume' : 'Play', run: go(`/play/${item.id}`) })
+      if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
+      actions.push('divider')
+      actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
+      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      break
+    case 'Episode':
+      actions.push({ label: `${resumable ? 'Resume' : 'Play'} ${episodeCode(item)}`, run: go(`/play/${item.id}`) })
+      if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
+      actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
+      if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
+      break
+    case 'Season':
+      actions.push({ label: 'Play', run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
+      actions.push('divider', { label: item.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched', run: mark(item, !item.userData.watched) })
+      break
+    case 'Series':
+      actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
+      actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
+      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      break
+  }
+
+  return <Menu label={item.title} at={at} actions={actions} onClose={onClose} />
+}
+
+/** A popup list of actions, anchored at a point and kept on screen; Escape, Tab or a click elsewhere closes it. */
+export function Menu({ label, at, actions, onClose }: { label: string; at: MenuPoint; actions: MenuAction[]; onClose: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(at)
 
@@ -48,41 +88,6 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
     }
   }, [onClose])
 
-  const mark = (target: Pick<ItemSummary, 'id' | 'parentId' | 'seriesId'>, watched: boolean) => async () => {
-    await setWatched(target.id, watched)
-    announceWatched(target)
-  }
-  const go = (to: string) => () => navigate(to)
-  const resumable = progressOf(item) !== null
-  const showId = item.kind === 'Series' ? item.id : (item.seriesId ?? (item.kind === 'Season' ? item.parentId : null))
-  const show = item.seriesTitle ?? 'the show'
-
-  const actions: Action[] = []
-  switch (item.kind) {
-    case 'Movie':
-      actions.push({ label: resumable ? 'Resume' : 'Play', run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
-      actions.push('divider')
-      actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
-      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
-      break
-    case 'Episode':
-      actions.push({ label: `${resumable ? 'Resume' : 'Play'} ${episodeCode(item)}`, run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
-      actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
-      if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
-      break
-    case 'Season':
-      actions.push({ label: 'Play', run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
-      actions.push('divider', { label: item.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched', run: mark(item, !item.userData.watched) })
-      break
-    case 'Series':
-      actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
-      actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
-      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
-      break
-  }
-
   function onKeyDown(e: KeyboardEvent) {
     const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])]
     const index = items.indexOf(document.activeElement as HTMLButtonElement)
@@ -96,7 +101,7 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
   }
 
   return createPortal(
-    <div ref={menu} className="item-menu" role="menu" aria-label={item.title} style={{ left: position.x, top: position.y }} onKeyDown={onKeyDown}>
+    <div ref={menu} className="item-menu" role="menu" aria-label={label} style={{ left: position.x, top: position.y }} onKeyDown={onKeyDown}>
       {actions.map((a, i) =>
         a === 'divider' ? (
           <hr key={`d${i}`} />
@@ -104,6 +109,7 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
           <button
             key={a.label}
             role="menuitem"
+            className={a.danger ? 'danger' : undefined}
             onClick={async () => {
               onClose()
               await a.run()
