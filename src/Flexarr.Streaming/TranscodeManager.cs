@@ -4,23 +4,48 @@ using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Streaming;
 
+/// <summary>Thrown when starting a transcode would go over <see cref="TranscodeSettings.MaxConcurrentTranscodes"/>.</summary>
+public sealed class TranscodeLimitException(int limit)
+    : Exception($"The server is already converting {limit} {(limit == 1 ? "video" : "videos")} for other viewers, its limit. Try again when one of them stops.");
+
 /// <summary>Owns all transcode sessions: creation, lookup, throttling and cleanup.</summary>
-public sealed class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers) : IAsyncDisposable
+public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers) : IAsyncDisposable
 {
     private static readonly TimeSpan StopAfterIdle = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan DeleteAfterIdle = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ReleaseAfterIdle = TimeSpan.FromMinutes(30);
 
     private readonly ConcurrentDictionary<string, TranscodeSession> _sessions = new(StringComparer.Ordinal);
+    private readonly Lock _createLock = new();
     private readonly ILogger _logger = loggers.CreateLogger<TranscodeSession>();
 
     public IEnumerable<TranscodeSession> Sessions => _sessions.Values;
 
+    /// <summary>Transcodes someone is watching now. Ones left paused long enough for ffmpeg to stop don't count.</summary>
+    public int ActiveCount
+    {
+        get
+        {
+            var now = DateTime.UtcNow;
+            return _sessions.Values.Count(s => s.IsRunning || now - s.LastAccess < StopAfterIdle);
+        }
+    }
+
+    /// <exception cref="TranscodeLimitException">The server is already running as many transcodes as it's allowed.</exception>
     public TranscodeSession Create(string input, double durationSeconds, TranscodePlan plan)
     {
-        var id = NewId();
-        var session = new TranscodeSession(id, input, durationSeconds, plan, settings(), _logger);
-        _sessions[id] = session;
-        return session;
+        var current = settings();
+        lock (_createLock)
+        {
+            if (current.MaxConcurrentTranscodes > 0 && ActiveCount >= current.MaxConcurrentTranscodes)
+            {
+                throw new TranscodeLimitException(current.MaxConcurrentTranscodes);
+            }
+
+            var id = NewId();
+            var session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger);
+            _sessions[id] = session;
+            return session;
+        }
     }
 
     public TranscodeSession? Get(string id) => _sessions.GetValueOrDefault(id);
@@ -39,18 +64,26 @@ public sealed class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFa
         var now = DateTime.UtcNow;
         foreach (var session in _sessions.Values)
         {
-            var idle = now - session.LastAccess;
-            if (idle > DeleteAfterIdle)
+            try
             {
-                await StopAsync(session.Id).ConfigureAwait(false);
+                var idle = now - session.LastAccess;
+                if (idle > ReleaseAfterIdle)
+                {
+                    // Free the disk but keep the session, so a viewer back from a long pause carries on.
+                    await session.ReleaseAsync().ConfigureAwait(false);
+                }
+                else if (idle > StopAfterIdle)
+                {
+                    await session.StopProcessAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    session.Throttle();
+                }
             }
-            else if (idle > StopAfterIdle)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                session.StopProcess();
-            }
-            else
-            {
-                session.Throttle();
+                LogSweepFailed(ex, session.Id);
             }
         }
     }
@@ -87,4 +120,7 @@ public sealed class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFa
 
     /// <summary>Session ids double as capability tokens in stream URLs, so they must be unguessable.</summary>
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Transcode {Session}: cleanup failed")]
+    private partial void LogSweepFailed(Exception ex, string session);
 }

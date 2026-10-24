@@ -23,23 +23,50 @@ final class ImageCache: @unchecked Sendable {
 /// Loads and decodes images off the main thread, coalescing duplicate requests.
 actor ImageLoader {
     static let shared = ImageLoader()
-    private var inFlight: [URL: Task<UIImage?, Never>] = [:]
+    private struct Load {
+        let task: Task<UIImage?, Never>
+        var waiters: Int
+    }
+    private var inFlight: [URL: Load] = [:]
 
+    /// Cancelling the caller (a poster scrolled away before it arrived) stops the download,
+    /// unless another view is still waiting for the same image.
     func load(_ url: URL) async -> UIImage? {
         if let cached = ImageCache.shared.image(for: url) { return cached }
-        if let task = inFlight[url] { return await task.value }
-        let task = Task<UIImage?, Never> {
-            guard let (data, response) = try? await URLSession.shared.data(from: url),
-                  (response as? HTTPURLResponse)?.statusCode == 200,
-                  let image = UIImage(data: data) else { return nil }
-            let decoded = await image.byPreparingForDisplay() ?? image
-            ImageCache.shared.insert(decoded, for: url)
-            return decoded
+        let task: Task<UIImage?, Never>
+        if var load = inFlight[url] {
+            load.waiters += 1
+            inFlight[url] = load
+            task = load.task
+        } else {
+            task = Task<UIImage?, Never> {
+                guard let (data, response) = try? await URLSession.shared.data(from: url),
+                      (response as? HTTPURLResponse)?.statusCode == 200,
+                      let image = UIImage(data: data) else { return nil }
+                let decoded = await image.byPreparingForDisplay() ?? image
+                ImageCache.shared.insert(decoded, for: url)
+                return decoded
+            }
+            inFlight[url] = Load(task: task, waiters: 1)
         }
-        inFlight[url] = task
-        let image = await task.value
-        inFlight[url] = nil
+        let image = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            Task { await self.abandon(url, task) }
+        }
+        if inFlight[url]?.task == task { inFlight[url] = nil }
         return image
+    }
+
+    private func abandon(_ url: URL, _ task: Task<UIImage?, Never>) {
+        guard var load = inFlight[url], load.task == task else { return }
+        load.waiters -= 1
+        if load.waiters > 0 {
+            inFlight[url] = load
+        } else {
+            task.cancel()
+            inFlight[url] = nil
+        }
     }
 
     func data(_ url: URL) async -> Data? {

@@ -30,6 +30,11 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var prompt: PlaybackPrompt = .none
     @ObservationIgnored private var pendingSeek: Double = 0
     @ObservationIgnored private var isAdvancing = false
+    @ObservationIgnored private var isRecovering = false
+    @ObservationIgnored private var hasPlayed = false
+    @ObservationIgnored private var lastRecovery = Date.distantPast
+    /// Where playback last was, for recovering after the item fails (when its own time may be gone).
+    @ObservationIgnored private var lastPosition: Double = 0
 
     private static let reportInterval: TimeInterval = 10
 
@@ -84,8 +89,11 @@ final class PlaybackController: NSObject {
     /// Wires observers for the session in `info` onto the current player item.
     private func attach(_ info: PlaybackInfo) {
         guard let player, let item = player.currentItem else { return }
-        log.info("Session \(info.sessionId, privacy: .public) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
+        // The session id is the stream URLs' only credential, so keep it out of shareable logs.
+        log.info("Session \(info.sessionId, privacy: .private) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
         self.info = info
+        hasPlayed = false
+        lastPosition = info.startPositionSeconds
         prompt = .none
         lastReport = Date()
         pendingSeek = info.startPositionSeconds
@@ -120,6 +128,7 @@ final class PlaybackController: NSObject {
         switch status {
         case .readyToPlay:
             guard let player else { return }
+            hasPlayed = true
             if pendingSeek > 1 {
                 let target = CMTime(seconds: pendingSeek, preferredTimescale: 600)
                 pendingSeek = 0
@@ -133,11 +142,56 @@ final class PlaybackController: NSObject {
         case .failed:
             let reason = message ?? "The stream couldn't be opened."
             log.error("Item failed: \(reason, privacy: .public)")
-            dismissPlayer {
-                self.errorMessage = reason
+            if hasPlayed {
+                recover(reason: reason)
+            } else {
+                dismissPlayer {
+                    self.errorMessage = reason
+                }
             }
         default:
             break
+        }
+    }
+
+    /// A stream that was playing stopped: the server restarted, say, or forgot a transcode. Ask for a fresh session
+    /// from where we were (retrying while the server comes back) before giving up, at most once a minute: a stream
+    /// that keeps stopping is a real problem worth showing.
+    private func recover(reason: String) {
+        guard !isRecovering, let client, let current = info else { return }
+        guard Date().timeIntervalSince(lastRecovery) > 60 else {
+            dismissPlayer { self.errorMessage = reason }
+            return
+        }
+        let position = self.position > 0 ? self.position : lastPosition
+        log.info("Recovering playback at \(position)")
+        isRecovering = true
+        lastRecovery = Date()
+        let failed = current.sessionId
+        let retry = PlaybackRequest(
+            itemId: current.item.id, profile: .tvOS(hdr: AVPlayer.eligibleForHDRPlayback), fileId: current.fileId,
+            audioStreamIndex: current.selectedAudioIndex, subtitleKey: current.selectedSubtitleKey ?? "off",
+            startPositionSeconds: position)
+        Task {
+            defer { isRecovering = false }
+            try? await client.stopPlayback(sessionId: failed)
+            var lastError: Error?
+            for attempt in 0..<6 {
+                if attempt > 0 { try? await Task.sleep(for: .seconds(3)) }
+                guard self.info?.sessionId == failed else { return } // Closed (or moved on) meanwhile.
+                do {
+                    let info = try await client.startPlayback(retry)
+                    let item = try makeItem(for: info)
+                    player?.replaceCurrentItem(with: item)
+                    attach(info)
+                    return
+                } catch {
+                    lastError = error
+                }
+            }
+            dismissPlayer {
+                self.errorMessage = lastError.map { ConnectionError($0).message } ?? reason
+            }
         }
     }
 
@@ -150,6 +204,7 @@ final class PlaybackController: NSObject {
 
     private func tick(_ seconds: Double) {
         guard let info, seconds.isFinite, pendingSeek == 0 else { return }
+        lastPosition = seconds
         let next = info.prompt(at: seconds)
         if next != prompt {
             log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
@@ -246,7 +301,7 @@ final class PlaybackController: NSObject {
 
     private func stop(reportingTo client: FlexarrClient?) {
         if let info, let client {
-            log.info("Stopping session \(info.sessionId, privacy: .public)")
+            log.info("Stopping session \(info.sessionId, privacy: .private)")
             let position = self.position
             let sessionId = info.sessionId
             let record = recordsHistory

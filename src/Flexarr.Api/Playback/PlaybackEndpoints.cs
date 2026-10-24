@@ -17,8 +17,16 @@ public static class PlaybackEndpoints
     public static RouteGroupBuilder MapPlaybackEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/playback", async (PlaybackRequest request, PlaybackService playback, CancellationToken ct) =>
-            await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound())
-            .WithTags("Playback");
+        {
+            try
+            {
+                return await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound();
+            }
+            catch (TranscodeLimitException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+            }
+        }).WithTags("Playback");
 
         api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
             await playback.NextUpAsync(id, ct) is { } episode
@@ -169,6 +177,7 @@ public static class PlaybackEndpoints
         HardwareAcceleration = options.Transcoding.HardwareAcceleration,
         VaapiDevice = options.Transcoding.VaapiDevice,
         SoftwarePreset = options.Transcoding.SoftwarePreset,
+        MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes,
     };
 
     private static IResult Playlist(HttpContext http, string body)

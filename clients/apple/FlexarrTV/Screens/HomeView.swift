@@ -6,6 +6,8 @@ struct HomeView: View {
     @State private var home: Home?
     @State private var error: String?
     @State private var featuredIndex = 0
+    /// `model.refreshToken` when `home` was last fetched.
+    @State private var loadedToken: Int?
 
     var body: some View {
         ZStack {
@@ -19,7 +21,11 @@ struct HomeView: View {
                 StatusView(state: .loading)
             }
         }
-        .task(id: model.refreshToken) { await load() }
+        .task(id: model.refreshToken) {
+            // Coming back from a detail screen runs this again; fetch only when something changed.
+            guard loadedToken != model.refreshToken else { return }
+            await load()
+        }
     }
 
     private var featured: ItemSummary? {
@@ -45,9 +51,11 @@ struct HomeView: View {
 
     private func load() async {
         guard let client = model.client else { return }
+        let token = model.refreshToken
         do {
             let loaded = try await client.home()
             home = loaded
+            loadedToken = token
             error = nil
         } catch {
             if home == nil { self.error = ConnectionError(error).message }

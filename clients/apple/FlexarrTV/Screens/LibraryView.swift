@@ -16,6 +16,8 @@ struct LibraryView: View {
     @State private var isLoading = false
     @State private var error: String?
     @State private var didApplyInitialSort = false
+    /// `model.refreshToken` when `items` was last fetched.
+    @State private var loadedToken: Int?
 
     private static let pageSize = 60
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
@@ -32,9 +34,9 @@ struct LibraryView: View {
                         .frame(height: 500)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
-                        ForEach(items) { item in
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             PosterCard(item: item) { router.push(.item(item)) }
-                                .onAppear { loadMoreIfNeeded(after: item) }
+                                .onAppear { loadMoreIfNeeded(at: index) }
                         }
                     }
                     .focusSection()
@@ -52,6 +54,12 @@ struct LibraryView: View {
             if !didApplyInitialSort {
                 didApplyInitialSort = true
                 sort = initialSort
+            }
+            // Coming back from a detail screen runs this again. Keep what's loaded, and so the scroll
+            // position, only bringing it up to date if something changed meanwhile.
+            if let loadedToken, !items.isEmpty {
+                if loadedToken != model.refreshToken { await refreshLoaded() }
+                return
             }
             async let genresTask = try? model.client?.libraryGenres(library.id)
             await reload()
@@ -100,10 +108,12 @@ struct LibraryView: View {
         guard let client = model.client else { return }
         isLoading = true
         defer { isLoading = false }
+        let token = model.refreshToken
         do {
             let page = try await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: Self.pageSize)
             items = page.items
             total = page.total
+            loadedToken = token
             error = nil
         } catch {
             self.error = ConnectionError(error).message
@@ -113,15 +123,16 @@ struct LibraryView: View {
     /// After playback or watched changes, refetch what is already on screen so badges update.
     private func refreshLoaded() async {
         guard let client = model.client, !items.isEmpty else { return }
+        let token = model.refreshToken
         if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: max(items.count, Self.pageSize)) {
             items = page.items
             total = page.total
+            loadedToken = token
         }
     }
 
-    private func loadMoreIfNeeded(after item: ItemSummary) {
-        guard !isLoading, items.count < total,
-              let index = items.firstIndex(where: { $0.id == item.id }), index >= items.count - 18 else { return }
+    private func loadMoreIfNeeded(at index: Int) {
+        guard !isLoading, items.count < total, index >= items.count - 18 else { return }
         Task {
             guard let client = model.client else { return }
             isLoading = true

@@ -62,6 +62,11 @@ public sealed partial class TrickplayWorker(TrickplayQueue queue, IServiceScopeF
                     LogGenerated(Path.GetFileName(file.Path), manifest.Count, TimeProvider.System.GetElapsedTime(started).TotalSeconds);
                 }
             }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A bad file (or a full disk) mustn't stop previews for everything after it, or the server.
+                LogError(ex, fileId);
+            }
             finally
             {
                 queue.Done(fileId);
@@ -74,4 +79,7 @@ public sealed partial class TrickplayWorker(TrickplayQueue queue, IServiceScopeF
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't make scrubbing previews for {Path}")]
     private partial void LogFailed(string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't make scrubbing previews for file {FileId}")]
+    private partial void LogError(Exception ex, Guid fileId);
 }
