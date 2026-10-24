@@ -104,7 +104,7 @@ public static class UpcomingEndpoints
             }
         }
 
-        // Something not in a library this profile can see is shown only if it's kept out of no library of that kind.
+        // Something not in a library this profile can see is shown unless the profile can't see any library of its kind.
         var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
         return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind)).OrderBy(r => r.Date).ToList();
     }

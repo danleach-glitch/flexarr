@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Fixed: Discover search only found films
+- Search, Discover, Coming soon and requests hid every new show from a profile kept out of *any* TV library (yours hides one). They now hide a kind of title only when the profile can't see any library of that kind.
+
 ### Search everything on Discover
 - A search box on Discover finds any film or show, not just what you have. Titles in your library are marked and open as usual; anything else opens its details with **Request**.
 - Results are split into Shows and Films, and searching waits until you pause typing.

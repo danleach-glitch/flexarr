@@ -24,8 +24,10 @@ public static class LibraryVisibility
     }
 
     /// <summary>
-    /// The kinds of library the profile has had one hidden of. Titles that aren't in the library yet (coming soon,
-    /// Seerr's Discover) can't be traced to a library, so a profile kept out of any film library sees no such films.
+    /// The kinds of title a profile is kept out of altogether: those where every library of that kind is hidden from
+    /// it. Titles that aren't in the library yet (Discover, search, Coming soon, downloads) can't be traced to one
+    /// library, so they're shown unless the profile can't see any library of their kind. Hiding one TV library of
+    /// several (someone else's shows) still leaves new shows visible.
     /// </summary>
     public static async Task<IReadOnlySet<LibraryType>> HiddenTypesAsync(FlexarrDbContext db, CancellationToken ct)
     {
@@ -35,7 +37,8 @@ public static class LibraryVisibility
             return new HashSet<LibraryType>();
         }
 
-        return (await db.Libraries.IgnoreQueryFilters().Where(l => hidden.Contains(l.Id)).Select(l => l.Type).ToListAsync(ct)).ToHashSet();
+        var libraries = await db.Libraries.IgnoreQueryFilters().Select(l => new { l.Id, l.Type }).ToListAsync(ct);
+        return libraries.GroupBy(l => l.Type).Where(g => g.All(l => hidden.Contains(l.Id))).Select(g => g.Key).ToHashSet();
     }
 
     public static bool Hides(this IReadOnlySet<LibraryType> types, MediaKind kind) => kind switch

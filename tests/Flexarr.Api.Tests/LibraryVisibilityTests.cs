@@ -43,7 +43,9 @@ public class LibraryVisibilityTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.DoesNotContain(samLibraries.EnumerateArray(), l => l.GetProperty("id").GetGuid() == films);
         Assert.Contains(samLibraries.EnumerateArray(), l => l.GetProperty("id").GetGuid() == shows);
         Assert.Contains(mainLibraries.EnumerateArray(), l => l.GetProperty("id").GetGuid() == films);
-        Assert.Equal([show], samSearch.GetProperty("titles").EnumerateArray().Select(t => t.GetProperty("id").GetGuid()));
+        var samTitles = samSearch.GetProperty("titles").EnumerateArray().Select(t => t.GetProperty("id").GetGuid()).ToList();
+        Assert.Contains(show, samTitles);
+        Assert.DoesNotContain(film, samTitles);
         Assert.Contains(mainSearch.GetProperty("titles").EnumerateArray(), t => t.GetProperty("id").GetGuid() == film);
         Assert.DoesNotContain(film.ToString(), home.GetRawText(), StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.NotFound, (await sam.GetAsync(Api($"/items/{film}"))).StatusCode);
@@ -66,18 +68,24 @@ public class LibraryVisibilityTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
-    public async Task ProfileKeptOutOfFilms_CantRequestFilms()
+    public async Task ProfileKeptOutOfEveryFilmLibrary_CantRequestFilms_ButHidingOneTvLibraryOfTwoStillAllowsShows()
     {
-        var (films, _, _, _) = await SeedAsync();
-        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Kid", hiddenLibraryIds = new[] { films } }))
+        await SeedAsync();
+        await SeedAsync(); // two film and two TV libraries
+        var libraries = await Client().GetFromJsonAsync<JsonElement>(Api("/libraries?all=true"));
+        var allFilms = libraries.EnumerateArray().Where(l => l.GetProperty("type").GetString() == "Movies").Select(l => l.GetProperty("id").GetGuid()).ToArray();
+        var oneTv = libraries.EnumerateArray().First(l => l.GetProperty("type").GetString() == "TvShows").GetProperty("id").GetGuid();
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Kid", hiddenLibraryIds = allFilms.Append(oneTv).ToArray() }))
             .Content.ReadFromJsonAsync<JsonElement>();
         var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{created.GetProperty("id").GetString()}/select"), new { }))
             .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
 
-        // Rejected before Seerr is consulted, so no real request is ever made.
-        var response = await Client(token).PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 603 });
+        // Both are answered before Seerr is consulted (none is set up here), so no real request is ever made.
+        var film = await Client(token).PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 603 });
+        var show = await Client(token).PostAsJsonAsync(Api("/requests"), new { mediaType = "tv", tmdbId = 1396 });
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, film.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, show.StatusCode); // allowed; it only fails for want of a Seerr server
     }
 
     private async Task<(Guid Films, Guid Shows, Guid Film, Guid Show)> SeedAsync()
