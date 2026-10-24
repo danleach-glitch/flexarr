@@ -11,6 +11,7 @@ import {
   getArrStatus,
   getRequestStatus,
   getLibraryHealth,
+  confirmHeldRemoval,
   createProfile,
   deleteProfile,
   getPlexSource,
@@ -27,6 +28,7 @@ import {
   saveLayout,
   type ItemSummary,
   type LibraryHealth,
+  type HeldFolder,
   type Layout,
   type RowChoice,
   importPlexAvatars,
@@ -1077,6 +1079,8 @@ function HealthSection() {
 
       <HealthCheckPanel onFinished={reload} />
 
+      {data.held.length > 0 && <HeldFolders folders={data.held} onConfirmed={reload} />}
+
       <HealthGroup
         title="Spare copies"
         count={data.duplicates.length}
@@ -1221,6 +1225,80 @@ function HealthSection() {
 }
 
 const fileName = (path: string) => path.split('/').at(-1) ?? path
+
+/**
+ * Folders whose files the scans are keeping: they looked unmounted or cleared out. If they really were cleared out,
+ * confirming lets the next scan hide them (and remove them a day later).
+ */
+function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfirmed: () => void }) {
+  const [asking, setAsking] = useState<HeldFolder | null>(null)
+  const [errors, setErrors] = useState<Record<number, string>>({})
+  const why = (f: HeldFolder) =>
+    f.reason === 'FolderMissing'
+      ? 'The folder isn’t there. Is its drive or share connected?'
+      : f.reason === 'FolderEmpty'
+        ? `The folder is empty but held ${f.known.toLocaleString()} files. Is its drive or share mounted?`
+        : `${f.missing.toLocaleString()} of its ${f.known.toLocaleString()} files went at once. If that’s a clear-out, it goes through by itself after a day of scans finding the same.`
+
+  async function confirm(f: HeldFolder) {
+    setAsking(null)
+    try {
+      await confirmHeldRemoval(f.folderId)
+      onConfirmed()
+    } catch (e) {
+      setErrors((x) => ({ ...x, [f.folderId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t confirm it' }))
+    }
+  }
+
+  return (
+    <HealthGroup
+      title="Folders on hold"
+      count={folders.length}
+      lede="Scans are keeping these folders’ titles, in case a drive or share is having trouble. Titles you deleted on purpose stay listed until you confirm it."
+    >
+      {folders.map((f) => (
+        <div key={f.folderId} className="health-row">
+          <span className="health-row-main">
+            <span className="health-row-text">
+              <strong title={f.path}>
+                {f.library}: {f.path}
+              </strong>
+              <span className="muted">{why(f)}</span>
+              {errors[f.folderId] && <span className="error">{errors[f.folderId]}</span>}
+            </span>
+          </span>
+          {f.canConfirm &&
+            (f.confirmed ? (
+              <span className="tag">Removal confirmed, scanning</span>
+            ) : (
+              <button className="button danger small" onClick={() => setAsking(f)}>
+                Confirm removal
+              </button>
+            ))}
+        </div>
+      ))}
+      {asking && (
+        <div className="dialog-backdrop" onClick={() => setAsking(null)}>
+          <div className="panel confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="held-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="held-title">Are {asking.missing.toLocaleString()} files really gone?</h2>
+            <p>
+              Flexarr hides the titles in {asking.path} it can’t find and removes them a day later; their watch history is kept for 30 days in case they come back. No files are touched. If the
+              drive is just disconnected, reconnect it instead.
+            </p>
+            <div className="form-actions">
+              <button className="button quiet" onClick={() => setAsking(null)} autoFocus>
+                Keep them
+              </button>
+              <button className="button danger" onClick={() => void confirm(asking)}>
+                Confirm removal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </HealthGroup>
+  )
+}
 
 /** In place of a search button: Sonarr or Radarr already have a new copy on the way. */
 function DownloadingNote({ state }: { state: LibraryHealth['downloading'][string] }) {

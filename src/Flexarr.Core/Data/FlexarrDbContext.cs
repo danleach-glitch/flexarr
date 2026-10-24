@@ -19,6 +19,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
+    public DbSet<WatchTombstone> WatchTombstones => Set<WatchTombstone>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -102,6 +103,16 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasKey(i => new { i.CollectionId, i.MediaItemId });
             // A title that leaves the library leaves its collections.
             e.HasOne(i => i.MediaItem).WithMany().HasForeignKey(i => i.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WatchTombstone>(e =>
+        {
+            // Read back whole and only by id, so stored as JSON rather than tables of their own.
+            e.OwnsMany(t => t.Playback, b => b.ToJson());
+            e.OwnsMany(t => t.Collections, b => b.ToJson());
+            e.HasIndex(t => t.TmdbId);
+            e.HasIndex(t => t.TvdbId);
+            e.HasIndex(t => t.ImdbId);
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

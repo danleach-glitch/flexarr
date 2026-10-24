@@ -2,8 +2,10 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
+using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -29,7 +31,14 @@ public sealed record LibraryHealthDto(
     IReadOnlyList<ItemSummaryDto> MissingArtwork,
     IReadOnlyList<ItemSummaryDto> StandardDefinition,
     int StandardDefinitionTotal,
-    IReadOnlyDictionary<Guid, DownloadStateDto> Downloading);
+    IReadOnlyDictionary<Guid, DownloadStateDto> Downloading,
+    IReadOnlyList<HeldFolderDto> Held);
+
+/// <summary>
+/// A library folder whose scans keep its files rather than hide the ones they can't find, as it looked unmounted or
+/// cleared out. <see cref="CanConfirm"/>: the removal can be confirmed (not for a folder that isn't there at all).
+/// </summary>
+public sealed record HeldFolderDto(int FolderId, string Library, string Path, FolderHold Reason, int Missing, int Known, DateTime Since, int Scans, bool Confirmed, bool CanConfirm);
 
 public sealed record SkippedFileDto(string Path, string Reason);
 
@@ -103,7 +112,30 @@ public static partial class HealthEndpoints
                 missing,
                 await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
                 await sd.CountAsync(ct),
-                downloading);
+                downloading,
+                await HeldAsync(db, ct));
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // "Confirm removal" for a held folder: its files really are gone, so the next scan (queued now) hides them, and
+        // they're removed after the usual grace period. Only for the result shown: if the next scan finds something
+        // different, it's held again.
+        api.MapPost("/library-health/held/{folderId:int}/confirm", async (int folderId, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>
+        {
+            var folder = await db.LibraryFolders.FirstOrDefaultAsync(f => f.Id == folderId, ct);
+            if (folder is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (folder.Hold is not (FolderHold.FolderEmpty or FolderHold.MostFilesGone))
+            {
+                return Results.Problem(folder.Hold is null ? "This folder isn't being held." : "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.", statusCode: 409);
+            }
+
+            folder.RemovalConfirmed = true;
+            await db.SaveChangesAsync(ct);
+            await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, "Removal confirmed in Library health"), ct);
+            return Results.Accepted();
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // The Health check button: look at every file on disk (in the background), then report what's wrong.
@@ -246,6 +278,15 @@ public static partial class HealthEndpoints
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
+    }
+
+    private static async Task<List<HeldFolderDto>> HeldAsync(FlexarrDbContext db, CancellationToken ct)
+    {
+        var held = await db.LibraryFolders.Where(f => f.Hold != null).OrderBy(f => f.Path).ToListAsync(ct);
+        var ids = held.Select(f => f.LibraryId).ToList();
+        var names = await db.Libraries.IgnoreQueryFilters().Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+        return held.Select(f => new HeldFolderDto(f.Id, names.GetValueOrDefault(f.LibraryId, ""), f.Path, f.Hold!.Value, f.HeldMissing, f.HeldKnown,
+            f.HeldSince ?? DateTime.UtcNow, f.HeldScans, f.RemovalConfirmed, f.Hold != FolderHold.FolderMissing)).ToList();
     }
 
     /// <summary>

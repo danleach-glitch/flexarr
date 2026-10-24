@@ -460,7 +460,27 @@ export interface LibraryHealth {
   standardDefinitionTotal: number
   /** Titles Sonarr or Radarr are already downloading, by item id. */
   downloading: Record<string, { progress: number; timeLeft: string | null; status: string | null }>
+  /** Library folders whose files scans are keeping, as the folder looked unmounted or cleared out. */
+  held: HeldFolder[]
 }
+
+export interface HeldFolder {
+  folderId: number
+  library: string
+  path: string
+  reason: 'FolderMissing' | 'FolderEmpty' | 'MostFilesGone'
+  /** Files the scans would have hidden, of `known`. */
+  missing: number
+  known: number
+  since: string
+  scans: number
+  confirmed: boolean
+  /** Not for a folder that isn't there at all. */
+  canConfirm: boolean
+}
+
+/** The held folder's files really are gone: the next scan (started now) hides them. */
+export const confirmHeldRemoval = (folderId: number) => request<void>('POST', `/library-health/held/${folderId}/confirm`)
 
 export const getLibraryHealth = (signal?: AbortSignal) => apiGet<LibraryHealth>('/library-health', signal)
 
