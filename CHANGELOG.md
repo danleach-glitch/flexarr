@@ -2,13 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.13.0 · 24 October 2026
 
 ### Getting ready for the App Store
 - The iPhone and iPad app is on its way to the App Store, with a privacy policy at flexarr.io/privacy: Flexarr collects no data.
 - A server that only listens on this computer (for example, one published with Tailscale Funnel) no longer shows up in other devices' lists of servers on the home network, where it couldn't be reached anyway.
 
-## Unreleased
+## 0.13.0 · 24 October 2026
 
 ### Shuffle a show
 - **Shuffle** on a show's page plays a random episode, then another, and another, until you stop. On the web and on iPhone and iPad.
