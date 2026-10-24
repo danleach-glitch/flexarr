@@ -82,6 +82,20 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ANewFilm_IsFetchedByTheTmdbIdItsWebhookGave()
+    {
+        await AddMovieAsync("Arrival", null, poster: null);
+        await AddMovieAsync("Heat", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/heat.jpg");
+        _radarr.Responses["/api/v3/movie?tmdbId=329865"] = """[{"id":3,"title":"Arrival","year":2016,"tmdbId":329865,"path":"/movies/Arrival"}]""";
+
+        var result = await Refresher().RefreshLibraryAsync(_library, force: false, ["/movies/Arrival"], tmdbId: 329865, tvdbId: null, default);
+
+        Assert.Equal(1, result.FromArr);
+        Assert.DoesNotContain("/api/v3/movie", _radarr.Paths); // the whole library
+        Assert.Equal(("329865", 3), await _db.MediaItems.Where(i => i.Title == "Arrival").Select(i => ValueTuple.Create(i.TmdbId, i.ArrId!.Value)).SingleAsync());
+    }
+
+    [Fact]
     public async Task HttpTimeout_CountsAsUnavailable_InsteadOfEscaping()
     {
         await AddMovieAsync("Dune", null, poster: null);

@@ -61,4 +61,16 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
 
         Assert.Equal(["/tv/Show", "/tv/Other", "/tv/Showtime"], paths);
     }
+
+    [Fact]
+    public void Coalesce_KeepsTheWebhooksTvdbId()
+    {
+        var requests = new[]
+        {
+            new LibraryScanRequest("/tv/Show", "Emby-style update (Created)"),
+            new LibraryScanRequest("/tv/Show", "Sonarr Download", TvdbId: 371980),
+        };
+
+        Assert.Equal(371980, Assert.Single(LibraryScanWorker.Coalesce(requests)).TvdbId);
+    }
 }

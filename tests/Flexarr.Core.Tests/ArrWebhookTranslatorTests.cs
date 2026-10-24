@@ -51,6 +51,22 @@ public class ArrWebhookTranslatorTests
     }
 
     [Fact]
+    public void Requests_CarryTheTitlesTmdbOrTvdbId()
+    {
+        var options = System.Text.Json.JsonSerializerOptions.Web;
+        var radarr = System.Text.Json.JsonSerializer.Deserialize<ArrWebhookPayload>(
+            """{"eventType":"Download","movie":{"id":3,"title":"Arrival","folderPath":"/movies/Arrival (2016)","tmdbId":329865,"imdbId":"tt2543164"}}""", options)!;
+        var sonarr = System.Text.Json.JsonSerializer.Deserialize<ArrWebhookPayload>(
+            """{"eventType":"Download","series":{"id":5,"title":"Severance","path":"/tv/Severance","tvdbId":371980,"tmdbId":95396}}""", options)!;
+
+        var film = Assert.Single(ArrWebhookTranslator.ToScanRequests(ArrKind.Radarr, radarr));
+        var show = Assert.Single(ArrWebhookTranslator.ToScanRequests(ArrKind.Sonarr, sonarr));
+
+        Assert.Equal((329865, (int?)null), (film.TmdbId, film.TvdbId));
+        Assert.Equal(((int?)null, 371980), (show.TmdbId, show.TvdbId));
+    }
+
+    [Fact]
     public void Payload_ReadsDeleteReason()
     {
         var payload = System.Text.Json.JsonSerializer.Deserialize<ArrWebhookPayload>(
