@@ -25,6 +25,8 @@ struct LibraryView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private static let pageSize = 60
+    /// The most the server sends in one page (ItemEndpoints' MaxPageSize).
+    private static let maxPageSize = 500
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
     var body: some View {
@@ -136,14 +138,35 @@ struct LibraryView: View {
     }
 
     /// After playback or watched changes, or after a while, refetch what is already on screen so badges update.
+    /// The server sends at most `maxPageSize` a request, so a long list comes back in several; whatever didn't
+    /// (a page failed, or more were appended meanwhile) is kept as it was, so focus and scroll stay put.
     private func refreshLoaded() async {
         guard let client = model.client, !items.isEmpty else { return }
         let current = generation
         let token = model.refreshToken
-        if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: max(items.count, Self.pageSize)),
-           current == generation {
-            items = page.items
-            total = page.total
+        let wanted = max(items.count, Self.pageSize)
+        var fetched: [ItemSummary] = []
+        var known = Set<ItemSummary.ID>()
+        var offset = 0
+        var fetchedTotal: Int?
+        while offset < wanted {
+            guard let page = try? await client.libraryItems(
+                library.id, sort: sort, genre: genre, skip: offset, take: min(wanted - offset, Self.maxPageSize)),
+                current == generation else { break }
+            offset += page.items.count
+            // A title added or removed between pages can shift one into the next: list it once.
+            fetched.append(contentsOf: page.items.filter { known.insert($0.id).inserted })
+            fetchedTotal = page.total
+            if page.items.isEmpty || offset >= page.total { break }
+        }
+        guard current == generation, let fetchedTotal else { return }
+        if offset >= fetchedTotal {
+            items = fetched // That's the whole list now: anything past it has gone.
+        } else {
+            items = fetched + items.dropFirst(offset).filter { !known.contains($0.id) }
+        }
+        total = fetchedTotal
+        if offset >= wanted || offset >= fetchedTotal {
             loadedToken = token
             loadedAt = Date()
         }
