@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Flexarr.Core\Flexarr.Core.csproj" />
+    <ProjectReference Include="..\Flexarr.Integrations.Arr\Flexarr.Integrations.Arr.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Flexarr.Core.Tests" />
+  </ItemGroup>
+</Project>

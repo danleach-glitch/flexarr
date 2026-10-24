@@ -85,7 +85,7 @@ public static class LibraryEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
             await db.Libraries.Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound());
 
-        group.MapPost("/{id:guid}/scan", async (Guid id, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>
+        group.MapPost("/{id:guid}/scan", async (Guid id, bool? refreshMetadata, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>
         {
             var library = await db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync(l => l.Id == id, ct);
             if (library is null)
@@ -93,7 +93,7 @@ public static class LibraryEndpoints
                 return Results.NotFound();
             }
 
-            await EnqueueAsync(library, queue, "Manual scan", ct);
+            await EnqueueAsync(library, queue, refreshMetadata == true ? "Metadata refresh" : "Manual scan", ct, refreshMetadata == true);
             return Results.Accepted();
         });
 
@@ -110,11 +110,11 @@ public static class LibraryEndpoints
     private static List<string> Normalize(IEnumerable<string> folders) =>
         folders.Select(f => Path.GetFullPath(f.Trim()).TrimEnd('/')).Distinct().ToList();
 
-    private static async Task EnqueueAsync(Library library, ILibraryScanQueue queue, string reason, CancellationToken ct)
+    private static async Task EnqueueAsync(Library library, ILibraryScanQueue queue, string reason, CancellationToken ct, bool forceMetadata = false)
     {
         foreach (var folder in library.Folders)
         {
-            await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, reason), ct);
+            await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, reason, forceMetadata), ct);
         }
     }
 

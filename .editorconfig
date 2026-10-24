@@ -29,6 +29,8 @@ dotnet_naming_style.underscore_camel.required_prefix = _
 dotnet_diagnostic.CA1711.severity = none
 # Minimal API handlers run on ASP.NET's context-free sync context.
 dotnet_diagnostic.CA2007.severity = none
+# Computing a log argument once per operation is fine; the rule targets hot loops.
+dotnet_diagnostic.CA1873.severity = suggestion
 
 [tests/**.cs]
 # Test names use Method_Scenario_Expectation.

@@ -10,7 +10,7 @@ public static class ItemEndpoints
 
     public static RouteGroupBuilder MapItemEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/libraries/{id:guid}/items", async (Guid id, string? search, int? skip, int? take, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/libraries/{id:guid}/items", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CancellationToken ct) =>
         {
             var query = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
             if (!string.IsNullOrWhiteSpace(search))
@@ -20,63 +20,82 @@ public static class ItemEndpoints
                 query = query.Where(i => EF.Functions.Like(i.Title, pattern));
             }
 
+            if (!string.IsNullOrWhiteSpace(genre))
+            {
+                query = query.Where(i => i.Genres.Any(g => g.Name == genre));
+            }
+
             var total = await query.CountAsync(ct);
-            var items = await Summaries(query.OrderBy(i => i.SortTitle).ThenBy(i => i.Year)
-                .Skip(Math.Max(skip ?? 0, 0)).Take(Math.Clamp(take ?? 100, 1, MaxPageSize))).ToListAsync(ct);
+            var ordered = sort switch
+            {
+                "added" => query.OrderByDescending(i => i.AddedAt),
+                "year" => query.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle),
+                "rating" => query.OrderByDescending(i => i.CommunityRating).ThenBy(i => i.SortTitle),
+                "runtime" => query.OrderBy(i => i.RuntimeMinutes).ThenBy(i => i.SortTitle),
+                _ => query.OrderBy(i => i.SortTitle).ThenBy(i => i.Year),
+            };
+            var items = await ordered.Skip(Math.Max(skip ?? 0, 0)).Take(Math.Clamp(take ?? 100, 1, MaxPageSize)).Summaries().ToListAsync(ct);
             return new PagedDto<ItemSummaryDto>(total, items);
         }).WithTags("Items");
 
-        api.MapGet("/items/recent", async (int? take, FlexarrDbContext db, CancellationToken ct) =>
-            await Summaries(db.MediaItems
-                    .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode)
-                    .OrderByDescending(i => i.AddedAt)
-                    .Take(Math.Clamp(take ?? 24, 1, 100)))
+        api.MapGet("/libraries/{id:guid}/genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+            await db.Genres
+                .Select(g => new { g.Name, Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null) })
+                .Where(g => g.Count > 0)
+                .OrderByDescending(g => g.Count)
+                .ToListAsync(ct))
+            .WithTags("Items");
+
+        api.MapGet("/items/recent", async (int? take, Guid? libraryId, FlexarrDbContext db, CancellationToken ct) =>
+            await db.MediaItems
+                .Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode) && (libraryId == null || i.LibraryId == libraryId))
+                .OrderByDescending(i => i.AddedAt)
+                .Take(Math.Clamp(take ?? 24, 1, 100))
+                .Summaries()
                 .ToListAsync(ct))
             .WithTags("Items");
 
         api.MapGet("/items/{id:guid}", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
         {
-            var item = await Summaries(db.MediaItems.Where(i => i.Id == id)).FirstOrDefaultAsync(ct);
+            var item = await db.MediaItems.Where(i => i.Id == id).Summaries().FirstOrDefaultAsync(ct);
             if (item is null)
             {
                 return Results.NotFound();
             }
 
-            var entity = await db.MediaItems.AsNoTracking().FirstAsync(i => i.Id == id, ct);
+            var entity = await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == id, ct);
 
             var ancestors = new List<ItemSummaryDto>();
             for (var parentId = entity.ParentId; parentId is { } pid;)
             {
-                var parent = await Summaries(db.MediaItems.Where(i => i.Id == pid)).FirstAsync(ct);
-                ancestors.Insert(0, parent);
+                ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries().FirstAsync(ct));
                 parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
             }
 
-            var children = await Summaries(db.MediaItems.Where(i => i.ParentId == id).OrderBy(i => i.SortTitle)).ToListAsync(ct);
+            var children = await db.MediaItems.Where(i => i.ParentId == id).OrderBy(i => i.SortTitle).Summaries().ToListAsync(ct);
             var files = await db.MediaFiles.AsNoTracking().Where(f => f.MediaItemId == id).Include(f => f.Streams)
                 .OrderByDescending(f => f.Height).ToListAsync(ct);
 
-            return Results.Ok(new ItemDetailDto(item, entity.Path, entity.TvdbId, entity.TmdbId, entity.ImdbId, ancestors, children,
-                files.Select(ToDto).ToList()));
+            // Seasons and episodes show their series' cast.
+            var creditsFor = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0 ? ancestors[0].Id : id;
+            var credits = await db.Credits.Where(c => c.MediaItemId == creditsFor).OrderBy(c => c.Order)
+                .Select(c => new CreditDto(c.PersonId, c.Person!.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.Person.ImageUrl != null)))
+                .ToListAsync(ct);
+
+            var series = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0
+                ? await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == ancestors[0].Id, ct)
+                : entity;
+
+            return Results.Ok(new ItemDetailDto(
+                item, entity.Path, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
+                entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
+                series.Genres.Select(g => g.Name).Order().ToList(),
+                series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
+                ancestors, children, credits, files.Select(ToDto).ToList()));
         }).WithTags("Items");
 
         return api;
     }
-
-    /// <summary>Projects in SQL so lists don't load files and streams.</summary>
-    private static IQueryable<ItemSummaryDto> Summaries(IQueryable<MediaItem> query) =>
-        query.Select(i => new
-            {
-                Item = i,
-                ChildCount = i.Children.Count,
-                Best = i.Files.OrderByDescending(f => f.Height).Select(f => new { f.DurationSeconds, f.Width, f.Height }).FirstOrDefault(),
-            })
-            .Select(x => new ItemSummaryDto(
-                x.Item.Id, x.Item.LibraryId, x.Item.Kind, x.Item.Title, x.Item.Year, x.Item.SeasonNumber, x.Item.EpisodeNumber,
-                x.Item.EpisodeNumberEnd, x.Item.AirDate, x.ChildCount,
-                x.Best == null ? null : x.Best.DurationSeconds,
-                x.Best == null ? null : Resolution.Label(x.Best.Width, x.Best.Height),
-                x.Item.AddedAt));
 
     private static FileDto ToDto(MediaFile f) => new(
         f.Id, f.Path, f.Size, f.Container, f.DurationSeconds, f.Bitrate, f.VideoCodec, f.Width, f.Height, f.VideoRange,

@@ -2,11 +2,14 @@ using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Playback;
 using Flexarr.Api.Scanning;
 using Flexarr.Core.Data;
 using Flexarr.Core.Probing;
 using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
+using Flexarr.Metadata;
+using Flexarr.Streaming;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -34,6 +37,10 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpClient<ArrClient>();
+builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
+builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
+builder.Services.AddScoped<MetadataRefresher>();
 
 builder.Services.AddDbContext<FlexarrDbContext>((sp, db) =>
 {
@@ -44,6 +51,15 @@ builder.Services.AddDbContext<FlexarrDbContext>((sp, db) =>
 builder.Services.AddSingleton<IMediaProbe>(sp => new FfprobeMediaProbe(sp.GetRequiredService<IOptions<FlexarrOptions>>().Value.FfprobePath));
 builder.Services.AddSingleton<ScanProgress>();
 builder.Services.AddScoped<LibraryScanner>();
+builder.Services.AddSingleton(sp => new TranscodeManager(
+    () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptions<FlexarrOptions>>().Value),
+    sp.GetRequiredService<ILoggerFactory>()));
+builder.Services.AddSingleton<PlaybackSessions>();
+builder.Services.AddSingleton<MarkerQueue>();
+builder.Services.AddScoped<PlaybackService>();
+builder.Services.AddHostedService<PlaybackSweeper>();
+builder.Services.AddHostedService<MarkerDetectionWorker>();
+
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
 builder.Services.AddHostedService<LibraryScanWorker>();
 
@@ -76,7 +92,12 @@ app.MapGroup("/api/v1")
     .MapWebhookEndpoints()
     .MapLibraryEndpoints()
     .MapItemEndpoints()
-    .MapFilesystemEndpoints();
+    .MapFilesystemEndpoints()
+    .MapPeopleEndpoints()
+    .MapPlaybackEndpoints();
+
+// Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();
 
 // The web client is a SPA; let it own every non-API route.
 app.MapFallbackToFile("index.html");

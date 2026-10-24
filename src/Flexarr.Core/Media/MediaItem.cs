@@ -43,4 +43,47 @@ public sealed class MediaItem
 
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     public List<MediaFile> Files { get; set; } = [];
+
+    // ---- Metadata (filled by metadata providers; null until then) ----
+
+    public string? OriginalTitle { get; set; }
+    public string? Overview { get; set; }
+    public string? ContentRating { get; set; }
+
+    /// <summary>Studio for movies, network for TV.</summary>
+    public string? Studio { get; set; }
+
+    public int? RuntimeMinutes { get; set; }
+    public string? Status { get; set; }
+    public DateOnly? ReleaseDate { get; set; }
+
+    /// <summary>Audience rating out of 10 (IMDb/TMDB/TVDB).</summary>
+    public double? CommunityRating { get; set; }
+
+    /// <summary>Critics' score out of 100 (Rotten Tomatoes).</summary>
+    public int? CriticRating { get; set; }
+
+    public double? Popularity { get; set; }
+    public string? TrailerYouTubeId { get; set; }
+
+    public string? PosterUrl { get; set; }
+    public string? BackdropUrl { get; set; }
+    public string? LogoUrl { get; set; }
+
+    /// <summary>Episode still.</summary>
+    public string? ThumbUrl { get; set; }
+
+    /// <summary>Vivid colour sampled from the artwork, as #rrggbb, for ambient UI tinting.</summary>
+    public string? AccentColor { get; set; }
+
+    /// <summary>Id of this item in Radarr/Sonarr, for deep links and actions.</summary>
+    public int? ArrId { get; set; }
+
+    public string? TvMazeId { get; set; }
+    public string? MetadataSource { get; set; }
+    public DateTime? MetadataUpdatedAt { get; set; }
+
+    public List<Genre> Genres { get; set; } = [];
+    public List<Credit> Credits { get; set; } = [];
+    public List<PlaybackState> PlaybackStates { get; set; } = [];
 }

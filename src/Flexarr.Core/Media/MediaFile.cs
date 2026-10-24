@@ -39,7 +39,11 @@ public sealed class MediaFile
     /// <summary>Set when ffprobe could not read the file; the scanner retries when the file changes.</summary>
     public string? ProbeError { get; set; }
 
+    /// <summary>When intro/credits detection last ran for this file (null = never).</summary>
+    public DateTime? MarkersScannedAt { get; set; }
+
     public List<MediaStream> Streams { get; set; } = [];
+    public List<MediaMarker> Markers { get; set; } = [];
 }
 
 public sealed class MediaStream

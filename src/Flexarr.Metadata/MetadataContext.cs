@@ -1,0 +1,13 @@
+using Flexarr.Core.Paths;
+using Flexarr.Integrations.Arr;
+
+namespace Flexarr.Metadata;
+
+/// <summary>Server settings the metadata layer needs, supplied by the host.</summary>
+public interface IMetadataSettings
+{
+    IReadOnlyList<ArrInstance> ArrInstances { get; }
+    IReadOnlyList<PathMapping> PathMappings { get; }
+    string CacheDirectory { get; }
+    string FfmpegPath { get; }
+}

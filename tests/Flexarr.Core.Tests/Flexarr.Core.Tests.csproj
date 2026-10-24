@@ -17,5 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Flexarr.Core\Flexarr.Core.csproj" />
     <ProjectReference Include="..\..\src\Flexarr.Integrations.Arr\Flexarr.Integrations.Arr.csproj" />
+    <ProjectReference Include="..\..\src\Flexarr.Metadata\Flexarr.Metadata.csproj" />
+    <ProjectReference Include="..\..\src\Flexarr.Streaming\Flexarr.Streaming.csproj" />
   </ItemGroup>
 </Project>
