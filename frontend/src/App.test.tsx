@@ -93,7 +93,7 @@ describe('App', () => {
     mockApi({
       '/system/status': status,
       '/libraries': [movies],
-      '/home': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'Latest unwatched movies', style: 'poster', items: [niceGuys], link: null }], upcoming: [], downloading: 0 },
+      '/home': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'Latest unwatched films', style: 'poster', items: [niceGuys], link: null }], upcoming: [], downloading: 0 },
       'POST /items/m1/watched': (init?: RequestInit) => {
         posted.push(JSON.parse(String(init?.body)))
       },
@@ -309,20 +309,156 @@ describe('Settings', () => {
       ],
       'DELETE /sign-ins/s1': undefined,
     })
-    vi.stubGlobal('confirm', () => true)
 
     renderAt('/settings/server')
 
     expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show API key' }))
-    // It asks again first (the main profile has no PIN here, so just a yes).
-    fireEvent.click(await screen.findByRole('button', { name: 'Show the key' }))
+    // It asks again first (the main profile has no PIN here, so just a yes), and the yes has the focus.
+    const showIt = await screen.findByRole('button', { name: 'Show the key' })
+    await vi.waitFor(() => expect(showIt).toHaveFocus())
+    fireEvent.click(showIt)
     expect(await screen.findByText('the-key')).toBeInTheDocument()
     const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
     expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ confirm: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    expect(screen.queryByText('the-key')).not.toBeInTheDocument()
     expect(await screen.findByText('Living room')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    // Each Sign out says which one it is, and asks first.
+    fireEvent.click(screen.getByRole('button', { name: /^Sign out Living room, connected/ }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sign out Living room?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sign-ins/s1') && init?.method === 'DELETE')).toBe(true))
+  })
+
+  it('says how many were signed out with a new key, and asks before a new webhook secret in its own dialog', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'hook-secret' },
+      '/profiles': [{ id: 'owner', name: 'Dan', isMain: true, hasPin: true, isCurrent: true }],
+      'POST /settings/api-key/rotate': { apiKey: 'new-key', signedOut: 3 },
+      'POST /settings/webhook-secret/rotate': { webhookSecret: 'fresh' },
+      '/sign-ins': [],
+    })
+
+    renderAt('/settings/server')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Make a new key' }))
+    // With a PIN on the main profile, the PIN field takes the focus.
+    const pin = await screen.findByLabelText('Main profile’s PIN')
+    await vi.waitFor(() => expect(pin).toHaveFocus())
+    fireEvent.change(pin, { target: { value: '1234' } })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Replace the key' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
+    expect(screen.getByText('new-key')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
+
+    const opener = screen.getByRole('button', { name: 'Make a new secret' })
+    opener.focus()
+    fireEvent.click(opener)
+    expect(await screen.findByRole('alertdialog', { name: 'Make a new webhook secret?' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/webhook-secret/rotate'))).toBe(false)
+
+    fireEvent.click(opener)
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Make a new secret' }))
+    expect(await screen.findByText(/webhooks\/radarr\?secret=fresh/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy the Radarr address' })).toBeInTheDocument()
+  })
+
+  it('groups a browser that signed in again and again, marks only newer ones New, and renames one', async () => {
+    const now = Date.now()
+    const at = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()
+    const chrome = (id: string, hoursAgo: number) => ({ id, kind: 'Browser', name: 'Chrome on Mac', createdAt: at(hoursAgo), lastUsedAt: at(hoursAgo), zone: 'Local', address: '127.0.0.1', profileId: 'owner', profileName: 'Dan', isThisOne: false })
+    let renamed: unknown
+    mockApi({
+      '/libraries': [],
+      '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'x' },
+      '/sign-ins': [
+        { ...chrome('me', 1), name: 'Safari on iPhone', isThisOne: true },
+        chrome('c1', 2),
+        chrome('c2', 3),
+        { id: 'tv', kind: 'Device', name: 'Apple TV', createdAt: at(0.5), lastUsedAt: at(0.5), zone: 'Local', address: '192.168.1.9', profileId: 'owner', profileName: 'Dan', isThisOne: false },
+      ],
+      'PATCH /sign-ins/tv': (init: RequestInit) => {
+        renamed = JSON.parse(String(init.body))
+        return undefined
+      },
+    })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText('2 sign-ins')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out all 2 sign-ins of Chrome on Mac' })).toBeInTheDocument()
+    // Only the TV signed in after this browser did.
+    expect(screen.getAllByText('New')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Sign out every other browser and TV' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Rename Apple TV/ }))
+    const name = screen.getByLabelText('Name for Apple TV')
+    fireEvent.change(name, { target: { value: 'Bedroom TV' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() => expect(renamed).toEqual({ name: 'Bedroom TV' }))
+  })
+
+  it('declines a TV’s code with Don’t allow, so the TV shows a new one', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/pairing/code/ABC-DEF': { code: 'ABC-DEF', deviceName: 'Living room', expiresAt: new Date().toISOString(), requestedFrom: '192.168.1.70', zone: 'Local' },
+      'POST /pairing/code/ABC-DEF/decline': undefined,
+    })
+
+    renderAt('/link?code=ABC-DEF')
+
+    expect(await screen.findByText('ABC-DEF', { selector: '.connect-tv-big-code' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Don’t allow' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('The TV will show a new code')
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/pairing/code/ABC-DEF/decline') && init?.method === 'POST')).toBe(true)
+  })
+
+  it('offers the main profile when another profile opens a TV’s link', async () => {
+    mockApi({
+      '/libraries': [],
+      '/pairing/code/ABC-DEF': new Response(JSON.stringify({ title: 'Forbidden' }), { status: 403 }),
+    })
+
+    renderAt('/link?code=ABC-DEF')
+
+    expect(await screen.findByText('Only the main profile can connect a TV.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Switch to the main profile' })).toBeInTheDocument()
+  })
+
+  it('names the library in a held folder’s removal, and closes on Escape', async () => {
+    mockApi({
+      '/libraries': [],
+      '/library-health': {
+        score: { score: 100, titles: 10, withProblems: 0, duplicates: 0, unreadable: 0, standardDefinition: 0, missingArtwork: 0, fileProblems: 0, artworkNeedsConnection: 4 },
+        duplicates: [],
+        reclaimableBytes: 0,
+        unreadable: [],
+        missingArtwork: [],
+        standardDefinition: [],
+        standardDefinitionTotal: 0,
+        downloading: {},
+        held: [{ folderId: 1, library: 'Films', libraryType: 'Movies', path: '/Volumes/Media/films', reason: 'MostFilesGone', missing: 4, known: 9, since: new Date().toISOString(), scans: 3, confirmed: false, canConfirm: true }],
+      },
+      '/library-health/check': { running: false, checked: 0, total: 0, finishedAt: null, problems: [] },
+    })
+
+    renderAt('/settings/health')
+
+    expect(await screen.findByText(/folder on hold/)).toHaveTextContent('1 folder on hold')
+    expect(screen.getByText(/without artwork/)).toHaveTextContent('4 without artwork: connect Radarr or Sonarr to fill it in')
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove 4 films from Films?' })
+    expect(within(dialog).getByText('/Volumes/Media/films')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Not yet' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   it('warns before approving a TV that didn’t ask from the home network', async () => {

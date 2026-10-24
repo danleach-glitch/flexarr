@@ -173,7 +173,9 @@
 }
 
 .folder-list button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 7px 10px;
   border: 0;
@@ -181,6 +183,13 @@
   background: none;
   text-align: left;
   cursor: pointer;
+}
+
+.folder-list svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--usher);
 }
 
 .folder-list button:hover,
@@ -254,6 +263,57 @@
   font-size: var(--step-0);
   letter-spacing: 0.02em;
   user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.key-note {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+}
+
+.plain-list.webhook-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .plain-list.webhook-list li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+.webhook-list .folder {
+  min-width: 0;
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+
+.advice-more {
+  margin-top: 10px;
+}
+
+.advice-more summary {
+  cursor: pointer;
+  color: var(--silver);
+  width: fit-content;
+}
+
+.advice-more p {
+  margin: 8px 0 0;
 }
 
 @media (max-width: 860px) {
@@ -690,6 +750,20 @@
   white-space: nowrap;
 }
 
+.health-row-held {
+  flex-wrap: wrap;
+}
+
+.health-row-text.health-row-wraps > * {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.health-row-path {
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
 .health-row-title {
   color: var(--screen);
   font-weight: 700;
@@ -759,6 +833,26 @@
   font-size: var(--step-3);
 }
 
+.connect-tv-big-code {
+  margin: 0;
+  font-family: var(--display);
+  font-size: var(--step-6);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: var(--screen);
+}
+
+.connect-tv-error {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.connect-tv-error .error {
+  margin: 0;
+}
+
 .connect-tv input {
   font-size: var(--step-2);
   letter-spacing: 0.12em;
@@ -774,4 +868,41 @@
 
 .sign-in-list .tag {
   margin-left: 8px;
+}
+
+.sign-in-list li {
+  flex-wrap: wrap;
+}
+
+.sign-in-text {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.sign-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sign-in-each {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--aisle);
+}
+
+.sign-in-rename {
+  flex: 1 1 20rem;
+  display: grid;
+  gap: 8px;
+  max-width: 28rem;
+}
+
+.sign-in-rename .form-actions {
+  justify-content: flex-start;
+}
+
+.sign-in-done {
+  margin: 12px 0 0;
 }
