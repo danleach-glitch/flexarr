@@ -284,7 +284,8 @@ describe('Settings', () => {
 
     renderAt('/settings/server')
 
-    expect(await screen.findByText(/Choose the main profile with its PIN/)).toBeInTheDocument()
+    // Without a PIN on the main profile, the way in is someone giving it one, or the key.
+    expect(await screen.findByText(/Ask whoever manages Flexarr to give the main profile a PIN/)).toBeInTheDocument()
     expect(screen.getByLabelText('API key')).toBeInTheDocument()
   })
 
@@ -602,6 +603,7 @@ describe('Profiles', () => {
     renderAt('/settings/profiles')
     fireEvent.click(await screen.findByRole('button', { name: /Edit/ }))
     fireEvent.change(screen.getByPlaceholderText('4 to 8 digits'), { target: { value: '97531' } })
+    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '97531' } })
     fireEvent.change(screen.getByLabelText('Current PIN'), { target: { value: '1234' } })
     fireEvent.click(screen.getByRole('button', { name: /Save/ }))
 
