@@ -224,6 +224,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid>("MediaItemId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("MissingSince")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("ModifiedAt")
                         .HasColumnType("TEXT");
 
@@ -315,6 +318,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("MetadataUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("MissingSince")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MusicBrainzId")
