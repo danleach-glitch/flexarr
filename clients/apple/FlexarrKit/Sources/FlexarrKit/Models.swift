@@ -316,10 +316,12 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     /// Omit to let the server pick the resume point; 0 starts from the beginning.
     public var startPositionSeconds: Double?
     public var forceTranscode: Bool?
+    /// This player's previous session, which the new one takes over from (only that one ends).
+    public var replacesSessionId: String?
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
-                startPositionSeconds: Double? = nil, forceTranscode: Bool? = nil) {
+                startPositionSeconds: Double? = nil, forceTranscode: Bool? = nil, replacesSessionId: String? = nil) {
         self.itemId = itemId
         self.profile = profile
         self.fileId = fileId
@@ -329,6 +331,7 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
         self.maxHeight = maxHeight
         self.startPositionSeconds = startPositionSeconds
         self.forceTranscode = forceTranscode
+        self.replacesSessionId = replacesSessionId
     }
 }
 
