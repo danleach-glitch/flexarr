@@ -18,6 +18,11 @@ struct LibraryView: View {
     @State private var didApplyInitialSort = false
     /// `model.refreshToken` when `items` was last fetched.
     @State private var loadedToken: Int?
+    @State private var loadedAt: Date?
+    @State private var isVisible = false
+    /// Bumped by each reload (a new sort or genre), so an answer for the old one is dropped rather than shown or appended.
+    @State private var generation = 0
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let pageSize = 60
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
@@ -55,15 +60,20 @@ struct LibraryView: View {
                 didApplyInitialSort = true
                 sort = initialSort
             }
-            // Coming back from a detail screen runs this again. Keep what's loaded, and so the scroll
-            // position, only bringing it up to date if something changed meanwhile.
+            // Coming back from a detail screen or another tab runs this again. Keep what's loaded, and so the
+            // scroll position, only bringing it up to date if something changed here or it's getting old.
             if let loadedToken, !items.isEmpty {
-                if loadedToken != model.refreshToken { await refreshLoaded() }
+                if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
                 return
             }
             async let genresTask = try? model.client?.libraryGenres(library.id)
             await reload()
             genres = await genresTask ?? []
+        }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await refreshLoaded() } }
         }
         .onChange(of: sort) { Task { await reload() } }
         .onChange(of: genre) { Task { await reload() } }
@@ -106,38 +116,49 @@ struct LibraryView: View {
 
     private func reload() async {
         guard let client = model.client else { return }
+        generation += 1
+        let current = generation
         isLoading = true
-        defer { isLoading = false }
+        // A newer reload owns the spinner by now.
+        defer { if current == generation { isLoading = false } }
         let token = model.refreshToken
         do {
             let page = try await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: Self.pageSize)
+            guard current == generation else { return }
             items = page.items
             total = page.total
             loadedToken = token
+            loadedAt = Date()
             error = nil
         } catch {
-            self.error = ConnectionError(error).message
+            if current == generation { self.error = ConnectionError(error).message }
         }
     }
 
-    /// After playback or watched changes, refetch what is already on screen so badges update.
+    /// After playback or watched changes, or after a while, refetch what is already on screen so badges update.
     private func refreshLoaded() async {
         guard let client = model.client, !items.isEmpty else { return }
+        let current = generation
         let token = model.refreshToken
-        if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: max(items.count, Self.pageSize)) {
+        if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: max(items.count, Self.pageSize)),
+           current == generation {
             items = page.items
             total = page.total
             loadedToken = token
+            loadedAt = Date()
         }
     }
 
     private func loadMoreIfNeeded(at index: Int) {
-        guard !isLoading, items.count < total, index >= items.count - 18 else { return }
+        guard !isLoading, items.count < total, index >= items.count - 18, let client = model.client else { return }
+        let current = generation
+        let skip = items.count
+        isLoading = true
         Task {
-            guard let client = model.client else { return }
-            isLoading = true
-            defer { isLoading = false }
-            if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: items.count, take: Self.pageSize) {
+            defer { if current == generation { isLoading = false } }
+            // Dropped if the sort or genre changed (or the list was refetched) while it was out.
+            if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: Self.pageSize),
+               current == generation, skip == items.count {
                 let known = Set(items.map(\.id))
                 items.append(contentsOf: page.items.filter { !known.contains($0.id) })
                 total = page.total

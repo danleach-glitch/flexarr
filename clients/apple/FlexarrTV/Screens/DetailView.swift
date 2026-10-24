@@ -18,6 +18,9 @@ struct DetailView: View {
     @State private var scrollOffset: CGFloat = 0
     /// `model.refreshToken` when `detail` was last fetched.
     @State private var loadedToken: Int?
+    @State private var loadedAt: Date?
+    @State private var isVisible = false
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focusedSeason: String?
     @FocusState private var focusedEpisode: String?
 
@@ -60,9 +63,15 @@ struct DetailView: View {
         }
         .ignoresSafeArea(edges: [.top, .horizontal])
         .task(id: model.refreshToken) {
-            // Coming back from a screen pushed on top runs this again; fetch only when something changed.
-            guard loadedToken != model.refreshToken else { return }
+            // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
+            // changed here, or what's shown is old enough that something may have changed elsewhere.
+            guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
             await load()
+        }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
         }
     }
 
@@ -374,6 +383,7 @@ struct DetailView: View {
             }
             detail = loaded
             loadedToken = token
+            loadedAt = Date()
             error = nil
 
             let item = loaded.item
