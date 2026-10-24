@@ -370,7 +370,13 @@ export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSu
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
 const deleted = new Set<string>()
-/** Deletes a film, show or episode and its files through Radarr or Sonarr (main profile only). */
+/** What deleting a title does: Radarr or Sonarr delete it, or when neither manages it, Flexarr deletes these files. */
+export interface DeletionPlan {
+  managedBy: string | null
+  files: string[]
+}
+export const getDeletion = (id: string, signal?: AbortSignal) => apiGet<DeletionPlan>(`/items/${id}/deletion`, signal)
+/** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). */
 export async function deleteItem(id: string) {
   await request<void>('DELETE', `/items/${id}`)
   deleted.add(id)
@@ -661,6 +667,8 @@ export const fixMatch = (itemId: string, id: number) =>
 
 /** Back to automatic matching. */
 export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/match`)
+/** Keeps the match a title search found (Library health's Ignore): refreshes leave it as it is. */
+export const keepMatch = (itemId: string) => request<void>('POST', `/items/${itemId}/match/keep`)
 
 export interface ExternalTitle {
   tmdbId: number
