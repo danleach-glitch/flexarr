@@ -1,14 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, fixMatch, imageUrl, resetMatch, searchMatches, type MatchCandidate } from '../api/client'
+import { ApiError, fixMatch, getItem, imageUrl, resetMatch, searchMatches, type MatchCandidate } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { Search } from './icons'
 
 interface Props {
   item: { id: string; title: string; kind: string }
-  /** The folder on disk, so it's clear which copy is being matched. */
-  path?: string | null
-  /** Already matched by hand: offer going back to automatic matching. */
-  locked?: boolean
   onFixed: () => void
   onClose: () => void
 }
@@ -17,7 +13,7 @@ interface Props {
  * Choose which show or film a library folder really is, from Sonarr's or Radarr's search. Titles they don't manage
  * yet are added to them from the folder, unmonitored and with no search, so nothing is downloaded.
  */
-export function FixMatchDialog({ item, path, locked, onFixed, onClose }: Props) {
+export function FixMatchDialog({ item, onFixed, onClose }: Props) {
   const arr = item.kind === 'Movie' ? 'Radarr' : 'Sonarr'
   const noun = item.kind === 'Movie' ? 'film' : 'show'
   const [draft, setDraft] = useState(item.title)
@@ -26,6 +22,10 @@ export function FixMatchDialog({ item, path, locked, onFixed, onClose }: Props) 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const results = useApi((signal) => searchMatches(item.id, query, signal), [item.id, query])
+  // Where it is on disk, so it's clear what's being matched: a film's files, or a show's folder.
+  const detail = useApi((signal) => getItem(item.id, signal), [item.id])
+  const paths = detail.data ? (item.kind === 'Movie' && detail.data.files.length > 0 ? detail.data.files.map((f) => f.path) : [detail.data.path].filter((p) => !!p)) : []
+  const locked = detail.data?.matchLocked === true
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose()
@@ -59,9 +59,14 @@ export function FixMatchDialog({ item, path, locked, onFixed, onClose }: Props) 
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match" role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="fix-match-title">Fix match</h2>
-        <p className="muted">
-          Which {noun} is {path ? <code>{path.split('/').at(-1)}</code> : item.title}? The one you choose stays matched, and {arr} manages it.
-        </p>
+        <p className="muted">Which {noun} is this? The one you choose stays matched, and {arr} manages it.</p>
+        <ul className="fix-match-paths" aria-label={item.kind === 'Movie' ? 'Files' : 'Folder'}>
+          {paths.map((p) => (
+            <li key={p}>
+              <code>{p}</code>
+            </li>
+          ))}
+        </ul>
 
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Search ${arr}`} autoFocus disabled={busy} />

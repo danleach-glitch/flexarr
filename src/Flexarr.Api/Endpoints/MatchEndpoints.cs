@@ -290,9 +290,7 @@ public static partial class MatchEndpoints
         string.Equals(a.TrimEnd('/').Normalize(NormalizationForm.FormC), b.TrimEnd('/').Normalize(NormalizationForm.FormC), StringComparison.Ordinal);
 
     private static string? Poster(IReadOnlyList<Integrations.Arr.Models.ArrImage> images, string? remotePoster) =>
-        (images.FirstOrDefault(i => i.CoverType == "poster" && !string.IsNullOrEmpty(i.RemoteUrl))?.RemoteUrl ?? remotePoster) is { } url
-            ? $"/api/v1/images/remote?url={Uri.EscapeDataString(url)}"
-            : null;
+        ImageEndpoints.RemoteUrl(images.FirstOrDefault(i => i.CoverType == "poster" && !string.IsNullOrEmpty(i.RemoteUrl))?.RemoteUrl ?? remotePoster);
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

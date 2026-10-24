@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -75,6 +76,10 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var candidates = await Client(app).GetFromJsonAsync<JsonArray>(new Uri($"/api/v1/items/{id}/match?q=shogun", UriKind.Relative));
         var listed = candidates!.Select(c => (c!["id"]!.GetValue<int>(), c["current"]!.GetValue<bool>(), c["managedBy"]?.GetValue<string>())).ToList();
         Assert.Equal([(80284, true, null), (392573, false, "Sonarr")], listed);
+        // Posters go through the server's signed artwork links: unsigned ones are turned away.
+        var poster = candidates![1]!["poster"]!.GetValue<string>();
+        Assert.Equal(ImageEndpoints.RemoteUrl("https://artworks.thetvdb.com/banners/posters/392573-1.jpg"), poster);
+        Assert.Contains("&s=", poster, StringComparison.Ordinal);
 
         var response = await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 392573 });
 
@@ -182,7 +187,8 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     private static JsonObject Series(int tvdbId, string title, int year) => new()
     {
         ["tvdbId"] = tvdbId, ["title"] = title, ["year"] = year, ["overview"] = $"{title} ({year})", ["network"] = "FX",
-        ["images"] = new JsonArray(), ["seasons"] = new JsonArray(), ["genres"] = new JsonArray(),
+        ["images"] = new JsonArray(new JsonObject { ["coverType"] = "poster", ["remoteUrl"] = $"https://artworks.thetvdb.com/banners/posters/{tvdbId}-1.jpg" }),
+        ["seasons"] = new JsonArray(), ["genres"] = new JsonArray(),
     };
 
     private static JsonObject Managed(JsonObject series, int id, string path)

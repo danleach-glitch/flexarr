@@ -198,7 +198,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           onDeleted={() => navigate(item.kind === 'Episode' && series ? `/item/${series.id}?season=${item.seasonNumber}` : `/library/${item.libraryId}`, { replace: true })}
         />
       )}
-      {matching && <FixMatchDialog item={item} path={detail.path} locked={detail.matchLocked} onFixed={onChange} onClose={() => setMatching(false)} />}
+      {matching && <FixMatchDialog item={item} onFixed={onChange} onClose={() => setMatching(false)} />}
       {trailer && detail.trailerYouTubeId && <TrailerDialog videoId={detail.trailerYouTubeId} title={item.title} onClose={() => setTrailer(false)} />}
     </article>
   )
