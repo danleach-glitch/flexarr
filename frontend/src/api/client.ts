@@ -106,12 +106,16 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   const file = body instanceof Blob
   if (body !== undefined) headers['Content-Type'] = file ? body.type || 'application/octet-stream' : 'application/json'
 
+  // Any change can show up in any cached answer (a watched tick in a library page, a renamed collection), so a
+  // change clears them all, before and after (anything cached while it was under way may predate it).
+  const changes = method !== 'GET'
+  if (changes) clearApiCache()
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
     signal,
     headers,
     body: body === undefined ? undefined : file ? body : JSON.stringify(body),
-  })
+  }).finally(() => changes && clearApiCache())
 
   if (response.status === 401) {
     throw new UnauthorizedError()
@@ -134,6 +138,74 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET', path, undefined, signal)
 
+// ---------- A small cache for GETs that pages repeat
+
+const FRESH_MS = 30_000
+const cache = new Map<string, { at: number; value?: unknown; pending?: Promise<unknown> }>()
+
+let bypass = false
+
+/** Forgets every cached answer. */
+export function clearApiCache() {
+  cache.clear()
+}
+
+/** Keeps a page's own state (how far down a long grid you were) until the next change clears the cache. */
+export function keepUntilChanged(key: string, value: unknown) {
+  cache.set(`page ${key}`, { at: Date.now(), value })
+}
+
+export const kept = <T>(key: string) => cache.get(`page ${key}`)?.value as T | undefined
+
+/** Runs `load` with its cached GETs fetched afresh (a page reloading on purpose); they must start synchronously. */
+export function freshly<T>(load: () => T): T {
+  bypass = true
+  try {
+    return load()
+  } finally {
+    bypass = false
+  }
+}
+
+/**
+ * A GET that's shared: while one is in flight, asking again joins it rather than sending another, and an answer is
+ * reused for `freshMs` (any change through this client clears it first). Aborting stops only this caller's wait.
+ */
+function cachedGet<T>(path: string, signal?: AbortSignal, freshMs = FRESH_MS): Promise<T> {
+  // Answers depend on the profile, which a header chooses.
+  const key = `${profileToken() ?? ''} ${path}`
+  let entry = cache.get(key)
+  if (entry && (bypass || (!entry.pending && Date.now() - entry.at > freshMs))) entry = undefined
+  if (!entry) {
+    const fresh: { at: number; value?: unknown; pending?: Promise<unknown> } = { at: Date.now() }
+    fresh.pending = apiGet<T>(path).then(
+      (value) => {
+        // Only keep it if nothing cleared the cache meanwhile.
+        if (cache.get(key) === fresh) {
+          fresh.value = value
+          fresh.at = Date.now()
+          fresh.pending = undefined
+        }
+        return value
+      },
+      (error: unknown) => {
+        if (cache.get(key) === fresh) cache.delete(key)
+        throw error
+      },
+    )
+    cache.set(key, fresh)
+    entry = fresh
+  }
+  const answer = (entry.pending ?? Promise.resolve(entry.value)) as Promise<T>
+  if (!signal) return answer
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal.addEventListener('abort', onAbort, { once: true })
+    answer.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
 export const getSystemStatus = (signal?: AbortSignal) => apiGet<SystemStatus>('/system/status', signal)
 
 /** CHANGELOG.md as built into the running server. */
@@ -145,7 +217,7 @@ export async function getChangelog(signal?: AbortSignal) {
 
 export const getLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/libraries', signal)
 /** Every library, including ones hidden from the current profile (Settings; main profile only). */
-export const getAllLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/libraries?all=true', signal)
+export const getAllLibraries = (signal?: AbortSignal) => cachedGet<Library[]>('/libraries?all=true', signal)
 export const createLibrary = (library: LibraryRequest) => request<Library>('POST', '/libraries', library)
 export const updateLibrary = (id: string, library: LibraryRequest) => request<Library>('PUT', `/libraries/${id}`, library)
 export const deleteLibrary = (id: string) => request<void>('DELETE', `/libraries/${id}`)
@@ -162,13 +234,13 @@ export function getLibraryItems(
     if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
   }
   const query = params.size ? `?${params}` : ''
-  return apiGet<Paged<ItemSummary>>(`/libraries/${id}/items${query}`, signal)
+  return cachedGet<Paged<ItemSummary>>(`/libraries/${id}/items${query}`, signal)
 }
 
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
-  apiGet<{ name: string; count: number }[]>(`/libraries/${id}/genres`, signal)
+  cachedGet<{ name: string; count: number }[]>(`/libraries/${id}/genres`, signal)
 
-export const getHome = (signal?: AbortSignal) => apiGet<Home>('/home', signal)
+export const getHome = (signal?: AbortSignal) => cachedGet<Home>('/home', signal)
 
 export interface RowChoice {
   id: string
@@ -189,17 +261,17 @@ export const saveLayout = (layout: Layout) => {
   return request<void>('PUT', '/settings/layout', { home: strip(layout.home), movies: strip(layout.movies), shows: strip(layout.shows) })
 }
 /** A library's own home page: hero and rows for just that library. */
-export const getLibraryBrowse = (id: string, signal?: AbortSignal) => apiGet<Home>(`/libraries/${id}/browse`, signal)
-export const getItem = (id: string, signal?: AbortSignal) => apiGet<ItemDetail>(`/items/${id}`, signal)
-export const getSimilar = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/similar`, signal)
-export const getNextUp = (id: string, signal?: AbortSignal) => apiGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
+export const getLibraryBrowse = (id: string, signal?: AbortSignal) => cachedGet<Home>(`/libraries/${id}/browse`, signal)
+export const getItem = (id: string, signal?: AbortSignal) => cachedGet<ItemDetail>(`/items/${id}`, signal)
+export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/similar`, signal)
+export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
 /** Deletes a film, show or episode and its files through Radarr or Sonarr (main profile only). */
 export const deleteItem = (id: string) => request<void>('DELETE', `/items/${id}`)
 export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
-export const getPerson = (id: string, signal?: AbortSignal) => apiGet<Person>(`/people/${id}`, signal)
+export const getPerson = (id: string, signal?: AbortSignal) => cachedGet<Person>(`/people/${id}`, signal)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)
-export const getGenres = (signal?: AbortSignal) => apiGet<Genre[]>('/genres', signal)
+export const getGenres = (signal?: AbortSignal) => cachedGet<Genre[]>('/genres', signal)
 
 // ---------- Collections
 
@@ -273,8 +345,8 @@ export interface ItemCollection {
 
 export type CollectionChanges = { name?: string; description?: string; personal?: boolean; rules?: SmartRules; showOnHome?: boolean; hidden?: boolean }
 
-export const getCollections = (signal?: AbortSignal, hidden = false) => apiGet<CollectionSummary[]>(`/collections${hidden ? '?hidden=true' : ''}`, signal)
-export const getCollection = (id: string, signal?: AbortSignal) => apiGet<CollectionDetail>(`/collections/${id}`, signal)
+export const getCollections = (signal?: AbortSignal, hidden = false) => cachedGet<CollectionSummary[]>(`/collections${hidden ? '?hidden=true' : ''}`, signal)
+export const getCollection = (id: string, signal?: AbortSignal) => cachedGet<CollectionDetail>(`/collections/${id}`, signal)
 export const getCollectionSuggestions = (signal?: AbortSignal) => apiGet<CollectionSuggestion[]>('/collections/suggestions', signal)
 export const createCollection = (changes: CollectionChanges & { name: string }) => request<CollectionSummary>('POST', '/collections', changes)
 export const updateCollection = (id: string, changes: CollectionChanges) => request<CollectionSummary>('PUT', `/collections/${id}`, changes)
@@ -282,7 +354,7 @@ export const deleteCollection = (id: string) => request<void>('DELETE', `/collec
 export const addToCollection = (id: string, itemId: string) => request<void>('POST', `/collections/${id}/items`, { itemId })
 export const removeFromCollection = (id: string, itemId: string) => request<void>('DELETE', `/collections/${id}/items/${itemId}`)
 export const reorderCollection = (id: string, itemIds: string[]) => request<void>('PUT', `/collections/${id}/order`, { itemIds })
-export const getItemCollections = (itemId: string, signal?: AbortSignal) => apiGet<ItemCollection[]>(`/items/${itemId}/collections`, signal)
+export const getItemCollections = (itemId: string, signal?: AbortSignal) => cachedGet<ItemCollection[]>(`/items/${itemId}/collections`, signal)
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
 
@@ -292,14 +364,17 @@ export const reportProgress = (sessionId: string, positionSeconds: number, pause
 
 /** Fire-and-forget progress for page unloads, when fetch may be cancelled. */
 export function beaconProgress(sessionId: string, positionSeconds: number) {
+  clearApiCache()
   const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
   navigator.sendBeacon?.(`/api/v1/playback/${sessionId}/progress`, body)
 }
 
-export const stopPlayback = (sessionId: string) =>
-  fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)
+export function stopPlayback(sessionId: string) {
+  clearApiCache()
+  return fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)
+}
 
-export const getSettings = (signal?: AbortSignal) => apiGet<Settings>('/settings', signal)
+export const getSettings = (signal?: AbortSignal) => cachedGet<Settings>('/settings', signal)
 export const saveSettings = (update: SettingsUpdate) => request<Settings>('PUT', '/settings', update)
 export const getApiKey = () => apiGet<{ apiKey: string }>('/settings/api-key')
 export const getArrStatus = (signal?: AbortSignal) => apiGet<ArrStatus[]>('/arr/status', signal)
@@ -314,6 +389,25 @@ export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
 export function imageUrl(url: string | null | undefined, width: number): string | undefined {
   if (!url) return undefined
   return `${url}${url.includes('?') ? '&' : '?'}w=${width}`
+}
+
+/** The widths the server's image cache makes (ArtworkUrl.Widths); other widths snap up to one of these. */
+const IMAGE_WIDTHS = [92, 185, 342, 500, 780, 1280, 1920]
+
+/**
+ * A srcset for artwork drawn at about half `width` CSS pixels (the usual sizing): `width` for 2x screens, and the
+ * cache's next size up from half of it for 1x screens, which then download a quarter of the pixels or so.
+ */
+export function imageSrcSet(url: string | null | undefined, width: number): string | undefined {
+  const half = IMAGE_WIDTHS.find((w) => w >= width / 2) ?? width
+  if (!url || half >= width) return undefined
+  return `${imageUrl(url, half)} 1x, ${imageUrl(url, width)} 2x`
+}
+
+/** A srcset offering each of `widths`, for artwork whose drawn size an img's `sizes` gives (a full-width backdrop). */
+export function imageWidths(url: string | null | undefined, widths: number[]): string | undefined {
+  if (!url) return undefined
+  return widths.map((w) => `${imageUrl(url, w)} ${w}w`).join(', ')
 }
 
 export interface PlexSource {
@@ -465,7 +559,7 @@ export interface Profile {
 
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[] }
 
-export const getProfiles = (signal?: AbortSignal) => apiGet<Profile[]>('/profiles', signal)
+export const getProfiles = (signal?: AbortSignal) => cachedGet<Profile[]>('/profiles', signal, 5 * 60_000)
 export const createProfile = (profile: Omit<ProfileChanges, 'removePin'>) => request<Profile>('POST', '/profiles', profile)
 export const updateProfile = (id: string, profile: ProfileChanges) =>
   request<Profile>('PUT', `/profiles/${id}`, profile)
@@ -509,7 +603,7 @@ export interface RemoteAccess {
   mainProfileHasPin: boolean
 }
 
-export const getMe = (signal?: AbortSignal) => apiGet<Me>('/me', signal)
+export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)
 export const getRemoteAccess = (signal?: AbortSignal) => apiGet<RemoteAccess>('/remote', signal)
 export const setTailscaleAccess = (enabled: boolean) => request<RemoteAccess>('POST', '/remote/tailscale', { enabled })
 export const linkTailscale = (login: string, profileId: string | null) => request<RemoteAccess>('POST', '/remote/tailscale/links', { login, profileId })
