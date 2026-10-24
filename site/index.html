@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flexarr: every film, every screen</title>
+  <title>Flexarr: your entertainment, every screen</title>
   <meta name="description" content="Flexarr is a free, open-source, self-hosted media server for your films, TV and music, built to sit alongside Sonarr, Radarr and Lidarr.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <meta property="og:title" content="Flexarr: every film, every screen">
+  <meta property="og:title" content="Flexarr: your entertainment, every screen">
   <meta property="og:description" content="A free, open-source media server for your films, TV and music, built to sit alongside Sonarr, Radarr and Lidarr.">
   <meta property="og:image" content="https://flexarr.io/shots/web-home.jpg">
   <meta property="og:url" content="https://flexarr.io/">
@@ -73,7 +73,9 @@
 
     /* Hero */
     .hero { padding-block: clamp(40px, 8vw, 96px) 40px; text-align: center; }
-    .hero h1 { font-size: clamp(3.4rem, 11vw, 7.5rem); font-weight: 900; }
+    .hero h1 { font-size: clamp(2.4rem, 10.5vw, 7.5rem); font-weight: 900; }
+    /* One sentence per line, never split. */
+    .hero h1 span { display: block; white-space: nowrap; }
     .hero .lede { max-width: 640px; text-wrap: balance; margin: 22px auto 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.3rem); }
     .hero .lede strong { color: var(--screen); font-weight: 500; }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 32px; }
@@ -179,7 +181,7 @@
 
   <main>
     <div class="wrap hero">
-      <h1>Every film. Every screen.</h1>
+      <h1><span>Your entertainment.</span> <span>Every screen.</span></h1>
       <p class="lede">The <strong>free, open-source media server</strong> built for <strong>Sonarr, Radarr and Lidarr</strong>. Stream your library to the web, Apple TV, iPhone and iPad. No account. No cloud.</p>
       <div class="actions">
         <a class="button primary" href="#install">Install the server</a>
