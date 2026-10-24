@@ -133,6 +133,100 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task ManyDevicesSignedInAsTheMainProfile_ShareOneAllowance_ForGuessingItsPin()
+    {
+        // A script in the admin's page could pair TV after TV; each one's own allowance mustn't add up.
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        await admin.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "5319" });
+        var statuses = new List<HttpStatusCode>();
+        HttpResponseMessage? last = null;
+        for (var i = 0; i < 20; i++)
+        {
+            var token = (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = $"TV {i}" })).Content.ReadFromJsonAsync<JsonElement>())
+                .GetProperty("token").GetString();
+            var device = server.CreateClient();
+            device.DefaultRequestHeaders.Add("X-Api-Key", token);
+            last = await device.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = $"{1000 + i}" });
+            statuses.Add(last.StatusCode);
+        }
+
+        Assert.Equal(8, statuses.Count(s => s == HttpStatusCode.Forbidden));
+        Assert.Equal(12, statuses.Count(s => s == HttpStatusCode.TooManyRequests));
+        // The web app can count down from the body as well as the header.
+        var problem = await last!.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal((int)last.Headers.RetryAfter!.Delta!.Value.TotalSeconds, problem.GetProperty("retryAfterSeconds").GetInt32());
+        // The API key itself still gets in.
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { })).StatusCode);
+    }
+
+    [Fact]
+    public async Task OverTailscale_ALockedOutLogin_IsHeldOffFromItsOtherAddresses_AndAnAddressFromOtherLogins()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        for (var i = 0; i < 4; i++)
+        {
+            await guard.CheckAsync("owner", ["tailscale:teen@example.com", "address:100.70.1.40"], () => false, CancellationToken.None);
+        }
+
+        clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
+
+        var otherAddress = await guard.CheckAsync("owner", ["tailscale:teen@example.com", "address:fd7a:115c:a1e0::42"], () => true, CancellationToken.None);
+        var otherLogin = await guard.CheckAsync("owner", ["tailscale:teen-alt@example.com", "address:100.70.1.40"], () => true, CancellationToken.None);
+        var someoneElse = await guard.CheckAsync("owner", ["tailscale:owner@example.com", "address:100.70.1.50"], () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, otherAddress.Result);
+        Assert.Equal(PinCheck.LockedOut, otherLogin.Result);
+        Assert.Equal(PinCheck.Right, someoneElse.Result);
+    }
+
+    [Fact]
+    public async Task KnowingAnotherProfilesPin_DoesntCrowdTheOwnersBrowserOutOfTheKnownList()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        await guard.CheckAsync("owner", "address:10.0.0.3", () => true, CancellationToken.None, browser: "owners-laptop");
+        // A kid throws away their cookie and picks their own profile, over and over.
+        for (var i = 0; i < 10_001; i++)
+        {
+            await guard.CheckAsync("kid", "address:10.0.0.3", () => true, CancellationToken.None, browser: $"kid-{i}");
+        }
+
+        for (var i = 0; i < 4; i++)
+        {
+            await guard.CheckAsync("owner", "address:10.0.0.3", () => false, CancellationToken.None, browser: $"kid-guess-{i}");
+        }
+
+        clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
+        var owner = await guard.CheckAsync("owner", "address:10.0.0.3", () => true, CancellationToken.None, browser: "owners-laptop");
+
+        Assert.Equal(PinCheck.Right, owner.Result);
+    }
+
+    [Fact]
+    public async Task ARightPinForYourOwnProfile_DoesntWipeYourWrongOnesAtTheMainProfile()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        for (var round = 0; round < 2; round++)
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                await guard.CheckAsync("owner", "address:10.0.0.4", () => false, CancellationToken.None);
+            }
+
+            await guard.CheckAsync("kid", "address:10.0.0.4", () => true, CancellationToken.None);
+        }
+
+        clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
+        var next = await guard.CheckAsync("owner", "address:10.0.0.4", () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, next.Result);
+    }
+
+    [Fact]
     public async Task ChangingTheMainPin_TakesTheCurrentOne_OrTheApiKey()
     {
         var browser = factory.CreateClient();

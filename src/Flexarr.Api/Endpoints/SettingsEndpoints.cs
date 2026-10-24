@@ -262,8 +262,8 @@ public static class SettingsEndpoints
             return Results.Problem("Enter the main profile's PIN to see the API key.", statusCode: 403);
         }
 
-        var (caller, browser) = ProfileEndpoints.PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, caller, () => main.CheckPin(request.Pin), ct, mayManage: true, browser);
+        var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
+        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.Pin), ct, mayManage: true, browser);
         return result switch
         {
             PinCheck.Right => null,

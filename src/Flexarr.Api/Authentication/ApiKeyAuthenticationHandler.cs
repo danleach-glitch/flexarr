@@ -20,8 +20,8 @@ namespace Flexarr.Api.Authentication;
 /// <item>A key, as an <c>X-Api-Key</c> header or <c>apikey</c> query parameter: the server's API key (scripts, *arr
 /// apps, Apple TVs set up before per-device sign-ins), or a device's own token (an Apple TV once it's connected).</item>
 /// <item>The web app's session cookie, which a browser gets in exchange for the API key (so it never keeps the key),
-/// or over Tailscale for choosing the main profile with its PIN. Each browser has its own, which can be signed out
-/// from Settings.</item>
+/// or over Tailscale for choosing the main profile with its PIN (that one only with the same Tailscale login). Each
+/// browser has its own, which can be signed out from Settings.</item>
 /// <item>A Tailscale identity: <c>tailscale serve</c> adds the sender's verified login to requests from your tailnet.
 /// Only believed when the connection came from this machine, for a tailnet address that Tailscale confirms belongs to
 /// that login, and mapped to the profile linked to that Tailscale account. It never manages the server: that takes
@@ -79,11 +79,25 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         // A stale or signed-out cookie is ignored rather than refused, so the other ways still apply.
+        string? tailscaleLogin = null;
+        var askedTailscale = false;
         if (Request.Cookies[SessionCookieName] is { Length: > 0 } cookie)
         {
             if (signIns.Find(cookie, SignInKind.Browser) is { } browser)
             {
-                return await SucceedAsync(Methods.Session, browser);
+                if (!browser.PinVerified)
+                {
+                    return await SucceedAsync(Methods.Session, browser);
+                }
+
+                // Earned with the main profile's PIN over Tailscale: only for that login, while it's linked to a profile
+                // (unlinking it signs these out too). Copied to another device or used from home, it's just ignored.
+                (tailscaleLogin, askedTailscale) = (await TrustedTailscaleLoginAsync(Context, whois, options), true);
+                if (tailscaleLogin is not null && string.Equals(tailscaleLogin, browser.TailscaleLogin, StringComparison.OrdinalIgnoreCase)
+                    && await Context.RequestServices.GetRequiredService<FlexarrDbContext>().Profiles.AnyAsync(p => p.TailscaleLogin == tailscaleLogin, Context.RequestAborted))
+                {
+                    return await SucceedAsync(Methods.Session, browser, login: tailscaleLogin);
+                }
             }
 
             // Earlier versions' shared cookie, for the month after upgrading (see FlexarrOptions.LegacySignInsUntil).
@@ -93,7 +107,7 @@ public sealed class ApiKeyAuthenticationHandler(
             }
         }
 
-        if (await TrustedTailscaleLoginAsync(Context, whois, options) is { } login)
+        if ((askedTailscale ? tailscaleLogin : await TrustedTailscaleLoginAsync(Context, whois, options)) is { } login)
         {
             var db = Context.RequestServices.GetRequiredService<FlexarrDbContext>();
             var profile = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin == login).Select(p => p.Id).FirstOrDefaultAsync(Context.RequestAborted);

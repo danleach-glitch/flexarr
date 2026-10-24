@@ -73,6 +73,23 @@ public sealed class SignInStoreTests : IDisposable
     }
 
     [Fact]
+    public void UnlinkingATailscaleLogin_SignsOutOnlyTheBrowsersItsPinSignInEarned()
+    {
+        var store = Store();
+        var (_, earned) = store.Issue(SignInKind.Browser, "Safari on iPhone", NetworkZone.Tailnet, "100.70.1.30", pinVerified: true, tailscaleLogin: "owner@example.com");
+        var (_, other) = store.Issue(SignInKind.Browser, "Chrome on Mac", NetworkZone.Tailnet, "100.70.1.31", pinVerified: true, tailscaleLogin: "partner@example.com");
+        var (_, withKey) = store.Issue(SignInKind.Browser, "Firefox", NetworkZone.Local, "192.168.1.9");
+
+        var revoked = store.RevokeEarnedBy("Owner@example.com");
+
+        Assert.Equal(1, revoked);
+        Assert.Null(store.Find(earned, SignInKind.Browser));
+        Assert.NotNull(store.Find(other, SignInKind.Browser));
+        Assert.NotNull(store.Find(withKey, SignInKind.Browser));
+        Assert.Equal("partner@example.com", Assert.Single(Store().List(), s => s.Name == "Chrome on Mac").TailscaleLogin); // the login is saved
+    }
+
+    [Fact]
     public void AnUnreadableFile_IsKeptAside_AndSigningInStillWorks()
     {
         if (OperatingSystem.IsWindows())
