@@ -1729,45 +1729,50 @@ function ProfilesSection() {
         Everyone in the house can have their own Continue Watching, watched history and Up Next. With more than one profile, Flexarr asks who’s watching when it opens. A
         PIN keeps a profile private (handy for keeping kids out of yours).
       </p>
-      {editing !== undefined && (
-        <ProfileForm
-          // A fresh form for each profile: one opened over another mustn't carry its settings across.
-          key={editing === 'new' ? 'new' : editing.id}
-          profile={editing === 'new' ? undefined : editing}
-          defaultColour={freeColour(data ?? [])}
-          libraries={libraries}
-          onDone={reload}
-          onCancel={() => setEditing(undefined)}
-        />
+      {editing === 'new' && (
+        <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
       )}
-      {data?.map((p) => (
-        <div key={p.id} className="panel profile-row">
-          <Avatar profile={p} size={48} />
-          <div>
-            <strong>{p.name}</strong>
-            <p className="muted">
-              {[p.isMain && 'Main profile', p.hasPin && 'PIN protected', hiddenSummary(p, libraries), p.isCurrent && 'You’re using this one'].filter(Boolean).join('. ')}
-            </p>
-          </div>
-          <div className="library-row-actions">
-            <button className="button quiet small" onClick={() => setEditing(p)}>
-              Edit
-            </button>
-            {!p.isMain && (
-              <button
-                className="button danger small"
-                onClick={async () => {
-                  if (!confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`)) return
-                  await deleteProfile(p.id)
-                  reload()
-                }}
-              >
-                Remove
+      {data?.map((p) =>
+        // The form takes the profile's place in the list, rather than showing it twice.
+        editing !== 'new' && editing?.id === p.id ? (
+          <ProfileForm
+            // A fresh form for each profile: one opened over another mustn't carry its settings across.
+            key={p.id}
+            profile={editing}
+            defaultColour={freeColour(data)}
+            libraries={libraries}
+            onDone={reload}
+            onCancel={() => setEditing(undefined)}
+          />
+        ) : (
+          <div key={p.id} className="panel profile-row">
+            <Avatar profile={p} size={48} />
+            <div>
+              <strong>{p.name}</strong>
+              <p className="muted">
+                {[p.isMain && 'Main profile', p.hasPin && 'PIN protected', hiddenSummary(p, libraries), p.isCurrent && 'You’re using this one'].filter(Boolean).join('. ')}
+              </p>
+            </div>
+            <div className="library-row-actions">
+              <button className="button quiet small" onClick={() => setEditing(p)}>
+                Edit
               </button>
-            )}
+              {!p.isMain && (
+                <button
+                  className="button danger small"
+                  onClick={async () => {
+                    if (!confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`)) return
+                    await deleteProfile(p.id)
+                    reload()
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ),
+      )}
     </section>
   )
 }

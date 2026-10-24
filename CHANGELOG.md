@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Fixed: a profile shown twice while editing it
+- In **Settings › Profiles**, **Edit** now opens the form in place of that profile, rather than above the list while the profile is still listed underneath.
+
 ## 0.9.1 · 24 October 2026
 
 ### Settings without the main sidebar
