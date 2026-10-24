@@ -191,9 +191,11 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var renamed = await browser.PatchAsJsonAsync(Api($"/sign-ins/{id}"), new { name = "  Kitchen TV  " });
         var blank = await browser.PatchAsJsonAsync(Api($"/sign-ins/{id}"), new { name = " " });
         var unknown = await browser.PatchAsJsonAsync(Api("/sign-ins/nope"), new { name = "Hall" });
+        var forged = await browser.PatchAsJsonAsync(Api($"/sign-ins/{id}"), new { name = "Kitchen\nRevoked: everything" });
 
         Assert.Equal(HttpStatusCode.NoContent, renamed.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         var listed = await browser.GetFromJsonAsync<JsonElement>(Api("/sign-ins"));
         Assert.Equal("Kitchen TV", listed.EnumerateArray().Single(s => s.GetProperty("id").GetString() == id).GetProperty("name").GetString());

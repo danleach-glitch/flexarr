@@ -75,6 +75,8 @@ public static class SessionEndpoints
 
         group.MapPatch("/{id}", (string id, SignInRename rename, SignIns signIns) =>
             string.IsNullOrWhiteSpace(rename.Name) ? Results.Problem("Give it a name.", statusCode: 400)
+            // A line break or hidden character could forge a log line or disguise the list, as for TV names.
+            : Pairings.UnfitName(rename.Name) ? Results.Problem("That name has a line break or a hidden character in it. Use letters, numbers and spaces.", statusCode: 400)
             : signIns.Rename(id, rename.Name) ? Results.NoContent() : Results.NotFound());
 
         // Everything but the browser asking (which may have no sign-in of its own, at home or with the API key).
