@@ -96,6 +96,9 @@ code {
 .button {
   display: inline-flex;
   align-items: center;
+  /* A button stretched wider than its label keeps the label in the middle. */
+  justify-content: center;
+  text-align: center;
   gap: 10px;
   min-height: 46px;
   padding: 0 22px;

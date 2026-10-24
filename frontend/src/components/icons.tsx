@@ -183,3 +183,8 @@ export const ChevronsLeft = (p: IconProps) => (
     <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
   </svg>
 )
+export const External = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+  </svg>
+)

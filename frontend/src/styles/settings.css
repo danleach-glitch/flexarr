@@ -26,6 +26,8 @@
 
 .settings-nav a {
   padding: 10px 14px;
+  /* One line each, so the row of sections on phones scrolls rather than wraps. */
+  white-space: nowrap;
   border-radius: var(--radius-control);
   color: var(--usher);
   font-weight: 600;
@@ -91,6 +93,19 @@
   margin-bottom: 4px;
 }
 
+.library-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.library-title svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--usher);
+}
+
 .library-row .folder,
 .panel .folder {
   display: block;
@@ -102,11 +117,14 @@
   margin: 14px 0 0;
 }
 
+/* Side by side, each button as wide as its label, like the actions on a connection. */
 .library-row-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  align-self: flex-start;
   gap: 8px;
-  align-items: stretch;
 }
 
 .field-row {
@@ -221,6 +239,32 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.app-logo {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.open-app {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--usher);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.open-app:hover {
+  color: var(--screen);
+}
+
+.open-app svg {
+  width: 15px;
+  height: 15px;
 }
 
 .status-dot {
@@ -341,8 +385,7 @@
   }
 
   .library-row-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 
@@ -375,6 +418,10 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
+}
+
+.profile-row .library-row-actions {
+  align-self: center;
 }
 
 .profile-row p {

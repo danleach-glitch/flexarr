@@ -3,14 +3,12 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { askForProfile, selectProfile, signOut } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import type { LibraryType } from '../api/types'
-import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Music, Search, Stack, Tv } from './icons'
+import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Search, Stack } from './icons'
+import { libraryIcons } from './libraryIcons'
 import { AddToCollectionHost } from './AddToCollection'
 import { NowPlaying } from './NowPlaying'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
-
-const libraryIcons: Record<LibraryType, typeof Film> = { Movies: Film, TvShows: Tv, Music }
 
 const railKey = 'flexarr.sidebarRail'
 

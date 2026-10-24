@@ -71,16 +71,18 @@ import { ScanProgress } from '../components/ScanProgress'
 import { SignIns } from '../components/SignIns'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { ChevronDown, ChevronUp } from '../components/icons'
+import { ChevronDown, ChevronUp, External, Film } from '../components/icons'
+import { libraryIcons } from '../components/libraryIcons'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
+import { appLink, appLogos } from '../lib/apps'
 import { episodeCode, formatClock, formatSize, libraryTypeLabel, relativeTime } from '../lib/format'
 
 const sections = [
   { id: 'libraries', label: 'Libraries' },
   { id: 'profiles', label: 'Profiles' },
   { id: 'playback', label: 'Playback' },
-  { id: 'layout', label: 'Home and Browse' },
+  { id: 'layout', label: 'Customise display' },
   { id: 'connections', label: 'Connections' },
   { id: 'remote', label: 'Remote access' },
   { id: 'activity', label: 'Activity' },
@@ -288,10 +290,14 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
     onChange()
   }
 
+  const Icon = libraryIcons[library.type] ?? Film
   return (
     <div className="panel library-row">
       <div>
-        <h3>{library.name}</h3>
+        <h3 className="library-title">
+          <Icon />
+          {library.name}
+        </h3>
         <p className="muted">
           {libraryTypeLabel[library.type]}, {library.itemCount.toLocaleString()} titles, last scanned {relativeTime(library.lastScannedAt)}
         </p>
@@ -561,8 +567,10 @@ function ConnectionsSection() {
             <div key={i} className="panel connection">
               <div className="connection-status">
                 <span className={shown?.ok ? 'status-dot ok' : shown ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
+                <img className="app-logo" src={appLogos[c.kind]} alt="" />
                 <strong>{c.name || c.kind}</strong>
                 <span className="muted">{test === 'testing' ? 'Testing…' : shown?.ok ? `Connected, version ${shown.version}` : shown?.error}</span>
+                <OpenApp baseUrl={c.baseUrl} name={c.name || c.kind} />
               </div>
               <div className="field-row">
                 <label>
@@ -629,6 +637,7 @@ function ConnectionsSection() {
         <div className="panel connection">
           <div className="connection-status">
             <span className={seerrStatus.data?.reachable ? 'status-dot ok' : seerrStatus.data?.configured ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
+            <img className="app-logo" src={appLogos.Seerr} alt="" />
             <strong>Seerr</strong>
             <span className="muted">
               {seerrStatus.loading
@@ -639,6 +648,7 @@ function ConnectionsSection() {
                     ? 'Connected'
                     : 'Flexarr can’t reach Seerr at this address, or the API key isn’t right'}
             </span>
+            <OpenApp baseUrl={seerr.baseUrl} name="Seerr" />
           </div>
           <div className="field-row">
             <label className="grow">
@@ -684,6 +694,19 @@ function ConnectionsSection() {
         <SaveBar saved={saved} error={saveError} />
       </form>
     </section>
+  )
+}
+
+/** Opens the app in a new tab, at the address typed above it. */
+function OpenApp({ baseUrl, name }: { baseUrl: string; name: string }) {
+  const href = appLink(baseUrl)
+  return (
+    href && (
+      <a className="open-app" href={href} target="_blank" rel="noreferrer">
+        Open {name}
+        <External />
+      </a>
+    )
   )
 }
 
@@ -1992,7 +2015,7 @@ function ProfileForm({
   )
 }
 
-// ---------------------------------------------------------------- Home and Browse
+// ---------------------------------------------------------------- Customise display
 
 function LayoutSection() {
   const { data, error } = useApi(getLayout, [])
@@ -2011,7 +2034,7 @@ function LayoutSection() {
   return (
     <section>
       <header className="settings-header">
-        <h2>Home and Browse</h2>
+        <h2>Customise display</h2>
       </header>
       <p className="settings-lede">Choose which rows appear on Home and on each library’s Browse view, and in what order. This applies to every profile.</p>
       <form

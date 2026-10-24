@@ -2,6 +2,17 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Logos and links in Settings
+- **Settings › Connections** shows each app's logo (Sonarr, Radarr, Lidarr and Seerr) and an **Open** link that opens the app in a new tab. An app set up as `localhost` opens on the same address you reached Flexarr on.
+- **Settings › Libraries** shows each library's icon (films, TV or music) beside its name.
+- **Home and Browse** in Settings is now called **Customise display**.
+
+### Tidier buttons
+- Buttons always keep their label centred.
+- On **Libraries** and **Profiles** in Settings, a card's buttons sit side by side, each as wide as its label, rather than stacked at different widths.
+
 ## 0.9.2 · 24 October 2026
 
 ### Fixed: a profile shown twice while editing it
