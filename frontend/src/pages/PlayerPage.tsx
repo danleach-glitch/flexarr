@@ -1,7 +1,7 @@
-import Hls from 'hls.js'
+import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { beaconProgress, imageUrl, reportProgress, startPlayback, stopPlayback, type PlaybackInfo } from '../api/client'
+import { ApiError, beaconProgress, imageUrl, reportProgress, startPlayback, stopPlayback, type PlaybackInfo } from '../api/client'
 import {
   Back,
   Captions,
@@ -15,6 +15,7 @@ import {
   Replay10,
   Volume,
 } from '../components/icons'
+import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 
@@ -29,6 +30,18 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
 const UP_NEXT_SECONDS = 10
 const HIDE_CHROME_MS = 3000
 const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
+const TAKEN_OVER = 'Someone started watching on another screen, so this one had to stop.'
+// Long enough for a server that's up, short enough that a hung one doesn't hold up the recovery.
+const REASON_TIMEOUT_MS = 5000
+
+/**
+ * What went wrong, and so what the viewer can do: take the stream back from the screen it was ended for
+ * (takenOver), wait for the server to have room (busy), or try again.
+ */
+interface PlayerError {
+  message: string
+  kind: 'takenOver' | 'busy' | 'other'
+}
 
 interface StartOptions {
   audioStreamIndex?: number
@@ -36,6 +49,14 @@ interface StartOptions {
   startPositionSeconds?: number
   quality?: Quality
   forceTranscode?: boolean
+}
+
+/** Why the server ended this transcode for another viewer, if it did (its playlist answers 410 with the reason). */
+async function takenOverReason(sessionId: string): Promise<string | undefined> {
+  const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`, { signal: AbortSignal.timeout(REASON_TIMEOUT_MS) }).catch(() => null)
+  if (response?.status !== 410) return undefined
+  const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+  return problem?.detail ?? TAKEN_OVER
 }
 
 export function PlayerPage() {
@@ -53,9 +74,11 @@ export function PlayerPage() {
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
   const lifetime = useRef({ alive: true })
+  // Counts playback requests, so only the latest one's answer is used.
+  const requests = useRef(0)
 
   const [info, setInfo] = useState<PlaybackInfo>()
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<PlayerError>()
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(true)
   const [time, setTime] = useState(0)
@@ -73,6 +96,17 @@ export function PlayerPage() {
   const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
 
   const duration = info?.durationSeconds ?? 0
+
+  // Watching may have marked the title watched (past the credits, or to the end): leaving it tells pages that come
+  // back afterwards, such as a library grid restored on Back, to refresh its tick.
+  // Once per title, so the one announced is the one just played (Next episode moves on to another).
+  const playedId = info?.item.id
+  useEffect(() => {
+    const played = info?.item
+    if (!played) return
+    return () => announceWatched(played)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per title; its id stands for it
+  }, [playedId])
   const [previews, setPreviews] = useState<Previews | null>(null)
 
   // Scrubbing previews are made the first time a file plays; check now, then again while they're being made.
@@ -127,11 +161,17 @@ export function PlayerPage() {
     }
   }, [])
 
+  /** Starts (or restarts) playback. True once settled: playing, or refused (busy server, stream taken over) with the error shown. */
   const start = useCallback(
     async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
       const q = options.quality ?? quality
       const preset = qualities.find((x) => x.value === q)
+      // Leaving for another title (or asking again, say for another quality) while this request is out makes its
+      // answer stale: that session is stopped rather than played over the newer one.
+      const life = lifetime.current
+      const request = ++requests.current
+      const replaces = session.current
       try {
         const playback = await startPlayback({
           itemId: id,
@@ -142,7 +182,13 @@ export function PlayerPage() {
           maxHeight: q === 'auto' ? undefined : q,
           maxBitrate: preset?.bitrate,
           forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
+          replacesSessionId: replaces,
         })
+        if (!life.alive || life !== lifetime.current || request !== requests.current) {
+          void stopPlayback(playback.sessionId)
+          // Nothing left for this request to do: a newer one (or none, the page has moved on) is in charge.
+          return true
+        }
         if (session.current && session.current !== playback.sessionId) void stopPlayback(session.current)
         session.current = playback.sessionId
         setInfo(playback)
@@ -150,8 +196,18 @@ export function PlayerPage() {
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
         return true
       } catch (e) {
-        if (!quiet) setError(e instanceof Error ? e.message : String(e))
-        return false
+        // A server at its transcode limit, or a stream ended for another screen (410), is an answer, not a hiccup:
+        // say so rather than retrying, which would only take the stream back from the other screen.
+        const status = e instanceof ApiError ? e.status : undefined
+        // Asking again with an ended stream's id is refused for as long as the server remembers it, so whatever the
+        // viewer does next (Watch here instead, another audio track) starts afresh. A stream the server just doesn't
+        // know any more is kept: asking with it never takes another screen's place, so Try again waits its turn.
+        if (status === 410 && session.current === replaces) session.current = undefined
+        const refused = status === 503 || status === 410
+        if ((!quiet || refused) && request === requests.current) {
+          setError({ message: e instanceof Error ? e.message : String(e), kind: status === 410 ? 'takenOver' : status === 503 ? 'busy' : 'other' })
+        }
+        return refused
       }
     },
     [id, quality, attach],
@@ -163,25 +219,35 @@ export function PlayerPage() {
   const recover = async () => {
     const el = video.current
     if (recovering.current) return
-    if (!el || Date.now() - lastRecovery.current < 60_000) return setError(STREAM_STOPPED)
+    // Claimed before asking why, so a second error meanwhile doesn't start another recovery.
     recovering.current = true
-    lastRecovery.current = Date.now()
     const life = lifetime.current
-    const position = el.currentTime
-    hls.current?.destroy()
-    hls.current = null
-    setWaiting(true)
+    const failed = session.current
     try {
+      // A stream ended to make way for another screen says so (410), even inside the once-a-minute limit.
+      const takenOver = failed ? await takenOverReason(failed) : undefined
+      // Left for another title, or started another stream (an audio change, Next episode), while that was out.
+      if (!life.alive || life !== lifetime.current || session.current !== failed) return
+      if (takenOver) {
+        session.current = undefined // Watch here instead starts afresh (see start).
+        return setError({ message: takenOver, kind: 'takenOver' })
+      }
+      if (!el || Date.now() - lastRecovery.current < 60_000) return setError({ message: STREAM_STOPPED, kind: 'other' })
+      lastRecovery.current = Date.now()
+      const position = el.currentTime
+      hls.current?.destroy()
+      hls.current = null
+      setWaiting(true)
       for (let attempt = 0; attempt < 6; attempt++) {
         if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000))
-        if (!life.alive) return
-        const resumed = await start(
+        if (!life.alive || session.current !== failed) return
+        const settled = await start(
           { startPositionSeconds: position, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' },
           true,
         )
-        if (resumed) return
+        if (settled) return // Playing again, or the server said why not.
       }
-      if (life.alive) setError(STREAM_STOPPED)
+      if (life.alive) setError({ message: STREAM_STOPPED, kind: 'other' })
     } finally {
       recovering.current = false
     }
@@ -214,6 +280,18 @@ export function PlayerPage() {
   /** Re-request playback at the current position with different options. */
   const restartHere = (options: StartOptions) => start({ startPositionSeconds: video.current?.currentTime ?? 0, ...options })
 
+  /** The error's main button: from where it stopped, or (refused before anything played) from where the title was asked for. */
+  const retry = (options: StartOptions = {}) => {
+    const t = params.get('t')
+    const keep = { audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' }
+    return info ? restartHere({ ...keep, ...options }) : start({ startPositionSeconds: t !== null ? Number(t) : undefined, ...options })
+  }
+
+  // Nothing behind the error can be used, so the stream that stopped doesn't play on from what it had buffered.
+  useEffect(() => {
+    if (error) video.current?.pause()
+  }, [error])
+
   // ---------- Progress reporting
 
   useEffect(() => {
@@ -238,10 +316,12 @@ export function PlayerPage() {
   useEffect(() => {
     const el = video.current
     if (!el) return
+    // timeupdate fires about four times a second; whole seconds are all the controls show, and React skips a
+    // render when the value hasn't changed.
     const onTime = () => {
-      setTime(el.currentTime)
+      setTime(Math.floor(el.currentTime))
       for (let i = 0; i < el.buffered.length; i++) {
-        if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(el.buffered.end(i))
+        if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(Math.floor(el.buffered.end(i)))
       }
     }
     const onPlay = () => setPlaying(true)
@@ -256,7 +336,7 @@ export function PlayerPage() {
       // A browser that claimed it could play the file but can't: convert instead.
       if (info?.method === 'DirectPlay') void restartHere({ forceTranscode: true })
       else if (info?.method === 'Transcode') void recoverRef.current()
-      else setError("This file couldn't be played.")
+      else setError({ message: "This file couldn't be played.", kind: 'other' })
     }
     const onEnded = () => {
       if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
@@ -287,19 +367,24 @@ export function PlayerPage() {
 
   // Subtitles sit clear of the bottom edge, and rise above the controls while they're showing. Cues are placed by
   // their top edge as a percentage of the video's height (Chrome ignores lineAlign), so each cue's own height (its
-  // lines at the ::cue font size in player.css) is allowed for and multi-line cues grow upwards.
+  // lines at the ::cue font size in player.css) is allowed for and multi-line cues grow upwards. A track's cues (a
+  // film has a thousand or two) are all placed once, when they've loaded or the space changes; after that each
+  // cuechange touches only the cues on screen.
   const controls = useRef<HTMLElement>(null)
   useEffect(() => {
     const el = video.current
     const tracks = el?.textTracks
     if (!el || !tracks || typeof VTTCue === 'undefined') return
+    let placed = new WeakSet<TextTrack>()
     const place = () => {
       const height = el.getBoundingClientRect().height || innerHeight
       const lift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : height * 0.08
       const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * 1.3 + 2
       for (const track of Array.from(el.textTracks)) {
         if (track.mode !== 'showing' || !track.cues) continue
-        for (const cue of Array.from(track.cues)) {
+        const cues = placed.has(track) ? track.activeCues : track.cues
+        if (track.cues.length) placed.add(track)
+        for (const cue of Array.from(cues ?? [])) {
           if (!(cue instanceof VTTCue)) continue
           const lines = cue.text.split('\n').length
           cue.snapToLines = false
@@ -314,12 +399,16 @@ export function PlayerPage() {
     for (const track of Array.from(tracks)) watch(track)
     tracks.addEventListener('addtrack', onAdd)
     tracks.addEventListener('change', place)
-    window.addEventListener('resize', place)
+    const onResize = () => {
+      placed = new WeakSet()
+      place()
+    }
+    window.addEventListener('resize', onResize)
     return () => {
       for (const track of Array.from(tracks)) track.removeEventListener('cuechange', place)
       tracks.removeEventListener('addtrack', onAdd)
       tracks.removeEventListener('change', place)
-      window.removeEventListener('resize', place)
+      window.removeEventListener('resize', onResize)
     }
   }, [chrome, subtitleKey])
 
@@ -423,6 +512,11 @@ export function PlayerPage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey) return
+      // With an error showing, only its buttons (and Escape, to leave) do anything.
+      if (error) {
+        if (e.key === 'Escape') exit()
+        return
+      }
       wake()
       switch (e.key) {
         case ' ':
@@ -486,7 +580,7 @@ export function PlayerPage() {
       className={chromeShown ? 'player' : 'player chrome-hidden'}
       style={accent ? ({ '--ambient': accent } as CSSProperties) : undefined}
       onMouseMove={wake}
-      onClick={(e) => e.target === video.current && toggle()}
+      onClick={(e) => !error && e.target === video.current && toggle()}
     >
       <video
         ref={video}
@@ -543,11 +637,18 @@ export function PlayerPage() {
       </header>
 
       {error && (
-        <div className="player-error" role="alert">
-          <p>{error}</p>
+        // Keyed by the message, so a new one moves focus to its main button again.
+        <div key={error.message} className="player-error" role="alertdialog" aria-modal="true" aria-labelledby="player-error-message" aria-describedby={error.kind === 'takenOver' ? 'player-error-note' : undefined}>
+          <p id="player-error-message">{error.message}</p>
+          {error.kind === 'takenOver' && (
+            <p id="player-error-note" className="player-error-note muted">
+              The other screen will stop if you watch here.
+            </p>
+          )}
           <div className="player-error-actions">
-            <button className="button" onClick={() => void restartHere({ forceTranscode: true })}>
-              Try again
+            {/* Starts afresh rather than picking up the stream that was ended, so it can take the place back. */}
+            <button className="button" autoFocus onClick={() => void retry(error.kind === 'other' ? { forceTranscode: true } : {})}>
+              {error.kind === 'takenOver' ? 'Watch here instead' : 'Try again'}
             </button>
             <button className="button quiet" onClick={exit}>
               Go back
@@ -556,13 +657,13 @@ export function PlayerPage() {
         </div>
       )}
 
-      {skippable && !showUpNext && (
+      {skippable && !showUpNext && !error && (
         <button className="skip-button" onClick={() => seekTo(skippable.end)} autoFocus>
           {skippable.type === 'Recap' ? 'Skip recap' : 'Skip intro'}
         </button>
       )}
 
-      {showUpNext && info?.next && (
+      {showUpNext && info?.next && !error && (
         <aside className="up-next" aria-live="polite">
           <div className="up-next-still">
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
@@ -587,7 +688,8 @@ export function PlayerPage() {
         </aside>
       )}
 
-      <footer className="player-controls" ref={controls}>
+      {/* Hidden behind an error: nothing there would work, and focus belongs to the error's buttons. */}
+      <footer className="player-controls" ref={controls} hidden={!!error} inert={!!error}>
         <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
@@ -661,7 +763,12 @@ export function PlayerPage() {
           </div>
 
           <div className="menu-anchor">
-            <button className="player-quality" aria-expanded={menu === 'quality'} onClick={() => setMenu(menu === 'quality' ? null : 'quality')}>
+            <button
+              className="player-quality"
+              aria-expanded={menu === 'quality'}
+              aria-label={`Quality: ${quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}`}
+              onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
+            >
               {quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}
             </button>
             {menu === 'quality' && (

@@ -23,7 +23,7 @@ public sealed partial class LibraryScanWorker(
     {
         // Catch up on anything that changed while the server was down (and finish interrupted scans).
         // Unchanged files are only stat'ed, so this is cheap after the first scan.
-        await EnqueueAllAsync("Startup", stoppingToken);
+        await EnqueueAllSafelyAsync("Startup", stoppingToken);
 
         _ = ScheduleAsync(stoppingToken);
 
@@ -37,15 +37,33 @@ public sealed partial class LibraryScanWorker(
                 batch.Add(next);
             }
 
-            foreach (var request in Coalesce(batch))
+            // The endpoints refuse such paths; one getting here anyway must not stop every scan after it.
+            foreach (var unusable in batch.Where(r => PathComparison.HasControlCharacters(r.Path)))
+            {
+                LogUnusablePath(PathComparison.Printable(unusable.Path), PathComparison.Printable(unusable.Reason));
+            }
+
+            List<LibraryScanRequest> requests;
+            try
+            {
+                requests = Coalesce(batch.Where(r => !PathComparison.HasControlCharacters(r.Path))).ToList();
+            }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                LogBatchFailed(ex, batch.Count);
+                continue;
+            }
+
+            foreach (var request in requests)
             {
                 try
                 {
                     await ScanAsync(request, stoppingToken);
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
-                    LogScanFailed(ex, request.Path);
+                    LogScanFailed(ex, PathComparison.Printable(request.Path));
                 }
             }
         }
@@ -57,7 +75,20 @@ public sealed partial class LibraryScanWorker(
         using var timer = new PeriodicTimer(ScheduledScanInterval);
         while (await timer.WaitForNextTickAsync(ct))
         {
-            await EnqueueAllAsync("Scheduled", ct);
+            await EnqueueAllSafelyAsync("Scheduled", ct);
+        }
+    }
+
+    /// <summary>A failure here (the database busy, say) is logged and the next tick tries again.</summary>
+    private async Task EnqueueAllSafelyAsync(string reason, CancellationToken ct)
+    {
+        try
+        {
+            await EnqueueAllAsync(reason, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            LogEnqueueFailed(ex, reason);
         }
     }
 
@@ -71,12 +102,21 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    /// <summary>Drops duplicates and paths already covered by a broader request in the same batch.</summary>
+    /// <summary>
+    /// Drops duplicates and paths already covered by a broader request in the same batch. A path counts as deleted
+    /// only if every request for it says so.
+    /// </summary>
     public static IEnumerable<LibraryScanRequest> Coalesce(IEnumerable<LibraryScanRequest> requests)
     {
         var all = requests.ToList();
-        var distinct = all.GroupBy(r => r.Path.TrimEnd('/'))
-            .Select(g => g.First() with { ForceMetadata = g.Any(r => r.ForceMetadata) })
+        var distinct = all.GroupBy(r => PathComparison.Key(r.Path))
+            .Select(g => g.First() with
+            {
+                ForceMetadata = g.Any(r => r.ForceMetadata),
+                Deleted = g.All(r => r.Deleted),
+                TmdbId = g.Select(r => r.TmdbId).FirstOrDefault(id => id is not null),
+                TvdbId = g.Select(r => r.TvdbId).FirstOrDefault(id => id is not null),
+            })
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
@@ -109,37 +149,47 @@ public sealed partial class LibraryScanWorker(
 
         if (targets.Count == 0)
         {
-            LogNoLibrary(request.Path, request.Reason);
+            LogNoLibrary(PathComparison.Printable(request.Path), PathComparison.Printable(request.Reason));
             return;
         }
 
         foreach (var (library, target) in targets)
         {
-            LogScanStarted(library.Name, target, request.Reason);
+            LogScanStarted(library.Name, PathComparison.Printable(target), PathComparison.Printable(request.Reason));
             var started = TimeProvider.System.GetTimestamp();
-            var result = await scanner.ScanAsync(library, target, ct);
+            // A metadata refresh also retries files ffprobe couldn't read.
+            var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
             var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
-            LogScanFinished(library.Name, target, result.Added, result.Updated, result.Removed, result.Unchanged,
+            LogScanFinished(library.Name, PathComparison.Printable(target), result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
                 result.Unmatched, result.ProbeFailures, seconds);
         }
 
         foreach (var library in targets.Select(t => t.Library).DistinctBy(l => l.Id))
         {
+            // A scan of one folder (a webhook) also refreshes the films or series in it, so new episodes get their
+            // titles straight away rather than when the series is next due.
+            var folders = library.Folders.Select(f => f.Path).ToList();
+            var scopes = targets.Where(t => t.Library.Id == library.Id).Select(t => t.Scope).ToList();
+            var within = scopes.Any(s => folders.Any(f => PathComparison.IsUnder(f, s))) ? [] : scopes;
+
             var started = TimeProvider.System.GetTimestamp();
-            var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, ct);
+            var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
             if (refreshed.FromArr + refreshed.FromLookup + refreshed.Unmatched > 0)
             {
                 var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
                 LogMetadataRefreshed(library.Name, refreshed.FromArr, refreshed.FromLookup, refreshed.Unmatched, seconds);
             }
         }
+
+        // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
+        await WatchHistoryCarryOver.CarryOverAsync(db, ct);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Scanning {Library}: {Path} ({Reason})")]
     private partial void LogScanStarted(string library, string path, string reason);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Scanned {Library}: {Path} — {Added} added, {Updated} updated, {Removed} removed, {Unchanged} unchanged, {Unmatched} unmatched, {Failures} probe failures in {Seconds:F1}s")]
-    private partial void LogScanFinished(string library, string path, int added, int updated, int removed, int unchanged, int unmatched, int failures, double seconds);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scanned {Library}: {Path} — {Added} added, {Updated} updated, {Missing} newly missing, {Removed} removed, {Unchanged} unchanged, {Unmatched} unmatched, {Failures} probe failures in {Seconds:F1}s")]
+    private partial void LogScanFinished(string library, string path, int added, int updated, int missing, int removed, int unchanged, int unmatched, int failures, double seconds);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Refreshed metadata for {Library}: {FromArr} from *arr, {FromLookup} looked up, {Unmatched} unmatched in {Seconds:F1}s")]
     private partial void LogMetadataRefreshed(string library, int fromArr, int fromLookup, int unmatched, double seconds);
@@ -147,6 +197,15 @@ public sealed partial class LibraryScanWorker(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignoring scan request for {Path} ({Reason}): no library contains it")]
     private partial void LogNoLibrary(string path, string reason);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Ignoring scan request for {Path} ({Reason}): the path holds a control character")]
+    private partial void LogUnusablePath(string path, string reason);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't sort out a batch of {Count} scan requests; dropping it")]
+    private partial void LogBatchFailed(Exception exception, int count);
+
     [LoggerMessage(Level = LogLevel.Error, Message = "Scan of {Path} failed")]
     private partial void LogScanFailed(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't queue the {Reason} scan of every library")]
+    private partial void LogEnqueueFailed(Exception exception, string reason);
 }

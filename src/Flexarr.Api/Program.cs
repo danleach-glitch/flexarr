@@ -42,25 +42,47 @@ builder.Services
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(FlexarrClaims.AdminPolicy, policy => policy.AddRequirements(new AdminRequirement()));
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminHandler>();
+builder.Services.AddSingleton<SignIns>();
+builder.Services.AddSingleton<PinGuard>();
 
-// Tailscale serve and cloudflared proxy from this machine; trust their forwarded headers, and only theirs.
+// Tailscale serve and cloudflared proxy from this machine; trust their forwarded headers, and otherwise only those of
+// proxies listed in TrustedProxies (a reverse proxy in Docker or on another machine). Anything else forwarded counts
+// as the internet (see NetworkZones).
+var trustedProxies = builder.Configuration.GetSection($"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.TrustedProxies)}").Get<List<string>>() ?? [];
+trustedProxies.AddRange(userConfig.GetSection("trustedProxies").Get<List<string>>() ?? []);
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
     o.ForwardLimit = 1;
     o.KnownProxies.Clear();
+    o.KnownIPNetworks.Clear();
     o.KnownProxies.Add(System.Net.IPAddress.Loopback);
     o.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+    foreach (var proxy in trustedProxies)
+    {
+        if (System.Net.IPNetwork.TryParse(proxy, out var network))
+        {
+            o.KnownIPNetworks.Add(network);
+        }
+        else if (System.Net.IPAddress.TryParse(proxy, out var address))
+        {
+            o.KnownProxies.Add(address);
+        }
+    }
 });
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
-builder.Services.AddHttpClient<ArrClient>();
+builder.Services.AddMemoryCache();
+// Pages that call the *arrs cut each call shorter themselves; this bounds the big ones (every film, for a refresh).
+builder.Services.AddHttpClient<ArrClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient<SeerrClient>(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
-builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30));
+// ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere.
+builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
@@ -95,11 +117,25 @@ builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
 builder.Services.AddSingleton<TailscaleService>();
+builder.Services.AddSingleton<ITailnetWhois>(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
 builder.Services.AddSingleton<ILibraryScanQueue, LibraryScanQueue>();
 builder.Services.AddHostedService<LibraryScanWorker>();
+
+// JSON, the web app and playlists shrink a lot; video segments and images are compressed already, so aren't listed.
+builder.Services.AddResponseCompression(o =>
+{
+    // Behind Tailscale or cloudflared most requests arrive as https.
+    o.EnableForHttps = true;
+    o.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    o.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    o.MimeTypes = [.. Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes,
+        "application/problem+json", "application/vnd.apple.mpegurl", "application/x-mpegURL", "text/vtt", "image/svg+xml", "application/manifest+json"];
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 var app = builder.Build();
 
@@ -108,7 +144,11 @@ Directory.CreateDirectory(app.Services.GetRequiredService<IOptions<FlexarrOption
 
 using (var scope = app.Services.CreateScope())
 {
-    await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Database.MigrateAsync();
+    var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+    await db.Database.MigrateAsync();
+    // Readers (the web app, players) don't wait on a scan's writes, or the other way round. Stored in the file, but
+    // a database created or restored elsewhere may not have it.
+    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
 }
 
 app.Use((http, next) =>
@@ -118,14 +158,34 @@ app.Use((http, next) =>
 });
 app.UseForwardedHeaders();
 app.UseFlexarrSecurityHeaders();
+app.UseResponseCompression();
+
+// Vite names /assets/* by content hash, so they never change; index.html must be fetched fresh to pick up a deploy.
+var webApp = new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var headers = context.Context.Response.Headers;
+        if (context.Context.Request.Path.StartsWithSegments("/assets", StringComparison.Ordinal))
+        {
+            headers.CacheControl = "public, max-age=31536000, immutable";
+        }
+        else if (context.File.Name == "index.html")
+        {
+            headers.CacheControl = "no-cache";
+        }
+    },
+};
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(webApp);
 app.UseAuthentication();
+app.UseFlexarrRequestForgeryGuard();
 app.UseAuthorization();
 
-app.MapOpenApi();
+// The API description is for development; a public server needn't hand out a map of itself.
 if (app.Environment.IsDevelopment())
 {
+    app.MapOpenApi();
     app.MapScalarApiReference();
 }
 
@@ -163,7 +223,7 @@ app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImage
 app.MapMediaBrowserEndpoints();
 
 // The web client is a SPA; let it own every non-API route.
-app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html", webApp);
 
 await app.RunAsync();
 

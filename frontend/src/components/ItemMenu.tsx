@@ -4,17 +4,8 @@ import { useNavigate } from 'react-router'
 import { setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { usePlay } from '../hooks/usePlay'
+import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
-
-/** Fired after something is marked watched or unwatched, so pages showing it (Continue Watching) reload. */
-export const WATCHED_CHANGED = 'flexarr:watched-changed'
-
-export function useWatchedChanges(reload: () => void) {
-  useEffect(() => {
-    window.addEventListener(WATCHED_CHANGED, reload)
-    return () => window.removeEventListener(WATCHED_CHANGED, reload)
-  }, [reload])
-}
 
 export interface MenuPoint {
   x: number
@@ -57,9 +48,9 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
     }
   }, [onClose])
 
-  const mark = (id: string, watched: boolean) => async () => {
-    await setWatched(id, watched)
-    window.dispatchEvent(new Event(WATCHED_CHANGED))
+  const mark = (target: Pick<ItemSummary, 'id' | 'parentId' | 'seriesId'>, watched: boolean) => async () => {
+    await setWatched(target.id, watched)
+    announceWatched(target)
   }
   const go = (to: string) => () => navigate(to)
   const resumable = progressOf(item) !== null
@@ -72,22 +63,22 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
       actions.push({ label: resumable ? 'Resume' : 'Play', run: go(`/play/${item.id}`) })
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider')
-      actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item.id, !item.userData.watched) })
+      actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Episode':
       actions.push({ label: `${resumable ? 'Resume' : 'Play'} ${episodeCode(item)}`, run: go(`/play/${item.id}`) })
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
-      actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item.id, !item.userData.watched) })
-      if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark(showId, true) })
+      actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
+      if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
       break
     case 'Season':
       actions.push({ label: 'Play', run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
-      actions.push('divider', { label: item.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched', run: mark(item.id, !item.userData.watched) })
+      actions.push('divider', { label: item.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched', run: mark(item, !item.userData.watched) })
       break
     case 'Series':
       actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
-      actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item.id, !item.userData.watched) })
+      actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
   }

@@ -6,6 +6,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Flexarr.Api.Collections;
 
@@ -50,24 +51,24 @@ public static class CollectionEndpoints
         group.MapGet("/", async (bool? hidden, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             var collections = await Visible(db, profile).Where(c => hidden == true && profile.IsAdmin || !c.Hidden).OrderBy(c => c.Name).ToListAsync(ct);
-            var summaries = new List<CollectionSummaryDto>();
-            foreach (var c in collections)
-            {
-                var summary = await SummaryAsync(db, profile, c, ct);
-                // A collection with nothing this profile can see (e.g. films, for a profile kept out of them) isn't listed.
-                if (summary.ItemCount > 0 || summary.CanEdit && c.Kind != CollectionKind.Franchise)
-                {
-                    summaries.Add(summary);
-                }
-            }
-
-            return summaries;
+            // A collection with nothing this profile can see (e.g. films, for a profile kept out of them) isn't listed.
+            return (await SummariesAsync(db, profile, collections, ct))
+                .Where(s => s.ItemCount > 0 || s.CanEdit && s.Kind != CollectionKind.Franchise).ToList();
         });
 
-        group.MapGet("/suggestions", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        group.MapGet("/suggestions", async (FlexarrDbContext db, CurrentProfile profile, IMemoryCache cache, CancellationToken ct) =>
         {
+            // Working them out takes a few dozen queries over the whole library, and they hardly change from minute to minute.
+            // Keyed by the libraries hidden from the profile too, so hiding one drops its titles at once.
+            var hiddenLibraries = string.Join(',', db.HiddenLibraryIds.Order());
+            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}", entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                return CollectionSuggestions.ForAsync(db, profile.Id, ct);
+            }) ?? [];
+            // Names already used are left out fresh each time, so a suggestion just turned into a collection goes at once.
             var taken = (await Visible(db, profile).Select(c => c.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            return await CollectionSuggestions.ForAsync(db, profile.Id, taken, ct);
+            return all.Where(s => !taken.Contains(s.Name)).ToList();
         });
 
         group.MapPost("/sync", async (FranchiseSync sync, CancellationToken ct) => Results.Ok(new { franchises = await sync.SyncAsync(ct) }))
@@ -237,8 +238,8 @@ public static class CollectionEndpoints
         var rows = new List<HomeRowDto>();
         foreach (var c in await Visible(db, profile).Where(c => c.ShowOnHome && !c.Hidden).OrderBy(c => c.Name).ToListAsync(ct))
         {
-            var items = await ItemsAsync(db, profile, c, ct);
-            rows.Add(new HomeRowDto($"collection-{c.Id}", c.Name, "poster", items.Take(rowSize).ToList(), $"/collection/{c.Id}"));
+            var items = await ItemsAsync(db, profile, c, rowSize, ct);
+            rows.Add(new HomeRowDto($"collection-{c.Id}", c.Name, "poster", items, $"/collection/{c.Id}"));
         }
 
         return rows;
@@ -256,37 +257,93 @@ public static class CollectionEndpoints
 
     private static bool CanEdit(CurrentProfile profile, Collection c) => c.OwnerProfileId == profile.Id || c.OwnerProfileId == null && profile.IsAdmin;
 
-    private static async Task<List<ItemSummaryDto>> ItemsAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, CancellationToken ct)
+    private static Task<List<ItemSummaryDto>> ItemsAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, CancellationToken ct) =>
+        ItemsAsync(db, profile, c, int.MaxValue, ct);
+
+    /// <param name="take">At most this many (the first ones), worked out in the query.</param>
+    private static async Task<List<ItemSummaryDto>> ItemsAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, int take, CancellationToken ct)
     {
         if (c.Kind == CollectionKind.Smart)
         {
-            return await (Rules(c) ?? new SmartRules()).Query(db, profile.Id, DateTime.UtcNow).Summaries(profile.Id).ToListAsync(ct);
+            return await (Rules(c) ?? new SmartRules()).Query(db, profile.Id, DateTime.UtcNow).Take(take).Summaries(profile.Id).ToListAsync(ct);
         }
 
         // Items in libraries this profile can't see drop out through the library filter on MediaItems.
         var order = await db.CollectionItems.Where(i => i.CollectionId == c.Id && i.MediaItem != null).OrderBy(i => i.Position)
-            .Select(i => i.MediaItemId).ToListAsync(ct);
+            .Select(i => i.MediaItemId).Take(take).ToListAsync(ct);
         var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
         return order.Where(items.ContainsKey).Select(id => items[id]).ToList();
     }
 
-    private static async Task<CollectionSummaryDto> SummaryAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, CancellationToken ct)
+    private static async Task<CollectionSummaryDto> SummaryAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, CancellationToken ct) =>
+        (await SummariesAsync(db, profile, [c], ct))[0];
+
+    /// <summary>
+    /// What a list of collections shows (counts and four posters each) without summarising every title in them:
+    /// one query for all the manual and franchise ones, one per smart one.
+    /// </summary>
+    private static async Task<List<CollectionSummaryDto>> SummariesAsync(FlexarrDbContext db, CurrentProfile profile, IReadOnlyList<Collection> collections, CancellationToken ct)
     {
-        var items = await ItemsAsync(db, profile, c, ct);
-        var missing = c.MissingJson is null ? 0 : JsonSerializer.Deserialize<List<MissingFilm>>(c.MissingJson, FranchiseSync.Json)!.Count;
-        if (missing > 0 && (await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(MediaKind.Movie))
+        var me = profile.Id;
+        var listed = collections.Where(c => c.Kind != CollectionKind.Smart).Select(c => c.Id).ToList();
+        var entries = listed.Count == 0 ? []
+            : await db.CollectionItems.Where(i => listed.Contains(i.CollectionId) && i.MediaItem != null)
+                .Select(i => new { i.CollectionId, i.Position, i.MediaItemId }).ToListAsync(ct);
+        var itemIds = entries.Select(e => e.MediaItemId).Distinct().ToList();
+        var facts = itemIds.Count == 0 ? []
+            : await db.MediaItems.Where(i => itemIds.Contains(i.Id)).Select(FactOf(me)).ToDictionaryAsync(f => f.Id, ct);
+        var byCollection = entries.Where(e => facts.ContainsKey(e.MediaItemId)).ToLookup(e => e.CollectionId);
+
+        var hidden = collections.Any(c => c.MissingJson is not null) ? await LibraryVisibility.HiddenTypesAsync(db, ct) : null;
+        var summaries = new List<CollectionSummaryDto>();
+        foreach (var c in collections)
         {
-            missing = 0;
+            var missing = c.MissingJson is null || hidden!.Hides(MediaKind.Movie) ? 0 : JsonSerializer.Deserialize<List<MissingFilm>>(c.MissingJson, FranchiseSync.Json)!.Count;
+            if (c.Kind == CollectionKind.Smart)
+            {
+                // A broad rule can match thousands: count them in the database and fetch only the four posters.
+                var matches = (Rules(c) ?? new SmartRules()).Query(db, me, DateTime.UtcNow);
+                var count = await matches.CountAsync(ct);
+                var watched = await matches.Where(WatchedBy(me)).CountAsync(ct);
+                var first = await matches.Where(i => i.PosterUrl != null).Take(4).Select(FactOf(me)).ToListAsync(ct);
+                summaries.Add(Summary(profile, c, count, watched, Posters(first), missing));
+                continue;
+            }
+
+            var items = byCollection[c.Id].OrderBy(e => e.Position).Select(e => facts[e.MediaItemId]).ToList();
+            summaries.Add(Summary(profile, c, items.Count, items.Count(i => i.Watched), Posters(items.Where(i => i.HasPoster).Take(4)), missing));
         }
 
-        return Summary(profile, c, items, missing);
+        return summaries;
     }
 
-    private static CollectionSummaryDto Summary(CurrentProfile profile, Collection c, List<ItemSummaryDto> items, int missing) => new(
-        c.Id, c.Name, c.Description, c.Kind, c.OwnerProfileId != null, CanEdit(profile, c), items.Count, items.Count(i => i.UserData.Watched), missing,
-        items.Select(i => i.Artwork.Poster).OfType<string>().Take(4).ToList(), Remote(c.PosterUrl), c.ShowOnHome, c.Hidden);
+    private static List<string> Posters(IEnumerable<ItemFact> items) =>
+        items.Select(i => ArtworkUrls.For(i.Id, i.MetadataUpdatedAt == null ? 0 : i.MetadataUpdatedAt.Value.Ticks / 10_000_000, true, false, false, false).Poster!).ToList();
+
+    /// <summary>Watched as <see cref="FactOf"/> works it out: a show once every episode is.</summary>
+    private static System.Linq.Expressions.Expression<Func<MediaItem, bool>> WatchedBy(string profileId) => i =>
+        i.Kind == MediaKind.Series
+            ? !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+            : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched);
+
+    /// <summary>Just enough of a title for a collection's counts and poster: watched works as it does in summaries.</summary>
+    private sealed record ItemFact(Guid Id, bool HasPoster, DateTime? MetadataUpdatedAt, bool Watched);
+
+    private static System.Linq.Expressions.Expression<Func<MediaItem, ItemFact>> FactOf(string profileId) => i => new ItemFact(
+        i.Id, i.PosterUrl != null, i.MetadataUpdatedAt,
+        i.Kind == MediaKind.Series
+            ? !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+            : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched));
+
+    private static CollectionSummaryDto Summary(CurrentProfile profile, Collection c, List<ItemSummaryDto> items, int missing) =>
+        Summary(profile, c, items.Count, items.Count(i => i.UserData.Watched), items.Select(i => i.Artwork.Poster).OfType<string>().Take(4).ToList(), missing);
+
+    private static CollectionSummaryDto Summary(CurrentProfile profile, Collection c, int count, int watched, IReadOnlyList<string> posters, int missing) => new(
+        c.Id, c.Name, c.Description, c.Kind, c.OwnerProfileId != null, CanEdit(profile, c), count, watched, missing,
+        posters, Remote(c.PosterUrl), c.ShowOnHome, c.Hidden);
+
 
     private static SmartRules? Rules(Collection c) => c.RulesJson is null ? null : JsonSerializer.Deserialize<SmartRules>(c.RulesJson, FranchiseSync.Json);
 
-    private static string? Remote(string? url) => url is null ? null : $"/api/v1/images/remote?url={Uri.EscapeDataString(url)}";
+    private static string? Remote(string? url) => ImageEndpoints.RemoteUrl(url);
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { getMe, getProfiles, saveProfileToken, selectProfile } from '../api/client'
+import { askForProfile, selectProfile, signOut } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
-import { useApi } from '../hooks/useApi'
+import { useSession } from '../hooks/sessionContext'
 import { Gear, Search } from './icons'
 import { AddToCollectionHost } from './AddToCollection'
 import { NowPlaying } from './NowPlaying'
@@ -14,12 +14,15 @@ export function Layout() {
   const [scrolled, setScrolled] = useState(false)
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
-  const profiles = useApi(getProfiles, [])
-  const access = useApi(getMe, [])
+  const { me: access, profiles } = useSession()
   // Older servers have no /me; assume admin there, as before.
-  const isAdmin = access.data?.isAdmin ?? true
-  const me = profiles.data?.find((p) => p.isCurrent)
-  const other = profiles.data?.length === 2 ? profiles.data.find((p) => !p.isCurrent) : undefined
+  const isAdmin = access?.isAdmin ?? true
+  // Over Tailscale the owner's account isn't admin until the main profile's PIN is given; Settings explains how.
+  const ownerOverTailscale = access?.method === 'tailscale' && access.profileId === 'owner'
+  const me = profiles?.find((p) => p.isCurrent)
+  const other = profiles?.length === 2 ? profiles.find((p) => !p.isCurrent) : undefined
+  // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
+  const canSignOut = access?.method === 'session'
   const location = useLocation()
 
   // The profile menu closes on a click anywhere outside it, or Escape.
@@ -92,12 +95,12 @@ export function Layout() {
             <span>Search</span>
             <kbd>⌘K</kbd>
           </button>
-          {isAdmin && (
+          {(isAdmin || ownerOverTailscale) && (
             <NavLink to="/settings" className="icon-button" aria-label="Settings">
               <Gear />
             </NavLink>
           )}
-          {me && profiles.data && profiles.data.length > 1 && (
+          {me && profiles && (profiles.length > 1 || canSignOut) && (
             <div className="profile-menu-anchor" ref={profileAnchor}>
               <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
                 <Avatar profile={me} size={34} />
@@ -105,28 +108,46 @@ export function Layout() {
               {profileMenu && (
                 <div className="profile-menu" role="menu">
                   <p className="muted">Watching as {me.name}</p>
-                  <button
-                    role="menuitem"
-                    onClick={async () => {
-                      // With just one other profile and no PIN to ask for, switch straight to it.
-                      if (other && !other.hasPin) {
-                        await selectProfile(other.id)
-                        sessionStorage.setItem('flexarr.profileChosen', '1')
-                      } else {
-                        // Back to the picker: forget this device's choice.
-                        saveProfileToken(null)
-                        sessionStorage.removeItem('flexarr.profileChosen')
-                      }
-                      // Reload everything for the new profile.
-                      window.location.assign('/')
-                    }}
-                  >
-                    {other && !other.hasPin ? `Switch to ${other.name}` : 'Switch profile'}
-                  </button>
+                  {profiles.length > 1 && (
+                    <button
+                      role="menuitem"
+                      onClick={async () => {
+                        // With just one other profile and no PIN to ask for, switch straight to it.
+                        if (other && !other.hasPin) {
+                          // Refused (over Tailscale, a main profile without a PIN): the picker says why.
+                          await selectProfile(other.id).then(
+                            () => sessionStorage.setItem('flexarr.profileChosen', '1'),
+                            () => askForProfile(),
+                          )
+                        } else {
+                          // Back to the picker, even over Tailscale where the account already says who's watching.
+                          askForProfile()
+                        }
+                        // Reload everything for the new profile.
+                        window.location.assign('/')
+                      }}
+                    >
+                      {other && !other.hasPin ? `Switch to ${other.name}` : 'Switch profile'}
+                    </button>
+                  )}
                   {isAdmin && (
                     <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>
                       Manage profiles
                     </Link>
+                  )}
+                  {canSignOut && (
+                    <button
+                      role="menuitem"
+                      onClick={async () => {
+                        if (!confirm('Sign out of this browser? Signing in again takes the API key.')) return
+                        setProfileMenu(false)
+                        // Whatever the server says, start again from the top: the sign-in page if it's needed.
+                        await signOut().catch(() => undefined)
+                        window.location.assign('/')
+                      }}
+                    >
+                      Sign out of this browser
+                    </button>
                   )}
                 </div>
               )}

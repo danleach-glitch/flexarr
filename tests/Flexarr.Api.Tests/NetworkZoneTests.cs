@@ -1,6 +1,8 @@
 using System.Net;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -38,5 +40,36 @@ public class NetworkZoneTests
         http.Request.Headers["X-Forwarded-For"] = "203.0.113.9";
 
         Assert.Equal(NetworkZone.Internet, NetworkZones.Of(http));
+    }
+
+    [Theory]
+    [InlineData(false, NetworkZone.Local)]
+    [InlineData(true, NetworkZone.Internet)]
+    public void PlainLoopback_CountsAsTheInternet_WhenAProxyHereMustSayWhoItsFor(bool loopbackNeedsForwarding, NetworkZone expected)
+    {
+        // What a bare `proxy_pass http://127.0.0.1:8383;` sends: nothing about the visitor.
+        var services = new ServiceCollection().AddOptions().Configure<FlexarrOptions>(o => o.LoopbackNeedsForwarding = loopbackNeedsForwarding);
+        var http = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() };
+        http.Connection.RemoteIpAddress = IPAddress.Loopback;
+
+        Assert.Equal(expected, NetworkZones.Of(http));
+    }
+
+    [Theory]
+    [InlineData("192.168.1.10:8383", true)]
+    [InlineData("[fd7a:115c:a1e0::1]:8443", true)]
+    [InlineData("localhost:5173", true)]
+    [InlineData("mini", true)]
+    [InlineData("Mac-mini.local", true)]
+    [InlineData("flexarr.tail1234.ts.net", true)]
+    [InlineData("media.example.com", true)] // listed in KnownHosts
+    [InlineData("attacker.example", false)]
+    [InlineData("mini.local.attacker.example", false)]
+    public void KnowsWhichNamesAreItsOwn(string host, bool known)
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Host = HostString.FromUriComponent(host);
+
+        Assert.Equal(known, NetworkZones.AddressedToKnownHost(http, ["media.example.com"]));
     }
 }

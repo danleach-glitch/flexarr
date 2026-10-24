@@ -13,7 +13,9 @@ public sealed record PlaybackRequest(
     long? MaxBitrate = null,
     int? MaxHeight = null,
     double? StartPositionSeconds = null,
-    bool ForceTranscode = false);
+    bool ForceTranscode = false,
+    // The session this one takes over from (an audio switch, a recovery), ended before this one starts.
+    string? ReplacesSessionId = null);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 

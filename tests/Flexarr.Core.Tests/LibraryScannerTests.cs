@@ -80,7 +80,7 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Rescan_SkipsUnchanged_ProbesChanged_RemovesMissingAndPrunes()
+    public async Task Rescan_SkipsUnchanged_ProbesChanged_HidesMissing_ThenPrunesAfterGracePeriod()
     {
         var root = Touch(
             "tv/Show/Season 01/Show - S01E01.mkv",
@@ -94,10 +94,414 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Directory.Delete(Path.Combine(root, "tv/Other"), recursive: true);
         var result = await Scanner().ScanAsync(library, null, default);
 
-        Assert.Equal((0, 1, 1, 1), (result.Added, result.Updated, result.Removed, result.Unchanged));
+        Assert.Equal((0, 1, 0, 1, 1), (result.Added, result.Updated, result.Removed, result.Unchanged, result.Missing));
         Assert.Equal(1, _probe.Calls);
-        Assert.False(await _db.MediaItems.AnyAsync(i => i.Title == "Other"), "empty series should be pruned");
+        Assert.False(await _db.MediaItems.AnyAsync(i => i.Title == "Other"), "a series whose files are gone should be hidden");
         Assert.Equal(2, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
+        Assert.Equal(3, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.Kind == MediaKind.Episode));
+
+        // Still gone after the grace period: removed for good.
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow - LibraryScanner.MissingGracePeriod - TimeSpan.FromMinutes(1)));
+        var later = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(1, later.Removed);
+        Assert.False(await _db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.Title == "Other"), "empty series should be pruned");
+        Assert.Equal(2, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.Kind == MediaKind.Episode));
+    }
+
+    [Fact]
+    public async Task MissingFile_ThatComesBack_KeepsItsItemAndWatchState()
+    {
+        var root = Touch("movies/Dune (2021)/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = dune.Id, Watched = true, PlayCount = 1 });
+        await _db.SaveChangesAsync();
+
+        // Mid-upgrade: the old file is deleted before the new one has finished copying in.
+        var file = Path.Combine(root, "movies/Dune (2021)/Dune (2021).mkv");
+        File.Move(file, file + ".partial");
+        var during = await Scanner().ScanAsync(library, Path.Combine(root, "movies/Dune (2021)"), default);
+        Assert.Equal((0, 1), (during.Removed, during.Missing));
+        Assert.False(await _db.MediaItems.AnyAsync(i => i.Id == dune.Id), "a film with no files should be hidden");
+        Assert.True(await _db.MediaItems.AnyAsync(i => i.Title == "Heat"));
+
+        File.Move(file + ".partial", Path.Combine(root, "movies/Dune (2021)/Dune (2021) [Remux-2160p].mkv"));
+        await Scanner().ScanAsync(library, Path.Combine(root, "movies/Dune (2021)"), default);
+
+        _db.ChangeTracker.Clear(); // The scanner shared this context; read back what was saved.
+        var back = await _db.MediaItems.Include(i => i.Files).SingleAsync(i => i.Title == "Dune");
+        Assert.Equal(dune.Id, back.Id);
+        Assert.EndsWith("[Remux-2160p].mkv", Assert.Single(back.Files).Path, StringComparison.Ordinal);
+        Assert.True((await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == dune.Id)).Watched);
+    }
+
+    [Fact]
+    public async Task EmptyRoot_HidesAndRemovesNothing()
+    {
+        var root = Touch("tv/A/Season 01/A - S01E01.mkv", "tv/B/Season 01/B - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.Where(f => f.Path.Contains("/B/")).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-30)));
+
+        // An unmounted share leaves its (empty) mount point behind.
+        Directory.Delete(Path.Combine(tv, "A"), recursive: true);
+        Directory.Delete(Path.Combine(tv, "B"), recursive: true);
+        var full = await Scanner().ScanAsync(library, null, default);
+        var scoped = await Scanner().ScanAsync(library, Path.Combine(tv, "A"), default);
+
+        Assert.Equal((0, 0, 0, 0), (full.Removed, full.Missing, scoped.Removed, scoped.Missing));
+        Assert.Equal(1, await _db.MediaFiles.CountAsync());
+        Assert.Equal(2, await _db.MediaFiles.IgnoreQueryFilters().CountAsync()); // Not even long-missing files go.
+    }
+
+    [Fact]
+    public async Task MostOfALibraryVanishing_HidesNothing()
+    {
+        var root = Touch(Enumerable.Range(1, 12).Select(n => $"movies/Film {n} (2000)/Film {n} (2000).mkv").ToArray());
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+
+        for (var n = 1; n <= 7; n++)
+        {
+            Directory.Delete(Path.Combine(movies, $"Film {n} (2000)"), recursive: true);
+        }
+
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(0, result.Missing);
+        Assert.Equal(12, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie));
+    }
+
+    [Fact]
+    public async Task MostOfALibraryVanishing_GoesThrough_OnceScansHaveFoundTheSameForADay()
+    {
+        var root = Touch(Enumerable.Range(1, 12).Select(n => $"movies/Film {n} (2000)/Film {n} (2000).mkv").ToArray());
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        for (var n = 1; n <= 7; n++)
+        {
+            Directory.Delete(Path.Combine(movies, $"Film {n} (2000)"), recursive: true);
+        }
+
+        var first = await Scanner().ScanAsync(library, null, default);
+        var second = await Scanner().ScanAsync(library, null, default);
+        var folder = await _db.LibraryFolders.SingleAsync();
+        Assert.Equal((0, 0, FolderHold.MostFilesGone, 7, 12, 2), (first.Missing, second.Missing, folder.Hold, folder.HeldMissing, folder.HeldKnown, folder.HeldScans));
+
+        // A third scan with the same result, a day after the first: a clear-out, not a hiccup.
+        folder.HeldSince = DateTime.UtcNow - LibraryScanner.SettledAfter - TimeSpan.FromMinutes(1);
+        await _db.SaveChangesAsync();
+        var third = await Scanner().ScanAsync(library, null, default);
+        var fourth = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((7, 0), (third.Missing, fourth.Missing));
+        Assert.Equal(5, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie));
+        Assert.Null((await _db.LibraryFolders.AsNoTracking().SingleAsync()).Hold);
+    }
+
+    [Fact]
+    public async Task ARemovalConfirmedWhileAScanFindsNewNumbers_DoesNotLetThemThrough()
+    {
+        var root = Touch(Enumerable.Range(1, 12).Select(n => $"movies/Film {n} (2000)/Film {n} (2000).mkv").ToArray());
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        for (var n = 1; n <= 7; n++)
+        {
+            Directory.Delete(Path.Combine(movies, $"Film {n} (2000)"), recursive: true);
+        }
+
+        await Scanner().ScanAsync(library, null, default); // Held: 7 of 12 gone.
+
+        // Someone confirms the 7 just as a scan, which has the folder loaded already, finds an 8th gone.
+        await using (var other = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>()
+            .UseSqlite($"Data Source={Path.Combine(_dir, "test.db")}").Options))
+        {
+            await other.LibraryFolders.ExecuteUpdateAsync(u => u.SetProperty(f => f.RemovalConfirmed, true));
+        }
+
+        Directory.Delete(Path.Combine(movies, "Film 8 (2000)"), recursive: true);
+        var during = await Scanner().ScanAsync(library, null, default);
+        var queued = await Scanner().ScanAsync(library, null, default); // The scan the confirmation queued.
+
+        var folder = await _db.LibraryFolders.AsNoTracking().SingleAsync();
+        Assert.Equal((0, 0), (during.Missing, queued.Missing));
+        Assert.Equal((FolderHold.MostFilesGone, 8, false), (folder.Hold, folder.HeldMissing, folder.RemovalConfirmed));
+    }
+
+    [Fact]
+    public async Task EmptiedFolder_StaysHeld_UntilTheRemovalIsConfirmed_ThenGoesAfterTheGracePeriod()
+    {
+        var root = Touch("movies/A (2001)/A (2001).mkv", "movies/B (2002)/B (2002).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        Directory.Delete(Path.Combine(movies, "A (2001)"), recursive: true);
+        Directory.Delete(Path.Combine(movies, "B (2002)"), recursive: true);
+
+        // However long it's been: an empty folder may be a mount point whose drive is away.
+        await Scanner().ScanAsync(library, null, default);
+        var folder = await _db.LibraryFolders.SingleAsync();
+        folder.HeldSince = DateTime.UtcNow.AddDays(-5);
+        folder.HeldScans = 20;
+        await _db.SaveChangesAsync();
+        var held = await Scanner().ScanAsync(library, null, default);
+        Assert.Equal((0, FolderHold.FolderEmpty, 2), (held.Missing, folder.Hold, folder.HeldMissing));
+
+        folder.RemovalConfirmed = true; // Library health's "Confirm removal".
+        await _db.SaveChangesAsync();
+        var confirmed = await Scanner().ScanAsync(library, null, default);
+        Assert.Equal(2, confirmed.Missing);
+        Assert.False(await _db.MediaItems.AnyAsync());
+
+        // Still empty, but already let through: not held again, so the files go once their grace period is up.
+        await _db.MediaFiles.IgnoreQueryFilters().ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        var later = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(2, later.Removed);
+        Assert.Null((await _db.LibraryFolders.AsNoTracking().SingleAsync()).Hold);
+    }
+
+    [Fact]
+    public async Task FolderEmptiedByRadarr_IsHidden_ButNotByAPlainScan()
+    {
+        var root = Touch("movies/Only (2001)/Only (2001).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        Directory.Delete(Path.Combine(movies, "Only (2001)"), recursive: true);
+
+        var plain = await Scanner().ScanAsync(library, Path.Combine(movies, "Only (2001)"), default);
+        var deleted = await Scanner().ScanAsync(library, Path.Combine(movies, "Only (2001)"), retryFailedProbes: false, deleted: true, default);
+        var full = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((0, 1), (plain.Missing, deleted.Missing));
+        Assert.False(await _db.MediaItems.AnyAsync());
+        Assert.Null((await _db.LibraryFolders.AsNoTracking().SingleAsync()).Hold); // The full scan after doesn't hold it either.
+        Assert.Equal(0, full.Missing);
+    }
+
+    [Fact]
+    public async Task OneTitleDeletedByRadarr_WhileTheFolderLooksUnmounted_LetsOnlyThatTitleGo()
+    {
+        var root = Touch("movies/A (2001)/A (2001).mkv", "movies/B (2002)/B (2002).mkv", "movies/C (2003)/C (2003).mkv", "movies/Old (1990)/Old (1990).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        Directory.Delete(Path.Combine(movies, "Old (1990)"), recursive: true);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddHours(-23)));
+
+        // The share drops; Radarr, which still sees it, deletes A.
+        foreach (var film in new[] { "A (2001)", "B (2002)", "C (2003)" })
+        {
+            Directory.Delete(Path.Combine(movies, film), recursive: true);
+        }
+
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        var deleted = await Scanner().ScanAsync(library, Path.Combine(movies, "A (2001)"), retryFailedProbes: false, deleted: true, default);
+        var folder = await _db.LibraryFolders.AsNoTracking().SingleAsync();
+        var full = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((1, 0), (deleted.Missing, deleted.Removed)); // Nothing purged while the folder looks unmounted.
+        Assert.Equal((FolderHold.FolderEmpty, (DateTime?)null), (folder.Hold, folder.ReleasedAt));
+        Assert.Equal(0, full.Missing);
+        Assert.Equal(["B", "C"], await _db.MediaItems.OrderBy(i => i.Title).Select(i => i.Title).ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeletedFolder_SentInAnotherUnicodeSpelling_IsHidden()
+    {
+        var decomposed = "Léon".Normalize(System.Text.NormalizationForm.FormD);
+        var root = Touch($"tv/{decomposed}/Season 01/{decomposed} - S01E01.mkv", "tv/Other/Season 01/Other - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+
+        Directory.Delete(Path.Combine(tv, decomposed), recursive: true);
+        var result = await Scanner().ScanAsync(library, Path.Combine(tv, "Léon".Normalize(System.Text.NormalizationForm.FormC)), default);
+
+        Assert.Equal(1, result.Missing);
+        Assert.Equal(["Other"], await _db.MediaItems.Where(i => i.Kind == MediaKind.Series).Select(i => i.Title).ToListAsync());
+    }
+
+    [Fact]
+    public async Task FilmBackUnderANewFolder_KeepsItsWatchStateAndCollections()
+    {
+        var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        var collection = new Collection { Name = "Sci-fi" };
+        _db.Collections.Add(collection);
+        _db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, MediaItemId = dune.Id, Position = 3 });
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = dune.Id, Watched = true, PlayCount = 2 });
+        await _db.SaveChangesAsync();
+
+        // Radarr renames the folder.
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        var renamed = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Movie && i.TmdbId == "438631");
+        Assert.NotEqual(dune.Id, renamed.Id);
+        Assert.True((await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == renamed.Id)).Watched);
+        Assert.Equal(3, (await _db.CollectionItems.SingleAsync(c => c.MediaItemId == renamed.Id)).Position);
+    }
+
+    [Fact]
+    public async Task FilmBackUnderANewFolder_IsHandedOverOnce()
+    {
+        var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = dune.Id, Watched = true, PlayCount = 2 });
+        await _db.SaveChangesAsync();
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+
+        // Watched again from the start under its new folder, then a scan while the old item waits out its grace period.
+        _db.ChangeTracker.Clear();
+        var renamed = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Movie && i.TmdbId == "438631");
+        await _db.PlaybackStates.Where(p => p.MediaItemId == renamed.Id).ExecuteDeleteAsync();
+        await Scanner().ScanAsync(library, null, default);
+
+        Assert.False(await _db.PlaybackStates.AnyAsync(p => p.MediaItemId == renamed.Id));
+        Assert.NotNull((await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().SingleAsync(i => i.Id == dune.Id)).HandedOverAt);
+    }
+
+    [Fact]
+    public async Task ShowBackUnderANewFolder_KeepsTheHistoryOfEpisodesThatArriveLater()
+    {
+        var root = Touch("tv/Show {tvdb-81189}/Season 01/Show - S01E01.mkv", "tv/Show {tvdb-81189}/Season 01/Show - S01E02.mkv", "tv/Other/Season 01/Other - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+        var episodes = await _db.MediaItems.Where(i => i.Kind == MediaKind.Episode && i.Parent!.Parent!.TvdbId == "81189").ToListAsync();
+        _db.PlaybackStates.AddRange(episodes.Select(e => new PlaybackState { MediaItemId = e.Id, Watched = true, PlayCount = e.EpisodeNumber!.Value }));
+        await _db.SaveChangesAsync();
+
+        // Sonarr moves the show to a new folder, the second episode a little after the first.
+        var moved = Path.Combine(tv, "Show (2008) {tvdb-81189}", "Season 01");
+        Directory.CreateDirectory(moved);
+        File.Move(Path.Combine(tv, "Show {tvdb-81189}", "Season 01", "Show - S01E01.mkv"), Path.Combine(moved, "Show - S01E01.mkv"));
+        File.Move(Path.Combine(tv, "Show {tvdb-81189}", "Season 01", "Show - S01E02.mkv"), Path.Combine(root, "E02.mkv"));
+        Directory.Delete(Path.Combine(tv, "Show {tvdb-81189}"), recursive: true);
+        await Scanner().ScanAsync(library, null, default);
+        File.Move(Path.Combine(root, "E02.mkv"), Path.Combine(moved, "Show - S01E02.mkv"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        var counts = await _db.PlaybackStates.Where(p => p.MediaItem!.MissingSince == null && p.MediaItem.Parent!.Parent!.Path!.EndsWith("Show (2008) {tvdb-81189}"))
+            .OrderBy(p => p.MediaItem!.EpisodeNumber).Select(p => p.PlayCount).ToListAsync();
+        Assert.Equal([1, 2], counts);
+        Assert.Equal(0, await _db.WatchTombstones.CountAsync());
+    }
+
+    [Fact]
+    public async Task HandedOverTitles_AreNotTombstonedAgain_WhenTheOldItemsArePurged()
+    {
+        var root = Touch("tv/Show {tvdb-81189}/Season 01/Show - S01E01.mkv", "tv/Show {tvdb-81189}/Season 01/Show - S01E02.mkv", "tv/Other/Season 01/Other - S01E01.mkv",
+            "movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
+        var tv = Path.Combine(root, "tv");
+        var movies = Path.Combine(root, "movies");
+        var shows = await AddLibrary(LibraryType.TvShows, tv);
+        var films = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(shows, null, default);
+        await Scanner().ScanAsync(films, null, default);
+        var watched = await _db.MediaItems.Where(i => (i.Kind == MediaKind.Episode && i.Parent!.Parent!.TvdbId == "81189") || i.Title == "Dune").ToListAsync();
+        _db.PlaybackStates.AddRange(watched.Select(e => new PlaybackState { MediaItemId = e.Id, Watched = true }));
+        await _db.SaveChangesAsync();
+
+        // Sonarr moves the show but only the first episode comes with it; Radarr renames the film's folder.
+        var moved = Path.Combine(tv, "Show (2008) {tvdb-81189}", "Season 01");
+        Directory.CreateDirectory(moved);
+        File.Move(Path.Combine(tv, "Show {tvdb-81189}", "Season 01", "Show - S01E01.mkv"), Path.Combine(moved, "Show - S01E01.mkv"));
+        Directory.Delete(Path.Combine(tv, "Show {tvdb-81189}"), recursive: true);
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(shows, null, default);
+        await Scanner().ScanAsync(films, null, default);
+        Assert.Equal(1, await _db.WatchTombstones.CountAsync()); // the second episode, for when it's back
+
+        // The old show and film wait out their grace period, then go.
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        await Scanner().ScanAsync(shows, null, default);
+        await Scanner().ScanAsync(films, null, default);
+
+        Assert.False(await _db.MediaItems.IgnoreQueryFilters().AnyAsync(i => watched.Select(w => w.Id).Contains(i.Id)));
+        var tombstones = await _db.WatchTombstones.ToListAsync();
+        Assert.Equal((MediaKind.Episode, 2), (Assert.Single(tombstones).Kind, tombstones[0].EpisodeNumber!.Value));
+    }
+
+    [Fact]
+    public async Task FilmBackAfterItWasRemoved_GetsItsWatchStateBackFromTheTombstone()
+    {
+        var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv", "movies/Up (2009)/Up (2009).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = dune.Id, PositionSeconds = 600 });
+        await _db.SaveChangesAsync();
+
+        var away = Path.Combine(root, "away");
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), away);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        await Scanner().ScanAsync(library, null, default);
+        Assert.False(await _db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.Id == dune.Id));
+        Assert.Equal(1, await _db.WatchTombstones.CountAsync());
+
+        Directory.Move(away, Path.Combine(movies, "Dune (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        var back = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        Assert.Equal(600, (await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == back.Id)).PositionSeconds);
+        Assert.Equal(0, await _db.WatchTombstones.CountAsync());
+    }
+
+    [Fact]
+    public async Task ScopedScan_WithOtherUnicodeSpelling_MatchesTheExistingSeries()
+    {
+        var decomposed = "Léon";
+        var composed = decomposed.Normalize(System.Text.NormalizationForm.FormC);
+        var root = Touch($"tv/{decomposed}/Season 01/{decomposed} - S01E01.mkv");
+        var tv = Path.Combine(root, "tv");
+        var library = await AddLibrary(LibraryType.TvShows, tv);
+        await Scanner().ScanAsync(library, null, default);
+
+        var result = await Scanner().ScanAsync(library, Path.Combine(tv, composed), default);
+
+        Assert.Equal((0, 1, 0), (result.Added, result.Unchanged, result.Missing));
+        Assert.Equal(1, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.Kind == MediaKind.Series));
+        Assert.Equal(1, await _db.MediaFiles.IgnoreQueryFilters().CountAsync());
+    }
+
+    [Fact]
+    public async Task Scope_EscapingTheRoot_IsIgnored()
+    {
+        var root = Touch("tv/A/Season 01/A - S01E01.mkv", "elsewhere/B/Season 01/B - S01E01.mkv");
+        var library = await AddLibrary(LibraryType.TvShows, Path.Combine(root, "tv"));
+
+        var result = await Scanner().ScanAsync(library, Path.Combine(root, "tv", "..", "elsewhere", "B"), default);
+
+        Assert.Equal(0, result.Added);
+        Assert.False(await _db.MediaFiles.AnyAsync());
     }
 
     [Fact]
@@ -128,18 +532,21 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ProbeFailure_StillAddsFile_AndRetriesNextScan()
+    public async Task ProbeFailure_StillAddsFile_AndRetriesWhenChangedOrAsked()
     {
         var root = Touch("movies/Broken (2020)/Broken (2020).mkv");
         var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
         _probe.Fail = true;
 
         var first = await Scanner().ScanAsync(library, null, default);
+        var unchanged = await Scanner().ScanAsync(library, null, default);
         _probe.Fail = false;
-        var second = await Scanner().ScanAsync(library, null, default);
+        var asked = await Scanner().ScanAsync(library, null, retryFailedProbes: true, default);
 
         Assert.Equal((1, 1), (first.Added, first.ProbeFailures));
-        Assert.Equal(1, second.Updated);
+        Assert.Equal((1, 0), (unchanged.Unchanged, unchanged.ProbeFailures));
+        Assert.Equal(2, _probe.Calls);
+        Assert.Equal(1, asked.Updated);
         Assert.Null((await _db.MediaFiles.SingleAsync()).ProbeError);
     }
 

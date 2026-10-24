@@ -79,7 +79,9 @@ public sealed record ItemDetailDto(
     IReadOnlyList<CreditDto> Credits,
     IReadOnlyList<FileDto> Files,
     IReadOnlyDictionary<Guid, string?> ChildOverviews,
-    bool MatchLocked);
+    bool MatchLocked,
+    ItemSummaryDto? NextUp = null,
+    ItemDetailDto? Season = null);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 

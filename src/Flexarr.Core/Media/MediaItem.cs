@@ -53,6 +53,19 @@ public sealed class MediaItem
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     public List<MediaFile> Files { get; set; } = [];
 
+    /// <summary>
+    /// When all of this item's files (or children) went missing from disk. Missing items are hidden everywhere but
+    /// kept, with their watch history and collections, so they come back as they were if the files reappear
+    /// (a drive that hadn't mounted, a file mid-upgrade); the scanner removes them after a grace period.
+    /// </summary>
+    public DateTime? MissingSince { get; set; }
+
+    /// <summary>
+    /// When this missing item's watch history and collections were handed to the title that replaced it (see
+    /// <see cref="Scanning.WatchHistoryCarryOver"/>). It isn't handed over again unless it comes back and goes missing anew.
+    /// </summary>
+    public DateTime? HandedOverAt { get; set; }
+
     // ---- Metadata (filled by metadata providers; null until then) ----
 
     public string? OriginalTitle { get; set; }

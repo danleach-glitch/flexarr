@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261024090615_MatchLock")]
-    partial class MatchLock
+    [Migration("20261024104034_FolderHoldsAndWatchTombstones")]
+    partial class FolderHoldsAndWatchTombstones
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -53,12 +53,34 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("HeldKnown")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HeldMissing")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HeldScans")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("HeldSince")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hold")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("LibraryId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Path")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReleasedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("RemovalConfirmed")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -227,6 +249,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid>("MediaItemId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("MissingSince")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("ModifiedAt")
                         .HasColumnType("TEXT");
 
@@ -314,13 +339,13 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("LogoUrl")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("MatchLocked")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("MetadataSource")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("MetadataUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("MissingSince")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MusicBrainzId")
@@ -602,6 +627,49 @@ namespace Flexarr.Core.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.WatchTombstone", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("AirDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImdbId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RemovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TmdbId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TvdbId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImdbId");
+
+                    b.HasIndex("TmdbId");
+
+                    b.HasIndex("TvdbId");
+
+                    b.ToTable("WatchTombstones");
+                });
+
             modelBuilder.Entity("GenreMediaItem", b =>
                 {
                     b.Property<int>("GenresId")
@@ -730,6 +798,72 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.WatchTombstone", b =>
+                {
+                    b.OwnsMany("Flexarr.Core.Media.TombstoneCollection", "Collections", b1 =>
+                        {
+                            b1.Property<int>("WatchTombstoneId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<Guid>("CollectionId");
+
+                            b1.Property<int>("Position");
+
+                            b1.HasKey("WatchTombstoneId", "__synthesizedOrdinal");
+
+                            b1.ToTable("WatchTombstones");
+
+                            b1
+                                .ToJson("Collections")
+                                .HasColumnType("TEXT");
+
+                            b1.WithOwner()
+                                .HasForeignKey("WatchTombstoneId");
+                        });
+
+                    b.OwnsMany("Flexarr.Core.Media.TombstonePlayback", "Playback", b1 =>
+                        {
+                            b1.Property<int>("WatchTombstoneId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("AudioLanguage");
+
+                            b1.Property<double?>("DurationSeconds");
+
+                            b1.Property<DateTime>("LastPlayedAt");
+
+                            b1.Property<int>("PlayCount");
+
+                            b1.Property<double>("PositionSeconds");
+
+                            b1.Property<string>("SubtitleLanguage");
+
+                            b1.Property<string>("UserId")
+                                .IsRequired();
+
+                            b1.Property<bool>("Watched");
+
+                            b1.HasKey("WatchTombstoneId", "__synthesizedOrdinal");
+
+                            b1.ToTable("WatchTombstones");
+
+                            b1
+                                .ToJson("Playback")
+                                .HasColumnType("TEXT");
+
+                            b1.WithOwner()
+                                .HasForeignKey("WatchTombstoneId");
+                        });
+
+                    b.Navigation("Collections");
+
+                    b.Navigation("Playback");
                 });
 
             modelBuilder.Entity("GenreMediaItem", b =>

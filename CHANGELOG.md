@@ -12,11 +12,107 @@ What's changed in Flexarr, newest first.
 
 ### Fixed: shows matched to the wrong title by a search
 - Shows and films that Sonarr and Radarr didn't have were matched by searching for the folder's name and taking the first result, so *Shōgun* (2024) came up as *Shogun* (1980). The search now prefers a result with exactly the same title, accents included.
-- A title found by search was then left alone for a week. Now it's checked against Sonarr and Radarr on every refresh, so it switches to their match as soon as they have it.
+- A title found by search was then left alone for a week. Now it's checked against Sonarr and Radarr every day, and straight away when they tell Flexarr they've added it, so it switches to their match.
+
+### Fourth pass: clearer screens, and fixes found by a UX review
+- **Apple TV:** if it's signed out from the web, it goes back to the connect screen with a new code instead of getting stuck on an error. If it can't find your server it tells you what to check, a replaced connect code is marked **New code**, and posters the server was too busy for appear a few seconds later.
+- **Another screen took over:** Flexarr says so plainly and offers **Watch here instead**, which tells you the other screen will stop. When the server is busy, the message says so in plain words and **Try again** no longer stops anyone else.
+- **PIN pad:** it has a **Delete** key, Escape takes you back, and on a phone it no longer sits under the phone's keyboard. It shows "Checking…", counts down after too many wrong PINs, and for the main profile offers the API key instead.
+- **Profiles:** editing one profile and then another no longer saves the first one's settings (such as hidden libraries) onto the second. The form asks for a new PIN twice, names each colour and gives new profiles a colour of their own.
+- **Getting back to the main profile:** Settings on another profile has a **Switch to the main profile** button that brings you back. Any profile can sign a browser out from the profile menu, and the sign-in page explains where to get the key in plain words.
+- **Server settings:** making a new key says how many browsers and TVs were signed out, with **Copy** and **Hide**. Signed-in browsers and TVs can be renamed, repeats are grouped, and you can sign out every other one at once.
+- **Connecting a TV:** the code is shown large, **Don't allow** makes the TV show a new code, and another profile gets a button to the main profile and back.
+- **Library health:** folders on hold use clearer wording ("Remove 4 films from Films?"), Escape closes the dialog, and the score card mentions them. The score no longer drops for missing artwork when Radarr or Sonarr isn't connected.
+- **Libraries:** going back puts keyboard focus on the title you opened. The A–Z letters are bigger, grey out letters with no titles and show "Loading…" for a far-off letter, and phones get a **Jump to…** picker.
+- **Security:** connecting more TVs or signing in more browsers no longer gives more guesses at the main profile's PIN, at most ten TVs can be connected an hour, and a browser signed in with the main PIN over Tailscale only works for that Tailscale account.
+- **Reliability:** an interrupted deploy no longer leaves a server that won't start, one broken artwork download no longer stops a metadata refresh, and posters that can't be found come back straight away.
+- On phones the bottom tab bar fades at the edge to show it scrolls, and Home says "Latest unwatched films".
+
+### Third pass: sign-in, streams and libraries
+- Away from home over Tailscale, you can now get to Settings by choosing the main profile with its PIN, from **Switch profile** or from the Settings page. That browser then stays signed in, shows under signed-in browsers, can be signed out there, and is signed out after two weeks unused or when the main PIN changes. Browsers no longer keep a reusable key for the main profile; if an earlier version stored one, you'll be asked for the PIN again (or tap **Not now**).
+- Changing or removing the main profile's PIN now asks for the current PIN. If you've forgotten it, you can use the API key instead.
+- Wrong-PIN lockouts are now per device, so someone else's guesses on a phone or tablet sharing your Tailscale account don't lock you out. Repeated guessing over days is locked out sooner.
+- Several screens on the same profile can now watch at once while the server has room. When it's full and someone starts another, the screen that has to give way says why, and screens no longer knock each other off in turn.
+- Moving a film or show to a new folder no longer slows scans: its watch history and collections move across once, in a fraction of a second.
+- When Radarr or Sonarr delete one title while a library drive looks disconnected, only that title is hidden; the rest of the folder stays on hold. **Confirm removal** only approves the numbers you saw, and asks you to check again if a scan has found something different.
+- A newly imported film or show gets its details from Radarr or Sonarr straight away, without fetching the whole library, and Coming soon and Downloads update right after a download finishes.
+- Leaving a library's full list before it finished loading, then pressing Back, now loads it again instead of showing a blank page. A small library shows titles added or removed while you were away, a deleted title doesn't come back, and keyboard focus returns to the title you opened.
+- On Apple TV, coming back to a library you'd scrolled far into (more than 500 titles) keeps the whole list and your place. Pressing Back while a TV finishes connecting no longer leaves an unused sign-in behind.
+- Scrolling quickly past lots of new posters no longer makes the ones you stop on wait behind the rest, and a poster the server was too busy for loads a few seconds later.
+- Deploys now keep the server's ASP.NET Core runtime on the latest security patch instead of the version first installed.
+
+### Sign-in and profiles, second pass
+- Wrong PIN guesses lock out only the device guessing. Nobody can lock you out of the main profile anymore.
+- Over Tailscale, changing settings now takes the main profile's PIN, or signing that browser in with the API key, once. Watching works as before.
+- Showing or replacing the API key asks for the main profile's PIN (or a confirmation if it has none). Replacing it can also sign out every other browser and TV, and new sign-ins are marked **New**.
+- You can replace the webhook secret from **Settings › Server**.
+- If a browser's chosen profile stops being valid (after a key or PIN change), Flexarr asks who's watching again instead of quietly using the main profile.
+- Pairing a TV is safer, and the approval screen shows its code and address prominently.
+- A damaged or unreadable list of sign-ins no longer stops browsers and TVs signing in, and long-unused browsers are cleaned up.
+- The Apple TV keeps its saved key if the Keychain can't be written, and retries connecting right after you approve it.
+- Browsers signed in by versions before per-device sign-ins keep working for 30 days, then need to sign in again.
+- Settings explains what "Only away from home" trusts, and what a reverse proxy on the Mac must send. A new config option, `loopbackNeedsForwarding`, makes such a proxy safe.
+- Artwork for things not in your library (Coming soon, downloads, requests, collections) can now only be loaded through links Flexarr hands out, so nobody else can use your server to download images.
+
+### Library safety, second pass
+- **Library health** now lists folders Flexarr is keeping on hold because they looked unmounted or cleared out. If you really emptied a folder, choose **Confirm removal** and its titles go.
+- A folder where most files vanished at once now goes through by itself after a day of scans finding the same thing. An empty folder still waits for you to confirm, or for Radarr/Sonarr to say they deleted it.
+- Watch history and collections now follow a film or show when Radarr or Sonarr rename its folder, or when it comes back up to 30 days after it was removed.
+- Deleting an episode no longer takes a briefly missing sibling episode, and its watch history, with it.
+- A film whose file is mid-upgrade no longer drops out of its franchise or shows up as one to request.
+- A malformed webhook can no longer stop the server.
+
+### Playback and speed, second pass
+- Two TVs or browsers on the same profile can now watch the same title at once without stopping each other.
+- When the server is already converting as many videos as it allows, the web player and Apple TV say the server is busy instead of retrying and then reporting a stopped stream. One profile can no longer take every conversion slot: starting another ends its oldest one.
+- The Apple TV's Home, library and detail screens pick up changes made elsewhere (watching on the web, a new download) after a minute, or when you come back to the app, and keep your place.
+- Going Back from a title to a library's full list returns you to the same spot, even after marking something watched or watching it, and the ticks are up to date. Searching or re-sorting it no longer jumps the page, and letter jumps land on the right row.
+- A show's page opens faster, Settings › Libraries no longer reloads every 2 seconds during a scan, and a request the server never answers fails after 30 seconds instead of loading forever.
+- A just-downloaded episode or film no longer shows as "on its way" in Coming soon and Downloads for a couple of minutes, and collection suggestions update straight away when a library is hidden from a profile.
+- Artwork scrolled past on the Apple TV keeps loading in the background, and a slow artwork site can no longer hold up a metadata refresh.
+- Installing on a Mac now checks the .NET runtime download against the checksum Microsoft publishes.
+
+### Sign-ins of your own, for every browser and TV
+- Each browser and Apple TV now has a sign-in of its own. **Settings › Server** lists them, with **Sign out** for any one: a lost TV or a shared laptop, without changing the API key. Browsers you're already signed in on stay signed in.
+- Apple TVs no longer keep the server's API key. One that connects, or was set up before, swaps it for its own token. Signing out on the TV ends that token on the server too.
+- **Make a new key** in Settings › Server replaces the API key without signing out your browsers and TVs.
+- Only the main profile can change settings, connect TVs or delete media, even on a browser or TV someone signed in earlier. To change settings again, switch back to the main profile (with its PIN).
+- Wrong PINs lock the profile for a while, longer each time.
+- TVs can only ask to connect from your home network or over Tailscale. The approval page shows where the request came from and warns if it isn't your home network.
+- Sonarr, Radarr and Lidarr webhooks use their own secret instead of the API key (Settings › Server shows the new addresses). Old webhook addresses keep working.
+- Other websites can no longer use your browser to change things on Flexarr.
+- On a reverse proxy in Docker or on another computer, visitors now have to sign in instead of counting as your home network. List the proxy in `trustedProxies` in config.json.
+- Subtitle names taken from inside media files can no longer tamper with a stream.
+
+### Your library and watch history are safer
+- If a library drive or network share hasn't mounted when Flexarr scans, nothing is removed: your library and every profile's watch history are kept until it comes back.
+- Titles whose files disappear are hidden rather than deleted, and come back with their watch history and collections if the files return within a day.
+- Upgrading a film or episode in Radarr or Sonarr no longer resets its watched status.
+- Folders with accented names no longer show up as a second copy of a series after a Sonarr import.
+- New episodes get their real titles and descriptions as soon as Sonarr imports them.
+- A slow or unresponsive Radarr, Sonarr or artwork server can no longer shut Flexarr down.
+
+### Playback
+- Resuming a video after a long pause now carries on where you left off, instead of failing.
+- On Apple TV, if a stream stops (a server restart, say), playback picks back up where it was instead of closing the player.
+- The server converts at most 3 videos at once by default (Transcoding › MaxConcurrentTranscodes). Beyond that, the player says the server is busy instead of slowing everyone down.
+- Switching audio tracks or retrying no longer leaves the old conversion running in the background.
+- Up Next no longer jumps to the next special after you watch one mid-season; it carries on with the regular episodes. Daily shows with two episodes on the same day no longer skip the second.
+- The player loads faster and runs more smoothly, and switching titles quickly can no longer start the wrong one.
+
+### Faster everywhere
+- Home and library pages load faster, and a slow or offline Sonarr/Radarr no longer holds Home up for long.
+- The Collections page opens much faster with many film series.
+- The library's All view keeps your place: scans and marking things watched no longer throw you back to the first 200 titles, and going back to it returns you to where you were scrolled. When a scan adds titles to a big library, a **Refresh** button appears.
+- Jumping to a letter in a large library is much faster.
+- Pages load faster when you go back and forth, download less data, and Flexarr stops checking the server from tabs you aren't looking at.
+- Featured backdrops and posters download at the size your screen needs, and the artwork cache keeps itself under 4 GB.
+- Scans after an import are faster, and files that can't be read are no longer re-checked on every scan.
+- On Apple TV, returning from a title's page keeps your place in the library instead of jumping back to the top.
 
 ### Profiles on Apple TV
 - When your household has more than one profile, the Apple TV asks **Who's watching?** the first time it connects, and remembers the answer.
-- The current profile's name sits at the right end of the tab bar. Open it to switch; with two profiles the other person is already highlighted, so it's one press.
+- The current profile's picture sits in the top right corner, level with the tab bar (press right from the last tab to reach it). Open it to switch; with two profiles the other person is already highlighted, so it's one press.
 - A profile with a PIN asks for it on an on-screen keypad.
 
 ### Collections

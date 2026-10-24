@@ -1,7 +1,11 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
+import { TrailerDialog } from './components/TrailerDialog'
+import { usePolling } from './hooks/usePolling'
+import { deleteItem } from './api/client'
+import { WATCHED_CHANGED } from './hooks/watched'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
 beforeAll(() => {
@@ -89,7 +93,7 @@ describe('App', () => {
     mockApi({
       '/system/status': status,
       '/libraries': [movies],
-      '/home': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'Latest unwatched movies', style: 'poster', items: [niceGuys], link: null }], upcoming: [], downloading: 0 },
+      '/home': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'Latest unwatched films', style: 'poster', items: [niceGuys], link: null }], upcoming: [], downloading: 0 },
       'POST /items/m1/watched': (init?: RequestInit) => {
         posted.push(JSON.parse(String(init?.body)))
       },
@@ -199,6 +203,44 @@ describe('Library page', () => {
     expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'All films' })).toHaveAttribute('href', '/library/lib-movies?view=all')
   })
+
+  it('puts focus back on the card opened from Browse, in the row it was opened from', async () => {
+    const heat = summary({ id: 'm2', title: 'Heat', year: 1995 })
+    mockApi({
+      '/libraries': [movies],
+      '/libraries/lib-movies/browse': {
+        featured: [niceGuys],
+        overviews: {},
+        rows: [
+          { id: 'genre-Crime', title: 'Crime', style: 'poster', items: [niceGuys, heat], link: null },
+          { id: 'recent', title: 'Recently added', style: 'poster', items: [heat], link: null },
+        ],
+        upcoming: [],
+        downloading: 0,
+      },
+      '/items/m2': detail(heat),
+      '/items/m2/similar': [],
+    })
+    function Back() {
+      const navigate = useNavigate()
+      return <button onClick={() => navigate(-1)}>Back</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/library/lib-movies']}>
+        <Shell />
+        <Back />
+      </MemoryRouter>,
+    )
+    const row = (title: string) => screen.getByRole('heading', { name: title }).closest('section') as HTMLElement
+
+    await screen.findByRole('heading', { name: 'Recently added' })
+    fireEvent.click(within(row('Recently added')).getByRole('link', { name: 'Heat' }))
+    await screen.findByRole('heading', { level: 1, name: 'Heat' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await screen.findByRole('heading', { name: 'Recently added' })
+    await vi.waitFor(() => expect(within(row('Recently added')).getByRole('link', { name: 'Heat' })).toHaveFocus())
+  })
 })
 
 describe('Series page', () => {
@@ -206,11 +248,11 @@ describe('Series page', () => {
     const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 1 })
     const season = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })
     const pilot = summary({ id: 'e1', kind: 'Episode', parentId: 'season-1', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, runtimeMinutes: 22 })
-    mockApi({
+    const seasonDetail = detail(season, { children: [pilot], ancestors: [series], childOverviews: { e1: 'Liz meets Jack.' } })
+    const fetchMock = mockApi({
       '/libraries': [],
-      '/items/s': detail(series, { children: [season], overview: 'Liz Lemon runs a sketch show.' }),
-      '/items/season-1': detail(season, { children: [pilot], ancestors: [series], childOverviews: { e1: 'Liz meets Jack.' } }),
-      '/items/s/next-up': pilot,
+      // The series brings its Up Next and the season it opens on, in one request.
+      '/items/s': detail(series, { children: [season], overview: 'Liz Lemon runs a sketch show.', nextUp: pilot, season: seasonDetail }),
       '/items/s/similar': [],
     })
 
@@ -220,6 +262,11 @@ describe('Series page', () => {
     expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
     expect(screen.getByText('Liz meets Jack.')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Play Season 01 \| Episode 01/ })).toBeInTheDocument()
+    const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost'))
+    expect(paths.filter((u) => u.pathname.startsWith('/api/v1/items/')).map((u) => u.pathname + u.search)).toEqual([
+      '/api/v1/items/s?includeSeason=true',
+      '/api/v1/items/s/similar',
+    ])
   })
 })
 
@@ -260,6 +307,210 @@ describe('Settings', () => {
     fireEvent.click(within(screen.getByRole('form', { name: 'Add library' })).getByRole('button', { name: 'Add library' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
+  })
+
+  it('stays closed to a profile that isn’t the main one', async () => {
+    mockApi({ '/libraries': [], '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null } })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText(/Settings are for the main profile/)).toBeInTheDocument()
+  })
+
+  it('over Tailscale, explains how the owner gets to settings', async () => {
+    mockApi({ '/libraries': [], '/me': { profileId: 'owner', method: 'tailscale', zone: 'Tailnet', isAdmin: false, tailscaleLogin: 'dan@example.com' } })
+
+    renderAt('/settings/server')
+
+    // Without a PIN on the main profile, the way in is someone giving it one, or the key.
+    expect(await screen.findByText(/Ask whoever manages Flexarr to give the main profile a PIN/)).toBeInTheDocument()
+    expect(screen.getByLabelText('API key')).toBeInTheDocument()
+  })
+
+  it('reveals the API key with a POST, lists sign-ins and signs one out', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/settings': {
+        authenticationRequired: 'Enabled',
+        transcoding: {},
+        availableHardwareAcceleration: [],
+        pathMappings: [],
+        arr: [],
+        seerr: null,
+        dataDirectory: '/data',
+        ffmpegPath: 'ffmpeg',
+        ffprobePath: 'ffprobe',
+        webhookSecret: 'hook-secret',
+      },
+      'POST /settings/api-key/reveal': { apiKey: 'the-key' },
+      '/sign-ins': [
+        { id: 's1', kind: 'Device', name: 'Living room', createdAt: '2026-01-01T00:00:00Z', lastUsedAt: new Date().toISOString(), zone: 'Local', address: '192.168.1.9', profileId: 'owner', profileName: 'Dan', isThisOne: false },
+      ],
+      'DELETE /sign-ins/s1': undefined,
+    })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show API key' }))
+    // It asks again first (the main profile has no PIN here, so just a yes), and the yes has the focus.
+    const showIt = await screen.findByRole('button', { name: 'Show the key' })
+    await vi.waitFor(() => expect(showIt).toHaveFocus())
+    fireEvent.click(showIt)
+    expect(await screen.findByText('the-key')).toBeInTheDocument()
+    const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
+    expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ confirm: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    expect(screen.queryByText('the-key')).not.toBeInTheDocument()
+    expect(await screen.findByText('Living room')).toBeInTheDocument()
+    // Each Sign out says which one it is, and asks first.
+    fireEvent.click(screen.getByRole('button', { name: /^Sign out Living room, connected/ }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sign out Living room?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sign-ins/s1') && init?.method === 'DELETE')).toBe(true))
+  })
+
+  it('says how many were signed out with a new key, and asks before a new webhook secret in its own dialog', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'hook-secret' },
+      '/profiles': [{ id: 'owner', name: 'Dan', isMain: true, hasPin: true, isCurrent: true }],
+      'POST /settings/api-key/rotate': { apiKey: 'new-key', signedOut: 3 },
+      'POST /settings/webhook-secret/rotate': { webhookSecret: 'fresh' },
+      '/sign-ins': [],
+    })
+
+    renderAt('/settings/server')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Make a new key' }))
+    // With a PIN on the main profile, the PIN field takes the focus.
+    const pin = await screen.findByLabelText('Main profile’s PIN')
+    await vi.waitFor(() => expect(pin).toHaveFocus())
+    fireEvent.change(pin, { target: { value: '1234' } })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Replace the key' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
+    expect(screen.getByText('new-key')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
+
+    const opener = screen.getByRole('button', { name: 'Make a new secret' })
+    opener.focus()
+    fireEvent.click(opener)
+    expect(await screen.findByRole('alertdialog', { name: 'Make a new webhook secret?' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/webhook-secret/rotate'))).toBe(false)
+
+    fireEvent.click(opener)
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Make a new secret' }))
+    expect(await screen.findByText(/webhooks\/radarr\?secret=fresh/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy the Radarr address' })).toBeInTheDocument()
+  })
+
+  it('groups a browser that signed in again and again, marks only newer ones New, and renames one', async () => {
+    const now = Date.now()
+    const at = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()
+    const chrome = (id: string, hoursAgo: number) => ({ id, kind: 'Browser', name: 'Chrome on Mac', createdAt: at(hoursAgo), lastUsedAt: at(hoursAgo), zone: 'Local', address: '127.0.0.1', profileId: 'owner', profileName: 'Dan', isThisOne: false })
+    let renamed: unknown
+    mockApi({
+      '/libraries': [],
+      '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'x' },
+      '/sign-ins': [
+        { ...chrome('me', 1), name: 'Safari on iPhone', isThisOne: true },
+        chrome('c1', 2),
+        chrome('c2', 3),
+        { id: 'tv', kind: 'Device', name: 'Apple TV', createdAt: at(0.5), lastUsedAt: at(0.5), zone: 'Local', address: '192.168.1.9', profileId: 'owner', profileName: 'Dan', isThisOne: false },
+      ],
+      'PATCH /sign-ins/tv': (init: RequestInit) => {
+        renamed = JSON.parse(String(init.body))
+        return undefined
+      },
+    })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByText('2 sign-ins')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out all 2 sign-ins of Chrome on Mac' })).toBeInTheDocument()
+    // Only the TV signed in after this browser did.
+    expect(screen.getAllByText('New')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Sign out every other browser and TV' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Rename Apple TV/ }))
+    const name = screen.getByLabelText('Name for Apple TV')
+    fireEvent.change(name, { target: { value: 'Bedroom TV' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() => expect(renamed).toEqual({ name: 'Bedroom TV' }))
+  })
+
+  it('declines a TV’s code with Don’t allow, so the TV shows a new one', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/pairing/code/ABC-DEF': { code: 'ABC-DEF', deviceName: 'Living room', expiresAt: new Date().toISOString(), requestedFrom: '192.168.1.70', zone: 'Local' },
+      'POST /pairing/code/ABC-DEF/decline': undefined,
+    })
+
+    renderAt('/link?code=ABC-DEF')
+
+    expect(await screen.findByText('ABC-DEF', { selector: '.connect-tv-big-code' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Don’t allow' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('The TV will show a new code')
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/pairing/code/ABC-DEF/decline') && init?.method === 'POST')).toBe(true)
+  })
+
+  it('offers the main profile when another profile opens a TV’s link', async () => {
+    mockApi({
+      '/libraries': [],
+      '/pairing/code/ABC-DEF': new Response(JSON.stringify({ title: 'Forbidden' }), { status: 403 }),
+    })
+
+    renderAt('/link?code=ABC-DEF')
+
+    expect(await screen.findByText('Only the main profile can connect a TV.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Switch to the main profile' })).toBeInTheDocument()
+  })
+
+  it('names the library in a held folder’s removal, and closes on Escape', async () => {
+    mockApi({
+      '/libraries': [],
+      '/library-health': {
+        score: { score: 100, titles: 10, withProblems: 0, duplicates: 0, unreadable: 0, standardDefinition: 0, missingArtwork: 0, fileProblems: 0, artworkNeedsConnection: 4 },
+        duplicates: [],
+        reclaimableBytes: 0,
+        unreadable: [],
+        missingArtwork: [],
+        matchedByTitle: [],
+        standardDefinition: [],
+        standardDefinitionTotal: 0,
+        downloading: {},
+        held: [{ folderId: 1, library: 'Films', libraryType: 'Movies', path: '/Volumes/Media/films', reason: 'MostFilesGone', missing: 4, known: 9, since: new Date().toISOString(), scans: 3, confirmed: false, canConfirm: true }],
+      },
+      '/library-health/check': { running: false, checked: 0, total: 0, finishedAt: null, problems: [] },
+    })
+
+    renderAt('/settings/health')
+
+    expect(await screen.findByText(/folder on hold/)).toHaveTextContent('1 folder on hold')
+    expect(screen.getByText(/without artwork/)).toHaveTextContent('4 without artwork: connect Radarr or Sonarr to fill it in')
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove 4 films from Films?' })
+    expect(within(dialog).getByText('/Volumes/Media/films')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Not yet' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('warns before approving a TV that didn’t ask from the home network', async () => {
+    mockApi({
+      '/libraries': [],
+      '/pairing/code/ABC-DEF': { code: 'ABC-DEF', deviceName: 'Living room', expiresAt: new Date().toISOString(), requestedFrom: '100.70.1.2', zone: 'Tailnet' },
+    })
+
+    renderAt('/link?code=ABC-DEF')
+
+    expect(await screen.findByRole('heading', { name: 'Connect Living room?' })).toBeInTheDocument()
+    expect(screen.getByText(/didn’t come from your home network/)).toBeInTheDocument()
   })
 })
 
@@ -351,13 +602,179 @@ describe('Player', () => {
     })
     await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
     expect(requests[1].startPositionSeconds).toBe(352)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 
     act(() => {
       video.dispatchEvent(new Event('error'))
     })
-    expect(await screen.findByRole('alert')).toHaveTextContent('The stream stopped')
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('The stream stopped')
     expect(requests).toHaveLength(2)
+  })
+
+  const transcode = (sessionId: string) => ({
+    sessionId,
+    method: 'Transcode',
+    url: `/api/v1/playback/${sessionId}/master.m3u8`,
+    reasons: [],
+    durationSeconds: 1320,
+    startPositionSeconds: 0,
+    fileId: 'f1',
+    audioTracks: [],
+    selectedAudioIndex: 1,
+    subtitles: [],
+    selectedSubtitleKey: null,
+    subtitleBurnedIn: false,
+    markers: [],
+    item: summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1 }),
+    ancestors: [],
+    next: null,
+    transcodeSummary: null,
+  })
+  const problem = (status: number, detail: string) => new Response(JSON.stringify({ detail }), { status })
+  const takenOver = 'Someone started watching on another screen, so this one had to stop.'
+
+  it('says another screen took over, and Watch here instead starts afresh rather than being refused again', async () => {
+    const requests: { replacesSessionId?: string }[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        // The first stream was ended for another screen: asking with its id is refused for as long as the server remembers.
+        if (requests.at(-1)!.replacesSessionId === 's1') return problem(410, takenOver)
+        return transcode(`s${requests.length}`)
+      },
+      'DELETE /playback/s1': undefined,
+      'DELETE /playback/s3': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+    })
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent(takenOver)
+    expect(dialog).toHaveTextContent('The other screen will stop')
+    const watchHere = within(dialog).getByRole('button', { name: 'Watch here instead' })
+    expect(watchHere).toHaveFocus()
+    // Nothing behind it can be used meanwhile.
+    expect(screen.queryByRole('button', { name: 'Play' })).not.toBeInTheDocument()
+
+    fireEvent.click(watchHere)
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s3/'))
+    expect(requests.map((r) => r.replacesSessionId)).toEqual([undefined, 's1', undefined])
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('says another screen took over when the stream itself says so, without asking for it back', async () => {
+    const requests: unknown[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        return transcode(`s${requests.length}`)
+      },
+      '/playback/s1/main.m3u8': problem(410, takenOver),
+      'DELETE /playback/s2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    act(() => {
+      document.querySelector('video')!.dispatchEvent(new Event('error'))
+    })
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(takenOver)
+    expect(requests).toHaveLength(1)
+  })
+
+  it('recovers once when the stream errors twice while asking why it stopped', async () => {
+    const requests: unknown[] = []
+    const answers: ((response: Response) => void)[] = []
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        return transcode(`s${requests.length}`)
+      },
+      '/playback/s1/main.m3u8': () => new Promise<Response>((resolve) => answers.push(resolve)),
+      'DELETE /playback/s1': undefined,
+      'DELETE /playback/s2': undefined,
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    act(() => {
+      video.dispatchEvent(new Event('error'))
+      video.dispatchEvent(new Event('error'))
+    })
+    await act(async () => answers.forEach((answer) => answer(new Response('', { status: 404 }))))
+
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
+    expect(requests).toHaveLength(2)
+    expect(screen.queryByText(/The stream stopped/)).not.toBeInTheDocument()
+  })
+
+  it('says plainly when the server is busy, with Try again', async () => {
+    mockApi({
+      '/libraries': [],
+      'POST /playback': problem(503, 'Flexarr is busy playing on other screens. Try again when one of them finishes.'),
+    })
+
+    renderAt('/play/e1')
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Flexarr is busy playing on other screens')
+    expect(within(dialog).getByRole('button', { name: 'Try again' })).toHaveFocus()
+  })
+})
+
+describe('Player watched announcement', () => {
+  it('names the episode just played when moving on to the next, and nothing at the start', async () => {
+    const pilot = summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, seriesId: 's' })
+    const second = summary({ id: 'e2', kind: 'Episode', title: 'Second', seasonNumber: 1, episodeNumber: 2, seriesId: 's' })
+    const playback = (item: typeof pilot, next: typeof pilot | null) => ({
+      sessionId: item.id,
+      method: 'DirectPlay',
+      url: `/api/v1/playback/${item.id}/stream`,
+      reasons: [],
+      durationSeconds: 1320,
+      startPositionSeconds: 0,
+      fileId: 'f1',
+      audioTracks: [],
+      selectedAudioIndex: 1,
+      subtitles: [],
+      selectedSubtitleKey: null,
+      subtitleBurnedIn: false,
+      markers: [],
+      item,
+      ancestors: [],
+      next,
+      transcodeSummary: null,
+    })
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => (JSON.parse(String(init?.body)).itemId === 'e2' ? playback(second, null) : playback(pilot, second)),
+      'DELETE /playback/e1': undefined,
+      'DELETE /playback/e2': undefined,
+    })
+    const announced: string[][] = []
+    const listener = (e: Event) => announced.push((e as CustomEvent<string[]>).detail)
+    window.addEventListener(WATCHED_CHANGED, listener)
+    try {
+      renderAt('/play/e1')
+      await screen.findByText('Pilot')
+      expect(announced).toEqual([])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next episode' }))
+      await screen.findByText('Second')
+      await vi.waitFor(() => expect(announced).toEqual([['e1', 's']]))
+    } finally {
+      window.removeEventListener(WATCHED_CHANGED, listener)
+    }
   })
 })
 
@@ -387,5 +804,443 @@ describe('Profiles', () => {
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(sentPin).toBe('2468')
     expect(localStorage.getItem('flexarr.profile')).toBe('c1.sig')
+  })
+
+  it('asks again when the server no longer honours the profile chosen here', async () => {
+    // Chosen before the API key changed: the server now treats this browser as the main profile.
+    localStorage.setItem('flexarr.profile', 'c1.old-signature')
+    mockApi({
+      '/system/status': status,
+      '/profiles': [
+        { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: false, isMain: true, isCurrent: true, hiddenLibraryIds: [] },
+        { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: false, isMain: false, isCurrent: false, hiddenLibraryIds: [] },
+      ],
+      '/me': { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Sam/ })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
+  })
+
+  const pinnedMain = { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: true, isMain: true, isCurrent: true, hiddenLibraryIds: [], image: null }
+  const tailscaleOwner = { profileId: 'owner', method: 'tailscale', zone: 'Tailnet', isAdmin: false, tailscaleLogin: 'dan@example.com' }
+
+  it('never keeps the main profile’s token, even with a PIN', async () => {
+    const profiles = [pinnedMain, { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: false, isMain: false, isCurrent: false, hiddenLibraryIds: [], image: null }]
+    mockApi({
+      '/system/status': status,
+      '/profiles': profiles,
+      'POST /profiles/owner/select': { token: 'owner.sig', profile: pinnedMain },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Dan/ }))
+    fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '24681357' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
+  })
+
+  it('over Tailscale, drops a main-profile token kept by an earlier version and asks for the PIN, which can wait', async () => {
+    localStorage.setItem('flexarr.profile', 'owner.kept-by-an-earlier-version')
+    mockApi({
+      '/system/status': status,
+      '/profiles': [pinnedMain],
+      '/me': tailscaleOwner,
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+  })
+
+  it('over Tailscale, Switch profile opens the picker', async () => {
+    sessionStorage.setItem('flexarr.pickProfile', '1') // what Switch profile leaves before reloading
+    mockApi({ '/system/status': status, '/profiles': [pinnedMain], '/me': tailscaleOwner })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
+    sessionStorage.clear()
+  })
+
+  it('over Tailscale, Settings offers the owner the main profile’s PIN', async () => {
+    mockApi({ '/libraries': [], '/me': tailscaleOwner, '/profiles': [pinnedMain] })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByRole('button', { name: 'Choose the main profile' })).toBeInTheDocument()
+  })
+
+  it('changing the main profile’s PIN asks for the current one', async () => {
+    let sent: Record<string, unknown> = {}
+    mockApi({
+      '/libraries': [],
+      '/libraries/all': [],
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [pinnedMain],
+      'PUT /profiles/owner': (init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return pinnedMain
+      },
+    })
+
+    renderAt('/settings/profiles')
+    fireEvent.click(await screen.findByRole('button', { name: /Edit/ }))
+    fireEvent.change(screen.getByPlaceholderText('4 to 8 digits'), { target: { value: '97531' } })
+    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '97531' } })
+    fireEvent.change(screen.getByLabelText('Current PIN'), { target: { value: '1234' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save/ }))
+
+    await vi.waitFor(() => expect(sent).toMatchObject({ pin: '97531', currentPin: '1234' }))
+  })
+})
+
+describe('Library grid', () => {
+  // 210 films: a first page of 200, then "Show 10 more".
+  const films = Array.from({ length: 210 }, (_, i) => summary({ id: `f${i}`, title: `Film ${String(i).padStart(3, '0')}` }))
+  function grid(onItem?: (id: string) => void) {
+    const pages: number[] = []
+    let watched = false
+    mockApi({
+      '/libraries': [{ ...movies, scan: null, itemCount: films.length }],
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        pages.push(skip)
+        return { total: films.length, items: films.slice(skip, skip + Number(url.searchParams.get('take'))) }
+      },
+      'POST /items/f3/watched': () => {
+        watched = true
+      },
+      '/items/f3': () => {
+        onItem?.('f3')
+        return detail({ ...films[3], userData: { ...films[3].userData, watched } })
+      },
+      '/items/f3/similar': [],
+    })
+    return pages
+  }
+
+  it('loads "Show more" once however often it is clicked', async () => {
+    const pages = grid()
+    renderAt('/library/lib-movies?view=all')
+
+    const more = await screen.findByRole('button', { name: 'Show 10 more' })
+    fireEvent.click(more)
+    fireEvent.click(more)
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(pages).toEqual([0, 200])
+    expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
+  })
+
+  it('dims letters with nothing to jump to, once the grid has loaded past them', async () => {
+    grid()
+    renderAt('/library/lib-movies?view=all')
+
+    const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+    // Every title so far starts with F, and the grid is sorted A–Z: A to E are known to be empty, the rest aren't yet.
+    expect(within(rail).getByRole('button', { name: 'E' })).toBeDisabled()
+    expect(within(rail).getByRole('button', { name: 'F' })).toBeEnabled()
+    expect(within(rail).getByRole('button', { name: 'G' })).toBeEnabled()
+    expect(within(rail).getByRole('button', { name: 'Numbers and symbols' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show 10 more' }))
+    await screen.findByRole('link', { name: 'Film 209' })
+    expect(within(rail).getByRole('button', { name: 'G' })).toBeDisabled()
+    expect(within(rail).getByRole('button', { name: 'Numbers and symbols' })).toBeDisabled()
+  })
+
+  it('marks a title watched in place, keeping the pages already loaded', async () => {
+    const fetched: string[] = []
+    const pages = grid((id) => fetched.push(id))
+    renderAt('/library/lib-movies?view=all')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 10 more' }))
+    await screen.findByRole('link', { name: 'Film 209' })
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Film 003 as watched' }))
+
+    expect(await screen.findByRole('button', { name: 'Watched: mark Film 003 as unwatched' })).toHaveAttribute('aria-pressed', 'true')
+    await vi.waitFor(() => expect(fetched).toEqual(['f3']))
+    expect(pages).toEqual([0, 200])
+    expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
+  })
+
+  it('comes back from a title marked watched with the pages it had, and stays put when you search', async () => {
+    const pages = grid()
+    function Back() {
+      const navigate = useNavigate()
+      return <button onClick={() => navigate(-1)}>Back</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/library/lib-movies?view=all']}>
+        <Shell />
+        <Back />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 10 more' }))
+    await screen.findByRole('link', { name: 'Film 209' })
+    fireEvent.click(screen.getByRole('link', { name: 'Film 003' }))
+    // Marking it watched is a change, which clears cached answers; the grid's own state is kept apart.
+    fireEvent.click(await screen.findByRole('button', { name: /Mark as watched/ }))
+    expect(await screen.findByRole('button', { name: /Watched/ })).toHaveAttribute('aria-pressed', 'true')
+
+    const scrolls = vi.mocked(window.scrollTo)
+    scrolls.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Watched: mark Film 003 as unwatched' })).toHaveAttribute('aria-pressed', 'true')
+    expect(pages).toEqual([0, 200])
+    // The page opens at the top, then the grid goes back to where it was, with focus on the title that was opened.
+    await vi.waitFor(() => expect(scrolls).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Film 003' })).toHaveFocus())
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Movies' }), { target: { value: 'Film 1' } })
+    await vi.waitFor(() => expect(pages).toEqual([0, 200, 0]))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    expect(scrolls).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Library grid going back', () => {
+  function Nav() {
+    const navigate = useNavigate()
+    return (
+      <>
+        <button onClick={() => navigate(-1)}>Back</button>
+        <button onClick={() => navigate('/item/f1')}>Elsewhere</button>
+      </>
+    )
+  }
+  function renderGrid(path = '/library/lib-movies?view=all') {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Shell />
+        <Nav />
+      </MemoryRouter>,
+    )
+  }
+  /** A small library whose answers the test can change and hold back. */
+  function server(count: number) {
+    const state = {
+      films: Array.from({ length: count }, (_, i) => summary({ id: `f${i}`, title: `Film ${i}`, year: 2000 + i })),
+      hold: undefined as Promise<void> | undefined,
+      pages: [] as string[],
+      lists: 0,
+    }
+    mockApi({
+      '/libraries': () => {
+        state.lists++
+        return [{ ...movies, scan: null, itemCount: state.films.length }]
+      },
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': async (_: RequestInit | undefined, url: URL) => {
+        const sort = url.searchParams.get('sort') ?? ''
+        state.pages.push(sort)
+        await state.hold
+        const items = sort === 'year' ? [...state.films].reverse() : state.films
+        return { total: items.length, items }
+      },
+      '/items/f1': () => detail(state.films[1]),
+      '/items/f1/similar': [],
+      'DELETE /items/f1': () => {
+        state.films = state.films.filter((f) => f.id !== 'f1')
+      },
+    })
+    return state
+  }
+  function held(state: { hold: Promise<void> | undefined }) {
+    let release = () => {}
+    state.hold = new Promise<void>((resolve) => (release = resolve))
+    return () => {
+      state.hold = undefined
+      release()
+    }
+  }
+  const titles = () => screen.getAllByRole('link', { name: /^Film \d+$/ }).map((l) => l.textContent)
+
+  it('loads afresh on Back when it was left before the first page arrived', async () => {
+    const state = server(3)
+    const release = held(state)
+    renderGrid()
+    await vi.waitFor(() => expect(state.pages).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    release()
+
+    expect(await screen.findByRole('link', { name: 'Film 2' })).toBeInTheDocument()
+  })
+
+  it('shows the new sort on Back when it was left before that sort loaded', async () => {
+    const state = server(3)
+    renderGrid()
+    await screen.findByRole('link', { name: 'Film 2' })
+    expect(titles()).toEqual(['Film 0', 'Film 1', 'Film 2'])
+
+    const release = held(state)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort by' }), { target: { value: 'year' } })
+    await vi.waitFor(() => expect(state.pages).toEqual(['', 'year']))
+    fireEvent.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    release()
+
+    await vi.waitFor(() => expect(titles()).toEqual(['Film 2', 'Film 1', 'Film 0']))
+  })
+
+  it('picks up titles that arrived while away, in a small library', async () => {
+    const state = server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+
+    // Sonarr imported one meanwhile, and the library list hears of it.
+    state.films = [...state.films, summary({ id: 'f3', title: 'Film 3' })]
+    const lists = state.lists
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await vi.waitFor(() => expect(state.lists).toBe(lists + 1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 3' })).toBeInTheDocument()
+  })
+
+  const frame = () => new Promise((resolve) => requestAnimationFrame(resolve))
+
+  it('puts focus back on the title that had it when leaving', async () => {
+    server(3)
+    renderGrid()
+    ;(await screen.findByRole('link', { name: 'Film 2' })).focus()
+    fireEvent.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Film 2' })).toHaveFocus())
+  })
+
+  it("doesn't put focus back on a title opened on an earlier visit", async () => {
+    server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Film 1' })).toHaveFocus())
+
+    // This time it's left by something outside the grid.
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' })
+    elsewhere.focus()
+    fireEvent.click(elsewhere)
+    await screen.findByRole('heading', { name: 'Film 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await screen.findByRole('link', { name: 'Film 2' })
+    await frame()
+    await frame()
+
+    expect(screen.getByRole('link', { name: 'Film 1' })).not.toHaveFocus()
+  })
+
+  it("doesn't put focus on the opened title when the place restored is far from it", async () => {
+    server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    // Film 1 is now two screens below where the grid goes back to.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = this.closest('[data-id="f1"]') ? 3 * window.innerHeight : 0
+      return { top, bottom: top + 300, left: 0, right: 0, width: 0, height: 300, x: 0, y: top, toJSON: () => ({}) } as DOMRect
+    })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      await screen.findByRole('link', { name: 'Film 2' })
+      await frame()
+      await frame()
+
+      expect(screen.getByRole('link', { name: 'Film 1' })).not.toHaveFocus()
+    } finally {
+      rect.mockRestore()
+    }
+  })
+
+  it("doesn't bring back a title deleted from its own page", async () => {
+    server(3)
+    renderGrid()
+    fireEvent.click(await screen.findByRole('link', { name: 'Film 1' }))
+    await screen.findByRole('heading', { name: 'Film 1' })
+    await deleteItem('f1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await vi.waitFor(() => expect(titles()).toEqual(['Film 0', 'Film 2']))
+  })
+})
+
+describe('Requests', () => {
+  it('asks the server who you are once, however many parts of the page want to know', async () => {
+    const film = summary({ id: 'm1', title: 'The Nice Guys' })
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [],
+      '/items/m1': detail(film),
+      '/items/m1/similar': [],
+    })
+
+    renderAt('/item/m1')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
+    const calls = (path: string) => fetchMock.mock.calls.filter(([input]) => new URL(String(input), 'http://localhost').pathname === `/api/v1${path}`).length
+    await vi.waitFor(() => expect(calls('/me')).toBe(1))
+    expect(calls('/profiles')).toBe(1)
+    expect(calls('/items/m1')).toBe(1)
+  })
+
+  it("doesn't poll from a background tab, and catches up when it's shown", () => {
+    vi.useFakeTimers()
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    const tick = vi.fn()
+    try {
+      renderHook(() => usePolling(tick, 1000))
+      vi.advanceTimersByTime(5000)
+      expect(tick).not.toHaveBeenCalled()
+
+      hidden.mockReturnValue(false)
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(tick).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(2000)
+      expect(tick).toHaveBeenCalledTimes(3)
+    } finally {
+      hidden.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('Trailer', () => {
+  it('only embeds what looks like a YouTube video id', () => {
+    const { rerender } = render(<TrailerDialog videoId="dQw4w9WgXcQ" title="Film" onClose={() => {}} />)
+    expect(screen.getByTitle('Film trailer')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0')
+
+    rerender(<TrailerDialog videoId="../../evil?x=" title="Film" onClose={() => {}} />)
+    expect(screen.queryByTitle('Film trailer')).not.toBeInTheDocument()
+    expect(screen.getByText('This trailer can’t be played.')).toBeInTheDocument()
   })
 })

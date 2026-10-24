@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { setWatched, type ItemSummary } from '../api/client'
 import { episodeCode } from '../lib/format'
 import { Check } from './icons'
-import { WATCHED_CHANGED } from './ItemMenu'
+import { announceWatched } from '../hooks/watched'
 
 /**
  * The watched tick on a film's or episode's artwork, as a switch: solid when watched (click to unmark), a faint ring on
@@ -18,7 +18,7 @@ export function WatchedToggle({ item, onChanged }: { item: ItemSummary; onChange
     setLocal(next)
     try {
       await setWatched(item.id, next)
-      window.dispatchEvent(new Event(WATCHED_CHANGED))
+      announceWatched(item)
       onChanged?.()
     } catch {
       setLocal(!next)

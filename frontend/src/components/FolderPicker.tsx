@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { browseFilesystem } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { Folder, FolderUp } from './icons'
 
 /** Browse the server's filesystem and pick a folder, like the *arr root-folder picker. */
 export function FolderPicker({ onPick }: { onPick: (path: string) => void }) {
@@ -20,14 +21,14 @@ export function FolderPicker({ onPick }: { onPick: (path: string) => void }) {
         {data?.parent && (
           <li>
             <button type="button" onClick={() => setPath(data.parent!)}>
-              ↑ ..
+              <FolderUp /> Up a folder
             </button>
           </li>
         )}
         {data?.directories.map((d) => (
           <li key={d.path}>
             <button type="button" onClick={() => setPath(d.path)}>
-              📁 {d.name}
+              <Folder /> {d.name}
             </button>
           </li>
         ))}

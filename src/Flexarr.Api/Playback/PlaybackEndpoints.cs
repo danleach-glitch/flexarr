@@ -17,8 +17,20 @@ public static class PlaybackEndpoints
     public static RouteGroupBuilder MapPlaybackEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/playback", async (PlaybackRequest request, PlaybackService playback, CancellationToken ct) =>
-            await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound())
-            .WithTags("Playback");
+        {
+            try
+            {
+                return await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound();
+            }
+            catch (TranscodeLimitException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+            }
+            catch (PlaybackTakenOverException ex)
+            {
+                return TakenOver(ex.Message);
+            }
+        }).WithTags("Playback");
 
         api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
             await playback.NextUpAsync(id, ct) is { } episode
@@ -72,25 +84,38 @@ public static class PlaybackEndpoints
                 ? Results.File(session.FilePath, ContentType(session.Container), enableRangeProcessing: true)
                 : Results.NotFound());
 
-        group.MapGet("/master.m3u8", (string sid, bool? subtitles, PlaybackSessions sessions, HttpContext http) =>
+        group.MapGet("/master.m3u8", (string sid, bool? subtitles, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
             sessions.Get(sid) is { Transcode: not null } session
                 ? Playlist(http, PlaybackService.MasterPlaylist(session, subtitles != false))
-                : Results.NotFound());
+                : Missing(transcodes, sid));
 
-        group.MapGet("/main.m3u8", (string sid, PlaybackSessions sessions, HttpContext http) =>
+        group.MapGet("/main.m3u8", (string sid, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
             sessions.Get(sid) is { Transcode: { } transcode }
                 ? Playlist(http, transcode.MediaPlaylist())
-                : Results.NotFound());
+                : Missing(transcodes, sid));
 
-        group.MapGet("/{segment:int}.ts", async (string sid, int segment, PlaybackSessions sessions, CancellationToken ct) =>
+        group.MapGet("/{segment:int}.ts", async (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { Transcode: { } transcode })
             {
-                return Results.NotFound();
+                return Missing(transcodes, sid);
             }
 
-            var path = await transcode.GetSegmentAsync(segment, ct);
-            return path is null ? Results.Problem("The segment couldn't be converted.", statusCode: 500) : Results.File(path, "video/mp2t");
+            string? path;
+            try
+            {
+                path = await transcode.GetSegmentAsync(segment, ct);
+            }
+            catch (TranscodeLimitException ex)
+            {
+                // Back from a long pause to find the others using every slot. The player gives up and its recovery
+                // asks for a new session, which is refused with this same message for the viewer to see.
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+            }
+
+            return path is not null ? Results.File(path, "video/mp2t")
+                : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
+                : Results.Problem("The segment couldn't be converted.", statusCode: 500);
         });
 
         group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles, CancellationToken ct) =>
@@ -169,7 +194,16 @@ public static class PlaybackEndpoints
         HardwareAcceleration = options.Transcoding.HardwareAcceleration,
         VaapiDevice = options.Transcoding.VaapiDevice,
         SoftwarePreset = options.Transcoding.SoftwarePreset,
+        MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes,
     };
+
+    /// <summary>A transcode that's gone: 410 with the reason when it was ended for another viewer, else 404.</summary>
+    private static IResult Missing(TranscodeManager transcodes, string sid) =>
+        transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) : Results.NotFound();
+
+    // Players show this rather than trying to get the stream back, which would only take it from the other screen.
+    private static IResult TakenOver(string reason) =>
+        Results.Problem(reason, statusCode: StatusCodes.Status410Gone, title: "Playing somewhere else");
 
     private static IResult Playlist(HttpContext http, string body)
     {

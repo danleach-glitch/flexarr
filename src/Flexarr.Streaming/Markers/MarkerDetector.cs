@@ -160,10 +160,18 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
 
         using var process = Process.Start(start)!;
         using var buffer = new MemoryStream();
-        var drainErrors = process.StandardError.ReadToEndAsync(ct);
-        await process.StandardOutput.BaseStream.CopyToAsync(buffer, ct).ConfigureAwait(false);
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
-        await drainErrors.ConfigureAwait(false);
+        try
+        {
+            var drainErrors = process.StandardError.ReadToEndAsync(ct);
+            await process.StandardOutput.BaseStream.CopyToAsync(buffer, ct).ConfigureAwait(false);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            await drainErrors.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            ProcessSignals.KillTree(process);
+            throw;
+        }
 
         var bytes = buffer.GetBuffer().AsSpan(0, (int)buffer.Length);
         var samples = new short[bytes.Length / 2];
@@ -180,10 +188,20 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
         }
 
         using var process = Process.Start(start)!;
-        var output = await process.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
-        await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
-        return process.ExitCode == 0 ? output : null;
+        try
+        {
+            // Read both at once: a process blocked writing a full stderr pipe would never finish its stdout.
+            var output = process.StandardOutput.ReadToEndAsync(ct);
+            var errors = process.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(output, errors).ConfigureAwait(false);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            return process.ExitCode == 0 ? await output.ConfigureAwait(false) : null;
+        }
+        catch (OperationCanceledException)
+        {
+            ProcessSignals.KillTree(process);
+            throw;
+        }
     }
 
     [GeneratedRegex(@"^\s*(intro|opening|opening credits|op|title sequence|theme)\s*$", RegexOptions.IgnoreCase)]

@@ -20,6 +20,50 @@ public sealed class FlexarrOptions
     /// <summary>API key for clients and *arr webhooks. Generated and persisted on first run when empty.</summary>
     public string? ApiKey { get; set; }
 
+    /// <summary>
+    /// What Sonarr/Radarr/Lidarr webhooks send instead of the API key; it can only queue scans. Generated on first run.
+    /// </summary>
+    public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// Signs the links to outside artwork (Coming soon, requests, collections) the server hands out, so only those can
+    /// be fetched through it. Generated on first run; changing it only breaks links already handed out.
+    /// </summary>
+    public string? ImageSecret { get; set; }
+
+    /// <summary>
+    /// Reverse proxies (addresses or CIDR ranges, such as "172.17.0.1" for Docker) whose X-Forwarded-For is believed.
+    /// This machine is always trusted. Forwarded requests from anywhere else count as coming from the internet.
+    /// Read at startup.
+    /// </summary>
+    public List<string> TrustedProxies { get; set; } = [];
+
+    /// <summary>
+    /// Extra names this server is reached by on the home network (split DNS, say). The home-network and Tailscale
+    /// sign-ins only apply to requests addressed to a name Flexarr knows, which stops other websites from using a
+    /// browser on your network to get in (DNS rebinding). IP addresses, single-word names, private suffixes (.local,
+    /// .lan, .home, .home.arpa, .internal…), .ts.net and this machine's name are always known.
+    /// </summary>
+    public List<string> KnownHosts { get; set; } = [];
+
+    /// <summary>
+    /// Requests from this machine that don't say who they're forwarding for (no X-Forwarded-For) count as the
+    /// internet, not as this machine. Turn on when a reverse proxy runs here: one that doesn't send X-Forwarded-For
+    /// would otherwise make every visitor look local. A browser on this machine then needs the key too.
+    /// </summary>
+    public bool LoopbackNeedsForwarding { get; set; }
+
+    /// <summary>
+    /// Until when the sign-ins earlier versions handed out (one browser cookie shared by all, profile tokens that ignore
+    /// the PIN) still work, so browsers can swap them for their own. Set to 30 days after the first run of a version
+    /// with per-device sign-ins; after it, they're refused.
+    /// </summary>
+    public DateTime? LegacySignInsUntil { get; set; }
+
+    /// <summary>Whether <see cref="LegacySignInsUntil"/> hasn't passed yet.</summary>
+    public bool AcceptsLegacySignIns(DateTime utcNow) =>
+        LegacySignInsUntil is { } until && utcNow < (until.Kind == DateTimeKind.Local ? until.ToUniversalTime() : until);
+
     /// <summary>ffprobe executable; resolved from PATH by default.</summary>
     public string FfprobePath { get; set; } = "ffprobe";
 
@@ -69,6 +113,9 @@ public sealed class TranscodingOptions
 
     /// <summary>Upper limit for any one stream in bits per second (0 = none), e.g. to protect a slow uplink.</summary>
     public long MaxStreamingBitrate { get; set; }
+
+    /// <summary>Most videos converted at once (0 = no limit). A Mac mini's media engine handles about three well.</summary>
+    public int MaxConcurrentTranscodes { get; set; } = 3;
 }
 
 public sealed class SeerrOptions

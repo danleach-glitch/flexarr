@@ -147,6 +147,10 @@ export interface ItemDetail {
   childOverviews: Record<string, string | null>
   /** Matched by hand with Fix match: refreshes keep the chosen show or film. */
   matchLocked: boolean
+  /** A series' Up Next episode, when asked for with its page (getItemPage). */
+  nextUp?: ItemSummary | null
+  /** The season a series' page opens on, with its episodes (getItemPage). */
+  season?: ItemDetail | null
 }
 
 export interface Person {
@@ -258,6 +262,8 @@ export interface PlaybackRequest {
   maxHeight?: number
   startPositionSeconds?: number
   forceTranscode?: boolean
+  /** This player's previous session, which the new one takes over from (only that one ends). */
+  replacesSessionId?: string
 }
 
 export interface AudioTrack {
@@ -330,6 +336,8 @@ export interface Settings {
   dataDirectory: string
   ffmpegPath: string
   ffprobePath: string
+  /** What Sonarr, Radarr and Lidarr webhooks send instead of the API key. */
+  webhookSecret?: string | null
 }
 
 export interface SettingsUpdate {

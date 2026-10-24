@@ -14,8 +14,12 @@ public struct ServerCredentials: Sendable, Equatable {
         self.profileToken = profileToken
     }
 
-    public var client: FlexarrClient {
-        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken)
+    public var client: FlexarrClient { client() }
+
+    /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets.
+    public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
+        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken,
+                      onUnauthorized: onUnauthorized)
     }
 }
 
@@ -81,12 +85,15 @@ public struct CredentialStore: Sendable {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Replaces the key in place, so a failed write leaves the old one there rather than none at all.
     private func writeKey(_ key: String, account: String) throws {
-        deleteKey(account: account)
-        var query = baseQuery(account: account)
-        query[kSecValueData as String] = Data(key.utf8)
-        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8),
+                                         kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock]
+        var status = SecItemUpdate(baseQuery(account: account) as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            let query = baseQuery(account: account).merging(attributes) { _, new in new }
+            status = SecItemAdd(query as CFDictionary, nil)
+        }
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 

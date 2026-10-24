@@ -29,6 +29,13 @@ struct ConnectView: View {
                 Text("Your own cinema, on the big screen.")
                     .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(Color.usher)
+                if let notice = model.signedOutNotice {
+                    Text(notice)
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(Color.screen)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 20)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -50,6 +57,10 @@ struct ConnectView: View {
         .background(RoomBackground(ambient: .silver, intensity: 0.22))
         .onAppear {
             browser.start()
+            // Signed out on the server: show a code for the same server straight away.
+            if model.signedOutNotice != nil, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
+                step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
+            }
             #if DEBUG
             // `-FlexarrPairWith <url>` opens the code screen directly (screenshots and UI tests).
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
@@ -68,6 +79,8 @@ private struct ChooseServer: View {
     let onPick: (DiscoveredServer) -> Void
     let onManual: () -> Void
     @FocusState private var focused: String?
+    /// Nothing has turned up for a while: say what to check.
+    @State private var lookingAWhile = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
@@ -82,6 +95,12 @@ private struct ChooseServer: View {
                         .foregroundStyle(Color.usher)
                 }
                 .padding(.vertical, 20)
+                if lookingAWhile {
+                    Text("Can’t see your server? Check the Apple TV is on the same Wi-Fi as it, or enter an address.")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(Color.screen)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 ForEach(browser.servers) { server in
                     Button {
@@ -102,6 +121,10 @@ private struct ChooseServer: View {
         .onChange(of: browser.servers.first?.id, initial: true) { _, first in
             if focused == nil, let first { focused = first }
         }
+        .task {
+            guard (try? await Task.sleep(for: .seconds(10))) != nil else { return }
+            lookingAWhile = true
+        }
     }
 }
 
@@ -113,6 +136,8 @@ private struct PairWithServer: View {
     let onBack: () -> Void
     @State private var pairing: PairingStart?
     @State private var error: String?
+    /// The code on screen replaced one that ran out, so anyone part-way through typing the old one notices.
+    @State private var renewedAt: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
@@ -132,6 +157,11 @@ private struct PairWithServer: View {
                             .font(.marquee(96, weight: .black))
                             .foregroundStyle(Color.screen)
                             .kerning(6)
+                        if renewedAt != nil {
+                            Label("New code", systemImage: "arrow.clockwise")
+                                .font(.system(size: 30, weight: .semibold))
+                                .foregroundStyle(Color.silver)
+                        }
                     }
                 }
                 Text("Connecting to \(server.name). Waiting for approval…")
@@ -155,19 +185,59 @@ private struct PairWithServer: View {
         server.address.appending(path: "link").appending(queryItems: [URLQueryItem(name: "code", value: pairing.code)])
     }
 
+    /// Signs in with the token the server just handed over. It's only handed over once, so a network blip here
+    /// is retried a few times rather than starting over with a new code (and leaving a sign-in nobody holds).
+    private func connect(with token: String) async throws {
+        var attempt = 0
+        while true {
+            do {
+                try await model.connect(address: server.address.absoluteString, apiKey: token)
+                return
+            } catch {
+                // Back was pressed (a cancelled request can also fail as a URL error).
+                if error is CancellationError || Task.isCancelled {
+                    abandon(token)
+                    throw CancellationError()
+                }
+                attempt += 1
+                guard attempt < 5 else {
+                    // Give up on this one: sign it out (best effort) so it doesn't linger in the list.
+                    abandon(token)
+                    throw error
+                }
+                self.error = "Connecting… (\(ConnectionError(error).message))"
+                do {
+                    try await Task.sleep(for: .seconds(2 * attempt))
+                } catch {
+                    abandon(token)
+                    throw error
+                }
+            }
+        }
+    }
+
+    /// The approved token wasn't kept, so sign it out (best effort) rather than leave it in the list with nobody
+    /// holding it. Detached: this task may be cancelled (Back) at any moment, which would cancel the request too.
+    private func abandon(_ token: String) {
+        let client = FlexarrClient(baseURL: server.address, apiKey: token)
+        Task.detached { try? await client.signOut() }
+    }
+
     /// Gets a code, then polls until it's approved (and signs in) or expires (and gets a new one).
     private func pair() async {
         let client = FlexarrClient(baseURL: server.address)
         while !Task.isCancelled {
             do {
                 let started = try await client.startPairing(deviceName: UIDevice.current.name)
+                if let shown = pairing, shown.code != started.code { renewedAt = Date() }
                 pairing = started
                 error = nil
                 while !Task.isCancelled {
                     try await Task.sleep(for: .seconds(2))
+                    if let renewedAt, Date().timeIntervalSince(renewedAt) > 10 { self.renewedAt = nil }
                     let status = try await client.pairingStatus(started.id)
                     if status.status == "approved", let key = status.apiKey {
-                        try await model.connect(address: server.address.absoluteString, apiKey: key)
+                        try await connect(with: key)
                         return
                     }
                     if status.status == "expired" { break } // a fresh code next time round

@@ -29,6 +29,10 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<RadarrMovie> GetMovieAsync(ArrInstance radarr, int movieId, CancellationToken ct = default) =>
         GetAsync<RadarrMovie>(radarr, $"movie/{movieId}", ct);
 
+    /// <summary>The film Radarr has with this TMDB id, if any (a list of none or one).</summary>
+    public Task<IReadOnlyList<RadarrMovie>> GetMoviesByTmdbIdAsync(ArrInstance radarr, int tmdbId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<RadarrMovie>>(radarr, $"movie?tmdbId={tmdbId}", ct);
+
     public Task<IReadOnlyList<RadarrCredit>> GetCreditsAsync(ArrInstance radarr, int movieId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<RadarrCredit>>(radarr, $"credit?movieId={movieId}", ct);
 
@@ -39,6 +43,13 @@ public sealed class ArrClient(HttpClient httpClient)
     // Sonarr
     public Task<IReadOnlyList<SonarrSeries>> GetSeriesAsync(ArrInstance sonarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<SonarrSeries>>(sonarr, "series", ct);
+
+    public Task<SonarrSeries> GetOneSeriesAsync(ArrInstance sonarr, int seriesId, CancellationToken ct = default) =>
+        GetAsync<SonarrSeries>(sonarr, $"series/{seriesId}", ct);
+
+    /// <summary>The show Sonarr has with this TVDB id, if any (a list of none or one).</summary>
+    public Task<IReadOnlyList<SonarrSeries>> GetSeriesByTvdbIdAsync(ArrInstance sonarr, int tvdbId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<SonarrSeries>>(sonarr, $"series?tvdbId={tvdbId}", ct);
 
     public Task<IReadOnlyList<SonarrEpisode>> GetEpisodesAsync(ArrInstance sonarr, int seriesId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<SonarrEpisode>>(sonarr, $"episode?seriesId={seriesId}&includeImages=true", ct);

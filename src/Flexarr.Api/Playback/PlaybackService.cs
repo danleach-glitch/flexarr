@@ -73,12 +73,33 @@ public sealed class PlaybackService(
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles,
             new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode));
 
+        // The player's own previous session (before an audio switch, a recovery) ends first, so it isn't left encoding
+        // ahead for nobody and doesn't count towards the transcode limit. Only that one: the same profile may be
+        // watching this title on another screen.
+        var restarting = false;
+        if (request.ReplacesSessionId is { } replaces)
+        {
+            if (sessions.Get(replaces) is { } previous && previous.ProfileId == profile.Id)
+            {
+                await sessions.RemoveAsync(previous.Id);
+            }
+            else if (transcodes.TakenOverReason(replaces) is { } reason)
+            {
+                // Its stream was ended for another screen: taking it back is for the viewer to choose, not a recovery.
+                throw new PlaybackTakenOverException(reason);
+            }
+            else
+            {
+                restarting = true; // The stream it replaces is gone (the server restarted, say).
+            }
+        }
+
         var duration = file.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60;
         var id = TranscodeManager.NewId();
         TranscodeSession? transcode = null;
         if (decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
         {
-            transcode = transcodes.Create(file.Path, duration, plan);
+            transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting);
             id = transcode.Id;
         }
 
@@ -138,12 +159,34 @@ public sealed class PlaybackService(
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
     {
-        var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
-        if (state is null)
+        for (var attempt = 0; ; attempt++)
         {
-            state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
-            db.PlaybackStates.Add(state);
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
+            var added = state is null;
+            if (state is null)
+            {
+                state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
+                db.PlaybackStates.Add(state);
+            }
+
+            var countedPlay = ApplyProgress(state, session, progress);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                session.CountedAsPlay |= countedPlay;
+                return;
+            }
+            catch (DbUpdateException) when (added && attempt == 0)
+            {
+                // Two first reports for the same item raced and the other inserted the row: apply this one to it.
+                db.Entry(state).State = EntityState.Detached;
+            }
         }
+    }
+
+    /// <summary>Applies a progress report to the state; true when it counted a new play.</summary>
+    private static bool ApplyProgress(PlaybackState state, PlaybackSession session, ProgressRequest progress)
+    {
 
         var duration = session.DurationSeconds > 0 ? session.DurationSeconds : (double?)null;
         var finished = progress.Ended
@@ -162,7 +205,7 @@ public sealed class PlaybackService(
             if (!session.CountedAsPlay)
             {
                 state.PlayCount++;
-                session.CountedAsPlay = true;
+                return true;
             }
         }
         else if (progress.PositionSeconds > MinResumeSeconds)
@@ -171,7 +214,7 @@ public sealed class PlaybackService(
             state.Watched = false;
         }
 
-        await db.SaveChangesAsync(ct);
+        return false;
     }
 
     /// <summary>Marks an item (or every episode of a series or season) watched or unwatched.</summary>
@@ -238,11 +281,9 @@ public sealed class PlaybackService(
             return inProgress;
         }
 
-        var last = await mine.Where(p => p.Watched).OrderByDescending(p => p.LastPlayedAt).Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
-        if (last is not null && await NextEpisodeAsync(last, ct) is { } next
-            && !await mine.AnyAsync(p => p.MediaItemId == next.Id && p.Watched, ct))
+        if (UpNext(await EpisodesAsync(db, profile.Id, [seriesId], ct)) is { } next)
         {
-            return next;
+            return await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct);
         }
 
         var ordered = episodes.OrderBy(e => e.SeasonNumber == 0).ThenBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle);
@@ -253,27 +294,70 @@ public sealed class PlaybackService(
     /// <summary>The episode after this one: next in the season, else the first of the next season.</summary>
     public async Task<MediaItem?> NextEpisodeAsync(MediaItem episode, CancellationToken ct)
     {
-        if (episode.Kind != MediaKind.Episode || episode.ParentId is not { } seasonId)
+        if (episode.Kind != MediaKind.Episode || episode.ParentId is not { } seasonId
+            || await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is not { } seriesId)
         {
             return null;
         }
 
-        var after = episode.EpisodeNumberEnd ?? episode.EpisodeNumber ?? 0;
-        var next = await db.MediaItems.AsNoTracking()
-            .Where(e => e.ParentId == seasonId && (episode.AirDate != null ? e.AirDate > episode.AirDate : e.EpisodeNumber > after))
-            .OrderBy(e => e.SortTitle).FirstOrDefaultAsync(ct);
-        if (next is not null)
+        var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
+        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && NextAfter(episodes, current) is { } next
+            ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct)
+            : null;
+    }
+
+    /// <summary>What Up Next needs to know about an episode, and when this profile finished it (null if it hasn't).</summary>
+    internal sealed record EpisodeRef(
+        Guid Id, Guid SeriesId, Guid SeasonId, int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, string SortTitle, DateTime? WatchedAt);
+
+    /// <summary>Every episode of these shows, in one query.</summary>
+    internal static Task<List<EpisodeRef>> EpisodesAsync(FlexarrDbContext db, string profileId, IReadOnlyList<Guid> seriesIds, CancellationToken ct) =>
+        db.MediaItems.AsNoTracking()
+            .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && seriesIds.Contains(e.Parent.ParentId.Value))
+            .Select(e => new EpisodeRef(e.Id, e.Parent!.ParentId!.Value, e.ParentId!.Value, e.Parent.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd, e.AirDate, e.SortTitle,
+                e.PlaybackStates.Where(p => p.UserId == profileId && p.Watched).Select(p => (DateTime?)p.LastPlayedAt).FirstOrDefault()))
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// The unwatched episode after the last one watched, from one show's episodes. A special watched in the middle
+    /// of a run doesn't take over: Up Next carries on from the latest regular episode.
+    /// </summary>
+    internal static EpisodeRef? UpNext(IReadOnlyList<EpisodeRef> episodes)
+    {
+        var watched = episodes.Where(e => e.WatchedAt is not null).ToList();
+        var last = watched.MaxBy(e => e.WatchedAt);
+        if (last?.SeasonNumber == 0)
         {
-            return next;
+            last = watched.Where(e => e.SeasonNumber != 0).MaxBy(e => e.WatchedAt) ?? last;
         }
 
-        var season = await db.MediaItems.AsNoTracking().FirstAsync(s => s.Id == seasonId, ct);
-        var nextSeason = await db.MediaItems.AsNoTracking()
-            .Where(s => s.ParentId == season.ParentId && s.SeasonNumber > season.SeasonNumber && s.SeasonNumber > 0)
-            .OrderBy(s => s.SeasonNumber).FirstOrDefaultAsync(ct);
-        return nextSeason is null ? null
-            : await db.MediaItems.AsNoTracking().Where(e => e.ParentId == nextSeason.Id).OrderBy(e => e.SortTitle).FirstOrDefaultAsync(ct);
+        return last is not null && NextAfter(episodes, last) is { WatchedAt: null } next ? next : null;
     }
+
+    /// <summary>
+    /// The episode after <paramref name="current"/>: next in its season, else the first of the next regular season.
+    /// Daily shows go by air date, then title order, so two episodes on one day are both seen.
+    /// </summary>
+    internal static EpisodeRef? NextAfter(IReadOnlyList<EpisodeRef> episodes, EpisodeRef current)
+    {
+        var season = episodes.Where(e => e.SeasonId == current.SeasonId);
+        EpisodeRef? next;
+        if (current.AirDate is not null)
+        {
+            var byDate = season.Where(e => e.AirDate is not null)
+                .OrderBy(e => e.AirDate).ThenBy(e => e.SortTitle, StringComparer.Ordinal).ThenBy(e => e.Id).ToList();
+            next = byDate.SkipWhile(e => e.Id != current.Id).Skip(1).FirstOrDefault();
+        }
+        else
+        {
+            var after = current.EpisodeNumberEnd ?? current.EpisodeNumber ?? 0;
+            next = season.Where(e => e.EpisodeNumber > after).OrderBy(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+        }
+
+        return next ?? episodes.Where(e => e.SeasonNumber > current.SeasonNumber && e.SeasonNumber > 0)
+            .OrderBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+    }
+
 
     public static string MasterPlaylist(PlaybackSession session, bool includeSubtitles)
     {
@@ -284,14 +368,17 @@ public sealed class PlaybackService(
         foreach (var subtitle in text)
         {
             // NAME must be unique within the group or Apple's players reject the playlist.
-            var name = Languages.Label(subtitle.Language, subtitle.Title, subtitle.IsForced).Replace("\"", "'", StringComparison.Ordinal);
+            // Titles and languages come from tags inside the file, so they mustn't be able to end the attribute or the line.
+            var label = PlaylistText(Languages.Label(subtitle.Language, subtitle.Title, subtitle.IsForced));
+            var name = label;
             for (var n = 2; !used.Add(name); n++)
             {
-                name = $"{Languages.Label(subtitle.Language, subtitle.Title, subtitle.IsForced)} {n}";
+                name = $"{label} {n}";
             }
 
+            var language = PlaylistText(subtitle.Language ?? "") is { Length: > 0 } tag ? tag : "und";
             builder.Append(CultureInfo.InvariantCulture,
-                $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{subtitle.Language ?? "und"}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
+                $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{language}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
         }
 
         var video = $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
@@ -304,6 +391,10 @@ public sealed class PlaybackService(
     public static string SubtitlePlaylist(PlaybackSession session, string key) =>
         string.Create(CultureInfo.InvariantCulture,
             $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:{Math.Ceiling(session.DurationSeconds)}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:{session.DurationSeconds:F3},\n{key}.vtt?hls=true\n#EXT-X-ENDLIST\n");
+
+    /// <summary>Makes text safe inside a quoted playlist attribute: no line breaks or other control characters, no double quotes.</summary>
+    private static string PlaylistText(string value) =>
+        string.Concat(value.Where(c => !char.IsControl(c)).Select(c => c == '"' ? '\'' : c)).Trim();
 
     private static string? ChooseSubtitle(IReadOnlyList<SubtitleTrack> subtitles, string? preferredLanguage, string? audioLanguage)
     {
@@ -329,3 +420,6 @@ public sealed class PlaybackService(
         return (last?.AudioLanguage, last?.SubtitleLanguage);
     }
 }
+
+/// <summary>A player asked to carry on a stream that was ended to make way for another viewer.</summary>
+public sealed class PlaybackTakenOverException(string reason) : Exception(reason);

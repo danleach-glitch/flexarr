@@ -213,6 +213,11 @@ kbd {
   margin: 4px 0 14px;
 }
 
+.api-key-form .small-print {
+  margin: 14px 0 0;
+  font-size: var(--step--1);
+}
+
 .api-key-row {
   display: flex;
   gap: 8px;
@@ -733,6 +738,32 @@ kbd {
   gap: 30px 20px;
 }
 
+/* A long grid only lays out and paints the cards near the screen. That containment would clip a card's hover glow,
+   so the card under the pointer or focus renders as usual. */
+.poster-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px auto 300px;
+}
+
+/* Square artists' art makes shorter cards; a closer estimate keeps letter jumps and restored places on target. */
+.poster-grid.square > * {
+  contain-intrinsic-size: auto 150px auto 210px;
+}
+
+.poster-grid > :hover,
+.poster-grid > :focus-within {
+  content-visibility: visible;
+}
+
+.library-new {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 24px;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
 .alpha-rail {
   position: sticky;
   top: calc(var(--nav-height) + 16px);
@@ -742,20 +773,63 @@ kbd {
 }
 
 .alpha-rail button {
+  position: relative;
   width: 28px;
-  height: 22px;
+  height: 24px;
   padding: 0;
   border: 0;
+  border-radius: 6px;
   background: none;
   color: var(--usher);
-  font-size: 0.72rem;
+  font-size: var(--step--1);
   font-weight: 700;
   cursor: pointer;
 }
 
-.alpha-rail button:hover,
+.alpha-rail button:hover:not(:disabled),
+.alpha-rail button.jumping {
+  color: var(--screen);
+  background: var(--seat-raised);
+}
+
+/* Drawn inside the letter, so the ring doesn't sit over its neighbours. */
 .alpha-rail button:focus-visible {
   color: var(--screen);
+  outline: 2px solid var(--screen);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+/* No titles start with it. */
+.alpha-rail button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.alpha-rail[aria-busy='true'] button:not(.jumping) {
+  cursor: progress;
+}
+
+/* Beside the letter while the titles up to it load. */
+.alpha-loading {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--seat-raised);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+  color: var(--screen);
+  font-size: var(--step--1);
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Phones get a letter picker instead of the rail. */
+.alpha-picker {
+  display: none;
 }
 
 .load-more {
@@ -1082,7 +1156,7 @@ kbd {
   top: 48px;
   display: flex;
   flex-direction: column;
-  min-width: 200px;
+  min-width: 240px;
   padding: 8px;
   border: 1px solid var(--aisle);
   border-radius: var(--radius-panel);
@@ -1200,8 +1274,37 @@ kbd {
   cursor: pointer;
 }
 
-.pin-keys button:hover {
+.pin-keys button:hover:not(:disabled) {
   background: var(--seat-raised);
+}
+
+.pin-keys button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pin-keys .pin-delete {
+  font-size: var(--step-0);
+}
+
+/* Holds its height, so the keys don't jump when "Checking…" or an error comes and goes. */
+.pin-status,
+.pin-pad > .error {
+  min-height: 1.5em;
+  margin: 0;
+  text-align: center;
+}
+
+.pin-lockout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.pin-lockout p {
+  margin: 0;
 }
 
 /* ---------- Coming soon ---------- */
@@ -1361,6 +1464,23 @@ a.upcoming-row:hover strong {
     box-shadow: 0 -1px 0 var(--aisle);
   }
 
+  .marquee-nav a {
+    padding: 8px 10px;
+  }
+
+  /* More tabs than fit: the last visible one fades out at the edge, so it's clear the bar scrolls. It stays pinned
+     to the right edge while there's more, and sits over the bar's own padding once scrolled to the end. */
+  .marquee-nav::after {
+    content: '';
+    position: sticky;
+    right: 0;
+    flex: none;
+    width: 36px;
+    margin-left: -36px;
+    background: linear-gradient(to right, transparent, var(--room) 85%);
+    pointer-events: none;
+  }
+
   .hero {
     min-height: 78vh;
   }
@@ -1389,8 +1509,28 @@ a.upcoming-row:hover strong {
     gap: 20px 12px;
   }
 
+  .poster-grid > * {
+    contain-intrinsic-size: auto 104px auto 210px;
+  }
+
+  .poster-grid.square > * {
+    contain-intrinsic-size: auto 104px auto 150px;
+  }
+
   .alpha-rail {
     display: none;
+  }
+
+  /* A solid bar under the header that the cards scroll beneath, rather than a button over their own controls. */
+  .alpha-picker {
+    position: sticky;
+    top: var(--nav-height);
+    z-index: 5;
+    display: flex;
+    justify-content: flex-end;
+    margin: -8px 0 0;
+    padding: 8px 0;
+    background: var(--room);
   }
 
   .library-body {
@@ -1747,6 +1887,15 @@ a.download-attention {
 .confirm-dialog p {
   margin: 0;
   color: color-mix(in srgb, var(--screen) 85%, transparent);
+}
+
+.confirm-dialog-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.confirm-dialog-path {
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Watched toggle (films and episodes) ---------- */

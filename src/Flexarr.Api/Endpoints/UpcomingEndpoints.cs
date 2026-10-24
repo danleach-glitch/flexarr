@@ -6,6 +6,7 @@ using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Endpoints;
@@ -38,37 +39,60 @@ public sealed record DownloadDto(string Id, MediaKind Kind, string Title, string
 
 public static class UpcomingEndpoints
 {
+    /// <summary>How long one *arr call may take before the page goes on without that instance.</summary>
+    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(8);
+
+    // Calendars barely change; queues move, but a minute-old progress bar is fine and spares the *arrs on every Home load.
+    private static readonly TimeSpan CalendarTtl = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan QueueTtl = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(15);
+
     public static RouteGroupBuilder MapUpcomingEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
-            await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, db, request.Host.Host, ct)).WithTags("Upcoming");
+        api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
+            await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, request.Host.Host, ct)).WithTags("Upcoming");
 
-        api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
-            await DownloadsAsync(options.CurrentValue, arr, db, request.Host.Host, ct)).WithTags("Upcoming");
+        api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
+            await DownloadsAsync(options.CurrentValue, arr, cache, db, request.Host.Host, ct)).WithTags("Upcoming");
 
         return api;
     }
 
     /// <param name="host">The host the browser reached Flexarr on, for links into *arr apps configured as localhost.</param>
-    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, FlexarrDbContext db, string? host, CancellationToken ct)
+    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)
     {
         // From yesterday (a day's slack either side of UTC for the viewer's own "yesterday").
         var today = DateTime.UtcNow.Date;
         var start = today.AddDays(-2);
         var end = today.AddDays(days);
-        var queue = await QueueAsync(options, arr, ct);
-        var series = await SeriesIndexAsync(db, ct);
+        var range = $"calendar:{start:yyyy-MM-dd}:{end:yyyy-MM-dd}";
+        var sonarrs = options.Arr.Where(a => a.Kind == ArrKind.Sonarr).ToList();
+        var radarrs = options.Arr.Where(a => a.Kind == ArrKind.Radarr).ToList();
+
+        // Every instance at once, so a slow one costs its own wait rather than adding to everyone else's.
+        var queueTask = QueueAsync(options, arr, cache, ct);
+        var episodeTasks = sonarrs.Select(sonarr => CachedAsync(cache, Key(sonarr, range), CalendarTtl,
+            token => arr.GetCalendarAsync<SonarrEpisode>(sonarr, start, end, token), ct)).ToList();
+        var movieTasks = radarrs.Select(radarr => CachedAsync(cache, Key(radarr, range), CalendarTtl,
+            token => arr.GetCalendarAsync<RadarrMovie>(radarr, start, end, token), ct)).ToList();
+        var queue = await queueTask;
+        var episodeCalendars = await Task.WhenAll(episodeTasks);
+        var movieCalendars = await Task.WhenAll(movieTasks);
+
+        // Look up just the titles on the calendar, not every id in the library.
+        var series = await SeriesIndexAsync(db, episodeCalendars.SelectMany(c => c).Select(e => e.Series?.TvdbId), ct);
+        var tmdbIds = movieCalendars.SelectMany(c => c).Select(m => m.TmdbId.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
         // Not ToDictionary: a film can be in the library twice (two folders), sharing one TMDB id.
         var movies = new Dictionary<string, Guid?>(StringComparer.Ordinal);
-        foreach (var m in await db.MediaItems.Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null).Select(i => new { i.Id, i.TmdbId }).ToListAsync(ct))
+        foreach (var m in await db.MediaItems.Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null && tmdbIds.Contains(i.TmdbId)).Select(i => new { i.Id, i.TmdbId }).ToListAsync(ct))
         {
             movies.TryAdd(m.TmdbId!, m.Id);
         }
         var results = new List<UpcomingDto>();
 
-        foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
+        foreach (var (sonarr, calendar) in sonarrs.Zip(episodeCalendars))
         {
-            foreach (var episode in await SafeAsync(() => arr.GetCalendarAsync<SonarrEpisode>(sonarr, start, end, ct)))
+            foreach (var episode in calendar)
             {
                 var show = episode.Series;
                 var itemId = show is null ? null : series.GetValueOrDefault(show.TvdbId.ToString(CultureInfo.InvariantCulture));
@@ -84,9 +108,9 @@ public static class UpcomingEndpoints
             }
         }
 
-        foreach (var radarr in options.Arr.Where(a => a.Kind == ArrKind.Radarr))
+        foreach (var (radarr, calendar) in radarrs.Zip(movieCalendars))
         {
-            foreach (var movie in await SafeAsync(() => arr.GetCalendarAsync<RadarrMovie>(radarr, start, end, ct)))
+            foreach (var movie in calendar)
             {
                 // A film appears once, on its next release in the window: cinema, then digital, then disc.
                 var (date, when) = new[] { (movie.InCinemas, "In cinemas"), (movie.DigitalRelease, "Digital release"), (movie.PhysicalRelease, "On disc") }
@@ -109,13 +133,15 @@ public static class UpcomingEndpoints
         return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind)).OrderBy(r => r.Date).ToList();
     }
 
-    public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, FlexarrDbContext db, string? host, CancellationToken ct)
+    public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)
     {
-        var series = await SeriesIndexAsync(db, ct);
+        var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr).ToList();
+        var queues = await Task.WhenAll(instances.Select(instance => QueueOfAsync(instance, arr, cache, ct)));
+        var series = await SeriesIndexAsync(db, queues.SelectMany(q => q).Select(q => q.Series?.TvdbId), ct);
         var downloads = new List<DownloadDto>();
-        foreach (var instance in options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr))
+        foreach (var (instance, queue) in instances.Zip(queues))
         {
-            foreach (var q in await SafeAsync(() => arr.GetQueueAsync(instance, ct)))
+            foreach (var q in queue)
             {
                 var state = new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status);
                 var queuePage = WebUrl(instance, host, "activity/queue");
@@ -133,12 +159,18 @@ public static class UpcomingEndpoints
     }
 
     /// <summary>Queue entries keyed by "sonarr-{episodeId}" / "radarr-{movieId}".</summary>
-    internal static async Task<Dictionary<string, DownloadStateDto>> QueueAsync(FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    internal static Task<Dictionary<string, DownloadStateDto>> QueueAsync(FlexarrOptions options, ArrClient arr, CancellationToken ct) =>
+        QueueAsync(options, arr, null, ct);
+
+    /// <inheritdoc cref="QueueAsync(FlexarrOptions, ArrClient, CancellationToken)"/>
+    internal static async Task<Dictionary<string, DownloadStateDto>> QueueAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, CancellationToken ct)
     {
+        var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr).ToList();
+        var queues = await Task.WhenAll(instances.Select(instance => QueueOfAsync(instance, arr, cache, ct)));
         var map = new Dictionary<string, DownloadStateDto>(StringComparer.Ordinal);
-        foreach (var instance in options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr))
+        foreach (var (instance, queue) in instances.Zip(queues))
         {
-            foreach (var q in await SafeAsync(() => arr.GetQueueAsync(instance, ct)))
+            foreach (var q in queue)
             {
                 var key = instance.Kind == ArrKind.Sonarr ? $"sonarr-{q.EpisodeId}" : $"radarr-{q.MovieId}";
                 map.TryAdd(key, new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status));
@@ -148,10 +180,20 @@ public static class UpcomingEndpoints
         return map;
     }
 
-    private static async Task<Dictionary<string, Guid?>> SeriesIndexAsync(FlexarrDbContext db, CancellationToken ct)
+    private static Task<IReadOnlyList<ArrQueueItem>> QueueOfAsync(ArrInstance instance, ArrClient arr, IMemoryCache? cache, CancellationToken ct) =>
+        CachedAsync(cache, Key(instance, "queue"), QueueTtl, token => arr.GetQueueAsync(instance, token), ct);
+
+    /// <summary>Library shows by TVDB id, for just the ids asked about.</summary>
+    private static async Task<Dictionary<string, Guid?>> SeriesIndexAsync(FlexarrDbContext db, IEnumerable<int?> tvdbIds, CancellationToken ct)
     {
+        var wanted = tvdbIds.OfType<int>().Distinct().Select(id => id.ToString(CultureInfo.InvariantCulture)).ToList();
         var map = new Dictionary<string, Guid?>(StringComparer.Ordinal);
-        foreach (var s in await db.MediaItems.Where(i => i.Kind == MediaKind.Series && i.TvdbId != null).Select(i => new { i.Id, i.TvdbId }).ToListAsync(ct))
+        if (wanted.Count == 0)
+        {
+            return map;
+        }
+
+        foreach (var s in await db.MediaItems.Where(i => i.Kind == MediaKind.Series && i.TvdbId != null && wanted.Contains(i.TvdbId)).Select(i => new { i.Id, i.TvdbId }).ToListAsync(ct))
         {
             map.TryAdd(s.TvdbId!, s.Id);
         }
@@ -159,15 +201,63 @@ public static class UpcomingEndpoints
         return map;
     }
 
-    /// <summary>An *arr being down shouldn't break the page; it just contributes nothing.</summary>
-    private static async Task<IReadOnlyList<T>> SafeAsync<T>(Func<Task<IReadOnlyList<T>>> call)
+    private static string Key(ArrInstance instance, string what) => $"arr:{instance.Kind}:{instance.Name}:{instance.BaseUrl}:{what}";
+
+    /// <summary>Cancelled (and replaced) to drop every cached *arr call at once.</summary>
+    private static CancellationTokenSource _arrCalls = new();
+
+    /// <summary>
+    /// Forgets the cached calendars and queues, so the next page load asks Sonarr and Radarr again: a webhook means
+    /// something just downloaded or was added, and it shouldn't show as still on its way for another minute or two.
+    /// </summary>
+    public static void ForgetArrCalls()
     {
+        // Not disposed: a page load may be reading its token right now, and one with no timer holds nothing to free.
+        Interlocked.Exchange(ref _arrCalls, new CancellationTokenSource()).Cancel();
+    }
+
+    /// <param name="ttl">How long to keep it.</param>
+    /// <param name="asked">The token current when the call was made: forgetting since then drops this answer too.</param>
+    private static MemoryCacheEntryOptions Expiring(TimeSpan ttl, CancellationToken asked) => new MemoryCacheEntryOptions
+    {
+        AbsoluteExpirationRelativeToNow = ttl,
+        ExpirationTokens = { new Microsoft.Extensions.Primitives.CancellationChangeToken(asked) },
+    };
+
+    /// <summary>
+    /// One *arr call, shared for a little while by everyone loading the page. An *arr being down or too slow
+    /// shouldn't break the page: it contributes nothing, and isn't asked again for a few seconds.
+    /// </summary>
+    private static async Task<IReadOnlyList<T>> CachedAsync<T>(IMemoryCache? cache, string key, TimeSpan ttl, Func<CancellationToken, Task<IReadOnlyList<T>>> call, CancellationToken ct)
+    {
+        if (cache is not null && cache.TryGetValue(key, out IReadOnlyList<T>? hit) && hit is not null)
+        {
+            return hit;
+        }
+
+        // Taken before asking: an answer that was under way when a webhook said things changed may predate the change,
+        // so it's used for this page but not kept.
+        var asked = _arrCalls.Token;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(CallTimeout);
         try
         {
-            return await call();
+            var result = await call(timeout.Token);
+            if (!asked.IsCancellationRequested)
+            {
+                cache?.Set(key, result, Expiring(ttl, asked));
+            }
+
+            return result;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
+            || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
+            if (!asked.IsCancellationRequested)
+            {
+                cache?.Set(key, (IReadOnlyList<T>)[], Expiring(FailureTtl, asked));
+            }
+
             return [];
         }
     }
@@ -188,5 +278,5 @@ public static class UpcomingEndpoints
         return url.Uri.ToString();
     }
 
-    private static string? Remote(string? url) => url is null ? null : $"/api/v1/images/remote?url={Uri.EscapeDataString(url)}";
+    private static string? Remote(string? url) => ImageEndpoints.RemoteUrl(url);
 }

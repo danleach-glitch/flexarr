@@ -23,23 +23,63 @@ final class ImageCache: @unchecked Sendable {
 /// Loads and decodes images off the main thread, coalescing duplicate requests.
 actor ImageLoader {
     static let shared = ImageLoader()
-    private var inFlight: [URL: Task<UIImage?, Never>] = [:]
+    private struct Load {
+        let task: Task<UIImage?, Never>
+        var waiters: Int
+    }
+    private var inFlight: [URL: Load] = [:]
 
+    /// Cancelling the caller (a poster scrolled away before it arrived) stops the download,
+    /// unless another view is still waiting for the same image.
     func load(_ url: URL) async -> UIImage? {
         if let cached = ImageCache.shared.image(for: url) { return cached }
-        if let task = inFlight[url] { return await task.value }
-        let task = Task<UIImage?, Never> {
-            guard let (data, response) = try? await URLSession.shared.data(from: url),
-                  (response as? HTTPURLResponse)?.statusCode == 200,
-                  let image = UIImage(data: data) else { return nil }
-            let decoded = await image.byPreparingForDisplay() ?? image
-            ImageCache.shared.insert(decoded, for: url)
-            return decoded
+        let task: Task<UIImage?, Never>
+        if var load = inFlight[url] {
+            load.waiters += 1
+            inFlight[url] = load
+            task = load.task
+        } else {
+            task = Task<UIImage?, Never> {
+                guard let data = await Self.fetch(url), let image = UIImage(data: data) else { return nil }
+                let decoded = await image.byPreparingForDisplay() ?? image
+                ImageCache.shared.insert(decoded, for: url)
+                return decoded
+            }
+            inFlight[url] = Load(task: task, waiters: 1)
         }
-        inFlight[url] = task
-        let image = await task.value
-        inFlight[url] = nil
+        let image = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            Task { await self.abandon(url, task) }
+        }
+        if inFlight[url]?.task == task { inFlight[url] = nil }
         return image
+    }
+
+    /// The image's bytes. A server too busy to make it right now (503, after a fast scroll through uncached posters)
+    /// is asked again after its Retry-After, twice at most, for as long as someone is still waiting for it.
+    private static func fetch(_ url: URL) async -> Data? {
+        for attempt in 0..<3 {
+            guard let (data, response) = try? await URLSession.shared.data(from: url),
+                  let http = response as? HTTPURLResponse else { return nil }
+            if http.statusCode == 200 { return data }
+            guard http.statusCode == 503, attempt < 2 else { return nil }
+            let wait = http.value(forHTTPHeaderField: "Retry-After").flatMap(Int.init) ?? 5
+            // Cancelled (scrolled away, nobody else waiting): stop rather than ask again.
+            guard (try? await Task.sleep(for: .seconds(min(max(wait, 1), 10)))) != nil else { return nil }
+        }
+        return nil
+    }
+
+    private func abandon(_ url: URL, _ task: Task<UIImage?, Never>) {
+        guard var load = inFlight[url], load.task == task else { return }
+        load.waiters -= 1
+        if load.waiters > 0 {
+            inFlight[url] = load
+        } else {
+            task.cancel()
+            inFlight[url] = nil
+        }
     }
 
     func data(_ url: URL) async -> Data? {

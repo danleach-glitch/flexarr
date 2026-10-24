@@ -13,8 +13,18 @@ private let log = Logger(subsystem: "io.github.flexarr.tv", category: "playback"
 @MainActor
 @Observable
 final class PlaybackController: NSObject {
+    /// Why playback stopped, and so what the viewer can do about it (see `retry`).
+    enum Problem {
+        /// Its stream was ended so another screen could play: watching here again takes the place back.
+        case takenOver
+        /// The server is already playing all it can on other screens.
+        case busy
+        case other
+    }
+
     private(set) var isStarting = false
     var errorMessage: String?
+    private(set) var problem: Problem = .other
     @ObservationIgnored var onSessionEnded: (() -> Void)?
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
@@ -30,8 +40,16 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var prompt: PlaybackPrompt = .none
     @ObservationIgnored private var pendingSeek: Double = 0
     @ObservationIgnored private var isAdvancing = false
+    @ObservationIgnored private var isRecovering = false
+    @ObservationIgnored private var hasPlayed = false
+    @ObservationIgnored private var lastRecovery = Date.distantPast
+    /// Where playback last was, for recovering after the item fails (when its own time may be gone).
+    @ObservationIgnored private var lastPosition: Double = 0
+    /// What `retry` asks for (nil: nothing to offer).
+    @ObservationIgnored private var retryRequest: PlaybackRequest?
 
     private static let reportInterval: TimeInterval = 10
+    private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
 
     // MARK: Start
 
@@ -39,16 +57,47 @@ final class PlaybackController: NSObject {
     func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient) {
         guard !isStarting else { return }
         self.client = client
+        start(request(for: itemId, startAt: startAt))
+    }
+
+    /// The error's main button, Watch here instead or Try again: asks for the stream that stopped again.
+    func retry() {
+        guard !isStarting, let retryRequest else { return }
+        start(retryRequest)
+    }
+
+    private func start(_ request: PlaybackRequest) {
+        guard let client else { return }
         isStarting = true
         Task {
             defer { isStarting = false }
             do {
-                let info = try await client.startPlayback(request(for: itemId, startAt: startAt))
+                let info = try await client.startPlayback(request)
                 try present(info)
             } catch {
-                errorMessage = ConnectionError(error).message
+                show(error, retry: request)
             }
         }
+    }
+
+    /// Says why playback stopped. A stream ended for another screen is asked for afresh, without the
+    /// `replacesSessionId` the server refuses for a while afterwards, so watching here takes the place back. A busy
+    /// server's refusal keeps it: asking with a stream the server no longer has never takes another screen's place.
+    private func show(_ error: Error, retry: PlaybackRequest?) {
+        let problem: Problem = switch error {
+        case FlexarrClientError.http(status: 410, _): .takenOver
+        case FlexarrClientError.http(status: 503, _): .busy
+        default: .other
+        }
+        show(problem, message: ConnectionError(error).message, retry: retry)
+    }
+
+    private func show(_ problem: Problem, message: String, retry: PlaybackRequest?) {
+        var retry = retry
+        if problem == .takenOver { retry?.replacesSessionId = nil }
+        self.problem = problem
+        retryRequest = problem == .other ? nil : retry
+        errorMessage = message
     }
 
     private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
@@ -84,8 +133,11 @@ final class PlaybackController: NSObject {
     /// Wires observers for the session in `info` onto the current player item.
     private func attach(_ info: PlaybackInfo) {
         guard let player, let item = player.currentItem else { return }
-        log.info("Session \(info.sessionId, privacy: .public) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
+        // The session id is the stream URLs' only credential, so keep it out of shareable logs.
+        log.info("Session \(info.sessionId, privacy: .private) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
         self.info = info
+        hasPlayed = false
+        lastPosition = info.startPositionSeconds
         prompt = .none
         lastReport = Date()
         pendingSeek = info.startPositionSeconds
@@ -120,6 +172,7 @@ final class PlaybackController: NSObject {
         switch status {
         case .readyToPlay:
             guard let player else { return }
+            hasPlayed = true
             if pendingSeek > 1 {
                 let target = CMTime(seconds: pendingSeek, preferredTimescale: 600)
                 pendingSeek = 0
@@ -133,12 +186,92 @@ final class PlaybackController: NSObject {
         case .failed:
             let reason = message ?? "The stream couldn't be opened."
             log.error("Item failed: \(reason, privacy: .public)")
-            dismissPlayer {
-                self.errorMessage = reason
+            if hasPlayed {
+                recover(reason: reason)
+            } else {
+                dismissPlayer {
+                    self.show(.other, message: reason, retry: nil)
+                }
             }
         default:
             break
         }
+    }
+
+    /// A stream that was playing stopped: the server restarted, say, or forgot a transcode. Ask for a fresh session
+    /// from where we were (retrying while the server comes back) before giving up, at most once a minute: a stream
+    /// that keeps stopping is a real problem worth showing.
+    private func recover(reason: String) {
+        guard !isRecovering, let client, let current = info else { return }
+        let position = self.position > 0 ? self.position : lastPosition
+        let failed = current.sessionId
+        let retry = PlaybackRequest(
+            itemId: current.item.id, profile: .tvOS(hdr: AVPlayer.eligibleForHDRPlayback), fileId: current.fileId,
+            audioStreamIndex: current.selectedAudioIndex, subtitleKey: current.selectedSubtitleKey ?? "off",
+            startPositionSeconds: position, replacesSessionId: failed)
+        guard Date().timeIntervalSince(lastRecovery) > 60 else {
+            // A stream ended to make way for another screen says so, even inside the once-a-minute limit.
+            Task {
+                let takenOver = await Self.takenOverReason(sessionId: failed, baseURL: client.baseURL)
+                // The player may have closed, or moved on to another title, while that was out.
+                guard self.info?.sessionId == failed else { return }
+                dismissPlayer {
+                    if let takenOver {
+                        self.show(.takenOver, message: takenOver, retry: retry)
+                    } else {
+                        self.show(.other, message: reason, retry: nil)
+                    }
+                }
+            }
+            return
+        }
+        log.info("Recovering playback at \(position)")
+        isRecovering = true
+        lastRecovery = Date()
+        Task {
+            defer { isRecovering = false }
+            var lastError: Error?
+            attempts: for attempt in 0..<6 {
+                if attempt > 0 { try? await Task.sleep(for: .seconds(3)) }
+                guard self.info?.sessionId == failed else { return } // Closed (or moved on) meanwhile.
+                do {
+                    let info = try await client.startPlayback(retry)
+                    // The player may have closed, or moved on to another title, while that was out.
+                    guard self.info?.sessionId == failed else {
+                        try? await client.stopPlayback(sessionId: info.sessionId)
+                        return
+                    }
+                    let item = try makeItem(for: info)
+                    player?.replaceCurrentItem(with: item)
+                    attach(info)
+                    return
+                } catch {
+                    lastError = error
+                    // The server is at its transcode limit, or ended this stream for another screen (410): say so
+                    // rather than retrying, which would only take the stream back from that screen.
+                    if case FlexarrClientError.http(status: 503, _) = error { break attempts }
+                    if case FlexarrClientError.http(status: 410, _) = error { break attempts }
+                }
+            }
+            dismissPlayer {
+                if let lastError {
+                    self.show(lastError, retry: retry)
+                } else {
+                    self.show(.other, message: reason, retry: nil)
+                }
+            }
+        }
+    }
+
+    /// Why the server ended this transcode for another viewer, if it did: its playlist answers 410 with the reason.
+    /// Gives up after a few seconds, so a server that's hung doesn't keep the player waiting.
+    private static func takenOverReason(sessionId: String, baseURL: URL) async -> String? {
+        var request = URLRequest(url: baseURL.appending(path: "api/v1/playback/\(sessionId)/main.m3u8"))
+        request.timeoutInterval = 5
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 410 else { return nil }
+        struct Problem: Decodable { let detail: String? }
+        return (try? JSONDecoder().decode(Problem.self, from: data))?.detail ?? takenOverMessage
     }
 
     // MARK: Progress
@@ -150,6 +283,7 @@ final class PlaybackController: NSObject {
 
     private func tick(_ seconds: Double) {
         guard let info, seconds.isFinite, pendingSeek == 0 else { return }
+        lastPosition = seconds
         let next = info.prompt(at: seconds)
         if next != prompt {
             log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
@@ -224,6 +358,10 @@ final class PlaybackController: NSObject {
             try? await client.stopPlayback(sessionId: finished)
             do {
                 let info = try await client.startPlayback(request(for: next.id, startAt: nil))
+                guard self.info?.sessionId == finished else { // Closed meanwhile.
+                    try? await client.stopPlayback(sessionId: info.sessionId)
+                    return
+                }
                 let item = try makeItem(for: info)
                 player?.replaceCurrentItem(with: item)
                 attach(info)
@@ -231,7 +369,7 @@ final class PlaybackController: NSObject {
             } catch {
                 self.info = nil
                 dismissPlayer {
-                    self.errorMessage = ConnectionError(error).message
+                    self.show(error, retry: self.request(for: next.id, startAt: nil))
                 }
             }
         }
@@ -246,7 +384,7 @@ final class PlaybackController: NSObject {
 
     private func stop(reportingTo client: FlexarrClient?) {
         if let info, let client {
-            log.info("Stopping session \(info.sessionId, privacy: .public)")
+            log.info("Stopping session \(info.sessionId, privacy: .private)")
             let position = self.position
             let sessionId = info.sessionId
             let record = recordsHistory

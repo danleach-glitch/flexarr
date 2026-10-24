@@ -27,10 +27,21 @@ public sealed class PlaybackSession
     public bool CountedAsPlay { get; set; }
 }
 
-public sealed class PlaybackSessions(TranscodeManager transcodes)
+public sealed partial class PlaybackSessions
 {
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
+    private readonly TranscodeManager transcodes;
+    private readonly ILogger<PlaybackSessions> logger;
+
+    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger)
+    {
+        this.transcodes = transcodes;
+        this.logger = logger;
+
+        // A transcode ended to make way for another viewer takes its playback with it.
+        transcodes.TakenOver += id => _sessions.TryRemove(id, out _);
+    }
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
 
@@ -58,23 +69,49 @@ public sealed class PlaybackSessions(TranscodeManager transcodes)
     {
         foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
         {
-            await RemoveAsync(session.Id);
+            try
+            {
+                await RemoveAsync(session.Id);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogExpireFailed(ex, session.Id);
+            }
         }
 
         await transcodes.SweepAsync();
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't end expired playback session {Session}")]
+    private partial void LogExpireFailed(Exception ex, string session);
 }
 
 /// <summary>Throttles and cleans up transcodes every few seconds.</summary>
-public sealed class PlaybackSweeper(PlaybackSessions sessions, TranscodeManager transcodes) : BackgroundService
+public sealed partial class PlaybackSweeper(PlaybackSessions sessions, TranscodeManager transcodes, ILogger<PlaybackSweeper> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        transcodes.DeleteOrphans();
+        try
+        {
+            transcodes.DeleteOrphans();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogSweepFailed(ex);
+        }
+
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await sessions.SweepAsync();
+            // One bad sweep mustn't end the loop (or stop the host): idle transcodes would never be cleaned up again.
+            try
+            {
+                await sessions.SweepAsync();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogSweepFailed(ex);
+            }
         }
     }
 
@@ -83,4 +120,7 @@ public sealed class PlaybackSweeper(PlaybackSessions sessions, TranscodeManager 
         await transcodes.DisposeAsync();
         await base.StopAsync(cancellationToken);
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Playback cleanup failed")]
+    private partial void LogSweepFailed(Exception ex);
 }

@@ -58,7 +58,7 @@ struct SettingsView: View {
             Button("Sign out", role: .destructive) { model.signOut() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The API key will be removed from this Apple TV.")
+            Text("This Apple TV will need to connect again to use the server.")
         }
     }
 

@@ -166,7 +166,7 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         {
             LibraryId = library.Id, Kind = MediaKind.Series, Title = title, SortTitle = title.ToUpperInvariant(), Path = path,
             Year = wrong ? 1980 : null, TvdbId = wrong ? "80284" : null, ImdbId = wrong ? "tt0080274" : null,
-            MetadataSource = wrong ? "Sonarr lookup" : null, MetadataUpdatedAt = DateTime.UtcNow, PosterUrl = "https://artworks.thetvdb.com/1980.jpg",
+            MetadataSource = wrong ? "Sonarr lookup" : null, MetadataUpdatedAt = DateTime.UtcNow.AddDays(-2), PosterUrl = "https://artworks.thetvdb.com/1980.jpg",
         };
         db.AddRange(library, show);
         await db.SaveChangesAsync();

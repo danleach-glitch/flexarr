@@ -19,10 +19,12 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
+    public DbSet<WatchTombstone> WatchTombstones => Set<WatchTombstone>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
     /// every query (use <c>IgnoreQueryFilters</c> to see them). Empty for background work, which sees everything.
+    /// Items and files whose files went missing from disk (<see cref="MediaItem.MissingSince"/>) are filtered out too.
     /// </summary>
     public IReadOnlyList<Guid> HiddenLibraryIds { get; set; } = [];
 
@@ -50,7 +52,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         modelBuilder.Entity<MediaItem>(e =>
         {
             // Every item (seasons and episodes too) carries its library, so hiding one hides all of it.
-            e.HasQueryFilter(i => !HiddenLibraryIds.Contains(i.LibraryId));
+            e.HasQueryFilter(i => !HiddenLibraryIds.Contains(i.LibraryId) && i.MissingSince == null);
             e.HasOne(i => i.Parent).WithMany(i => i.Children).HasForeignKey(i => i.ParentId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(i => i.Files).WithOne(f => f.MediaItem).HasForeignKey(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });
@@ -73,6 +75,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         modelBuilder.Entity<MediaFile>(e =>
         {
             e.HasIndex(f => f.Path).IsUnique();
+            e.HasQueryFilter(f => f.MissingSince == null);
             e.HasMany(f => f.Streams).WithOne().HasForeignKey(s => s.MediaFileId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(f => f.Markers).WithOne().HasForeignKey(m => m.MediaFileId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -100,6 +103,16 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasKey(i => new { i.CollectionId, i.MediaItemId });
             // A title that leaves the library leaves its collections.
             e.HasOne(i => i.MediaItem).WithMany().HasForeignKey(i => i.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WatchTombstone>(e =>
+        {
+            // Read back whole and only by id, so stored as JSON rather than tables of their own.
+            e.OwnsMany(t => t.Playback, b => b.ToJson());
+            e.OwnsMany(t => t.Collections, b => b.ToJson());
+            e.HasIndex(t => t.TmdbId);
+            e.HasIndex(t => t.TvdbId);
+            e.HasIndex(t => t.ImdbId);
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

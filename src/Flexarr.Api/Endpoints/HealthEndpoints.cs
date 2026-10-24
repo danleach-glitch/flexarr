@@ -2,9 +2,12 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
+using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
+using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -18,8 +21,11 @@ public sealed record UnreadableDto(Guid FileId, string Path, string Error, ItemS
 
 /// <summary>
 /// The share of films and episodes with nothing wrong (0–100), and how many titles each kind of problem touches.
+/// <see cref="ArtworkNeedsConnection"/>: films and shows without artwork that no Radarr or Sonarr is connected to fill
+/// in; they're left out of the score and <see cref="MissingArtwork"/>.
 /// </summary>
-public sealed record HealthScoreDto(int Score, int Titles, int WithProblems, int Duplicates, int Unreadable, int StandardDefinition, int MissingArtwork, int FileProblems);
+public sealed record HealthScoreDto(int Score, int Titles, int WithProblems, int Duplicates, int Unreadable, int StandardDefinition, int MissingArtwork, int FileProblems,
+    int ArtworkNeedsConnection = 0);
 
 public sealed record LibraryHealthDto(
     HealthScoreDto Score,
@@ -30,7 +36,18 @@ public sealed record LibraryHealthDto(
     IReadOnlyList<ItemSummaryDto> MatchedByTitle,
     IReadOnlyList<ItemSummaryDto> StandardDefinition,
     int StandardDefinitionTotal,
-    IReadOnlyDictionary<Guid, DownloadStateDto> Downloading);
+    IReadOnlyDictionary<Guid, DownloadStateDto> Downloading,
+    IReadOnlyList<HeldFolderDto> Held);
+
+/// <summary>
+/// A library folder whose scans keep its files rather than hide the ones they can't find, as it looked unmounted or
+/// cleared out. <see cref="CanConfirm"/>: the removal can be confirmed (not for a folder that isn't there at all).
+/// </summary>
+public sealed record HeldFolderDto(int FolderId, string Library, string Path, FolderHold Reason, int Missing, int Known, DateTime Since, int Scans, bool Confirmed, bool CanConfirm,
+    LibraryType? LibraryType = null);
+
+/// <summary>What Library health showed for a held folder when its removal was confirmed.</summary>
+public sealed record HeldConfirmation(DateTime Since, int Missing, int Known);
 
 public sealed record SkippedFileDto(string Path, string Reason);
 
@@ -75,7 +92,7 @@ public static partial class HealthEndpoints
             // Films and shows Sonarr and Radarr don't manage, so their details came from searching for the folder's
             // name: worth a look, as a search can pick the wrong one (a remake, an older show of the same name).
             var byTitle = await db.MediaItems
-                .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && i.ArrId == null && !i.MatchLocked && i.PosterUrl != null)
+                .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && (i.MetadataSource == MetadataRefresher.RadarrLookup || i.MetadataSource == MetadataRefresher.SonarrLookup) && !i.MatchLocked)
                 .OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
 
             // Films and shows whose best copy is standard definition: candidates for an upgrade search.
@@ -83,12 +100,18 @@ public static partial class HealthEndpoints
             // The score counts each film or episode once, however many problems it has.
             var titles = await db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode, ct);
             var sdIds = await sd.Select(i => i.Id).ToListAsync(ct);
-            var artless = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).Select(i => i.Id).ToListAsync(ct);
+            // Film and show artwork comes from Radarr and Sonarr: with neither connected, it isn't something to fix here.
+            // (The score is of films and episodes, so artists without a photo don't count either.)
+            var arrKinds = options.CurrentValue.Arr.Select(a => a.Kind).ToHashSet();
+            var artlessVideo = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
+                .Select(i => new { i.Id, i.Kind }).ToListAsync(ct);
+            var artless = artlessVideo.Where(i => arrKinds.Contains(i.Kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr)).Select(i => i.Id).ToList();
             var fileProblems = check.Status.Problems.Select(p => p.ItemId).Distinct().ToList();
             var troubled = new HashSet<Guid>([.. ids, .. unreadable.Select(u => u.MediaItemId), .. sdIds, .. artless, .. fileProblems]);
             var score = new HealthScoreDto(
                 titles == 0 ? 100 : (int)Math.Floor(100.0 * Math.Max(0, titles - troubled.Count) / titles),
-                titles, troubled.Count, ids.Count, unreadable.Select(u => u.MediaItemId).Distinct().Count(), sdIds.Count, artless.Count, fileProblems.Count);
+                titles, troubled.Count, ids.Count, unreadable.Select(u => u.MediaItemId).Distinct().Count(), sdIds.Count, artless.Count, fileProblems.Count,
+                artlessVideo.Count - artless.Count);
 
             // Titles Sonarr or Radarr are already downloading, so the page offers no second search for them.
             var queue = await UpcomingEndpoints.QueueAsync(options.CurrentValue, arr, ct);
@@ -111,7 +134,40 @@ public static partial class HealthEndpoints
                 byTitle,
                 await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
                 await sd.CountAsync(ct),
-                downloading);
+                downloading,
+                await HeldAsync(db, ct));
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // "Confirm removal" for a held folder: its files really are gone, so the next scan (queued now) hides them, and
+        // they're removed after the usual grace period. Only for the result shown, which the request repeats: if a scan
+        // has found something different since, it's refused; if the next scan does, it's held again.
+        api.MapPost("/library-health/held/{folderId:int}/confirm", async (int folderId, HeldConfirmation shown, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>
+        {
+            var folder = await db.LibraryFolders.AsNoTracking().FirstOrDefaultAsync(f => f.Id == folderId, ct);
+            if (folder is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (folder.Hold is not (FolderHold.FolderEmpty or FolderHold.MostFilesGone))
+            {
+                return Results.Problem(folder.Hold is null ? "This folder isn't being held." : "The folder isn't there. Reconnect its drive, or take the folder out of the library in Settings.", statusCode: 409);
+            }
+
+            // In one statement, so a scan recording new numbers in between can't slip under this confirmation.
+            var since = folder.HeldSince;
+            var same = folder.HeldMissing == shown.Missing && folder.HeldKnown == shown.Known && since is not null
+                && Math.Abs((since.Value - shown.Since).TotalMilliseconds) < 1
+                && await db.LibraryFolders.Where(f => f.Id == folderId && f.Hold == folder.Hold && f.HeldSince == since
+                        && f.HeldMissing == shown.Missing && f.HeldKnown == shown.Known)
+                    .ExecuteUpdateAsync(u => u.SetProperty(f => f.RemovalConfirmed, true), ct) == 1;
+            if (!same)
+            {
+                return Results.Problem("A scan has found something different since this was shown, so nothing was confirmed. Check the new numbers and confirm again if they're right.", statusCode: 409);
+            }
+
+            await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, "Removal confirmed in Library health"), ct);
+            return Results.Accepted();
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // The Health check button: look at every file on disk (in the background), then report what's wrong.
@@ -254,6 +310,15 @@ public static partial class HealthEndpoints
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
+    }
+
+    private static async Task<List<HeldFolderDto>> HeldAsync(FlexarrDbContext db, CancellationToken ct)
+    {
+        var held = await db.LibraryFolders.Where(f => f.Hold != null).OrderBy(f => f.Path).ToListAsync(ct);
+        var ids = held.Select(f => f.LibraryId).ToList();
+        var libraries = await db.Libraries.IgnoreQueryFilters().Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, l => new { l.Name, l.Type }, ct);
+        return held.Select(f => new HeldFolderDto(f.Id, libraries.GetValueOrDefault(f.LibraryId)?.Name ?? "", f.Path, f.Hold!.Value, f.HeldMissing, f.HeldKnown,
+            f.HeldSince ?? DateTime.UtcNow, f.HeldScans, f.RemovalConfirmed, f.Hold != FolderHold.FolderMissing, libraries.GetValueOrDefault(f.LibraryId)?.Type)).ToList();
     }
 
     /// <summary>

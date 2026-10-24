@@ -4,8 +4,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import {
   analyzeItem,
   getItem,
-  getMe,
-  getNextUp,
+  getItemPage,
   getSimilar,
   imageUrl,
   setWatched,
@@ -23,6 +22,8 @@ import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
+import { useSession } from '../hooks/sessionContext'
+import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import {
@@ -39,7 +40,9 @@ import {
 export function ItemPage() {
   const { id = '' } = useParams()
   const [version, setVersion] = useState(0)
-  const { data, error } = useApi((signal) => getItem(id, signal), [id, version])
+  const [params] = useSearchParams()
+  // A series comes with its Up Next and the season to show (picking another season later fetches just that one).
+  const { data, error } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
 
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
@@ -64,10 +67,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [matching, setMatching] = useState(false)
-  const access = useApi(getMe, [])
-  const canDelete = access.data?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
-  const canFixMatch = access.data?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series')
-  const nextUp = useApi((signal) => (item.kind === 'Series' ? getNextUp(item.id, signal) : Promise.resolve(undefined)), [item.id, item.userData.unwatchedCount])
+  const { me } = useSession()
+  const canDelete = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
+  const canFixMatch = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series')
+  const nextUp = detail.nextUp ?? undefined
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
 
   const accent = item.accentColor ?? series?.accentColor
@@ -78,16 +81,17 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
 
   async function toggleWatched() {
     await setWatched(item.id, !item.userData.watched)
+    announceWatched(item)
     onChange()
   }
 
-  const playTarget = item.kind === 'Series' ? nextUp.data : item
+  const playTarget = item.kind === 'Series' ? nextUp : item
   const playLabel = (() => {
     if (item.kind === 'Series') {
-      if (!nextUp.data) return 'Play'
-      if (item.userData.watched) return `Watch again from ${episodeHeading(nextUp.data)}`
-      const resume = nextUp.data.userData.positionSeconds > 0
-      return `${resume ? 'Resume' : 'Play'} ${episodeHeading(nextUp.data)}`
+      if (!nextUp) return 'Play'
+      if (item.userData.watched) return `Watch again from ${episodeHeading(nextUp)}`
+      const resume = nextUp.userData.positionSeconds > 0
+      return `${resume ? 'Resume' : 'Play'} ${episodeHeading(nextUp)}`
     }
     return progress ? `Resume from ${formatClock(item.userData.positionSeconds)}` : 'Play'
   })()
@@ -210,8 +214,12 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
   const requested = params.get('season')
   const firstUnwatched = seasons.find((s) => !s.userData.watched && s.seasonNumber !== 0)
   const selected = seasons.find((s) => String(s.seasonNumber) === requested) ?? firstUnwatched ?? seasons[0]
-  const [version, setVersion] = useState(0)
-  const season = useApi((signal) => (selected ? getItem(selected.id, signal) : Promise.resolve(undefined)), [selected?.id, version])
+  // The season the series came with, unless another is picked. Changes reload the series, and its season with it.
+  const embedded = series.season && series.season.item.id === selected?.id ? series.season : undefined
+  const season = useApi(
+    (signal) => (embedded ? Promise.resolve(embedded) : selected ? getItem(selected.id, signal) : Promise.resolve(undefined)),
+    [selected?.id, embedded],
+  )
 
   if (!selected) return null
 
@@ -237,7 +245,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
           className="text-button"
           onClick={async () => {
             await setWatched(selected.id, !selected.userData.watched)
-            setVersion((v) => v + 1)
+            announceWatched(selected)
             onChange()
           }}
         >
@@ -250,10 +258,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             key={episode.id}
             episode={episode}
             overview={season.data?.childOverviews[episode.id] ?? null}
-            onChange={() => {
-              setVersion((v) => v + 1)
-              onChange()
-            }}
+            onChange={onChange}
           />
         ))}
       </ol>

@@ -1,3 +1,4 @@
+using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
@@ -56,56 +57,84 @@ public static class ItemEndpoints
                 .ToListAsync(ct))
             .WithTags("Items");
 
-        api.MapGet("/items/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        // includeSeason (the web's title page): a series also carries its Up Next episode and one season's episodes (the
+        // requested number, else the first unwatched), so the page needs one request rather than three in a row.
+        api.MapGet("/items/{id:guid}", async (Guid id, bool? includeSeason, int? season, FlexarrDbContext db, PlaybackService playback,
+            CurrentProfile profile, CancellationToken ct) =>
         {
-            var item = await db.MediaItems.Where(i => i.Id == id).Summaries(profile.Id).FirstOrDefaultAsync(ct);
-            if (item is null)
+            var detail = await DetailAsync(id, db, profile, ct);
+            if (detail is null)
             {
                 return Results.NotFound();
             }
 
-            var entity = await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == id, ct);
-
-            var ancestors = new List<ItemSummaryDto>();
-            for (var parentId = entity.ParentId; parentId is { } pid;)
+            if (includeSeason == true && detail.Item.Kind == MediaKind.Series)
             {
-                ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstAsync(ct));
-                parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
+                var nextUp = await playback.NextUpAsync(id, ct) is { } episode
+                    ? await db.MediaItems.Where(i => i.Id == episode.Id).Summaries(profile.Id).FirstAsync(ct)
+                    : null;
+                // The same choice the page makes: specials last, then the requested season, the first unwatched, or the first.
+                var seasons = detail.Children.OrderBy(s => s.SeasonNumber == 0).ThenBy(s => s.SeasonNumber).ToList();
+                var selected = seasons.FirstOrDefault(s => season is { } n && s.SeasonNumber == n)
+                    ?? seasons.FirstOrDefault(s => !s.UserData.Watched && s.SeasonNumber != 0)
+                    ?? seasons.FirstOrDefault();
+                var seasonDetail = selected is null ? null : await DetailAsync(selected.Id, db, profile, ct);
+                detail = detail with { NextUp = nextUp, Season = seasonDetail };
             }
 
-            // An artist's albums read newest first; everything else in its natural order.
-            var childQuery = db.MediaItems.Where(i => i.ParentId == id);
-            var children = await (entity.Kind == MediaKind.Artist
-                    ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
-                    : childQuery.OrderBy(i => i.SortTitle))
-                .Summaries(profile.Id).ToListAsync(ct);
-            var files = await db.MediaFiles.AsNoTracking().Where(f => f.MediaItemId == id).Include(f => f.Streams)
-                .OrderByDescending(f => f.Height).ToListAsync(ct);
-
-            // Seasons and episodes show their series' cast.
-            var creditsFor = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0 ? ancestors[0].Id : id;
-            var credits = await db.Credits.Where(c => c.MediaItemId == creditsFor).OrderBy(c => c.Order)
-                .Select(c => new CreditDto(c.PersonId, c.Person!.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.Person.ImageUrl != null)))
-                .ToListAsync(ct);
-
-            var series = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0
-                ? await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == ancestors[0].Id, ct)
-                : entity;
-
-            // A season's episode list shows overviews; send them with it rather than one request per episode.
-            var childOverviews = entity.Kind == MediaKind.Season
-                ? await db.MediaItems.Where(i => i.ParentId == id).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
-                : new Dictionary<Guid, string?>();
-
-            return Results.Ok(new ItemDetailDto(
-                item, entity.Path, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
-                entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
-                series.Genres.Select(g => g.Name).Order().ToList(),
-                series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
-                ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked));
+            return Results.Ok(detail);
         }).WithTags("Items");
 
         return api;
+    }
+
+    private static async Task<ItemDetailDto?> DetailAsync(Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        var item = await db.MediaItems.Where(i => i.Id == id).Summaries(profile.Id).FirstOrDefaultAsync(ct);
+        if (item is null)
+        {
+            return null;
+        }
+
+        var entity = await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == id, ct);
+
+        var ancestors = new List<ItemSummaryDto>();
+        for (var parentId = entity.ParentId; parentId is { } pid;)
+        {
+            ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstAsync(ct));
+            parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
+        }
+
+        // An artist's albums read newest first; everything else in its natural order.
+        var childQuery = db.MediaItems.Where(i => i.ParentId == id);
+        var children = await (entity.Kind == MediaKind.Artist
+                ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
+                : childQuery.OrderBy(i => i.SortTitle))
+            .Summaries(profile.Id).ToListAsync(ct);
+        var files = await db.MediaFiles.AsNoTracking().Where(f => f.MediaItemId == id).Include(f => f.Streams)
+            .OrderByDescending(f => f.Height).ToListAsync(ct);
+
+        // Seasons and episodes show their series' cast.
+        var creditsFor = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0 ? ancestors[0].Id : id;
+        var credits = await db.Credits.Where(c => c.MediaItemId == creditsFor).OrderBy(c => c.Order)
+            .Select(c => new CreditDto(c.PersonId, c.Person!.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.Person.ImageUrl != null)))
+            .ToListAsync(ct);
+
+        var series = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0
+            ? await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == ancestors[0].Id, ct)
+            : entity;
+
+        // A season's episode list shows overviews; send them with it rather than one request per episode.
+        var childOverviews = entity.Kind == MediaKind.Season
+            ? await db.MediaItems.Where(i => i.ParentId == id).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
+            : new Dictionary<Guid, string?>();
+
+        return new ItemDetailDto(
+            item, entity.Path, entity.OriginalTitle, entity.Overview ?? (entity.Kind == MediaKind.Season ? series.Overview : null),
+            entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
+            series.Genres.Select(g => g.Name).Order().ToList(),
+            series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
+            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked);
     }
 
     private static FileDto ToDto(MediaFile f) => new(

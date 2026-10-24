@@ -1,10 +1,22 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
-import { getMe, getProfiles, getSystemStatus, migrateStoredApiKey, profileToken, signIn, UnauthorizedError, type Profile } from './api/client'
+import {
+  clearApiCache,
+  getMe,
+  getProfiles,
+  getSystemStatus,
+  migrateStoredApiKey,
+  profileToken,
+  saveProfileToken,
+  signIn,
+  UnauthorizedError,
+  type Profile,
+} from './api/client'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
+import { SessionProvider } from './hooks/session'
 import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExternalTitlePage } from './pages/ExternalTitlePage'
@@ -49,37 +61,40 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage').then((m) => (
 type ConnectionState =
   | { kind: 'loading' }
   | { kind: 'ready' }
-  | { kind: 'choose-profile'; profiles: Profile[] }
+  /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
+  | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
   | { kind: 'unauthorized'; wrongKey?: boolean }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
 export function Shell() {
   return (
-    <LibrariesProvider>
-      <AudioPlayerProvider>
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="play/:id" element={<PlayerPage />} />
-            <Route element={<Layout />}>
-              <Route index element={<HomePage />} />
-              <Route path="library/:id" element={<LibraryPage />} />
-              <Route path="item/:id" element={<ItemPage />} />
-              <Route path="person/:id" element={<PersonPage />} />
-              <Route path="collections" element={<CollectionsPage />} />
-              <Route path="collection/:id" element={<CollectionPage />} />
-              <Route path="discover" element={<DiscoverPage />} />
-              <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
-              <Route path="upcoming" element={<UpcomingPage />} />
-              <Route path="link" element={<LinkPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="settings/:section" element={<SettingsPage />} />
-              <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </AudioPlayerProvider>
-    </LibrariesProvider>
+    <SessionProvider>
+      <LibrariesProvider>
+        <AudioPlayerProvider>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="play/:id" element={<PlayerPage />} />
+              <Route element={<Layout />}>
+                <Route index element={<HomePage />} />
+                <Route path="library/:id" element={<LibraryPage />} />
+                <Route path="item/:id" element={<ItemPage />} />
+                <Route path="person/:id" element={<PersonPage />} />
+                <Route path="collections" element={<CollectionsPage />} />
+                <Route path="collection/:id" element={<CollectionPage />} />
+                <Route path="discover" element={<DiscoverPage />} />
+                <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
+                <Route path="upcoming" element={<UpcomingPage />} />
+                <Route path="link" element={<LinkPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="settings/:section" element={<SettingsPage />} />
+                <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </AudioPlayerProvider>
+      </LibrariesProvider>
+    </SessionProvider>
   )
 }
 
@@ -99,10 +114,26 @@ export default function App() {
         ]),
       )
       .then(([profiles, me]) => {
-        // Ask who's watching when the household has several profiles and this device hasn't chosen one.
-        // Over Tailscale the person is already known from their Tailscale account.
+        // A stored choice the server no longer honours (the key or the PIN changed, or the profile went) would
+        // quietly watch as someone else, often the main profile: forget it and ask again.
+        const token = profileToken()
+        const tokenFor = token?.slice(0, token.lastIndexOf('.'))
+        // Earlier versions kept the main profile's token after its PIN, to manage the server over Tailscale. The PIN
+        // now signs the browser in instead, so that token goes, and over Tailscale the picker asks for the PIN again.
+        const oldMainToken = me !== null && tokenFor === 'owner'
+        if (token && me && (oldMainToken || tokenFor !== me.profileId)) {
+          saveProfileToken(null)
+          sessionStorage.removeItem('flexarr.profileChosen')
+          clearApiCache()
+        }
+        // Ask who's watching when the household has several profiles and this device hasn't chosen one, or when
+        // asked to ("Switch profile"). Otherwise, over Tailscale the person is already known from their account.
+        const asked = sessionStorage.getItem('flexarr.pickProfile') === '1' || (oldMainToken && me?.method === 'tailscale')
         const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
-        setState(profiles.length > 1 && !chosen ? { kind: 'choose-profile', profiles } : { kind: 'ready' })
+        // Asked for one profile in particular (Switch to the main profile, in Settings): straight to its PIN.
+        const initial = asked ? profiles.find((p) => p.id === sessionStorage.getItem('flexarr.pickProfileFor')) : undefined
+        sessionStorage.removeItem('flexarr.pickProfileFor')
+        setState(profiles.length > 0 && (asked || (profiles.length > 1 && !chosen)) ? { kind: 'choose-profile', profiles, asked, initial } : { kind: 'ready' })
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -131,10 +162,22 @@ export default function App() {
     return (
       <ProfilePicker
         profiles={state.profiles}
+        initial={state.initial}
         onChosen={() => {
+          sessionStorage.removeItem('flexarr.pickProfile')
           sessionStorage.setItem('flexarr.profileChosen', '1')
           setState({ kind: 'ready' })
         }}
+        // Carry on as before: opening the picker didn't give up the profile chosen here.
+        onCancel={
+          state.asked
+            ? () => {
+                sessionStorage.removeItem('flexarr.pickProfile')
+                sessionStorage.setItem('flexarr.profileChosen', '1')
+                setState({ kind: 'ready' })
+              }
+            : undefined
+        }
       />
     )
   }
@@ -166,9 +209,7 @@ export default function App() {
                 computer, open Flexarr, go to <strong>Settings › Connect a TV</strong> and enter <span className="connect-tv-code">{tvCode}</span>
               </p>
             ) : (
-              <p className="muted">
-                It's in config.json in the server's data folder. Away from home, open Flexarr through Tailscale instead and you'll be signed in automatically.
-              </p>
+              <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>
             )}
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
@@ -177,6 +218,11 @@ export default function App() {
               </button>
             </div>
             {state.wrongKey && <p className="error">That isn't the right key.</p>}
+            {!tvCode && (
+              <p className="muted small-print">
+                For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.
+              </p>
+            )}
           </form>
         )}
       </section>

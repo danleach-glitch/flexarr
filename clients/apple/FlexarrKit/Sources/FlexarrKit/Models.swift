@@ -316,10 +316,12 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     /// Omit to let the server pick the resume point; 0 starts from the beginning.
     public var startPositionSeconds: Double?
     public var forceTranscode: Bool?
+    /// This player's previous session, which the new one takes over from (only that one ends).
+    public var replacesSessionId: String?
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
-                startPositionSeconds: Double? = nil, forceTranscode: Bool? = nil) {
+                startPositionSeconds: Double? = nil, forceTranscode: Bool? = nil, replacesSessionId: String? = nil) {
         self.itemId = itemId
         self.profile = profile
         self.fileId = fileId
@@ -329,6 +331,7 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
         self.maxHeight = maxHeight
         self.startPositionSeconds = startPositionSeconds
         self.forceTranscode = forceTranscode
+        self.replacesSessionId = replacesSessionId
     }
 }
 
@@ -410,8 +413,20 @@ public struct PairingStart: Decodable, Sendable, Equatable {
 public struct PairingStatus: Decodable, Sendable, Equatable {
     /// "waiting", "approved" or "expired".
     public let status: String
-    /// Set once, when approved.
+    /// Set once, when approved: this Apple TV's own token, sent as the API key from then on.
     public let apiKey: String?
+}
+
+/// What `/me` says about this client.
+public struct SignInInfo: Decodable, Sendable, Equatable {
+    public let profileId: String
+    /// "api-key" (the server's key itself), "device" (this device's own token), "tailscale" or "local".
+    public let method: String
+    public let isAdmin: Bool
+}
+
+struct DeviceToken: Decodable, Sendable {
+    let token: String
 }
 
 // MARK: - Profiles

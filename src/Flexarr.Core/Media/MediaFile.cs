@@ -42,6 +42,9 @@ public sealed class MediaFile
     /// <summary>When intro/credits detection last ran for this file (null = never).</summary>
     public DateTime? MarkersScannedAt { get; set; }
 
+    /// <summary>When a scan last found this file gone (null = present). Hidden until it reappears or is removed.</summary>
+    public DateTime? MissingSince { get; set; }
+
     public List<MediaStream> Streams { get; set; } = [];
     public List<MediaMarker> Markers { get; set; } = [];
 }

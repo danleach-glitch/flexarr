@@ -56,13 +56,27 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .alert("Couldn't play this", isPresented: Binding(
+        .alert(model.player.problem == .takenOver ? "Stopped for another screen" : "Couldn't play this", isPresented: Binding(
             get: { model.player.errorMessage != nil },
             set: { if !$0 { model.player.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            // The main button comes first, so it has the focus.
+            switch model.player.problem {
+            case .takenOver:
+                Button("Watch here instead") { model.player.retry() }
+                Button("Go back", role: .cancel) {}
+            case .busy:
+                Button("Try again") { model.player.retry() }
+                Button("Go back", role: .cancel) {}
+            case .other:
+                Button("OK", role: .cancel) {}
+            }
         } message: {
-            Text(model.player.errorMessage ?? "")
+            if model.player.problem == .takenOver {
+                Text("\(model.player.errorMessage ?? "")\n\nThe other screen will stop if you watch here.")
+            } else {
+                Text(model.player.errorMessage ?? "")
+            }
         }
     }
 }

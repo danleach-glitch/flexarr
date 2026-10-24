@@ -1,10 +1,50 @@
 using Flexarr.Api.Scanning;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Scanning;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Api.Tests;
 
-public class LibraryScanWorkerTests
+public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
 {
+    [Fact]
+    public async Task APathWithANullCharacter_IsDropped_AndTheWorkerKeepsScanning()
+    {
+        var queue = new LibraryScanQueue();
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        Directory.CreateDirectory(Path.Combine(root, "Dune (2021)"));
+        File.WriteAllText(Path.Combine(root, "Dune (2021)", "Dune (2021).mkv"), "x");
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+        }
+
+        // Path.GetFullPath throws on a null: in the same batch as a good request, it used to stop the server.
+        await queue.EnqueueAsync(new LibraryScanRequest($"{root}/Bad\0Path", "Sonarr Download"));
+        await queue.EnqueueAsync(new LibraryScanRequest(Path.Combine(root, "Dune (2021)"), "Sonarr Download"));
+        using var worker = new LibraryScanWorker(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance);
+        await worker.StartAsync(default);
+
+        var scanned = false;
+        for (var i = 0; i < 100 && !scanned; i++)
+        {
+            await Task.Delay(100);
+            using var scope = factory.Services.CreateScope();
+            scanned = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(m => m.LibraryId == library.Id);
+        }
+
+        Assert.True(scanned, "the good request in the batch should still be scanned");
+        Assert.False(worker.ExecuteTask!.IsCompleted, "the worker should still be running");
+        await worker.StopAsync(default);
+    }
+
+
     [Fact]
     public void Coalesce_DropsDuplicatesAndNestedPaths()
     {
@@ -20,5 +60,17 @@ public class LibraryScanWorkerTests
         var paths = LibraryScanWorker.Coalesce(requests).Select(r => r.Path);
 
         Assert.Equal(["/tv/Show", "/tv/Other", "/tv/Showtime"], paths);
+    }
+
+    [Fact]
+    public void Coalesce_KeepsTheWebhooksTvdbId()
+    {
+        var requests = new[]
+        {
+            new LibraryScanRequest("/tv/Show", "Emby-style update (Created)"),
+            new LibraryScanRequest("/tv/Show", "Sonarr Download", TvdbId: 371980),
+        };
+
+        Assert.Equal(371980, Assert.Single(LibraryScanWorker.Coalesce(requests)).TvdbId);
     }
 }

@@ -26,19 +26,39 @@ public sealed partial class MetadataRefresher(
     ILogger<MetadataRefresher> logger)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
+    private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
     private const int MaxCast = 24;
+
+    /// <summary>The source of a film's or show's details when they came from searching for its folder's name.</summary>
+    public const string RadarrLookup = "Radarr lookup", SonarrLookup = "Sonarr lookup";
 
     private Dictionary<string, Genre>? _genres;
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
 
-    public async Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct)
+    public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct) =>
+        RefreshLibraryAsync(library, force, [], ct);
+
+    public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, IReadOnlyCollection<string> within, CancellationToken ct) =>
+        RefreshLibraryAsync(library, force, within, null, null, ct);
+
+    /// <param name="library">The library to refresh.</param>
+    /// <param name="force">Refresh everything, not just what's new or stale.</param>
+    /// <param name="within">Folders just scanned: the films and series in them are refreshed even if they're not stale.</param>
+    /// <param name="tmdbId">
+    /// The TMDB id Radarr's webhook gave for the film in <paramref name="within"/>, for asking Radarr for just that one
+    /// when Flexarr doesn't know its id yet. Only used to fetch: what comes back must still match the film's folder.
+    /// </param>
+    /// <param name="tvdbId">The same for a show, with the TVDB id from Sonarr's webhook.</param>
+    /// <param name="ct">Stops the refresh.</param>
+    public async Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, IReadOnlyCollection<string> within, int? tmdbId, int? tvdbId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(within);
         return library.Type switch
         {
-            LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, ct).ConfigureAwait(false),
-            LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, ct).ConfigureAwait(false),
+            LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, tmdbId, ct).ConfigureAwait(false),
+            LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, tvdbId, ct).ConfigureAwait(false),
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
@@ -52,66 +72,70 @@ public sealed partial class MetadataRefresher(
     public async Task<bool?> RefreshItemAsync(MediaItem item, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(item);
-        var result = item.Kind switch
+        // A match fixed by hand is fetched by its id alone; otherwise the folder decides, which needs the whole list.
+        IReadOnlyList<MediaItem>? only = item.MatchLocked ? [item] : null;
+        bool? result;
+        if (item.Kind == MediaKind.Movie)
         {
-            MediaKind.Movie => await RefreshMovieAsync(item, await RadarrIndexAsync(ct).ConfigureAwait(false), force: true, ct).ConfigureAwait(false),
-            MediaKind.Series => await RefreshOneSeriesAsync(item, await SonarrIndexAsync(ct).ConfigureAwait(false), force: true, ct).ConfigureAwait(false),
-            _ => throw new ArgumentException($"Only films and shows are matched, not {item.Kind}.", nameof(item)),
-        };
+            var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
+            var known = (await KnownAsync(radarrs, only, i => i.TmdbId, arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
+                .Select(k => (k.Instance, Movie: k.Entry)).ToList();
+            result = await RefreshMovieAsync(item, Index(known, k => MapPath(k.Movie.Path)), Index(known, k => k.Movie.ImdbId),
+                Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null), radarrs, force: true, ct).ConfigureAwait(false);
+        }
+        else if (item.Kind == MediaKind.Series)
+        {
+            var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
+            var known = (await KnownAsync(sonarrs, only, i => i.TvdbId, arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
+                .Select(k => (k.Instance, Series: k.Entry)).ToList();
+            result = await RefreshOneSeriesAsync(item, Index(known, k => MapPath(k.Series.Path)),
+                Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null), Index(known, k => k.Series.ImdbId),
+                sonarrs, force: true, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            throw new ArgumentException($"Only films and shows are matched, not {item.Kind}.", nameof(item));
+        }
+
         item.MetadataUpdatedAt = DateTime.UtcNow;
         return result;
     }
 
     // ------------------------------------------------------------------ Movies
 
-    /// <summary>What the Radarr or Sonarr instances manage, by folder, IMDb id and TMDB (films) or TVDB (shows) id.</summary>
-    private sealed record ArrIndex<T>(
-        List<ArrInstance> Instances,
-        Dictionary<string, (ArrInstance, T)> ByPath,
-        Dictionary<string, (ArrInstance, T)> ByImdb,
-        Dictionary<string, (ArrInstance, T)> ById);
-
-    private async Task<ArrIndex<RadarrMovie>> RadarrIndexAsync(CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tmdbId, CancellationToken ct)
     {
-        var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
-        var known = new List<(ArrInstance Instance, RadarrMovie Movie)>();
-        foreach (var radarr in radarrs)
+        // Nothing due: don't download Radarr's whole library to find out.
+        var also = await WithinAsync(libraryId, MediaKind.Movie, within, ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        if (items.Count == 0)
         {
-            try
-            {
-                known.AddRange((await arr.GetMoviesAsync(radarr, ct).ConfigureAwait(false)).Select(m => (radarr, m)));
-            }
-            catch (HttpRequestException ex)
-            {
-                LogArrUnavailable(radarr.Name, ex.Message);
-            }
+            return new MetadataRefreshResult(0, 0, 0);
         }
 
-        return new ArrIndex<RadarrMovie>(
-            radarrs,
-            Index(known, k => MapPath(k.Movie.Path)),
-            Index(known, k => k.Movie.ImdbId),
-            Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null));
-    }
+        var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
+        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        var known = (await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
+                arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false))
+            .Select(k => (k.Instance, Movie: k.Entry)).ToList();
 
-    private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, CancellationToken ct)
-    {
-        var index = await RadarrIndexAsync(ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Movie, force).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        var byPath = Index(known, k => MapPath(k.Movie.Path));
+        var byImdb = Index(known, k => k.Movie.ImdbId);
+        var byTmdb = Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null);
         int fromArr = 0, fromLookup = 0, unmatched = 0;
 
         foreach (var item in items)
         {
             try
             {
-                switch (await RefreshMovieAsync(item, index, force, ct).ConfigureAwait(false))
+                switch (await RefreshMovieAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false))
                 {
                     case true: fromArr++; break;
                     case false: fromLookup++; break;
                     default: unmatched++; break;
                 }
             }
-            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
             {
                 LogItemFailed(ex, item.Title);
                 unmatched++;
@@ -126,12 +150,19 @@ public sealed partial class MetadataRefresher(
     }
 
     /// <returns>true when matched in Radarr, false when found by lookup, null when unmatched.</returns>
-    private async Task<bool?> RefreshMovieAsync(MediaItem item, ArrIndex<RadarrMovie> index, bool force, CancellationToken ct)
+    private async Task<bool?> RefreshMovieAsync(
+        MediaItem item,
+        Dictionary<string, (ArrInstance, RadarrMovie)> byPath,
+        Dictionary<string, (ArrInstance, RadarrMovie)> byImdb,
+        Dictionary<string, (ArrInstance, RadarrMovie)> byTmdb,
+        List<ArrInstance> radarrs,
+        bool force,
+        CancellationToken ct)
     {
         // A match fixed by hand is found by its TMDB id only: the folder may be one Radarr has as a different film.
         var hit = item.MatchLocked
-            ? Find(index.ById, item.TmdbId)
-            : Find(index.ByPath, item.Path) ?? Find(index.ByImdb, item.ImdbId) ?? Find(index.ById, item.TmdbId);
+            ? Find(byTmdb, item.TmdbId)
+            : Find(byPath, item.Path) ?? Find(byImdb, item.ImdbId) ?? Find(byTmdb, item.TmdbId);
         if (hit is (var instance, var movie))
         {
             await ApplyMovieAsync(item, movie, instance, ct).ConfigureAwait(false);
@@ -143,7 +174,7 @@ public sealed partial class MetadataRefresher(
             return true;
         }
 
-        if (index.Instances.Count > 0 && await LookupMovieAsync(index.Instances[0], item, ct).ConfigureAwait(false) is { } found)
+        if (radarrs.Count > 0 && await LookupMovieAsync(radarrs[0], item, ct).ConfigureAwait(false) is { } found)
         {
             await ApplyMovieAsync(item, found, null, ct).ConfigureAwait(false);
             return false;
@@ -163,7 +194,7 @@ public sealed partial class MetadataRefresher(
             var results = await arr.LookupMoviesAsync(radarr, term, ct).ConfigureAwait(false);
             return item.MatchLocked ? (results.Count > 0 ? results[0] : null) : BestByTitle(results, item, m => m.Title, m => m.Year);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogLookupFailed(term, ex.Message);
             return null;
@@ -189,7 +220,7 @@ public sealed partial class MetadataRefresher(
         item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
         item.TmdbId = movie.TmdbId > 0 ? movie.TmdbId.ToString(CultureInfo.InvariantCulture) : item.TmdbId;
         item.ArrId = instance is null ? null : movie.Id;
-        item.MetadataSource = instance?.Name ?? "Radarr lookup";
+        item.MetadataSource = instance?.Name ?? RadarrLookup;
         await ApplyImagesAsync(item, movie.Images, movie.RemotePoster, ct).ConfigureAwait(false);
         await SetGenresAsync(item, movie.Genres, ct).ConfigureAwait(false);
     }
@@ -201,7 +232,7 @@ public sealed partial class MetadataRefresher(
         {
             credits = await arr.GetCreditsAsync(radarr, movieId, ct).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogArrUnavailable(radarr.Name, ex.Message);
             return;
@@ -259,47 +290,38 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ TV
 
-    private async Task<ArrIndex<SonarrSeries>> SonarrIndexAsync(CancellationToken ct)
+    private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tvdbId, CancellationToken ct)
     {
-        var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
-        var known = new List<(ArrInstance Instance, SonarrSeries Series)>();
-        foreach (var sonarr in sonarrs)
+        var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        if (items.Count == 0)
         {
-            try
-            {
-                known.AddRange((await arr.GetSeriesAsync(sonarr, ct).ConfigureAwait(false)).Select(s => (sonarr, s)));
-            }
-            catch (HttpRequestException ex)
-            {
-                LogArrUnavailable(sonarr.Name, ex.Message);
-            }
+            return new MetadataRefreshResult(0, 0, 0);
         }
 
-        return new ArrIndex<SonarrSeries>(
-            sonarrs,
-            Index(known, k => MapPath(k.Series.Path)),
-            Index(known, k => k.Series.ImdbId),
-            Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null));
-    }
+        var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
+        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        var known = (await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
+                arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false))
+            .Select(k => (k.Instance, Series: k.Entry)).ToList();
 
-    private async Task<MetadataRefreshResult> RefreshSeriesAsync(Guid libraryId, bool force, CancellationToken ct)
-    {
-        var index = await SonarrIndexAsync(ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Series, force).Include(i => i.Genres).Include(i => i.Credits).ToListAsync(ct).ConfigureAwait(false);
+        var byPath = Index(known, k => MapPath(k.Series.Path));
+        var byTvdb = Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null);
+        var byImdb = Index(known, k => k.Series.ImdbId);
         int fromArr = 0, fromLookup = 0, unmatched = 0;
 
         foreach (var item in items)
         {
             try
             {
-                switch (await RefreshOneSeriesAsync(item, index, force, ct).ConfigureAwait(false))
+                switch (await RefreshOneSeriesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false))
                 {
                     case true: fromArr++; break;
                     case false: fromLookup++; break;
                     default: unmatched++; break;
                 }
             }
-            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
             {
                 LogItemFailed(ex, item.Title);
                 unmatched++;
@@ -314,20 +336,27 @@ public sealed partial class MetadataRefresher(
     }
 
     /// <returns>true when matched in Sonarr, false when found by lookup, null when unmatched.</returns>
-    private async Task<bool?> RefreshOneSeriesAsync(MediaItem item, ArrIndex<SonarrSeries> index, bool force, CancellationToken ct)
+    private async Task<bool?> RefreshOneSeriesAsync(
+        MediaItem item,
+        Dictionary<string, (ArrInstance, SonarrSeries)> byPath,
+        Dictionary<string, (ArrInstance, SonarrSeries)> byTvdb,
+        Dictionary<string, (ArrInstance, SonarrSeries)> byImdb,
+        List<ArrInstance> sonarrs,
+        bool force,
+        CancellationToken ct)
     {
         bool? result = null;
         // A match fixed by hand is found by its TVDB id only: the folder may be one Sonarr has as a different show.
         var hit = item.MatchLocked
-            ? Find(index.ById, item.TvdbId)
-            : Find(index.ByPath, item.Path) ?? Find(index.ById, item.TvdbId) ?? Find(index.ByImdb, item.ImdbId);
+            ? Find(byTvdb, item.TvdbId)
+            : Find(byPath, item.Path) ?? Find(byTvdb, item.TvdbId) ?? Find(byImdb, item.ImdbId);
         if (hit is (var instance, var series))
         {
             await ApplySeriesAsync(item, series, instance, ct).ConfigureAwait(false);
             await ApplyEpisodesAsync(item, series, instance, ct).ConfigureAwait(false);
             result = true;
         }
-        else if (index.Instances.Count > 0 && await LookupSeriesAsync(index.Instances[0], item, ct).ConfigureAwait(false) is { } found)
+        else if (sonarrs.Count > 0 && await LookupSeriesAsync(sonarrs[0], item, ct).ConfigureAwait(false) is { } found)
         {
             await ApplySeriesAsync(item, found, null, ct).ConfigureAwait(false);
             await ApplySeasonsAsync(item, found, ct).ConfigureAwait(false);
@@ -350,7 +379,7 @@ public sealed partial class MetadataRefresher(
             var results = await arr.LookupSeriesAsync(sonarr, term, ct).ConfigureAwait(false);
             return item.MatchLocked ? (results.Count > 0 ? results[0] : null) : BestByTitle(results, item, s => s.Title, s => s.Year);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogLookupFailed(term, ex.Message);
             return null;
@@ -374,7 +403,7 @@ public sealed partial class MetadataRefresher(
         item.ImdbId = NullIfEmpty(series.ImdbId) ?? item.ImdbId;
         item.TvMazeId = series.TvMazeId > 0 ? series.TvMazeId.ToString(CultureInfo.InvariantCulture) : item.TvMazeId;
         item.ArrId = instance is null ? null : series.Id;
-        item.MetadataSource = instance?.Name ?? "Sonarr lookup";
+        item.MetadataSource = instance?.Name ?? SonarrLookup;
         await ApplyImagesAsync(item, series.Images, series.RemotePoster, ct).ConfigureAwait(false);
         await SetGenresAsync(item, series.Genres, ct).ConfigureAwait(false);
     }
@@ -409,7 +438,7 @@ public sealed partial class MetadataRefresher(
         {
             arrEpisodes = await arr.GetEpisodesAsync(sonarr, arrSeries.Id, ct).ConfigureAwait(false);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
         {
             LogArrUnavailable(sonarr.Name, ex.Message);
             return;
@@ -503,10 +532,12 @@ public sealed partial class MetadataRefresher(
         item.BackdropUrl = backdrop;
         item.LogoUrl = Url("clearlogo");
 
-        if ((changed || item.AccentColor is null) && (backdrop ?? poster) is { } source)
+        // Only from artwork fetched over https: a file:// or embedded:// URL from Radarr or Sonarr isn't read off disk.
+        var httpsPoster = ArtworkUrl.IsHttps(poster) ? poster : null;
+        if ((changed || item.AccentColor is null) && (ArtworkUrl.IsHttps(backdrop) ? backdrop : httpsPoster) is { } source)
         {
             item.AccentColor = await images.AccentColorAsync(source, ct).ConfigureAwait(false)
-                ?? (poster is not null && poster != source ? await images.AccentColorAsync(poster, ct).ConfigureAwait(false) : null);
+                ?? (httpsPoster is not null && httpsPoster != source ? await images.AccentColorAsync(httpsPoster, ct).ConfigureAwait(false) : null);
         }
     }
 
@@ -553,13 +584,17 @@ public sealed partial class MetadataRefresher(
         }
     }
 
-    private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force)
+    private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
     {
-        var cutoff = DateTime.UtcNow - StaleAfter;
-        // Items that didn't match last time, or were only found by a title search, are retried on every run: a rename
-        // or a new *arr entry may fix them.
+        var now = DateTime.UtcNow;
+        var cutoff = now - StaleAfter;
+        var retryCutoff = now - RetryUnmatchedAfter;
+        // Items that didn't match last time, or were only found by a title search, are retried daily (a rename or new
+        // *arr entry may fix them). A new *arr entry also arrives as a webhook, whose folder is refreshed straight away.
         return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
-            && (force || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff || i.PosterUrl == null || (i.ArrId == null && !i.MatchLocked)));
+            && (force || also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff
+                || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup) && !i.MatchLocked))
+                    && i.MetadataUpdatedAt < retryCutoff)));
     }
 
     /// <summary>
@@ -579,13 +614,134 @@ public sealed partial class MetadataRefresher(
             .Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     }
 
+    /// <summary>The films or series in (or containing) the given folders.</summary>
+    private async Task<List<Guid>> WithinAsync(Guid libraryId, MediaKind kind, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
+        if (within.Count == 0)
+        {
+            return [];
+        }
+
+        var candidates = await db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind && i.Path != null)
+            .Select(i => new { i.Id, i.Path }).ToListAsync(ct).ConfigureAwait(false);
+        return candidates.Where(c => within.Any(w => PathComparison.IsUnder(c.Path!, w) || PathComparison.IsUnder(w, c.Path!)))
+            .Select(c => c.Id).ToList();
+    }
+
+    /// <summary>
+    /// A title's TMDB or TVDB id, or for the one title in the folders just scanned that has none yet, the id its webhook
+    /// gave. That one is also preferred over an id a title search found, which may be the wrong title's. Not when those
+    /// folders hold more than one title: then which one it belongs to isn't known.
+    /// </summary>
+    private static Func<MediaItem, string?> Hinted(List<Guid> within, int? hint, Func<MediaItem, string?> own) =>
+        hint is > 0 && within.Count == 1
+            ? i => i.Id == within[0] && (own(i) is null || (i.MetadataSource is RadarrLookup or SonarrLookup && !i.MatchLocked))
+                ? hint.Value.ToString(CultureInfo.InvariantCulture)
+                : own(i)
+            : own;
+
+    /// <summary>
+    /// What Radarr or Sonarr have that may match <paramref name="only"/>. When just a webhook's titles are due, only
+    /// those are asked for (by their Radarr/Sonarr id, else their TMDB/TVDB id) rather than the whole library, which can
+    /// run to megabytes on every import. A title with neither, or a null <paramref name="only"/>, needs the whole list.
+    /// </summary>
+    /// <param name="instances">The Radarr or Sonarr instances.</param>
+    /// <param name="only">The titles due, if they're all from the folders just scanned; else null.</param>
+    /// <param name="externalId">The title's TMDB (films) or TVDB (shows) id.</param>
+    /// <param name="all">Fetches an instance's whole library.</param>
+    /// <param name="byArrId">Fetches one title by the instance's own id.</param>
+    /// <param name="byExternalId">Fetches the titles (none or one) with a TMDB or TVDB id.</param>
+    /// <param name="ct">Stops the fetch.</param>
+    private async Task<List<(ArrInstance Instance, T Entry)>> KnownAsync<T>(
+        List<ArrInstance> instances,
+        IReadOnlyList<MediaItem>? only,
+        Func<MediaItem, string?> externalId,
+        Func<ArrInstance, CancellationToken, Task<IReadOnlyList<T>>> all,
+        Func<ArrInstance, int, CancellationToken, Task<T>> byArrId,
+        Func<ArrInstance, int, CancellationToken, Task<IReadOnlyList<T>>> byExternalId,
+        CancellationToken ct)
+    {
+        var known = new List<(ArrInstance Instance, T Entry)>();
+        if (only is not null && only.All(i => i.ArrId is not null && instances.Any(a => a.Name == i.MetadataSource) || ExternalId(i) is not null))
+        {
+            foreach (var item in only)
+            {
+                if (item.ArrId is { } arrId && instances.FirstOrDefault(a => a.Name == item.MetadataSource) is { } source)
+                {
+                    try
+                    {
+                        known.Add((source, await byArrId(source, arrId, ct).ConfigureAwait(false)));
+                        continue;
+                    }
+                    catch (Exception ex) when (IsNetworkFailure(ex, ct))
+                    {
+                        // Gone from that instance (a 404), or it's down: try the other id.
+                        LogArrUnavailable(source.Name, ex.Message);
+                    }
+                }
+
+                if (ExternalId(item) is not { } id)
+                {
+                    continue;
+                }
+
+                foreach (var instance in instances)
+                {
+                    try
+                    {
+                        known.AddRange((await byExternalId(instance, id, ct).ConfigureAwait(false)).Select(e => (instance, e)));
+                    }
+                    catch (Exception ex) when (IsNetworkFailure(ex, ct))
+                    {
+                        LogArrUnavailable(instance.Name, ex.Message);
+                    }
+                }
+            }
+
+            return known;
+        }
+
+        foreach (var instance in instances)
+        {
+            try
+            {
+                known.AddRange((await all(instance, ct).ConfigureAwait(false)).Select(e => (instance, e)));
+            }
+            catch (Exception ex) when (IsNetworkFailure(ex, ct))
+            {
+                LogArrUnavailable(instance.Name, ex.Message);
+            }
+        }
+
+        return known;
+
+        int? ExternalId(MediaItem item) =>
+            int.TryParse(externalId(item), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n > 0 ? n : null;
+    }
+
     private async Task SaveEveryAsync(int count, CancellationToken ct)
     {
         if (count % 25 == 0)
         {
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            // Seasons and episodes of series already done aren't needed again; tracking them all would make every
+            // later save check the whole TV library for changes.
+            foreach (var entry in db.ChangeTracker.Entries<MediaItem>()
+                .Where(e => e.State == EntityState.Unchanged && e.Entity.Kind is MediaKind.Season or MediaKind.Episode).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
         }
     }
+
+    /// <summary>
+    /// A request that failed or timed out: HttpClient reports a timeout as a <see cref="TaskCanceledException"/>,
+    /// which only means "stop" when <paramref name="ct"/> was cancelled, and a connection dropped while the answer was
+    /// being read as an <see cref="IOException"/> (<see cref="HttpIOException"/>).
+    /// </summary>
+    private static bool IsNetworkFailure(Exception ex, CancellationToken ct) =>
+        ex is HttpRequestException or IOException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     // macOS can hand back decomposed Unicode (e + combining accent) where the *arr apps store composed "é";
     // compare composed forms so "Léon" matches "Léon".
