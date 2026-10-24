@@ -291,14 +291,17 @@ public sealed class PlaybackService(
         foreach (var subtitle in text)
         {
             // NAME must be unique within the group or Apple's players reject the playlist.
-            var name = Languages.Label(subtitle.Language, subtitle.Title, subtitle.IsForced).Replace("\"", "'", StringComparison.Ordinal);
+            // Titles and languages come from tags inside the file, so they mustn't be able to end the attribute or the line.
+            var label = PlaylistText(Languages.Label(subtitle.Language, subtitle.Title, subtitle.IsForced));
+            var name = label;
             for (var n = 2; !used.Add(name); n++)
             {
-                name = $"{Languages.Label(subtitle.Language, subtitle.Title, subtitle.IsForced)} {n}";
+                name = $"{label} {n}";
             }
 
+            var language = PlaylistText(subtitle.Language ?? "") is { Length: > 0 } tag ? tag : "und";
             builder.Append(CultureInfo.InvariantCulture,
-                $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{subtitle.Language ?? "und"}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
+                $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{language}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
         }
 
         var video = $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
@@ -311,6 +314,10 @@ public sealed class PlaybackService(
     public static string SubtitlePlaylist(PlaybackSession session, string key) =>
         string.Create(CultureInfo.InvariantCulture,
             $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:{Math.Ceiling(session.DurationSeconds)}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:{session.DurationSeconds:F3},\n{key}.vtt?hls=true\n#EXT-X-ENDLIST\n");
+
+    /// <summary>Makes text safe inside a quoted playlist attribute: no line breaks or other control characters, no double quotes.</summary>
+    private static string PlaylistText(string value) =>
+        string.Concat(value.Where(c => !char.IsControl(c)).Select(c => c == '"' ? '\'' : c)).Trim();
 
     private static string? ChooseSubtitle(IReadOnlyList<SubtitleTrack> subtitles, string? preferredLanguage, string? audioLanguage)
     {
