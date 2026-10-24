@@ -16,7 +16,7 @@ import {
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Facts } from '../components/Hero'
-import { Check, Film, More, Play } from '../components/icons'
+import { Check, Film, More, Play, Shuffle } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
@@ -140,6 +140,11 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             {playTarget && (
               <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>
                 <Play /> {playLabel}
+              </button>
+            )}
+            {item.kind === 'Series' && item.childCount > 0 && (
+              <button className="button quiet" onClick={() => navigate(`/play/${item.id}?shuffle=1`)}>
+                <Shuffle /> Shuffle
               </button>
             )}
             {detail.trailerYouTubeId && (

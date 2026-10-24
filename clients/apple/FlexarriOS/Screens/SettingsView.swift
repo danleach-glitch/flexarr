@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var error: String?
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
+    @State private var preferences: PlaybackPreferences?
 
     var body: some View {
         List {
@@ -23,6 +24,19 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.seat)
+                }
+            }
+
+            if let preferences {
+                Section {
+                    toggle("Auto-play the next episode", \.autoPlayNext, preferences)
+                    toggle("Skip intros", \.skipIntros, preferences)
+                    toggle("Skip recaps", \.skipRecaps, preferences)
+                    toggle("Skip credits", \.skipCredits, preferences)
+                } header: {
+                    Text("While watching")
+                } footer: {
+                    Text("Auto-play counts down five seconds, then starts the next episode. Skip credits moves on as the credits start. Each profile has its own, on every device.")
                 }
             }
 
@@ -68,6 +82,27 @@ struct SettingsView: View {
         }
     }
 
+    /// A preference that's saved as soon as it changes, and put back if the server says no.
+    private func toggle(_ title: String, _ key: WritableKeyPath<PlaybackPreferences, Bool>, _ current: PlaybackPreferences) -> some View {
+        Toggle(title, isOn: Binding(
+            get: { current[keyPath: key] },
+            set: { on in
+                var changed = current
+                changed[keyPath: key] = on
+                preferences = changed
+                Task {
+                    do {
+                        try await model.client?.setPlaybackPreferences(changed)
+                    } catch {
+                        preferences = current
+                    }
+                }
+            }
+        ))
+        .tint(.silver)
+        .listRowBackground(Color.seat)
+    }
+
     private func row(_ label: String, _ value: String) -> some View {
         LabeledContent(label) {
             Text(value)
@@ -80,11 +115,13 @@ struct SettingsView: View {
 
     private func load() async {
         guard let client = model.client else { return }
+        async let loadedPreferences = try? client.playbackPreferences()
         do {
             status = try await client.systemStatus()
             error = nil
         } catch {
             self.error = ConnectionError(error).message
         }
+        if let loaded = await loadedPreferences { preferences = loaded }
     }
 }

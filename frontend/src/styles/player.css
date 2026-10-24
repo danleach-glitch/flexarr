@@ -318,6 +318,21 @@
   border-color: var(--screen);
 }
 
+/* "Skipped the intro": where the skip button would have been, briefly. */
+.player-notice {
+  position: absolute;
+  right: var(--edge);
+  bottom: 140px;
+  z-index: 5;
+  margin: 0;
+  padding: 12px 20px;
+  border-radius: var(--radius-control);
+  background: rgb(20 16 24 / 0.72);
+  backdrop-filter: blur(10px);
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .up-next {
   position: absolute;
   right: var(--edge);

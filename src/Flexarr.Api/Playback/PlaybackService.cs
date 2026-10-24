@@ -28,6 +28,13 @@ public sealed class PlaybackService(
     public async Task<PlaybackInfoDto?> StartAsync(PlaybackRequest request, CancellationToken ct)
     {
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
+        if (request.Shuffle && item is { Kind: MediaKind.Series })
+        {
+            // Shuffling a show starts a random episode, from the beginning unless asked otherwise.
+            item = await ShuffleAsync(item.Id, null, ct);
+            request = request with { StartPositionSeconds = request.StartPositionSeconds ?? 0 };
+        }
+
         if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track))
         {
             return null;
@@ -132,7 +139,10 @@ public sealed class PlaybackService(
             parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
         }
 
-        var next = await NextEpisodeAsync(item, ct);
+        var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
+        var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits)).FirstOrDefaultAsync(ct);
+        var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
 
@@ -154,7 +164,9 @@ public sealed class PlaybackService(
             summary,
             ancestors,
             next is null ? null : await db.MediaItems.Where(i => i.Id == next.Id).Summaries(profile.Id).FirstAsync(ct),
-            decision.Transcode is { } t ? $"{t.TargetHeight}p H.264 at {t.VideoBitrate / 1_000_000.0:0.#} Mbps" + (t.ToneMap ? ", HDR converted to SDR" : "") : null);
+            decision.Transcode is { } t ? $"{t.TargetHeight}p H.264 at {t.VideoBitrate / 1_000_000.0:0.#} Mbps" + (t.ToneMap ? ", HDR converted to SDR" : "") : null,
+            shuffling,
+            watching);
     }
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
@@ -304,6 +316,37 @@ public sealed class PlaybackService(
         return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && NextAfter(episodes, current) is { } next
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct)
             : null;
+    }
+
+    /// <summary>On shuffle, a random other episode of the show this one is from.</summary>
+    private async Task<MediaItem?> ShuffleNextAsync(MediaItem episode, CancellationToken ct) =>
+        episode.ParentId is { } seasonId && await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is { } seriesId
+            ? await ShuffleAsync(seriesId, episode.Id, ct)
+            : null;
+
+    /// <summary>A random episode of the show that can be played (one with a readable file), other than <paramref name="current"/>.</summary>
+    private async Task<MediaItem?> ShuffleAsync(Guid seriesId, Guid? current, CancellationToken ct)
+    {
+        var playable = (await db.MediaFiles.AsNoTracking()
+            .Where(f => f.ProbeError == null && f.MediaItem!.Parent!.ParentId == seriesId)
+            .Select(f => f.MediaItemId).ToListAsync(ct)).ToHashSet();
+        var episodes = (await EpisodesAsync(db, profile.Id, [seriesId], ct)).Where(e => playable.Contains(e.Id)).ToList();
+        return PickShuffled(episodes, current, Random.Shared, DateTime.UtcNow) is { } pick
+            ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == pick.Id, ct)
+            : null;
+    }
+
+    /// <summary>
+    /// The shuffle's pick: any regular episode but the current one (specials only if there's nothing else), leaving
+    /// out ones finished in the last day so a short shuffle doesn't come straight back round, unless that's all there is.
+    /// </summary>
+    internal static EpisodeRef? PickShuffled(IReadOnlyList<EpisodeRef> episodes, Guid? current, Random random, DateTime now)
+    {
+        var regular = episodes.Where(e => e.SeasonNumber != 0).ToList();
+        var pool = (regular.Count > 0 ? regular : episodes).Where(e => e.Id != current).ToList();
+        var fresh = pool.Where(e => e.WatchedAt is not { } at || now - at > TimeSpan.FromDays(1)).ToList();
+        var from = fresh.Count > 0 ? fresh : pool;
+        return from.Count == 0 ? null : from[random.Next(from.Count)];
     }
 
     /// <summary>What Up Next needs to know about an episode, and when this profile finished it (null if it hasn't).</summary>

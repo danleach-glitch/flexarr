@@ -8,6 +8,16 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The iPhone and iPad app is on its way to the App Store, with a privacy policy at flexarr.io/privacy: Flexarr collects no data.
 - A server that only listens on this computer (for example, one published with Tailscale Funnel) no longer shows up in other devices' lists of servers on the home network, where it couldn't be reached anyway.
 
+## Unreleased
+
+### Shuffle a show
+- **Shuffle** on a show's page plays a random episode, then another, and another, until you stop. On the web and on iPhone and iPad.
+
+### Auto-play, and skipping the boring bits
+- When an episode finishes, a five-second countdown starts the next one. **Cancel** stops it.
+- New choices for each profile: **Auto-play the next episode** (on to start with), **Skip intros**, **Skip recaps** and **Skip credits**. Skip credits moves on to the next episode as the credits start.
+- Change them in **Settings › Playback**, in the player's quality menu on the web, or in **Settings** on iPhone and iPad. They follow the profile to every device, the Apple TV included.
+
 ## 0.12.1 · 24 October 2026
 
 ### Fixed: subtitles coming back on after skipping ahead

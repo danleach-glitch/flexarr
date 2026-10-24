@@ -32,6 +32,28 @@ public static class PlaybackEndpoints
             }
         }).WithTags("Playback");
 
+        // Each profile's own: anyone signed in as it may change them, admin or not.
+        api.MapGet("/me/playback-preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+            await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
+                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits)).FirstOrDefaultAsync(ct) is { } found
+                ? Results.Ok(found)
+                : Results.NotFound()).WithTags("Playback");
+
+        api.MapPut("/me/playback-preferences", async (PlaybackPreferencesDto preferences, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (await db.Profiles.FindAsync([profile.Id], ct) is not { } found)
+            {
+                return Results.NotFound();
+            }
+
+            found.AutoPlayNext = preferences.AutoPlayNext;
+            found.SkipIntros = preferences.SkipIntros;
+            found.SkipRecaps = preferences.SkipRecaps;
+            found.SkipCredits = preferences.SkipCredits;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(preferences);
+        }).WithTags("Playback");
+
         api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
             await playback.NextUpAsync(id, ct) is { } episode
                 ? Results.Ok(await db.MediaItems.Where(i => i.Id == episode.Id).Summaries(profile.Id).FirstAsync(ct))

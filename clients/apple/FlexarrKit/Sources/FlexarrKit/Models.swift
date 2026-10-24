@@ -326,10 +326,14 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     public var forceTranscode: Bool?
     /// This player's previous session, which the new one takes over from (only that one ends).
     public var replacesSessionId: String?
+    /// With a show's id, a random episode starts; with an episode's, its `next` is a random one.
+    public var shuffle: Bool?
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
-                startPositionSeconds: Double? = nil, forceTranscode: Bool? = nil, replacesSessionId: String? = nil) {
+                startPositionSeconds: Double? = nil, forceTranscode: Bool? = nil, replacesSessionId: String? = nil,
+                shuffle: Bool? = nil) {
+        self.shuffle = shuffle
         self.itemId = itemId
         self.profile = profile
         self.fileId = fileId
@@ -395,6 +399,28 @@ public struct PlaybackInfo: Codable, Sendable {
     public let ancestors: [ItemSummary]
     public let next: ItemSummary?
     public let transcodeSummary: String?
+    /// Playing a shuffle: `next` is a random episode. Absent from servers before shuffle.
+    public let shuffle: Bool?
+    /// The profile's auto-play and skip preferences. Absent from servers before they existed.
+    public let preferences: PlaybackPreferences?
+}
+
+/// How a profile likes to watch: auto-play the next episode, and what to skip without asking.
+public struct PlaybackPreferences: Codable, Sendable, Hashable {
+    public var autoPlayNext: Bool
+    public var skipIntros: Bool
+    public var skipRecaps: Bool
+    public var skipCredits: Bool
+
+    public init(autoPlayNext: Bool = true, skipIntros: Bool = false, skipRecaps: Bool = false, skipCredits: Bool = false) {
+        self.autoPlayNext = autoPlayNext
+        self.skipIntros = skipIntros
+        self.skipRecaps = skipRecaps
+        self.skipCredits = skipCredits
+    }
+
+    /// What a profile starts with, and what's assumed from a server that doesn't say.
+    public static let standard = PlaybackPreferences()
 }
 
 struct ProgressReport: Codable, Sendable {

@@ -12,6 +12,7 @@ import type {
   Paged,
   Person,
   PlaybackInfo,
+  PlaybackPreferences,
   PlaybackRequest,
   SearchResults,
   Settings,
@@ -474,6 +475,8 @@ export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal)
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
 
 export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
+export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
+export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
 export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>
   request<void>('POST', `/playback/${sessionId}/progress`, { positionSeconds, paused, ended })
 

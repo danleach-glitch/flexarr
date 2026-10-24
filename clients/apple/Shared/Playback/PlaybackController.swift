@@ -61,9 +61,25 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var subtitleGuardUntil = Date.distantPast
     /// The last position the clock reported, and when, for telling a seek from playing on.
     @ObservationIgnored private var lastTick: (position: Double, at: Date)?
+    /// Playing a show on shuffle: each next episode is a random one.
+    @ObservationIgnored private var shuffling = false
+    /// The profile's auto-play and skip choices, from the session.
+    @ObservationIgnored private var preferences = PlaybackPreferences.standard
+    /// Intros and recaps already skipped by themselves, so seeking back to watch one isn't overruled.
+    @ObservationIgnored private var autoSkipped: Set<String> = []
+    /// The episode is over (it ended, or its credits started with Skip credits on): counting down to the next
+    /// (`countdown` seconds left), or waiting to be asked with auto-play off (nil).
+    @ObservationIgnored private var isFinishing = false
+    @ObservationIgnored private var countdown: Int?
+    @ObservationIgnored private var countdownTask: Task<Void, Never>?
+    /// Cancel was chosen: no more offers of the next episode for this one.
+    @ObservationIgnored private var nextCancelled = false
+    private static let countdownSeconds = 5
     #if os(iOS)
     /// Skip Intro / Next Episode, over the player.
     @ObservationIgnored private var promptButton: UIButton?
+    /// Beside it while counting down to the next episode.
+    @ObservationIgnored private var cancelButton: UIButton?
     /// Playing on in Picture in Picture: the player was put away, but the session goes on.
     @ObservationIgnored private var isInPictureInPicture = false
     /// Picture in Picture is ending by coming back to the full player, rather than by being closed.
@@ -75,10 +91,12 @@ final class PlaybackController: NSObject {
 
     // MARK: Start
 
-    /// Starts playback. `startAt` nil lets the server choose the resume point; 0 starts over.
-    func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient) {
+    /// Starts playback. `startAt` nil lets the server choose the resume point; 0 starts over. With `shuffle`,
+    /// `itemId` is a show: a random episode starts, and every next one is random too.
+    func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient, shuffle: Bool = false) {
         guard !isStarting else { return }
         self.client = client
+        shuffling = shuffle
         viewerSubtitleKey = nil
         start(request(for: itemId, startAt: startAt))
     }
@@ -124,7 +142,7 @@ final class PlaybackController: NSObject {
     }
 
     private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
-        PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt)
+        PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: shuffling ? true : nil)
     }
 
     private static var deviceProfile: DeviceProfile {
@@ -166,7 +184,7 @@ final class PlaybackController: NSObject {
         // Sound on with the ring switch off, and playing on in Picture in Picture or with the screen locked.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
-        promptButton = makePromptButton(in: controller)
+        (promptButton, cancelButton) = makePromptButtons(in: controller)
         #endif
         controller.player = player
         controller.delegate = self
@@ -188,6 +206,10 @@ final class PlaybackController: NSObject {
         hasPlayed = false
         lastPosition = info.startPositionSeconds
         prompt = .none
+        preferences = info.preferences ?? .standard
+        autoSkipped = []
+        nextCancelled = false
+        endFinishing()
         lastReport = Date()
         pendingSeek = info.startPositionSeconds
         updateContextualActions()
@@ -317,7 +339,7 @@ final class PlaybackController: NSObject {
         let retry = PlaybackRequest(
             itemId: current.item.id, profile: Self.deviceProfile, fileId: current.fileId,
             audioStreamIndex: current.selectedAudioIndex, subtitleKey: (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off",
-            startPositionSeconds: position, replacesSessionId: failed)
+            startPositionSeconds: position, replacesSessionId: failed, shuffle: shuffling ? true : nil)
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
             // A stream ended to make way for another screen says so, even inside the once-a-minute limit.
             Task {
@@ -405,6 +427,20 @@ final class PlaybackController: NSObject {
         lastTick = (seconds, now)
         lastPosition = seconds
         let next = info.prompt(at: seconds)
+        // Skip intros and recaps by themselves when the profile asks, once each.
+        if case .skip(let type, let end) = next, type == .intro ? preferences.skipIntros : preferences.skipRecaps,
+           autoSkipped.insert("\(type.rawValue)@\(end)").inserted {
+            log.info("Skipping the \(type.rawValue, privacy: .public) by itself")
+            skip(to: end)
+            return
+        }
+        // Skip credits: the episode is over as soon as they start.
+        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing,
+           let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
+            player?.pause()
+            report(paused: true, ended: true)
+            beginFinishing()
+        }
         if next != prompt {
             log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
             prompt = next
@@ -434,9 +470,65 @@ final class PlaybackController: NSObject {
 
     // MARK: Markers and next episode
 
+    /// The episode is over: count down to the next one if auto-play is on, else wait to be asked.
+    private func beginFinishing() {
+        guard info?.next != nil, !isFinishing else { return }
+        isFinishing = true
+        countdownTask?.cancel()
+        if preferences.autoPlayNext {
+            countdown = Self.countdownSeconds
+            countdownTask = Task { [weak self] in
+                while let self, let left = countdown, left > 0 {
+                    guard (try? await Task.sleep(for: .seconds(1))) != nil, isFinishing else { return }
+                    countdown = left - 1
+                    updateContextualActions()
+                }
+                guard let self, isFinishing, countdown == 0 else { return }
+                advance()
+            }
+        } else {
+            countdown = nil
+        }
+        updateContextualActions()
+    }
+
+    private func endFinishing() {
+        isFinishing = false
+        countdown = nil
+        countdownTask?.cancel()
+        countdownTask = nil
+        updateContextualActions()
+    }
+
+    /// Not now: stop counting, and if the credits were skipped, let them play.
+    private func cancelNext() {
+        nextCancelled = true
+        let ended = player.map { $0.currentTime() >= ($0.currentItem?.duration ?? .positiveInfinity) } ?? true
+        endFinishing()
+        if !ended { player?.play() }
+    }
+
+    /// "Next Episode in 4", or the shuffle's "Next Random Episode".
+    private var nextTitle: String {
+        let base = shuffling ? "Next Random Episode" : "Next Episode"
+        return countdown.map { "\(base) in \($0)" } ?? base
+    }
+
     private func updateContextualActions() {
         #if os(tvOS)
         guard let viewController else { return }
+        if isFinishing {
+            var actions = [UIAction(title: nextTitle, image: UIImage(systemName: "forward.fill")) { [weak self] _ in
+                MainActor.assumeIsolated { self?.advance() }
+            }]
+            if countdown != nil {
+                actions.append(UIAction(title: "Cancel", image: UIImage(systemName: "xmark")) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.cancelNext() }
+                })
+            }
+            viewController.contextualActions = actions
+            return
+        }
         switch prompt {
         case .none:
             viewController.contextualActions = []
@@ -449,30 +541,44 @@ final class PlaybackController: NSObject {
             ]
         case .nextEpisode:
             viewController.contextualActions = [
-                UIAction(title: "Next Episode", image: UIImage(systemName: "forward.fill")) { [weak self] _ in
+                UIAction(title: nextTitle, image: UIImage(systemName: "forward.fill")) { [weak self] _ in
                     MainActor.assumeIsolated { self?.advance() }
                 },
             ]
         }
         #else
-        guard let promptButton else { return }
-        let title: String? = switch prompt {
-        case .none: nil
-        case .skip(let type, _): type == .recap ? "Skip Recap" : "Skip Intro"
-        case .nextEpisode: "Next Episode"
+        guard let promptButton, let cancelButton else { return }
+        let title: String? = if isFinishing {
+            nextTitle
+        } else {
+            switch prompt {
+            case .none: nil
+            case .skip(let type, _): type == .recap ? "Skip Recap" : "Skip Intro"
+            case .nextEpisode: nextTitle
+            }
         }
         if let title {
-            promptButton.configuration?.title = title
-            promptButton.configuration?.image = UIImage(systemName: prompt == .nextEpisode ? "forward.fill" : "forward.end.fill")
+            // Updated every second while counting: no animation, so the text doesn't flicker.
+            UIView.performWithoutAnimation {
+                promptButton.configuration?.title = title
+                promptButton.configuration?.image = UIImage(systemName: isFinishing || prompt == .nextEpisode ? "forward.fill" : "forward.end.fill")
+                promptButton.layoutIfNeeded()
+            }
         }
-        UIView.animate(withDuration: 0.2) { promptButton.alpha = title == nil ? 0 : 1 }
+        let cancelShown = isFinishing && countdown != nil
+        UIView.animate(withDuration: 0.2) {
+            promptButton.alpha = title == nil ? 0 : 1
+            cancelButton.alpha = cancelShown ? 1 : 0
+        }
         promptButton.isUserInteractionEnabled = title != nil
+        cancelButton.isUserInteractionEnabled = cancelShown
         #endif
     }
 
     #if os(iOS)
-    /// A pill in the corner above the scrubber, like the TV's contextual action.
-    private func makePromptButton(in controller: AVPlayerViewController) -> UIButton {
+    /// A pill in the corner above the scrubber, like the TV's contextual action, and Cancel to its left for the
+    /// countdown to the next episode.
+    private func makePromptButtons(in controller: AVPlayerViewController) -> (UIButton, UIButton) {
         var configuration = UIButton.Configuration.filled()
         configuration.baseBackgroundColor = UIColor(Color.screen).withAlphaComponent(0.95)
         configuration.baseForegroundColor = UIColor(Color.room)
@@ -491,14 +597,31 @@ final class PlaybackController: NSObject {
         button.isUserInteractionEnabled = false
         button.translatesAutoresizingMaskIntoConstraints = false
         controller.view.addSubview(button)
+        var cancelConfiguration = UIButton.Configuration.filled()
+        cancelConfiguration.baseBackgroundColor = UIColor.black.withAlphaComponent(0.55)
+        cancelConfiguration.baseForegroundColor = .white
+        cancelConfiguration.cornerStyle = .capsule
+        cancelConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
+        cancelConfiguration.title = "Cancel"
+        cancelConfiguration.titleTextAttributesTransformer = configuration.titleTextAttributesTransformer
+        let cancel = UIButton(configuration: cancelConfiguration, primaryAction: UIAction { [weak self] _ in
+            MainActor.assumeIsolated { self?.cancelNext() }
+        })
+        cancel.alpha = 0
+        cancel.isUserInteractionEnabled = false
+        cancel.translatesAutoresizingMaskIntoConstraints = false
+        controller.view.addSubview(cancel)
         NSLayoutConstraint.activate([
             button.trailingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
             button.bottomAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.bottomAnchor, constant: -84),
+            cancel.trailingAnchor.constraint(equalTo: button.leadingAnchor, constant: -10),
+            cancel.centerYAnchor.constraint(equalTo: button.centerYAnchor),
         ])
-        return button
+        return (button, cancel)
     }
 
     private func promptTapped() {
+        if isFinishing { return advance() }
         switch prompt {
         case .none: break
         case .skip(_, let end): skip(to: end)
@@ -513,10 +636,12 @@ final class PlaybackController: NSObject {
         updateContextualActions()
     }
 
+    /// At the end: the countdown to the next episode (or the button, with auto-play off); the player closes when
+    /// there's nothing next or Cancel was chosen.
     private func itemEnded() {
         report(paused: true, ended: true)
-        if info?.next != nil {
-            advance()
+        if info?.next != nil, !nextCancelled {
+            beginFinishing()
         } else {
             dismissPlayer()
         }
@@ -527,6 +652,7 @@ final class PlaybackController: NSObject {
         guard !isAdvancing, let client, let current = info, let next = current.next else { return }
         log.info("Advancing to \(next.title, privacy: .public)")
         isAdvancing = true
+        endFinishing()
         report(paused: false, ended: true)
         let finished = current.sessionId
         Task {
@@ -595,6 +721,10 @@ final class PlaybackController: NSObject {
         info = nil
         player = nil
         prompt = .none
+        isFinishing = false
+        countdown = nil
+        countdownTask?.cancel()
+        countdownTask = nil
         if client != nil { onSessionEnded?() }
     }
 

@@ -29,6 +29,16 @@ public sealed class Profile
     /// <summary>When the profile picture last changed (null: no picture, show the initial).</summary>
     public DateTime? ImageUpdatedAt { get; set; }
 
+    /// <summary>When an episode finishes, count down and play the next one.</summary>
+    public bool AutoPlayNext { get; set; } = true;
+
+    /// <summary>Jump past intros, recaps and credits without being asked. Skipping credits starts the countdown to the next episode as they begin.</summary>
+    public bool SkipIntros { get; set; }
+
+    public bool SkipRecaps { get; set; }
+
+    public bool SkipCredits { get; set; }
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));

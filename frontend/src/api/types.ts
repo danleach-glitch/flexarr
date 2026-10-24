@@ -264,6 +264,8 @@ export interface PlaybackRequest {
   forceTranscode?: boolean
   /** This player's previous session, which the new one takes over from (only that one ends). */
   replacesSessionId?: string
+  /** With a show's id, plays a random episode; with an episode's, Next is a random one. */
+  shuffle?: boolean
 }
 
 export interface AudioTrack {
@@ -310,6 +312,8 @@ export interface PlaybackInfo {
   ancestors: ItemSummary[]
   next: ItemSummary | null
   transcodeSummary: string | null
+  shuffle?: boolean
+  preferences?: PlaybackPreferences | null
 }
 
 export interface TranscodingSettings {
@@ -372,4 +376,12 @@ export interface Activity {
     durationSeconds: number
     paused: boolean
   }[]
+}
+
+/** How a profile likes to watch: auto-play the next episode, and what to skip without asking. */
+export interface PlaybackPreferences {
+  autoPlayNext: boolean
+  skipIntros: boolean
+  skipRecaps: boolean
+  skipCredits: boolean
 }

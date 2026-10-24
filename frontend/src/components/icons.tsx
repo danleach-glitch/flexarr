@@ -206,3 +206,8 @@ export const Monitor = (p: IconProps) => (
     <path d="M8 20h8M12 16v4" />
   </svg>
 )
+export const Shuffle = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+  </svg>
+)

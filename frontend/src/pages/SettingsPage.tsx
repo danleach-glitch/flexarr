@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { Link, NavLink, useParams } from 'react-router'
 import {
   ApiError,
+  getPlaybackPreferences,
+  setPlaybackPreferences,
   askForProfile,
   createLibrary,
   deleteLibrary,
@@ -33,6 +35,7 @@ import {
   getLayout,
   saveLayout,
   type ItemSummary,
+  type PlaybackPreferences,
   type LibraryHealth,
   type HeldFolder,
   type Layout,
@@ -423,6 +426,59 @@ function useSettings() {
   return { settings: data, error, save, saved, saveError }
 }
 
+/** The profile's own: auto-play and what to skip, saved as soon as they change (and followed by every device). */
+function WhileWatching() {
+  const { profiles } = useSession()
+  const loaded = useApi(getPlaybackPreferences, [])
+  const [preferences, setPreferences] = useState<PlaybackPreferences>()
+  const [error, setError] = useState<string>()
+  useEffect(() => loaded.data && setPreferences(loaded.data), [loaded.data])
+  const me = profiles?.find((p) => p.isCurrent)
+  if (!preferences) return null
+
+  const options: { key: keyof PlaybackPreferences; label: string; help: string }[] = [
+    { key: 'autoPlayNext', label: 'Auto-play the next episode', help: 'A five-second countdown, then the next episode starts.' },
+    { key: 'skipIntros', label: 'Skip intros', help: 'Jumps past the opening titles by itself.' },
+    { key: 'skipRecaps', label: 'Skip recaps', help: 'Jumps past “Previously on…” by itself.' },
+    { key: 'skipCredits', label: 'Skip credits', help: 'Moves on to the next episode as the credits start.' },
+  ]
+
+  async function toggle(key: keyof PlaybackPreferences) {
+    const next = { ...preferences!, [key]: !preferences![key] }
+    setPreferences(next)
+    setError(undefined)
+    try {
+      await setPlaybackPreferences(next)
+    } catch (e) {
+      setPreferences(preferences)
+      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+    }
+  }
+
+  return (
+    <>
+      <h3 className="settings-subhead">While watching{me ? ` (${me.name})` : ''}</h3>
+      <div className="panel">
+        <p className="field-help">Each profile has its own, on every device. You can also change them from the player’s quality menu.</p>
+        {options.map((o) => (
+          <label key={o.key} className="checkbox preference">
+            <input type="checkbox" checked={preferences[o.key]} onChange={() => void toggle(o.key)} />
+            <span>
+              <strong>{o.label}</strong>
+              <span className="muted"> {o.help}</span>
+            </span>
+          </label>
+        ))}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </>
+  )
+}
+
 function PlaybackSection() {
   const { settings, save, saved, saveError } = useSettings()
   const [draft, setDraft] = useState<Settings['transcoding']>()
@@ -434,6 +490,8 @@ function PlaybackSection() {
       <header className="settings-header">
         <h2>Playback</h2>
       </header>
+      <WhileWatching />
+      <h3 className="settings-subhead">Converting video</h3>
       <p className="settings-lede">
         Files your device can play are sent untouched. Everything else is converted as you watch; with hardware acceleration, conversion runs on the graphics chip
         and uses very little power.

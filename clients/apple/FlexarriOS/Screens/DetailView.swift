@@ -151,6 +151,13 @@ struct DetailView: View {
                 }
             }
 
+            if item.kind == .series, item.childCount > 0 {
+                Button { model.shuffle(item) } label: {
+                    Label("Shuffle", systemImage: "shuffle")
+                }
+                .buttonStyle(RoundActionStyle())
+            }
+
             Button { Task { await model.setWatched(item, !watched) } } label: {
                 Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark")
             }

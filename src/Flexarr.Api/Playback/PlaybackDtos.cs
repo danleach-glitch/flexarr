@@ -15,7 +15,9 @@ public sealed record PlaybackRequest(
     double? StartPositionSeconds = null,
     bool ForceTranscode = false,
     // The session this one takes over from (an audio switch, a recovery), ended before this one starts.
-    string? ReplacesSessionId = null);
+    string? ReplacesSessionId = null,
+    // Shuffle a show: with the show's id, a random episode starts; with an episode's, Next is a random one.
+    bool Shuffle = false);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 
@@ -40,7 +42,12 @@ public sealed record PlaybackInfoDto(
     ItemSummaryDto Item,
     IReadOnlyList<ItemSummaryDto> Ancestors,
     ItemSummaryDto? Next,
-    string? TranscodeSummary);
+    string? TranscodeSummary,
+    bool Shuffle = false,
+    PlaybackPreferencesDto? Preferences = null);
+
+/// <summary>How this profile likes to watch: auto-play the next episode, and what to skip without asking.</summary>
+public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, bool SkipRecaps, bool SkipCredits);
 
 public sealed record ProgressRequest(double PositionSeconds, bool Paused = false, bool Ended = false);
 

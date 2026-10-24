@@ -1,7 +1,7 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { ApiError, beaconProgress, imageUrl, reportProgress, startPlayback, stopPlayback, type PlaybackInfo } from '../api/client'
+import { ApiError, beaconProgress, imageUrl, reportProgress, setPlaybackPreferences, startPlayback, stopPlayback, type PlaybackInfo, type PlaybackPreferences } from '../api/client'
 import {
   Back,
   Captions,
@@ -27,7 +27,10 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
   { value: 480, label: '480p', bitrate: 1_500_000 },
 ]
 
-const UP_NEXT_SECONDS = 10
+/** The countdown between one episode finishing and the next starting. */
+const UP_NEXT_SECONDS = 5
+
+const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false }
 const HIDE_CHROME_MS = 3000
 const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
 const TAKEN_OVER = 'Someone started watching on another screen, so this one had to stop.'
@@ -63,6 +66,13 @@ export function PlayerPage() {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
   const navigate = useNavigate()
+  // Shuffling a show: the page opens with the show's id, and each Next is a random episode.
+  const shuffle = params.get('shuffle') === '1'
+  const shuffleRef = useRef(shuffle)
+  shuffleRef.current = shuffle
+  // The episode actually playing, once known: a shuffle starts from the show, and restarts (another audio track, a
+  // recovery) must carry on with this episode rather than pick a new one.
+  const playingItem = useRef<string | undefined>(undefined)
 
   const container = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
@@ -94,6 +104,12 @@ export function PlayerPage() {
   const [subtitleStatus, setSubtitleStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
   const [upNextCancelled, setUpNextCancelled] = useState(false)
   const [countdown, setCountdown] = useState(UP_NEXT_SECONDS)
+  // The episode is over (it ended, or its credits began with Skip credits on): the countdown to the next one runs.
+  const [finished, setFinished] = useState(false)
+  const [preferences, setPreferences] = useState<PlaybackPreferences>(defaultPreferences)
+  const [notice, setNotice] = useState<string>()
+  // Intros and recaps already skipped by themselves, so seeking back into one to watch it isn't overruled.
+  const autoSkipped = useRef(new Set<string>())
 
   const duration = info?.durationSeconds ?? 0
 
@@ -174,7 +190,8 @@ export function PlayerPage() {
       const replaces = session.current
       try {
         const playback = await startPlayback({
-          itemId: id,
+          itemId: playingItem.current ?? id,
+          shuffle: shuffleRef.current || undefined,
           profile: detectProfile(),
           audioStreamIndex: options.audioStreamIndex,
           subtitleKey: options.subtitleKey,
@@ -191,7 +208,9 @@ export function PlayerPage() {
         }
         if (session.current && session.current !== playback.sessionId) void stopPlayback(session.current)
         session.current = playback.sessionId
+        playingItem.current = playback.item.id
         setInfo(playback)
+        if (playback.preferences) setPreferences(playback.preferences)
         setSubtitleKey(playback.selectedSubtitleKey)
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
         return true
@@ -259,6 +278,9 @@ export function PlayerPage() {
   useEffect(() => {
     setUpNextCancelled(false)
     setCountdown(UP_NEXT_SECONDS)
+    setFinished(false)
+    autoSkipped.current = new Set()
+    playingItem.current = undefined
     const t = params.get('t')
     const el = video.current
     const life = { alive: true }
@@ -340,7 +362,7 @@ export function PlayerPage() {
     }
     const onEnded = () => {
       if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
-      if (info?.next && !upNextCancelled) navigate(`/play/${info.next.id}?t=0`, { replace: true })
+      if (info?.next && !upNextCancelled) setFinished(true)
     }
     el.addEventListener('timeupdate', onTime)
     el.addEventListener('play', onPlay)
@@ -495,17 +517,67 @@ export function PlayerPage() {
   const credits = info?.markers.find((m) => m.type === 'Credits')
   const skippable = [recap, intro].find((m) => m && time >= m.start && time < m.end - 1)
   const upNextAt = credits?.start ?? (duration ? duration - 25 : Infinity)
-  const showUpNext = !!info?.next && !upNextCancelled && time >= upNextAt && duration > 0
+  // Offered from the credits on, as a button; once the episode is over, with the countdown if auto-play is on.
+  const showUpNext = !!info?.next && !upNextCancelled && (finished || (time >= upNextAt && duration > 0))
+  const counting = finished && preferences.autoPlayNext && showUpNext
+
+  const playNext = useCallback(() => {
+    if (info?.next) navigate(`/play/${info.next.id}?t=0${shuffle ? '&shuffle=1' : ''}`, { replace: true })
+  }, [info, navigate, shuffle])
+
+  // Skip intros and recaps by themselves when the profile asks, once each.
+  useEffect(() => {
+    if (!skippable || error) return
+    const key = `${skippable.type}@${skippable.start}`
+    const wanted = skippable.type === 'Intro' ? preferences.skipIntros : preferences.skipRecaps
+    if (!wanted || autoSkipped.current.has(key)) return
+    autoSkipped.current.add(key)
+    seekTo(skippable.end)
+    setNotice(skippable.type === 'Recap' ? 'Skipped the recap' : 'Skipped the intro')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seekTo is a plain function of this render
+  }, [skippable, preferences, error])
 
   useEffect(() => {
-    if (!showUpNext || !playing) return
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(undefined), 2500)
+    return () => clearTimeout(timer)
+  }, [notice])
+
+  // Skip credits: the episode is over as soon as they start.
+  useEffect(() => {
+    if (!preferences.skipCredits || !credits || !info?.next || upNextCancelled || finished || time < credits.start) return
+    video.current?.pause()
+    if (session.current) void reportProgress(session.current, time, true, true).catch(() => undefined)
+    setFinished(true)
+  }, [preferences.skipCredits, credits, info, upNextCancelled, finished, time])
+
+  useEffect(() => {
+    if (finished) setCountdown(UP_NEXT_SECONDS)
+  }, [finished])
+
+  useEffect(() => {
+    if (!counting) return
     const timer = setInterval(() => setCountdown((c) => c - 1), 1000)
     return () => clearInterval(timer)
-  }, [showUpNext, playing])
+  }, [counting])
 
   useEffect(() => {
-    if (showUpNext && countdown <= 0 && info?.next) navigate(`/play/${info.next.id}?t=0`, { replace: true })
-  }, [countdown, showUpNext, info, navigate])
+    if (counting && countdown <= 0) playNext()
+  }, [countdown, counting, playNext])
+
+  /** Turns one of the profile's playback preferences on or off, here and for its other devices. */
+  function togglePreference(key: keyof PlaybackPreferences) {
+    const next = { ...preferences, [key]: !preferences[key] }
+    setPreferences(next)
+    void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
+  }
+
+  /** Not now: hide the card, and if the credits were skipped, let them play. */
+  function cancelUpNext() {
+    setUpNextCancelled(true)
+    if (finished && video.current && !video.current.ended) void video.current.play()
+    setFinished(false)
+  }
 
   // ---------- Keyboard
 
@@ -555,7 +627,7 @@ export function PlayerPage() {
           if (skippable) seekTo(skippable.end)
           break
         case 'n':
-          if (info?.next) navigate(`/play/${info.next.id}?t=0`, { replace: true })
+          playNext()
           break
         case 'Escape':
           if (menu) setMenu(null)
@@ -657,6 +729,12 @@ export function PlayerPage() {
         </div>
       )}
 
+      {notice && !error && (
+        <p className="player-notice" role="status">
+          {notice}
+        </p>
+      )}
+
       {skippable && !showUpNext && !error && (
         <button className="skip-button" onClick={() => seekTo(skippable.end)} autoFocus>
           {skippable.type === 'Recap' ? 'Skip recap' : 'Skip intro'}
@@ -667,21 +745,26 @@ export function PlayerPage() {
         <aside className="up-next" aria-live="polite">
           <div className="up-next-still">
             <img src={imageUrl(info.next.artwork.thumb ?? info.next.artwork.backdrop, 500)} alt="" />
-            <svg viewBox="0 0 36 36" className="up-next-ring" aria-hidden="true">
-              <circle cx="18" cy="18" r="16" style={{ strokeDashoffset: 100 - (countdown / UP_NEXT_SECONDS) * 100 }} pathLength={100} />
-            </svg>
+            {counting && (
+              <svg viewBox="0 0 36 36" className="up-next-ring" aria-hidden="true">
+                <circle cx="18" cy="18" r="16" style={{ strokeDashoffset: 100 - (countdown / UP_NEXT_SECONDS) * 100 }} pathLength={100} />
+              </svg>
+            )}
           </div>
           <div className="up-next-text">
-            <span className="muted">Next episode in {Math.max(0, countdown)}</span>
+            <span className="muted">
+              {shuffle ? 'Shuffle: next' : 'Next episode'}
+              {counting ? ` in ${Math.max(0, countdown)}` : ''}
+            </span>
             <strong>
               {episodeCode(info.next)} {info.next.title}
             </strong>
             <div className="up-next-actions">
-              <button className="button small" onClick={() => navigate(`/play/${info.next!.id}?t=0`, { replace: true })}>
+              <button className="button small" onClick={playNext}>
                 <Play /> Play now
               </button>
-              <button className="button quiet small" onClick={() => setUpNextCancelled(true)}>
-                Keep watching
+              <button className="button quiet small" onClick={cancelUpNext}>
+                {finished ? 'Cancel' : 'Keep watching'}
               </button>
             </div>
           </div>
@@ -702,7 +785,7 @@ export function PlayerPage() {
             <Forward10 />
           </button>
           {info?.next && (
-            <button className="icon-button" onClick={() => navigate(`/play/${info.next!.id}?t=0`, { replace: true })} aria-label="Next episode">
+            <button className="icon-button" onClick={playNext} aria-label={shuffle ? 'Next random episode' : 'Next episode'}>
               <Next />
             </button>
           )}
@@ -781,6 +864,21 @@ export function PlayerPage() {
                     </MenuItem>
                   ))}
                 </div>
+                <div className="player-menu-column">
+                  <h3>While watching</h3>
+                  <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
+                    Auto-play next episode
+                  </MenuItem>
+                  <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
+                    Skip intros
+                  </MenuItem>
+                  <MenuItem toggle selected={preferences.skipRecaps} onClick={() => togglePreference('skipRecaps')}>
+                    Skip recaps
+                  </MenuItem>
+                  <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
+                    Skip credits
+                  </MenuItem>
+                </div>
               </div>
             )}
           </div>
@@ -814,9 +912,9 @@ export function PlayerPage() {
   )
 }
 
-function MenuItem({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+function MenuItem({ selected, onClick, children, toggle = false }: { selected: boolean; onClick: () => void; children: React.ReactNode; toggle?: boolean }) {
   return (
-    <button role="menuitemradio" aria-checked={selected} className={selected ? 'player-menu-item selected' : 'player-menu-item'} onClick={onClick}>
+    <button role={toggle ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={selected} className={selected ? 'player-menu-item selected' : 'player-menu-item'} onClick={onClick}>
       {children}
     </button>
   )

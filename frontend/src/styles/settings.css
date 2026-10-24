@@ -1139,3 +1139,12 @@
     margin-left: 52px;
   }
 }
+
+/* A preference with its explanation beside it. */
+.checkbox.preference {
+  align-items: flex-start;
+}
+
+.checkbox.preference input {
+  margin-top: 4px;
+}

@@ -587,6 +587,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("AutoPlayNext")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Color")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -609,6 +612,15 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("PinHash")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("SkipCredits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SkipIntros")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SkipRecaps")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TailscaleLogin")
                         .HasColumnType("TEXT");
 
@@ -623,10 +635,14 @@ namespace Flexarr.Core.Data.Migrations
                         new
                         {
                             Id = "owner",
+                            AutoPlayNext = true,
                             Color = "#a9c2ec",
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
                             HiddenLibraryIds = "[]",
-                            Name = "Main profile"
+                            Name = "Main profile",
+                            SkipCredits = false,
+                            SkipIntros = false,
+                            SkipRecaps = false
                         });
                 });
 

@@ -129,6 +129,15 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "playback/\(sessionId)")
     }
 
+    /// The signed-in profile's auto-play and skip preferences.
+    public func playbackPreferences() async throws -> PlaybackPreferences {
+        try await get("me/playback-preferences")
+    }
+
+    public func setPlaybackPreferences(_ preferences: PlaybackPreferences) async throws {
+        _ = try await send("PUT", "me/playback-preferences", body: preferences)
+    }
+
     // MARK: Profiles
 
     public func profiles() async throws -> [Profile] {

@@ -229,6 +229,12 @@ final class AppModel {
         refreshToken += 1
     }
 
+    /// Plays random episodes of a show, one after another.
+    func shuffle(_ series: ItemSummary) {
+        guard let client else { return }
+        player.play(itemId: series.id, preview: nil, startAt: nil, client: client, shuffle: true)
+    }
+
     func play(_ item: ItemSummary, fromBeginning: Bool = false) {
         guard let client else { return }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client)
