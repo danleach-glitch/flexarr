@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.10.0 · 24 October 2026
 
 ### Logos and links in Settings
 - **Settings › Connections** shows each app's logo (Sonarr, Radarr, Lidarr and Seerr) and an **Open** link that opens the app in a new tab. An app set up as `localhost` opens on the same address you reached Flexarr on.
