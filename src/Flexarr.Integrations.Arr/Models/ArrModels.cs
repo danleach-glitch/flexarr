@@ -18,6 +18,9 @@ public sealed record RadarrMovie
 
     /// <summary>The film's address in Radarr's web UI: /movie/{titleSlug}.</summary>
     public string? TitleSlug { get; init; }
+
+    /// <summary>The one file Radarr tracks for the film, if it has one.</summary>
+    public ArrFile? MovieFile { get; init; }
     public string? OriginalTitle { get; init; }
     public string? SortTitle { get; init; }
     public int Year { get; init; }
@@ -132,5 +135,8 @@ public sealed record ArrQueueItem
     [JsonIgnore]
     public double Progress => Size > 0 ? 1 - Sizeleft / Size : 0;
 }
+
+/// <summary>A file Sonarr or Radarr tracks (a movie file, or an episode file), with its path as they see it.</summary>
+public sealed record ArrFile(int Id, string? Path);
 
 public sealed record ArrPage<T>(int Page, int PageSize, int TotalRecords, IReadOnlyList<T> Records);

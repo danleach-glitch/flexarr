@@ -50,7 +50,10 @@ fi
 root="$(ssh "$host" 'echo $HOME/.flexarr')"
 dotnet_root="$(ssh "$host" 'echo $HOME/.dotnet')"
 ssh "$host" "mkdir -p '$root/app' '$root/data' '$root/logs' ~/Library/LaunchAgents"
-rsync -a --delete "$out/" "$host:.flexarr/app/"
+# Keep earlier builds' web files (their names change every build), so tabs opened before this deploy can still load
+# the pages they ask for; files older than a week are pruned.
+rsync -a --delete --filter='P wwwroot/assets/' "$out/" "$host:.flexarr/app/"
+ssh "$host" "find ~/.flexarr/app/wwwroot/assets -type f -mtime +7 -delete 2>/dev/null || true"
 sed -e "s#__ROOT__#$root#g" -e "s#__DOTNET_ROOT__#$dotnet_root#g" -e "s#__DOTNET__#$dotnet_root/dotnet#g" "$repo/deploy/macos/$label.plist" | ssh "$host" "cat > ~/Library/LaunchAgents/$label.plist"
 
 ssh "$host" bash -s <<REMOTE

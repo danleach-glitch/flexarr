@@ -288,19 +288,6 @@
   background: var(--room);
 }
 
-.health-list {
-  display: grid;
-  gap: 8px;
-}
-
-.health-item summary {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  cursor: pointer;
-}
-
-.health-item ul,
 .plain-list {
   list-style: none;
   margin: 12px 0 0;
@@ -309,41 +296,9 @@
   gap: 10px;
 }
 
-.health-item li,
 .plain-list li {
   display: grid;
   gap: 4px;
-}
-
-.health-item li .tag {
-  justify-self: start;
-}
-
-.health-item li.keep .tag {
-  border-color: var(--silver);
-  color: var(--silver);
-}
-
-.health-sd {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px 24px;
-}
-
-.health-sd-item {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  align-items: baseline;
-}
-
-.health-sd-item a {
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.health-sd-item a:hover {
-  text-decoration: underline;
 }
 
 .panel > p + .field {
@@ -580,4 +535,190 @@
 
 .changelog-entry li + li {
   margin-top: 4px;
+}
+
+/* ---------- Library health ---------- */
+
+.health-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+  margin-bottom: 16px;
+}
+
+.health-score-number {
+  display: grid;
+  justify-items: center;
+  min-width: 120px;
+}
+
+.health-score-value {
+  font-family: var(--display);
+  font-size: var(--step-6);
+  font-weight: 800;
+  line-height: 0.9;
+  color: var(--silver);
+}
+
+.health-score[data-grade='fair'] .health-score-value {
+  color: #e8c27a;
+}
+
+.health-score[data-grade='poor'] .health-score-value {
+  color: #e8908a;
+}
+
+.health-score-label {
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.health-score-summary {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.health-score-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
+.health-score-breakdown strong {
+  color: var(--screen);
+}
+
+.health-group {
+  margin-top: 36px;
+}
+
+.health-group > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 20px;
+  margin-bottom: 12px;
+}
+
+.health-group > header p {
+  margin: 4px 0 0;
+  max-width: 44rem;
+}
+
+.health-count {
+  margin-left: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--aisle);
+  font-family: var(--text);
+  font-size: var(--step--1);
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.health-rows {
+  padding: 4px 18px;
+}
+
+.health-row,
+.health-row-expandable > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+}
+
+.health-row + .health-row,
+.health-row-expandable + .health-row-expandable {
+  border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.health-row-expandable > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.health-row-expandable > summary::-webkit-details-marker {
+  display: none;
+}
+
+.health-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.health-row-art {
+  flex: none;
+  width: 34px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--aisle);
+  aspect-ratio: 2 / 3;
+}
+
+.health-row-text {
+  display: grid;
+  min-width: 0;
+}
+
+.health-row-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-row-title {
+  color: var(--screen);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.health-row-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.health-row-text .muted {
+  font-size: var(--step--1);
+}
+
+.health-copies {
+  list-style: none;
+  margin: 0 0 10px 48px;
+  padding: 0;
+  font-size: var(--step--1);
+}
+
+.health-copies li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 0;
+}
+
+.health-copies .tag.keep {
+  border-color: var(--silver);
+  color: var(--silver);
+}
+
+.health-progress {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.health-more {
+  margin: 10px 0;
 }

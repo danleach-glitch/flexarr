@@ -31,4 +31,37 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.True(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == film));
     }
+
+    [Fact]
+    public async Task SpareCopiesOfAnUnmanagedTitle_StayOnDisk()
+    {
+        var dir = Directory.CreateTempSubdirectory("flexarr-dupes-").FullName;
+        var best = Path.Combine(dir, "Film (2020) [1080p].mkv");
+        var spare = Path.Combine(dir, "Film (2020).avi");
+        File.WriteAllText(best, "best");
+        File.WriteAllText(spare, "spare");
+        Guid film;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            var movie = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film",
+                Files = [new MediaFile { Path = best, Height = 1080, Size = 4 }, new MediaFile { Path = spare, Height = 480, Size = 5 }],
+            };
+            db.AddRange(library, movie);
+            await db.SaveChangesAsync();
+            film = movie.Id;
+        }
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var response = await client.PostAsync(new Uri($"/api/v1/items/{film}/remove-duplicates", UriKind.Relative), null);
+
+        // Without Sonarr or Radarr to say which copy they use, nothing is deleted.
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.True(File.Exists(spare));
+        Directory.Delete(dir, recursive: true);
+    }
 }

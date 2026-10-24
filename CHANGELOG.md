@@ -4,6 +4,14 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Library health, redesigned
+- A **health score**: the share of films and episodes with no problems, with a breakdown of what's affecting the rest.
+- Every problem is a tidy row: poster, title (show, episode number and name for episodes), the file name and what's wrong, with its action on the right.
+- **Remove spare copies**, per title or all at once: deletes extra files from disk, always keeping the best copy and the one Sonarr or Radarr use. It asks first and shows progress.
+
+### Fixed: blank screen when playing after an update
+- A tab opened before Flexarr was updated could show a blank page when you pressed Play. Updates now keep the previous version's files for a week, and if a page still can't load, Flexarr reloads itself once.
+
 ### Changelog
 - **Settings › Changelog** lists what's changed, newest first.
 

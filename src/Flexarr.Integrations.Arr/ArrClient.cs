@@ -22,6 +22,9 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<RadarrMovie>> GetMoviesAsync(ArrInstance radarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<RadarrMovie>>(radarr, "movie", ct);
 
+    public Task<RadarrMovie> GetMovieAsync(ArrInstance radarr, int movieId, CancellationToken ct = default) =>
+        GetAsync<RadarrMovie>(radarr, $"movie/{movieId}", ct);
+
     public Task<IReadOnlyList<RadarrCredit>> GetCreditsAsync(ArrInstance radarr, int movieId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<RadarrCredit>>(radarr, $"credit?movieId={movieId}", ct);
 
@@ -38,6 +41,9 @@ public sealed class ArrClient(HttpClient httpClient)
 
     public Task<SonarrEpisode> GetEpisodeAsync(ArrInstance sonarr, int episodeId, CancellationToken ct = default) =>
         GetAsync<SonarrEpisode>(sonarr, $"episode/{episodeId}", ct);
+
+    public Task<ArrFile> GetEpisodeFileAsync(ArrInstance sonarr, int episodeFileId, CancellationToken ct = default) =>
+        GetAsync<ArrFile>(sonarr, $"episodefile/{episodeFileId}", ct);
 
     /// <summary>Monitored episodes are downloaded when missing, so a deleted episode is unmonitored first.</summary>
     public async Task SetEpisodesMonitoredAsync(ArrInstance sonarr, IReadOnlyList<int> episodeIds, bool monitored, CancellationToken ct = default)

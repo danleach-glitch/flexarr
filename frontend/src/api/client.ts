@@ -255,6 +255,8 @@ export const getUpcoming = (days = 21, signal?: AbortSignal) => apiGet<UpcomingI
 export const getDownloads = (signal?: AbortSignal) => apiGet<Download[]>('/downloads', signal)
 
 export interface LibraryHealth {
+  /** The share (0–100) of films and episodes with nothing wrong, and how many titles each problem touches. */
+  score: { score: number; titles: number; withProblems: number; duplicates: number; unreadable: number; standardDefinition: number; missingArtwork: number; fileProblems: number }
   duplicates: {
     item: import('./types').ItemSummary
     seriesTitle: string | null
@@ -280,6 +282,10 @@ export interface HealthCheckReport {
 
 export const getHealthCheck = (signal?: AbortSignal) => apiGet<HealthCheckReport>('/library-health/check', signal)
 export const startHealthCheck = () => request<void>('POST', '/library-health/check')
+
+/** Deletes a title's spare copies from disk, keeping the best and the one Sonarr/Radarr use. */
+export const removeDuplicates = (itemId: string) =>
+  request<{ removed: number; freedBytes: number; skipped: { path: string; reason: string }[] }>('POST', `/items/${itemId}/remove-duplicates`)
 export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)
 
 export interface ExternalTitle {

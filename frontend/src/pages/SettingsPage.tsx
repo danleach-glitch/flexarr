@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, useParams } from 'react-router'
 import {
   ApiError,
@@ -16,11 +16,13 @@ import {
   linkTailscale,
   setTailscaleAccess,
   getAllLibraries,
+  removeDuplicates,
   getChangelog,
   getHealthCheck,
   startHealthCheck,
   getLayout,
   saveLayout,
+  type ItemSummary,
   type Layout,
   type RowChoice,
   importPlexAvatars,
@@ -45,6 +47,7 @@ import {
   type LibraryType,
   type Settings,
 } from '../api/client'
+import { Artwork } from '../components/Artwork'
 import { FolderPicker } from '../components/FolderPicker'
 import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
@@ -925,6 +928,9 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
 function HealthSection() {
   const { data, reload } = useApi(getLibraryHealth, [])
   const [requested, setRequested] = useState<Record<string, string>>({})
+  const [shown, setShown] = useState(40)
+  const [removing, setRemoving] = useState<{ done: number; total: number; freed: number; skipped: number } | null>(null)
+  const [confirmAll, setConfirmAll] = useState(false)
   if (!data) return <p className="muted">Checking your library…</p>
 
   async function upgrade(id: string) {
@@ -936,99 +942,229 @@ function HealthSection() {
     }
   }
 
+  /** One title at a time, so progress is visible and one failure doesn't stop the rest. */
+  async function removeSpares(ids: string[]) {
+    let freed = 0
+    let skipped = 0
+    setRemoving({ done: 0, total: ids.length, freed, skipped })
+    for (const [i, id] of ids.entries()) {
+      try {
+        const result = await removeDuplicates(id)
+        freed += result.freedBytes
+        skipped += result.skipped.length
+      } catch {
+        skipped++
+      }
+      setRemoving({ done: i + 1, total: ids.length, freed, skipped })
+    }
+    reload()
+  }
+
+  const score = data.score
+  const breakdown = [
+    [score.duplicates, 'with spare copies'],
+    [score.unreadable, 'unreadable'],
+    [score.fileProblems, 'missing or empty files'],
+    [score.standardDefinition, 'only in SD'],
+    [score.missingArtwork, 'without artwork'],
+  ] as const
+
   return (
-    <section>
+    <section className="health">
       <header className="settings-header">
         <h2>Library health</h2>
       </header>
-      <p className="settings-lede">Things worth tidying. Nothing here deletes anything; remove spare copies in Sonarr, Radarr or the Finder.</p>
+
+      <div className="panel health-score" data-grade={score.score >= 95 ? 'good' : score.score >= 80 ? 'fair' : 'poor'}>
+        <div className="health-score-number">
+          <span className="health-score-value">{score.score}</span>
+          <span className="health-score-label">Health score</span>
+        </div>
+        <div>
+          <p className="health-score-summary">
+            {score.withProblems === 0
+              ? `All ${score.titles.toLocaleString()} films and episodes are in good shape.`
+              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} films and episodes have no problems.`}
+          </p>
+          <ul className="health-score-breakdown">
+            {breakdown
+              .filter(([n]) => n > 0)
+              .map(([n, label]) => (
+                <li key={label}>
+                  <strong>{n.toLocaleString()}</strong> {label}
+                </li>
+              ))}
+          </ul>
+        </div>
+      </div>
+
       <HealthCheckPanel onFinished={reload} />
 
-      <h3 className="settings-subhead">
-        Duplicate copies{data.duplicates.length > 0 && `: ${formatSize(data.reclaimableBytes)} could be freed`}
-      </h3>
-      {data.duplicates.length === 0 && <p className="muted">Every title has a single copy.</p>}
-      <div className="health-list">
-        {data.duplicates.slice(0, 50).map((d) => (
-          <details key={d.item.id} className="panel health-item">
+      <HealthGroup
+        title="Spare copies"
+        count={data.duplicates.length}
+        empty="Every title has a single copy."
+        lede={`More than one file for the same film or episode. Removing spares frees ${formatSize(data.reclaimableBytes)}; the best copy, and the one Sonarr or Radarr use, always stay.`}
+        action={
+          data.duplicates.length > 0 && (
+            <button className="button danger small" disabled={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
+              Remove all spare copies ({formatSize(data.reclaimableBytes)})
+            </button>
+          )
+        }
+      >
+        {removing && (
+          <div className="health-progress" role="status">
+            <span>
+              {removing.done < removing.total
+                ? `Removing spare copies: ${removing.done.toLocaleString()} of ${removing.total.toLocaleString()} titles`
+                : `Removed spare copies of ${(removing.total - removing.skipped).toLocaleString()} titles, freeing ${formatSize(removing.freed)}.`}
+              {removing.skipped > 0 && ` ${removing.skipped} couldn’t be removed (see the server log).`}
+            </span>
+            <span className="scan-track" aria-hidden="true">
+              <span style={{ width: `${(removing.done / Math.max(1, removing.total)) * 100}%` }} />
+            </span>
+          </div>
+        )}
+        {data.duplicates.slice(0, shown).map((d) => (
+          <details key={d.item.id} className="health-row-expandable">
             <summary>
-              <span>
-                <strong>{d.seriesTitle ?? d.item.title}</strong>
-                {d.seriesTitle && (
-                  <span className="muted">
-                    {' '}
-                    {episodeCode(d.item)} {d.item.title}
-                  </span>
-                )}
-              </span>
-              <span className="muted">
-                {d.files.length} copies, {formatSize(d.reclaimableBytes)} spare
-              </span>
+              <HealthRowMain item={d.item} detail={`${d.files.length} copies, ${formatSize(d.reclaimableBytes)} spare`} />
+              <button
+                className="button quiet small"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void removeSpares([d.item.id])
+                }}
+              >
+                Remove spares
+              </button>
             </summary>
-            <ul>
+            <ul className="health-copies">
               {d.files.map((f) => (
-                <li key={f.id} className={f.keep ? 'keep' : undefined}>
-                  <span className="tag">{f.keep ? 'Best copy' : 'Spare'}</span>
-                  <code>{f.path}</code>
+                <li key={f.id}>
+                  <span className={f.keep ? 'tag keep' : 'tag'}>{f.keep ? 'Best' : 'Spare'}</span>
+                  <span title={f.path}>{fileName(f.path)}</span>
                   <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
                 </li>
               ))}
             </ul>
           </details>
         ))}
-        {data.duplicates.length > 50 && <p className="muted">And {data.duplicates.length - 50} more.</p>}
-      </div>
+        {data.duplicates.length > shown && (
+          <button className="button quiet small health-more" onClick={() => setShown((n) => n + 100)}>
+            Show more ({(data.duplicates.length - shown).toLocaleString()} left)
+          </button>
+        )}
+      </HealthGroup>
 
-      <h3 className="settings-subhead">Files that can't be read</h3>
-      {data.unreadable.length === 0 ? (
-        <p className="muted">Every file opened cleanly.</p>
-      ) : (
-        <div className="panel">
-          <p className="settings-lede">These are usually damaged or incomplete downloads. Replacing them in Sonarr or Radarr fixes playback.</p>
-          <ul className="plain-list">
-            {data.unreadable.map((u) => (
-              <li key={u.fileId}>
-                <code>{u.path}</code>
-                <span className="muted">{u.error}</span>
-                {u.item && (
-                  <button className="text-button" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
-                    {requested[u.item.id] ?? 'Ask Sonarr or Radarr for a new copy'}
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <HealthGroup title="Files that can’t be read" count={data.unreadable.length} empty="Every file opened cleanly." lede="Usually a damaged or unfinished download. A new copy fixes playback.">
+        {data.unreadable.map((u) => (
+          <div key={u.fileId} className="health-row">
+            <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${u.error.split(': ').at(-1)?.toLowerCase()}`} />
+            {u.item && (
+              <button className="button quiet small" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
+                {requested[u.item.id] ?? 'Get a new copy'}
+              </button>
+            )}
+          </div>
+        ))}
+      </HealthGroup>
 
-      <h3 className="settings-subhead">Standard definition films ({data.standardDefinitionTotal})</h3>
-      <p className="settings-lede">Your best copy of these is below 720p. Radarr can look for a better one.</p>
-      <div className="health-sd">
+      <HealthGroup title="Only in standard definition" count={data.standardDefinitionTotal} empty="Every film has an HD copy." lede="Your best copy is below 720p. Radarr can look for a better one.">
         {data.standardDefinition.map((item) => (
-          <div key={item.id} className="health-sd-item">
-            <Link to={`/item/${item.id}`}>{item.title}</Link>
-            <span className="muted">{item.year}</span>
-            <button className="text-button" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
+          <div key={item.id} className="health-row">
+            <HealthRowMain item={item} detail="Best copy is SD" />
+            <button className="button quiet small" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
               {requested[item.id] ?? 'Find a better copy'}
             </button>
           </div>
         ))}
-      </div>
+      </HealthGroup>
 
       {data.missingArtwork.length > 0 && (
-        <>
-          <h3 className="settings-subhead">Missing artwork ({data.missingArtwork.length})</h3>
-          <p className="settings-lede">These weren't found in Sonarr or Radarr. Renaming the folder to “Title (Year)” usually fixes the match.</p>
-          <ul className="plain-list">
-            {data.missingArtwork.map((item) => (
-              <li key={item.id}>
-                <Link to={`/item/${item.id}`}>{item.title}</Link>
-              </li>
-            ))}
-          </ul>
-        </>
+        <HealthGroup title="Missing artwork" count={data.missingArtwork.length} lede="Not found in Sonarr or Radarr. Renaming the folder to “Title (Year)” usually fixes the match.">
+          {data.missingArtwork.map((item) => (
+            <div key={item.id} className="health-row">
+              <HealthRowMain item={item} detail="No poster or details" />
+            </div>
+          ))}
+        </HealthGroup>
+      )}
+
+      {confirmAll && (
+        <div className="dialog-backdrop" onClick={() => setConfirmAll(false)}>
+          <div className="panel confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="spares-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="spares-title">Remove {data.duplicates.length.toLocaleString()} spare copies?</h2>
+            <p>
+              This deletes the spare files from disk, freeing {formatSize(data.reclaimableBytes)}. For each title the best copy, and the one Sonarr or Radarr use, are kept.
+              You can’t undo this.
+            </p>
+            <div className="form-actions">
+              <button className="button quiet" onClick={() => setConfirmAll(false)} autoFocus>
+                Keep them
+              </button>
+              <button
+                className="button danger"
+                onClick={() => {
+                  setConfirmAll(false)
+                  void removeSpares(data.duplicates.map((d) => d.item.id))
+                }}
+              >
+                Remove spare copies
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
+  )
+}
+
+const fileName = (path: string) => path.split('/').at(-1) ?? path
+
+/** A titled group of problems with a count, a line on what it means, and an optional action for all of them. */
+function HealthGroup({ title, count, lede, empty, action, children }: { title: string; count: number; lede: string; empty?: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="health-group">
+      <header>
+        <div>
+          <h3 className="settings-subhead">
+            {title} <span className="health-count">{count.toLocaleString()}</span>
+          </h3>
+          {count > 0 && <p className="muted">{lede}</p>}
+        </div>
+        {action}
+      </header>
+      {count === 0 ? <p className="muted">{empty}</p> : <div className="panel health-rows">{children}</div>}
+    </section>
+  )
+}
+
+/** The poster, the title (an episode's show, number and name), and what's wrong. */
+function HealthRowMain({ item, file, detail }: { item: ItemSummary | null; file?: string; detail: string }) {
+  return (
+    <span className="health-row-main">
+      <span className="health-row-art">{item && <Artwork src={item.artwork.poster} title={item.title} width={92} shape="poster" />}</span>
+      <span className="health-row-text">
+        {item ? (
+          <Link to={item.kind === 'Episode' && item.seriesId ? `/item/${item.id}` : `/item/${item.id}`} className="health-row-title">
+            {item.kind === 'Episode' ? `${item.seriesTitle ?? ''} ${episodeCode(item)} ${item.title}` : `${item.title}${item.year ? ` (${item.year})` : ''}`}
+          </Link>
+        ) : (
+          <strong>Unknown title</strong>
+        )}
+        <span className="muted">
+          {detail}
+          {file && (
+            <>
+              {' · '}
+              <span title={file}>{fileName(file)}</span>
+            </>
+          )}
+        </span>
+      </span>
+    </span>
   )
 }
 

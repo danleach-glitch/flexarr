@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { getMe, getProfiles, getSystemStatus, profileToken, saveApiKey, UnauthorizedError, type Profile } from './api/client'
 import { ProfilePicker } from './components/ProfilePicker'
@@ -20,8 +20,29 @@ import './styles/player.css'
 import './styles/settings.css'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
-const PlayerPage = lazy(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
-const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+/**
+ * Loads a page on demand. A tab opened before an update can ask for a file the update replaced; then the page reloads
+ * once to pick up the new version rather than going blank. (Deploys also keep a week of old files.)
+ */
+function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) {
+  return lazy(async () => {
+    try {
+      const page = await load()
+      sessionStorage.removeItem('flexarr.reloadedForUpdate')
+      return page
+    } catch (error) {
+      if (!sessionStorage.getItem('flexarr.reloadedForUpdate')) {
+        sessionStorage.setItem('flexarr.reloadedForUpdate', '1')
+        location.reload()
+        return new Promise<T>(() => {}) // the reload replaces this page
+      }
+      throw error
+    }
+  })
+}
+
+const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
+const SettingsPage = lazyPage(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 type ConnectionState =
   | { kind: 'loading' }
