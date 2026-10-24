@@ -304,15 +304,45 @@
   margin-top: 18px;
 }
 
-.api-key {
-  display: inline-block;
-  padding: 8px 12px;
-  border-radius: 8px;
+/* A secret or long address in one line, like a read-only field: the API key (with its eye) and webhook addresses. */
+.secret-field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
   background: var(--room);
-  font-size: var(--step-0);
-  letter-spacing: 0.02em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--step--1);
+}
+
+.secret-field code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: inherit;
+  letter-spacing: 0.04em;
   user-select: all;
-  overflow-wrap: anywhere;
+}
+
+.secret-field .icon-button {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: var(--usher);
+}
+
+.secret-field .icon-button:hover {
+  color: var(--screen);
+}
+
+.secret-field .icon-button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .key-row {
@@ -320,7 +350,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
+}
+
+.key-row .secret-field {
+  flex: 1 1 22rem;
+}
+
+.key-row + .field-help {
+  margin: 10px 0 0;
 }
 
 .key-note {
@@ -330,25 +367,71 @@
   background: var(--room);
 }
 
+.webhook-lede {
+  margin: 0 0 14px;
+}
+
+/* Logo, name, the address cut to one line (all of it is on hover, and Copy takes all of it), Copy. */
+.plain-list.webhook-list {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 0;
+}
+
 .plain-list.webhook-list li {
+  display: contents;
+}
+
+.webhook-app {
+  font-weight: 700;
+}
+
+.webhook-address {
+  display: block;
+  line-height: 34px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 12px;
+  user-select: all;
+}
+
+.webhook-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aisle);
 }
 
+.webhook-footer .field-help {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+/* Phones: logo, name and Copy on one line, the address under them. */
 @media (max-width: 600px) {
-  .plain-list.webhook-list li {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+  .plain-list.webhook-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
   }
-}
 
-.webhook-list .folder {
-  min-width: 0;
-  margin-top: 0;
-  overflow-wrap: anywhere;
+  .plain-list.webhook-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 10px;
+  }
+
+  .webhook-address {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 .advice-more {
@@ -939,24 +1022,74 @@
   text-transform: uppercase;
 }
 
+/* Icon, name and badges over one muted line, then the actions; rows split by hairlines. */
+.sign-in-list {
+  margin: 0;
+}
+
 .sign-in-list li {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-
-.sign-in-list .tag {
-  margin-left: 8px;
-}
-
-.sign-in-list li {
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 0;
+}
+
+.sign-in-list li + li {
+  border-top: 1px solid var(--aisle);
+}
+
+.sign-in-list > li:first-child {
+  padding-top: 0;
+}
+
+.sign-in-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: var(--radius-control);
+  background: var(--room);
+  color: var(--usher);
+}
+
+.sign-in-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .sign-in-text {
-  flex: 1 1 20rem;
+  display: grid;
+  gap: 2px;
+  flex: 1 1 16rem;
   min-width: 0;
+}
+
+.sign-in-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sign-in-meta {
+  font-size: var(--step--1);
+}
+
+.pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--seat-raised);
+  color: var(--usher);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.pill.new {
+  background: color-mix(in srgb, var(--silver) 22%, transparent);
+  color: var(--silver);
 }
 
 .sign-in-actions {
@@ -967,9 +1100,22 @@
 
 .sign-in-each {
   flex-basis: 100%;
-  margin: 4px 0 0;
-  padding-left: 14px;
-  border-left: 2px solid var(--aisle);
+  margin: 4px 0 0 52px;
+}
+
+.sign-in-each li {
+  padding: 10px 0;
+}
+
+.sign-in-each > li:first-child {
+  border-top: 1px solid var(--aisle);
+}
+
+.sign-in-footer {
+  display: flex;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aisle);
 }
 
 .sign-in-rename {
@@ -985,4 +1131,11 @@
 
 .sign-in-done {
   margin: 12px 0 0;
+}
+
+/* Phones: a sign-in's buttons wrap under its name, lined up with it rather than the icon. */
+@media (max-width: 600px) {
+  .sign-in-list .sign-in-actions {
+    margin-left: 52px;
+  }
 }

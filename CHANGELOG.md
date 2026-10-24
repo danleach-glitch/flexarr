@@ -2,6 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### A tidier Server page in Settings
+- **API key:** the key sits in a field as dots, with an eye to show it and **Copy** once it's showing. There's no extra step to confirm first, unless the main profile has a PIN; then the eye asks for it.
+- **Signed-in browsers and TVs:** each one gets an icon and a single line saying who, where and when it was last used. The date it signed in and its address are on hover, and an address from the internet is always shown. **Sign out every other browser and TV** sits at the bottom, in red.
+- **Webhooks:** one line per app, with its logo, its address cut to fit (Copy still takes all of it) and **Copy**. The Docker tip and **Make a new secret** sit underneath.
+
 ## 0.10.0 · 24 October 2026
 
 ### Logos and links in Settings

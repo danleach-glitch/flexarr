@@ -352,15 +352,14 @@ describe('Settings', () => {
     renderAt('/settings/server')
 
     expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Show API key' }))
-    // It asks again first (the main profile has no PIN here, so just a yes), and the yes has the focus.
-    const showIt = await screen.findByRole('button', { name: 'Show the key' })
-    await vi.waitFor(() => expect(showIt).toHaveFocus())
-    fireEvent.click(showIt)
+    // Hidden behind dots; with no PIN on the main profile, the eye shows it straight away.
+    expect(screen.getByLabelText('API key, hidden')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show the API key' }))
     expect(await screen.findByText('the-key')).toBeInTheDocument()
     const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
     expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ confirm: true })
-    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Hide the API key' }))
     expect(screen.queryByText('the-key')).not.toBeInTheDocument()
     expect(await screen.findByText('Living room')).toBeInTheDocument()
     // Each Sign out says which one it is, and asks first.
@@ -381,6 +380,12 @@ describe('Settings', () => {
     })
 
     renderAt('/settings/server')
+
+    // With a PIN on the main profile, the eye asks for it before showing the key.
+    fireEvent.click(await screen.findByRole('button', { name: 'Show the API key' }))
+    expect(await screen.findByRole('form', { name: 'Show the API key' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api-key/reveal'))).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Make a new key' }))
     // With a PIN on the main profile, the PIN field takes the focus.

@@ -71,7 +71,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { SignIns } from '../components/SignIns'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { ChevronDown, ChevronUp, External, Film } from '../components/icons'
+import { ChevronDown, ChevronUp, External, Eye, EyeOff, Film } from '../components/icons'
 import { libraryIcons } from '../components/libraryIcons'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
@@ -774,7 +774,7 @@ function ServerSection() {
   // After a new key: how many browsers and TVs were signed out with it.
   const [rotated, setRotated] = useState<{ signedOut: number }>()
   const [auth, setAuth] = useState<Settings['authenticationRequired']>()
-  // Showing or replacing the key asks again first: for the main profile's PIN when it has one.
+  // Replacing the key asks again first, and so does showing it when the main profile has a PIN (the server insists).
   const [ask, setAsk] = useState<'reveal' | 'rotate'>()
   const [signInsVersion, setSignInsVersion] = useState(0)
   const [webhookSecret, setWebhookSecret] = useState<string>()
@@ -824,6 +824,19 @@ function ServerSection() {
       }
       setAsk(undefined)
       requestAnimationFrame(() => keyArea.current?.querySelector<HTMLElement>('button')?.focus())
+    } catch (e) {
+      setKeyError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+    }
+  }
+
+  /** The eye: shows the key straight away, unless the main profile's PIN is needed first. */
+  async function toggleKey(button: HTMLButtonElement) {
+    if (key) return hideKey()
+    if (mainHasPin) return open('reveal', button)
+    setKeyError(undefined)
+    try {
+      setKey((await revealApiKey({ confirm: true })).apiKey)
+      setRotated(undefined)
     } catch (e) {
       setKeyError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
     }
@@ -894,9 +907,6 @@ function ServerSection() {
 
       <h3 className="settings-subhead">API key</h3>
       <div className="panel">
-        <p className="settings-lede">
-          Sign in to a new browser, or set up an app, with this key. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.
-        </p>
         {rotated && (
           <p className="key-note" role="status">
             New key made. The old one stopped working.
@@ -906,23 +916,27 @@ function ServerSection() {
           </p>
         )}
         <div className="key-row" ref={keyArea}>
-          {key ? (
-            <>
-              <code className="api-key">{key}</code>
-              <CopyButton text={key} what="the API key" />
-              <button className="button quiet small" onClick={hideKey}>
-                Hide
-              </button>
-            </>
-          ) : (
-            <button className="button quiet small" onClick={(e) => open('reveal', e.currentTarget)} disabled={ask !== undefined}>
-              Show API key
+          <div className="secret-field">
+            <code aria-label={key ? undefined : 'API key, hidden'}>{key ?? '•'.repeat(32)}</code>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={key ? 'Hide the API key' : 'Show the API key'}
+              title={key ? 'Hide' : 'Show'}
+              onClick={(e) => void toggleKey(e.currentTarget)}
+              disabled={ask !== undefined}
+            >
+              {key ? <EyeOff /> : <Eye />}
             </button>
-          )}
+          </div>
+          {key && <CopyButton text={key} what="the API key" />}
           <button className="button quiet small" onClick={(e) => open('rotate', e.currentTarget)} disabled={ask !== undefined}>
             Make a new key
           </button>
         </div>
+        <p className="field-help">
+          Sign in to a new browser, or set up an app, with this key. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.
+        </p>
         {ask && (
           <form
             ref={askForm}
@@ -933,7 +947,7 @@ function ServerSection() {
           >
             {ask === 'reveal' ? (
               <p className="field-help" id="key-confirm-help">
-                Anyone who sees the key can manage this server.{mainHasPin ? ' Enter the main profile’s PIN to show it.' : ''}
+                Anyone who sees the key can manage this server. Enter the main profile’s PIN to show it.
               </p>
             ) : (
               <>
@@ -975,30 +989,36 @@ function ServerSection() {
 
       <h3 className="settings-subhead">Webhooks</h3>
       <div className="panel">
-        <p className="settings-lede">
-          In Sonarr and Radarr, add a Webhook connection under Settings › Connect so new downloads appear straight away. If they run in Docker on this machine, use{' '}
-          <code>host.docker.internal</code> instead of this address.
-        </p>
+        <p className="field-help webhook-lede">Add a Webhook connection in each app, under Settings › Connect, so new downloads show up straight away.</p>
         {secretState.done && (
           <p className="key-note" role="status">
             New secret made. Give Sonarr, Radarr and Lidarr these new addresses: until then they can’t start scans.
           </p>
         )}
         <ul className="plain-list webhook-list">
-          {(['sonarr', 'radarr', 'lidarr'] as const).map((app) => {
-            const address = `${origin}/api/v1/webhooks/${app}?secret=${secret ?? '…'}`
+          {(['Sonarr', 'Radarr', 'Lidarr'] as const).map((app) => {
+            const address = `${origin}/api/v1/webhooks/${app.toLowerCase()}?secret=${secret ?? '…'}`
             return (
               <li key={app}>
-                <code className="folder">{address}</code>
-                {secret && <CopyButton text={address} what={`the ${app[0].toUpperCase()}${app.slice(1)} address`} />}
+                <img className="app-logo" src={appLogos[app]} alt="" />
+                <span className="webhook-app">{app}</span>
+                <code className="secret-field webhook-address" title={address}>
+                  {address}
+                </code>
+                {secret && <CopyButton text={address} what={`the ${app} address`} />}
               </li>
             )
           })}
         </ul>
-        <p className="field-help">The secret in these addresses can only start scans. Webhooks set up earlier with the API key keep working.</p>
-        <button className="button quiet small" onClick={() => setAskSecret(true)}>
-          Make a new secret
-        </button>
+        <div className="webhook-footer">
+          <p className="field-help">
+            In Docker on this computer? Use <code>host.docker.internal</code> in place of <code>{window.location.hostname}</code>. The secret only lets them start
+            scans.
+          </p>
+          <button className="button quiet small" onClick={() => setAskSecret(true)}>
+            Make a new secret
+          </button>
+        </div>
       </div>
       {askSecret && (
         <ConfirmDialog

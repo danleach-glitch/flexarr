@@ -3,10 +3,11 @@ import { ApiError, getSignIns, renameSignIn, revokeSignIn, signOut, signOutOther
 import { useApi } from '../hooks/useApi'
 import { relativeTime } from '../lib/format'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Monitor, Tv } from './icons'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
-const where = (s: SignIn) => (s.zone === 'Local' ? 'home network' : s.zone === 'Tailnet' ? 'Tailscale' : 'internet')
+const where = (s: SignIn) => (s.zone === 'Local' ? 'Home network' : s.zone === 'Tailnet' ? 'Tailscale' : 'Internet')
 
 /** "24 Oct", with the year when it isn't this one. */
 const day = (iso: string) => {
@@ -15,6 +16,18 @@ const day = (iso: string) => {
 }
 
 const signedIn = (s: SignIn) => (s.kind === 'Device' ? 'connected' : 'signed in')
+
+/**
+ * One short line: who, where and when. An address is only worth showing from the internet (anything else is a device
+ * in the house); the rest of the detail is on hover.
+ */
+const summary = (s: SignIn) =>
+  [s.profileName, s.zone === 'Internet' && s.address ? `Internet (${s.address})` : where(s), `last used ${relativeTime(s.lastUsedAt)}`].filter(Boolean).join(' · ')
+
+const detail = (s: SignIn, from = s.createdAt) =>
+  `${s.kind === 'Device' ? 'Connected' : 'Signed in'} ${day(from) === day(s.createdAt) ? day(s.createdAt) : `between ${day(from)} and ${day(s.createdAt)}`}${s.address ? ` from ${s.address}` : ''}`
+
+const KindIcon = ({ signIn }: { signIn: SignIn }) => <span className="sign-in-icon">{signIn.kind === 'Device' ? <Tv /> : <Monitor />}</span>
 
 /** What tells one sign-in from another for a screen reader: "Chrome on Mac, signed in 24 Oct". */
 const describe = (s: SignIn) => `${s.name}, ${s.isThisOne ? 'this browser' : `${signedIn(s)} ${day(s.createdAt)}`}`
@@ -116,21 +129,23 @@ export function SignIns() {
           }}
         />
       ) : (
-        <span className="sign-in-text">
-          <strong>{s.name}</strong>
-          {s.isThisOne && <span className="tag">This browser</span>}
-          {isNew(s) && (
-            <span className="tag" title="Signed in recently. If you don’t recognise it, sign it out.">
-              New
+        <>
+          <KindIcon signIn={s} />
+          <span className="sign-in-text">
+            <span className="sign-in-name">
+              <strong>{s.name}</strong>
+              {s.isThisOne && <span className="pill">This browser</span>}
+              {isNew(s) && (
+                <span className="pill new" title="Signed in recently. If you don’t recognise it, sign it out.">
+                  New
+                </span>
+              )}
             </span>
-          )}
-          <span className="muted">
-            {' '}
-            Last used {relativeTime(s.lastUsedAt)}. {s.kind === 'Device' ? 'Connected' : 'Signed in'} {day(s.createdAt)} from the {where(s)}
-            {s.address ? ` (${s.address})` : ''}
-            {s.profileName ? `, as ${s.profileName}` : ''}.
+            <span className="muted sign-in-meta" title={detail(s)}>
+              {summary(s)}
+            </span>
           </span>
-        </span>
+        </>
       )}
       {editing !== s.id && (
         <span className="sign-in-actions">
@@ -158,21 +173,20 @@ export function SignIns() {
             const expanded = open[latest.id] ?? false
             return (
               <li key={latest.id} className="sign-in-group">
+                <KindIcon signIn={latest} />
                 <span className="sign-in-text">
-                  <strong>{latest.name}</strong> <span className="tag">{group.length.toLocaleString()} sign-ins</span>
-                  {group.some(isNew) && <span className="tag">New</span>}
-                  <span className="muted">
-                    {' '}
-                    Last used {relativeTime(latest.lastUsedAt)}. {latest.kind === 'Device' ? 'Connected' : 'Signed in'}{' '}
-                    {day(oldest.createdAt) === day(latest.createdAt) ? day(latest.createdAt) : `between ${day(oldest.createdAt)} and ${day(latest.createdAt)}`} from the{' '}
-                    {where(latest)}
-                    {latest.address ? ` (${latest.address})` : ''}
-                    {latest.profileName ? `, as ${latest.profileName}` : ''}.
+                  <span className="sign-in-name">
+                    <strong>{latest.name}</strong>
+                    <span className="pill">{group.length.toLocaleString()} sign-ins</span>
+                    {group.some(isNew) && <span className="pill new">New</span>}
+                  </span>
+                  <span className="muted sign-in-meta" title={detail(latest, oldest.createdAt)}>
+                    {summary(latest)}
                   </span>
                 </span>
                 <span className="sign-in-actions">
                   <button className="button quiet small" aria-expanded={expanded} onClick={() => setOpen((o) => ({ ...o, [latest.id]: !expanded }))}>
-                    {expanded ? 'Hide each' : 'Show each'}
+                    {expanded ? 'Hide' : 'Show each'}
                   </button>
                   <button
                     className="button quiet small"
@@ -200,8 +214,8 @@ export function SignIns() {
         </p>
       )}
       {others.length > 1 && (
-        <div className="form-actions">
-          <button className="button quiet small" disabled={busy} onClick={() => setAsking({ others: others.length })}>
+        <div className="sign-in-footer">
+          <button className="button danger small" disabled={busy} onClick={() => setAsking({ others: others.length })}>
             Sign out every other browser and TV
           </button>
         </div>
