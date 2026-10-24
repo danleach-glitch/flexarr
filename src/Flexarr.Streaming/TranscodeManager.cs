@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Flexarr.Streaming;
 
 /// <summary>Thrown when starting a transcode would go over <see cref="TranscodeSettings.MaxConcurrentTranscodes"/>.</summary>
-public sealed class TranscodeLimitException(int limit, string? message = null)
-    : Exception(message ?? $"The server is already converting {limit} {(limit == 1 ? "video" : "videos")} for other viewers, its limit. Try again when one of them stops.");
+public sealed class TranscodeLimitException(string? message = null)
+    : Exception(message ?? "Flexarr is busy playing on other screens. Try again when one of them finishes.");
 
 /// <summary>Owns all transcode sessions: creation, lookup, throttling and cleanup.</summary>
 public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers) : IAsyncDisposable
@@ -17,9 +17,9 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
     /// <summary>Why a viewer's transcode was ended to make way for another, for that viewer's player to show.</summary>
     public const string TakenOverBySameProfile =
-        "Another screen on this profile started watching, and the server was already converting as many videos as it can at once.";
+        "Someone started watching on another screen, so this one had to stop.";
     public const string TakenOverByOtherProfile =
-        "Someone on another profile started watching, and the server was already converting as many videos as it can at once.";
+        "Someone on another profile started watching on another screen, so this one had to stop.";
 
     private readonly ConcurrentDictionary<string, TranscodeSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, (string Reason, DateTime At)> _endedForOthers = new(StringComparer.Ordinal);
@@ -68,8 +68,8 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             {
                 if (restarting)
                 {
-                    throw new TranscodeLimitException(limit,
-                        $"The stream stopped, and the server is now converting {limit} {(limit == 1 ? "video" : "videos")} for other viewers, its limit. Try again when one of them stops.");
+                    throw new TranscodeLimitException(
+                        "The stream stopped, and Flexarr is now busy playing on other screens. Try again when one of them finishes.");
                 }
 
                 var share = PerProfileLimit;
@@ -80,7 +80,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                 var needed = active.Count - limit + 1;
                 if (candidates.Count < needed)
                 {
-                    throw new TranscodeLimitException(limit);
+                    throw new TranscodeLimitException();
                 }
 
                 foreach (var oldest in candidates.OrderBy(s => s.Created).Take(needed))
@@ -121,7 +121,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         {
             if (limit > 0 && _sessions.Values.Count(s => s != session && s.IsActive) >= limit)
             {
-                throw new TranscodeLimitException(limit);
+                throw new TranscodeLimitException();
             }
 
             session.StartedAt = DateTime.UtcNow;

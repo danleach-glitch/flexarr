@@ -62,7 +62,7 @@ public sealed class PlaybackSessionTests : IDisposable
 
         var gone = await owner.GetAsync(new Uri($"/api/v1/playback/{first}/main.m3u8", UriKind.Relative));
         Assert.Equal(HttpStatusCode.Gone, gone.StatusCode);
-        Assert.Contains("Another screen on this profile", await gone.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("Someone started watching on another screen", await gone.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Gone, (await owner.GetAsync(new Uri($"/api/v1/playback/{first}/3.ts", UriKind.Relative))).StatusCode);
 
         // The ended screen's player tries to get its stream back: it's told why instead, and nobody else is ended.
