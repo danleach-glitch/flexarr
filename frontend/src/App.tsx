@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
-import { getMe, getProfiles, getSystemStatus, profileToken, saveApiKey, UnauthorizedError, type Profile } from './api/client'
+import { getMe, getProfiles, getSystemStatus, migrateStoredApiKey, profileToken, signIn, UnauthorizedError, type Profile } from './api/client'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -49,7 +49,7 @@ type ConnectionState =
   | { kind: 'loading' }
   | { kind: 'ready' }
   | { kind: 'choose-profile'; profiles: Profile[] }
-  | { kind: 'unauthorized' }
+  | { kind: 'unauthorized'; wrongKey?: boolean }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
@@ -86,7 +86,8 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getSystemStatus(controller.signal)
+    migrateStoredApiKey()
+      .then(() => getSystemStatus(controller.signal))
       // An older server without profiles still works: carry on as the main profile.
       .then(() =>
         Promise.all([
@@ -115,9 +116,12 @@ export default function App() {
     event.preventDefault()
     const key = new FormData(event.currentTarget).get('apiKey')?.toString().trim()
     if (!key) return
-    saveApiKey(key)
     setState({ kind: 'loading' })
-    setAttempt((n) => n + 1)
+    signIn(key)
+      .then(() => setAttempt((n) => n + 1))
+      .catch((error: unknown) =>
+        setState(error instanceof UnauthorizedError ? { kind: 'unauthorized', wrongKey: true } : { kind: 'error', message: error instanceof Error ? error.message : String(error) }),
+      )
   }
 
   if (state.kind === 'choose-profile') {
@@ -169,6 +173,7 @@ export default function App() {
                 Connect
               </button>
             </div>
+            {state.wrongKey && <p className="error">That isn't the right key.</p>}
           </form>
         )}
       </section>

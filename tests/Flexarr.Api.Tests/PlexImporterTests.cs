@@ -56,6 +56,16 @@ public sealed class PlexImporterTests : IAsyncLifetime
         Assert.Equal(300, states[newerHere].PositionSeconds);
     }
 
+    [Theory]
+    [InlineData("/etc/passwd")]
+    [InlineData("relative/com.plexapp.plugins.library.db")]
+    [InlineData("/tmp/not-com.plexapp.plugins.library.db")]
+    public async Task OnlyReadsPlexsOwnDatabaseFile(string path)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => PlexImporter.DescribeAsync(path, default));
+        await Assert.ThrowsAsync<ArgumentException>(() => new PlexImporter(_db, [], NullLogger<PlexImporter>.Instance).ImportAsync(new PlexImportRequest(1, path), default));
+    }
+
     private async Task<Guid> AddEpisodeAsync(string path)
     {
         var library = await _db.Libraries.FirstOrDefaultAsync() ?? _db.Libraries.Add(new Library { Name = "TV", Type = LibraryType.TvShows }).Entity;

@@ -22,7 +22,8 @@ import type {
 
 export type * from './types'
 
-const API_KEY_STORAGE = 'flexarr.apiKey'
+// Where earlier versions kept the API key itself; it's traded for a session cookie and removed.
+const LEGACY_API_KEY_STORAGE = 'flexarr.apiKey'
 const PROFILE_STORAGE = 'flexarr.profile'
 
 /** Thrown when the server rejects the request for a missing or wrong API key. */
@@ -41,15 +42,6 @@ export class ApiError extends Error {
     super(messages[0] ?? `${status} ${statusText}`)
     this.status = status
     this.messages = messages
-  }
-}
-
-/** The server accepts the key as an X-Api-Key header; local-network requests may not need one. */
-function apiKey(): string | null {
-  try {
-    return localStorage.getItem(API_KEY_STORAGE)
-  } catch {
-    return null
   }
 }
 
@@ -73,19 +65,36 @@ export function saveProfileToken(token: string | null) {
   }
 }
 
-export function saveApiKey(key: string) {
+/**
+ * Signs this browser in: the API key goes to the server once, and comes back as an HttpOnly session cookie, so the
+ * key is never kept anywhere scripts can read it. Local-network and Tailscale visitors may not need this at all.
+ */
+export async function signIn(key: string) {
+  const response = await fetch('/api/v1/session', { method: 'POST', headers: { 'X-Api-Key': key } })
+  if (response.status === 401) throw new UnauthorizedError()
+  if (!response.ok) throw new ApiError(response.status, response.statusText, [])
+}
+
+/** An API key left in storage by an earlier version: swap it for a session cookie, then forget it. */
+export async function migrateStoredApiKey() {
+  const key = stored(LEGACY_API_KEY_STORAGE)
+  if (!key) return
   try {
-    localStorage.setItem(API_KEY_STORAGE, key)
+    await signIn(key)
+  } catch (error) {
+    // Offline: keep it for next time. Anything else (a wrong key) isn't worth keeping.
+    if (error instanceof TypeError) return
+  }
+  try {
+    localStorage.removeItem(LEGACY_API_KEY_STORAGE)
   } catch {
-    // Storage unavailable (private mode); the key only lasts for this request.
+    // Storage unavailable.
   }
 }
 
-/** The API key and chosen profile, as request headers. */
+/** The chosen profile, plus the header that lets the session cookie make changes (another site can't send it). */
 function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {}
-  const key = apiKey()
-  if (key) headers['X-Api-Key'] = key
+  const headers: Record<string, string> = { 'X-Requested-With': 'flexarr' }
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
   return headers
@@ -100,7 +109,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
     signal,
-    headers: Object.keys(headers).length ? headers : undefined,
+    headers,
     body: body === undefined ? undefined : file ? body : JSON.stringify(body),
   })
 

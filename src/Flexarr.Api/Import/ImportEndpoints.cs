@@ -11,7 +11,17 @@ public static class ImportEndpoints
     {
         var group = api.MapGroup("/import/plex").WithTags("Import").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapGet("/", async (string? path, CancellationToken ct) => await PlexImporter.DescribeAsync(path, ct));
+        group.MapGet("/", async (string? path, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await PlexImporter.DescribeAsync(path, ct));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 400);
+            }
+        });
 
         group.MapPost("/", async (PlexImportRequest request, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ILogger<PlexImporter> logger, CancellationToken ct) =>
         {
@@ -24,6 +34,10 @@ public static class ImportEndpoints
             {
                 return Results.Problem(ex.Message, statusCode: 404);
             }
+            catch (ArgumentException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 400);
+            }
         });
 
         group.MapPost("/avatars", async (string? path, PlexAvatars avatars, CancellationToken ct) =>
@@ -35,6 +49,10 @@ public static class ImportEndpoints
             catch (InvalidOperationException ex)
             {
                 return Results.Problem(ex.Message, statusCode: 404);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 400);
             }
             catch (HttpRequestException ex)
             {

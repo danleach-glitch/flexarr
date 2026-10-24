@@ -148,7 +148,8 @@ app.MapGroup("/api/v1")
     .MapPairingApprovalEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()
-    .MapRemoteAccessEndpoints();
+    .MapRemoteAccessEndpoints()
+    .MapSessionEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints();

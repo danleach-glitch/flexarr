@@ -105,12 +105,14 @@ describe('App', () => {
   })
 
   it('asks for an API key when the server requires one, then retries with it', async () => {
+    // The key is traded for a session cookie (which jsdom's fetch mock stands in for here) and never stored.
     let authorized = false
     mockApi({
-      '/system/status': (init?: RequestInit) => {
+      '/session': (init?: RequestInit) => {
         authorized = (init?.headers as Record<string, string> | undefined)?.['X-Api-Key'] === 'secret'
-        return authorized ? status : new Response('', { status: 401 })
+        return new Response(null, { status: authorized ? 204 : 401 })
       },
+      '/system/status': () => (authorized ? status : new Response('', { status: 401 })),
       '/libraries': [],
       '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
     })
@@ -121,6 +123,37 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(authorized).toBe(true)
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('says so when the API key is wrong', async () => {
+    mockApi({ '/session': new Response(null, { status: 401 }), '/system/status': new Response('', { status: 401 }) })
+
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'nope' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(await screen.findByText("That isn't the right key.")).toBeInTheDocument()
+  })
+
+  it('trades a key stored by an earlier version for a session, then forgets it', async () => {
+    localStorage.setItem('flexarr.apiKey', 'secret')
+    let sentKey: string | undefined
+    mockApi({
+      '/session': (init?: RequestInit) => {
+        sentKey = (init?.headers as Record<string, string> | undefined)?.['X-Api-Key']
+        return new Response(null, { status: 204 })
+      },
+      '/system/status': status,
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(sentKey).toBe('secret')
+    expect(localStorage.getItem('flexarr.apiKey')).toBeNull()
   })
 
   it('explains when the server is unreachable', async () => {

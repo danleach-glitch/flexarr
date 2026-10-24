@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Security fixes
+- The web app no longer keeps your API key in the browser. Signing in now gets you a session cookie that scripts can't read. A key saved by an earlier version is swapped for one on your next visit, and changing the API key signs every browser out. A wrong key now says so.
+- Plex import only reads Plex's own database file (`com.plexapp.plugins.library.db`) when you give it a path, not any file on the server.
+
 ### Connect an Apple TV without typing
 - The server announces itself on your home network, and the Apple TV lists it: pick it with the remote.
 - The TV then shows a QR code and a short code. Scan it with your phone (or enter the code in **Settings › Connect a TV** on any device signed in as the main profile) and tap **Allow**; the TV signs itself in. Codes last ten minutes.

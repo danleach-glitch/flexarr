@@ -38,9 +38,30 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
 
     public static string? Detect() => CandidatePaths().FirstOrDefault(File.Exists);
 
+    /// <summary>
+    /// The database to read: the one given, which has to be Plex's own database file (so the import can't be pointed
+    /// at anything else on disk), or else the one found in a standard place.
+    /// </summary>
+    /// <exception cref="ArgumentException">The path given isn't a full path to Plex's database.</exception>
+    public static string? Resolve(string? path)
+    {
+        if (path is null)
+        {
+            return Detect();
+        }
+
+        var full = Path.IsPathFullyQualified(path) ? Path.GetFullPath(path) : string.Empty;
+        if (!full.EndsWith(Path.DirectorySeparatorChar + DatabaseName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"That isn't Plex's database. Give the full path to the file named {DatabaseName}.", nameof(path));
+        }
+
+        return full;
+    }
+
     public static async Task<PlexSourceDto> DescribeAsync(string? path, CancellationToken ct)
     {
-        path ??= Detect();
+        path = Resolve(path);
         if (path is null || !File.Exists(path))
         {
             return new PlexSourceDto(path, false, []);
@@ -69,7 +90,7 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
 
     public async Task<PlexImportResult> ImportAsync(PlexImportRequest request, CancellationToken ct)
     {
-        var path = request.Path ?? Detect() ?? throw new FileNotFoundException("Couldn't find a Plex database on this machine.");
+        var path = Resolve(request.Path) ?? throw new FileNotFoundException("Couldn't find a Plex database on this machine.");
 
         // file path → (watched count, offset ms, last viewed unix seconds), keeping the most recent per file.
         var history = new Dictionary<string, (int Views, long OffsetMs, long LastViewed)>(StringComparer.Ordinal);
