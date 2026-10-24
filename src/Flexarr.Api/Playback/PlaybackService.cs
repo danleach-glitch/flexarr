@@ -73,6 +73,13 @@ public sealed class PlaybackService(
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles,
             new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode));
 
+        // A new session for something this profile is already transcoding (an audio switch, a retry) replaces the old
+        // one, so it isn't left encoding ahead for nobody and doesn't count towards the transcode limit.
+        foreach (var previous in sessions.Active.Where(s => s.ProfileId == profile.Id && s.ItemId == item.Id && s.Transcode is not null).ToList())
+        {
+            await sessions.RemoveAsync(previous.Id);
+        }
+
         var duration = file.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60;
         var id = TranscodeManager.NewId();
         TranscodeSession? transcode = null;

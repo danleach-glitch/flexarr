@@ -69,6 +69,9 @@ public sealed class TranscodingOptions
 
     /// <summary>Upper limit for any one stream in bits per second (0 = none), e.g. to protect a slow uplink.</summary>
     public long MaxStreamingBitrate { get; set; }
+
+    /// <summary>Most videos converted at once (0 = no limit). A Mac mini's media engine handles about three well.</summary>
+    public int MaxConcurrentTranscodes { get; set; } = 3;
 }
 
 public sealed class SeerrOptions

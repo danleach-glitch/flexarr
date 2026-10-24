@@ -23,6 +23,9 @@ public sealed record TranscodeSettings
     /// <summary>libx264 preset when encoding in software.</summary>
     public string SoftwarePreset { get; init; } = "veryfast";
 
+    /// <summary>Most transcodes running at once (0 = no limit); playback beyond it is refused rather than slowing everyone.</summary>
+    public int MaxConcurrentTranscodes { get; init; } = 3;
+
     public HardwareAcceleration Resolved => HardwareAcceleration switch
     {
         HardwareAcceleration.Auto when OperatingSystem.IsMacOS() => HardwareAcceleration.VideoToolbox,

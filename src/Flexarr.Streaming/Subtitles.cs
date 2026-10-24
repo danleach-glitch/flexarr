@@ -154,8 +154,17 @@ public static partial class Subtitles
         }
 
         using var process = Process.Start(start)!;
-        await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            ProcessSignals.KillTree(process);
+            throw;
+        }
+
         return process.ExitCode == 0;
     }
 
