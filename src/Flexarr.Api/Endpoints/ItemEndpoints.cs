@@ -94,7 +94,7 @@ public static class ItemEndpoints
 
             // A season's episode list shows overviews; send them with it rather than one request per episode.
             var childOverviews = entity.Kind == MediaKind.Season
-                ? await db.MediaItems.Where(i => i.ParentId == id).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
+                ? await db.MediaItems.Where(i => i.ParentId == id).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
                 : new Dictionary<Guid, string?>();
 
             return Results.Ok(new ItemDetailDto(

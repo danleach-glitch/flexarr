@@ -30,12 +30,13 @@ public static partial class DiscoveryEndpoints
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
             var arr = services.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>();
+            var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
             var rows = new List<HomeRowDto>();
             var states = db.PlaybackStates.Where(p => p.UserId == me);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
             var unwatchedMovies = topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
 
-            var continueWatching = await ContinueWatchingAsync(db, services.GetRequiredService<PlaybackService>(), me, RowSize, ct);
+            var continueWatching = await ContinueWatchingAsync(db, me, RowSize, null, ct);
             if (continueWatching.Count > 0)
             {
                 rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
@@ -86,15 +87,9 @@ public static partial class DiscoveryEndpoints
                 await TopRated(unwatchedMovies).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct)));
 
             // Featured: well-rated things with full artwork, unwatched first, changing daily.
-            var featured = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
-                .OrderBy(i => i.PlaybackStates.Any(p => p.UserId == me && p.Watched)).ThenByDescending(i => i.LogoUrl != null)
-                .Take(60).Summaries(me).ToListAsync(ct);
-            var rotation = featured.OrderBy(i => (i.Id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
-
+            var rotation = await FeaturedAsync(topLevel, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
-
-            var ids = rotation.Select(r => r.Id).ToList();
-            var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
+            var overviews = await OverviewsAsync(db, rotation, ct);
             // Sequential: these share the DbContext with the queries above, which isn't thread-safe.
             // Coming soon is a bonus; the home page must render even if it fails.
             List<UpcomingDto> upcoming = [];
@@ -104,8 +99,8 @@ public static partial class DiscoveryEndpoints
             {
                 try
                 {
-                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
-                    downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, db, null, ct)).Count;
+                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
+                    downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, cache, db, null, ct)).Count;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -122,11 +117,11 @@ public static partial class DiscoveryEndpoints
             return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, options.Layout.Home), upcoming, downloading, resume);
         }).WithTags("Discovery");
 
-        api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
-            await ContinueWatchingAsync(db, playback, profile.Id, Math.Clamp(take ?? 20, 1, 50), ct)).WithTags("Discovery");
+        api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+            await ContinueWatchingAsync(db, profile.Id, Math.Clamp(take ?? 20, 1, 50), null, ct)).WithTags("Discovery");
 
         // A library's own home page: what you're watching in it, what's new, the best of it, and its main genres.
-        api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PlaybackService playback,
+        api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile,
             Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, CancellationToken ct) =>
         {
             if (await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct) is not { } library)
@@ -142,8 +137,8 @@ public static partial class DiscoveryEndpoints
             var unwatched = topLevel.Where(i => !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
             var rows = new List<HomeRowDto>();
 
-            // Continue Watching across everything, narrowed to this library.
-            var continueWatching = (await ContinueWatchingAsync(db, playback, me, 60, ct)).Where(i => i.LibraryId == id).Take(RowSize).ToList();
+            // Continue Watching, narrowed to this library.
+            var continueWatching = await ContinueWatchingAsync(db, me, RowSize, id, ct);
             rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
 
             rows.Add(new HomeRowDto("recent", movies ? "Latest unwatched movies" : "Latest unwatched shows", "poster",
@@ -174,13 +169,9 @@ public static partial class DiscoveryEndpoints
             }
 
             var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
-            var featured = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
-                .OrderBy(i => i.PlaybackStates.Any(p => p.UserId == me && p.Watched)).ThenByDescending(i => i.LogoUrl != null)
-                .Take(60).Summaries(me).ToListAsync(ct);
-            var rotation = featured.OrderBy(i => (i.Id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
+            var rotation = await FeaturedAsync(topLevel, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
-            var ids = rotation.Select(r => r.Id).ToList();
-            var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
+            var overviews = await OverviewsAsync(db, rotation, ct);
 
             var layout = movies ? options.CurrentValue.Layout.Movies : options.CurrentValue.Layout.Shows;
             return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume));
@@ -261,9 +252,10 @@ public static partial class DiscoveryEndpoints
     }
 
     /// <summary>Partly watched items first, then the next episode of shows in progress, most recent first.</summary>
-    public static async Task<List<ItemSummaryDto>> ContinueWatchingAsync(FlexarrDbContext db, PlaybackService playback, string profileId, int limit, CancellationToken ct)
+    /// <param name="libraryId">Only what's in this library (null for everything).</param>
+    public static async Task<List<ItemSummaryDto>> ContinueWatchingAsync(FlexarrDbContext db, string profileId, int limit, Guid? libraryId, CancellationToken ct)
     {
-        var states = db.PlaybackStates.Where(p => p.UserId == profileId);
+        var states = db.PlaybackStates.Where(p => p.UserId == profileId && (libraryId == null || p.MediaItem!.LibraryId == libraryId));
         var inProgress = await states.Where(p => !p.Watched && p.PositionSeconds > 0)
             .OrderByDescending(p => p.LastPlayedAt).Take(limit)
             .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent != null ? p.MediaItem.Parent.ParentId : null })
@@ -271,18 +263,21 @@ public static partial class DiscoveryEndpoints
 
         var since = DateTime.UtcNow.AddDays(-90);
         var finished = await states.Where(p => p.Watched && p.LastPlayedAt > since && p.MediaItem!.Kind == MediaKind.Episode)
-            .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId })
+            .Select(p => new { p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId })
             .ToListAsync(ct);
         var busy = inProgress.Select(p => p.SeriesId).Where(s => s is not null).ToHashSet();
+        var shows = finished.Where(p => p.SeriesId is not null && !busy.Contains(p.SeriesId))
+            .GroupBy(p => p.SeriesId!.Value).Select(g => (SeriesId: g.Key, At: g.Max(p => p.LastPlayedAt)))
+            .OrderByDescending(s => s.At).Take(limit).ToList();
 
+        // Every show's episodes in one query, rather than a few queries per show.
+        var episodes = (await PlaybackService.EpisodesAsync(db, profileId, shows.Select(s => s.SeriesId).ToList(), ct)).ToLookup(e => e.SeriesId);
         var upNext = new List<(Guid Id, DateTime At)>();
-        foreach (var latest in finished.GroupBy(p => p.SeriesId).Select(g => g.MaxBy(p => p.LastPlayedAt)!)
-                     .Where(p => !busy.Contains(p.SeriesId)).OrderByDescending(p => p.LastPlayedAt).Take(limit))
+        foreach (var (seriesId, at) in shows)
         {
-            var episode = await db.MediaItems.AsNoTracking().FirstAsync(i => i.Id == latest.MediaItemId, ct);
-            if (await playback.NextEpisodeAsync(episode, ct) is { } next && !await states.AnyAsync(p => p.MediaItemId == next.Id && p.Watched, ct))
+            if (PlaybackService.UpNext(episodes[seriesId].ToList()) is { } next)
             {
-                upNext.Add((next.Id, latest.LastPlayedAt));
+                upNext.Add((next.Id, at));
             }
         }
 
@@ -318,8 +313,28 @@ public static partial class DiscoveryEndpoints
         return order.Select(o => items[o]).ToList();
     }
 
-    /// <summary>Audience rating, nudged by critics where Rotten Tomatoes has a score.</summary>
     /// <summary>
+    /// Well-rated titles with full artwork, unwatched first, five of them rotating daily. The ids are picked first,
+    /// so only the five shown are summarised.
+    /// </summary>
+    private static async Task<List<ItemSummaryDto>> FeaturedAsync(IQueryable<MediaItem> topLevel, string profileId, int day, CancellationToken ct)
+    {
+        var candidates = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
+            .OrderBy(i => i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).ThenByDescending(i => i.LogoUrl != null)
+            .Take(60).Select(i => i.Id).ToListAsync(ct);
+        var picks = candidates.OrderBy(id => (id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
+        var items = await topLevel.Where(i => picks.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
+        return picks.Where(items.ContainsKey).Select(id => items[id]).ToList();
+    }
+
+    private static async Task<Dictionary<Guid, string?>> OverviewsAsync(FlexarrDbContext db, List<ItemSummaryDto> items, CancellationToken ct)
+    {
+        var ids = items.Select(i => i.Id).ToList();
+        return await db.MediaItems.Where(i => ids.Contains(i.Id)).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
+    }
+
+    /// <summary>
+
     /// Puts whatever you were last watching first in a hero rotation: the show for an episode, so the hero has its
     /// artwork. Returns the rotation and what its first title resumes (null if nothing is in progress).
     /// </summary>
@@ -350,6 +365,7 @@ public static partial class DiscoveryEndpoints
         : topLevel.Where(i => i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)))
             .OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
 
+    /// <summary>Audience rating, nudged by critics where Rotten Tomatoes has a score.</summary>
     private static IOrderedQueryable<MediaItem> TopRated(IQueryable<MediaItem> query) =>
         query.Where(i => i.CommunityRating != null)
             .OrderByDescending(i => i.CommunityRating + (i.CriticRating == null ? 0 : (i.CriticRating.Value - 70) / 50.0))
