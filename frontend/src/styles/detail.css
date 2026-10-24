@@ -85,6 +85,7 @@
 
 .detail-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* see .rows: lets each row scroll on its own */
   gap: 48px;
   padding-top: 12px;
 }
