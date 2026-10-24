@@ -280,3 +280,10 @@
     flex-wrap: wrap;
   }
 }
+
+.import-result {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--room);
+}

@@ -7,7 +7,9 @@ import {
   getActivity,
   getApiKey,
   getArrStatus,
+  getPlexSource,
   getSettings,
+  importFromPlex,
   saveSettings,
   scanLibrary,
   testArr,
@@ -15,6 +17,7 @@ import {
   type ArrStatus,
   type HardwareAcceleration,
   type Library,
+  type PlexImportResult,
   type LibraryType,
   type Settings,
 } from '../api/client'
@@ -29,6 +32,7 @@ const sections = [
   { id: 'playback', label: 'Playback' },
   { id: 'connections', label: 'Sonarr and Radarr' },
   { id: 'activity', label: 'Activity' },
+  { id: 'import', label: 'Bring over from Plex' },
   { id: 'server', label: 'Server' },
 ] as const
 
@@ -53,6 +57,7 @@ export function SettingsPage() {
         {section === 'connections' && <ConnectionsSection />}
         {section === 'activity' && <ActivitySection />}
         {section === 'server' && <ServerSection />}
+        {section === 'import' && <ImportSection />}
       </div>
     </div>
   )
@@ -581,6 +586,102 @@ function ServerSection() {
             <code>{settings.ffmpegPath}</code>
           </dd>
         </dl>
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- Import
+
+function ImportSection() {
+  const [path, setPath] = useState('')
+  const [lookup, setLookup] = useState(0)
+  const source = useApi((signal) => getPlexSource(path || undefined, signal), [lookup])
+  const [account, setAccount] = useState<number>()
+  const [result, setResult] = useState<PlexImportResult>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const chosen = account ?? source.data?.accounts[0]?.id
+
+  async function run() {
+    if (chosen === undefined) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setResult(await importFromPlex(chosen, source.data?.path ?? undefined))
+    } catch (e) {
+      setError(e instanceof ApiError && e.messages.length ? e.messages[0] : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section>
+      <header className="settings-header">
+        <h2>Bring over from Plex</h2>
+      </header>
+      <p className="settings-lede">
+        Copy what you've watched, and where you stopped, from Plex Media Server. Flexarr matches by file, reads a copy of Plex's database and never changes
+        Plex itself. You can run this again at any time; anything you've watched more recently in Flexarr is kept.
+      </p>
+      <div className="panel">
+        {source.loading && <p className="muted">Looking for Plex…</p>}
+        {source.data && !source.data.found && (
+          <form
+            className="field"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setLookup((n) => n + 1)
+            }}
+          >
+            <span className="field-label">Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?</span>
+            <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/Plug-in Support/Databases/com.plexapp.plugins.library.db" />
+            <div className="form-actions">
+              <button type="submit" className="button quiet small">
+                Look there
+              </button>
+            </div>
+          </form>
+        )}
+        {source.data?.found && (
+          <>
+            <p className="muted">
+              Found Plex at <code>{source.data.path}</code>
+            </p>
+            {source.data.accounts.length === 0 ? (
+              <p>That Plex server has no watch history to bring over.</p>
+            ) : (
+              <label className="field">
+                <span className="field-label">Whose history</span>
+                <select value={chosen} onChange={(e) => setAccount(Number(e.target.value))}>
+                  {source.data.accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}: {a.watched.toLocaleString()} watched, {a.inProgress.toLocaleString()} in progress
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {result && (
+              <p role="status" className="import-result">
+                Brought over {result.matched.toLocaleString()} titles: {result.watched.toLocaleString()} watched and {result.inProgress.toLocaleString()} to resume.
+                {result.keptNewer > 0 && ` ${result.keptNewer} you'd watched more recently in Flexarr were left as they were.`}
+                {result.unmatched > 0 && ` ${result.unmatched.toLocaleString()} files Plex knows about aren't in your Flexarr libraries.`}
+              </p>
+            )}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="form-actions">
+              <button className="button" disabled={busy || chosen === undefined} onClick={run}>
+                {busy ? 'Bringing history over…' : 'Bring history over'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </section>
   )

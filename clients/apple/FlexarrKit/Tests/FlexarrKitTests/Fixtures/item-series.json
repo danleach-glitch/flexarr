@@ -1,0 +1,200 @@
+{
+ "item": {
+  "id": "01a16beb-0034-7d4e-8037-c249052ffa37",
+  "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+  "parentId": null,
+  "kind": "Series",
+  "title": "Curb Your Enthusiasm",
+  "year": 2000,
+  "seasonNumber": null,
+  "episodeNumber": null,
+  "episodeNumberEnd": null,
+  "airDate": null,
+  "childCount": 12,
+  "durationSeconds": null,
+  "resolution": null,
+  "addedAt": "2010-06-20T01:11:08",
+  "artwork": {
+   "poster": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/poster?v=63928410029",
+   "backdrop": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/backdrop?v=63928410029",
+   "logo": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/logo?v=63928410029",
+   "thumb": null
+  },
+  "accentColor": "#264c99",
+  "communityRating": 8.8,
+  "criticRating": null,
+  "contentRating": "TV-MA",
+  "runtimeMinutes": 33,
+  "releaseDate": "2000-10-15",
+  "userData": {
+   "positionSeconds": 0,
+   "watched": false,
+   "playCount": 0,
+   "lastPlayedAt": null,
+   "unwatchedCount": 120
+  },
+  "seriesTitle": null
+ },
+ "path": "/Volumes/Media/data/tv/Curb Your Enthusiasm",
+ "originalTitle": null,
+ "overview": "An unscripted series that brings the off-kilter comic vision of Larry David, who plays himself in a parallel universe in which he can’t seem to do anything right, and, by his standards, neither can anyone else.",
+ "studio": "HBO",
+ "status": "ended",
+ "trailerYouTubeId": null,
+ "genres": [
+  "Comedy"
+ ],
+ "tvdbId": "76203",
+ "tmdbId": "4546",
+ "imdbId": "tt0264235",
+ "ancestors": [],
+ "children": [
+  {
+   "id": "01a16beb-0034-7b48-ba81-e715e10f93db",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16beb-0034-7d4e-8037-c249052ffa37",
+   "kind": "Season",
+   "title": "Season 1",
+   "year": null,
+   "seasonNumber": 1,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 10,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2017-08-29T03:43:57",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16beb-0034-7b48-ba81-e715e10f93db/poster?v=63928410028",
+    "backdrop": "/api/v1/images/items/01a16beb-0034-7b48-ba81-e715e10f93db/backdrop?v=63928410028",
+    "logo": "/api/v1/images/items/01a16beb-0034-7b48-ba81-e715e10f93db/logo?v=63928410028",
+    "thumb": null
+   },
+   "accentColor": "#264c99",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": null,
+   "releaseDate": null,
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 10
+   },
+   "seriesTitle": "Curb Your Enthusiasm"
+  },
+  {
+   "id": "01a16beb-0034-7863-b1bb-f490d171b97d",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16beb-0034-7d4e-8037-c249052ffa37",
+   "kind": "Season",
+   "title": "Season 2",
+   "year": null,
+   "seasonNumber": 2,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 10,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2017-08-29T03:31:28",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16beb-0034-7863-b1bb-f490d171b97d/poster?v=63928410028",
+    "backdrop": "/api/v1/images/items/01a16beb-0034-7863-b1bb-f490d171b97d/backdrop?v=63928410028",
+    "logo": "/api/v1/images/items/01a16beb-0034-7863-b1bb-f490d171b97d/logo?v=63928410028",
+    "thumb": null
+   },
+   "accentColor": "#264c99",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": null,
+   "releaseDate": null,
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 10
+   },
+   "seriesTitle": "Curb Your Enthusiasm"
+  },
+  {
+   "id": "01a16beb-0035-7f9b-b491-1a0d262eeb04",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16beb-0034-7d4e-8037-c249052ffa37",
+   "kind": "Season",
+   "title": "Season 3",
+   "year": null,
+   "seasonNumber": 3,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 10,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2017-08-29T04:36:45",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16beb-0035-7f9b-b491-1a0d262eeb04/poster?v=63928410028",
+    "backdrop": "/api/v1/images/items/01a16beb-0035-7f9b-b491-1a0d262eeb04/backdrop?v=63928410028",
+    "logo": "/api/v1/images/items/01a16beb-0035-7f9b-b491-1a0d262eeb04/logo?v=63928410028",
+    "thumb": null
+   },
+   "accentColor": "#264c99",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": null,
+   "releaseDate": null,
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 10
+   },
+   "seriesTitle": "Curb Your Enthusiasm"
+  }
+ ],
+ "credits": [
+  {
+   "personId": "01a16bfe-e78b-73e4-9b80-4d3fcb810652",
+   "name": "Larry David",
+   "role": "Actor",
+   "character": "Larry David",
+   "image": "/api/v1/images/people/01a16bfe-e78b-73e4-9b80-4d3fcb810652"
+  },
+  {
+   "personId": "01a16bfe-e78b-73a6-a930-18b65e3cf0d5",
+   "name": "Jeff Garlin",
+   "role": "Actor",
+   "character": "Jeff Greene",
+   "image": "/api/v1/images/people/01a16bfe-e78b-73a6-a930-18b65e3cf0d5"
+  },
+  {
+   "personId": "01a16bfe-e78b-70cf-9dac-34a1e3db48fa",
+   "name": "Cheryl Hines",
+   "role": "Actor",
+   "character": "Cheryl David",
+   "image": "/api/v1/images/people/01a16bfe-e78b-70cf-9dac-34a1e3db48fa"
+  },
+  {
+   "personId": "01a16bfe-e78b-7b24-9035-8c69b5fc6a8c",
+   "name": "Susie Essman",
+   "role": "Actor",
+   "character": "Susie Greene",
+   "image": "/api/v1/images/people/01a16bfe-e78b-7b24-9035-8c69b5fc6a8c"
+  },
+  {
+   "personId": "01a16bfe-e78b-7b79-a700-47571c231da5",
+   "name": "J.B. Smoove",
+   "role": "Actor",
+   "character": "Leon Black",
+   "image": "/api/v1/images/people/01a16bfe-e78b-7b79-a700-47571c231da5"
+  }
+ ],
+ "files": [],
+ "childOverviews": {}
+}

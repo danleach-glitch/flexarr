@@ -1,0 +1,47 @@
+{
+ "id": "01a16bfe-e78b-73e4-9b80-4d3fcb810652",
+ "name": "Larry David",
+ "image": "/api/v1/images/people/01a16bfe-e78b-73e4-9b80-4d3fcb810652",
+ "credits": [
+  {
+   "item": {
+    "id": "01a16beb-0034-7d4e-8037-c249052ffa37",
+    "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+    "parentId": null,
+    "kind": "Series",
+    "title": "Curb Your Enthusiasm",
+    "year": 2000,
+    "seasonNumber": null,
+    "episodeNumber": null,
+    "episodeNumberEnd": null,
+    "airDate": null,
+    "childCount": 12,
+    "durationSeconds": null,
+    "resolution": null,
+    "addedAt": "2010-06-20T01:11:08",
+    "artwork": {
+     "poster": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/poster?v=63928410029",
+     "backdrop": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/backdrop?v=63928410029",
+     "logo": "/api/v1/images/items/01a16beb-0034-7d4e-8037-c249052ffa37/logo?v=63928410029",
+     "thumb": null
+    },
+    "accentColor": "#264c99",
+    "communityRating": 8.8,
+    "criticRating": null,
+    "contentRating": "TV-MA",
+    "runtimeMinutes": 33,
+    "releaseDate": "2000-10-15",
+    "userData": {
+     "positionSeconds": 0,
+     "watched": true,
+     "playCount": 0,
+     "lastPlayedAt": null,
+     "unwatchedCount": 0
+    },
+    "seriesTitle": null
+   },
+   "role": "Actor",
+   "character": "Larry David"
+  }
+ ]
+}

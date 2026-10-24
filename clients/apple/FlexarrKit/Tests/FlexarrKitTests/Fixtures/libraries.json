@@ -1,0 +1,35 @@
+[
+ {
+  "id": "01a16be8-9af2-7409-b7ea-3dc6e5b59de9",
+  "name": "Sam’s Shows",
+  "type": "TvShows",
+  "folders": [
+   "/Volumes/Media/data/kids-shows"
+  ],
+  "itemCount": 18,
+  "lastScannedAt": "2026-10-24T04:10:33.887361",
+  "scan": null
+ },
+ {
+  "id": "01a16be6-5a0b-790c-8734-28f147909cd9",
+  "name": "Movies",
+  "type": "Movies",
+  "folders": [
+   "/Volumes/Media/data/movies"
+  ],
+  "itemCount": 859,
+  "lastScannedAt": "2026-10-24T04:10:35.05415",
+  "scan": null
+ },
+ {
+  "id": "01a16be6-5a6a-7326-af61-20fc1c145581",
+  "name": "TV Shows",
+  "type": "TvShows",
+  "folders": [
+   "/Volumes/Media/data/tv"
+  ],
+  "itemCount": 282,
+  "lastScannedAt": "2026-10-24T04:10:36.888321",
+  "scan": null
+ }
+]

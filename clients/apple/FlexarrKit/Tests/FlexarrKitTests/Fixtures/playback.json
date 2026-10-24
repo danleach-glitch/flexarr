@@ -1,0 +1,215 @@
+{
+ "sessionId": "f1fafcf163de8ec25870dd584d78dbed",
+ "method": "Transcode",
+ "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/master.m3u8",
+ "reasons": [
+  "This device can't open MKV files"
+ ],
+ "durationSeconds": 2831.264,
+ "startPositionSeconds": 1501.427693,
+ "fileId": "01a16bea-cd18-74e2-99de-9e0fe16a3df8",
+ "audioTracks": [
+  {
+   "index": 1,
+   "label": "English",
+   "codec": "eac3",
+   "language": "eng",
+   "channels": 6,
+   "isDefault": true
+  }
+ ],
+ "selectedAudioIndex": 1,
+ "subtitles": [
+  {
+   "key": "e2",
+   "label": "English",
+   "codec": "subrip",
+   "language": "eng",
+   "isForced": false,
+   "isDefault": false,
+   "isText": true,
+   "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/subtitles/e2.vtt"
+  },
+  {
+   "key": "e3",
+   "label": "English (SDH)",
+   "codec": "subrip",
+   "language": "eng",
+   "isForced": false,
+   "isDefault": false,
+   "isText": true,
+   "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/subtitles/e3.vtt"
+  },
+  {
+   "key": "e4",
+   "label": "English (United Kingdom (SDH))",
+   "codec": "subrip",
+   "language": "eng",
+   "isForced": false,
+   "isDefault": false,
+   "isText": true,
+   "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/subtitles/e4.vtt"
+  }
+ ],
+ "selectedSubtitleKey": null,
+ "subtitleBurnedIn": false,
+ "markers": [
+  {
+   "type": "Intro",
+   "start": 215.26,
+   "end": 234.34
+  },
+  {
+   "type": "Credits",
+   "start": 2811.72,
+   "end": 2831.26
+  }
+ ],
+ "item": {
+  "id": "01a16bea-cd18-7cae-8ca3-c20b4da2def2",
+  "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+  "parentId": "01a16bea-cd18-7b89-b5dc-04e13e66fb13",
+  "kind": "Episode",
+  "title": "Bit by a Dead Bee",
+  "year": null,
+  "seasonNumber": 2,
+  "episodeNumber": 3,
+  "episodeNumberEnd": null,
+  "airDate": null,
+  "childCount": 0,
+  "durationSeconds": 2831.264,
+  "resolution": "1080p",
+  "addedAt": "2024-03-18T02:13:44",
+  "artwork": {
+   "poster": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/poster?v=63928410012",
+   "backdrop": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/backdrop?v=63928410012",
+   "logo": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/logo?v=63928410012",
+   "thumb": "/api/v1/images/items/01a16bea-cd18-7cae-8ca3-c20b4da2def2/thumb?v=63928410012"
+  },
+  "accentColor": "#b39c31",
+  "communityRating": null,
+  "criticRating": null,
+  "contentRating": null,
+  "runtimeMinutes": 47,
+  "releaseDate": "2009-03-22",
+  "userData": {
+   "positionSeconds": 1501.427693,
+   "watched": false,
+   "playCount": 0,
+   "lastPlayedAt": "2026-10-24T04:10:54.973171",
+   "unwatchedCount": null
+  },
+  "seriesTitle": "Breaking Bad"
+ },
+ "ancestors": [
+  {
+   "id": "01a16bea-cd18-7449-90fb-3479e15406c8",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": null,
+   "kind": "Series",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "seasonNumber": null,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 5,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2022-05-02T09:18:58",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-cd18-7449-90fb-3479e15406c8/poster?v=63928410014",
+    "backdrop": "/api/v1/images/items/01a16bea-cd18-7449-90fb-3479e15406c8/backdrop?v=63928410014",
+    "logo": "/api/v1/images/items/01a16bea-cd18-7449-90fb-3479e15406c8/logo?v=63928410014",
+    "thumb": null
+   },
+   "accentColor": "#b39c31",
+   "communityRating": 9.5,
+   "criticRating": null,
+   "contentRating": "TV-MA",
+   "runtimeMinutes": 48,
+   "releaseDate": "2008-01-20",
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 62
+   },
+   "seriesTitle": null
+  },
+  {
+   "id": "01a16bea-cd18-7b89-b5dc-04e13e66fb13",
+   "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+   "parentId": "01a16bea-cd18-7449-90fb-3479e15406c8",
+   "kind": "Season",
+   "title": "Season 2",
+   "year": null,
+   "seasonNumber": 2,
+   "episodeNumber": null,
+   "episodeNumberEnd": null,
+   "airDate": null,
+   "childCount": 13,
+   "durationSeconds": null,
+   "resolution": null,
+   "addedAt": "2024-03-18T02:13:16",
+   "artwork": {
+    "poster": "/api/v1/images/items/01a16bea-cd18-7b89-b5dc-04e13e66fb13/poster?v=63928410012",
+    "backdrop": "/api/v1/images/items/01a16bea-cd18-7b89-b5dc-04e13e66fb13/backdrop?v=63928410012",
+    "logo": "/api/v1/images/items/01a16bea-cd18-7b89-b5dc-04e13e66fb13/logo?v=63928410012",
+    "thumb": null
+   },
+   "accentColor": "#b39c31",
+   "communityRating": null,
+   "criticRating": null,
+   "contentRating": null,
+   "runtimeMinutes": null,
+   "releaseDate": null,
+   "userData": {
+    "positionSeconds": 0,
+    "watched": false,
+    "playCount": 0,
+    "lastPlayedAt": null,
+    "unwatchedCount": 13
+   },
+   "seriesTitle": "Breaking Bad"
+  }
+ ],
+ "next": {
+  "id": "01a16bea-cd18-7677-9e08-0c123bd39c78",
+  "libraryId": "01a16be6-5a6a-7326-af61-20fc1c145581",
+  "parentId": "01a16bea-cd18-7b89-b5dc-04e13e66fb13",
+  "kind": "Episode",
+  "title": "Down",
+  "year": null,
+  "seasonNumber": 2,
+  "episodeNumber": 4,
+  "episodeNumberEnd": null,
+  "airDate": null,
+  "childCount": 0,
+  "durationSeconds": 2855.072,
+  "resolution": "1080p",
+  "addedAt": "2024-03-18T07:10:59",
+  "artwork": {
+   "poster": "/api/v1/images/items/01a16bea-cd18-7677-9e08-0c123bd39c78/poster?v=63928410012",
+   "backdrop": "/api/v1/images/items/01a16bea-cd18-7677-9e08-0c123bd39c78/backdrop?v=63928410012",
+   "logo": "/api/v1/images/items/01a16bea-cd18-7677-9e08-0c123bd39c78/logo?v=63928410012",
+   "thumb": "/api/v1/images/items/01a16bea-cd18-7677-9e08-0c123bd39c78/thumb?v=63928410012"
+  },
+  "accentColor": "#b39c31",
+  "communityRating": null,
+  "criticRating": null,
+  "contentRating": null,
+  "runtimeMinutes": 47,
+  "releaseDate": "2009-03-29",
+  "userData": {
+   "positionSeconds": 0,
+   "watched": false,
+   "playCount": 0,
+   "lastPlayedAt": null,
+   "unwatchedCount": null
+  },
+  "seriesTitle": "Breaking Bad"
+ },
+ "transcodeSummary": "1080p H.264 at 8.9 Mbps"
+}

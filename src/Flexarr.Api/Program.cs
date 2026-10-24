@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Import;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Scanning;
 using Flexarr.Core.Data;
@@ -99,7 +100,8 @@ app.MapGroup("/api/v1")
     .MapPeopleEndpoints()
     .MapPlaybackEndpoints()
     .MapDiscoveryEndpoints()
-    .MapSettingsEndpoints();
+    .MapSettingsEndpoints()
+    .MapImportEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();
