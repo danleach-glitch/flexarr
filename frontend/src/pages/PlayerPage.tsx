@@ -240,6 +240,44 @@ export function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info, upNextCancelled])
 
+  // Subtitles sit clear of the bottom edge, and rise above the controls while they're showing. Cues are placed by
+  // their top edge as a percentage of the video's height (Chrome ignores lineAlign), so each cue's own height (its
+  // lines at the ::cue font size in player.css) is allowed for and multi-line cues grow upwards.
+  const controls = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = video.current
+    const tracks = el?.textTracks
+    if (!el || !tracks || typeof VTTCue === 'undefined') return
+    const place = () => {
+      const height = el.getBoundingClientRect().height || innerHeight
+      const lift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : height * 0.08
+      const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * 1.3 + 2
+      for (const track of Array.from(el.textTracks)) {
+        if (track.mode !== 'showing' || !track.cues) continue
+        for (const cue of Array.from(track.cues)) {
+          if (!(cue instanceof VTTCue)) continue
+          const lines = cue.text.split('\n').length
+          cue.snapToLines = false
+          cue.lineAlign = 'start'
+          cue.line = Math.max(5, 100 - ((lift + lines * linePx) / height) * 100)
+        }
+      }
+    }
+    place()
+    const watch = (track: TextTrack) => track.addEventListener('cuechange', place)
+    const onAdd = (e: TrackEvent) => e.track && watch(e.track as TextTrack)
+    for (const track of Array.from(tracks)) watch(track)
+    tracks.addEventListener('addtrack', onAdd)
+    tracks.addEventListener('change', place)
+    window.addEventListener('resize', place)
+    return () => {
+      for (const track of Array.from(tracks)) track.removeEventListener('cuechange', place)
+      tracks.removeEventListener('addtrack', onAdd)
+      tracks.removeEventListener('change', place)
+      window.removeEventListener('resize', place)
+    }
+  }, [chrome, subtitleKey])
+
   // Show the chosen text subtitle track (the <track> is swapped when the choice changes).
   useEffect(() => {
     const el = video.current
@@ -504,7 +542,7 @@ export function PlayerPage() {
         </aside>
       )}
 
-      <footer className="player-controls">
+      <footer className="player-controls" ref={controls}>
         <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
