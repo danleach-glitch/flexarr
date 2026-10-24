@@ -181,7 +181,7 @@ export function WideCard({ item, showSeries = true }: { item: ItemSummary; showS
       className="wide-card"
       art={
         <div className="card-frame">
-          <Artwork src={image} title={item.title} width={500} shape="wide" accent={item.accentColor} />
+          <Artwork src={image} fallback={item.artwork.backdrop} title={item.title} width={500} shape="wide" accent={item.accentColor} />
           <Progress item={item} />
         </div>
       }

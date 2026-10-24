@@ -2,10 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.13.1 · 24 October 2026
 
 ### Changed
 - The countdown says **Next episode in…** when shuffling too, rather than calling it a random one.
+
+### Fixed: a blank card in Continue Watching
+- When an episode's still couldn't be fetched, its card stayed blank. It now shows the show's backdrop instead.
 
 ## 0.13.0 · 24 October 2026
 

@@ -284,7 +284,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
     <li className={episode.userData.watched ? 'episode watched' : 'episode'}>
       <div className="episode-still-wrap">
       <Link to={`/play/${episode.id}`} className="episode-still" aria-label={`Play ${episode.title}`}>
-        <Artwork src={episode.artwork.thumb} title={episode.title} width={500} shape="wide" />
+        <Artwork src={episode.artwork.thumb} fallback={episode.artwork.backdrop} title={episode.title} width={500} shape="wide" />
         <span className="episode-play" aria-hidden="true">
           <Play />
         </span>

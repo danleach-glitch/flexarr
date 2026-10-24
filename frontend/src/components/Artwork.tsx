@@ -24,10 +24,12 @@ function worthRetrying(image: HTMLImageElement) {
  * Artwork with a typographic fallback: when there's no image (or it fails), the title is set in the
  * marquee face on a tint of the title's ambient colour, so a missing poster still looks deliberate. A failed image is
  * tried once more after a few seconds when it looks like the server was busy (it turns new artwork away while it's
- * fetching lots at once), not when the poster is gone.
+ * fetching lots at once), not when the poster is gone. With a `fallback` (an episode's show backdrop, say), that's
+ * shown before giving up.
  */
 export function Artwork({
   src,
+  fallback,
   title,
   width,
   shape = 'poster',
@@ -35,6 +37,7 @@ export function Artwork({
   eager = false,
 }: {
   src: string | null | undefined
+  fallback?: string | null
   title: string
   width: number
   shape?: 'poster' | 'wide' | 'square' | 'portrait'
@@ -43,7 +46,9 @@ export function Artwork({
 }) {
   const [state, setState] = useState<'showing' | 'retrying' | 'failed'>('showing')
   const [attempt, setAttempt] = useState(0)
-  const url = imageUrl(src, width)
+  const [usingFallback, setUsingFallback] = useState(false)
+  const shown = usingFallback ? fallback : src
+  const url = imageUrl(shown, width)
 
   useEffect(() => {
     if (state !== 'retrying') return
@@ -60,11 +65,19 @@ export function Artwork({
         <img
           key={attempt}
           src={url}
-          srcSet={imageSrcSet(src, width)}
+          srcSet={imageSrcSet(shown, width)}
           alt=""
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
-          onError={(e) => setState(attempt === 0 && worthRetrying(e.currentTarget) ? 'retrying' : 'failed')}
+          onError={(e) => {
+            if (attempt === 0 && worthRetrying(e.currentTarget)) return setState('retrying')
+            if (!usingFallback && fallback && fallback !== src) {
+              setUsingFallback(true)
+              setAttempt((a) => a + 1)
+              return
+            }
+            setState('failed')
+          }}
         />
       ) : (
         <span className="artwork-fallback" aria-hidden="true">
