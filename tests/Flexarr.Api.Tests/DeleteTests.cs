@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -30,6 +31,75 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         using var check = factory.Services.CreateScope();
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.True(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == film));
+    }
+
+    [Fact]
+    public async Task DeletingTheOnlyVisibleEpisode_KeepsTheSeason_WhileASiblingIsBrieflyMissing()
+    {
+        var arr = new FakeArr();
+        arr.Responses["GET /api/v3/episode/11"] = """{"id":11,"seriesId":3,"seasonNumber":1,"episodeNumber":1,"episodeFileId":5}""";
+        arr.Responses["PUT /api/v3/episode/monitor"] = "{}";
+        arr.Responses["DELETE /api/v3/episodefile/5"] = "{}";
+        using var app = arr.Serve(factory);
+        Guid seasonId, sibling;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+            var series = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", MetadataSource = "Sonarr", ArrId = 3 };
+            var season = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "0001", Parent = series, SeasonNumber = 1 };
+            var one = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Episode, Title = "One", SortTitle = "0001", Parent = season, ArrId = 11 };
+            var two = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Episode, Title = "Two", SortTitle = "0002", Parent = season, MissingSince = DateTime.UtcNow };
+            db.AddRange(library, series, season, one, two);
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = two.Id, Watched = true, PlayCount = 1 });
+            await db.SaveChangesAsync();
+            (seasonId, sibling) = (season.Id, two.Id);
+            var client = app.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+            var response = await client.DeleteAsync(new Uri($"/api/v1/items/{one.Id}", UriKind.Relative));
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        using var check = app.Services.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.True(await after.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.Id == seasonId));
+        Assert.True(await after.PlaybackStates.AnyAsync(p => p.MediaItemId == sibling && p.Watched));
+    }
+
+    [Fact]
+    public async Task AHeldFolder_ShowsInLibraryHealth_AndItsRemovalCanBeConfirmed()
+    {
+        var path = Path.Combine(factory.MediaDirectory, $"4k-{Guid.NewGuid():N}");
+        int folderId, unmounted;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library
+            {
+                Name = $"4K {Guid.NewGuid():N}", Type = LibraryType.Movies,
+                Folders =
+                [
+                    new LibraryFolder { Path = path, Hold = FolderHold.FolderEmpty, HeldSince = DateTime.UtcNow.AddDays(-2), HeldScans = 4, HeldMissing = 9, HeldKnown = 9 },
+                    new LibraryFolder { Path = path + "-usb", Hold = FolderHold.FolderMissing, HeldSince = DateTime.UtcNow, HeldScans = 1 },
+                ],
+            };
+            db.Add(library);
+            await db.SaveChangesAsync();
+            (folderId, unmounted) = (library.Folders[0].Id, library.Folders[1].Id);
+        }
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var health = await client.GetFromJsonAsync<System.Text.Json.JsonElement>(new Uri("/api/v1/library-health", UriKind.Relative));
+        var held = health.GetProperty("held").EnumerateArray().Single(h => h.GetProperty("folderId").GetInt32() == folderId);
+        var confirm = await client.PostAsync(new Uri($"/api/v1/library-health/held/{folderId}/confirm", UriKind.Relative), null);
+        var refused = await client.PostAsync(new Uri($"/api/v1/library-health/held/{unmounted}/confirm", UriKind.Relative), null);
+
+        Assert.Equal(("FolderEmpty", 9, true), (held.GetProperty("reason").GetString(), held.GetProperty("missing").GetInt32(), held.GetProperty("canConfirm").GetBoolean()));
+        Assert.Equal((HttpStatusCode.Accepted, HttpStatusCode.Conflict), (confirm.StatusCode, refused.StatusCode));
+        Assert.Contains(factory.ScanQueue.Requests, r => r.Path == path);
+        using var check = factory.Services.CreateScope();
+        Assert.True((await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().LibraryFolders.SingleAsync(f => f.Id == folderId)).RemovalConfirmed);
     }
 
     [Fact]

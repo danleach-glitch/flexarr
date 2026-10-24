@@ -134,6 +134,50 @@ public class CollectionTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
         var mixed = list.Single(c => c.GetProperty("id").GetString() == manualId);
         Assert.Equal((7, 2, 4), (mixed.GetProperty("itemCount").GetInt32(), mixed.GetProperty("watchedCount").GetInt32(), mixed.GetProperty("posters").GetArrayLength()));
         Assert.DoesNotContain(mixed.GetProperty("posters").EnumerateArray(), p => p.GetString()!.Contains(films[1].ToString(), StringComparison.Ordinal));
+
+        // Counted in the database: its limit of 4 (of the 6 rated over 6.2), the watched show among them, best first.
+        var rules = list.Single(c => c.GetProperty("id").GetString() == smart.GetProperty("id").GetString());
+        Assert.Equal((4, 1), (rules.GetProperty("itemCount").GetInt32(), rules.GetProperty("watchedCount").GetInt32()));
+        Assert.Contains(show.ToString(), rules.GetProperty("posters")[0].GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FranchiseSync_KeepsABrieflyMissingFilm_AndDoesntOfferItAsOneToRequest()
+    {
+        var franchise = Random.Shared.Next(1_000_000, 2_000_000);
+        var arr = new FakeArr();
+        arr.Responses["GET /api/v3/collection"] = $$"""
+            [{"id":1,"title":"Trilogy Collection","tmdbId":{{franchise}},"movies":[
+              {"tmdbId":{{franchise + 1}},"title":"One","year":2001},
+              {"tmdbId":{{franchise + 2}},"title":"Two","year":2003},
+              {"tmdbId":{{franchise + 3}},"title":"Three","year":2005},
+              {"tmdbId":{{franchise + 4}},"title":"Four","year":2030}]}]
+            """;
+        using var app = arr.Serve(factory);
+        Guid away;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            var films = Enumerable.Range(1, 3).Select(n => new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Movie, Title = $"Film {n}", SortTitle = $"film {n}", TmdbId = (franchise + n).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                MissingSince = n == 3 ? DateTime.UtcNow : null, // mid-upgrade, say
+            }).ToList();
+            db.Add(library);
+            db.AddRange(films);
+            await db.SaveChangesAsync();
+            away = films[2].Id;
+        }
+
+        await app.Services.GetRequiredService<Flexarr.Api.Collections.FranchiseSync>().SyncAsync(default);
+
+        using var check = app.Services.CreateScope();
+        var collection = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleAsync(
+            check.ServiceProvider.GetRequiredService<FlexarrDbContext>().Collections, c => c.TmdbCollectionId == franchise);
+        var items = check.ServiceProvider.GetRequiredService<FlexarrDbContext>().CollectionItems.Where(i => i.CollectionId == collection.Id).Select(i => i.MediaItemId).ToList();
+        Assert.Contains(away, items);
+        Assert.Equal([franchise + 4], JsonSerializer.Deserialize<List<Flexarr.Api.Collections.MissingFilm>>(collection.MissingJson!, Flexarr.Api.Collections.FranchiseSync.Json)!.Select(m => m.TmdbId));
     }
 
     private async Task<string[]> Titles(string? id) =>

@@ -37,7 +37,24 @@ public sealed partial class LibraryScanWorker(
                 batch.Add(next);
             }
 
-            foreach (var request in Coalesce(batch))
+            // The endpoints refuse such paths; one getting here anyway must not stop every scan after it.
+            foreach (var unusable in batch.Where(r => PathComparison.HasControlCharacters(r.Path)))
+            {
+                LogUnusablePath(PathComparison.Printable(unusable.Path), PathComparison.Printable(unusable.Reason));
+            }
+
+            List<LibraryScanRequest> requests;
+            try
+            {
+                requests = Coalesce(batch.Where(r => !PathComparison.HasControlCharacters(r.Path))).ToList();
+            }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                LogBatchFailed(ex, batch.Count);
+                continue;
+            }
+
+            foreach (var request in requests)
             {
                 try
                 {
@@ -46,7 +63,7 @@ public sealed partial class LibraryScanWorker(
                 // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
-                    LogScanFailed(ex, request.Path);
+                    LogScanFailed(ex, PathComparison.Printable(request.Path));
                 }
             }
         }
@@ -85,12 +102,15 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    /// <summary>Drops duplicates and paths already covered by a broader request in the same batch.</summary>
+    /// <summary>
+    /// Drops duplicates and paths already covered by a broader request in the same batch. A path counts as deleted
+    /// only if every request for it says so.
+    /// </summary>
     public static IEnumerable<LibraryScanRequest> Coalesce(IEnumerable<LibraryScanRequest> requests)
     {
         var all = requests.ToList();
         var distinct = all.GroupBy(r => PathComparison.Key(r.Path))
-            .Select(g => g.First() with { ForceMetadata = g.Any(r => r.ForceMetadata) })
+            .Select(g => g.First() with { ForceMetadata = g.Any(r => r.ForceMetadata), Deleted = g.All(r => r.Deleted) })
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
@@ -123,16 +143,16 @@ public sealed partial class LibraryScanWorker(
 
         if (targets.Count == 0)
         {
-            LogNoLibrary(request.Path, request.Reason);
+            LogNoLibrary(PathComparison.Printable(request.Path), PathComparison.Printable(request.Reason));
             return;
         }
 
         foreach (var (library, target) in targets)
         {
-            LogScanStarted(library.Name, target, request.Reason);
+            LogScanStarted(library.Name, PathComparison.Printable(target), PathComparison.Printable(request.Reason));
             var started = TimeProvider.System.GetTimestamp();
             // A metadata refresh also retries files ffprobe couldn't read.
-            var result = await scanner.ScanAsync(library, target, request.ForceMetadata, ct);
+            var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
             var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
             LogScanFinished(library.Name, target, result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
                 result.Unmatched, result.ProbeFailures, seconds);
@@ -154,6 +174,9 @@ public sealed partial class LibraryScanWorker(
                 LogMetadataRefreshed(library.Name, refreshed.FromArr, refreshed.FromLookup, refreshed.Unmatched, seconds);
             }
         }
+
+        // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
+        await WatchHistoryCarryOver.CarryOverAsync(db, ct);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Scanning {Library}: {Path} ({Reason})")]
@@ -167,6 +190,12 @@ public sealed partial class LibraryScanWorker(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignoring scan request for {Path} ({Reason}): no library contains it")]
     private partial void LogNoLibrary(string path, string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Ignoring scan request for {Path} ({Reason}): the path holds a control character")]
+    private partial void LogUnusablePath(string path, string reason);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't sort out a batch of {Count} scan requests; dropping it")]
+    private partial void LogBatchFailed(Exception exception, int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Scan of {Path} failed")]
     private partial void LogScanFailed(Exception exception, string path);

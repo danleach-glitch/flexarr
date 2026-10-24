@@ -59,7 +59,9 @@ public static class CollectionEndpoints
         group.MapGet("/suggestions", async (FlexarrDbContext db, CurrentProfile profile, IMemoryCache cache, CancellationToken ct) =>
         {
             // Working them out takes a few dozen queries over the whole library, and they hardly change from minute to minute.
-            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}", entry =>
+            // Keyed by the libraries hidden from the profile too, so hiding one drops its titles at once.
+            var hiddenLibraries = string.Join(',', db.HiddenLibraryIds.Order());
+            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}", entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
                 return CollectionSuggestions.ForAsync(db, profile.Id, ct);
@@ -296,17 +298,33 @@ public static class CollectionEndpoints
         var summaries = new List<CollectionSummaryDto>();
         foreach (var c in collections)
         {
-            var items = c.Kind == CollectionKind.Smart
-                ? await (Rules(c) ?? new SmartRules()).Query(db, me, DateTime.UtcNow).Select(FactOf(me)).ToListAsync(ct)
-                : byCollection[c.Id].OrderBy(e => e.Position).Select(e => facts[e.MediaItemId]).ToList();
             var missing = c.MissingJson is null || hidden!.Hides(MediaKind.Movie) ? 0 : JsonSerializer.Deserialize<List<MissingFilm>>(c.MissingJson, FranchiseSync.Json)!.Count;
-            var posters = items.Where(i => i.HasPoster).Take(4)
-                .Select(i => ArtworkUrls.For(i.Id, i.MetadataUpdatedAt == null ? 0 : i.MetadataUpdatedAt.Value.Ticks / 10_000_000, true, false, false, false).Poster!).ToList();
-            summaries.Add(Summary(profile, c, items.Count, items.Count(i => i.Watched), posters, missing));
+            if (c.Kind == CollectionKind.Smart)
+            {
+                // A broad rule can match thousands: count them in the database and fetch only the four posters.
+                var matches = (Rules(c) ?? new SmartRules()).Query(db, me, DateTime.UtcNow);
+                var count = await matches.CountAsync(ct);
+                var watched = await matches.Where(WatchedBy(me)).CountAsync(ct);
+                var first = await matches.Where(i => i.PosterUrl != null).Take(4).Select(FactOf(me)).ToListAsync(ct);
+                summaries.Add(Summary(profile, c, count, watched, Posters(first), missing));
+                continue;
+            }
+
+            var items = byCollection[c.Id].OrderBy(e => e.Position).Select(e => facts[e.MediaItemId]).ToList();
+            summaries.Add(Summary(profile, c, items.Count, items.Count(i => i.Watched), Posters(items.Where(i => i.HasPoster).Take(4)), missing));
         }
 
         return summaries;
     }
+
+    private static List<string> Posters(IEnumerable<ItemFact> items) =>
+        items.Select(i => ArtworkUrls.For(i.Id, i.MetadataUpdatedAt == null ? 0 : i.MetadataUpdatedAt.Value.Ticks / 10_000_000, true, false, false, false).Poster!).ToList();
+
+    /// <summary>Watched as <see cref="FactOf"/> works it out: a show once every episode is.</summary>
+    private static System.Linq.Expressions.Expression<Func<MediaItem, bool>> WatchedBy(string profileId) => i =>
+        i.Kind == MediaKind.Series
+            ? !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+            : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched);
 
     /// <summary>Just enough of a title for a collection's counts and poster: watched works as it does in summaries.</summary>
     private sealed record ItemFact(Guid Id, bool HasPoster, DateTime? MetadataUpdatedAt, bool Watched);

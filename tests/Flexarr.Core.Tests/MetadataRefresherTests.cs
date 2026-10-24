@@ -60,6 +60,28 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task WebhookFilmsAlone_AreFetchedOneByOne_NotRadarrsWholeLibrary()
+    {
+        await AddMovieAsync("Dune", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/dune.jpg", arrId: 7);
+        await AddMovieAsync("Heat", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/heat.jpg", tmdbId: "949");
+        await AddMovieAsync("Up", DateTime.UtcNow.AddDays(-1), poster: "https://image.test/up.jpg");
+        _radarr.Responses["/api/v3/movie/7"] = """{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune"}""";
+        _radarr.Responses["/api/v3/movie?tmdbId=949"] = """[{"id":9,"title":"Heat","year":1995,"tmdbId":949,"path":"/movies/Heat"}]""";
+
+        var two = await Refresher().RefreshLibraryAsync(_library, force: false, ["/movies/Dune", "/movies/Heat"], default);
+        var paths = _radarr.Paths.ToList();
+        _radarr.Paths.Clear();
+        var three = await Refresher().RefreshLibraryAsync(_library, force: false, ["/movies/Dune", "/movies/Heat", "/movies/Up"], default);
+
+        Assert.Equal(2, two.FromArr);
+        Assert.DoesNotContain("/api/v3/movie", paths); // the whole library
+        Assert.Contains("/api/v3/movie/7", paths);
+        Assert.Contains("/api/v3/movie?tmdbId=949", paths);
+        Assert.Contains("/api/v3/movie", _radarr.Paths); // Up has no id to ask by
+        _ = three;
+    }
+
+    [Fact]
     public async Task HttpTimeout_CountsAsUnavailable_InsteadOfEscaping()
     {
         await AddMovieAsync("Dune", null, poster: null);
@@ -71,7 +93,7 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.NotNull((await _db.MediaItems.SingleAsync()).MetadataUpdatedAt);
     }
 
-    private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster)
+    private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster, int? arrId = null, string? tmdbId = null)
     {
         _db.MediaItems.Add(new MediaItem
         {
@@ -82,6 +104,9 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
             Path = $"/movies/{title}",
             MetadataUpdatedAt = updatedAt,
             PosterUrl = poster,
+            ArrId = arrId,
+            TmdbId = tmdbId,
+            MetadataSource = arrId is null ? null : "Radarr",
         });
         await _db.SaveChangesAsync();
     }
@@ -103,21 +128,31 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         public string FfmpegPath => "ffmpeg";
     }
 
-    /// <summary>Radarr with nothing in it; or one that never answers, as HttpClient reports a timeout.</summary>
+    /// <summary>
+    /// Radarr with nothing in it (but what <see cref="Responses"/> says); or one that never answers, as HttpClient
+    /// reports a timeout.
+    /// </summary>
     private sealed class FakeRadarr : HttpMessageHandler
     {
         public int Requests;
         public bool TimeOut;
 
+        /// <summary>Bodies by path and query.</summary>
+        public Dictionary<string, string> Responses { get; } = [];
+
+        public System.Collections.Concurrent.ConcurrentQueue<string> Paths { get; } = new();
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref Requests);
+            Paths.Enqueue(request.RequestUri!.PathAndQuery);
             if (TimeOut)
             {
                 throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing.");
             }
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]", System.Text.Encoding.UTF8, "application/json") });
+            var body = Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
         }
     }
 }

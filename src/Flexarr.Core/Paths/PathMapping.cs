@@ -27,8 +27,11 @@ public static class PathMapper
             return path;
         }
 
-        var from = Trim(best.From);
-        return Trim(best.To) + path[from.Length..];
+        // The match ignores "//", "." and Unicode spelling, so the raw path can't be cut at From's length: skip From's
+        // segments instead, keeping the rest as it was sent (the scanner finds the on-disk spelling).
+        var skip = PathComparison.Key(Trim(best.From)).Split('/', StringSplitOptions.RemoveEmptyEntries).Length;
+        var rest = Path.GetFullPath(path).Split('/', StringSplitOptions.RemoveEmptyEntries).Skip(skip).ToList();
+        return rest.Count == 0 ? Trim(best.To) : $"{Trim(best.To).TrimEnd('/')}/{string.Join('/', rest)}";
     }
 
     private static string Trim(string path) => path.Length > 1 ? path.TrimEnd('/', '\\') : path;

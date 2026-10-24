@@ -61,10 +61,21 @@ public static class MediaBrowserEndpoints
 
         group.MapPost("/Library/Media/Updated", async (MediaBrowserUpdateRequest request, ILibraryScanQueue queue, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
-            foreach (var update in request.Updates.Where(u => !string.IsNullOrWhiteSpace(u.Path)))
+            var updates = request.Updates.Where(u => !string.IsNullOrWhiteSpace(u.Path)).ToList();
+            if (updates.Any(u => PathComparison.HasControlCharacters(u.Path) || u.UpdateType is { } type && PathComparison.HasControlCharacters(type)))
             {
-                await queue.EnqueueAsync(new LibraryScanRequest(PathMapper.Map(update.Path, options.CurrentValue.PathMappings), $"Emby-style update ({update.UpdateType ?? "Modified"})"), ct);
+                return Results.Problem("A path in the update holds a control character.", statusCode: 400);
             }
+
+            foreach (var update in updates)
+            {
+                // Sonarr and Radarr say "Deleted" when they removed the title themselves.
+                var deleted = string.Equals(update.UpdateType, "Deleted", StringComparison.OrdinalIgnoreCase);
+                await queue.EnqueueAsync(new LibraryScanRequest(PathMapper.Map(update.Path, options.CurrentValue.PathMappings),
+                    $"Emby-style update ({update.UpdateType ?? "Modified"})", Deleted: deleted), ct);
+            }
+
+            UpcomingEndpoints.ForgetArrCalls(); // As for a webhook: Coming soon and Downloads have just changed.
 
             return Results.NoContent();
         });

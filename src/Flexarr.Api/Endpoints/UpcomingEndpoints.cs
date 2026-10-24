@@ -203,6 +203,25 @@ public static class UpcomingEndpoints
 
     private static string Key(ArrInstance instance, string what) => $"arr:{instance.Kind}:{instance.Name}:{instance.BaseUrl}:{what}";
 
+    /// <summary>Cancelled (and replaced) to drop every cached *arr call at once.</summary>
+    private static CancellationTokenSource _arrCalls = new();
+
+    /// <summary>
+    /// Forgets the cached calendars and queues, so the next page load asks Sonarr and Radarr again: a webhook means
+    /// something just downloaded or was added, and it shouldn't show as still on its way for another minute or two.
+    /// </summary>
+    public static void ForgetArrCalls()
+    {
+        // Not disposed: a page load may be reading its token right now, and one with no timer holds nothing to free.
+        Interlocked.Exchange(ref _arrCalls, new CancellationTokenSource()).Cancel();
+    }
+
+    private static MemoryCacheEntryOptions Expiring(TimeSpan ttl) => new MemoryCacheEntryOptions
+    {
+        AbsoluteExpirationRelativeToNow = ttl,
+        ExpirationTokens = { new Microsoft.Extensions.Primitives.CancellationChangeToken(_arrCalls.Token) },
+    };
+
     /// <summary>
     /// One *arr call, shared for a little while by everyone loading the page. An *arr being down or too slow
     /// shouldn't break the page: it contributes nothing, and isn't asked again for a few seconds.
@@ -219,13 +238,13 @@ public static class UpcomingEndpoints
         try
         {
             var result = await call(timeout.Token);
-            cache?.Set(key, result, ttl);
+            cache?.Set(key, result, Expiring(ttl));
             return result;
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
             || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
-            cache?.Set(key, (IReadOnlyList<T>)[], FailureTtl);
+            cache?.Set(key, (IReadOnlyList<T>)[], Expiring(FailureTtl));
             return [];
         }
     }

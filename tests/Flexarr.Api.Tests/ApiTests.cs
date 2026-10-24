@@ -98,6 +98,17 @@ public class ApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task Webhook_WithAControlCharacterInAPath_IsRefused()
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            new Uri($"/api/v1/webhooks/sonarr?apikey={FlexarrApiFactory.ApiKey}", UriKind.Relative),
+            new { eventType = "Download", series = new { title = "Bad", path = "/tv/Bad\u0000\nScanning forged" } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.DoesNotContain(factory.ScanQueue.Requests, r => r.Path.StartsWith("/tv/Bad", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Webhook_UnknownSource_IsNotFound()
     {
         var response = await factory.CreateClient().PostAsJsonAsync(

@@ -5,8 +5,10 @@ namespace Flexarr.Core.Scanning;
 /// <summary>
 /// A request to (re)scan part of a library. <see cref="Path"/> may be a file or a folder.
 /// Metadata for new or stale items is refreshed afterwards; <see cref="ForceMetadata"/> refreshes everything.
+/// <see cref="Deleted"/>: Sonarr, Radarr or Lidarr said they deleted what's at the path, so its files going is expected
+/// even when that leaves the library folder empty (which otherwise looks like a drive that hasn't mounted).
 /// </summary>
-public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false);
+public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false);
 
 public interface ILibraryScanQueue
 {

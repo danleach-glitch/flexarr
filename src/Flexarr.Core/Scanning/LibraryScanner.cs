@@ -32,19 +32,36 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     /// </summary>
     public static readonly TimeSpan MissingGracePeriod = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// A folder held because most of its files went (it isn't empty, so it is mounted) is let through once full scans
+    /// have found exactly the same this many times, over at least <see cref="SettledAfter"/>: a clear-out, not a hiccup.
+    /// An empty folder is never let through this way; it waits for Radarr/Sonarr to say they deleted it, or for
+    /// someone to confirm it in Library health.
+    /// </summary>
+    public const int SettledScans = 3;
+
+    public static readonly TimeSpan SettledAfter = TimeSpan.FromHours(24);
+
     public Task<ScanResult> ScanAsync(Library library, string? scope, CancellationToken cancellationToken) =>
         ScanAsync(library, scope, retryFailedProbes: false, cancellationToken);
+
+    public Task<ScanResult> ScanAsync(Library library, string? scope, bool retryFailedProbes, CancellationToken cancellationToken) =>
+        ScanAsync(library, scope, retryFailedProbes, deleted: false, cancellationToken);
 
     /// <param name="library">The library to scan.</param>
     /// <param name="scope">A folder or file in the library to limit the scan to; null for all of it.</param>
     /// <param name="retryFailedProbes">Probe files ffprobe couldn't read again even if they haven't changed.</param>
+    /// <param name="deleted">
+    /// Sonarr, Radarr or Lidarr deleted <paramref name="scope"/>: its files going is expected, even if that empties
+    /// the library folder.
+    /// </param>
     /// <param name="cancellationToken">Stops the scan.</param>
-    public async Task<ScanResult> ScanAsync(Library library, string? scope, bool retryFailedProbes, CancellationToken cancellationToken)
+    public async Task<ScanResult> ScanAsync(Library library, string? scope, bool retryFailedProbes, bool deleted, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(library);
         try
         {
-            return await ScanCoreAsync(library, scope, retryFailedProbes, cancellationToken).ConfigureAwait(false);
+            return await ScanCoreAsync(library, scope, retryFailedProbes, deleted, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -52,7 +69,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         }
     }
 
-    private async Task<ScanResult> ScanCoreAsync(Library library, string? scope, bool retryFailedProbes, CancellationToken cancellationToken)
+    private async Task<ScanResult> ScanCoreAsync(Library library, string? scope, bool retryFailedProbes, bool deleted, CancellationToken cancellationToken)
     {
         var roots = library.Folders.Select(f => f.Path).ToList();
         var targets = scope is null
@@ -65,21 +82,27 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         foreach (var (root, target) in targets)
         {
+            // Only a scan of the whole folder records or ends a hold: a webhook's counts are of its own corner.
+            var full = PathComparison.IsUnder(root, target);
+            var folder = await db.LibraryFolders.FirstOrDefaultAsync(f => f.LibraryId == library.Id && f.Path == root, cancellationToken).ConfigureAwait(false);
             if (!Directory.Exists(root))
             {
                 // An unmounted drive must not look like "everything was deleted".
                 LogRootMissing(root);
                 held = true;
+                if (full && folder is not null && folder.Hold != FolderHold.FolderMissing)
+                {
+                    Hold(folder, FolderHold.FolderMissing, 0, 0, DateTime.UtcNow);
+                    await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
+
                 continue;
             }
 
             // Missing files too, so one that comes back picks up where it left off.
             var existing = new Dictionary<string, MediaFile>(StringComparer.Ordinal);
             var duplicates = new List<MediaFile>();
-            var known = await db.MediaFiles.IgnoreQueryFilters()
-                .Where(f => f.MediaItem!.LibraryId == library.Id && (f.Path == target || f.Path.StartsWith(target + "/")))
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
+            var known = await KnownFilesAsync(library.Id, root, target, cancellationToken).ConfigureAwait(false);
             foreach (var file in known)
             {
                 if (!existing.TryAdd(PathComparison.Key(file.Path), file))
@@ -88,12 +111,28 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 }
             }
 
+            var suspicious = false; // The folder looked unmounted or cleared out; normal again clears the record of that.
+            var released = false;
             if (existing.Count > 0 && IsEmpty(root))
             {
-                // A network share or external drive that hasn't mounted yet often leaves an empty folder behind.
-                LogRootEmpty(root, existing.Count);
-                held = true;
-                continue;
+                // A network share or external drive that hasn't mounted yet often leaves an empty folder behind. Not when
+                // Radarr or Sonarr have just said they deleted these files themselves, though.
+                suspicious = true;
+                var hiding = existing.Values.Count(f => f.MissingSince is null) + duplicates.Count(f => f.MissingSince is null);
+                if (!(deleted && !full) && KeepHolding(folder, FolderHold.FolderEmpty, hiding, existing.Count, full))
+                {
+                    LogRootEmpty(root, existing.Count);
+                    held = true;
+                    await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (deleted && folder is not null)
+                {
+                    folder.ReleasedAt ??= DateTime.UtcNow; // Emptied by Radarr/Sonarr: later scans let what it hid go too.
+                }
+
+                released = true;
             }
 
             var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music)
@@ -189,13 +228,20 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var gone = existing.Values.Where(f => !seen.Contains(PathComparison.Key(f.Path))).Concat(duplicates)
                 .Where(f => f.MissingSince is null)
                 .ToList();
-            if (PathComparison.IsUnder(root, target) && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
+            var holding = false;
+            if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
                 // Most of a library vanishing at once is far likelier a mount or permissions problem than a clear-out.
-                LogMassRemoval(root, gone.Count, existing.Count);
-                held = true;
+                suspicious = true;
+                holding = KeepHolding(folder, FolderHold.MostFilesGone, gone.Count, existing.Count, full);
+                if (holding)
+                {
+                    LogMassRemoval(root, gone.Count, existing.Count);
+                    held = true;
+                }
             }
-            else
+
+            if (!holding)
             {
                 var now = DateTime.UtcNow;
                 foreach (var file in gone)
@@ -203,6 +249,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     file.MissingSince = now;
                     missing++;
                 }
+            }
+
+            if (full && !suspicious && folder is not null && (folder.Hold is not null || folder.ReleasedAt is not null))
+            {
+                Clear(folder, releasedAt: null); // Looks normal again.
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -215,6 +266,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         await PruneEmptyItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
         await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
+        await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -252,6 +305,103 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         }
 
         return current;
+    }
+
+    /// <summary>
+    /// The library's files at or under <paramref name="target"/>, missing ones included. When the target isn't on disk
+    /// (a deleted series folder) it keeps the webhook's spelling, which may not be how its files were stored ("é"
+    /// composed, say, where the files have it decomposed): then they're matched by <see cref="PathComparison.Key"/>
+    /// among the files of the nearest folder that is there.
+    /// </summary>
+    private async Task<List<MediaFile>> KnownFilesAsync(Guid libraryId, string root, string target, CancellationToken ct)
+    {
+        var files = db.MediaFiles.IgnoreQueryFilters().Where(f => f.MediaItem!.LibraryId == libraryId);
+        if (Directory.Exists(target) || File.Exists(target))
+        {
+            return await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false);
+        }
+
+        var prefix = Path.GetDirectoryName(target);
+        while (prefix is not null && PathComparison.IsUnder(prefix, root) && !Directory.Exists(prefix))
+        {
+            prefix = Path.GetDirectoryName(prefix);
+        }
+
+        prefix = prefix is not null && PathComparison.IsUnder(prefix, root) ? prefix.TrimEnd('/') : root.TrimEnd('/');
+        var candidates = await files.AsNoTracking().Where(f => f.Path.StartsWith(prefix + "/")).Select(f => new { f.Id, f.Path })
+            .ToListAsync(ct).ConfigureAwait(false);
+        var ids = candidates.Where(f => PathComparison.IsUnder(f.Path, target)).Select(f => f.Id).ToList();
+        return ids.Count == 0 ? [] : await files.Where(f => ids.Contains(f.Id)).ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Whether a suspicious-looking folder's files stay as they are this scan, recording the hold for Library health.
+    /// It's let through when someone confirmed the removal there, or (for <see cref="FolderHold.MostFilesGone"/>) when
+    /// full scans have found exactly the same <see cref="SettledScans"/> times over <see cref="SettledAfter"/>; and once
+    /// let through, what it hid isn't held again while the folder still looks the same.
+    /// </summary>
+    /// <param name="folder">The library folder; null if it isn't one (never held, then).</param>
+    /// <param name="reason">What looked wrong.</param>
+    /// <param name="hiding">The files this scan would hide.</param>
+    /// <param name="known">The files the library knows in the folder.</param>
+    /// <param name="full">A scan of the whole folder: only these record, or end, a hold.</param>
+    private bool KeepHolding(LibraryFolder? folder, FolderHold reason, int hiding, int known, bool full)
+    {
+        if (folder is null)
+        {
+            return true;
+        }
+
+        if (hiding == 0 && folder.ReleasedAt is not null)
+        {
+            return false; // Already let through: what's left is waiting out the grace period.
+        }
+
+        if (!full)
+        {
+            return true;
+        }
+
+        var now = DateTime.UtcNow;
+        if (folder.Hold != reason || folder.HeldMissing != hiding || folder.HeldKnown != known || folder.HeldSince is null)
+        {
+            Hold(folder, reason, hiding, known, now); // Something new: start counting again (and ask again).
+            return true;
+        }
+
+        folder.HeldScans++;
+        var confirmed = folder.RemovalConfirmed;
+        var settled = reason == FolderHold.MostFilesGone && folder.HeldScans >= SettledScans && now - folder.HeldSince >= SettledAfter;
+        if (!confirmed && !settled)
+        {
+            return true;
+        }
+
+        LogHoldReleased(folder.Path, hiding, known, confirmed ? "the removal was confirmed" : $"{folder.HeldScans} scans over {(now - folder.HeldSince.Value).TotalHours:F0} hours found the same");
+        Clear(folder, releasedAt: now);
+        return false;
+    }
+
+    private static void Hold(LibraryFolder folder, FolderHold reason, int hiding, int known, DateTime now)
+    {
+        folder.Hold = reason;
+        folder.HeldSince = now;
+        folder.HeldScans = 1;
+        folder.HeldMissing = hiding;
+        folder.HeldKnown = known;
+        folder.RemovalConfirmed = false;
+        folder.ReleasedAt = null;
+    }
+
+    private static void Clear(LibraryFolder folder, DateTime? releasedAt)
+    {
+        folder.Hold = null;
+        folder.HeldSince = null;
+        folder.HeldScans = 0;
+        folder.HeldMissing = 0;
+        folder.HeldKnown = 0;
+        folder.RemovalConfirmed = false;
+        folder.ReleasedAt = releasedAt;
     }
 
     private static bool IsEmpty(string directory)
@@ -335,10 +485,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     private async Task PruneEmptyItemsAsync(Guid libraryId, CancellationToken ct)
     {
         // Missing files still count: their items wait out the grace period with them.
+        // Their history and collections are kept a while, by id, in case the title comes back under a new path.
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
-        await items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track) && !i.Files.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        var playable = items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track) && !i.Files.Any());
+        await WatchHistoryCarryOver.BuryAsync(db, playable, ct).ConfigureAwait(false);
+        await playable.ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await items.Where(i => (i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        var containers = items.Where(i => (i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist) && !i.Children.Any());
+        await WatchHistoryCarryOver.BuryAsync(db, containers, ct).ConfigureAwait(false);
+        await containers.ExecuteDeleteAsync(ct).ConfigureAwait(false);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Library folder {Root} is missing; skipping so its items are not removed")]
@@ -349,6 +504,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Missing} of the {Known} files in {Root} have gone at once; keeping them all in case the drive or share is having trouble")]
     private partial void LogMassRemoval(string root, int missing, int known);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "No longer holding {Root}: hiding {Missing} of its {Known} files, as {Why}")]
+    private partial void LogHoldReleased(string root, int missing, int known, string why);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not probe {Path}: {Error}")]
     private partial void LogProbeFailed(string path, string error);
