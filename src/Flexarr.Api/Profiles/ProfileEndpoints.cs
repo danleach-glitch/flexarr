@@ -146,13 +146,12 @@ public static partial class ProfileEndpoints
 
             if (profile.PinHash is not null)
             {
-                var caller = current.SignInId ?? http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var (result, retryAfter) = await guard.CheckAsync(profile.Id, caller, () => profile.CheckPin(request.Pin), ct);
+                var caller = PinCaller(http, current);
+                // Someone who may already manage the server could change the PIN anyway, so others' guesses don't hold them up.
+                var (result, retryAfter) = await guard.CheckAsync(profile.Id, caller, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin);
                 if (result == PinCheck.LockedOut)
                 {
-                    http.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    var minutes = (int)Math.Ceiling(retryAfter.TotalMinutes);
-                    return Results.Problem($"Too many wrong PINs. Try again in {(minutes <= 1 ? "a minute" : $"{minutes} minutes")}.", statusCode: 429);
+                    return TooManyPins(http, retryAfter);
                 }
 
                 if (result == PinCheck.Wrong)
@@ -194,6 +193,20 @@ public static partial class ProfileEndpoints
         }).WithTags("Profiles").AllowAnonymous();
 
         return api;
+    }
+
+    /// <summary>Who is guessing a PIN, for <see cref="PinGuard"/>: the browser or device, else the Tailscale account, else the address.</summary>
+    internal static string PinCaller(HttpContext http, CurrentProfile current) =>
+        current.SignInId ?? http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    /// <summary>A 429 saying how long to wait, with Retry-After.</summary>
+    internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter)
+    {
+        var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+        http.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var minutes = (int)Math.Ceiling(retryAfter.TotalMinutes);
+        var when = seconds < 60 ? $"{seconds} second{(seconds == 1 ? "" : "s")}" : minutes <= 1 ? "a minute" : $"{minutes} minutes";
+        return Results.Problem($"Too many wrong PINs. Try again in {when}.", statusCode: 429);
     }
 
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>

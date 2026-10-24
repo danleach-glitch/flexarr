@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
@@ -37,9 +36,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
 {
     public const int Port = 8443;
 
-    private static readonly TimeSpan WhoisLifetime = TimeSpan.FromMinutes(1);
-
-    private readonly ConcurrentDictionary<IPAddress, (string? Login, DateTime At)> _whois = new();
+    private readonly WhoisCache _whois = new(WhoisAsync, clock);
 
     private static readonly string[] Candidates =
     [
@@ -136,40 +133,40 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     }
 
     /// <summary>
-    /// Asks Tailscale who owns a tailnet address (<c>tailscale whois</c>), remembered for a minute. Used to check the
-    /// identity <c>tailscale serve</c> puts on a request against the address it says the request came from.
+    /// Asks Tailscale who owns a tailnet address (<c>tailscale whois</c>). Used to check the identity
+    /// <c>tailscale serve</c> puts on a request against the address it says the request came from. See
+    /// <see cref="WhoisCache"/> for how answers are shared and kept.
     /// </summary>
-    public async Task<string?> LoginAsync(IPAddress address, CancellationToken ct)
+    public Task<string?> LoginAsync(IPAddress address, CancellationToken ct) => _whois.LoginAsync(address, ct);
+
+    /// <summary>One <c>tailscale whois</c> run, with its own time limit (not any one request's).</summary>
+    private static async Task<WhoisAnswer> WhoisAsync(IPAddress address)
     {
-        ArgumentNullException.ThrowIfNull(address);
-        var now = clock.GetUtcNow().UtcDateTime;
-        if (_whois.TryGetValue(address, out var cached) && now - cached.At < WhoisLifetime)
+        if (Cli is null)
         {
-            return cached.Login;
+            return new WhoisAnswer(null, Definite: true);
         }
 
-        string? login = null;
-        if (Cli is not null)
+        var (ok, json, error) = await RunAsync(TimeSpan.FromSeconds(5), CancellationToken.None, "whois", "--json", address.ToString());
+        if (!ok)
         {
-            var (ok, json, _) = await RunAsync(TimeSpan.FromSeconds(5), ct, "whois", "--json", address.ToString());
-            if (ok)
-            {
-                try
-                {
-                    using var whois = JsonDocument.Parse(json);
-                    login = whois.RootElement.TryGetProperty("UserProfile", out var user) && user.TryGetProperty("LoginName", out var name)
-                        ? name.GetString()
-                        : null;
-                }
-                catch (JsonException)
-                {
-                    // Not what whois normally prints: treat the address as unknown.
-                }
-            }
+            // Didn't answer in time: worth asking again straight away. Anything else (not a peer) is an answer.
+            return new WhoisAnswer(null, Definite: error != TimedOut);
         }
 
-        _whois[address] = (login, now);
-        return login;
+        try
+        {
+            using var whois = JsonDocument.Parse(json);
+            var login = whois.RootElement.TryGetProperty("UserProfile", out var user) && user.TryGetProperty("LoginName", out var name)
+                ? name.GetString()
+                : null;
+            return new WhoisAnswer(login, Definite: true);
+        }
+        catch (JsonException)
+        {
+            // Not what whois normally prints: treat the address as unknown.
+            return new WhoisAnswer(null, Definite: true);
+        }
     }
 
     private static Task<(bool Ok, string Output, string Error)> RunAsync(CancellationToken ct, params string[] args) =>
@@ -195,10 +192,97 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or OperationCanceledException)
         {
-            return (false, "", ex is OperationCanceledException ? "Tailscale didn't answer in time." : ex.Message);
+            return (false, "", ex is OperationCanceledException ? TimedOut : ex.Message);
         }
     }
 
+    private const string TimedOut = "Tailscale didn't answer in time.";
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Private access over Tailscale turned {State}")]
     private partial void LogChanged(string state);
+}
+
+/// <param name="Definite">Tailscale answered (even "nobody"), rather than timing out.</param>
+public sealed record WhoisAnswer(string? Login, bool Definite);
+
+/// <summary>
+/// Who owns each tailnet address, shared by every request. A browser over Tailscale has no session cookie, so each of
+/// its requests depends on this: a page of posters asks dozens at once. They wait on one lookup per address, which
+/// runs on its own clock, so a request that's given up (the user scrolled on) can't spoil the answer for the rest.
+/// A login is kept for a minute and "nobody" for a few seconds; a lookup that timed out isn't kept at all.
+/// </summary>
+public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimeProvider clock)
+{
+    public static readonly TimeSpan LoginLifetime = TimeSpan.FromMinutes(1);
+    public static readonly TimeSpan UnknownLifetime = TimeSpan.FromSeconds(5);
+    private const int MaxRemembered = 1000;
+
+    private readonly Lock _lock = new();
+    private readonly Dictionary<IPAddress, Entry> _entries = [];
+
+    private sealed class Entry(Task<WhoisAnswer> lookup)
+    {
+        public Task<WhoisAnswer> Lookup { get; } = lookup;
+
+        /// <summary>When the answer goes stale; set once the lookup finishes.</summary>
+        public DateTime? KeepUntil { get; set; }
+    }
+
+    public async Task<string?> LoginAsync(IPAddress address, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        Entry? started = null;
+        Entry entry;
+        lock (_lock)
+        {
+            var now = clock.GetUtcNow().UtcDateTime;
+            if (!_entries.TryGetValue(address, out entry!) || entry.KeepUntil is { } until && until <= now)
+            {
+                if (_entries.Count >= MaxRemembered)
+                {
+                    foreach (var stale in _entries.Where(e => e.Value.KeepUntil <= now).Select(e => e.Key).ToList())
+                    {
+                        _entries.Remove(stale);
+                    }
+                }
+
+                entry = started = new Entry(Task.Run(() => lookup(address), CancellationToken.None));
+                _entries[address] = entry;
+            }
+        }
+
+        if (started is not null)
+        {
+            _ = started.Lookup.ContinueWith(done => Settle(address, started, done), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+
+        try
+        {
+            return (await entry.Lookup.WaitAsync(ct)).Login;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null; // the lookup itself failed; Settle has already let the next request try again
+        }
+    }
+
+    private void Settle(IPAddress address, Entry entry, Task<WhoisAnswer> done)
+    {
+        lock (_lock)
+        {
+            var answer = done.IsCompletedSuccessfully ? done.Result : null;
+            if (answer is not { Definite: true })
+            {
+                // Timed out or failed: the next request asks again.
+                if (_entries.TryGetValue(address, out var current) && ReferenceEquals(current, entry))
+                {
+                    _entries.Remove(address);
+                }
+
+                return;
+            }
+
+            entry.KeepUntil = clock.GetUtcNow().UtcDateTime + (answer.Login is null ? UnknownLifetime : LoginLifetime);
+        }
+    }
 }

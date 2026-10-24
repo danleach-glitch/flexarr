@@ -67,9 +67,19 @@ export function ConnectTv({ initialCode = '' }: { initialCode?: string }) {
       {details ? (
         <>
           <h2>Connect {details.deviceName}?</h2>
+          <dl className="facts-list">
+            <dt>Code</dt>
+            <dd>
+              <strong>{details.code}</strong>
+            </dd>
+            <dt>Asked from</dt>
+            <dd>
+              {details.requestedFrom ? <strong>{details.requestedFrom}</strong> : 'an unknown address'}, {details.zone === 'Tailnet' ? 'over Tailscale' : 'on your home network'}
+            </dd>
+          </dl>
           <p className="muted">
-            It showed the code <strong>{details.code}</strong> and asked from {details.zone === 'Tailnet' ? 'Tailscale' : 'your home network'}
-            {details.requestedFrom ? ` (${details.requestedFrom})` : ''}. Allowing it gives it access to this Flexarr server, like any other device you’ve
+            Only allow it if this code is on your own TV’s screen right now. The name is whatever the device chose to call itself, so it proves nothing; a code
+            you didn’t start yourself, or one someone sent you, isn’t your TV. Allowing it gives it access to this Flexarr server, like any other device you’ve
             signed in. You can sign it out later in Settings › Server.
           </p>
           {details.zone !== 'Local' && (

@@ -1,6 +1,8 @@
 using System.Net;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -38,6 +40,19 @@ public class NetworkZoneTests
         http.Request.Headers["X-Forwarded-For"] = "203.0.113.9";
 
         Assert.Equal(NetworkZone.Internet, NetworkZones.Of(http));
+    }
+
+    [Theory]
+    [InlineData(false, NetworkZone.Local)]
+    [InlineData(true, NetworkZone.Internet)]
+    public void PlainLoopback_CountsAsTheInternet_WhenAProxyHereMustSayWhoItsFor(bool loopbackNeedsForwarding, NetworkZone expected)
+    {
+        // What a bare `proxy_pass http://127.0.0.1:8383;` sends: nothing about the visitor.
+        var services = new ServiceCollection().AddOptions().Configure<FlexarrOptions>(o => o.LoopbackNeedsForwarding = loopbackNeedsForwarding);
+        var http = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() };
+        http.Connection.RemoteIpAddress = IPAddress.Loopback;
+
+        Assert.Equal(expected, NetworkZones.Of(http));
     }
 
     [Theory]

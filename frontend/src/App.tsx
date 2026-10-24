@@ -1,6 +1,17 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
-import { getMe, getProfiles, getSystemStatus, migrateStoredApiKey, profileToken, signIn, UnauthorizedError, type Profile } from './api/client'
+import {
+  clearApiCache,
+  getMe,
+  getProfiles,
+  getSystemStatus,
+  migrateStoredApiKey,
+  profileToken,
+  saveProfileToken,
+  signIn,
+  UnauthorizedError,
+  type Profile,
+} from './api/client'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -102,6 +113,14 @@ export default function App() {
         ]),
       )
       .then(([profiles, me]) => {
+        // A stored choice the server no longer honours (the key or the PIN changed, or the profile went) would
+        // quietly watch as someone else, often the main profile: forget it and ask again.
+        const token = profileToken()
+        if (token && me && token.slice(0, token.lastIndexOf('.')) !== me.profileId) {
+          saveProfileToken(null)
+          sessionStorage.removeItem('flexarr.profileChosen')
+          clearApiCache()
+        }
         // Ask who's watching when the household has several profiles and this device hasn't chosen one.
         // Over Tailscale the person is already known from their Tailscale account.
         const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1' || me?.method === 'tailscale'

@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
 
@@ -128,14 +130,16 @@ public static class PairingEndpoints
     /// <summary>
     /// The TV's side: no key yet, so these are anonymous (the id is a 128-bit secret). Only from the home network or
     /// tailnet: a stranger on the internet could otherwise name their device "Living room TV" and send you its link.
+    /// And only addressed to one of this server's names, so a web page open on your network can't use your browser to
+    /// ask (DNS rebinding), then read the token once you approve it.
     /// </summary>
     public static RouteGroupBuilder MapPairingDeviceEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/pairing").WithTags("Pairing").AllowAnonymous();
-        group.MapPost("/", (PairingStartRequest request, HttpContext http, Pairings pairings) =>
+        group.MapPost("/", (PairingStartRequest request, HttpContext http, Pairings pairings, IOptionsMonitor<FlexarrOptions> options) =>
         {
             var zone = NetworkZones.Of(http);
-            if (zone == NetworkZone.Internet)
+            if (zone == NetworkZone.Internet || !NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts))
             {
                 return Results.Problem("A TV can only connect this way from your home network or over Tailscale. Type the API key on the TV instead.", statusCode: 403);
             }
@@ -144,7 +148,10 @@ public static class PairingEndpoints
                 ? Results.Ok(started)
                 : Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
         });
-        group.MapGet("/{id}", (string id, Pairings pairings) => pairings.Status(id));
+        group.MapGet("/{id}", (string id, HttpContext http, Pairings pairings, IOptionsMonitor<FlexarrOptions> options) =>
+            NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts)
+                ? Results.Ok(pairings.Status(id))
+                : Results.Problem("Connect to this server at its own address.", statusCode: 403));
         return api;
     }
 

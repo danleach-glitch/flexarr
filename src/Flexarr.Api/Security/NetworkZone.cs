@@ -66,6 +66,12 @@ public static class NetworkZones
                 return NetworkZone.Internet;
             }
         }
+        else if (Normalize(peer) is { } direct && IPAddress.IsLoopback(direct)
+            && http.RequestServices?.GetService<IOptionsMonitor<Configuration.FlexarrOptions>>()?.CurrentValue.LoopbackNeedsForwarding == true)
+        {
+            // A reverse proxy here that doesn't say who it's forwarding for makes every visitor look like this machine.
+            return NetworkZone.Internet;
+        }
 
         return Classify(http.Connection.RemoteIpAddress);
     }

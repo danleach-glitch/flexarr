@@ -155,6 +155,29 @@ private struct PairWithServer: View {
         server.address.appending(path: "link").appending(queryItems: [URLQueryItem(name: "code", value: pairing.code)])
     }
 
+    /// Signs in with the token the server just handed over. It's only handed over once, so a network blip here
+    /// is retried a few times rather than starting over with a new code (and leaving a sign-in nobody holds).
+    private func connect(with token: String) async throws {
+        var attempt = 0
+        while true {
+            do {
+                try await model.connect(address: server.address.absoluteString, apiKey: token)
+                return
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                attempt += 1
+                guard attempt < 5 else {
+                    // Give up on this one: sign it out (best effort) so it doesn't linger in the list.
+                    try? await FlexarrClient(baseURL: server.address, apiKey: token).signOut()
+                    throw error
+                }
+                self.error = "Connecting… (\(ConnectionError(error).message))"
+                try await Task.sleep(for: .seconds(2 * attempt))
+            }
+        }
+    }
+
     /// Gets a code, then polls until it's approved (and signs in) or expires (and gets a new one).
     private func pair() async {
         let client = FlexarrClient(baseURL: server.address)
@@ -167,7 +190,7 @@ private struct PairWithServer: View {
                     try await Task.sleep(for: .seconds(2))
                     let status = try await client.pairingStatus(started.id)
                     if status.status == "approved", let key = status.apiKey {
-                        try await model.connect(address: server.address.absoluteString, apiKey: key)
+                        try await connect(with: key)
                         return
                     }
                     if status.status == "expired" { break } // a fresh code next time round

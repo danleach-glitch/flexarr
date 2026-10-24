@@ -3,7 +3,10 @@ import { ApiError, getSignIns, revokeSignIn, signOut, type SignIn } from '../api
 import { useApi } from '../hooks/useApi'
 import { relativeTime } from '../lib/format'
 
-const where = (s: SignIn) => (s.zone === 'Local' ? 'home network' : s.zone === 'Tailnet' ? 'Tailscale' : 'internet')
+/** Signed in during the last three days: worth a second look if nobody remembers doing it. */
+const isNew = (s: SignIn) => Date.now() - new Date(s.createdAt).getTime() < 3 * 24 * 60 * 60 * 1000
+
+const where =(s: SignIn) => (s.zone === 'Local' ? 'home network' : s.zone === 'Tailnet' ? 'Tailscale' : 'internet')
 
 /**
  * Browsers and TVs signed in with their own token (Settings › Server). Signing one out ends just that one: a lost TV
@@ -45,6 +48,11 @@ export function SignIns() {
               <span>
                 <strong>{s.name}</strong>
                 {s.isThisOne && <span className="tag">This browser</span>}
+                {!s.isThisOne && isNew(s) && (
+                  <span className="tag" title="Signed in during the last three days. If you don’t recognise it, sign it out.">
+                    New
+                  </span>
+                )}
                 <span className="muted">
                   {' '}
                   {s.kind === 'Device' ? 'Connected' : 'Signed in'} {new Date(s.createdAt).toLocaleDateString()} from the {where(s)}

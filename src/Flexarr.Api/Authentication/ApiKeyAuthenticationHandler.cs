@@ -23,7 +23,8 @@ namespace Flexarr.Api.Authentication;
 /// Each browser has its own, which can be signed out from Settings.</item>
 /// <item>A Tailscale identity: <c>tailscale serve</c> adds the sender's verified login to requests from your tailnet.
 /// Only believed when the connection came from this machine, for a tailnet address that Tailscale confirms belongs to
-/// that login, and mapped to the profile linked to that Tailscale account.</item>
+/// that login, and mapped to the profile linked to that Tailscale account. Managing the server over Tailscale also
+/// takes the main profile's PIN or the browser's own sign-in.</item>
 /// <item>The home network, when "only away from home" is chosen. Never applies to tunnelled traffic.</item>
 /// </list>
 /// Then it works out the profile the request acts for and whether it may manage the server (see
@@ -84,7 +85,8 @@ public sealed class ApiKeyAuthenticationHandler(
                 return await SucceedAsync(Methods.Session, browser);
             }
 
-            if (!string.IsNullOrEmpty(options.ApiKey) && IsApiKey(cookie, LegacySessionValue(options.ApiKey)))
+            // Earlier versions' shared cookie, for the month after upgrading (see FlexarrOptions.LegacySignInsUntil).
+            if (!string.IsNullOrEmpty(options.ApiKey) && options.AcceptsLegacySignIns(DateTime.UtcNow) && IsApiKey(cookie, LegacySessionValue(options.ApiKey)))
             {
                 return await SucceedAsync(Methods.Session, await UpgradeLegacyCookieAsync());
             }
@@ -157,8 +159,9 @@ public sealed class ApiKeyAuthenticationHandler(
     /// The Tailscale login on a request, if it can be believed: it came over a loopback connection (from
     /// <c>tailscale serve</c> on this machine) for a client on the tailnet, not through Funnel, addressed to one of this
     /// server's names, and Tailscale says that client's address belongs to that login. A device on the LAN connecting
-    /// directly can't set it, because its connection isn't loopback; another program on this machine can't claim to
-    /// be someone without also knowing the address of one of their devices.
+    /// directly can't set it, because its connection isn't loopback. Another program on this machine can still claim
+    /// to be someone if it knows the address of one of their devices (<c>tailscale status</c> lists them), which is
+    /// why a Tailscale identity alone never manages the server (see <see cref="SucceedAsync"/>).
     /// </summary>
     private static async Task<string?> TrustedTailscaleLoginAsync(HttpContext http, ITailnetWhois whois, FlexarrOptions options)
     {
@@ -180,7 +183,7 @@ public sealed class ApiKeyAuthenticationHandler(
     /// <summary>A browser signed in by an earlier version: swap its shared cookie for its own session, which can be signed out.</summary>
     private async Task<SignIn> UpgradeLegacyCookieAsync()
     {
-        var chosen = await ChosenProfileAsync(Context.RequestServices.GetRequiredService<FlexarrDbContext>());
+        var chosen = (await ChosenProfileAsync(Context.RequestServices.GetRequiredService<FlexarrDbContext>()))?.Id;
         var now = DateTime.UtcNow;
         foreach (var (stale, _) in Upgrading.Where(u => u.Value.IsValueCreated && now - u.Value.Value.SignIn.CreatedAt > TimeSpan.FromMinutes(1)))
         {
@@ -189,22 +192,33 @@ public sealed class ApiKeyAuthenticationHandler(
 
         // The page's first requests arrive together; they share one new session rather than making one each.
         var key = $"{Context.Connection.RemoteIpAddress}|{Request.Headers.UserAgent}";
-        var pending = Upgrading.GetOrAdd(key, _ => new Lazy<(SignIn, string)>(() =>
-            signIns.Issue(SignInKind.Browser, BrowserName(Request), NetworkZones.Of(Context), Context.Connection.RemoteIpAddress?.ToString(),
-                chosen == PlaybackState.DefaultUser ? null : chosen)));
-        (SignIn SignIn, string Token) issued;
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            issued = pending.Value;
-        }
-        catch
-        {
-            Upgrading.TryRemove(key, out _); // let the next request try again
-            throw;
-        }
+            var pending = Upgrading.GetOrAdd(key, _ => new Lazy<(SignIn, string)>(() =>
+                signIns.Issue(SignInKind.Browser, BrowserName(Request), NetworkZones.Of(Context), Context.Connection.RemoteIpAddress?.ToString(),
+                    chosen == PlaybackState.DefaultUser ? null : chosen)));
+            (SignIn SignIn, string Token) issued;
+            try
+            {
+                issued = pending.Value;
+            }
+            catch
+            {
+                Upgrading.TryRemove(key, out _); // let the next request try again
+                throw;
+            }
 
-        AppendSessionCookie(Context, issued.Token);
-        return issued.SignIn;
+            // Signed out from Settings since it was made: don't go on using it, make another.
+            var current = signIns.Find(issued.Token, SignInKind.Browser);
+            if (current is null && attempt == 0)
+            {
+                Upgrading.TryRemove(new KeyValuePair<string, Lazy<(SignIn, string)>>(key, pending));
+                continue;
+            }
+
+            AppendSessionCookie(Context, issued.Token);
+            return current ?? issued.SignIn;
+        }
     }
 
     /// <summary>Signs the request in, working out its profile and whether it may manage the server.</summary>
@@ -237,8 +251,17 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             var basis = linkedProfile ?? PlaybackState.DefaultUser;
             trusted = method != Methods.Tailscale || basis == PlaybackState.DefaultUser;
-            profile = await ChosenProfileAsync(db) ?? basis;
-            admin = method == Methods.ApiKey || profile == PlaybackState.DefaultUser;
+            var chosen = await ChosenProfileAsync(db);
+            profile = chosen?.Id ?? basis;
+            admin = method switch
+            {
+                Methods.ApiKey => true,
+                // Another program on this machine can pose as a tailnet user (it only needs one of their devices'
+                // addresses), so over Tailscale the identity alone watches as the main profile but doesn't manage the
+                // server: that takes the main profile chosen with its PIN, or this browser signed in with the API key.
+                Methods.Tailscale => profile == PlaybackState.DefaultUser && chosen is { WithPin: true },
+                _ => profile == PlaybackState.DefaultUser,
+            };
         }
 
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
@@ -265,8 +288,11 @@ public sealed class ApiKeyAuthenticationHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
 
+    /// <param name="WithPin">The token was issued after its PIN was checked (the profile has one, and it hasn't changed).</param>
+    private sealed record Chosen(string Id, bool WithPin);
+
     /// <summary>The profile named by a valid <c>X-Flexarr-Profile</c> token, if it still exists.</summary>
-    private async Task<string?> ChosenProfileAsync(FlexarrDbContext db)
+    private async Task<Chosen?> ChosenProfileAsync(FlexarrDbContext db)
     {
         var token = Request.Headers[CurrentProfile.Header].FirstOrDefault();
         var dot = token?.LastIndexOf('.') ?? -1;
@@ -276,8 +302,20 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var id = token[..dot];
+        var options = flexarrOptions.CurrentValue;
         var found = await db.Profiles.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.PinHash }).FirstOrDefaultAsync(Context.RequestAborted);
-        return found is not null && CurrentProfile.Verifies(flexarrOptions.CurrentValue.ApiKey, id, found.PinHash, token[(dot + 1)..]) ? id : null;
+        if (found is null)
+        {
+            return null;
+        }
+
+        var signature = token[(dot + 1)..];
+        if (found.PinHash is not null && CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, signature, acceptLegacy: false))
+        {
+            return new Chosen(id, WithPin: true);
+        }
+
+        return CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, signature, options.AcceptsLegacySignIns(DateTime.UtcNow)) ? new Chosen(id, WithPin: false) : null;
     }
 
     private static bool IsApiKey(string provided, string? key) =>

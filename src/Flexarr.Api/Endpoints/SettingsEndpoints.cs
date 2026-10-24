@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Authentication;
 using Flexarr.Api.Playback;
+using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
@@ -41,6 +43,11 @@ public sealed record SettingsUpdate(
     IReadOnlyList<PathMapping>? PathMappings,
     IReadOnlyList<ArrConnectionUpdate>? Arr,
     SeerrConnectionUpdate? Seerr = null);
+
+/// <param name="Pin">The main profile's PIN, when it has one.</param>
+/// <param name="Confirm">The person said yes, when the main profile has no PIN.</param>
+/// <param name="SignOutOthers">On rotating: sign out every other browser and device too.</param>
+public sealed record KeyRequest(string? Pin = null, bool Confirm = false, bool SignOutOthers = false);
 
 public sealed record ArrStatusDto(string Name, ArrKind Kind, bool Ok, string? Version, string? Error);
 
@@ -127,21 +134,44 @@ public static class SettingsEndpoints
         });
 
         // Showing the key is a POST, so it needs the web app's own header (see RequestForgery) and can't be read by a
-        // cross-site <script> or <img>.
-        group.MapPost("/api-key/reveal", (IOptionsMonitor<FlexarrOptions> options) => new { apiKey = options.CurrentValue.ApiKey });
+        // cross-site <script> or <img>. It also asks again (see ConfirmKeyAsync).
+        group.MapPost("/api-key/reveal", async (KeyRequest? request, HttpContext http, IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db,
+            CurrentProfile current, PinGuard guard, CancellationToken ct) =>
+            await ConfirmKeyAsync(request, http, db, current, guard, ct) ?? Results.Ok(new { apiKey = options.CurrentValue.ApiKey }));
 
-        // A new key. Browsers and devices with their own sign-in carry on; anything given the old key itself (Sonarr and
-        // Radarr's Emby connection, scripts, Apple TVs set up before per-device sign-ins) needs the new one.
-        group.MapPost("/api-key/rotate", async (IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        // A new key. Browsers and devices with their own sign-in carry on, unless asked to sign them all out too (if the
+        // key got out, someone could have used it to sign in); anything given the old key itself (Sonarr and Radarr's
+        // Emby connection, scripts, Apple TVs set up before per-device sign-ins) needs the new one.
+        group.MapPost("/api-key/rotate", async (KeyRequest? request, HttpContext http, IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db,
+            CurrentProfile current, PinGuard guard, SignIns signIns, CancellationToken ct) =>
         {
+            if (await ConfirmKeyAsync(request, http, db, current, guard, ct) is { } refused)
+            {
+                return refused;
+            }
+
             var key = Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
             ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["apiKey"] = key);
+            var signedOut = request?.SignOutOthers == true ? signIns.RevokeAllExcept(current.SignInId) : 0;
             for (var i = 0; i < 20 && options.CurrentValue.ApiKey != key; i++)
             {
                 await Task.Delay(100, ct);
             }
 
-            return Results.Ok(new { apiKey = key });
+            return Results.Ok(new { apiKey = key, signedOut });
+        });
+
+        // A new webhook secret, if the addresses got out. Sonarr, Radarr and Lidarr need the new addresses.
+        group.MapPost("/webhook-secret/rotate", async (IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            var secret = Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+            ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["webhookSecret"] = secret);
+            for (var i = 0; i < 20 && options.CurrentValue.WebhookSecret != secret; i++)
+            {
+                await Task.Delay(100, ct);
+            }
+
+            return Results.Ok(new { webhookSecret = secret });
         });
 
         api.MapGet("/arr/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
@@ -207,6 +237,39 @@ public static class SettingsEndpoints
         o.FfmpegPath,
         o.FfprobePath,
         o.WebhookSecret);
+
+    /// <summary>
+    /// Showing or replacing the API key asks again, so a script that found its way into the page can't just take it:
+    /// the main profile's PIN when it has one (a script can't know it), otherwise an explicit "yes" from the web app
+    /// (which only stops a page that wasn't written for this). Callers holding the key already needn't.
+    /// </summary>
+    private static async Task<IResult?> ConfirmKeyAsync(KeyRequest? request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
+        CancellationToken ct)
+    {
+        if (http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.ApiKey)
+        {
+            return null;
+        }
+
+        var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
+        if (main?.PinHash is null)
+        {
+            return request?.Confirm == true ? null : Results.Problem("Confirm that you want to see the API key.", statusCode: 400);
+        }
+
+        if (string.IsNullOrEmpty(request?.Pin))
+        {
+            return Results.Problem("Enter the main profile's PIN to see the API key.", statusCode: 403);
+        }
+
+        var (result, retryAfter) = await guard.CheckAsync(main.Id, ProfileEndpoints.PinCaller(http, current), () => main.CheckPin(request.Pin), ct, mayManage: true);
+        return result switch
+        {
+            PinCheck.Right => null,
+            PinCheck.LockedOut => ProfileEndpoints.TooManyPins(http, retryAfter),
+            _ => Results.Problem("That PIN isn't right.", statusCode: 403),
+        };
+    }
 
     /// <summary>An absolute http or https address; anything else (file:, ftp:) is refused.</summary>
     private static Uri? WebAddress(string? text) =>
