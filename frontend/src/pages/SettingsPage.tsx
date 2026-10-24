@@ -171,6 +171,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
           <select value={type} onChange={(e) => setType(e.target.value as LibraryType)}>
             <option value="Movies">Films</option>
             <option value="TvShows">TV shows</option>
+            <option value="Music">Music</option>
           </select>
         </label>
         <label>

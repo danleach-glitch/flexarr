@@ -18,7 +18,9 @@ public static class ItemQueries
                 Backdrop = i.BackdropUrl != null || (i.Parent != null && (i.Parent.BackdropUrl != null || (i.Parent.Parent != null && i.Parent.Parent.BackdropUrl != null))),
                 Logo = i.LogoUrl != null || (i.Parent != null && (i.Parent.LogoUrl != null || (i.Parent.Parent != null && i.Parent.Parent.LogoUrl != null))),
                 Accent = i.AccentColor ?? (i.Parent != null ? i.Parent.AccentColor ?? (i.Parent.Parent != null ? i.Parent.Parent.AccentColor : null) : null),
-                SeriesTitle = i.Kind == MediaKind.Episode ? i.Parent!.Parent!.Title : i.Kind == MediaKind.Season ? i.Parent!.Title : null,
+                // The show for episodes and seasons; the artist for tracks and albums.
+                SeriesTitle = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.Parent!.Title
+                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album ? i.Parent!.Title : null,
                 State = i.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser)
                     .Select(p => new { p.PositionSeconds, p.Watched, p.PlayCount, p.LastPlayedAt }).FirstOrDefault(),
                 Unwatched = i.Kind == MediaKind.Series
@@ -47,5 +49,7 @@ public static class ItemQueries
                     x.State == null ? 0 : x.State.PlayCount,
                     x.State == null ? null : x.State.LastPlayedAt,
                     x.Unwatched),
-                x.SeriesTitle));
+                x.SeriesTitle,
+                x.Item.DiscNumber,
+                x.Item.TrackNumber));
 }

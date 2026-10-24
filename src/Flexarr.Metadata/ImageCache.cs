@@ -40,6 +40,21 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             }
 
             System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            // Local artwork from music folders: cover.jpg next to the files, or art embedded in a track.
+            if (remoteUrl.StartsWith("file://", StringComparison.Ordinal) || remoteUrl.StartsWith("embedded://", StringComparison.Ordinal))
+            {
+                var embedded = remoteUrl.StartsWith("embedded://", StringComparison.Ordinal);
+                var local = embedded ? remoteUrl["embedded://".Length..] : remoteUrl["file://".Length..];
+                if (!File.Exists(local))
+                {
+                    return null;
+                }
+
+                string[] localArgs = ["-v", "error", "-y", "-i", local, .. embedded ? new[] { "-map", "0:v:0", "-an" } : [], "-vf", $"scale='min({snapped},iw)':-2", "-frames:v", "1", "-update", "1", "-q:v", "3", target];
+                return await RunFfmpegAsync(ct, localArgs).ConfigureAwait(false) ? target : null;
+            }
+
             var source = $"{target}.{Guid.NewGuid():N}.download";
             try
             {

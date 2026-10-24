@@ -10,7 +10,14 @@ public sealed record ProbeResult(
     double? DurationSeconds,
     long? Bitrate,
     VideoRange VideoRange,
-    IReadOnlyList<MediaStream> Streams);
+    IReadOnlyList<MediaStream> Streams)
+{
+    /// <summary>Container and first audio stream tags (artist, album, track…), case-insensitive.</summary>
+    public IReadOnlyDictionary<string, string> Tags { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The file carries embedded artwork (e.g. album art in an MP3).</summary>
+    public bool HasCoverArt { get; init; }
+}
 
 public interface IMediaProbe
 {
@@ -69,11 +76,14 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
         string? container = null;
         double? duration = null;
         long? bitrate = null;
+        var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var coverArt = false;
         if (root.TryGetProperty("format", out var format))
         {
             container = NormalizeContainer(Str(format, "format_name"));
             duration = Double(format, "duration");
             bitrate = Long(format, "bit_rate");
+            AddTags(tags, format);
         }
 
         var streams = new List<MediaStream>();
@@ -91,20 +101,31 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
                 };
 
                 // Cover art is stored as a video stream with the attached_pic disposition.
-                if (type is null || (type == StreamType.Video && Disposition(s, "attached_pic")))
+                if (type == StreamType.Video && Disposition(s, "attached_pic"))
+                {
+                    coverArt = true;
+                    continue;
+                }
+
+                if (type is null)
                 {
                     continue;
                 }
 
-                var tags = s.TryGetProperty("tags", out var t) ? t : default;
+                if (type == StreamType.Audio && !streams.Any(x => x.Type == StreamType.Audio))
+                {
+                    AddTags(tags, s); // Ogg and FLAC keep their tags on the stream.
+                }
+
+                var streamTags = s.TryGetProperty("tags", out var t) ? t : default;
                 streams.Add(new MediaStream
                 {
                     Index = s.GetProperty("index").GetInt32(),
                     Type = type.Value,
                     Codec = Str(s, "codec_name") ?? "unknown",
                     Profile = Str(s, "profile"),
-                    Language = tags.ValueKind == JsonValueKind.Object ? Str(tags, "language") : null,
-                    Title = tags.ValueKind == JsonValueKind.Object ? Str(tags, "title") : null,
+                    Language = streamTags.ValueKind == JsonValueKind.Object ? Str(streamTags, "language") : null,
+                    Title = streamTags.ValueKind == JsonValueKind.Object ? Str(streamTags, "title") : null,
                     IsDefault = Disposition(s, "default"),
                     IsForced = Disposition(s, "forced"),
                     Width = Int(s, "width"),
@@ -119,7 +140,23 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
             }
         }
 
-        return new ProbeResult(container, duration, bitrate, range, streams);
+        return new ProbeResult(container, duration, bitrate, range, streams) { Tags = tags, HasCoverArt = coverArt };
+    }
+
+    private static void AddTags(Dictionary<string, string> into, JsonElement element)
+    {
+        if (!element.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var tag in tags.EnumerateObject())
+        {
+            if (tag.Value.ValueKind == JsonValueKind.String && tag.Value.GetString() is { Length: > 0 } value)
+            {
+                into.TryAdd(tag.Name, value.Trim());
+            }
+        }
     }
 
     /// <summary>ffprobe reports demuxer families ("mov,mp4,m4a,…", "matroska,webm"); clients want file formats.</summary>
@@ -128,6 +165,7 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
         null => null,
         var names when names.Contains("mp4") => "mp4",
         var names when names.Contains("matroska") => "mkv",
+        var names when names.Contains("ogg") => "ogg",
         var names => names[0],
     };
 

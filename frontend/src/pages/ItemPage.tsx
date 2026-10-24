@@ -18,6 +18,7 @@ import { Facts } from '../components/Hero'
 import { Check, Film, Play } from '../components/icons'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
+import { AlbumPage, ArtistPage } from './MusicPages'
 import {
   episodeCode,
   episodeLabel,
@@ -38,10 +39,15 @@ export function ItemPage() {
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
 
-  // Seasons live on their series' page.
+  // Seasons live on their series' page, tracks on their album's.
   if (data.item.kind === 'Season' && data.item.parentId) {
     return <Navigate to={`/item/${data.item.parentId}?season=${data.item.seasonNumber}`} replace />
   }
+  if (data.item.kind === 'Track' && data.item.parentId) {
+    return <Navigate to={`/item/${data.item.parentId}`} replace />
+  }
+  if (data.item.kind === 'Album') return <AlbumPage detail={data} />
+  if (data.item.kind === 'Artist') return <ArtistPage detail={data} />
 
   return <Detail key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 }

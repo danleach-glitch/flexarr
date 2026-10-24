@@ -47,7 +47,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 .ToDictionaryAsync(f => f.Path, StringComparer.Ordinal, cancellationToken)
                 .ConfigureAwait(false);
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target).ToList();
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music).ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var work = new List<(FileInfo File, MediaFile? Existing)>();
 
@@ -99,7 +99,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         continue;
                     }
 
-                    var item = state.Resolve(library, root, file.FullName, file.LastWriteTimeUtc);
+                    var item = state.Resolve(library, root, file.FullName, file.LastWriteTimeUtc, result);
                     if (item is null)
                     {
                         unmatched++;
@@ -164,13 +164,13 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.AudioChannels = audio?.Channels;
     }
 
-    /// <summary>Removes movies/episodes without files, then seasons and series without children.</summary>
+    /// <summary>Removes playable items without files, then the albums/seasons and artists/series left empty.</summary>
     private async Task PruneEmptyItemsAsync(Guid libraryId, CancellationToken ct)
     {
         var items = db.MediaItems.Where(i => i.LibraryId == libraryId);
-        await items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode) && !i.Files.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await items.Where(i => i.Kind == MediaKind.Season && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await items.Where(i => i.Kind == MediaKind.Series && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track) && !i.Files.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await items.Where(i => (i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Library folder {Root} is missing; skipping so its items are not removed")]
@@ -206,7 +206,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         /// The file's modified time, used as "date added": it's when Radarr/Sonarr imported it, which is what
         /// "recently added" should mean, rather than when Flexarr first saw it.
         /// </param>
-        public MediaItem? Resolve(Library library, string root, string filePath, DateTime fileTime)
+        /// <param name="probe">What ffprobe found; music is organised by its tags.</param>
+        public MediaItem? Resolve(Library library, string root, string filePath, DateTime fileTime, ProbeResult? probe)
         {
             var segments = Path.GetRelativePath(root, filePath).Split(Path.DirectorySeparatorChar);
             _addedAt = fileTime < DateTime.UtcNow ? fileTime : DateTime.UtcNow;
@@ -214,9 +215,79 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             {
                 LibraryType.Movies => ResolveMovie(library, root, segments),
                 LibraryType.TvShows => ResolveEpisode(library, root, segments),
+                LibraryType.Music => ResolveTrack(library, root, filePath, probe),
                 _ => null,
             };
         }
+
+        private static readonly string[] CoverFiles = ["cover.jpg", "folder.jpg", "front.jpg", "album.jpg", "cover.png", "folder.png"];
+        private static readonly string[] ArtistImageFiles = ["artist.jpg", "folder.jpg", "artist.png"];
+
+        private MediaItem ResolveTrack(Library library, string root, string filePath, ProbeResult? probe)
+        {
+            var info = MusicTags.Read(probe?.Tags ?? new Dictionary<string, string>(), root, filePath);
+            var albumDirectory = Path.GetDirectoryName(filePath)!;
+
+            var artistKey = $"artist:{Fold(info.Artist)}";
+            if (!_byKey.TryGetValue(artistKey, out var artist))
+            {
+                // Artist/Album/Track layout: the artist folder may hold an artist photo.
+                var artistDirectory = Path.GetDirectoryName(albumDirectory);
+                var photo = artistDirectory is not null && artistDirectory.Length > root.TrimEnd('/').Length
+                    ? ArtistImageFiles.Select(f => Path.Combine(artistDirectory, f)).FirstOrDefault(File.Exists)
+                    : null;
+                artist = Add(new MediaItem
+                {
+                    LibraryId = library.Id,
+                    Kind = MediaKind.Artist,
+                    Title = info.Artist,
+                    SortTitle = SortTitle.For(info.Artist),
+                    MusicBrainzId = info.ArtistMusicBrainzId,
+                    PosterUrl = photo is null ? null : $"file://{photo}",
+                });
+            }
+
+            var albumKey = $"album:{artist.Id}:{Fold(info.Album)}";
+            if (!_byKey.TryGetValue(albumKey, out var album))
+            {
+                var cover = CoverFiles.Select(f => Path.Combine(albumDirectory, f)).FirstOrDefault(File.Exists);
+                album = Add(new MediaItem
+                {
+                    LibraryId = library.Id,
+                    ParentId = artist.Id,
+                    Kind = MediaKind.Album,
+                    Title = info.Album,
+                    SortTitle = SortTitle.For(info.Album),
+                    Year = info.Year,
+                    Path = albumDirectory,
+                    MusicBrainzId = info.AlbumMusicBrainzId,
+                    PosterUrl = cover is not null ? $"file://{cover}" : probe?.HasCoverArt == true ? $"embedded://{filePath}" : null,
+                });
+            }
+            else if (album.PosterUrl is null && probe?.HasCoverArt == true)
+            {
+                album.PosterUrl = $"embedded://{filePath}";
+            }
+
+            artist.PosterUrl ??= album.PosterUrl; // No artist photo: show their first album's cover.
+
+            return Add(new MediaItem
+            {
+                LibraryId = library.Id,
+                ParentId = album.Id,
+                Kind = MediaKind.Track,
+                Title = info.Title,
+                SortTitle = SortTitle.ForNumber(((info.Disc ?? 1) * 1000) + (info.Track ?? 0)),
+                Year = info.Year,
+                DiscNumber = info.Disc,
+                TrackNumber = info.Track,
+                Path = filePath,
+            });
+        }
+
+        private static string Fold(string value) => value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+
+        private readonly Dictionary<string, MediaItem> _byKey = new(StringComparer.Ordinal);
 
         private DateTime _addedAt = DateTime.UtcNow;
 
@@ -333,6 +404,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     break;
                 case MediaKind.Episode when item.ParentId is { } p && EpisodeKey(item.EpisodeNumber, item.AirDate) is { } key:
                     _byNumber[(p, key)] = item;
+                    break;
+                case MediaKind.Artist:
+                    _byKey[$"artist:{Fold(item.Title)}"] = item;
+                    break;
+                case MediaKind.Album when item.ParentId is { } artistId:
+                    _byKey[$"album:{artistId}:{Fold(item.Title)}"] = item;
                     break;
             }
         }

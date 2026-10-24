@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useLibraries } from '../hooks/librariesContext'
 import { Gear, Search } from './icons'
+import { NowPlaying } from './NowPlaying'
 import { SearchPalette } from './SearchPalette'
 
 export function Layout() {
@@ -71,6 +72,7 @@ export function Layout() {
       <main id="main" className="page">
         <Outlet />
       </main>
+      <NowPlaying />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
     </>
   )

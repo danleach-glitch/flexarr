@@ -25,6 +25,18 @@ export function detectProfile(): DeviceProfile {
 
   const containers = ['mp4']
   if (can('video/webm')) containers.push('webm')
+  // Music: browsers play these audio files directly.
+  if (can('audio/mpeg')) containers.push('mp3')
+  if (can('audio/flac')) containers.push('flac')
+  if (can('audio/ogg; codecs="vorbis"') || can('audio/ogg; codecs="opus"')) {
+    containers.push('ogg')
+    audioCodecs.push('vorbis')
+  }
+  if (can('audio/wav')) {
+    containers.push('wav')
+    audioCodecs.push('pcm_s16le', 'pcm_s24le')
+  }
+  if (can('audio/mp4; codecs="alac"')) audioCodecs.push('alac')
 
   const hdr = videoCodecs.includes('hevc') && window.matchMedia?.('(dynamic-range: high)').matches === true
 

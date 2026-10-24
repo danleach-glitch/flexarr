@@ -10,6 +10,11 @@ public static partial class MediaFileEnumerator
         ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".m2ts", ".webm", ".mpg", ".mpeg",
     };
 
+    public static readonly IReadOnlySet<string> AudioExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".aif", ".wma", ".alac", ".ape", ".wv",
+    };
+
     private static readonly EnumerationOptions Options = new()
     {
         RecurseSubdirectories = false,
@@ -19,22 +24,24 @@ public static partial class MediaFileEnumerator
 
     /// <param name="root">The library folder.</param>
     /// <param name="scope">A folder or file under <paramref name="root"/> to limit the walk to; null for everything.</param>
-    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null)
+    /// <param name="audio">Find audio files (music libraries) instead of video.</param>
+    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false)
     {
         scope ??= root;
+        var extensions = audio ? AudioExtensions : VideoExtensions;
         if (File.Exists(scope))
         {
-            return IsVideo(scope) ? [new FileInfo(scope)] : [];
+            return IsMedia(scope, extensions) ? [new FileInfo(scope)] : [];
         }
 
-        return Directory.Exists(scope) ? Walk(root, scope) : [];
+        return Directory.Exists(scope) ? Walk(root, scope, extensions) : [];
     }
 
-    private static IEnumerable<FileInfo> Walk(string root, string directory)
+    private static IEnumerable<FileInfo> Walk(string root, string directory, IReadOnlySet<string> extensions)
     {
         foreach (var file in Directory.EnumerateFiles(directory, "*", Options))
         {
-            if (IsVideo(file) && !IsSample(file))
+            if (IsMedia(file, extensions) && !IsSample(file))
             {
                 yield return new FileInfo(file);
             }
@@ -49,15 +56,15 @@ public static partial class MediaFileEnumerator
                 continue;
             }
 
-            foreach (var file in Walk(root, child))
+            foreach (var file in Walk(root, child, extensions))
             {
                 yield return file;
             }
         }
     }
 
-    private static bool IsVideo(string path) =>
-        VideoExtensions.Contains(Path.GetExtension(path)) && !Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal);
+    private static bool IsMedia(string path, IReadOnlySet<string> extensions) =>
+        extensions.Contains(Path.GetExtension(path)) && !Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal);
 
     private static bool IsSample(string path) => SampleFile().IsMatch(Path.GetFileNameWithoutExtension(path));
 
