@@ -40,9 +40,7 @@ actor ImageLoader {
             task = load.task
         } else {
             task = Task<UIImage?, Never> {
-                guard let (data, response) = try? await URLSession.shared.data(from: url),
-                      (response as? HTTPURLResponse)?.statusCode == 200,
-                      let image = UIImage(data: data) else { return nil }
+                guard let data = await Self.fetch(url), let image = UIImage(data: data) else { return nil }
                 let decoded = await image.byPreparingForDisplay() ?? image
                 ImageCache.shared.insert(decoded, for: url)
                 return decoded
@@ -56,6 +54,21 @@ actor ImageLoader {
         }
         if inFlight[url]?.task == task { inFlight[url] = nil }
         return image
+    }
+
+    /// The image's bytes. A server too busy to make it right now (503, after a fast scroll through uncached posters)
+    /// is asked again after its Retry-After, twice at most, for as long as someone is still waiting for it.
+    private static func fetch(_ url: URL) async -> Data? {
+        for attempt in 0..<3 {
+            guard let (data, response) = try? await URLSession.shared.data(from: url),
+                  let http = response as? HTTPURLResponse else { return nil }
+            if http.statusCode == 200 { return data }
+            guard http.statusCode == 503, attempt < 2 else { return nil }
+            let wait = http.value(forHTTPHeaderField: "Retry-After").flatMap(Int.init) ?? 5
+            // Cancelled (scrolled away, nobody else waiting): stop rather than ask again.
+            guard (try? await Task.sleep(for: .seconds(min(max(wait, 1), 10)))) != nil else { return nil }
+        }
+        return nil
     }
 
     private func abandon(_ url: URL, _ task: Task<UIImage?, Never>) {
