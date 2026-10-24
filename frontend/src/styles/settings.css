@@ -752,3 +752,14 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+.sign-in-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.sign-in-list .tag {
+  margin-left: 8px;
+}

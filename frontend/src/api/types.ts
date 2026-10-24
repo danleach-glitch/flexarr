@@ -328,6 +328,8 @@ export interface Settings {
   dataDirectory: string
   ffmpegPath: string
   ffprobePath: string
+  /** What Sonarr, Radarr and Lidarr webhooks send instead of the API key. */
+  webhookSecret?: string | null
 }
 
 export interface SettingsUpdate {

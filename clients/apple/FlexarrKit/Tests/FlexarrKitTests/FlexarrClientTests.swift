@@ -96,6 +96,21 @@ struct FlexarrClientTests {
         #expect(try await polling.pairingStatus(pairing.id) == PairingStatus(status: "approved", apiKey: "the-key"))
     }
 
+    @Test func swapsTheApiKeyForADeviceToken() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(#"{"id":"ab12","token":"device-token"}"#.utf8)))
+
+        let token = try await client.deviceToken(deviceName: "Living room")
+
+        #expect(token == "device-token")
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/v1/session/device")
+        #expect(request.value(forHTTPHeaderField: "X-Api-Key") == "secret")
+
+        let (me, _) = stubbedClient(.init(status: 200, body: Data(#"{"profileId":"owner","method":"api-key","zone":"Local","isAdmin":true,"tailscaleLogin":null}"#.utf8)))
+        #expect(try await me.me() == SignInInfo(profileId: "owner", method: "api-key", isAdmin: true))
+    }
+
     @Test func selectingAProfileSendsThePinAndReturnsItsToken() async throws {
         let body = ##"{"token":"kid.abc123","profile":{"id":"kid","name":"Sam","color":"#e8a87c","hasPin":true,"isMain":false,"isCurrent":true,"hiddenLibraryIds":[],"image":null}}"##
         let (client, host) = stubbedClient(.init(status: 200, body: Data(body.utf8)))

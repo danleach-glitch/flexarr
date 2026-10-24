@@ -20,6 +20,26 @@ public sealed class FlexarrOptions
     /// <summary>API key for clients and *arr webhooks. Generated and persisted on first run when empty.</summary>
     public string? ApiKey { get; set; }
 
+    /// <summary>
+    /// What Sonarr/Radarr/Lidarr webhooks send instead of the API key; it can only queue scans. Generated on first run.
+    /// </summary>
+    public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// Reverse proxies (addresses or CIDR ranges, such as "172.17.0.1" for Docker) whose X-Forwarded-For is believed.
+    /// This machine is always trusted. Forwarded requests from anywhere else count as coming from the internet.
+    /// Read at startup.
+    /// </summary>
+    public List<string> TrustedProxies { get; set; } = [];
+
+    /// <summary>
+    /// Extra names this server is reached by on the home network (split DNS, say). The home-network and Tailscale
+    /// sign-ins only apply to requests addressed to a name Flexarr knows, which stops other websites from using a
+    /// browser on your network to get in (DNS rebinding). IP addresses, single-word names, private suffixes (.local,
+    /// .lan, .home, .home.arpa, .internal…), .ts.net and this machine's name are always known.
+    /// </summary>
+    public List<string> KnownHosts { get; set; } = [];
+
     /// <summary>ffprobe executable; resolved from PATH by default.</summary>
     public string FfprobePath { get; set; } = "ffprobe";
 

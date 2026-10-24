@@ -1,8 +1,13 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
+using Flexarr.Api.Authentication;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Profiles;
 
@@ -122,48 +127,77 @@ public static partial class ProfileEndpoints
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        // Choosing a profile returns the token clients send as X-Flexarr-Profile.
-        group.MapPost("/{id}/select", async (string id, SelectProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        // Choosing a profile returns the token clients send as X-Flexarr-Profile. On a browser or device signed in
+        // with its own token, the choice is also kept on the server, so leaving the header off doesn't undo it.
+        group.MapPost("/{id}/select", async (string id, SelectProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current,
+            PinGuard guard, SignIns signIns, CancellationToken ct) =>
         {
             if (await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is not { } profile)
             {
                 return Results.NotFound();
             }
 
-            if (!profile.CheckPin(request.Pin))
+            // Without a PIN on the main profile, choosing it would make anyone the server's admin. A browser or device
+            // the main profile signed in may (the household chose not to protect it); a Tailscale guest may not.
+            if (profile.IsMain && profile.PinHash is null && !current.IsTrusted)
             {
-                // A short pause makes guessing a PIN slow.
-                await Task.Delay(TimeSpan.FromSeconds(1), ct);
-                return Results.Problem("That PIN isn't right.", statusCode: 403);
+                return Results.Problem("The main profile can only be chosen here once it has a PIN.", statusCode: 403);
             }
 
-            return Results.Ok(new { token = current.TokenFor(profile.Id), profile = ToDto(profile, current) with { IsCurrent = true } });
+            if (profile.PinHash is not null)
+            {
+                var caller = current.SignInId ?? http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var (result, retryAfter) = await guard.CheckAsync(profile.Id, caller, () => profile.CheckPin(request.Pin), ct);
+                if (result == PinCheck.LockedOut)
+                {
+                    http.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var minutes = (int)Math.Ceiling(retryAfter.TotalMinutes);
+                    return Results.Problem($"Too many wrong PINs. Try again in {(minutes <= 1 ? "a minute" : $"{minutes} minutes")}.", statusCode: 429);
+                }
+
+                if (result == PinCheck.Wrong)
+                {
+                    return Results.Problem("That PIN isn't right.", statusCode: 403);
+                }
+            }
+
+            if (current.SignInId is { } signIn)
+            {
+                signIns.ChooseProfile(signIn, profile.IsMain ? null : profile.Id);
+            }
+
+            return Results.Ok(new { token = current.TokenFor(profile), profile = ToDto(profile, current) with { IsCurrent = true } });
         });
 
         return api;
     }
 
-    /// <summary>Profile pictures are shown by &lt;img&gt; tags (the profile picker too), so they're served without the API key.</summary>
+    /// <summary>
+    /// Profile pictures are shown by &lt;img&gt; tags (the profile picker too) and the Apple TV, so they're served without
+    /// signing in, but only at the signed URL the profile list gives out.
+    /// </summary>
     public static RouteGroupBuilder MapProfileImageEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/profiles/{id}/image", (string id, ProfileImages images, HttpContext http) =>
+        api.MapGet("/profiles/{id}/image", (string id, string? v, string? s, ProfileImages images, HttpContext http, IOptionsMonitor<FlexarrOptions> options) =>
         {
             var path = images.PathFor(id);
-            if (!File.Exists(path))
+            var signed = v is not null && s is not null && CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(s), Encoding.UTF8.GetBytes(CurrentProfile.ImageSignature(options.CurrentValue.ApiKey, id, v)));
+            if (!signed && http.User.Identity?.IsAuthenticated != true || !File.Exists(path))
             {
                 return Results.NotFound();
             }
 
             // The URL carries a version, so a changed picture gets a new URL.
-            http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+            http.Response.Headers.CacheControl = signed ? "private, max-age=31536000, immutable" : "private, no-cache";
             return Results.File(path, "image/jpeg");
         }).WithTags("Profiles").AllowAnonymous();
 
         return api;
     }
 
-    internal static ProfileDto ToDto(Profile p, CurrentProfile current) => new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds,
-        p.ImageUpdatedAt is { } at ? $"/api/v1/profiles/{p.Id}/image?v={at.Ticks}" : null);
+    internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
+        new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p));
 
     private static IResult? Validate(ProfileRequest request)
     {

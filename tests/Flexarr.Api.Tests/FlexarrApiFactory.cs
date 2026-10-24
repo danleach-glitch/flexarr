@@ -1,6 +1,12 @@
+using System.Collections.Concurrent;
+using System.Net;
+using Flexarr.Api.Security;
 using Flexarr.Core.Scanning;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -12,6 +18,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
     public const string ApiKey = "test-api-key";
 
     public RecordingScanQueue ScanQueue { get; } = new();
+
+    public FakeWhois Whois { get; } = new();
 
     public string DataDirectory { get; } = Directory.CreateTempSubdirectory("flexarr-api-").FullName;
 
@@ -31,6 +39,11 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<ILibraryScanQueue>(ScanQueue);
             services.RemoveAll<IHostedService>();
         });
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<IStartupFilter, PeerFromHeader>();
+            services.AddSingleton<ITailnetWhois>(Whois);
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -44,6 +57,32 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             Directory.Delete(DataDirectory, recursive: true);
         }
     }
+}
+
+/// <summary>Sets the connecting address from X-Test-Peer, before any of Flexarr's middleware runs.</summary>
+public sealed class PeerFromHeader : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((HttpContext http, RequestDelegate n) =>
+        {
+            if (http.Request.Headers["X-Test-Peer"].FirstOrDefault() is { } peer)
+            {
+                http.Connection.RemoteIpAddress = IPAddress.Parse(peer);
+            }
+
+            return n(http);
+        });
+        next(app);
+    };
+}
+
+/// <summary>Stands in for <c>tailscale whois</c>: tests say which login owns which tailnet address.</summary>
+public sealed class FakeWhois : ITailnetWhois
+{
+    public ConcurrentDictionary<string, string> Owners { get; } = new();
+
+    public Task<string?> LoginAsync(IPAddress address, CancellationToken ct) => Task.FromResult(Owners.GetValueOrDefault(address.ToString()));
 }
 
 public sealed class RecordingScanQueue : ILibraryScanQueue

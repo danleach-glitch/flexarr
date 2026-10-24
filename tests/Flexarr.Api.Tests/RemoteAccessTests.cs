@@ -3,9 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,13 +15,20 @@ public sealed class RemoteAccessFactory : WebApplicationFactory<Program>
 {
     public string DataDirectory { get; } = Directory.CreateTempSubdirectory("flexarr-remote-").FullName;
 
+    public FakeWhois Whois { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Flexarr:ApiKey", FlexarrApiFactory.ApiKey);
         builder.UseSetting("Flexarr:DataDirectory", DataDirectory);
         builder.UseSetting("Flexarr:AuthenticationRequired", "DisabledForLocalAddresses");
-        builder.ConfigureTestServices(services => services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, PeerFromHeader>());
+        builder.UseSetting("Flexarr:TrustedProxies:0", "10.9.0.0/16");
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<IStartupFilter, PeerFromHeader>();
+            services.AddSingleton<Flexarr.Api.Security.ITailnetWhois>(Whois);
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -35,44 +40,48 @@ public sealed class RemoteAccessFactory : WebApplicationFactory<Program>
             Directory.Delete(DataDirectory, recursive: true);
         }
     }
-
-    /// <summary>Sets the connecting address from X-Test-Peer, before any of Flexarr's middleware runs.</summary>
-    private sealed class PeerFromHeader : IStartupFilter
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
-        {
-            app.Use((HttpContext http, RequestDelegate n) =>
-            {
-                if (http.Request.Headers["X-Test-Peer"].FirstOrDefault() is { } peer)
-                {
-                    http.Connection.RemoteIpAddress = IPAddress.Parse(peer);
-                }
-
-                return n(http);
-            });
-            next(app);
-        };
-    }
 }
 
 public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<RemoteAccessFactory>
 {
     private const string Status = "/api/v1/system/status";
+    private static readonly (string, string) Lan = ("X-Test-Peer", "192.168.1.50");
 
-    private async Task<HttpStatusCode> GetAsync(string path, params (string Name, string Value)[] headers)
+    private Task<HttpStatusCode> GetAsync(string path, params (string Name, string Value)[] headers) => SendAsync(HttpMethod.Get, path, null, headers);
+
+    private async Task<HttpStatusCode> SendAsync(HttpMethod method, string path, object? body, params (string Name, string Value)[] headers)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
         foreach (var (name, value) in headers)
         {
-            request.Headers.TryAddWithoutValidation(name, value);
+            if (name == "Host")
+            {
+                request.Headers.Host = value;
+            }
+            else
+            {
+                request.Headers.TryAddWithoutValidation(name, value);
+            }
         }
 
         return (await factory.CreateClient().SendAsync(request)).StatusCode;
     }
 
+    /// <summary>A request through <c>tailscale serve</c> on this machine, from a tailnet device whose owner Tailscale confirms.</summary>
+    private (string, string)[] ViaTailscale(string address, string login, string? claimedLogin = null)
+    {
+        factory.Whois.Owners[address] = login;
+        return [("X-Test-Peer", "127.0.0.1"), ("X-Forwarded-For", address), ("Tailscale-User-Login", claimedLogin ?? login)];
+    }
+
     [Fact]
     public async Task HomeNetwork_IsLetIn_WithoutAKey() =>
-        Assert.Equal(HttpStatusCode.OK, await GetAsync(Status, ("X-Test-Peer", "192.168.1.50")));
+        Assert.Equal(HttpStatusCode.OK, await GetAsync(Status, Lan));
 
     [Theory]
     [InlineData("CF-Connecting-IP", "203.0.113.7")]
@@ -84,15 +93,58 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     public async Task ForwardedFromAPublicAddress_ThroughTheLocalProxy_IsNotHome() =>
         Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status, ("X-Test-Peer", "127.0.0.1"), ("X-Forwarded-For", "203.0.113.7")));
 
+    [Theory]
+    [InlineData("172.17.0.1", "X-Forwarded-For", "203.0.113.7")] // a reverse proxy in Docker
+    [InlineData("192.168.1.2", "X-Forwarded-For", "192.168.1.60")] // or on another machine, even claiming a home address
+    [InlineData("127.0.0.1", "X-Real-IP", "203.0.113.7")] // a proxy here that only says X-Real-IP
+    [InlineData("192.168.1.2", "Forwarded", "for=203.0.113.7")]
+    public async Task ForwardedRequests_FromProxiesFlexarrDoesntTrust_AreNotHome(string proxy, string header, string value) =>
+        Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status, ("X-Test-Peer", proxy), (header, value)));
+
+    [Fact]
+    public async Task ATrustedProxy_IsBelievedAboutItsClient()
+    {
+        Assert.Equal(HttpStatusCode.OK, await GetAsync(Status, ("X-Test-Peer", "10.9.0.4"), ("X-Forwarded-For", "192.168.1.60")));
+        Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status, ("X-Test-Peer", "10.9.0.4"), ("X-Forwarded-For", "203.0.113.7")));
+    }
+
+    [Theory]
+    [InlineData("192.168.1.10:8383")]
+    [InlineData("mini.local:8383")]
+    [InlineData("mini:8383")]
+    [InlineData("localhost")]
+    public async Task HomeNetwork_AddressedToThisServersNames_IsLetIn(string host) =>
+        Assert.Equal(HttpStatusCode.OK, await GetAsync(Status, Lan, ("Host", host)));
+
+    [Fact]
+    public async Task HomeNetwork_AddressedToSomeoneElsesName_NeedsTheKey() =>
+        // A page on attacker.example that pointed its own name at this server (DNS rebinding).
+        Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status, Lan, ("Host", "attacker.example:8383")));
+
+    [Fact]
+    public async Task HomeNetwork_RefusesChangesStartedByOtherWebsites()
+    {
+        var test = "/api/v1/arr/test";
+        var body = new { name = "Sonarr", kind = "Sonarr", baseUrl = "not a url" };
+
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, test, body, Lan, ("Origin", "https://attacker.example")));
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, test, body, Lan, ("Sec-Fetch-Site", "cross-site")));
+        Assert.Equal(HttpStatusCode.BadRequest, await SendAsync(HttpMethod.Post, test, body, Lan, ("Sec-Fetch-Site", "same-origin")));
+        Assert.Equal(HttpStatusCode.BadRequest, await SendAsync(HttpMethod.Post, test, body, Lan, ("Origin", "http://localhost")));
+        Assert.Equal(HttpStatusCode.BadRequest, await SendAsync(HttpMethod.Post, test, body, Lan, ("X-Requested-With", "flexarr")));
+    }
+
     [Fact]
     public async Task TailscaleIdentity_ViaTailscaleServe_SignsInAsTheLinkedProfile()
     {
         await LinkAsync("sam@example.com", "Sam");
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/profiles");
-        request.Headers.Add("X-Test-Peer", "127.0.0.1");
-        request.Headers.Add("X-Forwarded-For", "100.70.1.2");
-        request.Headers.Add("Tailscale-User-Login", "sam@example.com");
+        foreach (var (name, value) in ViaTailscale("100.70.1.2", "sam@example.com"))
+        {
+            request.Headers.Add(name, value);
+        }
+
         var response = await factory.CreateClient().SendAsync(request);
         var profiles = await response.Content.ReadFromJsonAsync<JsonElement>();
 
@@ -101,9 +153,19 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     }
 
     [Fact]
-    public async Task UnlinkedTailscaleAccount_IsRefused() =>
+    public async Task TailscaleIdentity_ThatTailscaleDoesntConfirm_IsIgnored()
+    {
+        await LinkAsync("owner-ts@example.com", null);
+
+        // Another program on the server claiming to be the owner, for an address that's someone else's (or nobody's).
+        Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status, ViaTailscale("100.70.1.9", "guest@example.com", claimedLogin: "owner-ts@example.com")));
         Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status,
-            ("X-Test-Peer", "127.0.0.1"), ("X-Forwarded-For", "100.70.1.3"), ("Tailscale-User-Login", "stranger@example.com")));
+            ("X-Test-Peer", "127.0.0.1"), ("X-Forwarded-For", "100.70.1.10"), ("Tailscale-User-Login", "owner-ts@example.com")));
+    }
+
+    [Fact]
+    public async Task UnlinkedTailscaleAccount_IsRefused() =>
+        Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync(Status, ViaTailscale("100.70.1.3", "stranger@example.com")));
 
     [Fact]
     public async Task TailscaleHeader_FromALanDevice_IsIgnored()
@@ -123,11 +185,11 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     public async Task OnlyTheMainProfile_CanChangeSettings()
     {
         await LinkAsync("kid@example.com", "Kid");
-        var tailnet = new[] { ("X-Test-Peer", "127.0.0.1"), ("X-Forwarded-For", "100.70.1.4"), ("Tailscale-User-Login", "kid@example.com") };
+        var tailnet = ViaTailscale("100.70.1.4", "kid@example.com");
 
         Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/libraries", tailnet));
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", tailnet));
-        Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings/api-key", tailnet));
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, "/api/v1/settings/api-key/reveal", null, [.. tailnet, ("X-Requested-With", "flexarr")]));
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/filesystem", tailnet));
 
         // Webhooks start scans of any path they name: the *arr apps send them with the API key.
@@ -143,6 +205,33 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         Assert.Equal(HttpStatusCode.Forbidden, (await factory.CreateClient().SendAsync(webhook)).StatusCode);
     }
 
+    [Fact]
+    public async Task ATailscaleGuest_CantChooseTheMainProfile_UntilItHasAPin()
+    {
+        await LinkAsync("guest@example.com", "Guest");
+        var guest = ViaTailscale("100.70.1.5", "guest@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+
+        var withoutPin = await SendAsync(HttpMethod.Post, "/api/v1/profiles/owner/select", new { pin = (string?)null }, guest);
+        // The home network is trusted with the server, so there it can.
+        var fromHome = await SendAsync(HttpMethod.Post, "/api/v1/profiles/owner/select", new { pin = (string?)null }, Lan, ("X-Requested-With", "flexarr"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, withoutPin);
+        Assert.Equal(HttpStatusCode.OK, fromHome);
+    }
+
+    [Fact]
+    public async Task OnTheHomeNetwork_ChoosingAnotherProfile_GivesUpManagingTheServer()
+    {
+        var kid = await AddProfileAsync("Home kid");
+        using var select = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/profiles/{kid}/select") { Content = JsonContent.Create(new { pin = (string?)null }) };
+        select.Headers.Add("X-Test-Peer", "192.168.1.50");
+        select.Headers.Add("X-Requested-With", "flexarr");
+        var token = (await (await factory.CreateClient().SendAsync(select)).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+
+        Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", Lan, ("X-Flexarr-Profile", token)));
+        Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", Lan));
+    }
+
     /// <summary>Links a Tailscale login to a new profile, or to the main profile when no name is given.</summary>
     private async Task LinkAsync(string login, string? profileName)
     {
@@ -153,5 +242,14 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
             : db.Profiles.Add(new Profile { Id = Profile.NewId(), Name = profileName }).Entity;
         profile!.TailscaleLogin = login;
         await db.SaveChangesAsync();
+    }
+
+    private async Task<string> AddProfileAsync(string name)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var profile = db.Profiles.Add(new Profile { Id = Profile.NewId(), Name = name }).Entity;
+        await db.SaveChangesAsync();
+        return profile.Id;
     }
 }

@@ -1,11 +1,13 @@
-using System.Net;
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Media;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -15,18 +17,24 @@ namespace Flexarr.Api.Authentication;
 /// <summary>
 /// Flexarr's sign-in, checked in this order:
 /// <list type="number">
-/// <item>An API key, as an <c>X-Api-Key</c> header or <c>apikey</c> query parameter (apps, *arr webhooks).</item>
-/// <item>The web app's session cookie, which it's given in exchange for the API key so the browser never keeps the key.
-/// Changes that arrive with it must also carry the <c>X-Requested-With</c> header, which another site can't add.</item>
+/// <item>A key, as an <c>X-Api-Key</c> header or <c>apikey</c> query parameter: the server's API key (scripts, *arr
+/// apps, Apple TVs set up before per-device sign-ins), or a device's own token (an Apple TV once it's connected).</item>
+/// <item>The web app's session cookie, which a browser gets in exchange for the API key so it never keeps the key.
+/// Each browser has its own, which can be signed out from Settings.</item>
 /// <item>A Tailscale identity: <c>tailscale serve</c> adds the sender's verified login to requests from your tailnet.
-/// Only trusted when the connection really came from the local Tailscale proxy, and mapped to the profile linked
-/// to that Tailscale account.</item>
+/// Only believed when the connection came from this machine, for a tailnet address that Tailscale confirms belongs to
+/// that login, and mapped to the profile linked to that Tailscale account.</item>
 /// <item>The home network, when "only away from home" is chosen. Never applies to tunnelled traffic.</item>
 /// </list>
+/// Then it works out the profile the request acts for and whether it may manage the server (see
+/// <see cref="CurrentProfile"/>). Writes that use the cookie, the home network or Tailscale must also come from the
+/// web app itself (see <see cref="RequestForgery"/>).
 /// </summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> schemeOptions,
     IOptionsMonitor<FlexarrOptions> flexarrOptions,
+    SignIns signIns,
+    ITailnetWhois whois,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(schemeOptions, loggerFactory, encoder)
@@ -38,6 +46,19 @@ public sealed class ApiKeyAuthenticationHandler(
     public const string SessionCookieName = "flexarr.session";
     public const string RequestedWithHeader = "X-Requested-With";
 
+    /// <summary>Sign-in methods, as the <see cref="FlexarrClaims.Method"/> claim.</summary>
+    public static class Methods
+    {
+        public const string ApiKey = "api-key";
+        public const string Device = "device";
+        public const string Session = "session";
+        public const string Tailscale = "tailscale";
+        public const string Local = "local";
+    }
+
+    /// <summary>Browsers still carrying the cookie earlier versions gave out, by address and browser, while they swap it.</summary>
+    private static readonly ConcurrentDictionary<string, Lazy<(SignIn SignIn, string Token)>> Upgrading = new(StringComparer.Ordinal);
+
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var options = flexarrOptions.CurrentValue;
@@ -45,61 +66,195 @@ public sealed class ApiKeyAuthenticationHandler(
         string? provided = Request.Headers[HeaderName].FirstOrDefault() ?? Request.Query[QueryName].FirstOrDefault();
         if (!string.IsNullOrEmpty(provided))
         {
-            var matches = CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(options.ApiKey ?? string.Empty));
-            return matches ? Success("api-key") : AuthenticateResult.Fail("Invalid API key");
+            if (IsApiKey(provided, options.ApiKey))
+            {
+                return await SucceedAsync(Methods.ApiKey);
+            }
+
+            return signIns.Find(provided, SignInKind.Device) is { } device
+                ? await SucceedAsync(Methods.Device, device)
+                : AuthenticateResult.Fail("Invalid API key");
         }
 
-        // A stale cookie (from before the key changed) is ignored rather than refused, so the other ways still apply.
-        if (Request.Cookies[SessionCookieName] is { Length: > 0 } session && !string.IsNullOrEmpty(options.ApiKey)
-            && (HttpMethods.IsGet(Request.Method) || HttpMethods.IsHead(Request.Method) || Request.Headers.ContainsKey(RequestedWithHeader))
-            && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(session), Encoding.UTF8.GetBytes(SessionValue(options.ApiKey))))
+        // A stale or signed-out cookie is ignored rather than refused, so the other ways still apply.
+        if (Request.Cookies[SessionCookieName] is { Length: > 0 } cookie)
         {
-            return Success("api-key");
+            if (signIns.Find(cookie, SignInKind.Browser) is { } browser)
+            {
+                return await SucceedAsync(Methods.Session, browser);
+            }
+
+            if (!string.IsNullOrEmpty(options.ApiKey) && IsApiKey(cookie, LegacySessionValue(options.ApiKey)))
+            {
+                return await SucceedAsync(Methods.Session, await UpgradeLegacyCookieAsync());
+            }
         }
 
-        if (TrustedTailscaleLogin(Context) is { } login)
+        if (await TrustedTailscaleLoginAsync(Context, whois, options) is { } login)
         {
             var db = Context.RequestServices.GetRequiredService<FlexarrDbContext>();
             var profile = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin == login).Select(p => p.Id).FirstOrDefaultAsync(Context.RequestAborted);
             return profile is null
                 ? AuthenticateResult.Fail($"The Tailscale account {login} isn't linked to a Flexarr profile")
-                : Success("tailscale", profile, login);
+                : await SucceedAsync(Methods.Tailscale, linkedProfile: profile, login: login);
         }
 
-        if (options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local)
+        if (options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
+            && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts))
         {
-            return Success("local");
+            return await SucceedAsync(Methods.Local);
         }
 
         return AuthenticateResult.NoResult();
     }
 
-    /// <summary>The session cookie's value: derived from the API key, so changing the key signs every browser out.</summary>
-    public static string SessionValue(string apiKey) =>
+    /// <summary>The cookie earlier versions gave every browser: derived from the API key, and the same for all of them.</summary>
+    public static string LegacySessionValue(string apiKey) =>
         Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(apiKey), "flexarr web session"u8));
+
+    /// <summary>Gives a browser its session cookie: HttpOnly, so scripts on the page can't read it.</summary>
+    public static void AppendSessionCookie(HttpContext http, string token)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        http.Response.Cookies.Append(SessionCookieName, token, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = http.Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/",
+            // The browser keeps it as long as it can; the server signs out browsers left unused for six months.
+            MaxAge = TimeSpan.FromDays(400),
+        });
+    }
+
+    /// <summary>"Safari on Mac", for the list of signed-in browsers.</summary>
+    public static string BrowserName(HttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var agent = request.Headers.UserAgent.ToString();
+        var browser = agent switch
+        {
+            _ when agent.Contains("Edg/", StringComparison.Ordinal) => "Edge",
+            _ when agent.Contains("Firefox/", StringComparison.Ordinal) || agent.Contains("FxiOS/", StringComparison.Ordinal) => "Firefox",
+            _ when agent.Contains("Chrome/", StringComparison.Ordinal) || agent.Contains("CriOS/", StringComparison.Ordinal) => "Chrome",
+            _ when agent.Contains("Safari/", StringComparison.Ordinal) => "Safari",
+            _ => "A browser",
+        };
+        var system = agent switch
+        {
+            _ when agent.Contains("iPhone", StringComparison.Ordinal) => "iPhone",
+            _ when agent.Contains("iPad", StringComparison.Ordinal) => "iPad",
+            _ when agent.Contains("Android", StringComparison.Ordinal) => "Android",
+            _ when agent.Contains("Mac OS X", StringComparison.Ordinal) => "Mac",
+            _ when agent.Contains("Windows", StringComparison.Ordinal) => "Windows",
+            _ when agent.Contains("Linux", StringComparison.Ordinal) => "Linux",
+            _ => null,
+        };
+        return system is null ? browser : $"{browser} on {system}";
+    }
 
     /// <summary>
     /// The Tailscale login on a request, if it can be believed: it came over a loopback connection (from
-    /// <c>tailscale serve</c> on this machine) for a client on the tailnet, and not through Funnel. A device on the LAN
-    /// connecting directly can't set it, because its connection isn't loopback.
+    /// <c>tailscale serve</c> on this machine) for a client on the tailnet, not through Funnel, addressed to one of this
+    /// server's names, and Tailscale says that client's address belongs to that login. A device on the LAN connecting
+    /// directly can't set it, because its connection isn't loopback; another program on this machine can't claim to
+    /// be someone without also knowing the address of one of their devices.
     /// </summary>
-    public static string? TrustedTailscaleLogin(HttpContext http)
+    private static async Task<string?> TrustedTailscaleLoginAsync(HttpContext http, ITailnetWhois whois, FlexarrOptions options)
     {
-        var login = http.Request.Headers[TailscaleLoginHeader].FirstOrDefault();
+        var login = http.Request.Headers[TailscaleLoginHeader].FirstOrDefault()?.Trim();
         var peer = RequestPeer.Of(http);
-        return !string.IsNullOrWhiteSpace(login)
-            && peer is not null && IPAddress.IsLoopback(peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer)
-            && NetworkZones.Of(http) == NetworkZone.Tailnet
-            ? login.Trim()
-            : null;
+        if (string.IsNullOrEmpty(login)
+            || peer is null || !System.Net.IPAddress.IsLoopback(peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer)
+            || NetworkZones.Of(http) != NetworkZone.Tailnet
+            || !NetworkZones.AddressedToKnownHost(http, options.KnownHosts)
+            || http.Connection.RemoteIpAddress is not { } client)
+        {
+            return null;
+        }
+
+        var owner = await whois.LoginAsync(client.IsIPv4MappedToIPv6 ? client.MapToIPv4() : client, http.RequestAborted);
+        return string.Equals(owner, login, StringComparison.OrdinalIgnoreCase) ? login : null;
     }
 
-    private static AuthenticateResult Success(string method, string? profile = null, string? login = null)
+    /// <summary>A browser signed in by an earlier version: swap its shared cookie for its own session, which can be signed out.</summary>
+    private async Task<SignIn> UpgradeLegacyCookieAsync()
     {
-        var claims = new List<Claim> { new(FlexarrClaims.Method, method) };
-        if (profile is not null)
+        var chosen = await ChosenProfileAsync(Context.RequestServices.GetRequiredService<FlexarrDbContext>());
+        var now = DateTime.UtcNow;
+        foreach (var (stale, _) in Upgrading.Where(u => u.Value.IsValueCreated && now - u.Value.Value.SignIn.CreatedAt > TimeSpan.FromMinutes(1)))
         {
-            claims.Add(new Claim(FlexarrClaims.Profile, profile));
+            Upgrading.TryRemove(stale, out _);
+        }
+
+        // The page's first requests arrive together; they share one new session rather than making one each.
+        var key = $"{Context.Connection.RemoteIpAddress}|{Request.Headers.UserAgent}";
+        var pending = Upgrading.GetOrAdd(key, _ => new Lazy<(SignIn, string)>(() =>
+            signIns.Issue(SignInKind.Browser, BrowserName(Request), NetworkZones.Of(Context), Context.Connection.RemoteIpAddress?.ToString(),
+                chosen == PlaybackState.DefaultUser ? null : chosen)));
+        (SignIn SignIn, string Token) issued;
+        try
+        {
+            issued = pending.Value;
+        }
+        catch
+        {
+            Upgrading.TryRemove(key, out _); // let the next request try again
+            throw;
+        }
+
+        AppendSessionCookie(Context, issued.Token);
+        return issued.SignIn;
+    }
+
+    /// <summary>Signs the request in, working out its profile and whether it may manage the server.</summary>
+    private async Task<AuthenticateResult> SucceedAsync(string method, SignIn? signIn = null, string? linkedProfile = null, string? login = null)
+    {
+        var db = Context.RequestServices.GetRequiredService<FlexarrDbContext>();
+        string profile;
+        bool admin;
+        bool trusted;
+        if (signIn is not null)
+        {
+            // A browser or device the main profile signed in: the profile chosen on it decides, whatever headers say.
+            trusted = true;
+            if (signIn.ProfileId is null)
+            {
+                (profile, admin) = (PlaybackState.DefaultUser, true);
+            }
+            else if (await db.Profiles.AnyAsync(p => p.Id == signIn.ProfileId, Context.RequestAborted))
+            {
+                (profile, admin) = (signIn.ProfileId, signIn.ProfileId == PlaybackState.DefaultUser);
+            }
+            else
+            {
+                // Its profile has been removed: it watches as the main profile, but only manages the server once the
+                // main profile is chosen on it again (with its PIN).
+                (profile, admin) = (PlaybackState.DefaultUser, false);
+            }
+        }
+        else
+        {
+            var basis = linkedProfile ?? PlaybackState.DefaultUser;
+            trusted = method != Methods.Tailscale || basis == PlaybackState.DefaultUser;
+            profile = await ChosenProfileAsync(db) ?? basis;
+            admin = method == Methods.ApiKey || profile == PlaybackState.DefaultUser;
+        }
+
+        var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
+        if (admin)
+        {
+            claims.Add(new Claim(FlexarrClaims.Admin, "true"));
+        }
+
+        if (trusted)
+        {
+            claims.Add(new Claim(FlexarrClaims.Trusted, "true"));
+        }
+
+        if (signIn is not null)
+        {
+            claims.Add(new Claim(FlexarrClaims.SignIn, signIn.Id));
         }
 
         if (login is not null)
@@ -109,4 +264,22 @@ public sealed class ApiKeyAuthenticationHandler(
 
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
+
+    /// <summary>The profile named by a valid <c>X-Flexarr-Profile</c> token, if it still exists.</summary>
+    private async Task<string?> ChosenProfileAsync(FlexarrDbContext db)
+    {
+        var token = Request.Headers[CurrentProfile.Header].FirstOrDefault();
+        var dot = token?.LastIndexOf('.') ?? -1;
+        if (token is null || dot <= 0)
+        {
+            return null;
+        }
+
+        var id = token[..dot];
+        var found = await db.Profiles.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.PinHash }).FirstOrDefaultAsync(Context.RequestAborted);
+        return found is not null && CurrentProfile.Verifies(flexarrOptions.CurrentValue.ApiKey, id, found.PinHash, token[(dot + 1)..]) ? id : null;
+    }
+
+    private static bool IsApiKey(string provided, string? key) =>
+        !string.IsNullOrEmpty(key) && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(key));
 }

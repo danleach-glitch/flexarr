@@ -56,7 +56,9 @@ docker run -d --name flexarr \
   ghcr.io/danleach-glitch/flexarr:main
 ```
 
-Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`.
+Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in to the web app with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Server where you can sign any of them out.
+
+Plain `http://` is fine on a home network you trust. From anywhere else, use Tailscale (Settings › Remote access) or an HTTPS reverse proxy, so the key and sign-ins aren't sent in the clear. A reverse proxy on another machine or in Docker must be listed in `trustedProxies`, or Flexarr treats everything it forwards as the internet.
 
 Mount your media at the **same path** Sonarr/Radarr/Lidarr use, or add `pathMappings` to `config.json`, so the paths in their webhooks match what Flexarr sees.
 
@@ -68,7 +70,7 @@ On a Mac, run Flexarr natively so it can use hardware transcoding: `make deploy 
 
 In each app go to **Settings → Connect → + → Webhook** and set:
 
-- **URL:** `http://<flexarr-host>:8383/api/v1/webhooks/sonarr?apikey=<your-api-key>` (use `radarr` / `lidarr` as appropriate)
+- **URL:** `http://<flexarr-host>:8383/api/v1/webhooks/sonarr?secret=<webhook-secret>` (use `radarr` / `lidarr` as appropriate). Settings › Server shows the addresses with the secret filled in.
 - **Method:** POST
 - **Triggers:** On Import, On Upgrade, On Rename, On Delete
 
@@ -82,7 +84,7 @@ The tvOS app (in `clients/apple`) installs from Xcode onto your own Apple TV:
 2. Pair the Apple TV: on the TV, open Settings › Remotes and Devices › Remote App and Devices; on the Mac, open Devices and Simulators (⇧⌘2) and pair it.
 3. Run `make apple-install TEAM=<your team id> BUNDLE_ID=com.yourname.flexarr.tv`. Your team id is in Xcode › Settings › Accounts; the identifier just needs to be unique to you.
 
-With a free Apple ID the app stops opening after 7 days; run the same command again. On the TV, connect to `http://<server>:8383` with your API key, or through Tailscale without one.
+With a free Apple ID the app stops opening after 7 days; run the same command again. On the TV, pick your server and approve the code it shows in the web app (Settings › Connect a TV), or type the API key; either way the TV gets a sign-in of its own rather than keeping the key.
 
 ## Development
 

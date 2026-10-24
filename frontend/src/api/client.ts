@@ -66,8 +66,9 @@ export function saveProfileToken(token: string | null) {
 }
 
 /**
- * Signs this browser in: the API key goes to the server once, and comes back as an HttpOnly session cookie, so the
- * key is never kept anywhere scripts can read it. Local-network and Tailscale visitors may not need this at all.
+ * Signs this browser in: the API key goes to the server once, and comes back as an HttpOnly session cookie of this
+ * browser's own, so the key is never kept anywhere scripts can read it. Local-network and Tailscale visitors may not
+ * need this at all.
  */
 export async function signIn(key: string) {
   const response = await fetch('/api/v1/session', { method: 'POST', headers: { 'X-Api-Key': key } })
@@ -376,7 +377,10 @@ export function stopPlayback(sessionId: string) {
 
 export const getSettings = (signal?: AbortSignal) => cachedGet<Settings>('/settings', signal)
 export const saveSettings = (update: SettingsUpdate) => request<Settings>('PUT', '/settings', update)
-export const getApiKey = () => apiGet<{ apiKey: string }>('/settings/api-key')
+/** Shows the server's API key (main profile only). A POST, so only Flexarr's own pages can ask. */
+export const revealApiKey = () => request<{ apiKey: string }>('POST', '/settings/api-key/reveal', {})
+/** Replaces the API key. Browsers and TVs signed in with their own token carry on. */
+export const rotateApiKey = () => request<{ apiKey: string }>('POST', '/settings/api-key/rotate', {})
 export const getArrStatus = (signal?: AbortSignal) => apiGet<ArrStatus[]>('/arr/status', signal)
 export const testArr = (connection: { name: string; kind: string; baseUrl: string; apiKey?: string }) =>
   request<ArrStatus>('POST', '/arr/test', connection)
@@ -503,11 +507,14 @@ export interface PairingDetails {
   code: string
   deviceName: string
   expiresAt: string
+  /** The address the TV asked from, and which kind of network that is. */
+  requestedFrom: string | null
+  zone: NetworkZone
 }
 
 /** A TV waiting to connect, by the code it shows (main profile only). */
 export const getPairing = (code: string, signal?: AbortSignal) => apiGet<PairingDetails>(`/pairing/code/${encodeURIComponent(code.trim())}`, signal)
-export const approvePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/approve`)
+export const approvePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/approve`, {})
 
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
@@ -578,7 +585,8 @@ export type NetworkZone = 'Local' | 'Tailnet' | 'Internet'
 
 export interface Me {
   profileId: string
-  method: 'api-key' | 'tailscale' | 'local' | 'none'
+  /** api-key: the server's key; session: this browser's sign-in; device: an app's own token. */
+  method: 'api-key' | 'session' | 'device' | 'tailscale' | 'local' | 'none'
   zone: NetworkZone
   isAdmin: boolean
   tailscaleLogin: string | null
@@ -607,3 +615,32 @@ export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 
 export const getRemoteAccess = (signal?: AbortSignal) => apiGet<RemoteAccess>('/remote', signal)
 export const setTailscaleAccess = (enabled: boolean) => request<RemoteAccess>('POST', '/remote/tailscale', { enabled })
 export const linkTailscale = (login: string, profileId: string | null) => request<RemoteAccess>('POST', '/remote/tailscale/links', { login, profileId })
+
+/** A browser or TV signed in to this server with its own token. */
+export interface SignIn {
+  id: string
+  kind: 'Browser' | 'Device'
+  name: string
+  createdAt: string
+  lastUsedAt: string
+  zone: NetworkZone
+  address: string | null
+  profileId: string
+  profileName: string | null
+  /** The browser you're using now. */
+  isThisOne: boolean
+}
+
+export const getSignIns = (signal?: AbortSignal) => apiGet<SignIn[]>('/sign-ins', signal)
+export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${id}`)
+
+/** Signs this browser out: the server forgets its session, and the profile chosen here is forgotten too. */
+export async function signOut() {
+  await request<void>('DELETE', '/session')
+  saveProfileToken(null)
+  try {
+    sessionStorage.removeItem('flexarr.profileChosen')
+  } catch {
+    // Storage unavailable.
+  }
+}

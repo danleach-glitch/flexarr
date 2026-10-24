@@ -47,4 +47,15 @@
 
 ## Authentication
 
-\*arr-style API keys: send `X-Api-Key: <key>` or `?apikey=<key>`. The key is generated on first run and stored in `<DataDirectory>/config.json`. `AuthenticationRequired` can be `Enabled` or `DisabledForLocalAddresses`. User accounts with per-user tokens come with multi-user support.
+The server has one API key, generated on first run and stored in `<DataDirectory>/config.json`. Send it \*arr-style, as `X-Api-Key: <key>` or `?apikey=<key>`. It is for setting things up, not for every device to keep:
+
+- **Browsers** sign in once with the key (`POST /session`) and get an HttpOnly cookie holding a random session token of their own. **Apple TVs** pair with a code, approved in the web app, and get a device token of their own (sent as `X-Api-Key`); TVs set up with the key itself swap it for one (`POST /session/device`). Only hashes of these tokens are kept, in `<DataDirectory>/devices.json`. Settings › Server lists them with Sign out; `DELETE /session` signs out the one asking. Browsers unused for six months are signed out. The key can be replaced from Settings without signing these out.
+- **Pairing** only starts from the home network or tailnet, at most three waiting codes per address, and the approval page shows where the request came from.
+- **Profiles.** Only the main profile manages the server (settings, the API key, connecting TVs, deleting media). A browser or TV keeps the profile chosen on it on the server, so another profile there can't regain admin by dropping the `X-Flexarr-Profile` header; the main profile must be chosen again, with its PIN. The API key itself is always admin. PIN attempts are taken one at a time per profile, and wrong ones lock out the profile and the caller for a while, doubling each time up to an hour. A Tailscale account linked to another profile can't choose a main profile that has no PIN.
+- **Webhooks** use their own secret (`?secret=`), which can only queue scans; `?apikey=` still works.
+- **`AuthenticationRequired`** can be `Enabled` or `DisabledForLocalAddresses`. With the latter, requests from the home network sign in as the main profile without a key, but only when addressed to one of this server's names (an IP address, a single-word or `.local`-style name, this machine's name, or one listed in `knownHosts`), so a web page can't use DNS rebinding to get in through a browser.
+- **Tailscale.** Behind `tailscale serve`, the `Tailscale-User-Login` header signs in as the profile linked to that account, once `tailscale whois` confirms the forwarded address belongs to it.
+- **Network zones.** Traffic through Cloudflare Tunnel or Tailscale Funnel is always the internet. Forwarded requests count as the internet unless they come from this machine or a proxy listed in `trustedProxies`.
+- **Other websites.** Writes signed in by cookie, the home network or Tailscale must come from Flexarr's own pages (`X-Requested-With`, `Sec-Fetch-Site: same-origin` or a matching `Origin`). Requests with a key are exempt.
+
+Over plain HTTP the key, the sign-in and the cookie cross the network unencrypted. That's fine on a home network you trust; anywhere else, reach Flexarr through Tailscale (which encrypts and gives it an HTTPS address) or an HTTPS proxy.

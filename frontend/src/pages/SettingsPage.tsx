@@ -5,7 +5,9 @@ import {
   createLibrary,
   deleteLibrary,
   getActivity,
-  getApiKey,
+  getMe,
+  revealApiKey,
+  rotateApiKey,
   getArrStatus,
   getRequestStatus,
   getLibraryHealth,
@@ -54,6 +56,7 @@ import { ConnectTv } from '../components/ConnectTv'
 import { FolderPicker } from '../components/FolderPicker'
 import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
+import { SignIns } from '../components/SignIns'
 import { useLibraries } from '../hooks/librariesContext'
 import { ChevronDown, ChevronUp } from '../components/icons'
 import { useApi } from '../hooks/useApi'
@@ -77,6 +80,17 @@ const sections = [
 
 export function SettingsPage() {
   const { section = 'libraries' } = useParams()
+  const me = useApi(getMe, [])
+
+  // Settings are the main profile's. Another profile chosen on this browser has given that up until the main
+  // profile is chosen again (with its PIN).
+  if (me.data && !me.data.isAdmin) {
+    return (
+      <div className="settings">
+        <p className="page-message muted">Settings are for the main profile. Switch to it from the profile menu to change them.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="settings">
@@ -618,7 +632,24 @@ function ActivitySection() {
 function ServerSection() {
   const { settings, save, saved, saveError } = useSettings()
   const [key, setKey] = useState<string>()
+  const [keyError, setKeyError] = useState<string>()
+  const [auth, setAuth] = useState<Settings['authenticationRequired']>()
   const origin = window.location.origin
+
+  async function rotate() {
+    if (
+      !confirm(
+        'Make a new API key? Browsers and TVs signed in below keep working. Anything you gave the old key itself (Sonarr or Radarr’s Emby connection, scripts, an older TV app) will need the new one.',
+      )
+    )
+      return
+    setKeyError(undefined)
+    try {
+      setKey((await rotateApiKey()).apiKey)
+    } catch (e) {
+      setKeyError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+    }
+  }
 
   if (!settings) return <p className="muted">Loading…</p>
   return (
@@ -636,26 +667,53 @@ function ServerSection() {
       >
         <label className="field">
           <span className="field-label">Ask for the API key</span>
-          <select name="auth" defaultValue={settings.authenticationRequired}>
+          <select name="auth" defaultValue={settings.authenticationRequired} onChange={(e) => setAuth(e.target.value as Settings['authenticationRequired'])}>
             <option value="Enabled">Always</option>
             <option value="DisabledForLocalAddresses">Only away from home</option>
           </select>
           <span className="field-help">“Only away from home” lets devices on your own network in without a key.</span>
         </label>
+        {(auth ?? settings.authenticationRequired) === 'DisabledForLocalAddresses' && (
+          <p className="panel advice">
+            Anyone who can reach this server from your network gets in as the main profile, which can change settings. If Flexarr sits behind a reverse proxy
+            in Docker or on another computer, add that proxy to <code>trustedProxies</code> in config.json, or visitors through it are treated as the
+            internet and asked for the key.
+          </p>
+        )}
         <SaveBar saved={saved} error={saveError} />
       </form>
 
       <h3 className="settings-subhead">API key</h3>
       <div className="panel">
-        <p className="settings-lede">Apps and the Apple TV app use this key to connect.</p>
+        <p className="settings-lede">
+          Sign in to a new browser, or set up an app, with this key. Browsers and TVs get a sign-in of their own once connected, so they don’t keep it.
+        </p>
         {key ? (
           <code className="api-key">{key}</code>
         ) : (
-          <button className="button quiet small" onClick={() => getApiKey().then((k) => setKey(k.apiKey))}>
+          <button
+            className="button quiet small"
+            onClick={() =>
+              revealApiKey()
+                .then((k) => setKey(k.apiKey))
+                .catch((e: unknown) => setKeyError(String(e)))
+            }
+          >
             Show API key
           </button>
+        )}{' '}
+        <button className="button quiet small" onClick={() => void rotate()}>
+          Make a new key
+        </button>
+        {keyError && (
+          <p className="error" role="alert">
+            {keyError}
+          </p>
         )}
       </div>
+
+      <h3 className="settings-subhead">Signed-in browsers and TVs</h3>
+      <SignIns />
 
       <h3 className="settings-subhead">Webhooks</h3>
       <div className="panel">
@@ -665,9 +723,10 @@ function ServerSection() {
         </p>
         {(['sonarr', 'radarr', 'lidarr'] as const).map((app) => (
           <code key={app} className="folder">
-            {origin}/api/v1/webhooks/{app}?apikey={key ?? '…'}
+            {origin}/api/v1/webhooks/{app}?secret={settings.webhookSecret ?? '…'}
           </code>
         ))}
+        <p className="field-help">The secret in these addresses can only start scans. Webhooks set up earlier with the API key keep working.</p>
       </div>
 
       <h3 className="settings-subhead">Storage</h3>
@@ -1674,8 +1733,8 @@ function RemoteAccessSection() {
 
       {ts.privateAccess && !remote.data.mainProfileHasPin && (
         <p className="panel advice">
-          Anyone signed in can switch to a profile without a PIN, including the main profile, which can change settings. If others share your tailnet,
-          give the main profile a PIN in <a href="/settings/profiles">Profiles</a>.
+          Anyone using a browser or TV you’ve signed in can switch to the main profile, which can change settings, because it has no PIN. Give it one in{' '}
+          <a href="/settings/profiles">Profiles</a>.
         </p>
       )}
 

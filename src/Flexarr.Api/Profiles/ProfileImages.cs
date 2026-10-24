@@ -54,7 +54,14 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
         }
     }
 
-    public void Delete(string profileId) => File.Delete(PathFor(profileId));
+    public void Delete(string profileId)
+    {
+        // Before any picture has been saved the folder doesn't exist, which File.Delete doesn't forgive.
+        if (File.Exists(PathFor(profileId)))
+        {
+            File.Delete(PathFor(profileId));
+        }
+    }
 
     private static async Task<string?> InputFormatAsync(string path, CancellationToken ct)
     {

@@ -85,7 +85,7 @@ public static class RemoteAccessEndpoints
         var mainPin = await db.Profiles.AsNoTracking().AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, ct);
         return new RemoteAccessDto(
             NetworkZones.Of(http),
-            ApiKeyAuthenticationHandler.TrustedTailscaleLogin(http),
+            http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value,
             state,
             links,
             CloudflareRunning(),

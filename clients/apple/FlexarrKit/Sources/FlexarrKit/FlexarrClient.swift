@@ -146,9 +146,28 @@ public struct FlexarrClient: Sendable {
         return try decode(PairingStart.self, from: data)
     }
 
-    /// Polled while the code is on screen; carries the API key once approved.
+    /// Polled while the code is on screen; carries this Apple TV's own token once approved.
     public func pairingStatus(_ id: String) async throws -> PairingStatus {
         try await get("pairing/\(id)")
+    }
+
+    // MARK: Sign-in
+
+    /// How this client signed in, which profile it acts for, and whether it may manage the server.
+    public func me() async throws -> SignInInfo {
+        try await get("me")
+    }
+
+    /// Swaps the server's API key (what Apple TVs were given before per-device sign-ins) for a token of this
+    /// device's own, which can be signed out from the web app without changing the key everywhere.
+    public func deviceToken(deviceName: String) async throws -> String {
+        let data = try await send("POST", "session/device", body: ["deviceName": deviceName])
+        return try decode(DeviceToken.self, from: data).token
+    }
+
+    /// Signs this device out on the server (its token stops working).
+    public func signOut() async throws {
+        _ = try await send("DELETE", "session")
     }
 
     // MARK: URLs

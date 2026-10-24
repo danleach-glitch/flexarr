@@ -410,8 +410,20 @@ public struct PairingStart: Decodable, Sendable, Equatable {
 public struct PairingStatus: Decodable, Sendable, Equatable {
     /// "waiting", "approved" or "expired".
     public let status: String
-    /// Set once, when approved.
+    /// Set once, when approved: this Apple TV's own token, sent as the API key from then on.
     public let apiKey: String?
+}
+
+/// What `/me` says about this client.
+public struct SignInInfo: Decodable, Sendable, Equatable {
+    public let profileId: String
+    /// "api-key" (the server's key itself), "device" (this device's own token), "tailscale" or "local".
+    public let method: String
+    public let isAdmin: Bool
+}
+
+struct DeviceToken: Decodable, Sendable {
+    let token: String
 }
 
 // MARK: - Profiles

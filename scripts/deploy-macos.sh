@@ -45,7 +45,18 @@ echo "==> Installing on $host"
 runtime="$(sed -n 's/.*"version": "\([0-9]*\.[0-9]*\).*/\1/p' "$repo/global.json")"
 if ! ssh "$host" "~/.dotnet/dotnet --list-runtimes 2>/dev/null | grep -q 'Microsoft.AspNetCore.App $runtime'"; then
   echo "    installing ASP.NET Core $runtime runtime"
-  curl -sSL https://dot.net/v1/dotnet-install.sh | ssh "$host" "bash -s -- --runtime aspnetcore --channel $runtime --install-dir ~/.dotnet >/dev/null"
+  # A pinned copy of Microsoft's installer, checked before it runs, rather than whatever dot.net serves today.
+  # To update: pick a newer commit of github.com/dotnet/install-scripts and put its src/dotnet-install.sh hash here.
+  installer_commit="5147e32300a8e908f5d737c8cff63a76b4b63531"
+  installer_sha256="082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e"
+  installer="$(mktemp)"
+  trap 'rm -f "$installer"' EXIT
+  curl -sSfL "https://raw.githubusercontent.com/dotnet/install-scripts/$installer_commit/src/dotnet-install.sh" -o "$installer"
+  if [ "$(shasum -a 256 "$installer" | cut -d' ' -f1)" != "$installer_sha256" ]; then
+    echo "dotnet-install.sh doesn't match its pinned checksum; not running it" >&2
+    exit 1
+  fi
+  ssh "$host" "bash -s -- --runtime aspnetcore --channel $runtime --install-dir ~/.dotnet >/dev/null" < "$installer"
 fi
 root="$(ssh "$host" 'echo $HOME/.flexarr')"
 dotnet_root="$(ssh "$host" 'echo $HOME/.dotnet')"

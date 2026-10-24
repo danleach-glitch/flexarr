@@ -1,6 +1,7 @@
 import FlexarrKit
 import Foundation
 import Observation
+import UIKit
 
 /// App-wide state: the signed-in server, who's watching, their libraries and the player.
 @MainActor
@@ -43,6 +44,8 @@ final class AppModel {
             let credentials = ServerCredentials(address: url, apiKey: defaults.string(forKey: "FlexarrApiKey") ?? "")
             try? store.save(credentials)
             skipsProfileChoice = !defaults.bool(forKey: "FlexarrAskProfile")
+            // Keep the key given on the command line rather than making a new device sign-in every run.
+            upgradeChecked = true
         }
         // `-FlexarrNoHistory YES` plays without reporting progress, so test runs against a
         // real server don't change its watch history.
@@ -69,23 +72,28 @@ final class AppModel {
         profiles.count == 2 ? profiles.first(where: { !$0.isCurrent }) : nil
     }
 
-    /// Validates the address and key against `/system/status`, then saves them.
+    /// Validates the address and key against `/system/status`, then saves them. A typed-in API key is swapped
+    /// for this Apple TV's own token first, so the key itself isn't kept here.
     func connect(address: String, apiKey: String) async throws {
         guard let url = FlexarrClient.normalizeAddress(address) else { throw FlexarrClientError.invalidAddress }
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let credentials = ServerCredentials(address: url, apiKey: key)
+        var credentials = ServerCredentials(address: url, apiKey: key)
         do {
             _ = try await credentials.client.systemStatus()
         } catch {
             throw ConnectionError(error)
         }
+        credentials = await withOwnToken(credentials)
         try store.save(credentials)
+        upgradeChecked = true
         libraries = []
         resetProfiles()
         phase = .signedIn(credentials)
     }
 
     func signOut() {
+        // Tell the server too, so this Apple TV's token stops working; best effort, the TV forgets it either way.
+        if let client { Task { try? await client.signOut() } }
         player.stop()
         store.clear()
         libraries = []
@@ -93,7 +101,30 @@ final class AppModel {
         phase = .signedOut
     }
 
+    /// Set once this launch has checked whether the saved key should be swapped for a token of its own.
+    private var upgradeChecked = false
+
+    /// The same sign-in with this Apple TV's own token in place of the server's API key, if it holds the key
+    /// (as Apple TVs set up by earlier versions do). Unchanged if it doesn't, or the server is too old to offer one.
+    private func withOwnToken(_ credentials: ServerCredentials) async -> ServerCredentials {
+        guard !credentials.apiKey.isEmpty,
+              let me = try? await credentials.client.me(), me.method == "api-key",
+              let token = try? await credentials.client.deviceToken(deviceName: UIDevice.current.name)
+        else { return credentials }
+        var own = credentials
+        own.apiKey = token
+        return own
+    }
+
     func loadProfiles() async {
+        if !upgradeChecked, let credentials {
+            upgradeChecked = true
+            let own = await withOwnToken(credentials)
+            // Only switch once it's saved, so a Keychain failure leaves the working key in place.
+            if own != credentials, (try? store.save(own)) != nil {
+                phase = .signedIn(own)
+            }
+        }
         guard let client else { return }
         defer { profilesLoaded = true }
         guard let list = try? await client.profiles() else { return }
