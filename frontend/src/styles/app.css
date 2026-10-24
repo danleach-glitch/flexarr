@@ -341,11 +341,17 @@ kbd {
 
 /* ---------- Rows ---------- */
 
+/*
+ * Grid children won't shrink below their content by default, which would make every row as wide as all of its
+ * posters and widen the whole page. A shrinkable column (and min-width: 0 on .row) keeps each row the width of the
+ * screen, so it scrolls sideways on its own.
+ */
 .rows {
   position: relative;
   z-index: 2;
   margin-top: -9vh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 40px;
 }
 
@@ -383,7 +389,14 @@ kbd {
   opacity: 1;
 }
 
+.row {
+  min-width: 0;
+}
+
 .row-track {
+  /* Contains absolutely positioned descendants (e.g. visually hidden labels), so they're clipped with the row
+     instead of escaping to a positioned ancestor outside it and widening the page. */
+  position: relative;
   display: grid;
   grid-auto-flow: column;
   gap: 18px;
@@ -757,6 +770,7 @@ kbd {
 .discover-external {
   margin: 0 calc(-1 * var(--edge)) 12px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 32px;
 }
 
