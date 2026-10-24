@@ -138,30 +138,17 @@ public static partial class HealthEndpoints
                 return Results.Ok(new DuplicateRemovalDto(0, 0, []));
             }
 
-            var kind = item.Kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr;
-            var source = item.Kind == MediaKind.Episode ? item.Parent?.Parent?.MetadataSource ?? item.MetadataSource : item.MetadataSource;
-            var instance = options.CurrentValue.Arr.FirstOrDefault(a => a.Name == source && a.Kind == kind);
-            if (instance is null || item.ArrId is not { } arrId)
+            var (trackedPath, problem) = await TrackedFileAsync(item, options.CurrentValue, arr, ct);
+            if (problem is not null)
             {
-                return Results.Problem($"{kind} doesn't manage {item.Title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.", statusCode: 409);
+                return problem;
             }
 
-            string? tracked;
-            try
+            // Copies often tie (the same file twice); then the one Sonarr or Radarr track is the one kept.
+            var keep = new HashSet<string>(StringComparer.Ordinal) { Normalize(Rank(item.Files, trackedPath)[0].Path) };
+            if (trackedPath is not null)
             {
-                tracked = item.Kind == MediaKind.Movie
-                    ? (await arr.GetMovieAsync(instance, arrId, ct)).MovieFile?.Path
-                    : await arr.GetEpisodeAsync(instance, arrId, ct) is { EpisodeFileId: > 0 } episode ? (await arr.GetEpisodeFileAsync(instance, episode.EpisodeFileId, ct)).Path : null;
-            }
-            catch (HttpRequestException ex)
-            {
-                return Results.Problem($"{instance.Name} didn't say which copy it uses ({(int?)ex.StatusCode ?? 0}), so nothing was deleted.", statusCode: 502);
-            }
-
-            var keep = new HashSet<string>(StringComparer.Ordinal) { Normalize(Rank(item.Files)[0].Path) };
-            if (tracked is not null)
-            {
-                keep.Add(Normalize(PathMapper.Map(tracked, options.CurrentValue.PathMappings)));
+                keep.Add(trackedPath);
             }
 
             var removed = 0;
@@ -185,6 +172,49 @@ public static partial class HealthEndpoints
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(new DuplicateRemovalDto(removed, freed, skipped));
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // Deletes one copy of a film or episode, chosen in Library health. Never the copy Sonarr or Radarr use, or the last one.
+        api.MapDelete("/library-health/files/{fileId:guid}", async (Guid fileId, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
+            ILoggerFactory logs, CancellationToken ct) =>
+        {
+            var file = await db.MediaFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+            var item = file is null ? null
+                : await db.MediaItems.Include(i => i.Files).Include(i => i.Parent).ThenInclude(p => p!.Parent).FirstOrDefaultAsync(i => i.Id == file.MediaItemId, ct);
+            if (file is null || item is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (item.Files.Count < 2)
+            {
+                return Results.Problem("This is the only copy. To remove the title, use Delete on its page.", statusCode: 409);
+            }
+
+            var (trackedPath, problem) = await TrackedFileAsync(item, options.CurrentValue, arr, ct);
+            if (problem is not null)
+            {
+                return problem;
+            }
+
+            if (trackedPath == Normalize(file.Path))
+            {
+                return Results.Problem("Sonarr or Radarr use this copy. Replace it there, or delete the other copy.", statusCode: 409);
+            }
+
+            try
+            {
+                File.Delete(file.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return Results.Problem($"Couldn't delete it: {ex.Message}", statusCode: 500);
+            }
+
+            db.MediaFiles.Remove(file);
+            await db.SaveChangesAsync(ct);
+            LogRemoved(logs.CreateLogger("Flexarr.Health"), file.Path);
+            return Results.Ok(new DuplicateRemovalDto(1, file.Size, []));
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Asks Radarr or Sonarr to search for this film, episode, season or series again (e.g. to upgrade quality).
@@ -218,9 +248,40 @@ public static partial class HealthEndpoints
         return api;
     }
 
-    /// <summary>Best copy first: highest resolution, then bitrate, then size.</summary>
-    private static List<MediaFile> Rank(IEnumerable<MediaFile> files) =>
-        files.OrderByDescending(f => Math.Max(f.Height ?? 0, (f.Width ?? 0) * 9 / 16)).ThenByDescending(f => f.Bitrate ?? 0).ThenByDescending(f => f.Size).ToList();
+    /// <summary>
+    /// The local path of the file Sonarr or Radarr track for a film or episode (null if none), or the problem to return
+    /// when they can't say, in which case nothing may be deleted.
+    /// </summary>
+    private static async Task<(string? Path, IResult? Problem)> TrackedFileAsync(MediaItem item, FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    {
+        var kind = item.Kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr;
+        var source = item.Kind == MediaKind.Episode ? item.Parent?.Parent?.MetadataSource ?? item.MetadataSource : item.MetadataSource;
+        var instance = options.Arr.FirstOrDefault(a => a.Name == source && a.Kind == kind);
+        if (instance is null || item.ArrId is not { } arrId)
+        {
+            return (null, Results.Problem($"{kind} doesn't manage {item.Title}, so Flexarr can't tell which copy it uses. Remove the spare in the Finder.", statusCode: 409));
+        }
+
+        try
+        {
+            var tracked = item.Kind == MediaKind.Movie
+                ? (await arr.GetMovieAsync(instance, arrId, ct)).MovieFile?.Path
+                : await arr.GetEpisodeAsync(instance, arrId, ct) is { EpisodeFileId: > 0 } episode ? (await arr.GetEpisodeFileAsync(instance, episode.EpisodeFileId, ct)).Path : null;
+            return (tracked is null ? null : Normalize(PathMapper.Map(tracked, options.PathMappings)), null);
+        }
+        catch (HttpRequestException ex)
+        {
+            return (null, Results.Problem($"{instance.Name} didn't say which copy it uses ({(int?)ex.StatusCode ?? 0}), so nothing was deleted.", statusCode: 502));
+        }
+    }
+
+    /// <summary>
+    /// Best copy first: highest resolution, then bitrate. Ties go to the file Sonarr or Radarr track, then the bigger one.
+    /// </summary>
+    private static List<MediaFile> Rank(IEnumerable<MediaFile> files, string? trackedPath) =>
+        files.OrderByDescending(f => Math.Max(f.Height ?? 0, (f.Width ?? 0) * 9 / 16)).ThenByDescending(f => f.Bitrate ?? 0)
+            .ThenByDescending(f => trackedPath is not null && Normalize(f.Path) == trackedPath)
+            .ThenByDescending(f => f.Size).ToList();
 
     private static string Normalize(string path) => path.Normalize(System.Text.NormalizationForm.FormC);
 

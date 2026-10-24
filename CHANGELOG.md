@@ -4,6 +4,12 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Spare copies and phone fixes
+- Fixed: Remove spare copies skipped titles whose two copies were identical; the copy Sonarr or Radarr use is now kept and the other removed.
+- Each copy of a duplicate has **Delete this copy**, for titles where the best copy and the one Sonarr or Radarr use differ (both are kept automatically). Identical copies are labelled as such.
+- The removal summary says when titles kept every copy, and why.
+- Fixed: on phones, the tab bar jumped up under the header (behind your profile picture) after scrolling; it stays at the bottom, and scrolls sideways if the tabs don't all fit.
+
 ### Smaller fixes
 - Cards write episodes out in full: "Season 21 | Episode 08", with the episode's name beneath.
 - Library health shows when Sonarr or Radarr are already downloading a new copy ("Downloading 45%"), instead of offering another search.

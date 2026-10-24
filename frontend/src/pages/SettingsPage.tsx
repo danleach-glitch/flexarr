@@ -17,6 +17,7 @@ import {
   setTailscaleAccess,
   getAllLibraries,
   removeDuplicates,
+  deleteCopy,
   getChangelog,
   getHealthCheck,
   startHealthCheck,
@@ -930,7 +931,8 @@ function HealthSection() {
   const { data, reload } = useApi(getLibraryHealth, [])
   const [requested, setRequested] = useState<Record<string, string>>({})
   const [shown, setShown] = useState(40)
-  const [removing, setRemoving] = useState<{ done: number; total: number; freed: number; skipped: number } | null>(null)
+  const [removing, setRemoving] = useState<{ done: number; total: number; freed: number; kept: number; failed: number } | null>(null)
+  const [copyErrors, setCopyErrors] = useState<Record<string, string>>({})
   const [confirmAll, setConfirmAll] = useState(false)
   if (!data) return <p className="muted">Checking your library…</p>
 
@@ -946,19 +948,31 @@ function HealthSection() {
   /** One title at a time, so progress is visible and one failure doesn't stop the rest. */
   async function removeSpares(ids: string[]) {
     let freed = 0
-    let skipped = 0
-    setRemoving({ done: 0, total: ids.length, freed, skipped })
+    let kept = 0
+    let failed = 0
+    setRemoving({ done: 0, total: ids.length, freed, kept, failed })
     for (const [i, id] of ids.entries()) {
       try {
         const result = await removeDuplicates(id)
         freed += result.freedBytes
-        skipped += result.skipped.length
+        // Nothing removed: Sonarr or Radarr use a different copy from the best one, so both stay.
+        if (result.removed === 0) kept++
+        failed += result.skipped.length
       } catch {
-        skipped++
+        failed++
       }
-      setRemoving({ done: i + 1, total: ids.length, freed, skipped })
+      setRemoving({ done: i + 1, total: ids.length, freed, kept, failed })
     }
     reload()
+  }
+
+  async function removeCopy(fileId: string) {
+    try {
+      await deleteCopy(fileId)
+      reload()
+    } catch (e) {
+      setCopyErrors((c) => ({ ...c, [fileId]: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t delete it' }))
+    }
   }
 
   const score = data.score
@@ -1019,8 +1033,13 @@ function HealthSection() {
             <span>
               {removing.done < removing.total
                 ? `Removing spare copies: ${removing.done.toLocaleString()} of ${removing.total.toLocaleString()} titles`
-                : `Removed spare copies of ${(removing.total - removing.skipped).toLocaleString()} titles, freeing ${formatSize(removing.freed)}.`}
-              {removing.skipped > 0 && ` ${removing.skipped} couldn’t be removed (see the server log).`}
+                : removing.total - removing.kept - removing.failed > 0
+                  ? `Removed spare copies of ${(removing.total - removing.kept - removing.failed).toLocaleString()} titles, freeing ${formatSize(removing.freed)}.`
+                  : 'Nothing was removed.'}
+              {removing.done === removing.total &&
+                removing.kept > 0 &&
+                ` ${removing.kept.toLocaleString()} kept every copy: Sonarr or Radarr use a different copy from the best one. Open a title to delete the copy you don’t want.`}
+              {removing.failed > 0 && ` ${removing.failed} couldn’t be removed (see the server log).`}
             </span>
             <span className="scan-track" aria-hidden="true">
               <span style={{ width: `${(removing.done / Math.max(1, removing.total)) * 100}%` }} />
@@ -1042,13 +1061,23 @@ function HealthSection() {
               </button>
             </summary>
             <ul className="health-copies">
-              {d.files.map((f) => (
-                <li key={f.id}>
-                  <span className={f.keep ? 'tag keep' : 'tag'}>{f.keep ? 'Best' : 'Spare'}</span>
-                  <span title={f.path}>{fileName(f.path)}</span>
-                  <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
-                </li>
-              ))}
+              {d.files.map((f) => {
+                // Copies identical to the best: which one stays is whichever Sonarr or Radarr use.
+                const best = d.files.find((x) => x.keep)!
+                const same = (x: typeof f) => x.size === best.size && x.resolution === best.resolution
+                const identical = same(f) && d.files.filter(same).length > 1
+                return (
+                  <li key={f.id}>
+                    <span className={f.keep || identical ? 'tag keep' : 'tag'}>{identical ? 'Identical' : f.keep ? 'Best' : 'Spare'}</span>
+                    <span title={f.path}>{fileName(f.path)}</span>
+                    <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
+                    <button className="text-button" onClick={() => removeCopy(f.id)}>
+                      Delete this copy
+                    </button>
+                    {copyErrors[f.id] && <span className="error">{copyErrors[f.id]}</span>}
+                  </li>
+                )
+              })}
             </ul>
           </details>
         ))}

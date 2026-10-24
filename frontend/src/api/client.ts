@@ -286,6 +286,9 @@ export const getHealthCheck = (signal?: AbortSignal) => apiGet<HealthCheckReport
 export const startHealthCheck = () => request<void>('POST', '/library-health/check')
 
 /** Deletes a title's spare copies from disk, keeping the best and the one Sonarr/Radarr use. */
+/** Deletes one chosen copy (never the one Sonarr/Radarr use, or a title's last copy). */
+export const deleteCopy = (fileId: string) => request<{ removed: number; freedBytes: number }>('DELETE', `/library-health/files/${fileId}`)
+
 export const removeDuplicates = (itemId: string) =>
   request<{ removed: number; freedBytes: number; skipped: { path: string; reason: string }[] }>('POST', `/items/${itemId}/remove-duplicates`)
 export const searchAgain = (id: string) => request<void>('POST', `/items/${id}/search-again`)
