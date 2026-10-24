@@ -9,6 +9,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "FlexarrKit"),
-        .testTarget(name: "FlexarrKitTests", dependencies: ["FlexarrKit"]),
+        .testTarget(
+            name: "FlexarrKitTests",
+            dependencies: ["FlexarrKit"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )

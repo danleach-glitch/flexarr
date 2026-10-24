@@ -1,0 +1,99 @@
+import FlexarrKit
+import SwiftUI
+
+struct SettingsView: View {
+    @Environment(AppModel.self) private var model
+    @State private var status: SystemStatus?
+    @State private var error: String?
+    @State private var confirmSignOut = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 100) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Settings")
+                    .font(.marquee(76, weight: .heavy))
+                    .foregroundStyle(Color.screen)
+                Text("Flexarr for Apple TV \(Bundle.main.shortVersion)")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Color.usher)
+            }
+            .frame(width: 520, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 40) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Server")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(Color.usher)
+                        .padding(.bottom, 16)
+                    row("Address", model.credentials?.address.absoluteString ?? "")
+                    if let status {
+                        row("Version", Self.shortVersion(status.version))
+                        row("Running on", status.osDescription)
+                        row("Runtime", status.runtimeVersion)
+                        row("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
+                    } else if let error {
+                        row("Status", error)
+                    } else {
+                        row("Status", "Checking")
+                    }
+                    row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
+                }
+                .padding(36)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.seat))
+
+                Button(role: .destructive) { confirmSignOut = true } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .buttonStyle(ActionButtonStyle())
+            }
+            .frame(maxWidth: 1000, alignment: .leading)
+        }
+        .padding(.horizontal, Layout.edge)
+        .padding(.top, 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .ignoresSafeArea(edges: .horizontal)
+        .background(RoomBackground(ambient: nil))
+        .task { await load() }
+        .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button("Sign out", role: .destructive) { model.signOut() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The API key will be removed from this Apple TV.")
+        }
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .foregroundStyle(Color.usher)
+                .frame(width: 240, alignment: .leading)
+            Text(value)
+                .foregroundStyle(Color.screen)
+                .lineLimit(2)
+        }
+        .font(.system(size: 27))
+        .padding(.vertical, 14)
+    }
+
+    /// "0.1.0+d4c892c6190c…" reads better as "0.1.0 (d4c892c)".
+    static func shortVersion(_ version: String) -> String {
+        let parts = version.split(separator: "+", maxSplits: 1)
+        guard parts.count == 2 else { return version }
+        return "\(parts[0]) (\(parts[1].prefix(7)))"
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        do {
+            status = try await client.systemStatus()
+        } catch {
+            self.error = ConnectionError(error).message
+        }
+    }
+}
+
+extension Bundle {
+    var shortVersion: String {
+        (infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
+    }
+}

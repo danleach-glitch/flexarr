@@ -1,7 +1,7 @@
 {
- "sessionId": "f1fafcf163de8ec25870dd584d78dbed",
+ "sessionId": "00000000000000000000000000000000",
  "method": "Transcode",
- "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/master.m3u8",
+ "url": "/api/v1/playback/00000000000000000000000000000000/master.m3u8",
  "reasons": [
   "This device can't open MKV files"
  ],
@@ -28,7 +28,7 @@
    "isForced": false,
    "isDefault": false,
    "isText": true,
-   "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/subtitles/e2.vtt"
+   "url": "/api/v1/playback/00000000000000000000000000000000/subtitles/e2.vtt"
   },
   {
    "key": "e3",
@@ -38,7 +38,7 @@
    "isForced": false,
    "isDefault": false,
    "isText": true,
-   "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/subtitles/e3.vtt"
+   "url": "/api/v1/playback/00000000000000000000000000000000/subtitles/e3.vtt"
   },
   {
    "key": "e4",
@@ -48,7 +48,7 @@
    "isForced": false,
    "isDefault": false,
    "isText": true,
-   "url": "/api/v1/playback/f1fafcf163de8ec25870dd584d78dbed/subtitles/e4.vtt"
+   "url": "/api/v1/playback/00000000000000000000000000000000/subtitles/e4.vtt"
   }
  ],
  "selectedSubtitleKey": null,

@@ -41,7 +41,7 @@ Like ambient TV backlighting, every title carries an **ambient colour** extracte
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ flexarr   Home  Movies  TV  Sam's        ⌘K Search   ⚙     │  ← transparent over hero
+│ flexarr   Home  Movies  TV  Kids        ⌘K Search   ⚙     │  ← transparent over hero
 │                                                               │
 │   [CLEAR LOGO]                                                │
 │   2016   1h 56m   Crime, Comedy                               │
