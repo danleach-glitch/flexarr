@@ -16,7 +16,8 @@ import {
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Facts } from '../components/Hero'
-import { Check, Film, Play } from '../components/icons'
+import { Check, Film, More, Play } from '../components/icons'
+import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
@@ -67,6 +68,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [matching, setMatching] = useState(false)
+  const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
   const { me } = useSession()
   const canDelete = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
   const canFixMatch = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series')
@@ -77,6 +79,15 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const backdrop = item.artwork.backdrop ?? series?.artwork.backdrop
   const logo = item.kind === 'Episode' ? series?.artwork.logo : item.artwork.logo
   const progress = progressOf(item)
+  // Play, the trailer and watched stay as buttons; everything else waits behind the ellipsis so the row doesn't wrap.
+  const more: MenuAction[] = []
+  if (progress !== null) more.push({ label: 'Play from the start', run: () => navigate(`/play/${item.id}?t=0`) })
+  if (item.kind === 'Movie' || item.kind === 'Series') more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+  if (canFixMatch) more.push({ label: 'Fix match…', run: () => setMatching(true) })
+  if (canDelete) {
+    if (more.length) more.push('divider')
+    more.push({ label: 'Delete…', run: () => setDeleting(true), danger: true })
+  }
   const best = detail.files[0]
 
   async function toggleWatched() {
@@ -131,11 +142,6 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <Play /> {playLabel}
               </button>
             )}
-            {progress !== null && (
-              <button className="button quiet" onClick={() => navigate(`/play/${item.id}?t=0`)}>
-                Start over
-              </button>
-            )}
             {detail.trailerYouTubeId && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
                 <Film /> Trailer
@@ -144,21 +150,21 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             <button className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
               <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
             </button>
-            {(item.kind === 'Movie' || item.kind === 'Series') && (
-              <button className="button quiet" onClick={() => openAddToCollection(item)}>
-                Add to collection
+            {more.length > 0 && (
+              <button
+                className="button quiet icon"
+                aria-label="More actions"
+                aria-haspopup="menu"
+                aria-expanded={moreAt !== null}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setMoreAt(moreAt ? null : { x: r.left, y: r.bottom + 6 })
+                }}
+              >
+                <More />
               </button>
             )}
-            {canFixMatch && (
-              <button className="button quiet" onClick={() => setMatching(true)}>
-                Fix match
-              </button>
-            )}
-            {canDelete && (
-              <button className="button quiet danger" onClick={() => setDeleting(true)}>
-                Delete
-              </button>
-            )}
+            {moreAt && <Menu label={`More for ${item.title}`} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
           </div>
           {progress !== null && (
             <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% watched`}>

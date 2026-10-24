@@ -139,6 +139,12 @@ code {
   font-size: var(--step--1);
 }
 
+.button.icon {
+  padding: 0;
+  width: 46px;
+  justify-content: center;
+}
+
 .button.danger {
   background: transparent;
   border-color: var(--aisle);
