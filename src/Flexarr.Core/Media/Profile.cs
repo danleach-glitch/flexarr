@@ -20,6 +20,9 @@ public sealed class Profile
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>The Tailscale account (login name) that signs in as this profile over Tailscale.</summary>
+    public string? TailscaleLogin { get; set; }
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));

@@ -1,4 +1,5 @@
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Microsoft.Extensions.Options;
 
@@ -8,7 +9,7 @@ public static class ImportEndpoints
 {
     public static RouteGroupBuilder MapImportEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/import/plex").WithTags("Import");
+        var group = api.MapGroup("/import/plex").WithTags("Import").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapGet("/", async (string? path, CancellationToken ct) => await PlexImporter.DescribeAsync(path, ct));
 

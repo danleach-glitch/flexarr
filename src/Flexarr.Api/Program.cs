@@ -6,6 +6,7 @@ using Flexarr.Api.Import;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Probing;
 using Flexarr.Core.Scanning;
@@ -13,6 +14,7 @@ using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Flexarr.Streaming;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
@@ -35,7 +37,19 @@ builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfi
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(FlexarrClaims.AdminPolicy, policy => policy.AddRequirements(new AdminRequirement()));
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminHandler>();
+
+// Tailscale serve and cloudflared proxy from this machine; trust their forwarded headers, and only theirs.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    o.ForwardLimit = 1;
+    o.KnownProxies.Clear();
+    o.KnownProxies.Add(System.Net.IPAddress.Loopback);
+    o.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+});
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
@@ -68,6 +82,7 @@ builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
+builder.Services.AddSingleton<TailscaleService>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
@@ -84,6 +99,13 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Database.MigrateAsync();
 }
 
+app.Use((http, next) =>
+{
+    RequestPeer.Capture(http);
+    return next(http);
+});
+app.UseForwardedHeaders();
+app.UseFlexarrSecurityHeaders();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
@@ -112,7 +134,8 @@ app.MapGroup("/api/v1")
     .MapUpcomingEndpoints()
     .MapHealthEndpoints()
     .MapRequestEndpoints()
-    .MapProfileEndpoints();
+    .MapProfileEndpoints()
+    .MapRemoteAccessEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();

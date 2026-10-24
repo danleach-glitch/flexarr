@@ -1,3 +1,4 @@
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Paths;
@@ -44,7 +45,7 @@ public static class LibraryEndpoints
             await EnqueueAsync(library, queue, "Library added", ct);
 
             return Results.Created($"/api/v1/libraries/{library.Id}", ToDto(library, 0, progress));
-        });
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapPut("/{id:guid}", async (Guid id, LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, CancellationToken ct) =>
         {
@@ -80,10 +81,10 @@ public static class LibraryEndpoints
             await db.SaveChangesAsync(ct);
             await EnqueueAsync(library, queue, "Library updated", ct);
             return Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress));
-        });
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
-            await db.Libraries.Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound());
+            await db.Libraries.Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound()).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapPost("/{id:guid}/scan", async (Guid id, bool? refreshMetadata, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>
         {
@@ -95,7 +96,7 @@ public static class LibraryEndpoints
 
             await EnqueueAsync(library, queue, refreshMetadata == true ? "Metadata refresh" : "Manual scan", ct, refreshMetadata == true);
             return Results.Accepted();
-        });
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }

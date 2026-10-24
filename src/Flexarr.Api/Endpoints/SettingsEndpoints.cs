@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Playback;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
@@ -59,7 +60,7 @@ public static class SettingsEndpoints
 
     public static RouteGroupBuilder MapSettingsEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/settings").WithTags("Settings");
+        var group = api.MapGroup("/settings").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) => ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct)));
 
@@ -119,7 +120,7 @@ public static class SettingsEndpoints
         group.MapGet("/api-key", (IOptionsMonitor<FlexarrOptions> options) => new { apiKey = options.CurrentValue.ApiKey });
 
         api.MapGet("/arr/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
-            await Task.WhenAll(options.CurrentValue.Arr.Select(a => StatusAsync(client, a, ct)))).WithTags("Settings");
+            await Task.WhenAll(options.CurrentValue.Arr.Select(a => StatusAsync(client, a, ct)))).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapPost("/arr/test", async (ArrConnectionUpdate connection, IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
         {
@@ -132,7 +133,7 @@ public static class SettingsEndpoints
             }
 
             return Results.Ok(await StatusAsync(client, new ArrInstance { Name = connection.Name, Kind = connection.Kind, BaseUrl = url, ApiKey = key }, ct));
-        }).WithTags("Settings");
+        }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapGet("/system/activity", async (FlexarrDbContext db, ScanProgress progress, PlaybackSessions sessions, CancellationToken ct) =>
         {
@@ -164,7 +165,7 @@ public static class SettingsEndpoints
                 await topLevel.CountAsync(i => i.MetadataUpdatedAt != null && i.PosterUrl != null, ct),
                 await topLevel.CountAsync(ct),
                 streams);
-        }).WithTags("System");
+        }).WithTags("System").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }

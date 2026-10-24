@@ -1,5 +1,6 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
@@ -62,7 +63,7 @@ public static class HealthEndpoints
                 missing,
                 await sd.OrderBy(i => i.SortTitle).Take(60).Summaries(profile.Id).ToListAsync(ct),
                 await sd.CountAsync(ct));
-        }).WithTags("Library health");
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Asks Radarr or Sonarr to search for this film, episode, season or series again (e.g. to upgrade quality).
         api.MapPost("/items/{id:guid}/search-again", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, CancellationToken ct) =>
@@ -90,7 +91,7 @@ public static class HealthEndpoints
 
             await arr.SendCommandAsync(instance, command, ct);
             return Results.Accepted();
-        }).WithTags("Library health");
+        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }

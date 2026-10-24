@@ -1,3 +1,5 @@
+using Flexarr.Api.Security;
+
 namespace Flexarr.Api.Endpoints;
 
 public sealed record DirectoryDto(string Name, string Path);
@@ -28,7 +30,7 @@ public static class FilesystemEndpoints
                 .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             return Results.Ok(new DirectoryListingDto(dir, Path.GetDirectoryName(dir), directories));
-        }).WithTags("Filesystem");
+        }).WithTags("Filesystem").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }
