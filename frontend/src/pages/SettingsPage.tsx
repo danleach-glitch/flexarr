@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, NavLink, useParams } from 'react-router'
 import {
   ApiError,
@@ -15,6 +15,10 @@ import {
   linkTailscale,
   setTailscaleAccess,
   getAllLibraries,
+  importPlexAvatars,
+  removeProfileImage,
+  uploadProfileImage,
+  type PlexAvatarResult,
   getProfiles,
   updateProfile,
   getSettings,
@@ -752,7 +756,49 @@ function ImportSection() {
           </>
         )}
       </div>
+      {source.data?.found && <PlexPictures path={source.data.path ?? undefined} />}
     </section>
+  )
+}
+
+function PlexPictures({ path }: { path?: string }) {
+  const [result, setResult] = useState<PlexAvatarResult>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+
+  async function run() {
+    setBusy(true)
+    setError(undefined)
+    try {
+      setResult(await importPlexAvatars(path))
+    } catch (e) {
+      setError(e instanceof ApiError && e.messages.length ? e.messages[0] : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="panel">
+      <h3>Profile pictures</h3>
+      <p className="muted">Use the pictures from your Plex Home users for the Flexarr profiles with the same names. It replaces any picture those profiles already have.</p>
+      {result && (
+        <p role="status" className="import-result">
+          {result.matched.length > 0 ? `Updated ${result.matched.map((m) => m.profile).join(' and ')}.` : 'No profiles matched a Plex user’s name.'}
+          {result.unmatchedPlexUsers.length > 0 && ` No profile is called ${result.unmatchedPlexUsers.join(' or ')}; add one and run this again.`}
+        </p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="form-actions">
+        <button className="button" disabled={busy} onClick={run}>
+          {busy ? 'Fetching pictures…' : 'Use Plex profile pictures'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -930,6 +976,18 @@ function ProfilesSection() {
   )
 }
 
+/** An object URL for previewing a chosen file, released when it changes. */
+function usePreviewUrl(file: File | null | undefined) {
+  const url = useMemo(() => (file ? URL.createObjectURL(file) : undefined), [file])
+  useEffect(
+    () => () => {
+      if (url) URL.revokeObjectURL(url)
+    },
+    [url],
+  )
+  return url
+}
+
 /** "Can't see Movies", or nothing when the profile sees every library. */
 function hiddenSummary(profile: Profile, libraries: Library[]) {
   const names = libraries.filter((l) => profile.hiddenLibraryIds.includes(l.id)).map((l) => l.name)
@@ -939,6 +997,9 @@ function hiddenSummary(profile: Profile, libraries: Library[]) {
 function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profile; libraries: Library[]; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(profile?.name ?? '')
   const [hidden, setHidden] = useState<string[]>(profile?.hiddenLibraryIds ?? [])
+  const [picture, setPicture] = useState<File | null>()
+  const preview = usePreviewUrl(picture)
+  const shownImage = picture === null ? null : (preview ?? profile?.image ?? null)
   const [color, setColor] = useState(profile?.color ?? profileColours[1])
   const [pin, setPin] = useState('')
   const [removePin, setRemovePin] = useState(false)
@@ -947,8 +1008,11 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
   async function submit(e: FormEvent) {
     e.preventDefault()
     try {
-      if (profile) await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden })
-      else await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden })
+      const saved = profile
+        ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden })
+        : await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden })
+      if (picture) await uploadProfileImage(saved.id, picture)
+      else if (picture === null && profile?.image) await removeProfileImage(saved.id)
       onDone()
     } catch (err) {
       setErrors(err instanceof ApiError && err.messages.length ? err.messages : [String(err)])
@@ -967,8 +1031,25 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
           <input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="4 to 8 digits" />
         </label>
       </div>
+      <div className="field profile-picture">
+        <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
+        <div>
+          <span className="field-label">Picture</span>
+          <div className="form-actions">
+            <label className="button quiet small file-button">
+              {shownImage ? 'Change picture' : 'Choose a picture'}
+              <input type="file" accept="image/*" onChange={(e) => setPicture(e.target.files?.[0])} />
+            </label>
+            {shownImage && (
+              <button type="button" className="button quiet small" onClick={() => setPicture(null)}>
+                Remove picture
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
       <div className="field">
-        <span className="field-label">Colour</span>
+        <span className="field-label">{shownImage ? 'Colour (shown behind the picture while it loads)' : 'Colour'}</span>
         <div className="swatches" role="radiogroup" aria-label="Colour">
           {profileColours.map((c) => (
             <button type="button" key={c} role="radio" aria-checked={c === color} aria-label={c} className="swatch" style={{ background: c }} onClick={() => setColor(c)} />

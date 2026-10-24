@@ -26,6 +26,9 @@ public sealed class Profile
     /// <summary>Libraries this profile doesn't see anywhere: navigation, home, search, Discover or playback.</summary>
     public List<Guid> HiddenLibraryIds { get; set; } = [];
 
+    /// <summary>When the profile picture last changed (null: no picture, show the initial).</summary>
+    public DateTime? ImageUpdatedAt { get; set; }
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));

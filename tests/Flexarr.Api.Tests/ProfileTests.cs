@@ -52,4 +52,24 @@ public class ProfileTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    [Fact]
+    public async Task ProfilePicture_StartsEmpty_AndUploadsAreChecked()
+    {
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = "Pic" })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        using var empty = new ByteArrayContent([]);
+        using var picture = new ByteArrayContent([0x89, 0x50, 0x4E, 0x47]); // a PNG signature and nothing else
+
+        var emptyUpload = await Client().PutAsync(new Uri($"/api/v1/profiles/{id}/image", UriKind.Relative), empty);
+        var notAPicture = await Client().PutAsync(new Uri($"/api/v1/profiles/{id}/image", UriKind.Relative), picture);
+        var missing = await Client().PutAsync(new Uri("/api/v1/profiles/nobody/image", UriKind.Relative), picture);
+        var served = await factory.CreateClient().GetAsync(new Uri($"/api/v1/profiles/{id}/image", UriKind.Relative));
+
+        Assert.Equal(JsonValueKind.Null, created.GetProperty("image").ValueKind);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, emptyUpload.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, notAPicture.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, served.StatusCode);
+    }
 }

@@ -26,6 +26,22 @@ public static class ImportEndpoints
             }
         });
 
+        group.MapPost("/avatars", async (string? path, PlexAvatars avatars, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await avatars.ImportAsync(path, ct));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 404);
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Problem($"plex.tv didn't answer ({(int?)ex.StatusCode ?? 0}). Try again in a moment.", statusCode: 502);
+            }
+        });
+
         return api;
     }
 }

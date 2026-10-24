@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Profiles;
 
-public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds);
+/// <param name="Image">The profile picture's URL, or null to show the initial on the colour.</param>
+public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image);
 
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
 public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin, IReadOnlyList<Guid>? HiddenLibraryIds = null);
@@ -68,7 +69,7 @@ public static partial class ProfileEndpoints
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapDelete("/{id}", async (string id, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, CancellationToken ct) =>
         {
             if (id == PlaybackState.DefaultUser)
             {
@@ -76,7 +77,49 @@ public static partial class ProfileEndpoints
             }
 
             // Watch history goes with the profile (cascade).
-            return await db.Profiles.Where(p => p.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound();
+            if (await db.Profiles.Where(p => p.Id == id).ExecuteDeleteAsync(ct) == 0)
+            {
+                return Results.NotFound();
+            }
+
+            images.Delete(id);
+            return Results.NoContent();
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // The picture is the request body (any common image format).
+        group.MapPut("/{id}/image", async (string id, HttpRequest http, FlexarrDbContext db, ProfileImages images, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            if (http.ContentLength is not > 0 || http.ContentLength > ProfileImages.MaxUploadBytes)
+            {
+                return Results.Problem("Pictures can be up to 15 MB.", statusCode: 413);
+            }
+
+            if (!await images.SaveAsync(id, http.Body, ct))
+            {
+                return Results.Problem("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", statusCode: 400);
+            }
+
+            profile.ImageUpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        group.MapDelete("/{id}/image", async (string id, FlexarrDbContext db, ProfileImages images, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            images.Delete(id);
+            profile.ImageUpdatedAt = null;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Choosing a profile returns the token clients send as X-Flexarr-Profile.
@@ -100,7 +143,27 @@ public static partial class ProfileEndpoints
         return api;
     }
 
-    private static ProfileDto ToDto(Profile p, CurrentProfile current) => new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds);
+    /// <summary>Profile pictures are shown by &lt;img&gt; tags (the profile picker too), so they're served without the API key.</summary>
+    public static RouteGroupBuilder MapProfileImageEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapGet("/profiles/{id}/image", (string id, ProfileImages images, HttpContext http) =>
+        {
+            var path = images.PathFor(id);
+            if (!File.Exists(path))
+            {
+                return Results.NotFound();
+            }
+
+            // The URL carries a version, so a changed picture gets a new URL.
+            http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+            return Results.File(path, "image/jpeg");
+        }).WithTags("Profiles").AllowAnonymous();
+
+        return api;
+    }
+
+    internal static ProfileDto ToDto(Profile p, CurrentProfile current) => new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds,
+        p.ImageUpdatedAt is { } at ? $"/api/v1/profiles/{p.Id}/image?v={at.Ticks}" : null);
 
     private static IResult? Validate(ProfileRequest request)
     {

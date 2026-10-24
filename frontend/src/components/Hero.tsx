@@ -1,8 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { imageUrl, type ItemSummary } from '../api/client'
 import { usePlay } from '../hooks/usePlay'
-import { formatDuration, year } from '../lib/format'
+import { episodeCode, formatDuration, year } from '../lib/format'
 import { Info, Play } from './icons'
 
 const ROTATE_MS = 10_000
@@ -32,11 +32,15 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
   )
 }
 
-export function Hero({ items, overviews }: { items: ItemSummary[]; overviews?: Record<string, string | null> }) {
+/** `resume`, when given, is what the first title picks up from: the episode for a show you're partway through. */
+export function Hero({ items, overviews, resume }: { items: ItemSummary[]; overviews?: Record<string, string | null>; resume?: ItemSummary }) {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const play = usePlay()
+  const navigate = useNavigate()
   const item = items[index]
+  const resuming = index === 0 ? resume : undefined
+  const episode = resuming?.kind === 'Episode' ? episodeCode(resuming) : undefined
 
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -73,10 +77,15 @@ export function Hero({ items, overviews }: { items: ItemSummary[]; overviews?: R
           <h1 className="hero-title">{item.title}</h1>
         )}
         <Facts item={item} />
+        {resuming && episode && (
+          <p className="hero-resume">
+            {episode} {resuming.title}
+          </p>
+        )}
         {overviews?.[item.id] && <p className="hero-overview">{overviews[item.id]}</p>}
         <div className="hero-actions">
-          <button className="button" onClick={() => play(item)}>
-            <Play /> Play
+          <button className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
+            <Play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
           </button>
           <Link className="button quiet" to={`/item/${item.id}`}>
             <Info /> More info

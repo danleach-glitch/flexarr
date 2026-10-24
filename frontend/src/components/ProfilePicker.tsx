@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { ApiError, selectProfile, type Profile } from '../api/client'
 
-export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'>; size?: number }) {
+export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'> & { image?: string | null }; size?: number }) {
   return (
     <span className="avatar" style={{ width: size, height: size, background: profile.color, fontSize: size * 0.42 }} aria-hidden="true">
-      {profile.name.trim().charAt(0).toUpperCase()}
+      {profile.image ? <img src={profile.image} alt="" /> : profile.name.trim().charAt(0).toUpperCase()}
     </span>
   )
 }

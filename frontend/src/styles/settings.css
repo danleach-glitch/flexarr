@@ -432,3 +432,33 @@
 .profile-libraries .checkbox {
   margin-top: 8px;
 }
+
+.field.profile-picture {
+  flex-direction: row;
+  gap: 18px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.profile-picture .form-actions {
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+/* A file input dressed as a button; the input itself stays focusable for keyboards. */
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-button:focus-within {
+  outline: 2px solid var(--ambient);
+  outline-offset: 2px;
+}

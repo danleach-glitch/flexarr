@@ -197,6 +197,8 @@ export interface Download {
 
 export interface Home {
   featured: ItemSummary[]
+  /** What the first featured title resumes (the episode, for a show), when it's from Continue Watching. */
+  resume?: ItemSummary | null
   overviews: Record<string, string | null>
   rows: HomeRow[]
   upcoming: UpcomingItem[]

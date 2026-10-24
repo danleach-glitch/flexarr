@@ -87,13 +87,15 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (key) headers['X-Api-Key'] = key
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  // Files (profile pictures) go up as they are; everything else is JSON.
+  const file = body instanceof Blob
+  if (body !== undefined) headers['Content-Type'] = file ? body.type || 'application/octet-stream' : 'application/json'
 
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
     signal,
     headers: Object.keys(headers).length ? headers : undefined,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : file ? body : JSON.stringify(body),
   })
 
   if (response.status === 401) {
@@ -202,6 +204,14 @@ export interface PlexImportResult {
 
 export const getPlexSource = (path?: string, signal?: AbortSignal) =>
   apiGet<PlexSource>(`/import/plex${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
+export interface PlexAvatarResult {
+  matched: { profile: string; plexUser: string }[]
+  unmatchedPlexUsers: string[]
+}
+
+export const importPlexAvatars = (path?: string) =>
+  request<PlexAvatarResult>('POST', `/import/plex/avatars${path ? `?path=${encodeURIComponent(path)}` : ''}`)
+
 export const importFromPlex = (accountId: number, path?: string, profileId?: string) =>
   request<PlexImportResult>('POST', '/import/plex', { accountId, path, profileId })
 
@@ -252,6 +262,8 @@ export interface Profile {
   isCurrent: boolean
   /** Libraries this profile can't see anywhere. */
   hiddenLibraryIds: string[]
+  /** Profile picture URL; null shows the initial on the profile's colour. */
+  image: string | null
 }
 
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[] }
@@ -261,6 +273,8 @@ export const createProfile = (profile: Omit<ProfileChanges, 'removePin'>) => req
 export const updateProfile = (id: string, profile: ProfileChanges) =>
   request<Profile>('PUT', `/profiles/${id}`, profile)
 export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
+export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${id}/image`, image)
+export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
 
 /** Switches to a profile (checking its PIN) and remembers it on this device. */
 export async function selectProfile(id: string, pin?: string) {

@@ -28,7 +28,7 @@ export function HomePage() {
 
   return (
     <>
-      <Hero items={data.featured} overviews={data.overviews} />
+      <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />
       <div className="rows">
         {data.rows.map((row) => (
           <Row key={row.id} title={row.title} link={row.link} style={row.style}>

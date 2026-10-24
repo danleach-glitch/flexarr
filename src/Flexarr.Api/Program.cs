@@ -60,6 +60,8 @@ builder.Services.AddHttpClient<ArrClient>();
 builder.Services.AddHttpClient<SeerrClient>(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
 builder.Services.AddScoped<MetadataRefresher>();
 
@@ -142,7 +144,7 @@ app.MapGroup("/api/v1")
     .MapRemoteAccessEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImageEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();

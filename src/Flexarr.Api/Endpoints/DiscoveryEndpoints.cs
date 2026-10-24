@@ -10,7 +10,8 @@ namespace Flexarr.Api.Endpoints;
 
 public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null);
 
-public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading);
+/// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
+public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading, ItemSummaryDto? Resume = null);
 
 public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
 
@@ -89,6 +90,23 @@ public static partial class DiscoveryEndpoints
                 .Take(60).Summaries(me).ToListAsync(ct);
             var rotation = featured.OrderBy(i => (i.Id.GetHashCode() ^ day) & int.MaxValue).Take(5).ToList();
 
+            // Lead with whatever you were last watching: the show for an episode, so the hero has its artwork.
+            var resume = continueWatching.FirstOrDefault();
+            if (resume is not null)
+            {
+                var leadId = resume.Kind == MediaKind.Episode
+                    ? await db.MediaItems.Where(i => i.Id == resume.Id).Select(i => i.Parent!.ParentId).FirstOrDefaultAsync(ct)
+                    : resume.Id;
+                if (leadId is { } id && await db.MediaItems.Where(i => i.Id == id).Summaries(me).FirstOrDefaultAsync(ct) is { } lead)
+                {
+                    rotation = [lead, .. rotation.Where(r => r.Id != lead.Id).Take(4)];
+                }
+                else
+                {
+                    resume = null;
+                }
+            }
+
             var ids = rotation.Select(r => r.Id).ToList();
             var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
             // Sequential: these share the DbContext with the queries above, which isn't thread-safe.
@@ -104,7 +122,7 @@ public static partial class DiscoveryEndpoints
             {
                 LogUpcomingFailed(services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Home"), ex);
             }
-            return new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList(), upcoming, downloading);
+            return new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList(), upcoming, downloading, resume);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
