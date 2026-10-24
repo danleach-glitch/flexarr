@@ -1,3 +1,4 @@
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 
 namespace Flexarr.Api.Configuration;
@@ -21,4 +22,7 @@ public sealed class FlexarrOptions
     public AuthenticationRequired AuthenticationRequired { get; set; } = AuthenticationRequired.Enabled;
 
     public List<ArrInstance> Arr { get; set; } = [];
+
+    /// <summary>Rewrites paths received from *arr apps (typically running in Docker) to local paths.</summary>
+    public List<PathMapping> PathMappings { get; set; } = [];
 }

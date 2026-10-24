@@ -11,7 +11,14 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOptions<FlexarrOptions>().BindConfiguration(FlexarrOptions.SectionName);
+var dataDirectory = builder.Configuration[$"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.DataDirectory)}"] ?? "data";
+var userConfig = new ConfigurationBuilder()
+    .AddJsonFile(ServerConfigStore.PathFor(dataDirectory), optional: true, reloadOnChange: false)
+    .Build();
+
+builder.Services.AddOptions<FlexarrOptions>()
+    .BindConfiguration(FlexarrOptions.SectionName)
+    .Configure(options => userConfig.Bind(options));
 builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfigStore>();
 
 builder.Services

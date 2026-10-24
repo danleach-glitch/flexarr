@@ -38,3 +38,4 @@ xcuserdata/
 *.swp
 .env
 .env.*
+/artifacts/

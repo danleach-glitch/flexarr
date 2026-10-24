@@ -37,7 +37,11 @@ docker run -d --name flexarr \
 
 Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`.
 
-Mount your media at the **same path** Sonarr/Radarr/Lidarr use, so the paths in their webhooks match what Flexarr sees.
+Mount your media at the **same path** Sonarr/Radarr/Lidarr use, or add `pathMappings` to `config.json`, so the paths in their webhooks match what Flexarr sees.
+
+### macOS (native)
+
+On a Mac, run Flexarr natively so it can use hardware transcoding: `make deploy DEPLOY_HOST=<ssh-host>`. See [docs/install-macos.md](docs/install-macos.md).
 
 ## Connect Sonarr / Radarr / Lidarr
 

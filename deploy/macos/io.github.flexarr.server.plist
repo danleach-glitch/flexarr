@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Installed to ~/Library/LaunchAgents by scripts/deploy-macos.sh; __ROOT__ is replaced at install time. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.flexarr.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__ROOT__/app/Flexarr</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__ROOT__/app</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ASPNETCORE_ENVIRONMENT</key>
+    <string>Production</string>
+    <key>Flexarr__DataDirectory</key>
+    <string>__ROOT__/data</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>__ROOT__/logs/flexarr.log</string>
+  <key>StandardErrorPath</key>
+  <string>__ROOT__/logs/flexarr.log</string>
+</dict>
+</plist>

@@ -1,4 +1,4 @@
-.PHONY: setup dev-api dev-web test test-api test-web test-apple build apple docker
+.PHONY: setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -33,3 +33,11 @@ apple: ## Generate the Xcode project and build the tvOS app
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
+
+DEPLOY_HOST ?= mini
+
+deploy: ## Build and install/upgrade Flexarr on DEPLOY_HOST (default: mini) over SSH
+	scripts/deploy-macos.sh $(DEPLOY_HOST)
+
+logs: ## Tail the server log on DEPLOY_HOST
+	ssh $(DEPLOY_HOST) tail -f .flexarr/logs/flexarr.log

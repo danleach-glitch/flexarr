@@ -1,15 +1,21 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Configuration;
 
-/// <summary>Fills in settings that must survive restarts (like the API key) from &lt;DataDirectory&gt;/config.json.</summary>
+/// <summary>
+/// Owns &lt;DataDirectory&gt;/config.json: user settings that must survive upgrades (API key, path mappings, …).
+/// Values there override appsettings.json. A missing API key is generated and written back on first run.
+/// </summary>
 public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger) : IPostConfigureOptions<FlexarrOptions>
 {
+    public const string FileName = "config.json";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    private sealed record PersistedConfig(string ApiKey);
+    public static string PathFor(string dataDirectory) => Path.GetFullPath(Path.Combine(dataDirectory, FileName));
 
     public void PostConfigure(string? name, FlexarrOptions options)
     {
@@ -19,20 +25,13 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
         }
 
         Directory.CreateDirectory(options.DataDirectory);
-        var path = Path.Combine(options.DataDirectory, "config.json");
+        var path = PathFor(options.DataDirectory);
 
-        if (File.Exists(path))
-        {
-            var existing = JsonSerializer.Deserialize<PersistedConfig>(File.ReadAllText(path), JsonOptions);
-            if (!string.IsNullOrWhiteSpace(existing?.ApiKey))
-            {
-                options.ApiKey = existing.ApiKey;
-                return;
-            }
-        }
-
+        // Preserve anything else the user has put in the file.
+        var config = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))?.AsObject() ?? [] : [];
         options.ApiKey = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
-        File.WriteAllText(path, JsonSerializer.Serialize(new PersistedConfig(options.ApiKey), JsonOptions));
+        config["apiKey"] = options.ApiKey;
+        File.WriteAllText(path, config.ToJsonString(JsonOptions));
         LogGeneratedApiKey(path);
     }
 

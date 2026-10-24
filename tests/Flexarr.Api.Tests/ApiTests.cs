@@ -73,4 +73,15 @@ public class ApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Webhook_AppliesPathMappings()
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            new Uri($"/api/v1/webhooks/radarr?apikey={FlexarrApiFactory.ApiKey}", UriKind.Relative),
+            new { eventType = "Download", movie = new { title = "Dune", folderPath = "/data/movies/Dune (2021)" } });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Contains(factory.ScanQueue.Requests, r => r.Path == "/Volumes/Media/data/movies/Dune (2021)");
+    }
 }

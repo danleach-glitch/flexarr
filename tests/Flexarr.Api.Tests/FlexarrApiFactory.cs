@@ -18,6 +18,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting("Flexarr:ApiKey", ApiKey);
         builder.UseSetting("Flexarr:AuthenticationRequired", "Enabled");
+        builder.UseSetting("Flexarr:PathMappings:0:From", "/data");
+        builder.UseSetting("Flexarr:PathMappings:0:To", "/Volumes/Media/data");
         builder.ConfigureServices(services =>
         {
             services.AddSingleton<ILibraryScanQueue>(ScanQueue);
