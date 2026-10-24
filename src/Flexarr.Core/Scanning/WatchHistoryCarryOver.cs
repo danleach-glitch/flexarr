@@ -12,13 +12,20 @@ namespace Flexarr.Core.Scanning;
 /// </summary>
 public static class WatchHistoryCarryOver
 {
-    /// <summary>Records what's about to be removed for good, for items that have any history or collections.</summary>
+    /// <summary>
+    /// Records what's about to be removed for good, for items that have any history or collections. A film or show
+    /// already handed over (since it went missing) is skipped: its history went to the new item, and what of a show's
+    /// had nowhere to go is a tombstone already.
+    /// </summary>
     public static async Task BuryAsync(FlexarrDbContext db, IQueryable<MediaItem> doomed, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(doomed);
 
-        await AddTombstonesAsync(db, doomed, ct).ConfigureAwait(false);
+        var notHandedOver = doomed.Where(i => i.Kind == MediaKind.Episode
+            ? !(i.Parent!.Parent!.HandedOverAt != null && i.Parent.Parent.MissingSince != null && i.Parent.Parent.HandedOverAt >= i.Parent.Parent.MissingSince)
+            : !(i.HandedOverAt != null && i.MissingSince != null && i.HandedOverAt >= i.MissingSince));
+        await AddTombstonesAsync(db, notHandedOver, ct).ConfigureAwait(false);
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
