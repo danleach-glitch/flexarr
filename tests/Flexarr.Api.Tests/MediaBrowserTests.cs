@@ -37,6 +37,16 @@ public class MediaBrowserTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task MediaUpdated_WithAControlCharacterInAPath_IsRefused()
+    {
+        var response = await Client().PostAsJsonAsync(new Uri("/Library/Media/Updated", UriKind.Relative),
+            new { Updates = new[] { new { Path = "/data/tv/Bad\u0000Path", UpdateType = "Created" } } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.DoesNotContain(factory.ScanQueue.Requests, r => r.Path.Contains('\0', StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Items_ReturnsTheShapeSonarrReads()
     {
         var body = await Client().GetStringAsync(new Uri("/Items?recursive=true&includeItemTypes=Series&fields=Path,ProviderIds&years=2022", UriKind.Relative));

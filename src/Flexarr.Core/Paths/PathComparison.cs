@@ -14,28 +14,60 @@ public static class PathComparison
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(root);
 
-        try
+        // Not a usable path (e.g. contains a null character): under nothing.
+        if (TryKey(path) is not { } pathKey || TryKey(root) is not { } rootKey)
         {
-            path = Key(path);
-            root = Key(root);
-        }
-        catch (ArgumentException)
-        {
-            return false; // Not a usable path (e.g. contains a null character).
+            return false;
         }
 
-        return path.StartsWith(root, StringComparison.Ordinal)
-            && (path.Length == root.Length || path[root.Length] is '/' or '\\' || root is "/");
+        return pathKey.StartsWith(rootKey, StringComparison.Ordinal)
+            && (pathKey.Length == rootKey.Length || pathKey[rootKey.Length] is '/' or '\\' || rootKey is "/");
     }
 
     /// <summary>
     /// The form two spellings of the same path share: absolute, <c>.</c>/<c>..</c> resolved, composed Unicode (NFC),
-    /// no trailing separator. For comparing only; open files by the path as found on disk.
+    /// no trailing separator. For comparing only; open files by the path as found on disk. A path that isn't usable
+    /// (a control character, broken Unicode) is its own key, unchanged, rather than an exception.
     /// </summary>
     public static string Key(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        path = Path.GetFullPath(path).Normalize(NormalizationForm.FormC);
+        return TryKey(path) ?? path;
+    }
+
+    /// <summary>
+    /// True when the path holds a control character (a null, a line break): no real file's path does, path APIs throw
+    /// on some, and in a log line they could forge entries. Paths sent to Flexarr are refused with them.
+    /// </summary>
+    public static bool HasControlCharacters(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        return path.Any(char.IsControl);
+    }
+
+    /// <summary><paramref name="text"/> with any control characters replaced by <c>?</c>, safe to write to a log.</summary>
+    public static string Printable(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return HasControlCharacters(text) ? new string([.. text.Select(c => char.IsControl(c) ? '?' : c)]) : text;
+    }
+
+    private static string? TryKey(string path)
+    {
+        if (HasControlCharacters(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            path = Path.GetFullPath(path).Normalize(NormalizationForm.FormC);
+        }
+        catch (ArgumentException)
+        {
+            return null; // Broken Unicode (a lone surrogate), say.
+        }
+
         return path.Length > 1 ? path.TrimEnd('/', '\\') : path;
     }
 }

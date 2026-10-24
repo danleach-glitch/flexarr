@@ -44,6 +44,7 @@ public static class ArrWebhookTranslator
         }
 
         var reason = $"{source} {payload.EventType}";
+        var deleted = payload.EventType.EndsWith("Delete", StringComparison.OrdinalIgnoreCase);
         var paths = source switch
         {
             // Scan the media root folder: it covers the imported file and any removed/renamed siblings.
@@ -57,7 +58,7 @@ public static class ArrWebhookTranslator
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!.Normalize(System.Text.NormalizationForm.FormC))
             .Distinct(StringComparer.Ordinal)
-            .Select(p => new LibraryScanRequest(p!, reason))
+            .Select(p => new LibraryScanRequest(p!, reason, Deleted: deleted))
             .ToList();
     }
 }

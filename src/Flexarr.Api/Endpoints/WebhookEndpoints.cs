@@ -51,15 +51,20 @@ public static class WebhookEndpoints
                     return Results.Ok();
                 }
 
-                var mappings = options.CurrentValue.PathMappings;
-                var requests = ArrWebhookTranslator.ToScanRequests(kind, payload)
-                    .Select(r => r with { Path = PathMapper.Map(r.Path, mappings) })
-                    .ToList();
-                foreach (var request in requests)
+                var requests = ArrWebhookTranslator.ToScanRequests(kind, payload);
+                if (requests.Any(r => PathComparison.HasControlCharacters(r.Path)))
                 {
-                    await queue.EnqueueAsync(request, ct);
+                    return Results.Problem("A path in the webhook holds a control character.", statusCode: 400);
                 }
 
+                var mappings = options.CurrentValue.PathMappings;
+                foreach (var request in requests)
+                {
+                    await queue.EnqueueAsync(request with { Path = PathMapper.Map(request.Path, mappings) }, ct);
+                }
+
+                // What Coming soon and Downloads show has just changed: ask the *arr apps again rather than wait out the cache.
+                UpcomingEndpoints.ForgetArrCalls();
                 return Results.Accepted(value: new { queued = requests.Count });
             })
             .WithTags("Webhooks")

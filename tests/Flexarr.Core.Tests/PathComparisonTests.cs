@@ -28,6 +28,16 @@ public class PathComparisonTests
     }
 
     [Fact]
-    public void IsUnder_RejectsUnusablePaths() =>
+    public void IsUnder_RejectsUnusablePaths()
+    {
         Assert.False(PathComparison.IsUnder("/tv/Show\0/x", "/tv"));
+        Assert.False(PathComparison.IsUnder("/tv/Show\n/x", "/tv"));
+    }
+
+    [Fact]
+    public void Key_OfAnUnusablePath_IsThePathRatherThanAnException()
+    {
+        Assert.Equal("/tv/Show\0", PathComparison.Key("/tv/Show\0"));
+        Assert.Equal("/tv/Show?x", PathComparison.Printable("/tv/Show\nx"));
+    }
 }
