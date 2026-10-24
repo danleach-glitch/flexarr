@@ -74,6 +74,19 @@
   display: none;
 }
 
+/* Settings has a sidebar of its own: the main one goes, and the bar shows the wordmark to get home. */
+.shell.bare {
+  --sidebar-width: 0px;
+}
+
+.shell.bare .topbar .topbar-wordmark {
+  display: inline-flex;
+}
+
+.shell.bare .topbar .topbar-menu {
+  display: none;
+}
+
 /* Transparent over heroes, solid once you scroll. */
 .topbar {
   position: fixed;
@@ -1621,6 +1634,10 @@ a.upcoming-row:hover strong {
     font-size: 1.5rem;
   }
 
+  .shell.bare .topbar {
+    padding-left: 12px;
+  }
+
   .topbar-tools {
     gap: 4px;
   }
@@ -2183,6 +2200,10 @@ a.download-attention {
 
 .discover-results + .discover-results {
   margin-top: 32px;
+}
+
+.discover-results .settings-subhead {
+  margin-bottom: 16px;
 }
 
 /* ---------- Collections */

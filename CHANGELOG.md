@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Settings without the main sidebar
+- **Settings** no longer shows the main sidebar next to its own list of sections. The Flexarr logo at the top left takes you back home.
+
+### Fixed: cramped spacing
+- In **Discover** search results, the posters no longer touch the **Shows** and **Films** headings above them.
+- In **Settings › Connections**, the Sonarr and Radarr cards have space between them again.
+
 ## 0.9.0 · 24 October 2026
 
 ### A sidebar for your libraries

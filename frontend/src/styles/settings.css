@@ -211,6 +211,11 @@
   padding-left: 20px;
 }
 
+/* Inside the form, outside the settings grid's gap. */
+.connection + .connection {
+  margin-top: 16px;
+}
+
 .connection-status {
   display: flex;
   align-items: center;

@@ -44,6 +44,8 @@ export function Layout() {
   // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
   const canSignOut = access?.method === 'session'
   const location = useLocation()
+  // Settings has its own sidebar, so the main one makes way and the bar carries the wordmark home instead.
+  const bare = location.pathname.startsWith('/settings')
 
   // The profile menu closes on a click anywhere outside it, or Escape.
   const profileAnchor = useRef<HTMLDivElement>(null)
@@ -108,7 +110,7 @@ export function Layout() {
   }, [location.pathname])
 
   return (
-    <div className={rail ? 'shell rail' : 'shell'}>
+    <div className={['shell', rail && 'rail', bare && 'bare'].filter(Boolean).join(' ')}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -188,61 +190,63 @@ export function Layout() {
           )}
         </div>
       </header>
-      {drawer && <div className="sidebar-backdrop" onClick={() => setDrawer(false)} />}
-      <aside id="sidebar" className={drawer ? 'sidebar open' : 'sidebar'} ref={sidebar}>
-        <div className="sidebar-head">
-          <Link to="/" className="wordmark" aria-label="Flexarr home">
-            <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
-            <span className="sidebar-label">flexarr</span>
-          </Link>
-          <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setDrawer(false)}>
-            <Close />
+      {drawer && !bare && <div className="sidebar-backdrop" onClick={() => setDrawer(false)} />}
+      {!bare && (
+        <aside id="sidebar" className={drawer ? 'sidebar open' : 'sidebar'} ref={sidebar}>
+          <div className="sidebar-head">
+            <Link to="/" className="wordmark" aria-label="Flexarr home">
+              <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
+              <span className="sidebar-label">flexarr</span>
+            </Link>
+            <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setDrawer(false)}>
+              <Close />
+            </button>
+          </div>
+          {/* Libraries scroll on their own below the wordmark, however many there are. */}
+          <nav aria-label="Main" className="sidebar-nav">
+            <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
+              <Home />
+              <span className="sidebar-label">Home</span>
+            </NavLink>
+            {libraries.length > 0 && (
+              <>
+                <h2 className="sidebar-heading">
+                  <span className="sidebar-label">Libraries</span>
+                </h2>
+                {libraries.map((library) => {
+                  const Icon = libraryIcons[library.type] ?? Film
+                  return (
+                    <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
+                      <Icon />
+                      <span className="sidebar-label">{library.name}</span>
+                      {library.scan && <span className="scan-dot" aria-label="Scanning" />}
+                    </NavLink>
+                  )
+                })}
+              </>
+            )}
+            <h2 className="sidebar-heading">
+              <span className="sidebar-label">Browse</span>
+            </h2>
+            <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
+              <Stack />
+              <span className="sidebar-label">Collections</span>
+            </NavLink>
+            <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
+              <Compass />
+              <span className="sidebar-label">Discover</span>
+            </NavLink>
+            <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
+              <Calendar />
+              <span className="sidebar-label">Coming soon</span>
+            </NavLink>
+          </nav>
+          <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>
+            <ChevronsLeft style={rail ? { transform: 'scaleX(-1)' } : undefined} />
+            <span className="sidebar-label">{rail ? 'Expand sidebar' : 'Collapse sidebar'}</span>
           </button>
-        </div>
-        {/* Libraries scroll on their own below the wordmark, however many there are. */}
-        <nav aria-label="Main" className="sidebar-nav">
-          <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
-            <Home />
-            <span className="sidebar-label">Home</span>
-          </NavLink>
-          {libraries.length > 0 && (
-            <>
-              <h2 className="sidebar-heading">
-                <span className="sidebar-label">Libraries</span>
-              </h2>
-              {libraries.map((library) => {
-                const Icon = libraryIcons[library.type] ?? Film
-                return (
-                  <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
-                    <Icon />
-                    <span className="sidebar-label">{library.name}</span>
-                    {library.scan && <span className="scan-dot" aria-label="Scanning" />}
-                  </NavLink>
-                )
-              })}
-            </>
-          )}
-          <h2 className="sidebar-heading">
-            <span className="sidebar-label">Browse</span>
-          </h2>
-          <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
-            <Stack />
-            <span className="sidebar-label">Collections</span>
-          </NavLink>
-          <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
-            <Compass />
-            <span className="sidebar-label">Discover</span>
-          </NavLink>
-          <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
-            <Calendar />
-            <span className="sidebar-label">Coming soon</span>
-          </NavLink>
-        </nav>
-        <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>
-          <ChevronsLeft style={rail ? { transform: 'scaleX(-1)' } : undefined} />
-          <span className="sidebar-label">{rail ? 'Expand sidebar' : 'Collapse sidebar'}</span>
-        </button>
-      </aside>
+        </aside>
+      )}
       <main id="main" className="page">
         <Outlet />
         <AddToCollectionHost />
