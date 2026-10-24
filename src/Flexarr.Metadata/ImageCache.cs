@@ -12,7 +12,8 @@ namespace Flexarr.Metadata;
 /// </summary>
 public sealed partial class ImageCache(HttpClient http, IMetadataSettings settings, ILogger<ImageCache> logger)
 {
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.Ordinal);
+    // Static: as a typed HttpClient this class is created per request, and the locks must be shared by all of them.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.Ordinal);
 
     private string Directory => Path.Combine(settings.CacheDirectory, "images");
 
@@ -29,7 +30,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             return hit;
         }
 
-        var gate = _locks.GetOrAdd(target, _ => new SemaphoreSlim(1, 1));
+        var gate = Locks.GetOrAdd(target, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -39,7 +40,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             }
 
             System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            var source = target + ".download";
+            var source = $"{target}.{Guid.NewGuid():N}.download";
             try
             {
                 using (var response = await http.GetAsync(new Uri(ArtworkUrl.ForWidth(remoteUrl, snapped)), HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))

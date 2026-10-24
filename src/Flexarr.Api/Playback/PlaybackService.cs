@@ -15,7 +15,7 @@ public sealed class PlaybackService(
     PlaybackSessions sessions,
     TranscodeManager transcodes,
     MarkerQueue markerQueue,
-    IOptions<FlexarrOptions> options)
+    IOptionsMonitor<FlexarrOptions> options)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     private const double WatchedThreshold = 0.92;
@@ -57,7 +57,7 @@ public sealed class PlaybackService(
             null => ChooseSubtitle(subtitles, preferences.Subtitle, audioStreams.FirstOrDefault(a => a.Index == audioIndex)?.Language ?? audioStreams.FirstOrDefault()?.Language),
         };
 
-        var transcoding = options.Value.Transcoding;
+        var transcoding = options.CurrentValue.Transcoding;
         var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate }.Where(b => b > 0).DefaultIfEmpty(0).Min();
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles,
             new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode));
@@ -204,6 +204,34 @@ public sealed class PlaybackService(
 
         await db.SaveChangesAsync(ct);
         return true;
+    }
+
+    /// <summary>
+    /// What "Play" on a series should start: an episode in progress, else the one after the last watched,
+    /// else the first unwatched (specials last), else the very first.
+    /// </summary>
+    public async Task<MediaItem?> NextUpAsync(Guid seriesId, CancellationToken ct)
+    {
+        var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == seriesId);
+        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == PlaybackState.DefaultUser && p.MediaItem!.Parent!.ParentId == seriesId);
+
+        var inProgress = await mine.Where(p => !p.Watched && p.PositionSeconds > 0).OrderByDescending(p => p.LastPlayedAt)
+            .Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
+        if (inProgress is not null)
+        {
+            return inProgress;
+        }
+
+        var last = await mine.Where(p => p.Watched).OrderByDescending(p => p.LastPlayedAt).Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
+        if (last is not null && await NextEpisodeAsync(last, ct) is { } next
+            && !await mine.AnyAsync(p => p.MediaItemId == next.Id && p.Watched, ct))
+        {
+            return next;
+        }
+
+        var ordered = episodes.OrderBy(e => e.SeasonNumber == 0).ThenBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle);
+        return await ordered.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == PlaybackState.DefaultUser && p.Watched), ct)
+            ?? await ordered.FirstOrDefaultAsync(ct);
     }
 
     /// <summary>The episode after this one: next in the season, else the first of the next season.</summary>

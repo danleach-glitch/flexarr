@@ -2,6 +2,11 @@ export type LibraryType = 'Movies' | 'TvShows' | 'Music'
 export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode'
 export type VideoRange = 'Sdr' | 'Hdr10' | 'Hlg' | 'DolbyVision'
 export type StreamType = 'Video' | 'Audio' | 'Subtitle'
+export type CreditRole = 'Actor' | 'Director' | 'Writer' | 'Producer' | 'Creator'
+export type PlaybackMethod = 'DirectPlay' | 'Transcode'
+export type MarkerType = 'Intro' | 'Recap' | 'Credits'
+export type HardwareAcceleration = 'Auto' | 'None' | 'VideoToolbox' | 'Vaapi' | 'Qsv' | 'Nvenc'
+export type ArrKind = 'Sonarr' | 'Radarr' | 'Lidarr'
 
 export interface SystemStatus {
   appName: string
@@ -33,9 +38,25 @@ export interface LibraryRequest {
   folders: string[]
 }
 
+export interface Artwork {
+  poster: string | null
+  backdrop: string | null
+  logo: string | null
+  thumb: string | null
+}
+
+export interface UserData {
+  positionSeconds: number
+  watched: boolean
+  playCount: number
+  lastPlayedAt: string | null
+  unwatchedCount: number | null
+}
+
 export interface ItemSummary {
   id: string
   libraryId: string
+  parentId: string | null
   kind: MediaKind
   title: string
   year: number | null
@@ -47,6 +68,15 @@ export interface ItemSummary {
   durationSeconds: number | null
   resolution: string | null
   addedAt: string
+  artwork: Artwork
+  accentColor: string | null
+  communityRating: number | null
+  criticRating: number | null
+  contentRating: string | null
+  runtimeMinutes: number | null
+  releaseDate: string | null
+  userData: UserData
+  seriesTitle: string | null
 }
 
 export interface Paged<T> {
@@ -85,19 +115,197 @@ export interface MediaFile {
   streams: MediaStream[]
 }
 
+export interface Credit {
+  personId: string
+  name: string
+  role: CreditRole
+  character: string | null
+  image: string | null
+}
+
 export interface ItemDetail {
   item: ItemSummary
   path: string | null
+  originalTitle: string | null
+  overview: string | null
+  studio: string | null
+  status: string | null
+  trailerYouTubeId: string | null
+  genres: string[]
   tvdbId: string | null
   tmdbId: string | null
   imdbId: string | null
   ancestors: ItemSummary[]
   children: ItemSummary[]
+  credits: Credit[]
   files: MediaFile[]
+  childOverviews: Record<string, string | null>
+}
+
+export interface Person {
+  id: string
+  name: string
+  image: string | null
+  credits: { item: ItemSummary; role: CreditRole; character: string | null }[]
+}
+
+export interface HomeRow {
+  id: string
+  title: string
+  style: 'poster' | 'wide' | 'top10'
+  items: ItemSummary[]
+  link: string | null
+}
+
+export interface Home {
+  featured: ItemSummary[]
+  overviews: Record<string, string | null>
+  rows: HomeRow[]
+}
+
+export interface SearchResults {
+  titles: ItemSummary[]
+  episodes: ItemSummary[]
+  people: { id: string; name: string; image: string | null; credits: number }[]
+  genres: string[]
+}
+
+export interface Genre {
+  name: string
+  movies: number
+  shows: number
+  backdrop: string | null
 }
 
 export interface DirectoryListing {
   path: string
   parent: string | null
   directories: { name: string; path: string }[]
+}
+
+export interface DeviceProfile {
+  client: string
+  containers: string[]
+  videoCodecs: string[]
+  audioCodecs: string[]
+  hdr: boolean
+  maxHeight: number
+  maxAudioChannels: number
+  maxBitrate: number
+}
+
+export interface PlaybackRequest {
+  itemId: string
+  profile: DeviceProfile
+  fileId?: string
+  audioStreamIndex?: number
+  subtitleKey?: string
+  maxBitrate?: number
+  maxHeight?: number
+  startPositionSeconds?: number
+  forceTranscode?: boolean
+}
+
+export interface AudioTrack {
+  index: number
+  label: string
+  codec: string
+  language: string | null
+  channels: number | null
+  isDefault: boolean
+}
+
+export interface SubtitleTrack {
+  key: string
+  label: string
+  codec: string
+  language: string | null
+  isForced: boolean
+  isDefault: boolean
+  isText: boolean
+  url: string | null
+}
+
+export interface Marker {
+  type: MarkerType
+  start: number
+  end: number
+}
+
+export interface PlaybackInfo {
+  sessionId: string
+  method: PlaybackMethod
+  url: string
+  reasons: string[]
+  durationSeconds: number
+  startPositionSeconds: number
+  fileId: string
+  audioTracks: AudioTrack[]
+  selectedAudioIndex: number | null
+  subtitles: SubtitleTrack[]
+  selectedSubtitleKey: string | null
+  subtitleBurnedIn: boolean
+  markers: Marker[]
+  item: ItemSummary
+  ancestors: ItemSummary[]
+  next: ItemSummary | null
+  transcodeSummary: string | null
+}
+
+export interface TranscodingSettings {
+  hardwareAcceleration: HardwareAcceleration
+  vaapiDevice: string
+  softwarePreset: string
+  maxStreamingBitrate: number
+}
+
+export interface ArrConnection {
+  name: string
+  kind: ArrKind
+  baseUrl: string
+  hasApiKey: boolean
+}
+
+export interface Settings {
+  transcoding: TranscodingSettings
+  availableHardwareAcceleration: HardwareAcceleration[]
+  authenticationRequired: 'Enabled' | 'DisabledForLocalAddresses'
+  pathMappings: { from: string; to: string }[]
+  arr: ArrConnection[]
+  dataDirectory: string
+  ffmpegPath: string
+  ffprobePath: string
+}
+
+export interface SettingsUpdate {
+  transcoding?: TranscodingSettings
+  authenticationRequired?: Settings['authenticationRequired']
+  pathMappings?: Settings['pathMappings']
+  arr?: { name: string; kind: ArrKind; baseUrl: string; apiKey?: string }[]
+}
+
+export interface ArrStatus {
+  name: string
+  kind: ArrKind
+  ok: boolean
+  version: string | null
+  error: string | null
+}
+
+export interface Activity {
+  scan: ScanStatus | null
+  episodesAnalysed: number
+  episodesTotal: number
+  itemsWithMetadata: number
+  itemsTotal: number
+  streams: {
+    sessionId: string
+    item: ItemSummary
+    series: string | null
+    method: PlaybackMethod
+    transcode: string | null
+    positionSeconds: number
+    durationSeconds: number
+    paused: boolean
+  }[]
 }

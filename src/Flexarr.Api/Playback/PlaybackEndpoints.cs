@@ -18,45 +18,41 @@ public static class PlaybackEndpoints
             await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound())
             .WithTags("Playback");
 
+        api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CancellationToken ct) =>
+            await playback.NextUpAsync(id, ct) is { } episode
+                ? Results.Ok(await db.MediaItems.Where(i => i.Id == episode.Id).Summaries().FirstAsync(ct))
+                : Results.NoContent())
+            .WithTags("Playback");
+
+        api.MapPost("/items/{id:guid}/analyze", async (Guid id, FlexarrDbContext db, MarkerQueue queue, CancellationToken ct) =>
+        {
+            // A series analyses all its seasons; a season or episode analyses that season.
+            var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
+            if (item is null)
+            {
+                return Results.NotFound();
+            }
+
+            var seasons = item.Kind switch
+            {
+                MediaKind.Series => await db.MediaItems.Where(s => s.ParentId == id).Select(s => s.Id).ToListAsync(ct),
+                MediaKind.Season => [id],
+                MediaKind.Episode when item.ParentId is { } season => [season],
+                _ => [],
+            };
+            await db.MediaFiles.Where(f => f.MediaItem!.ParentId != null && seasons.Contains(f.MediaItem.ParentId.Value))
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.MarkersScannedAt, (DateTime?)null), ct);
+            foreach (var season in seasons)
+            {
+                queue.Prioritize(season);
+            }
+
+            return Results.Accepted();
+        }).WithTags("Playback");
+
         api.MapPost("/items/{id:guid}/watched", async (Guid id, WatchedRequest request, PlaybackService playback, CancellationToken ct) =>
             await playback.SetWatchedAsync(id, request.Watched, ct) ? Results.NoContent() : Results.NotFound())
             .WithTags("Playback");
-
-        api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CancellationToken ct) =>
-        {
-            var limit = Math.Clamp(take ?? 20, 1, 50);
-            var states = db.PlaybackStates.Where(p => p.UserId == PlaybackState.DefaultUser);
-
-            // Partly watched movies and episodes.
-            var inProgress = await states.Where(p => !p.Watched && p.PositionSeconds > 0)
-                .OrderByDescending(p => p.LastPlayedAt).Take(limit)
-                .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent != null ? p.MediaItem.Parent.ParentId : null })
-                .ToListAsync(ct);
-
-            // Up next: the episode after the last one finished, for shows watched in the last three months.
-            var since = DateTime.UtcNow.AddDays(-90);
-            var lastFinished = await states.Where(p => p.Watched && p.LastPlayedAt > since && p.MediaItem!.Kind == MediaKind.Episode)
-                .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId })
-                .ToListAsync(ct);
-            var busySeries = inProgress.Select(p => p.SeriesId).Where(s => s is not null).ToHashSet();
-
-            var upNext = new List<(Guid Id, DateTime At)>();
-            foreach (var latest in lastFinished.GroupBy(p => p.SeriesId).Select(g => g.MaxBy(p => p.LastPlayedAt)!)
-                         .Where(p => !busySeries.Contains(p.SeriesId)).OrderByDescending(p => p.LastPlayedAt).Take(limit))
-            {
-                var episode = await db.MediaItems.AsNoTracking().FirstAsync(i => i.Id == latest.MediaItemId, ct);
-                var next = await playback.NextEpisodeAsync(episode, ct);
-                if (next is not null && !await states.AnyAsync(p => p.MediaItemId == next.Id && p.Watched, ct))
-                {
-                    upNext.Add((next.Id, latest.LastPlayedAt));
-                }
-            }
-
-            var order = inProgress.Select(p => (Id: p.MediaItemId, At: p.LastPlayedAt)).Concat(upNext)
-                .OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
-            var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries().ToDictionaryAsync(i => i.Id, ct);
-            return order.Where(items.ContainsKey).Select(id => items[id]).ToList();
-        }).WithTags("Playback");
 
         return api;
     }
@@ -95,7 +91,7 @@ public static class PlaybackEndpoints
             return path is null ? Results.Problem("The segment couldn't be converted.", statusCode: 500) : Results.File(path, "video/mp2t");
         });
 
-        group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, IOptions<FlexarrOptions> options, CancellationToken ct) =>
+        group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session || session.Subtitles.FirstOrDefault(s => s.Key == key) is not { } track)
             {
@@ -103,7 +99,7 @@ public static class PlaybackEndpoints
             }
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
-            var path = await Subtitles.ToWebVttAsync(file, track, TranscodeSettingsFor(options.Value), ct);
+            var path = await Subtitles.ToWebVttAsync(file, track, TranscodeSettingsFor(options.CurrentValue), ct);
             if (path is null)
             {
                 return Results.Problem("These subtitles couldn't be converted.", statusCode: 422);
@@ -126,6 +122,8 @@ public static class PlaybackEndpoints
                 return Results.NotFound();
             }
 
+            session.LastPosition = progress.PositionSeconds;
+            session.Paused = progress.Paused;
             await playback.ReportProgressAsync(session, progress, ct);
             return Results.NoContent();
         });

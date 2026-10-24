@@ -1,4 +1,22 @@
-import type { DirectoryListing, ItemDetail, ItemSummary, Library, LibraryRequest, Paged, SystemStatus } from './types'
+import type {
+  Activity,
+  ArrStatus,
+  DirectoryListing,
+  Genre,
+  Home,
+  ItemDetail,
+  ItemSummary,
+  Library,
+  LibraryRequest,
+  Paged,
+  Person,
+  PlaybackInfo,
+  PlaybackRequest,
+  SearchResults,
+  Settings,
+  SettingsUpdate,
+  SystemStatus,
+} from './types'
 
 export type * from './types'
 
@@ -46,7 +64,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (key) headers['X-Api-Key'] = key
   if (body !== undefined) headers['Content-Type'] = 'application/json'
 
-  const response = await fetch(`/api/v1${path}`, {
+  const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
     signal,
     headers: Object.keys(headers).length ? headers : undefined,
@@ -59,8 +77,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (!response.ok) {
     let messages: string[] = []
     try {
-      const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string }
-      messages = problem.errors ? Object.values(problem.errors).flat() : problem.title ? [problem.title] : []
+      const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string; detail?: string }
+      messages = problem.errors ? Object.values(problem.errors).flat() : [problem.detail ?? problem.title].filter((m): m is string => !!m)
     } catch {
       // Not a JSON problem response.
     }
@@ -77,23 +95,66 @@ export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET
 export const getSystemStatus = (signal?: AbortSignal) => apiGet<SystemStatus>('/system/status', signal)
 
 export const getLibraries = (signal?: AbortSignal) => apiGet<Library[]>('/libraries', signal)
-export const getLibrary = (id: string, signal?: AbortSignal) => apiGet<Library>(`/libraries/${id}`, signal)
 export const createLibrary = (library: LibraryRequest) => request<Library>('POST', '/libraries', library)
 export const updateLibrary = (id: string, library: LibraryRequest) => request<Library>('PUT', `/libraries/${id}`, library)
 export const deleteLibrary = (id: string) => request<void>('DELETE', `/libraries/${id}`)
-export const scanLibrary = (id: string) => request<void>('POST', `/libraries/${id}/scan`)
+export const scanLibrary = (id: string, refreshMetadata = false) =>
+  request<void>('POST', `/libraries/${id}/scan${refreshMetadata ? '?refreshMetadata=true' : ''}`)
 
-export function getLibraryItems(id: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) {
+export function getLibraryItems(
+  id: string,
+  options: { search?: string; sort?: string; genre?: string; skip?: number; take?: number },
+  signal?: AbortSignal,
+) {
   const params = new URLSearchParams()
-  if (options.search) params.set('search', options.search)
-  if (options.skip) params.set('skip', String(options.skip))
-  if (options.take) params.set('take', String(options.take))
+  for (const [key, value] of Object.entries(options)) {
+    if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
+  }
   const query = params.size ? `?${params}` : ''
   return apiGet<Paged<ItemSummary>>(`/libraries/${id}/items${query}`, signal)
 }
 
-export const getRecentItems = (take = 24, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/recent?take=${take}`, signal)
+export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
+  apiGet<{ name: string; count: number }[]>(`/libraries/${id}/genres`, signal)
+
+export const getHome = (signal?: AbortSignal) => apiGet<Home>('/home', signal)
 export const getItem = (id: string, signal?: AbortSignal) => apiGet<ItemDetail>(`/items/${id}`, signal)
+export const getSimilar = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/similar`, signal)
+export const getNextUp = (id: string, signal?: AbortSignal) => apiGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
+export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
+export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
+export const getPerson = (id: string, signal?: AbortSignal) => apiGet<Person>(`/people/${id}`, signal)
+export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)
+export const getGenres = (signal?: AbortSignal) => apiGet<Genre[]>('/genres', signal)
+export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
+  apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
+
+export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
+export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>
+  request<void>('POST', `/playback/${sessionId}/progress`, { positionSeconds, paused, ended })
+
+/** Fire-and-forget progress for page unloads, when fetch may be cancelled. */
+export function beaconProgress(sessionId: string, positionSeconds: number) {
+  const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
+  navigator.sendBeacon?.(`/api/v1/playback/${sessionId}/progress`, body)
+}
+
+export const stopPlayback = (sessionId: string) =>
+  fetch(`/api/v1/playback/${sessionId}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)
+
+export const getSettings = (signal?: AbortSignal) => apiGet<Settings>('/settings', signal)
+export const saveSettings = (update: SettingsUpdate) => request<Settings>('PUT', '/settings', update)
+export const getApiKey = () => apiGet<{ apiKey: string }>('/settings/api-key')
+export const getArrStatus = (signal?: AbortSignal) => apiGet<ArrStatus[]>('/arr/status', signal)
+export const testArr = (connection: { name: string; kind: string; baseUrl: string; apiKey?: string }) =>
+  request<ArrStatus>('POST', '/arr/test', connection)
+export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/activity', signal)
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
   apiGet<DirectoryListing>(`/filesystem${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
+
+/** Artwork URLs from the API with a width hint for the image cache. */
+export function imageUrl(url: string | null | undefined, width: number): string | undefined {
+  if (!url) return undefined
+  return `${url}${url.includes('?') ? '&' : '?'}w=${width}`
+}

@@ -15,7 +15,7 @@ public static class WebhookEndpoints
     /// </summary>
     public static RouteGroupBuilder MapWebhookEndpoints(this RouteGroupBuilder api)
     {
-        api.MapPost("/webhooks/{source}", async (string source, ArrWebhookPayload payload, ILibraryScanQueue queue, IOptions<FlexarrOptions> options, CancellationToken ct) =>
+        api.MapPost("/webhooks/{source}", async (string source, ArrWebhookPayload payload, ILibraryScanQueue queue, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
             {
                 if (!Enum.TryParse<ArrKind>(source, ignoreCase: true, out var kind))
                 {
@@ -27,7 +27,7 @@ public static class WebhookEndpoints
                     return Results.Ok();
                 }
 
-                var mappings = options.Value.PathMappings;
+                var mappings = options.CurrentValue.PathMappings;
                 var requests = ArrWebhookTranslator.ToScanRequests(kind, payload)
                     .Select(r => r with { Path = PathMapper.Map(r.Path, mappings) })
                     .ToList();

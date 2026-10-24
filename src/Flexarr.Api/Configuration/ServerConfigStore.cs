@@ -15,7 +15,27 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
+    private static readonly Lock WriteLock = new();
+
     public static string PathFor(string dataDirectory) => Path.GetFullPath(Path.Combine(dataDirectory, FileName));
+
+    /// <summary>Applies <paramref name="change"/> to config.json, keeping every setting it doesn't touch.</summary>
+    public static void Update(string dataDirectory, Action<JsonObject> change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+
+        lock (WriteLock)
+        {
+            var path = PathFor(dataDirectory);
+            var config = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))?.AsObject() ?? [] : [];
+            change(config);
+
+            // Write then rename, so the reloading configuration never reads a half-written file.
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, config.ToJsonString(JsonOptions));
+            File.Move(temp, path, overwrite: true);
+        }
+    }
 
     public void PostConfigure(string? name, FlexarrOptions options)
     {
@@ -27,11 +47,9 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
         Directory.CreateDirectory(options.DataDirectory);
         var path = PathFor(options.DataDirectory);
 
-        // Preserve anything else the user has put in the file.
-        var config = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))?.AsObject() ?? [] : [];
-        options.ApiKey = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
-        config["apiKey"] = options.ApiKey;
-        File.WriteAllText(path, config.ToJsonString(JsonOptions));
+        var key = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+        options.ApiKey = key;
+        Update(options.DataDirectory, config => config["apiKey"] = key);
         LogGeneratedApiKey(path);
     }
 

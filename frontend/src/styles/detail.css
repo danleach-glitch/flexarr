@@ -1,0 +1,368 @@
+.detail-hero {
+  position: relative;
+  min-height: min(80vh, 820px);
+  display: flex;
+  align-items: flex-end;
+  padding: calc(var(--nav-height) + 60px) var(--edge) 48px;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.detail-loading {
+  background: var(--seat);
+}
+
+.detail-hero-content {
+  max-width: min(44rem, 94vw);
+}
+
+.detail-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 14px;
+  font-weight: 700;
+}
+
+.detail-kicker a {
+  color: var(--screen);
+  text-decoration: none;
+}
+
+.detail-kicker a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.detail-title {
+  font-size: clamp(var(--step-5), 6vw, 5.6rem);
+  font-weight: 800;
+  line-height: 0.9;
+  text-wrap: balance;
+}
+
+.detail-overview {
+  max-width: 38rem;
+  font-size: var(--step-1);
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--screen) 90%, transparent);
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.5);
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.detail-actions [aria-pressed='true'] svg {
+  color: var(--ambient);
+}
+
+.detail-progress {
+  display: block;
+  width: min(360px, 100%);
+  height: 4px;
+  margin-top: 16px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--screen) 22%, transparent);
+  overflow: hidden;
+}
+
+.detail-progress span {
+  display: block;
+  height: 100%;
+  background: var(--ambient);
+}
+
+.detail-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.detail-body {
+  display: grid;
+  gap: 48px;
+  padding-top: 12px;
+}
+
+/* ---------- Seasons ---------- */
+
+.seasons {
+  padding: 0 var(--edge);
+}
+
+.season-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--aisle);
+}
+
+.season-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-family: var(--display);
+  font-size: var(--step-2);
+  font-weight: 700;
+  color: var(--usher);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.season-tab svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ambient);
+}
+
+.season-tab:hover {
+  color: var(--screen);
+}
+
+.season-tab.active {
+  color: var(--screen);
+  border-bottom-color: var(--ambient);
+}
+
+.season-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0 8px;
+  font-size: var(--step--1);
+}
+
+.episode-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.episode {
+  display: grid;
+  grid-template-columns: clamp(170px, 20vw, 280px) minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: start;
+  padding: 16px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
+}
+
+.episode-still {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-art);
+  overflow: hidden;
+}
+
+.episode-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(10 8 12 / 0.35);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.episode-play svg {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 2px 8px rgb(0 0 0 / 0.5));
+}
+
+.episode-still:hover .episode-play,
+.episode-still:focus-visible .episode-play {
+  opacity: 1;
+}
+
+.episode-still:focus-visible {
+  outline: 3px solid var(--ambient);
+}
+
+.episode-text h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--text);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+
+.episode-text h3 a {
+  text-decoration: none;
+}
+
+.episode-text h3 a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.episode-number {
+  font-family: var(--display);
+  font-size: var(--step-2);
+  font-weight: 800;
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+}
+
+.episode-facts {
+  display: flex;
+  gap: 14px;
+  margin: 4px 0 8px;
+  font-size: var(--step--1);
+}
+
+.episode-overview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 46rem;
+  color: color-mix(in srgb, var(--screen) 78%, transparent);
+}
+
+.episode.watched .episode-text h3 a,
+.episode.watched .episode-number {
+  color: var(--usher);
+}
+
+.watched-toggle {
+  color: var(--aisle);
+  border: 1px solid var(--aisle);
+}
+
+.watched-toggle[aria-pressed='true'] {
+  color: var(--room);
+  background: var(--ambient);
+  border-color: var(--ambient);
+}
+
+/* ---------- Cast and crew ---------- */
+
+.person-card .card-frame {
+  border-radius: var(--radius-art);
+}
+
+.crew {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 48px;
+  margin: 8px 0 0;
+  padding: 0 var(--edge);
+}
+
+.crew dt {
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.crew dd {
+  margin: 2px 0 0;
+  font-weight: 700;
+}
+
+.crew a {
+  text-decoration: none;
+}
+
+.crew a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- File details ---------- */
+
+.file-info {
+  margin: 0 var(--edge);
+  padding: 16px 0;
+  border-top: 1px solid var(--aisle);
+  color: var(--usher);
+}
+
+.file-info summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.file-info .file {
+  margin: 16px 0;
+}
+
+.file-info code {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.file-info dl,
+.facts-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 22px;
+  margin: 0;
+}
+
+.file-info dd,
+.facts-list dd {
+  margin: 0;
+  color: var(--screen);
+}
+
+/* ---------- Trailer ---------- */
+
+.dialog-backdrop {
+  place-items: center;
+  padding: 16px;
+}
+
+.trailer {
+  position: relative;
+  width: min(1100px, 100%);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  background: var(--black);
+  box-shadow: 0 0 120px color-mix(in srgb, var(--ambient) 35%, transparent);
+}
+
+.trailer iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.trailer-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+@media (max-width: 760px) {
+  .detail-hero {
+    min-height: 72vh;
+  }
+
+  .episode {
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .episode .watched-toggle {
+    display: none;
+  }
+
+  .episode-overview {
+    -webkit-line-clamp: 2;
+    font-size: var(--step--1);
+  }
+}

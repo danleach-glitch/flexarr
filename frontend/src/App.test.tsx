@@ -1,8 +1,17 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
-import { mockApi, movies, status, summary } from './test/mockApi'
+import { detail, mockApi, movies, status, summary } from './test/mockApi'
+
+beforeAll(() => {
+  // jsdom has no media playback.
+  window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined)
+  window.HTMLMediaElement.prototype.pause = vi.fn()
+  window.HTMLElement.prototype.scrollBy = vi.fn()
+  window.HTMLElement.prototype.scrollIntoView = vi.fn()
+  window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
+})
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -12,42 +21,53 @@ afterEach(() => {
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Shell status={status} />
+      <Shell />
     </MemoryRouter>,
   )
 }
 
+const niceGuys = summary({ id: 'm1', title: 'The Nice Guys', year: 2016, resolution: '1080p', communityRating: 7.4, contentRating: 'R' })
+
 describe('App', () => {
-  it('shows server status and libraries on the home page', async () => {
-    mockApi({ '/system/status': status, '/libraries': [movies], '/items/recent': [] })
+  it('shows the featured hero and rows on the home page', async () => {
+    mockApi({
+      '/system/status': status,
+      '/libraries': [movies],
+      '/home': {
+        featured: [niceGuys],
+        overviews: { m1: 'A mismatched pair of private eyes investigate a missing girl.' },
+        rows: [{ id: 'top-movies', title: 'Top 10 films in your library', style: 'top10', items: [niceGuys], link: null }],
+      },
+    })
 
     render(<App />)
 
-    expect(await screen.findByText('0.1.0')).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /Movies/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
+    expect(screen.getByText(/mismatched pair/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Top 10 films in your library' })).toBeInTheDocument()
+    expect(screen.getByText('Number 1: The Nice Guys')).toBeInTheDocument()
   })
 
   it('asks for an API key when the server requires one, then retries with it', async () => {
     let authorized = false
-    const fetchMock = mockApi({
+    mockApi({
       '/system/status': (init?: RequestInit) => {
         authorized = (init?.headers as Record<string, string> | undefined)?.['X-Api-Key'] === 'secret'
         return authorized ? status : new Response('', { status: 401 })
       },
       '/libraries': [],
-      '/items/recent': [],
+      '/home': { featured: [], overviews: {}, rows: [] },
     })
 
     render(<App />)
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'secret' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
-    expect(await screen.findByText('0.1.0')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(authorized).toBe(true)
-    expect(fetchMock).toHaveBeenCalled()
   })
 
-  it('reports when the server is unreachable', async () => {
+  it('explains when the server is unreachable', async () => {
     mockApi({ '/system/status': new Response('', { status: 503, statusText: 'Unavailable' }) })
 
     render(<App />)
@@ -57,47 +77,63 @@ describe('App', () => {
 })
 
 describe('Library page', () => {
-  it('lists items and shows scan progress', async () => {
+  it('lists titles with genre filters and scan progress', async () => {
     mockApi({
       '/libraries': [movies],
-      '/libraries/lib-movies/items': {
-        total: 2,
-        items: [summary({ id: 'm1', title: 'The Nice Guys', year: 2016, resolution: '1080p' }), summary({ id: 'm2', title: 'Arrival', year: 2016 })],
-      },
+      '/libraries/lib-movies/genres': [{ name: 'Crime', count: 1 }],
+      '/libraries/lib-movies/items': { total: 1, items: [niceGuys] },
     })
 
     renderAt('/library/lib-movies')
 
-    expect(await screen.findByText('The Nice Guys')).toBeInTheDocument()
-    expect(screen.getByText('1080p')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('4 of 10 new files')
+    expect(await screen.findByRole('link', { name: /The Nice Guys/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Crime' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('4 of 10')
   })
 })
 
-describe('Item page', () => {
-  it('shows a season as an episode list with breadcrumbs', async () => {
+describe('Series page', () => {
+  it('shows seasons as tabs and the selected season’s episodes with overviews', async () => {
+    const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 1 })
+    const season = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })
+    const pilot = summary({ id: 'e1', kind: 'Episode', parentId: 'season-1', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, runtimeMinutes: 22 })
     mockApi({
       '/libraries': [],
-      '/items/season-6': {
-        item: summary({ id: 'season-6', kind: 'Season', title: 'Season 6', seasonNumber: 6, childCount: 1 }),
-        path: null,
-        tvdbId: null,
-        tmdbId: null,
-        imdbId: null,
-        ancestors: [summary({ id: 'series', kind: 'Series', title: '30 Rock' })],
-        children: [
-          summary({ id: 'e6', kind: 'Episode', title: 'Hey Baby Whats Wrong', seasonNumber: 6, episodeNumber: 6, episodeNumberEnd: 7, durationSeconds: 2640 }),
-        ],
-        files: [],
-      },
+      '/items/s': detail(series, { children: [season], overview: 'Liz Lemon runs a sketch show.' }),
+      '/items/season-1': detail(season, { children: [pilot], ancestors: [series], childOverviews: { e1: 'Liz meets Jack.' } }),
+      '/items/s/next-up': pilot,
+      '/items/s/similar': [],
     })
 
-    renderAt('/item/season-6')
+    renderAt('/item/s')
 
-    const episode = await screen.findByRole('link', { name: /Hey Baby Whats Wrong/ })
-    expect(within(episode).getByText('6–7')).toBeInTheDocument()
-    expect(within(episode).getByText('44m')).toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('30 Rock')
+    expect(await screen.findByRole('tab', { name: 'Season 1' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
+    expect(screen.getByText('Liz meets Jack.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Play S01E01/ })).toBeInTheDocument()
+  })
+})
+
+describe('Search', () => {
+  it('opens with ⌘K and goes to the highlighted result on Enter', async () => {
+    mockApi({
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [] },
+      '/search': { titles: [niceGuys], episodes: [], people: [{ id: 'p1', name: 'Ryan Gosling', image: null, credits: 4 }], genres: [] },
+      '/items/m1': detail(niceGuys),
+      '/items/m1/similar': [],
+    })
+
+    renderAt('/')
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search your library' }), { target: { value: 'nice' } })
+
+    const option = await screen.findByRole('option', { name: /The Nice Guys/ })
+    expect(option).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: /Ryan Gosling/ })).toBeInTheDocument()
+
+    fireEvent.keyDown(option, { key: 'Enter' })
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
   })
 })
 
@@ -109,11 +145,57 @@ describe('Settings', () => {
       'POST /libraries': new Response(JSON.stringify({ errors: { folders: ['/Volumes overlaps a folder in another library.'] } }), { status: 400 }),
     })
 
-    renderAt('/settings')
+    renderAt('/settings/libraries')
     fireEvent.click(await screen.findByRole('button', { name: 'Add library' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Use this folder' }))
     fireEvent.click(within(screen.getByRole('form', { name: 'Add library' })).getByRole('button', { name: 'Add library' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
+  })
+})
+
+describe('Player', () => {
+  it('requests playback with this browser’s capabilities and offers to skip the intro', async () => {
+    const episode = summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1 })
+    let requested: { profile?: { videoCodecs: string[] } } = {}
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => {
+        requested = JSON.parse(String(init?.body))
+        return {
+          sessionId: 'abc',
+          method: 'DirectPlay',
+          url: '/api/v1/playback/abc/stream',
+          reasons: [],
+          durationSeconds: 1320,
+          startPositionSeconds: 0,
+          fileId: 'f1',
+          audioTracks: [],
+          selectedAudioIndex: 1,
+          subtitles: [],
+          selectedSubtitleKey: null,
+          subtitleBurnedIn: false,
+          markers: [{ type: 'Intro', start: 30, end: 60 }],
+          item: episode,
+          ancestors: [summary({ id: 's', kind: 'Series', title: '30 Rock' })],
+          next: null,
+          transcodeSummary: null,
+        }
+      },
+      'DELETE /playback/abc': undefined,
+    })
+
+    renderAt('/play/e1')
+
+    expect(await screen.findByText('30 Rock')).toBeInTheDocument()
+    expect(requested.profile?.videoCodecs).toContain('h264')
+
+    const video = document.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { configurable: true, value: 42 })
+    act(() => {
+      video.dispatchEvent(new Event('timeupdate'))
+    })
+
+    expect(await screen.findByRole('button', { name: 'Skip intro' })).toBeInTheDocument()
   })
 })

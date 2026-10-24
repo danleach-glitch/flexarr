@@ -23,13 +23,13 @@ public sealed partial class MarkerDetectionWorker(
     IServiceScopeFactory scopes,
     MarkerQueue queue,
     PlaybackSessions sessions,
-    IOptions<FlexarrOptions> options,
+    IOptionsMonitor<FlexarrOptions> options,
     ILogger<MarkerDetectionWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); // Let startup scans go first.
-        var detector = new MarkerDetector(options.Value.FfmpegPath, options.Value.FfprobePath);
+        var detector = new MarkerDetector(options.CurrentValue.FfmpegPath, options.CurrentValue.FfprobePath);
 
         while (!stoppingToken.IsCancellationRequested)
         {

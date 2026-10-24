@@ -99,7 +99,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         continue;
                     }
 
-                    var item = state.Resolve(library, root, file.FullName);
+                    var item = state.Resolve(library, root, file.FullName, file.LastWriteTimeUtc);
                     if (item is null)
                     {
                         unmatched++;
@@ -199,9 +199,17 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             return index;
         }
 
-        public MediaItem? Resolve(Library library, string root, string filePath)
+        /// <param name="library">The library being scanned.</param>
+        /// <param name="root">The library folder containing the file.</param>
+        /// <param name="filePath">The video file.</param>
+        /// <param name="fileTime">
+        /// The file's modified time, used as "date added": it's when Radarr/Sonarr imported it, which is what
+        /// "recently added" should mean, rather than when Flexarr first saw it.
+        /// </param>
+        public MediaItem? Resolve(Library library, string root, string filePath, DateTime fileTime)
         {
             var segments = Path.GetRelativePath(root, filePath).Split(Path.DirectorySeparatorChar);
+            _addedAt = fileTime < DateTime.UtcNow ? fileTime : DateTime.UtcNow;
             return library.Type switch
             {
                 LibraryType.Movies => ResolveMovie(library, root, segments),
@@ -209,6 +217,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 _ => null,
             };
         }
+
+        private DateTime _addedAt = DateTime.UtcNow;
 
         private MediaItem ResolveMovie(Library library, string root, string[] segments)
         {
@@ -305,6 +315,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         private MediaItem Add(MediaItem item)
         {
+            item.AddedAt = _addedAt;
             db.MediaItems.Add(item);
             Track(item);
             return item;

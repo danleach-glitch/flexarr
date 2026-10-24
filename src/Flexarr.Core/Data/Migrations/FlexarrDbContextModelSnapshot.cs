@@ -41,7 +41,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Libraries", (string)null);
+                    b.ToTable("Libraries");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Libraries.LibraryFolder", b =>
@@ -64,7 +64,7 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("Path")
                         .IsUnique();
 
-                    b.ToTable("LibraryFolders", (string)null);
+                    b.ToTable("LibraryFolders");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Credit", b =>
@@ -96,7 +96,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("PersonId");
 
-                    b.ToTable("Credits", (string)null);
+                    b.ToTable("Credits");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Genre", b =>
@@ -114,7 +114,7 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Genres", (string)null);
+                    b.ToTable("Genres");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaFile", b =>
@@ -178,7 +178,7 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("Path")
                         .IsUnique();
 
-                    b.ToTable("MediaFiles", (string)null);
+                    b.ToTable("MediaFiles");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaItem", b =>
@@ -306,7 +306,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("LibraryId", "ParentId", "SortTitle");
 
-                    b.ToTable("MediaItems", (string)null);
+                    b.ToTable("MediaItems");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaMarker", b =>
@@ -337,7 +337,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("MediaFileId");
 
-                    b.ToTable("MediaMarkers", (string)null);
+                    b.ToTable("MediaMarkers");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaStream", b =>
@@ -389,7 +389,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("MediaFileId");
 
-                    b.ToTable("MediaStreams", (string)null);
+                    b.ToTable("MediaStreams");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Person", b =>
@@ -419,7 +419,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("TvMazeId");
 
-                    b.ToTable("People", (string)null);
+                    b.ToTable("People");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.PlaybackState", b =>
@@ -458,7 +458,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("UserId", "LastPlayedAt");
 
-                    b.ToTable("PlaybackStates", (string)null);
+                    b.ToTable("PlaybackStates");
                 });
 
             modelBuilder.Entity("GenreMediaItem", b =>
@@ -552,7 +552,7 @@ namespace Flexarr.Core.Data.Migrations
             modelBuilder.Entity("Flexarr.Core.Media.PlaybackState", b =>
                 {
                     b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
-                        .WithMany()
+                        .WithMany("PlaybackStates")
                         .HasForeignKey("MediaItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -594,6 +594,8 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Credits");
 
                     b.Navigation("Files");
+
+                    b.Navigation("PlaybackStates");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Person", b =>

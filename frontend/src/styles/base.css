@@ -1,0 +1,238 @@
+@import '@fontsource-variable/big-shoulders-display';
+@import '@fontsource-variable/atkinson-hyperlegible-next';
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 17px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--room);
+  color: var(--screen);
+  font-family: var(--text);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+/* Large, ambient-coloured focus that reads from across a room. */
+:focus-visible {
+  outline: 3px solid var(--ambient);
+  outline-offset: 3px;
+  border-radius: var(--radius-control);
+}
+
+.muted {
+  color: var(--usher);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Controls ---------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  /* Lifted towards white so dark text stays readable on any title's colour. */
+  background: color-mix(in oklab, var(--ambient) 68%, var(--screen));
+  color: var(--room);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.15s ease, background-color 0.15s ease;
+}
+
+.button:hover {
+  filter: brightness(1.08);
+}
+
+.button svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.button.quiet {
+  background: color-mix(in srgb, var(--screen) 9%, transparent);
+  border-color: color-mix(in srgb, var(--screen) 16%, transparent);
+  color: var(--screen);
+  backdrop-filter: blur(12px);
+}
+
+.button.quiet:hover {
+  background: color-mix(in srgb, var(--screen) 16%, transparent);
+  filter: none;
+}
+
+.button.small {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: var(--step--1);
+}
+
+.button.danger {
+  background: transparent;
+  border-color: var(--aisle);
+  color: var(--danger);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: none;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--screen);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: color-mix(in srgb, var(--screen) 12%, transparent);
+}
+
+.icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.text-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--usher);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.text-button:hover {
+  color: var(--screen);
+}
+
+input[type='text'],
+input[type='search'],
+input[type='password'],
+input[type='url'],
+input[type='number'],
+select {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-control);
+  background: var(--seat);
+  color: var(--screen);
+}
+
+input::placeholder {
+  color: var(--usher);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--aisle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--usher);
+  font-size: var(--step--1);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.chip:hover,
+.chip[aria-pressed='true'],
+.chip.active {
+  border-color: var(--screen);
+  color: var(--screen);
+}
+
+/* Small outlined facts: certification, resolution, HDR. */
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--screen) 45%, transparent);
+  border-radius: 4px;
+  font-size: var(--step--1);
+  font-weight: 700;
+  line-height: 1.5;
+}
