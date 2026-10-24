@@ -163,9 +163,12 @@ private struct PairWithServer: View {
             do {
                 try await model.connect(address: server.address.absoluteString, apiKey: token)
                 return
-            } catch is CancellationError {
-                throw CancellationError()
             } catch {
+                // Back was pressed (a cancelled request can also fail as a URL error).
+                if error is CancellationError || Task.isCancelled {
+                    abandon(token)
+                    throw CancellationError()
+                }
                 attempt += 1
                 guard attempt < 5 else {
                     // Give up on this one: sign it out (best effort) so it doesn't linger in the list.
@@ -173,9 +176,21 @@ private struct PairWithServer: View {
                     throw error
                 }
                 self.error = "Connecting… (\(ConnectionError(error).message))"
-                try await Task.sleep(for: .seconds(2 * attempt))
+                do {
+                    try await Task.sleep(for: .seconds(2 * attempt))
+                } catch {
+                    abandon(token)
+                    throw error
+                }
             }
         }
+    }
+
+    /// The approved token wasn't kept, so sign it out (best effort) rather than leave it in the list with nobody
+    /// holding it. Detached: this task is being cancelled, which would cancel the request too.
+    private func abandon(_ token: String) {
+        let client = FlexarrClient(baseURL: server.address, apiKey: token)
+        Task.detached { try? await client.signOut() }
     }
 
     /// Gets a code, then polls until it's approved (and signs in) or expires (and gets a new one).
