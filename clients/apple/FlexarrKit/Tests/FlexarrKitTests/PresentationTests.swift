@@ -120,3 +120,39 @@ struct DeviceProfileTests {
         #expect(DeviceProfile.iOS(hdr: false).hdr == false)
     }
 }
+
+struct SubtitleMatchTests {
+    private let options = [
+        SubtitleOption(name: "English", language: "en", isForced: false),
+        SubtitleOption(name: "English (SDH)", language: "en", isForced: false),
+        SubtitleOption(name: "French (Forced)", language: "fr", isForced: true),
+    ]
+
+    @Test func matchesTheServersChoiceByName() throws {
+        let info = try Fixture.decode(PlaybackInfo.self, "playback")
+        #expect(SubtitleMatch.option(for: "e3", in: info, among: options) == 1)
+        #expect(SubtitleMatch.option(for: "e2", in: info, among: options) == 0)
+    }
+
+    @Test func noneWhenTheServerChoseNoneOrAnUnknownTrack() throws {
+        let info = try Fixture.decode(PlaybackInfo.self, "playback")
+        #expect(SubtitleMatch.option(for: nil, in: info, among: options) == nil)
+        #expect(SubtitleMatch.option(for: "nope", in: info, among: options) == nil)
+    }
+
+    @Test func fallsBackToLanguageWithThreeLetterCodes() throws {
+        let info = try Fixture.decode(PlaybackInfo.self, "playback")
+        // "English (United Kingdom (SDH))" isn't listed by that name: the English one stands in.
+        #expect(SubtitleMatch.option(for: "e4", in: info, among: options) == 0)
+        #expect(SubtitleMatch.normalized("eng") == "en")
+        #expect(SubtitleMatch.normalized("en-GB") == "en")
+        #expect(SubtitleMatch.normalized("und") == nil)
+    }
+
+    @Test func mapsThePlayersChoiceBackToAKey() throws {
+        let info = try Fixture.decode(PlaybackInfo.self, "playback")
+        #expect(SubtitleMatch.key(for: options[1], in: info) == "e3")
+        #expect(SubtitleMatch.key(for: SubtitleOption(name: "Anglais", language: "en", isForced: false), in: info) == "e2")
+        #expect(SubtitleMatch.key(for: options[2], in: info) == nil)
+    }
+}

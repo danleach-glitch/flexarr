@@ -15,8 +15,11 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            Tab("Home", systemImage: "house.fill", value: TabID.home) {
+            Tab(value: TabID.home) {
                 TabStack(handlesDeepLinks: true) { HomeView() }
+            } label: {
+                // The Flexarr mark stands in for a house.
+                Label { Text("Home") } icon: { Image(uiImage: BrandMark.tabImage) }
             }
             Tab("Libraries", systemImage: "square.grid.2x2.fill", value: TabID.libraries) {
                 TabStack { LibrariesView() }

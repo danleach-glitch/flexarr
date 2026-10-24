@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Fixed: subtitles coming back on after skipping ahead
+- On iPhone, iPad and Apple TV, subtitles you've turned off stay off when you drag along the timeline. Before, the player turned them back on each time it landed somewhere new, especially with the sound muted.
+- Subtitles start the way your profile likes them (or off), rather than however the device guesses from its language. Turning them off carries on to the next episode.
+
+### iPhone and iPad
+- The Flexarr icon now stands in for the house on the Home tab, and the logo in the top left corner has gone.
+
 ## 0.12.0 · 24 October 2026
 
 ### Flexarr for iPhone and iPad

@@ -183,3 +183,53 @@ extension PlaybackInfo {
         return .none
     }
 }
+
+// MARK: - Subtitles
+
+/// A subtitle choice as the player lists it: its name, language and whether it's forced-only.
+public struct SubtitleOption: Sendable, Equatable {
+    public var name: String
+    public var language: String?
+    public var isForced: Bool
+
+    public init(name: String, language: String?, isForced: Bool) {
+        self.name = name
+        self.language = language
+        self.isForced = isForced
+    }
+}
+
+public enum SubtitleMatch {
+    /// Which of the player's `options` is the server's subtitle `key`, or nil for none (no subtitle, one burned into
+    /// the picture, or one the player doesn't list). Matched by the name the server gave it in the playlist, then by
+    /// language and forced-ness, then by language.
+    public static func option(for key: String?, in info: PlaybackInfo, among options: [SubtitleOption]) -> Int? {
+        guard !info.subtitleBurnedIn, let key, let track = info.subtitles.first(where: { $0.key == key }), track.isText else { return nil }
+        return option(for: track, among: options)
+    }
+
+    public static func option(for track: SubtitleTrack, among options: [SubtitleOption]) -> Int? {
+        if let index = options.firstIndex(where: { $0.name == track.label }) { return index }
+        let language = normalized(track.language)
+        guard language != nil else { return nil }
+        return options.firstIndex { normalized($0.language) == language && $0.isForced == track.isForced }
+            ?? options.firstIndex { normalized($0.language) == language }
+    }
+
+    /// The server's key for the player's `option`, the reverse of `option(for:in:among:)`.
+    public static func key(for option: SubtitleOption, in info: PlaybackInfo) -> String? {
+        let text = info.subtitles.filter(\.isText)
+        if let track = text.first(where: { $0.label == option.name }) { return track.key }
+        let language = normalized(option.language)
+        guard language != nil else { return nil }
+        return (text.first { normalized($0.language) == language && $0.isForced == option.isForced }
+            ?? text.first { normalized($0.language) == language })?.key
+    }
+
+    /// "eng", "en" and "en-GB" all compare as "en".
+    static func normalized(_ language: String?) -> String? {
+        guard let language, !language.isEmpty, language != "und" else { return nil }
+        let code = Locale.Language(identifier: language).languageCode
+        return code?.identifier(.alpha2) ?? code?.identifier ?? language.lowercased()
+    }
+}

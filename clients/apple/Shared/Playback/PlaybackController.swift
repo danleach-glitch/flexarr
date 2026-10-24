@@ -48,6 +48,19 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var lastPosition: Double = 0
     /// What `retry` asks for (nil: nothing to offer).
     @ObservationIgnored private var retryRequest: PlaybackRequest?
+    /// The viewer's own subtitle choice in the player's menu for this title: nil if they haven't made one, `.some(nil)`
+    /// for off. It outlives a recovered stream, and "off" carries on to the next episode.
+    @ObservationIgnored private var viewerSubtitleKey: String??
+    /// The current item's subtitle options, once loaded, and the one last selected (by us or the viewer).
+    @ObservationIgnored private var legibleGroup: AVMediaSelectionGroup?
+    @ObservationIgnored private var selectedSubtitleName: String??
+    @ObservationIgnored private var selectionObserver: NSObjectProtocol?
+    @ObservationIgnored private var jumpObserver: NSObjectProtocol?
+    /// Until when a subtitle change is the player's own rather than the viewer's: it re-chooses subtitles as a seek
+    /// lands (with the device muted, iOS's "On (Mute)" turns them back on), which can take a while on a transcode.
+    @ObservationIgnored private var subtitleGuardUntil = Date.distantPast
+    /// The last position the clock reported, and when, for telling a seek from playing on.
+    @ObservationIgnored private var lastTick: (position: Double, at: Date)?
     #if os(iOS)
     /// Skip Intro / Next Episode, over the player.
     @ObservationIgnored private var promptButton: UIButton?
@@ -66,6 +79,7 @@ final class PlaybackController: NSObject {
     func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient) {
         guard !isStarting else { return }
         self.client = client
+        viewerSubtitleKey = nil
         start(request(for: itemId, startAt: startAt))
     }
 
@@ -132,7 +146,9 @@ final class PlaybackController: NSObject {
         stop(reportingTo: nil)
         let item = try makeItem(for: info)
         let player = AVPlayer(playerItem: item)
-        player.appliesMediaSelectionCriteriaAutomatically = true
+        // Subtitles are chosen here (`applySubtitles`), from the server's choice or the viewer's. Left to itself AVPlayer
+        // re-chooses by the device's language, turning subtitles back on after the viewer turned them off.
+        player.appliesMediaSelectionCriteriaAutomatically = false
 
         #if os(tvOS)
         let controller = AVPlayerViewController()
@@ -199,6 +215,65 @@ final class PlaybackController: NSObject {
         endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: item, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.itemEnded() }
         }
+
+        legibleGroup = nil
+        selectedSubtitleName = nil
+        lastTick = nil
+        subtitleGuardUntil = .distantPast
+        if let jumpObserver { NotificationCenter.default.removeObserver(jumpObserver) }
+        jumpObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.timeJumpedNotification, object: item, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.seeked() }
+        }
+        if let selectionObserver { NotificationCenter.default.removeObserver(selectionObserver) }
+        selectionObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: item, queue: .main) { [weak self, weak item] _ in
+            MainActor.assumeIsolated {
+                if let item { self?.subtitleSelectionChanged(item) }
+            }
+        }
+    }
+
+    // MARK: Subtitles
+
+    /// Selects the viewer's subtitle choice for this title if they've made one, else the server's (its language
+    /// preferences, or forced subtitles), else none.
+    private func applySubtitles(to item: AVPlayerItem) {
+        Task {
+            guard let group = try? await item.asset.loadMediaSelectionGroup(for: .legible),
+                  let info, item === player?.currentItem else { return }
+            let wanted = viewerSubtitleKey ?? info.selectedSubtitleKey
+            let index = SubtitleMatch.option(for: wanted, in: info, among: group.options.map(Self.subtitleOption))
+            let option = index.map { group.options[$0] }
+            legibleGroup = group
+            selectedSubtitleName = .some(option?.displayName)
+            item.select(option, in: group)
+            log.info("Subtitles at start: \(option?.displayName ?? "off", privacy: .public)")
+        }
+    }
+
+    /// The viewer picked subtitles (or Off) in the player's menu: remember it for this title. A change just after a
+    /// seek is the player's own (subtitles when muted), so what was showing before is put back.
+    private func subtitleSelectionChanged(_ item: AVPlayerItem) {
+        guard item === player?.currentItem, let group = legibleGroup, let info else { return }
+        let selected = item.currentMediaSelection.selectedMediaOption(in: group)
+        guard selectedSubtitleName != .some(selected?.displayName) else { return } // our own selection
+        if Date() < subtitleGuardUntil, case .some(let previous) = selectedSubtitleName {
+            log.info("Keeping subtitles \(previous ?? "off", privacy: .public) after a seek (the player chose \(selected?.displayName ?? "off", privacy: .public))")
+            item.select(previous.flatMap { name in group.options.first { $0.displayName == name } }, in: group)
+            return
+        }
+        selectedSubtitleName = .some(selected?.displayName)
+        if let selected {
+            guard let key = SubtitleMatch.key(for: Self.subtitleOption(selected), in: info) else { return }
+            viewerSubtitleKey = .some(key)
+        } else {
+            viewerSubtitleKey = .some(nil)
+        }
+        log.info("Subtitles chosen in the player: \(selected?.displayName ?? "off", privacy: .public)")
+    }
+
+    private static func subtitleOption(_ option: AVMediaSelectionOption) -> SubtitleOption {
+        SubtitleOption(name: option.displayName, language: option.extendedLanguageTag ?? option.locale?.identifier,
+                       isForced: option.hasMediaCharacteristic(.containsOnlyForcedSubtitles))
     }
 
     private func itemStatusChanged(_ status: AVPlayerItem.Status, message: String?) {
@@ -206,6 +281,7 @@ final class PlaybackController: NSObject {
         case .readyToPlay:
             guard let player else { return }
             hasPlayed = true
+            if let item = player.currentItem { applySubtitles(to: item) }
             if pendingSeek > 1 {
                 let target = CMTime(seconds: pendingSeek, preferredTimescale: 600)
                 pendingSeek = 0
@@ -240,7 +316,7 @@ final class PlaybackController: NSObject {
         let failed = current.sessionId
         let retry = PlaybackRequest(
             itemId: current.item.id, profile: Self.deviceProfile, fileId: current.fileId,
-            audioStreamIndex: current.selectedAudioIndex, subtitleKey: current.selectedSubtitleKey ?? "off",
+            audioStreamIndex: current.selectedAudioIndex, subtitleKey: (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off",
             startPositionSeconds: position, replacesSessionId: failed)
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
             // A stream ended to make way for another screen says so, even inside the once-a-minute limit.
@@ -314,8 +390,19 @@ final class PlaybackController: NSObject {
         return seconds.isFinite ? seconds : 0
     }
 
+    /// A seek began (or landed): guard the subtitles until playback has settled again.
+    private func seeked() {
+        subtitleGuardUntil = max(subtitleGuardUntil, Date().addingTimeInterval(20))
+    }
+
     private func tick(_ seconds: Double) {
         guard let info, seconds.isFinite, pendingSeek == 0 else { return }
+        // The clock moving further than playing would take it is a seek, reported as it starts.
+        let now = Date()
+        if let lastTick, abs(seconds - lastTick.position - now.timeIntervalSince(lastTick.at) * Double(player?.rate ?? 0)) > 3 {
+            seeked()
+        }
+        lastTick = (seconds, now)
         lastPosition = seconds
         let next = info.prompt(at: seconds)
         if next != prompt {
@@ -329,6 +416,10 @@ final class PlaybackController: NSObject {
     }
 
     private func timeControlChanged(_ status: AVPlayer.TimeControlStatus) {
+        // Playing again after a seek: the player has made its choice by now, give or take a moment.
+        if status == .playing, subtitleGuardUntil > Date() {
+            subtitleGuardUntil = min(subtitleGuardUntil, Date().addingTimeInterval(4))
+        }
         if status == .paused, pendingSeek == 0, info != nil {
             report(paused: true)
         }
@@ -442,7 +533,17 @@ final class PlaybackController: NSObject {
             defer { isAdvancing = false }
             try? await client.stopPlayback(sessionId: finished)
             do {
-                let info = try await client.startPlayback(request(for: next.id, startAt: nil))
+                // Subtitles turned off carry on to the next episode; a chosen track is the server's to match there.
+                var nextRequest = request(for: next.id, startAt: nil)
+                // The player's Off keeps forced subtitles (foreign dialogue) on, which counts as off here.
+                let forced = Set(current.subtitles.filter(\.isForced).map(\.key))
+                if case .some(let key) = viewerSubtitleKey, key.map(forced.contains) ?? true {
+                    nextRequest.subtitleKey = "off"
+                    viewerSubtitleKey = .some(nil)
+                } else {
+                    viewerSubtitleKey = nil
+                }
+                let info = try await client.startPlayback(nextRequest)
                 guard self.info?.sessionId == finished else { // Closed meanwhile.
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
@@ -483,8 +584,13 @@ final class PlaybackController: NSObject {
         player?.pause()
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let selectionObserver { NotificationCenter.default.removeObserver(selectionObserver) }
+        if let jumpObserver { NotificationCenter.default.removeObserver(jumpObserver) }
         timeObserver = nil
         endObserver = nil
+        selectionObserver = nil
+        jumpObserver = nil
+        legibleGroup = nil
         observations = []
         info = nil
         player = nil

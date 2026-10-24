@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 /// The Flexarr mark: three stacked bars (the web favicon's geometry, in a 64-unit square).
 struct BrandMark: View {
@@ -23,3 +26,14 @@ struct BrandMark: View {
         .accessibilityHidden(true)
     }
 }
+
+#if os(iOS)
+extension BrandMark {
+    /// The mark as a tab bar icon, in its own colours (tab bars otherwise tint icons one colour).
+    @MainActor static let tabImage: UIImage = {
+        let renderer = ImageRenderer(content: BrandMark(size: 30))
+        renderer.scale = 3
+        return (renderer.uiImage ?? UIImage()).withRenderingMode(.alwaysOriginal)
+    }()
+}
+#endif

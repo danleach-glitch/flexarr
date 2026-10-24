@@ -115,6 +115,49 @@ final class ScreenshotTour: XCTestCase {
         }
     }
 
+    /// Subtitles turned off in the player stay off after dragging the scrubber.
+    func test6SubtitlesStayOff() async throws {
+        let home = try await client.home()
+        let titles = home.rows.flatMap(\.items).filter { $0.kind == .episode || $0.kind == .movie }
+        for title in titles.prefix(12) {
+            let info = try await client.startPlayback(PlaybackRequest(itemId: title.id, profile: .iOS(hdr: false)))
+            try? await client.stopPlayback(sessionId: info.sessionId)
+            guard let key = info.selectedSubtitleKey, info.subtitles.contains(where: { $0.key == key && $0.isText }) else { continue }
+            XCUIDevice.shared.orientation = .landscapeLeft
+            app.open(URL(string: "flexarr://play/\(title.id)?t=600")!)
+            pause(10)
+            shot("13-subtitles-on")
+            let legible = app.buttons["Legible Options"].firstMatch
+            func showControls() {
+                if !legible.isHittable { app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+                _ = legible.waitForExistence(timeout: 3)
+            }
+            showControls()
+            guard legible.waitForExistence(timeout: 3) else { return XCTFail("No subtitles button") }
+            legible.tap()
+            pause(1)
+            shot("14-subtitles-menu")
+            let off = app.buttons.matching(NSPredicate(format: "label ==[c] 'Off'")).firstMatch
+            guard off.waitForExistence(timeout: 3) else { return XCTFail("No Off in the subtitles menu") }
+            off.tap()
+            pause(6)
+            shot("15-subtitles-off")
+            showControls()
+            // Both sliders are labelled "Current position"; the volume one is told apart by its identifier.
+            let scrubber = app.sliders.matching(identifier: "Current position").firstMatch
+            if scrubber.waitForExistence(timeout: 3) { scrubber.adjust(toNormalizedSliderPosition: 0.6) }
+            pause(10)
+            shot("16-after-seek")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            let close = app.buttons["Close"].firstMatch
+            if close.waitForExistence(timeout: 3) { close.tap() }
+            pause(3)
+            XCUIDevice.shared.orientation = .portrait
+            return
+        }
+        throw XCTSkip("Nothing in Home plays with subtitles on")
+    }
+
     // MARK: Helpers
 
     /// Tabs are found by their label: in the tab bar on iPhone, the bar along the top on iPad.

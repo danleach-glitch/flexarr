@@ -26,14 +26,6 @@ struct HomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                HStack(spacing: 8) {
-                    BrandMark(size: 30)
-                    Text("flexarr").font(.marquee(26, weight: .black)).foregroundStyle(Color.screen)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Flexarr")
-            }
             if model.profiles.count > 1, let current = model.currentProfile {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { choosingProfile = true } label: {
