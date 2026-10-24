@@ -16,6 +16,8 @@ struct DetailView: View {
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
     @State private var scrollOffset: CGFloat = 0
+    /// `model.refreshToken` when `detail` was last fetched.
+    @State private var loadedToken: Int?
     @FocusState private var focusedSeason: String?
     @FocusState private var focusedEpisode: String?
 
@@ -57,7 +59,11 @@ struct DetailView: View {
             }
         }
         .ignoresSafeArea(edges: [.top, .horizontal])
-        .task(id: model.refreshToken) { await load() }
+        .task(id: model.refreshToken) {
+            // Coming back from a screen pushed on top runs this again; fetch only when something changed.
+            guard loadedToken != model.refreshToken else { return }
+            await load()
+        }
     }
 
     // MARK: Backdrop
@@ -357,6 +363,7 @@ struct DetailView: View {
 
     private func load() async {
         guard let client = model.client else { return }
+        let token = model.refreshToken
         do {
             var loaded = try await client.item(id)
             // A season opens as its series, with that season selected.
@@ -366,6 +373,7 @@ struct DetailView: View {
                 loaded = try await client.item(parent)
             }
             detail = loaded
+            loadedToken = token
             error = nil
 
             let item = loaded.item
