@@ -52,6 +52,7 @@ export function Layout() {
       </a>
       <header className={scrolled ? 'marquee solid' : 'marquee'}>
         <Link to="/" className="wordmark" aria-label="Flexarr home">
+          <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
           flexarr
         </Link>
         <nav aria-label="Main" className="marquee-nav">

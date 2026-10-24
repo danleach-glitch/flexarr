@@ -35,6 +35,9 @@
 }
 
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--display);
   font-size: 1.85rem;
   font-weight: 800;
@@ -42,6 +45,13 @@
   text-decoration: none;
   color: var(--screen);
   line-height: 1;
+}
+
+/* The marquee F mark, sized to the wordmark's cap height. */
+.wordmark-mark {
+  width: 34px;
+  height: 34px;
+  margin: -4px 0;
 }
 
 .marquee-nav {

@@ -116,7 +116,10 @@ export default function App() {
 
   return (
     <div className="connect">
-      <p className="wordmark">flexarr</p>
+      <p className="wordmark">
+        <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
+        flexarr
+      </p>
       <section className="panel" aria-label="Server status">
         {state.kind === 'loading' && <p className="muted">Connecting…</p>}
         {state.kind === 'error' && <p className="error">Can't reach the server ({state.message}). Check that Flexarr is running, then reload.</p>}

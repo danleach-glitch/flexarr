@@ -39,7 +39,10 @@ export function ProfilePicker({ profiles, onChosen }: { profiles: Profile[]; onC
 
   return (
     <div className="profile-picker">
-      <p className="wordmark">flexarr</p>
+      <p className="wordmark">
+        <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
+        flexarr
+      </p>
       {asking ? (
         <form
           className="pin-pad"

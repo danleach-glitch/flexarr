@@ -1,0 +1,13 @@
+{
+  "name": "Flexarr",
+  "short_name": "Flexarr",
+  "description": "Your films, shows and music, from your own server.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1B1720",
+  "theme_color": "#1B1720",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
