@@ -23,6 +23,8 @@ public static class ItemQueries
                 // The show for episodes and seasons; the artist for tracks and albums.
                 SeriesTitle = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.Parent!.Title
                     : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album ? i.Parent!.Title : null,
+                SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.ParentId
+                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album ? i.ParentId : null,
                 State = i.PlaybackStates.Where(p => p.UserId == profileId)
                     .Select(p => new { p.PositionSeconds, p.Watched, p.PlayCount, p.LastPlayedAt }).FirstOrDefault(),
                 Unwatched = i.Kind == MediaKind.Series
@@ -53,5 +55,6 @@ public static class ItemQueries
                     x.Unwatched),
                 x.SeriesTitle,
                 x.Item.DiscNumber,
-                x.Item.TrackNumber));
+                x.Item.TrackNumber,
+                x.SeriesId));
 }

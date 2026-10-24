@@ -6,10 +6,12 @@ import { Row } from '../components/Row'
 import { UpcomingCard } from '../components/UpcomingCard'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
+import { useWatchedChanges } from '../components/ItemMenu'
 
 export function HomePage() {
   const { libraries } = useLibraries()
-  const { data, error } = useApi(getHome, [])
+  const { data, error, reload } = useApi(getHome, [])
+  useWatchedChanges(reload)
 
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="hero hero-loading" aria-busy="true" />

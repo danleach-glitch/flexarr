@@ -1575,3 +1575,103 @@ a.download-attention {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ---------- Card menus ---------- */
+
+.card-shell {
+  position: relative;
+  min-width: 0;
+}
+
+/* Over the artwork's top-left corner (the watched tick has the top-right). */
+.card-menu-button {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(14 11 17 / 0.82);
+  color: var(--screen);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.card-menu-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.card-shell:hover .card-menu-button,
+.card-shell:focus-within .card-menu-button,
+.card-menu-button[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.card-menu-button:hover,
+.card-menu-button[aria-expanded='true'] {
+  background: var(--screen);
+  color: var(--room);
+}
+
+.card-menu-button:focus-visible {
+  outline: 2px solid var(--screen);
+  outline-offset: 2px;
+}
+
+/* Top 10's poster sits right of its numeral. */
+.card-shell:has(.top10-card) .card-menu-button {
+  left: auto;
+  right: 8px;
+}
+
+/* No hover on touch screens: keep the button visible. */
+@media (hover: none) {
+  .card-menu-button {
+    opacity: 1;
+  }
+}
+
+.item-menu {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--seat);
+  border: 1px solid var(--aisle);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.5);
+}
+
+.item-menu button {
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--screen);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item-menu button:hover,
+.item-menu button:focus-visible {
+  background: var(--aisle);
+  outline: none;
+}
+
+.item-menu hr {
+  margin: 5px 6px;
+  border: 0;
+  border-top: 1px solid var(--aisle);
+}

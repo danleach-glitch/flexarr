@@ -80,6 +80,8 @@ export interface ItemSummary {
   seriesTitle: string | null
   discNumber: number | null
   trackNumber: number | null
+  /** The show's id for episodes and seasons (the artist's for tracks and albums). */
+  seriesId?: string | null
 }
 
 export interface Paged<T> {

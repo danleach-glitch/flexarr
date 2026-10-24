@@ -50,6 +50,37 @@ describe('App', () => {
     expect(screen.getByText('Number 1: The Nice Guys')).toBeInTheDocument()
   })
 
+  it('marks an episode watched from its card menu, and Continue Watching drops it', async () => {
+    const episode = summary({ id: 'e5', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 5, seriesTitle: 'Severance', seriesId: 's1', durationSeconds: 3000, userData: { positionSeconds: 600, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null } })
+    let watched = false
+    const marked: unknown[] = []
+    mockApi({
+      '/system/status': status,
+      '/libraries': [movies],
+      '/home': () => ({
+        featured: [],
+        overviews: {},
+        rows: watched ? [] : [{ id: 'continue', title: 'Continue watching', style: 'wide', items: [episode], link: null }],
+        upcoming: [],
+        downloading: 0,
+      }),
+      'POST /items/e5/watched': (init?: RequestInit) => {
+        marked.push(JSON.parse(String(init?.body)))
+        watched = true
+      },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S01E05' }))
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Resume S01E05' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Go to Severance' })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' }))
+
+    await vi.waitFor(() => expect(screen.queryByRole('heading', { name: 'Continue watching' })).not.toBeInTheDocument())
+    expect(marked).toEqual([{ watched: true }])
+  })
+
   it('asks for an API key when the server requires one, then retries with it', async () => {
     let authorized = false
     mockApi({

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { getLibraryBrowse, getLibraryGenres, getLibraryItems, scanLibrary, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
+import { useWatchedChanges } from '../components/ItemMenu'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
@@ -48,7 +49,8 @@ function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
 }
 
 function LibraryBrowse({ library }: { library: Library }) {
-  const { data, error } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, library.itemCount])
+  const { data, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, library.itemCount])
+  useWatchedChanges(reload)
   const heading = (
     <>
       <h1 className="library-title">{library.name}</h1>
@@ -93,6 +95,9 @@ function LibraryAll() {
   const [items, setItems] = useState<ItemSummary[]>([])
   const [total, setTotal] = useState<number>()
   const [error, setError] = useState<string>()
+  // Refetch when something is marked watched, so ticks and counts stay right.
+  const [version, setVersion] = useState(0)
+  useWatchedChanges(useCallback(() => setVersion((v) => v + 1), []))
   const grid = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -114,7 +119,7 @@ function LibraryAll() {
         if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e))
       })
     return () => controller.abort()
-  }, [id, query, sort, genre, itemCount])
+  }, [id, query, sort, genre, itemCount, version])
 
   async function loadMore() {
     const page = await getLibraryItems(id, { search: query, sort, genre, skip: items.length, take: PAGE_SIZE })

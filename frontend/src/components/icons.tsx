@@ -108,3 +108,10 @@ export const Film = (p: IconProps) => (
     <path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" />
   </svg>
 )
+export const More = (p: IconProps) => (
+  <svg {...base} {...p} fill="currentColor" stroke="none">
+    <circle cx="5.5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="18.5" cy="12" r="2" />
+  </svg>
+)
