@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, useParams } from 'react-router'
 import {
   ApiError,
@@ -57,6 +57,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { ChevronDown, ChevronUp } from '../components/icons'
 import { useApi } from '../hooks/useApi'
+import { usePolling } from '../hooks/usePolling'
 import { episodeCode, formatClock, formatSize, libraryTypeLabel, relativeTime } from '../lib/format'
 
 const sections = [
@@ -112,7 +113,8 @@ export function SettingsPage() {
 function LibrariesSection() {
   // The nav's list (which polls during scans) leaves out libraries hidden from this profile; Settings shows them all.
   const { libraries: visible, reload: reloadVisible } = useLibraries()
-  const all = useApi(getAllLibraries, [visible])
+  // Follow the nav's list as scans change counts, but not its every poll.
+  const all = useApi(getAllLibraries, [visible.map((l) => `${l.id}:${l.itemCount}:${l.scan ? 1 : 0}`).join()])
   const libraries = all.data ?? visible
   const reload = () => {
     reloadVisible()
@@ -384,8 +386,9 @@ interface DraftConnection {
 
 function ConnectionsSection() {
   const { settings, save, saved, saveError } = useSettings()
-  const status = useApi(getArrStatus, [settings])
-  const seerrStatus = useApi(getRequestStatus, [settings])
+  // Asked once the settings are in (and again after a save), not also while they load.
+  const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
+  const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
   const [connections, setConnections] = useState<DraftConnection[]>([])
   const [mappings, setMappings] = useState<Settings['pathMappings']>([])
   const [seerr, setSeerr] = useState({ baseUrl: '', apiKey: '', hasApiKey: false })
@@ -558,12 +561,8 @@ function ConnectionsSection() {
 // ---------------------------------------------------------------- Activity
 
 function ActivitySection() {
-  const [version, setVersion] = useState(0)
-  const { data } = useApi(getActivity, [version])
-  useEffect(() => {
-    const timer = setInterval(() => setVersion((v) => v + 1), 5000)
-    return () => clearInterval(timer)
-  }, [])
+  const { data, reload } = useApi(getActivity, [])
+  usePolling(reload, 5000)
   if (!data) return <p className="muted">Loading…</p>
 
   const analysed = data.episodesTotal ? Math.round((data.episodesAnalysed / data.episodesTotal) * 100) : 100
@@ -848,14 +847,15 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   const running = check.data?.running ?? false
 
   // Poll while a check runs; when it finishes, the rest of the report reloads too.
+  usePolling(check.reload, running ? 1500 : null)
+  const wasRunning = useRef(false)
   useEffect(() => {
-    if (!running) return
-    const timer = setInterval(check.reload, 1500)
-    return () => {
-      clearInterval(timer)
+    if (running) wasRunning.current = true
+    else if (wasRunning.current) {
+      wasRunning.current = false
       onFinished()
     }
-  }, [running, check.reload, onFinished])
+  }, [running, onFinished])
 
   const report = check.data
   const labels = { Missing: 'Missing from disk', Empty: 'Empty files', Unreadable: 'Still unreadable' } as const
