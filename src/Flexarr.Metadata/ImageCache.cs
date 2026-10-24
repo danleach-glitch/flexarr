@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -21,14 +20,25 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     private const int MaxRedirects = 3;
     private static readonly TimeSpan TrimInterval = TimeSpan.FromMinutes(10);
 
+    /// <summary>Downloads and resizes under way or waiting at once; past this, a new image is refused until some finish.</summary>
+    internal const int MaxJobs = 256;
+
+    /// <summary>Downloads at once: a fast scroll past hundreds of new posters shouldn't open hundreds of sockets.</summary>
+    internal const int MaxDownloads = 8;
+
+    /// <summary>A file still being written that's older than this was left by a crash or a kill, and goes.</summary>
+    private static readonly TimeSpan StalePartial = TimeSpan.FromHours(1);
+
     /// <summary>
-    /// The download and resize under way for each image and width. Static: as a typed HttpClient this class is created
-    /// per request, and the work must be shared by all of them.
+    /// The download and resize under way for each image and width (locked on itself). Static: as a typed HttpClient
+    /// this class is created per request, and the work must be shared by all of them.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, Lazy<Task<string?>>> InFlight = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Job> InFlight = new(StringComparer.Ordinal);
 
     /// <summary>A page of new posters shouldn't start dozens of ffmpegs at once.</summary>
     private static readonly SemaphoreSlim FfmpegSlots = new(Environment.ProcessorCount, Environment.ProcessorCount);
+
+    private static readonly SemaphoreSlim DownloadSlots = new(MaxDownloads, MaxDownloads);
 
     private static long _lastTrim = long.MinValue / 2; // so the first write checks
     private static int _trimming;
@@ -43,13 +53,20 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// <summary>Download and resize together, including any wait for an ffmpeg slot.</summary>
     internal TimeSpan WorkTimeout { get; set; } = TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// How long work nobody is waiting for any more carries on, in case it's asked for again: an image scrolled past
+    /// on a TV and straight back isn't fetched twice, but one scrolled far past stops taking a download slot.
+    /// </summary>
+    internal TimeSpan AbandonAfter { get; set; } = TimeSpan.FromSeconds(5);
+
     /// <summary>Returns the path of a cached copy at least <paramref name="width"/> wide, or null if it can't be fetched.</summary>
     /// <param name="remoteUrl">An https URL, or (from the library scanner only) a file:// or embedded:// one.</param>
     /// <param name="width">The width wanted; snapped up to one of <see cref="ArtworkUrl.Widths"/>.</param>
     /// <param name="ct">
-    /// Stops waiting. The download and resize carry on (on their own timeout) for whoever asks next, so an image
-    /// scrolled past on a TV and back again isn't fetched twice.
+    /// Stops waiting. The download and resize carry on (on their own timeout) for <see cref="AbandonAfter"/>, for
+    /// whoever asks next, and then stop if nobody has.
     /// </param>
+    /// <exception cref="ImageCacheBusyException"><see cref="MaxJobs"/> other images are being fetched; try again shortly.</exception>
     public async Task<string?> GetAsync(string remoteUrl, int? width, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(remoteUrl);
@@ -63,29 +80,111 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             return hit;
         }
 
-        var work = InFlight.GetOrAdd(target, t => new Lazy<Task<string?>>(() => Task.Run(() => ShareAsync(remoteUrl, snapped, t))));
-        return await work.Value.WaitAsync(ct).ConfigureAwait(false);
+        Job? job;
+        lock (InFlight)
+        {
+            if (!InFlight.TryGetValue(target, out job))
+            {
+                if (InFlight.Count >= MaxJobs)
+                {
+                    throw new ImageCacheBusyException();
+                }
+
+                var started = job = new Job(target);
+                InFlight.Add(target, job);
+                job.Work = Task.Run(() => ShareAsync(remoteUrl, snapped, started));
+            }
+
+            job.Waiters++;
+            job.Version++; // so a pending abandon no longer applies
+        }
+
+        try
+        {
+            return await job.Work.WaitAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            Leave(job);
+        }
     }
 
     /// <summary>One download and resize, shared by everyone who asks for this image at this width while it runs.</summary>
-    private async Task<string?> ShareAsync(string remoteUrl, int snapped, string target)
+    private async Task<string?> ShareAsync(string remoteUrl, int snapped, Job job)
     {
         try
         {
-            using var timeout = new CancellationTokenSource(WorkTimeout);
-            return await FetchAsync(remoteUrl, snapped, target, timeout.Token).ConfigureAwait(false);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(job.Abandoned.Token);
+            timeout.CancelAfter(WorkTimeout);
+            return await FetchAsync(remoteUrl, snapped, job.Target, timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            LogDownloadFailed(remoteUrl, 0); // timed out
+            if (!job.Abandoned.IsCancellationRequested)
+            {
+                LogDownloadFailed(remoteUrl, 0); // timed out
+            }
+
             return null;
         }
         finally
         {
-            // Done with: the next request finds the file or, if this failed, tries again. Only this work can be in
-            // the map under its key until now, so this can't remove anyone else's.
-            InFlight.TryRemove(target, out _);
+            // Done with: the next request finds the file or, if this failed, tries again. Abandoned work was taken
+            // out already, and newer work for the same image may be there in its place.
+            lock (InFlight)
+            {
+                if (InFlight.TryGetValue(job.Target, out var current) && current == job)
+                {
+                    InFlight.Remove(job.Target);
+                }
+            }
         }
+    }
+
+    /// <summary>A waiter has its answer or gave up. Once the last has gone, the work stops after <see cref="AbandonAfter"/>.</summary>
+    private void Leave(Job job)
+    {
+        int version;
+        lock (InFlight)
+        {
+            if (--job.Waiters > 0 || job.Work.IsCompleted)
+            {
+                return;
+            }
+
+            version = job.Version;
+        }
+
+        _ = Task.Delay(AbandonAfter).ContinueWith(_ => Abandon(job, version), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+    }
+
+    private static void Abandon(Job job, int version)
+    {
+        lock (InFlight)
+        {
+            // Asked for again meanwhile, or over already.
+            if (job.Waiters > 0 || job.Version != version || !InFlight.TryGetValue(job.Target, out var current) || current != job)
+            {
+                return;
+            }
+
+            // Out of the map first, so nobody can join work that's about to stop.
+            InFlight.Remove(job.Target);
+        }
+
+        job.Abandoned.Cancel();
+    }
+
+    /// <summary>A shared download and resize, and how many are waiting for it. Everything but the token is changed under the <see cref="InFlight"/> lock.</summary>
+    private sealed class Job(string target)
+    {
+        public string Target { get; } = target;
+        public Task<string?> Work { get; set; } = Task.FromResult<string?>(null);
+        public int Waiters { get; set; }
+        public int Version { get; set; }
+
+        /// <summary>Not disposed: it has no timer to free, and a late Cancel mustn't throw.</summary>
+        public CancellationTokenSource Abandoned { get; } = new();
     }
 
     private async Task<string?> FetchAsync(string remoteUrl, int snapped, string target, CancellationToken ct)
@@ -125,9 +224,17 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         var source = $"{target}.{Guid.NewGuid():N}.download";
         try
         {
-            if (!await DownloadAsync(uri, remoteUrl, source, ct).ConfigureAwait(false))
+            await DownloadSlots.WaitAsync(ct).ConfigureAwait(false);
+            try
             {
-                return null;
+                if (!await DownloadAsync(uri, remoteUrl, source, ct).ConfigureAwait(false))
+                {
+                    return null;
+                }
+            }
+            finally
+            {
+                DownloadSlots.Release();
             }
 
             var downloaded = InputFormat(await HeaderAsync(source, ct).ConfigureAwait(false));
@@ -164,7 +271,16 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// <summary>Ambient colour for an image (see <see cref="AccentColor"/>), sampled from a tiny resize.</summary>
     public async Task<string?> AccentColorAsync(string remoteUrl, CancellationToken ct)
     {
-        var path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false);
+        string? path;
+        try
+        {
+            path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false);
+        }
+        catch (ImageCacheBusyException)
+        {
+            return null; // left unset, so the next refresh tries again
+        }
+
         if (path is null)
         {
             return null;
@@ -388,7 +504,8 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
     /// <summary>
     /// Deletes the least recently used images until the cache is under 90% of <paramref name="maxBytes"/>, if it's
-    /// over. Files still being written are left alone. Returns how many were deleted.
+    /// over. Files still being written (downloads and resizes) count towards the size but are left alone, unless
+    /// they're so old that whatever was writing them is gone. Returns how many were deleted.
     /// </summary>
     internal static int Trim(string directory, long maxBytes)
     {
@@ -397,37 +514,64 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             return 0;
         }
 
-        var files = new DirectoryInfo(directory).EnumerateFiles("*", SearchOption.AllDirectories)
-            .Where(f => f.Extension is ".jpg" or ".png" && !f.Name.Contains(".tmp.", StringComparison.Ordinal))
-            .ToList();
-        var total = files.Sum(f => f.Length);
-        if (total <= maxBytes)
+        var stale = DateTime.UtcNow - StalePartial;
+        var removed = 0;
+        long total = 0;
+        var images = new List<FileInfo>();
+        foreach (var file in new DirectoryInfo(directory).EnumerateFiles("*", SearchOption.AllDirectories))
         {
-            return 0;
+            if (file.Extension == ".download" || file.Name.Contains(".tmp.", StringComparison.Ordinal))
+            {
+                if (file.LastWriteTimeUtc < stale && TryDelete(file))
+                {
+                    removed++;
+                }
+                else
+                {
+                    total += file.Length;
+                }
+            }
+            else if (file.Extension is ".jpg" or ".png")
+            {
+                images.Add(file);
+                total += file.Length;
+            }
         }
 
-        var removed = 0;
-        foreach (var file in files.OrderBy(f => f.LastWriteTimeUtc))
+        if (total <= maxBytes)
+        {
+            return removed;
+        }
+
+        foreach (var file in images.OrderBy(f => f.LastWriteTimeUtc))
         {
             if (total <= maxBytes / 10 * 9)
             {
                 break;
             }
 
-            try
+            var length = file.Length;
+            if (TryDelete(file))
             {
-                var length = file.Length;
-                file.Delete();
                 total -= length;
                 removed++;
-            }
-            catch (IOException)
-            {
-                // In use; try the next.
             }
         }
 
         return removed;
+    }
+
+    private static bool TryDelete(FileInfo file)
+    {
+        try
+        {
+            file.Delete();
+            return true;
+        }
+        catch (IOException)
+        {
+            return false; // In use; try the next.
+        }
     }
 
     private static async Task<byte[]> HeaderAsync(string path, CancellationToken ct)
@@ -457,4 +601,23 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not trim the image cache")]
     private partial void LogTrimFailed(Exception exception);
+}
+
+/// <summary>Too many other images are being fetched right now; asking again in a moment will likely work.</summary>
+public sealed class ImageCacheBusyException : Exception
+{
+    public ImageCacheBusyException()
+        : base("The image cache is busy fetching other images.")
+    {
+    }
+
+    public ImageCacheBusyException(string message)
+        : base(message)
+    {
+    }
+
+    public ImageCacheBusyException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }
