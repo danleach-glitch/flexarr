@@ -1,5 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
 import { TrailerDialog } from './components/TrailerDialog'
@@ -208,11 +208,11 @@ describe('Series page', () => {
     const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 1 })
     const season = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })
     const pilot = summary({ id: 'e1', kind: 'Episode', parentId: 'season-1', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, runtimeMinutes: 22 })
-    mockApi({
+    const seasonDetail = detail(season, { children: [pilot], ancestors: [series], childOverviews: { e1: 'Liz meets Jack.' } })
+    const fetchMock = mockApi({
       '/libraries': [],
-      '/items/s': detail(series, { children: [season], overview: 'Liz Lemon runs a sketch show.' }),
-      '/items/season-1': detail(season, { children: [pilot], ancestors: [series], childOverviews: { e1: 'Liz meets Jack.' } }),
-      '/items/s/next-up': pilot,
+      // The series brings its Up Next and the season it opens on, in one request.
+      '/items/s': detail(series, { children: [season], overview: 'Liz Lemon runs a sketch show.', nextUp: pilot, season: seasonDetail }),
       '/items/s/similar': [],
     })
 
@@ -222,6 +222,11 @@ describe('Series page', () => {
     expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
     expect(screen.getByText('Liz meets Jack.')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Play Season 01 \| Episode 01/ })).toBeInTheDocument()
+    const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost'))
+    expect(paths.filter((u) => u.pathname.startsWith('/api/v1/items/')).map((u) => u.pathname + u.search)).toEqual([
+      '/api/v1/items/s?includeSeason=true',
+      '/api/v1/items/s/similar',
+    ])
   })
 })
 
@@ -450,6 +455,7 @@ describe('Library grid', () => {
   const films = Array.from({ length: 210 }, (_, i) => summary({ id: `f${i}`, title: `Film ${String(i).padStart(3, '0')}` }))
   function grid(onItem?: (id: string) => void) {
     const pages: number[] = []
+    let watched = false
     mockApi({
       '/libraries': [{ ...movies, scan: null, itemCount: films.length }],
       '/libraries/lib-movies/genres': [],
@@ -458,11 +464,14 @@ describe('Library grid', () => {
         pages.push(skip)
         return { total: films.length, items: films.slice(skip, skip + Number(url.searchParams.get('take'))) }
       },
-      'POST /items/f3/watched': undefined,
+      'POST /items/f3/watched': () => {
+        watched = true
+      },
       '/items/f3': () => {
         onItem?.('f3')
-        return detail({ ...films[3], userData: { ...films[3].userData, watched: true } })
+        return detail({ ...films[3], userData: { ...films[3].userData, watched } })
       },
+      '/items/f3/similar': [],
     })
     return pages
   }
@@ -493,6 +502,42 @@ describe('Library grid', () => {
     await vi.waitFor(() => expect(fetched).toEqual(['f3']))
     expect(pages).toEqual([0, 200])
     expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
+  })
+
+  it('comes back from a title marked watched with the pages it had, and stays put when you search', async () => {
+    const pages = grid()
+    function Back() {
+      const navigate = useNavigate()
+      return <button onClick={() => navigate(-1)}>Back</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/library/lib-movies?view=all']}>
+        <Shell />
+        <Back />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 10 more' }))
+    await screen.findByRole('link', { name: 'Film 209' })
+    fireEvent.click(screen.getByRole('link', { name: 'Film 003' }))
+    // Marking it watched is a change, which clears cached answers; the grid's own state is kept apart.
+    fireEvent.click(await screen.findByRole('button', { name: /Mark as watched/ }))
+    expect(await screen.findByRole('button', { name: /Watched/ })).toHaveAttribute('aria-pressed', 'true')
+
+    const scrolls = vi.mocked(window.scrollTo)
+    scrolls.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Watched: mark Film 003 as unwatched' })).toHaveAttribute('aria-pressed', 'true')
+    expect(pages).toEqual([0, 200])
+    // The page opens at the top, then the grid goes back to where it was.
+    await vi.waitFor(() => expect(scrolls).toHaveBeenCalledTimes(2))
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Movies' }), { target: { value: 'Film 1' } })
+    await vi.waitFor(() => expect(pages).toEqual([0, 200, 0]))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    expect(scrolls).toHaveBeenCalledTimes(2)
   })
 })
 

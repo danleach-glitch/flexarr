@@ -740,6 +740,11 @@ kbd {
   contain-intrinsic-size: auto 150px auto 300px;
 }
 
+/* Square artists' art makes shorter cards; a closer estimate keeps letter jumps and restored places on target. */
+.poster-grid.square > * {
+  contain-intrinsic-size: auto 150px auto 210px;
+}
+
 .poster-grid > :hover,
 .poster-grid > :focus-within {
   content-visibility: visible;
@@ -1412,6 +1417,10 @@ a.upcoming-row:hover strong {
 
   .poster-grid > * {
     contain-intrinsic-size: auto 104px auto 210px;
+  }
+
+  .poster-grid.square > * {
+    contain-intrinsic-size: auto 104px auto 150px;
   }
 
   .alpha-rail {

@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepUntilChanged, kept, scanLibrary, type ItemSummary, type Library } from '../api/client'
+import { freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
-import { useWatchedChanges } from '../hooks/watched'
+import { useWatchedChanges, watchedSince } from '../hooks/watched'
 
 const PAGE_SIZE = 200
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -111,12 +111,32 @@ function letterOf(item: ItemSummary) {
   return /[A-Z]/.test(first) ? first : '#'
 }
 
-/** What going back to a grid restores: the titles it had loaded and where it was scrolled to. */
+/**
+ * What going back to a grid restores: the titles it had loaded and where it was scrolled to. The place is the first
+ * card on screen and how far it sat from the top (only cards near the screen are laid out, so a pixel offset lands
+ * elsewhere once the grid is rebuilt), with scrollY in case that title has gone.
+ */
 interface GridSnapshot {
   items: ItemSummary[]
   total: number | undefined
   itemCount: number | undefined
   scrollY: number
+  anchor: { id: string; top: number } | undefined
+  savedAt: number
+}
+
+/** The first card at least partly below the top of the screen (cards run top to bottom, so a binary search). */
+function firstOnScreen(grid: HTMLElement | null) {
+  const cards = grid ? (Array.from(grid.children) as HTMLElement[]) : []
+  let low = 0
+  let high = cards.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (cards[mid].getBoundingClientRect().bottom > 0) high = mid
+    else low = mid + 1
+  }
+  const card = cards[low]
+  return card?.dataset.id ? { id: card.dataset.id, top: card.getBoundingClientRect().top } : undefined
 }
 
 /** Adds pages to a grid, skipping titles it already has (a scan can shift what's on each page). */
@@ -137,7 +157,7 @@ function LibraryAll() {
   // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
   const snapshotKey = `library-all ${id} ${sort} ${genre}`
   const navigation = useNavigationType()
-  const [restored] = useState(() => (navigation === 'POP' ? kept<GridSnapshot>(snapshotKey) : undefined))
+  const [restored] = useState(() => (navigation === 'POP' ? keptPage<GridSnapshot>(snapshotKey) : undefined))
 
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
@@ -195,31 +215,52 @@ function LibraryAll() {
   }, [depsKey])
 
   // Marking something watched updates just the titles it touches, in place.
-  useWatchedChanges(
-    useCallback(
-      (ids: string[]) => {
-        const run = generation.current
-        for (const changed of ids.filter((i) => items.some((item) => item.id === i))) {
-          getItem(changed)
-            .then((detail) => run === generation.current && setItems((current) => current.map((item) => (item.id === changed ? detail.item : item))))
-            .catch(() => undefined)
-        }
-      },
-      [items],
-    ),
+  const refresh = useCallback(
+    (ids: string[]) => {
+      const run = generation.current
+      for (const changed of ids.filter((i) => items.some((item) => item.id === i))) {
+        getItem(changed)
+          .then((detail) => run === generation.current && setItems((current) => current.map((item) => (item.id === changed ? detail.item : item))))
+          .catch(() => undefined)
+      }
+    },
+    [items],
   )
+  useWatchedChanges(refresh)
 
-  // Remember the grid on the way out, and scroll back to where it was when it's restored.
-  const latest = useRef<GridSnapshot>(undefined)
+  // A restored grid goes back to where it was, once (searching or sorting later starts a new grid), and catches up
+  // with whatever was marked watched while it was away.
+  const restoredOnce = useRef(false)
   useEffect(() => {
-    latest.current = { items, total, itemCount: loadedCount, scrollY: 0 }
+    if (!restored || restoredOnce.current) return
+    restoredOnce.current = true
+    requestAnimationFrame(() => {
+      const card = restored.anchor && grid.current?.querySelector<HTMLElement>(`[data-id="${restored.anchor.id}"]`)
+      if (card && restored.anchor) {
+        card.scrollIntoView({ block: 'start' })
+        window.scrollTo(0, window.scrollY + card.getBoundingClientRect().top - restored.anchor.top)
+      } else {
+        window.scrollTo(0, restored.scrollY)
+      }
+    })
+    const changed = watchedSince(restored.savedAt)
+    if (changed.length) refresh(changed)
+  }, [restored, refresh])
+
+  // Remember the grid on the way out (not a search's results). A layout effect, so the cards are still on screen to
+  // measure.
+  const latest = useRef({ items, total, itemCount: loadedCount, query, snapshotKey })
+  useEffect(() => {
+    latest.current = { items, total, itemCount: loadedCount, query, snapshotKey }
   })
-  useEffect(() => {
-    if (restored) requestAnimationFrame(() => window.scrollTo(0, restored.scrollY))
+  useLayoutEffect(() => {
+    const element = grid.current
     return () => {
-      if (latest.current && !query) keepUntilChanged(snapshotKey, { ...latest.current, scrollY: window.scrollY })
+      const { query, snapshotKey, ...loaded } = latest.current
+      if (query) return
+      keepPage(snapshotKey, { ...loaded, scrollY: window.scrollY, anchor: firstOnScreen(element), savedAt: Date.now() } satisfies GridSnapshot)
     }
-  }, [restored, query, snapshotKey])
+  }, [])
 
   async function loadMore() {
     if (busy) return
@@ -266,10 +307,14 @@ function LibraryAll() {
     }
     const target = loaded.find((i) => letterOf(i) === letter)
     if (target) {
+      // Straight there rather than smoothly: cards skipped on the way only have estimated heights, and a smooth scroll
+      // aims at where the target was before the cards it passes are laid out. Once there, cards drawn around it can
+      // still nudge it, so settle once more.
       requestAnimationFrame(() => {
         const el = grid.current?.querySelector<HTMLElement>(`[data-id="${target.id}"] a`)
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el?.scrollIntoView({ block: 'center' })
         el?.focus({ preventScroll: true })
+        requestAnimationFrame(() => el?.scrollIntoView({ block: 'center' }))
       })
     }
   }
@@ -344,7 +389,7 @@ function LibraryAll() {
       )}
 
       <div className="library-body">
-        <div className="poster-grid" ref={grid}>
+        <div className={library.type === 'Music' ? 'poster-grid square' : 'poster-grid'} ref={grid}>
           {items.map((item) => (
             <div key={item.id} data-id={item.id}>
               <PosterCard item={item} />
