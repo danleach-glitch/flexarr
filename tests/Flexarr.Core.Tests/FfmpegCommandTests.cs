@@ -76,6 +76,9 @@ public class LanguagesTests
     [InlineData("fre", null, true, "French (forced)")]
     [InlineData("pt-BR", null, false, "Portuguese (Brazil)")]
     [InlineData(null, "Commentary", false, "Unknown (Commentary)")]
+    [InlineData("eng", "iTunes (SDH)", false, "English (SDH)")]
+    [InlineData("eng", "English SDH", false, "English (SDH)")]
+    [InlineData("eng", "iTunes (SDH) v2", false, "English (SDH)")]
     public void Label(string? code, string? title, bool forced, string expected) =>
         Assert.Equal(expected, Flexarr.Streaming.Languages.Label(code, title, forced));
 }

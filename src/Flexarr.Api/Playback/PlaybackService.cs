@@ -16,6 +16,7 @@ public sealed class PlaybackService(
     TranscodeManager transcodes,
     MarkerQueue markerQueue,
     TrickplayQueue trickplay,
+    SubtitleCache subtitleCache,
     IOptionsMonitor<FlexarrOptions> options)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
@@ -53,6 +54,7 @@ public sealed class PlaybackService(
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == PlaybackState.DefaultUser && p.MediaItemId == item.Id, ct);
         var preferences = await LanguagePreferencesAsync(item, ct);
         var subtitles = Subtitles.For(file);
+        subtitleCache.Prefetch(file, subtitles);
         var audioStreams = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
 
         var audioIndex = request.AudioStreamIndex
@@ -294,7 +296,7 @@ public sealed class PlaybackService(
 
     public static string SubtitlePlaylist(PlaybackSession session, string key) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:{Math.Ceiling(session.DurationSeconds)}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:{session.DurationSeconds:F3},\n{key}.vtt?hls=1\n#EXT-X-ENDLIST\n");
+            $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:{Math.Ceiling(session.DurationSeconds)}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:{session.DurationSeconds:F3},\n{key}.vtt?hls=true\n#EXT-X-ENDLIST\n");
 
     private static string? ChooseSubtitle(IReadOnlyList<SubtitleTrack> subtitles, string? preferredLanguage, string? audioLanguage)
     {

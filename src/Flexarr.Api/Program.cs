@@ -61,6 +61,7 @@ builder.Services.AddSingleton(sp => new TranscodeManager(
 builder.Services.AddSingleton<PlaybackSessions>();
 builder.Services.AddSingleton<MarkerQueue>();
 builder.Services.AddSingleton<TrickplayQueue>();
+builder.Services.AddSingleton<SubtitleCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddHostedService<PlaybackSweeper>();
