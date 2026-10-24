@@ -27,6 +27,7 @@ The Xcode project is generated from `clients/apple/project.yml`; edit that file 
 - **Swift:** Swift 6 strict concurrency; keep networking and models in `FlexarrKit` so every Apple platform shares them.
 - **API:** REST under `/api/v1`, JSON camelCase, enums as strings — the same conventions as the \*arr apps.
 - **Tests:** new behaviour comes with tests. Server endpoints get an integration test via `WebApplicationFactory`.
+- **Changelog:** anything people will notice gets a short entry in [CHANGELOG.md](CHANGELOG.md), under `## Unreleased` at the top (add the heading if it isn't there). Write what they can now do, in plain words, not how it was built. The changelog is shown in Settings › Changelog.
 
 ## Pull requests
 
@@ -34,5 +35,14 @@ The Xcode project is generated from `clients/apple/project.yml`; edit that file 
 2. Keep PRs focused; describe what and why, and link the issue.
 3. Make sure CI is green (server, web, Apple, Docker, CodeQL).
 4. Use clear commit messages; [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`) are appreciated.
+
+## Releases
+
+Versions follow [semantic versioning](https://semver.org). While Flexarr is 0.x, a release with new features bumps the minor version (0.8.0 → 0.9.0) and one with only fixes bumps the patch (0.8.0 → 0.8.1).
+
+1. Rename `## Unreleased` in CHANGELOG.md to `## <version> · <day month year>`.
+2. Set the same version in `Directory.Build.props` (`VersionPrefix`), `frontend/package.json` (`npm version <version> --no-git-tag-version` in `frontend/`) and `clients/apple/project.yml` (`MARKETING_VERSION`). A test checks that all four agree.
+3. Commit, then tag the commit `v<version>` and push the tag. The Docker workflow publishes `ghcr.io/danleach-glitch/flexarr:<version>`, `:<major>.<minor>` and `:latest`.
+4. Make a GitHub release from the tag, with that version's changelog section as its notes.
 
 By contributing you agree that your contributions are licensed under the GPL-3.0-or-later.

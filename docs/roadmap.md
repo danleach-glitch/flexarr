@@ -10,17 +10,19 @@ Web and Apple TV are the first-class clients. Done items stay listed so the shap
 - **Playback:** direct play / transcode decisions, HLS with seek-anywhere and hardware acceleration (VideoToolbox, VA-API, QSV, NVENC), HDR→SDR, subtitles (text and burned-in picture), audio/quality switching, resume and watch state, Up Next, intro/recap/credits detection, scrubbing previews
 - **Web client:** home rows, library grids, detail pages, person and genre pages, ⌘K search, player, music player, settings
 - **Beyond Plex:** Plex history import (per profile), Coming soon and downloads, library health, Seerr requests, Emby/Jellyfin-compatible endpoints for the *arr connection
-- **Profiles:** per-person watch history, Continue Watching and Up Next, optional PIN, profile picker
+- **Profiles:** per-person watch history, Continue Watching and Up Next, optional PIN, profile picker (web and Apple TV), per-profile library access
+- **Collections:** manual, smart (rule-based) and Radarr film series, with suggestions, on the web
+- **Sign-in and remote access:** a sign-in per browser and TV, Bonjour server discovery and QR-code pairing for the Apple TV, Tailscale
+- **Library care:** Fix match, delete through Sonarr/Radarr or directly, held folders when a drive looks unmounted
 
 ## Next
 
-- **Apple TV app:** browsing, detail pages and AVPlayer playback with skip intro and Up Next (in progress)
-- **Profiles, part two:** parental ratings and per-profile library access; the Apple TV app's profile picker (#15)
+- **Apple TV app:** browsing, detail pages, profiles and AVPlayer playback with skip intro and Up Next are in; Collections next
+- **Profiles, part two:** parental ratings
 - **PostgreSQL** as an alternative to SQLite (#14)
 - **File watching** for libraries not managed by the *arr apps (#3)
-- **Server discovery** over Bonjour for the Apple TV app (#11)
 - **iOS/iPadOS** from the shared `FlexarrKit`
 
 ## Later
 
-Collections and playlists, offline downloads, Chromecast, Live TV and DVR, Android and Android TV, statistics, music metadata from Lidarr/MusicBrainz.
+Playlists, offline downloads, Chromecast, Live TV and DVR, Android and Android TV, statistics, music metadata from Lidarr/MusicBrainz.

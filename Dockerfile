@@ -18,13 +18,14 @@ RUN npm run build
 # ---- Server ----
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
 ARG TARGETARCH
-ARG VERSION=0.1.0
+# Set by CI for a tagged release; otherwise the version in Directory.Build.props is used.
+ARG VERSION
 WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props .editorconfig CHANGELOG.md ./
 COPY src/ src/
 # Docker says amd64, .NET says x64.
 RUN arch=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \
-    && dotnet publish src/Flexarr.Api -c Release -a "$arch" --no-self-contained -o /app -p:Version=$VERSION
+    && dotnet publish src/Flexarr.Api -c Release -a "$arch" --no-self-contained -o /app ${VERSION:+-p:Version=$VERSION}
 
 # ---- Runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca

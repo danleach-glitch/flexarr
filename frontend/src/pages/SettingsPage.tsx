@@ -27,6 +27,7 @@ import {
   removeDuplicates,
   deleteCopy,
   getChangelog,
+  getSystemStatus,
   getHealthCheck,
   startHealthCheck,
   getLayout,
@@ -2069,11 +2070,14 @@ function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; 
 
 function ChangelogSection() {
   const { data, error } = useApi(getChangelog, [])
+  const { data: status } = useApi(getSystemStatus, [])
   return (
     <section>
       <header className="settings-header">
         <h2>Changelog</h2>
       </header>
+      {/* The server's version is "0.8.0+<commit>"; the commit is for bug reports, not people. */}
+      {status && <p className="settings-lede">You’re running Flexarr {status.version.split('+')[0]}.</p>}
       {error && <p className="error">The changelog couldn’t be loaded: {error.message}</p>}
       {!data && !error && <p className="muted">Loading…</p>}
       {data && <Changelog markdown={data} />}

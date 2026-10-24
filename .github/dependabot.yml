@@ -10,6 +10,10 @@ updates:
     schedule: { interval: weekly }
     groups:
       web: { patterns: ["*"] }
+    ignore:
+      # Its major version follows the Node.js we run (.nvmrc and the Dockerfile), so it moves when they do.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions # pinned by commit SHA; Dependabot moves the SHA and its version comment together
     directory: /
     schedule: { interval: weekly }

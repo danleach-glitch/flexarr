@@ -4,7 +4,7 @@
 
 Flexarr aims to be a full Plex-style media server: it organises your library, fetches metadata and artwork, and streams to your devices with direct play or on-the-fly transcoding. Unlike Plex it is fully open source, needs no cloud account, and treats [Sonarr](https://sonarr.tv), [Radarr](https://radarr.video), [Lidarr](https://lidarr.audio) and [Prowlarr](https://prowlarr.com) as first-class neighbours rather than afterthoughts.
 
-> **Status:** early, but it runs a real 12,000-file library day to day. Web is the main client; the Apple TV app is early (see [Apple TV](#apple-tv)). See the [roadmap](docs/roadmap.md).
+> **Status:** version 0.8, early but running a real 12,000-file library day to day. Web is the main client; the Apple TV app is early (see [Apple TV](#apple-tv)). See the [changelog](CHANGELOG.md) and the [roadmap](docs/roadmap.md).
 
 ## What it does
 
@@ -22,15 +22,21 @@ Flexarr aims to be a full Plex-style media server: it organises your library, fe
 **Finding something**
 - Home: Continue Watching with Up Next, Top 10 films and shows, genre rows, "Because you watched", new arrivals per library
 - ⌘K search across titles, episodes, people and genres; person pages; Discover by genre
+- **Collections**: your own, smart ones that fill themselves from rules (e.g. *Top 10 shows this year*), and film series from Radarr, any of which can be a row on Home
 - **Coming soon**: what Sonarr and Radarr expect this month, with download progress
 - **Requests**: with Seerr connected, see what's trending that you don't have and request it in one click
 
 **For the whole household**
-- Profiles with their own Continue Watching, history and Up Next, an optional PIN, and a profile picker when Flexarr opens
+- Profiles with their own Continue Watching, history and Up Next, an optional PIN, and a profile picker when Flexarr opens, on the web and on Apple TV
+- Choose which libraries each profile can see
+- Each browser and Apple TV gets a sign-in of its own, which you can sign out from Settings; an Apple TV connects by scanning a QR code
+- **Away from home over Tailscale**, with no ports opened on your router
 
 **Things Plex doesn't do**
 - **Bring your history over from Plex**: watched state and resume points, matched by file, without touching Plex
-- **Library health**: duplicate copies (and the space they use), unreadable files, standard-definition titles with a "find a better copy" button that asks Radarr/Sonarr
+- **Library health**: a health score, duplicate copies (and the space they use), unreadable files, standard-definition titles with a "find a better copy" button that asks Radarr/Sonarr, and titles whose match is worth checking
+- **Fix match**: correct a wrongly matched film or show by picking the right one from Sonarr or Radarr, and it stays fixed
+- **Delete** a film, show or episode from its page, through Sonarr and Radarr, or by Flexarr itself for titles they don't manage
 - No account, no cloud, open source
 
 ## Repository layout
@@ -53,8 +59,10 @@ docker run -d --name flexarr \
   -p 8383:8383 \
   -v /path/to/config:/config \
   -v /path/to/media:/data/media \
-  ghcr.io/danleach-glitch/flexarr:main
+  ghcr.io/danleach-glitch/flexarr:latest
 ```
+
+`latest` is the newest release (each is listed under [Releases](https://github.com/danleach-glitch/flexarr/releases)); pin a version such as `0.8` or `0.8.0` to upgrade when you choose, or use `main` for every change as it lands.
 
 Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in to the web app with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Server where you can sign any of them out.
 

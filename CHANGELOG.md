@@ -1,8 +1,15 @@
 # Changelog
 
-What's changed in Flexarr, newest first.
+What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## 24 October 2026
+## 0.8.0 · 24 October 2026
+
+### Version numbers
+- Flexarr now has version numbers. This is **0.8.0**; earlier changes below are grouped into the versions they arrived in, 0.1.0 to 0.7.0.
+- **Settings › Changelog** says which version you're running, and each version is tagged on GitHub.
+
+### Your profile picture on Apple TV
+- The current profile's picture sits in the top right corner, level with the tab bar (press right from the last tab to reach it), replacing its name at the end of the tab bar. Open it to switch.
 
 ### Tidier buttons on a film's or show's page
 - The buttons fit on one line again: **Play**, **Trailer** and **Mark as watched**, then **⋯** for the rest: **Play from the start**, **Add to collection**, **Fix match** and **Delete**.
@@ -22,6 +29,8 @@ What's changed in Flexarr, newest first.
 ### Fixed: shows matched to the wrong title by a search
 - Shows and films that Sonarr and Radarr didn't have were matched by searching for the folder's name and taking the first result, so *Shōgun* (2024) came up as *Shogun* (1980). The search now prefers a result with exactly the same title, accents included.
 - A title found by search was then left alone for a week. Now it's checked against Sonarr and Radarr every day, and straight away when they tell Flexarr they've added it, so it switches to their match.
+
+## 0.7.0 · 24 October 2026
 
 ### Fourth pass: clearer screens, and fixes found by a UX review
 - **Apple TV:** if it's signed out from the web, it goes back to the connect screen with a new code instead of getting stuck on an error. If it can't find your server it tells you what to check, a replaced connect code is marked **New code**, and posters the server was too busy for appear a few seconds later.
@@ -119,9 +128,11 @@ What's changed in Flexarr, newest first.
 - Scans after an import are faster, and files that can't be read are no longer re-checked on every scan.
 - On Apple TV, returning from a title's page keeps your place in the library instead of jumping back to the top.
 
+## 0.6.0 · 24 October 2026
+
 ### Profiles on Apple TV
 - When your household has more than one profile, the Apple TV asks **Who's watching?** the first time it connects, and remembers the answer.
-- The current profile's picture sits in the top right corner, level with the tab bar (press right from the last tab to reach it). Open it to switch; with two profiles the other person is already highlighted, so it's one press.
+- The current profile's name sits at the right end of the tab bar. Open it to switch; with two profiles the other person is already highlighted, so it's one press.
 - A profile with a PIN asks for it on an on-screen keypad.
 
 ### Collections
@@ -134,6 +145,8 @@ What's changed in Flexarr, newest first.
 
 ### Fixed: "The stream stopped" after a server restart
 - A converted stream lives on the server, so restarting or upgrading the server mid-film ended it, and the next seek (Skip intro, say) showed "The stream stopped". The web player now asks for a fresh stream from the same spot and carries on, retrying for up to 15 seconds while the server comes back. It only says the stream stopped if it stops again within a minute.
+
+## 0.5.0 · 24 October 2026
 
 ### Security fixes
 - The web app no longer keeps your API key in the browser. Signing in now gets you a session cookie that scripts can't read. A key saved by an earlier version is swapped for one on your next visit, and changing the API key signs every browser out. A wrong key now says so.
@@ -148,6 +161,8 @@ What's changed in Flexarr, newest first.
 
 ### Apple TV install
 - `make apple-install` builds the Apple TV app and installs it on a paired Apple TV in one step (see the README). With a free Apple ID, run it again every 7 days.
+
+## 0.4.0 · 24 October 2026
 
 ### Better TV file name reading (thanks, LetMeSleep8h)
 - Anime-style absolute episode numbers are understood ("One Piece - 1015", "Cowboy Bebop - 26").
@@ -181,6 +196,8 @@ What's changed in Flexarr, newest first.
 
 ### Fixed: blank screen when playing after an update
 - A tab opened before Flexarr was updated could show a blank page when you pressed Play. Updates now keep the previous version's files for a week, and if a page still can't load, Flexarr reloads itself once.
+
+## 0.3.0 · 24 October 2026
 
 ### Changelog
 - **Settings › Changelog** lists what's changed, newest first.
@@ -243,8 +260,12 @@ What's changed in Flexarr, newest first.
 - Use Flexarr away from home through Tailscale, signed in as your Tailscale account, with no ports opened on your router.
 - Only the main profile can change settings.
 
+## 0.2.0 · 24 October 2026
+
 ### Profiles for the household
 - Everyone gets their own Continue Watching, watched history and Up Next, with optional PINs.
+
+## 0.1.0 · 24 October 2026
 
 ### Works with Sonarr and Radarr's built-in connection
 - Sonarr and Radarr can tell Flexarr about new downloads using their Emby/Jellyfin connection.
