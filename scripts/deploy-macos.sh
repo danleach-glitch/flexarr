@@ -45,18 +45,29 @@ echo "==> Installing on $host"
 runtime="$(sed -n 's/.*"version": "\([0-9]*\.[0-9]*\).*/\1/p' "$repo/global.json")"
 if ! ssh "$host" "~/.dotnet/dotnet --list-runtimes 2>/dev/null | grep -q 'Microsoft.AspNetCore.App $runtime'"; then
   echo "    installing ASP.NET Core $runtime runtime"
-  # A pinned copy of Microsoft's installer, checked before it runs, rather than whatever dot.net serves today.
-  # To update: pick a newer commit of github.com/dotnet/install-scripts and put its src/dotnet-install.sh hash here.
-  installer_commit="5147e32300a8e908f5d737c8cff63a76b4b63531"
-  installer_sha256="082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e"
-  installer="$(mktemp)"
-  trap 'rm -f "$installer"' EXIT
-  curl -sSfL "https://raw.githubusercontent.com/dotnet/install-scripts/$installer_commit/src/dotnet-install.sh" -o "$installer"
-  if [ "$(shasum -a 256 "$installer" | cut -d' ' -f1)" != "$installer_sha256" ]; then
-    echo "dotnet-install.sh doesn't match its pinned checksum; not running it" >&2
+  # The latest $runtime release's archive, downloaded here and checked against the SHA-512 in Microsoft's release
+  # metadata before it's unpacked on $host. Anything unexpected stops the deploy rather than installing it.
+  work="$(mktemp -d)"
+  trap 'rm -rf "$work"' EXIT
+  curl -sSfL "https://builds.dotnet.microsoft.com/dotnet/release-metadata/$runtime/releases.json" -o "$work/releases.json"
+  archive="$(python3 -I - "$work/releases.json" "$rid" <<'PY'
+import json, re, sys
+metadata = json.load(open(sys.argv[1]))
+release = next(r for r in metadata["releases"] if r["release-version"] == metadata["latest-release"])
+file = next(f for f in release["aspnetcore-runtime"]["files"] if f["name"] == f"aspnetcore-runtime-{sys.argv[2]}.tar.gz")
+if not file["url"].startswith("https://builds.dotnet.microsoft.com/") or not re.fullmatch(r"[0-9a-fA-F]{128}", file["hash"]):
+    sys.exit(f"unexpected release metadata for {file['name']}")
+print(file["url"], file["hash"].lower())
+PY
+)"
+  url="${archive% *}"
+  sha512="${archive#* }"
+  curl -sSfL "$url" -o "$work/runtime.tar.gz"
+  if [ "$(shasum -a 512 "$work/runtime.tar.gz" | cut -d' ' -f1)" != "$sha512" ]; then
+    echo "$url doesn't match the SHA-512 Microsoft publishes for it; not installing it" >&2
     exit 1
   fi
-  ssh "$host" "bash -s -- --runtime aspnetcore --channel $runtime --install-dir ~/.dotnet >/dev/null" < "$installer"
+  ssh "$host" "mkdir -p ~/.dotnet && tar -xzf - -C ~/.dotnet" < "$work/runtime.tar.gz"
 fi
 root="$(ssh "$host" 'echo $HOME/.flexarr')"
 dotnet_root="$(ssh "$host" 'echo $HOME/.dotnet')"
