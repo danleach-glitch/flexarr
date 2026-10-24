@@ -28,7 +28,7 @@ public sealed class ServerConfigStoreTests : IDisposable
     [Fact]
     public void KeepsConfiguredApiKey()
     {
-        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook" };
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook", ImageSecret = "image" };
 
         new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options);
 
@@ -47,7 +47,7 @@ public sealed class ServerConfigStoreTests : IDisposable
         var path = Path.Combine(_dir, ServerConfigStore.FileName);
         File.WriteAllText(path, "{}");
         File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
-        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook" };
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook", ImageSecret = "image" };
 
         new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options); // an existing file is tightened
         var tightened = File.GetUnixFileMode(path);
@@ -67,5 +67,18 @@ public sealed class ServerConfigStoreTests : IDisposable
         var saved = JsonNode.Parse(File.ReadAllText(Path.Combine(_dir, ServerConfigStore.FileName)))!;
         Assert.Equal(32, options.WebhookSecret!.Length);
         Assert.Equal(options.WebhookSecret, saved["webhookSecret"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void GeneratesAnImageSecret_ThatSurvivesARestart()
+    {
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook" };
+
+        new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options);
+
+        var saved = JsonNode.Parse(File.ReadAllText(Path.Combine(_dir, ServerConfigStore.FileName)))!;
+        Assert.Equal(64, options.ImageSecret!.Length);
+        Assert.NotEqual(options.ApiKey, options.ImageSecret);
+        Assert.Equal(options.ImageSecret, saved["imageSecret"]!.GetValue<string>());
     }
 }

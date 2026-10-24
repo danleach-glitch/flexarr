@@ -246,5 +246,5 @@ public static class UpcomingEndpoints
         return url.Uri.ToString();
     }
 
-    private static string? Remote(string? url) => url is null ? null : $"/api/v1/images/remote?url={Uri.EscapeDataString(url)}";
+    private static string? Remote(string? url) => ImageEndpoints.RemoteUrl(url);
 }

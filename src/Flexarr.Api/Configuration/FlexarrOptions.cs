@@ -26,6 +26,12 @@ public sealed class FlexarrOptions
     public string? WebhookSecret { get; set; }
 
     /// <summary>
+    /// Signs the links to outside artwork (Coming soon, requests, collections) the server hands out, so only those can
+    /// be fetched through it. Generated on first run; changing it only breaks links already handed out.
+    /// </summary>
+    public string? ImageSecret { get; set; }
+
+    /// <summary>
     /// Reverse proxies (addresses or CIDR ranges, such as "172.17.0.1" for Docker) whose X-Forwarded-For is believed.
     /// This machine is always trusted. Forwarded requests from anywhere else count as coming from the internet.
     /// Read at startup.

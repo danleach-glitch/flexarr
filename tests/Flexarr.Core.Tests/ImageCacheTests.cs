@@ -6,9 +6,12 @@ namespace Flexarr.Core.Tests;
 public class ImageCacheTests
 {
     [Theory]
-    [InlineData("https://image.tmdb.org/t/p/w500/abc123.jpg", "https://image.tmdb.org/t/p/w500/abc123.jpg")]
+    [InlineData("https://image.tmdb.org/t/p/w500/abc123.jpg", "https://image.tmdb.org/t/p/original/abc123.jpg")] // one size folder, so
+    [InlineData("https://image.tmdb.org/t/p/w1280/abc123.jpg", "https://image.tmdb.org/t/p/original/abc123.jpg")] // one cache entry a width
     [InlineData("https://image.tmdb.org/t/p/original/abc123.jpg?n=1", "https://image.tmdb.org/t/p/original/abc123.jpg")]
-    [InlineData("https://IMAGE.tmdb.org/t/p/w92/abc123.png#x", "https://image.tmdb.org/t/p/w92/abc123.png")]
+    [InlineData("https://IMAGE.tmdb.org/t/p/w92/abc123.png#x", "https://image.tmdb.org/t/p/original/abc123.png")]
+    [InlineData("https://image.tmdb.org/t/p/w500/x/abc123.jpg", null)]
+    [InlineData("https://image.tmdb.org/t/p/abc123.jpg", null)]
     [InlineData("https://artworks.thetvdb.com/banners/v4/series/1/posters/a.jpg", "https://artworks.thetvdb.com/banners/v4/series/1/posters/a.jpg")]
     [InlineData("https://static.tvmaze.com/uploads/images/original_untouched/1/2.jpg", "https://static.tvmaze.com/uploads/images/original_untouched/1/2.jpg")]
     [InlineData("https://assets.fanart.tv/fanart/tv/1/clearlogo/a.png", "https://assets.fanart.tv/fanart/tv/1/clearlogo/a.png")]
