@@ -479,6 +479,86 @@ describe('Profiles', () => {
     expect(await screen.findByRole('button', { name: /Sam/ })).toBeInTheDocument()
     expect(localStorage.getItem('flexarr.profile')).toBeNull()
   })
+
+  const pinnedMain = { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: true, isMain: true, isCurrent: true, hiddenLibraryIds: [], image: null }
+  const tailscaleOwner = { profileId: 'owner', method: 'tailscale', zone: 'Tailnet', isAdmin: false, tailscaleLogin: 'dan@example.com' }
+
+  it('never keeps the main profile’s token, even with a PIN', async () => {
+    const profiles = [pinnedMain, { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: false, isMain: false, isCurrent: false, hiddenLibraryIds: [], image: null }]
+    mockApi({
+      '/system/status': status,
+      '/profiles': profiles,
+      'POST /profiles/owner/select': { token: 'owner.sig', profile: pinnedMain },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Dan/ }))
+    fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '24681357' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
+  })
+
+  it('over Tailscale, drops a main-profile token kept by an earlier version and asks for the PIN, which can wait', async () => {
+    localStorage.setItem('flexarr.profile', 'owner.kept-by-an-earlier-version')
+    mockApi({
+      '/system/status': status,
+      '/profiles': [pinnedMain],
+      '/me': tailscaleOwner,
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+  })
+
+  it('over Tailscale, Switch profile opens the picker', async () => {
+    sessionStorage.setItem('flexarr.pickProfile', '1') // what Switch profile leaves before reloading
+    mockApi({ '/system/status': status, '/profiles': [pinnedMain], '/me': tailscaleOwner })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
+    sessionStorage.clear()
+  })
+
+  it('over Tailscale, Settings offers the owner the main profile’s PIN', async () => {
+    mockApi({ '/libraries': [], '/me': tailscaleOwner, '/profiles': [pinnedMain] })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByRole('button', { name: 'Choose the main profile' })).toBeInTheDocument()
+  })
+
+  it('changing the main profile’s PIN asks for the current one', async () => {
+    let sent: Record<string, unknown> = {}
+    mockApi({
+      '/libraries': [],
+      '/libraries/all': [],
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [pinnedMain],
+      'PUT /profiles/owner': (init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return pinnedMain
+      },
+    })
+
+    renderAt('/settings/profiles')
+    fireEvent.click(await screen.findByRole('button', { name: /Edit/ }))
+    fireEvent.change(screen.getByPlaceholderText('4 to 8 digits'), { target: { value: '97531' } })
+    fireEvent.change(screen.getByLabelText('Current PIN'), { target: { value: '1234' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save/ }))
+
+    await vi.waitFor(() => expect(sent).toMatchObject({ pin: '97531', currentPin: '1234' }))
+  })
 })
 
 describe('Library grid', () => {

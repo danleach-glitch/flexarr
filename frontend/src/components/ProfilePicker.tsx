@@ -10,7 +10,7 @@ export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' |
 }
 
 /** Full-screen profile choice, with a PIN pad for protected profiles. */
-export function ProfilePicker({ profiles, onChosen }: { profiles: Profile[]; onChosen: (profile: Profile) => void }) {
+export function ProfilePicker({ profiles, onChosen, onCancel }: { profiles: Profile[]; onChosen: (profile: Profile) => void; onCancel?: () => void }) {
   const [asking, setAsking] = useState<Profile>()
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string>()
@@ -99,6 +99,16 @@ export function ProfilePicker({ profiles, onChosen }: { profiles: Profile[]; onC
               </li>
             ))}
           </ul>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {onCancel && (
+            <button className="button quiet small" onClick={onCancel}>
+              Not now
+            </button>
+          )}
         </>
       )}
     </div>

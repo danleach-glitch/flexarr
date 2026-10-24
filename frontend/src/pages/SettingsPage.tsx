@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { Link, NavLink, useParams } from 'react-router'
 import {
   ApiError,
+  askForProfile,
   createLibrary,
   deleteLibrary,
   getActivity,
@@ -135,6 +136,8 @@ export function SettingsPage() {
  */
 function TailscaleAdminNote() {
   const [error, setError] = useState<string>()
+  const profiles = useApi(getProfiles, [])
+  const mainHasPin = profiles.data?.some((p) => p.isMain && p.hasPin) ?? false
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -150,8 +153,23 @@ function TailscaleAdminNote() {
     <div className="panel">
       <p className="settings-lede">
         Over Tailscale, changing settings takes one more step, because another program on the server could pose as your Tailscale account. Choose the main
-        profile with its PIN from the profile menu (give it a PIN in Settings › Profiles from home first), or sign this browser in with the API key:
+        profile with its PIN{mainHasPin ? '' : ' (give it a PIN in Settings › Profiles from home first)'}, and this browser stays signed in until it’s
+        signed out in Settings › Server or left unused for two weeks.
       </p>
+      {mainHasPin && (
+        <p>
+          <button
+            className="button"
+            onClick={() => {
+              askForProfile()
+              window.location.assign('/')
+            }}
+          >
+            Choose the main profile
+          </button>
+        </p>
+      )}
+      <p className="settings-lede">Or sign this browser in with the API key:</p>
       <form className="api-key-row" onSubmit={submit}>
         <input name="apiKey" type="password" autoComplete="off" aria-label="API key" required />
         <button type="submit" className="button">
@@ -1553,13 +1571,18 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
   const [color, setColor] = useState(profile?.color ?? profileColours[1])
   const [pin, setPin] = useState('')
   const [removePin, setRemovePin] = useState(false)
+  // Changing the main profile's PIN takes the one it has now (it guards the API key), or the key if it's forgotten.
+  const [currentPin, setCurrentPin] = useState('')
+  const [apiKey, setApiKey] = useState<string>()
+  const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (pin !== '' || removePin)
   const [errors, setErrors] = useState<string[]>([])
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     try {
+      const confirmation = asksForCurrentPin ? (apiKey !== undefined ? { apiKey: apiKey.trim() } : { currentPin }) : {}
       const saved = profile
-        ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden })
+        ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden, ...confirmation })
         : await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden })
       if (picture) await uploadProfileImage(saved.id, picture)
       else if (picture === null && profile?.image) await removeProfileImage(saved.id)
@@ -1611,6 +1634,34 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
           <input type="checkbox" checked={removePin} onChange={(e) => setRemovePin(e.target.checked)} /> Remove the PIN
         </label>
       )}
+      {asksForCurrentPin &&
+        (apiKey === undefined ? (
+          <div>
+            <label className="field">
+              <span className="field-label">Current PIN</span>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                required
+                value={currentPin}
+                onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              />
+            </label>
+            <span className="field-help">
+              Forgotten it?{' '}
+              <button type="button" className="text-button" onClick={() => setApiKey('')}>
+                Use the API key instead
+              </button>{' '}
+              (it’s in config.json in the server’s data folder).
+            </span>
+          </div>
+        ) : (
+          <label className="field">
+            <span className="field-label">API key</span>
+            <input type="password" autoComplete="off" required value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          </label>
+        ))}
       {libraries.length > 1 && (
         <fieldset className="field profile-libraries">
           <legend className="field-label">Libraries {profile ? `${profile.name} can` : 'this profile can'} see</legend>
