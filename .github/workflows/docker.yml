@@ -1,9 +1,11 @@
 name: Docker
 
+# Images are published for releases only; pull requests still check that the image builds. Run it by hand to
+# check the build (or warm the cache) between releases; that publishes only a sha-<commit> tag.
 on:
   push:
-    branches: [main]
     tags: ["v*"]
+  workflow_dispatch:
   pull_request:
     paths: [Dockerfile, .dockerignore, "src/**", "frontend/**", Directory.*.props, global.json]
 
@@ -35,7 +37,6 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -48,5 +49,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ github.ref_type == 'tag' && steps.meta.outputs.version || '' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # In the registry rather than the Actions cache, which is kept per tag and so would start empty for every
+          # release. mode=min keeps only the final image's layers (the ffmpeg install above all, slow under arm64
+          # emulation); mode=max took longer to save than the build itself.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/{0}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true', github.repository) || '' }}
