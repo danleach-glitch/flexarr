@@ -15,7 +15,10 @@ namespace Flexarr.Api.Profiles;
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image);
 
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
-public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin, IReadOnlyList<Guid>? HiddenLibraryIds = null);
+/// <param name="CurrentPin">Changing or removing the main profile's PIN takes the one it has now...</param>
+/// <param name="ApiKey">...or, if that's forgotten, the server's API key.</param>
+public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin, IReadOnlyList<Guid>? HiddenLibraryIds = null, string? CurrentPin = null,
+    string? ApiKey = null);
 
 public sealed record SelectProfileRequest(string? Pin);
 
@@ -42,7 +45,8 @@ public static partial class ProfileEndpoints
             return Results.Created($"/api/v1/profiles/{profile.Id}", ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapPut("/{id}", async (string id, ProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, ProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
+            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             if (Validate(request) is { } problem)
             {
@@ -52,6 +56,14 @@ public static partial class ProfileEndpoints
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
             {
                 return Results.NotFound();
+            }
+
+            // The main profile's PIN guards showing the API key, so a script in the page mustn't be able to take it
+            // off (or swap it) first: that takes the PIN it has now, or the key itself.
+            var changesMainPin = profile.IsMain && profile.PinHash is not null && (request.RemovePin == true || !string.IsNullOrEmpty(request.Pin));
+            if (changesMainPin && await ConfirmMainPinChangeAsync(request, profile, http, current, guard, options.CurrentValue.ApiKey, ct) is { } refused)
+            {
+                return refused;
             }
 
             profile.Name = request.Name.Trim();
@@ -71,6 +83,12 @@ public static partial class ProfileEndpoints
             }
 
             await db.SaveChangesAsync(ct);
+            if (changesMainPin)
+            {
+                // Browsers that signed in with the old PIN have to give the new one.
+                signIns.RevokePinVerifiedExcept(current.SignInId);
+            }
+
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -146,9 +164,9 @@ public static partial class ProfileEndpoints
 
             if (profile.PinHash is not null)
             {
-                var caller = PinCaller(http, current);
+                var (caller, browser) = PinCaller(http, current);
                 // Someone who may already manage the server could change the PIN anyway, so others' guesses don't hold them up.
-                var (result, retryAfter) = await guard.CheckAsync(profile.Id, caller, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin);
+                var (result, retryAfter) = await guard.CheckAsync(profile.Id, caller, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
                 if (result == PinCheck.LockedOut)
                 {
                     return TooManyPins(http, retryAfter);
@@ -163,6 +181,16 @@ public static partial class ProfileEndpoints
             if (current.SignInId is { } signIn)
             {
                 signIns.ChooseProfile(signIn, profile.IsMain ? null : profile.Id);
+            }
+            else if (profile.IsMain && profile.PinHash is not null
+                && http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.Tailscale)
+            {
+                // Over Tailscale the identity alone doesn't manage the server. The PIN signs this browser in as the
+                // main profile instead: an HttpOnly cookie of its own, listed in Settings, that can be signed out and
+                // lapses when left unused. (At home the main profile manages the server already.)
+                var (_, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
+                    http.Connection.RemoteIpAddress?.ToString(), pinVerified: true);
+                ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
             }
 
             return Results.Ok(new { token = current.TokenFor(profile), profile = ToDto(profile, current) with { IsCurrent = true } });
@@ -195,9 +223,67 @@ public static partial class ProfileEndpoints
         return api;
     }
 
-    /// <summary>Who is guessing a PIN, for <see cref="PinGuard"/>: the browser or device, else the Tailscale account, else the address.</summary>
-    internal static string PinCaller(HttpContext http, CurrentProfile current) =>
-        current.SignInId ?? http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    /// <summary>A browser's own random id, so <see cref="PinGuard"/> can tell browsers apart that share an address.</summary>
+    public const string BrowserCookieName = "flexarr.browser";
+
+    /// <summary>
+    /// Who is guessing a PIN, for <see cref="PinGuard"/>: the browser or device's sign-in, else the address (each
+    /// device has its own on the tailnet), along with the browser's own id, which it's given now if it has none.
+    /// </summary>
+    internal static (string Caller, string? Browser) PinCaller(HttpContext http, CurrentProfile current)
+    {
+        if (current.SignInId is { } signIn)
+        {
+            return ($"sign-in:{signIn}", null);
+        }
+
+        var browser = http.Request.Cookies[BrowserCookieName];
+        if (browser is not { Length: 32 } || !browser.All(char.IsAsciiHexDigitLower))
+        {
+            browser = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+            http.Response.Cookies.Append(BrowserCookieName, browser, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = http.Request.IsHttps,
+                SameSite = SameSiteMode.Strict,
+                Path = "/",
+                MaxAge = TimeSpan.FromDays(400),
+            });
+        }
+
+        return ($"address:{http.Connection.RemoteIpAddress?.ToString() ?? "unknown"}", browser);
+    }
+
+    /// <summary>Null when the request may change the main profile's PIN: it holds the API key, or gives the current PIN.</summary>
+    private static async Task<IResult?> ConfirmMainPinChangeAsync(ProfileRequest request, Profile main, HttpContext http, CurrentProfile current, PinGuard guard,
+        string? apiKey, CancellationToken ct)
+    {
+        if (http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.ApiKey
+            || !string.IsNullOrEmpty(request.ApiKey) && !string.IsNullOrEmpty(apiKey)
+            && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(request.ApiKey), Encoding.UTF8.GetBytes(apiKey)))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(request.ApiKey))
+        {
+            return Results.Problem("That isn't the right API key.", statusCode: 403);
+        }
+
+        if (string.IsNullOrEmpty(request.CurrentPin))
+        {
+            return Results.Problem("Enter the main profile's current PIN to change it.", statusCode: 403);
+        }
+
+        var (caller, browser) = PinCaller(http, current);
+        var (result, retryAfter) = await guard.CheckAsync(main.Id, caller, () => main.CheckPin(request.CurrentPin), ct, mayManage: true, browser);
+        return result switch
+        {
+            PinCheck.Right => null,
+            PinCheck.LockedOut => TooManyPins(http, retryAfter),
+            _ => Results.Problem("That isn't the main profile's current PIN.", statusCode: 403),
+        };
+    }
 
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>
     internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter)

@@ -34,6 +34,12 @@ public sealed class SignIn
 
     /// <summary>The profile chosen on it; null is the main profile. Only the main profile may manage the server.</summary>
     public string? ProfileId { get; set; }
+
+    /// <summary>
+    /// A browser that signed in by choosing the main profile with its PIN (over Tailscale) rather than with the API
+    /// key. It's signed out sooner when left unused, and when the main profile's PIN changes.
+    /// </summary>
+    public bool PinVerified { get; init; }
 }
 
 /// <summary>
@@ -46,6 +52,9 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>Browsers that haven't been used for this long are signed out.</summary>
     public static readonly TimeSpan BrowserIdleLimit = TimeSpan.FromDays(180);
+
+    /// <summary>Browsers signed in with the main profile's PIN are signed out after this long unused.</summary>
+    public static readonly TimeSpan PinSignInIdleLimit = TimeSpan.FromDays(14);
 
     /// <summary>How stale the saved "last used" may get before it's written again (it's kept exactly in memory).</summary>
     private static readonly TimeSpan LastUsedPrecision = TimeSpan.FromHours(1);
@@ -63,7 +72,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
-    public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null)
+    public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -78,6 +87,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             Zone = zone,
             Address = address,
             ProfileId = profileId,
+            PinVerified = pinVerified,
         };
 
         lock (_lock)
@@ -183,6 +193,27 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>Signs out every browser that signed in with the main profile's PIN, except <paramref name="keepId"/>.</summary>
+    public int RevokePinVerifiedExcept(string? keepId)
+    {
+        lock (_lock)
+        {
+            var earned = Loaded().Values.Where(s => s.PinVerified && s.Id != keepId).ToList();
+            foreach (var signIn in earned)
+            {
+                Loaded().Remove(signIn.TokenHash);
+            }
+
+            if (earned.Count > 0)
+            {
+                SaveLocked();
+                LogRevokedAll(earned.Count);
+            }
+
+            return earned.Count;
+        }
+    }
+
     /// <summary>Remembers who's watching on a browser or device (null: the main profile).</summary>
     public void ChooseProfile(string id, string? profileId)
     {
@@ -253,8 +284,9 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         return byHash;
     }
 
-    /// <summary>A browser left unused for six months is signed out.</summary>
-    private static bool Expired(SignIn signIn, DateTime now) => signIn.Kind == SignInKind.Browser && now - signIn.LastUsedAt > BrowserIdleLimit;
+    /// <summary>A browser left unused for six months (two weeks, if it signed in with the PIN) is signed out.</summary>
+    private static bool Expired(SignIn signIn, DateTime now) =>
+        signIn.Kind == SignInKind.Browser && now - signIn.LastUsedAt > (signIn.PinVerified ? PinSignInIdleLimit : BrowserIdleLimit);
 
     private bool _keepAsideBeforeSaving;
 

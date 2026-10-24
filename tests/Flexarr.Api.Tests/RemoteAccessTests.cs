@@ -241,22 +241,100 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         await SetMainPinAsync("2468");
         try
         {
-            using var select = new HttpRequestMessage(HttpMethod.Post, "/api/v1/profiles/owner/select") { Content = JsonContent.Create(new { pin = "2468" }) };
-            foreach (var (name, value) in owner)
-            {
-                select.Headers.Add(name, value);
-            }
-
-            var token = (await (await factory.CreateClient().SendAsync(select)).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+            var (cookie, token) = await ChooseMainWithPinAsync(owner, "2468");
 
             Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/libraries", owner)); // still watches as the main profile
             Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", owner));
-            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", [.. owner, ("X-Flexarr-Profile", token)]));
+            // The PIN signed this browser in; the profile token, the same in every browser, isn't what manages the server.
+            Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. owner, ("X-Flexarr-Profile", token)]));
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
         }
         finally
         {
             await SetMainPinAsync(null);
         }
+    }
+
+    [Fact]
+    public async Task OverTailscale_ThePinsSignIn_IsListed_AndSigningItOutEndsManagingTheServer()
+    {
+        await LinkAsync("owner-revoke@example.com", null);
+        var owner = ViaTailscale("100.70.1.21", "owner-revoke@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+        await SetMainPinAsync("1357");
+        try
+        {
+            var (cookie, _) = await ChooseMainWithPinAsync(owner, "1357");
+            var browser = factory.CreateClient();
+            foreach (var (name, value) in owner.Append(("Cookie", cookie)))
+            {
+                browser.DefaultRequestHeaders.TryAddWithoutValidation(name, value);
+            }
+
+            var listed = await browser.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/sign-ins", UriKind.Relative));
+            var mine = listed.EnumerateArray().Single(s => s.GetProperty("isThisOne").GetBoolean());
+            Assert.Equal("Tailnet", mine.GetProperty("zone").GetString());
+
+            var signedOut = await browser.DeleteAsync(new Uri($"/api/v1/sign-ins/{mine.GetProperty("id").GetString()}", UriKind.Relative));
+            Assert.Equal(HttpStatusCode.NoContent, signedOut.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await browser.GetAsync(new Uri("/api/v1/settings", UriKind.Relative))).StatusCode);
+            // Back to the Tailscale identity, which still watches as the main profile.
+            Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(new Uri("/api/v1/libraries", UriKind.Relative))).StatusCode);
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
+    }
+
+    [Fact]
+    public async Task TheMainProfilesToken_CopiedToAnotherTailscaleLogin_DoesntManageTheServer()
+    {
+        await LinkAsync("owner-copied@example.com", null);
+        await LinkAsync("teen@example.com", "Teen");
+        var owner = ViaTailscale("100.70.1.22", "owner-copied@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+        var teen = ViaTailscale("100.70.1.23", "teen@example.com");
+        await SetMainPinAsync("9731");
+        try
+        {
+            var (_, token) = await ChooseMainWithPinAsync(owner, "9731");
+
+            Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. teen, ("X-Flexarr-Profile", token)]));
+            Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, "/api/v1/settings/api-key/reveal", new { pin = "9731" },
+                [.. teen, ("X-Flexarr-Profile", token), ("X-Requested-With", "flexarr")]));
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
+    }
+
+    [Fact]
+    public async Task ChangingTheMainPin_SignsOutBrowsersThatSignedInWithTheOldOne()
+    {
+        await LinkAsync("owner-repin@example.com", null);
+        var owner = ViaTailscale("100.70.1.24", "owner-repin@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+        await SetMainPinAsync("4680");
+        var (cookie, _) = await ChooseMainWithPinAsync(owner, "4680");
+
+        var changed = await SendAsync(HttpMethod.Put, "/api/v1/profiles/owner", new { name = "Owner", removePin = true }, ("X-Api-Key", FlexarrApiFactory.ApiKey));
+
+        Assert.Equal(HttpStatusCode.OK, changed);
+        Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
+    }
+
+    /// <summary>Chooses the main profile with its PIN; returns the sign-in cookie that sets, and the profile token.</summary>
+    private async Task<(string Cookie, string Token)> ChooseMainWithPinAsync((string Name, string Value)[] headers, string pin)
+    {
+        using var select = new HttpRequestMessage(HttpMethod.Post, "/api/v1/profiles/owner/select") { Content = JsonContent.Create(new { pin }) };
+        foreach (var (name, value) in headers)
+        {
+            select.Headers.TryAddWithoutValidation(name, value);
+        }
+
+        var response = await factory.CreateClient().SendAsync(select);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var cookie = response.Headers.GetValues("Set-Cookie").Select(c => c.Split(';')[0]).Single(c => c.StartsWith("flexarr.session=", StringComparison.Ordinal));
+        return (cookie, (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!);
     }
 
     private async Task SetMainPinAsync(string? pin)
