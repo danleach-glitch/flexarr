@@ -81,6 +81,21 @@ struct FlexarrClientTests {
         #expect(request.url?.path == "/api/v1/system/status")
     }
 
+    @Test func pairingStartsAndPicksUpTheApprovedKey() async throws {
+        let start = #"{"id":"0123456789abcdef0123456789abcdef","code":"K7M-Q4X","expiresAt":"2026-10-24T08:00:00Z"}"#
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(start.utf8)))
+
+        let pairing = try await client.startPairing(deviceName: "Living room")
+
+        #expect(pairing.code == "K7M-Q4X")
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/v1/pairing")
+
+        let (polling, _) = stubbedClient(.init(status: 200, body: Data(#"{"status":"approved","apiKey":"the-key"}"#.utf8)))
+        #expect(try await polling.pairingStatus(pairing.id) == PairingStatus(status: "approved", apiKey: "the-key"))
+    }
+
     @Test func unauthorizedMapsToFriendlyError() async {
         let (client, _) = stubbedClient(.init(status: 401, body: Data()))
 

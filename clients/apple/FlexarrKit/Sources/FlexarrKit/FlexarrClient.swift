@@ -122,6 +122,19 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "playback/\(sessionId)")
     }
 
+    // MARK: Pairing (connecting without typing the API key)
+
+    /// Asks the server for a code to show; someone signed in as the main profile approves it in the web app.
+    public func startPairing(deviceName: String) async throws -> PairingStart {
+        let data = try await send("POST", "pairing", body: ["deviceName": deviceName])
+        return try decode(PairingStart.self, from: data)
+    }
+
+    /// Polled while the code is on screen; carries the API key once approved.
+    public func pairingStatus(_ id: String) async throws -> PairingStatus {
+        try await get("pairing/\(id)")
+    }
+
     // MARK: URLs
 
     /// Resolves a server-relative URL such as a stream or artwork path.

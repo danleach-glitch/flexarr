@@ -63,6 +63,9 @@ builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<Pairings>();
+builder.Services.AddHostedService<BonjourAdvertiser>();
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
 builder.Services.AddScoped<MetadataRefresher>();
 
@@ -142,12 +145,13 @@ app.MapGroup("/api/v1")
     .MapHealthEndpoints()
     .MapDeleteEndpoints()
     .MapLayoutEndpoints()
+    .MapPairingApprovalEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImageEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();

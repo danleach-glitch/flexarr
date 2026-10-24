@@ -12,6 +12,7 @@ import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PersonPage } from './pages/PersonPage'
 import { UpcomingPage } from './pages/UpcomingPage'
+import { LinkPage } from './pages/LinkPage'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/app.css'
@@ -67,6 +68,7 @@ export function Shell() {
               <Route path="discover" element={<DiscoverPage />} />
               <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
               <Route path="upcoming" element={<UpcomingPage />} />
+              <Route path="link" element={<LinkPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/:section" element={<SettingsPage />} />
               <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />

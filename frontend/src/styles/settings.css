@@ -729,3 +729,26 @@
   color: var(--silver);
   white-space: nowrap;
 }
+
+/* ---------- Connect a TV ---------- */
+
+.link-page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(var(--nav-height) + 40px) var(--edge) 0;
+}
+
+.connect-tv {
+  display: grid;
+  gap: 12px;
+}
+
+.connect-tv h2 {
+  font-size: var(--step-3);
+}
+
+.connect-tv input {
+  font-size: var(--step-2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}

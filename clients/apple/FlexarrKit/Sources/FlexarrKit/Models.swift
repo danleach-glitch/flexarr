@@ -395,3 +395,21 @@ struct ProgressReport: Codable, Sendable {
 struct WatchedRequest: Codable, Sendable {
     let watched: Bool
 }
+
+// MARK: - Pairing
+
+/// A code for connecting this device: shown on screen (and as a QR code) for someone to approve.
+public struct PairingStart: Decodable, Sendable, Equatable {
+    /// The device's secret handle for polling; never shown.
+    public let id: String
+    /// What a person approves, e.g. "K7M-Q4X".
+    public let code: String
+    public let expiresAt: Date
+}
+
+public struct PairingStatus: Decodable, Sendable, Equatable {
+    /// "waiting", "approved" or "expired".
+    public let status: String
+    /// Set once, when approved.
+    public let apiKey: String?
+}

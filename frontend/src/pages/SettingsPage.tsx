@@ -50,6 +50,7 @@ import {
   type Settings,
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
+import { ConnectTv } from '../components/ConnectTv'
 import { FolderPicker } from '../components/FolderPicker'
 import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
@@ -68,6 +69,7 @@ const sections = [
   { id: 'activity', label: 'Activity' },
   { id: 'health', label: 'Library health' },
   { id: 'import', label: 'Bring over from Plex' },
+  { id: 'tv', label: 'Connect a TV' },
   { id: 'server', label: 'Server' },
   { id: 'changelog', label: 'Changelog' },
 ] as const
@@ -92,6 +94,7 @@ export function SettingsPage() {
         {section === 'profiles' && <ProfilesSection />}
         {section === 'playback' && <PlaybackSection />}
         {section === 'layout' && <LayoutSection />}
+        {section === 'tv' && <ConnectTv />}
         {section === 'changelog' && <ChangelogSection />}
         {section === 'connections' && <ConnectionsSection />}
         {section === 'remote' && <RemoteAccessSection />}

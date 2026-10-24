@@ -313,6 +313,16 @@ export const getExternalDiscover = (signal?: AbortSignal) =>
 export const searchEverything = (query: string, signal?: AbortSignal) =>
   apiGet<ExternalTitle[]>(`/requests/search?q=${encodeURIComponent(query)}`, signal)
 
+export interface PairingDetails {
+  code: string
+  deviceName: string
+  expiresAt: string
+}
+
+/** A TV waiting to connect, by the code it shows (main profile only). */
+export const getPairing = (code: string, signal?: AbortSignal) => apiGet<PairingDetails>(`/pairing/code/${encodeURIComponent(code.trim())}`, signal)
+export const approvePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/approve`)
+
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
 /** A film or show you don't have, with what Seerr knows about it. */

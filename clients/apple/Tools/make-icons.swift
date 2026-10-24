@@ -11,7 +11,7 @@ try? fm.removeItem(at: brand)
 func color(_ hex: UInt32, _ alpha: CGFloat = 1) -> NSColor {
     NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
 }
-let room = color(0x1B1720), screen = color(0xF2EEE7), silver = color(0xA9C2EC), plum = color(0x4A3560)
+let room = color(0x1B1720), screen = color(0xF2EEE7), silver = color(0xA9C2EC), plum = color(0x4A3560), rose = color(0xE8A0BF)
 
 func png(width: Int, height: Int, jpeg: Bool = false, draw: (CGContext, CGSize) -> Void) -> Data {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
@@ -40,17 +40,46 @@ func background(_ ctx: CGContext, _ size: CGSize, opaque: Bool = true) {
 }
 
 /// The marquee wordmark: tall, condensed, heavy.
-func wordmark(_ ctx: CGContext, _ size: CGSize, height fraction: CGFloat, text: String = "Flexarr") {
-    let fontSize = size.height * fraction
+/// The Flexarr mark, three stacked bars (the web favicon's geometry, a 64-unit square), drawn in `square`.
+func mark(_ ctx: CGContext, in square: CGRect) {
+    ctx.saveGState()
+    // The favicon's coordinates run top-down; flip into Core Graphics' bottom-up space and scale 64 units to the square.
+    ctx.translateBy(x: square.minX, y: square.maxY)
+    ctx.scaleBy(x: square.width / 64, y: -square.height / 64)
+    let bars: [(x: CGFloat, y: CGFloat, width: CGFloat, color: NSColor, tilt: CGFloat)] = [
+        (14, 15, 36, screen, -5), (14, 28.5, 30, silver, 0), (14, 42, 23, rose, 0),
+    ]
+    for bar in bars {
+        ctx.saveGState()
+        ctx.translateBy(x: 14, y: 20)
+        ctx.rotate(by: bar.tilt * .pi / 180)
+        ctx.translateBy(x: -14, y: -20)
+        ctx.setFillColor(bar.color.cgColor)
+        ctx.addPath(CGPath(roundedRect: CGRect(x: bar.x, y: bar.y, width: bar.width, height: 10), cornerWidth: 5, cornerHeight: 5, transform: nil))
+        ctx.fillPath()
+        ctx.restoreGState()
+    }
+    ctx.restoreGState()
+}
+
+/// The mark centred on the canvas at `fraction` of its height; with `withName`, the wordmark beside it (Top Shelf only:
+/// the app icon is the mark alone).
+func logo(_ ctx: CGContext, _ size: CGSize, height fraction: CGFloat, withName: Bool) {
+    let side = size.height * fraction
+    if !withName {
+        // The bars span x 14–50 of their 64-unit square, so the square is nudged to centre what's visible.
+        mark(ctx, in: CGRect(x: (size.width - side) / 2 - side * 0.0, y: (size.height - side) / 2 + side * 0.02, width: side, height: side))
+        return
+    }
+    let fontSize = side * 0.62
     let font = NSFont.systemFont(ofSize: fontSize, weight: .black, width: .condensed)
-    let shadow = NSShadow()
-    shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
-    shadow.shadowBlurRadius = fontSize * 0.08
-    shadow.shadowOffset = NSSize(width: 0, height: -fontSize * 0.03)
-    let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: screen, .kern: -fontSize * 0.01, .shadow: shadow]
-    let string = NSAttributedString(string: text, attributes: attributes)
-    let bounds = string.size()
-    string.draw(at: CGPoint(x: (size.width - bounds.width) / 2, y: (size.height - bounds.height) / 2 + fontSize * 0.02))
+    let name = NSAttributedString(string: "flexarr", attributes: [.font: font, .foregroundColor: screen, .kern: -fontSize * 0.01])
+    let nameSize = name.size()
+    let markWidth = side * 36 / 64
+    let gap = side * 0.12
+    let left = (size.width - markWidth - gap - nameSize.width) / 2
+    mark(ctx, in: CGRect(x: left - side * 14 / 64, y: (size.height - side) / 2 + side * 0.02, width: side, height: side))
+    name.draw(at: CGPoint(x: left + markWidth + gap, y: (size.height - nameSize.height) / 2))
 }
 
 func writeImageSet(_ dir: URL, idiom: String = "tv", images: [(scale: String, data: Data)]) throws {
@@ -77,7 +106,7 @@ let info: [String: Any] = ["version": 1, "author": "xcode"]
 func imageStack(_ name: String, width: Int, height: Int, scales: [Int]) throws {
     let stack = brand.appending(path: "\(name).imagestack")
     try writeContents(stack, ["layers": [["filename": "Front.imagestacklayer"], ["filename": "Back.imagestacklayer"]], "info": info])
-    for (layer, draw) in [("Front", { (c: CGContext, s: CGSize) in wordmark(c, s, height: 0.42) }),
+    for (layer, draw) in [("Front", { (c: CGContext, s: CGSize) in logo(c, s, height: 0.78, withName: false) }),
                           ("Back", { (c: CGContext, s: CGSize) in background(c, s) })] {
         let layerDir = stack.appending(path: "\(layer).imagestacklayer")
         try writeContents(layerDir, ["info": info])
@@ -93,7 +122,7 @@ func topShelf(_ name: String, width: Int, height: Int) throws {
     try writeImageSet(brand.appending(path: "\(name).imageset"), images: [1, 2].map { scale in
         ("\(scale)x", png(width: width * scale, height: height * scale, jpeg: true) { ctx, size in
             background(ctx, size)
-            wordmark(ctx, size, height: 0.36)
+            logo(ctx, size, height: 0.42, withName: true)
         })
     })
 }
