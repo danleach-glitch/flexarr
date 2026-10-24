@@ -104,6 +104,7 @@ public sealed record SonarrEpisode
     public DateTime? AirDateUtc { get; init; }
     public int Runtime { get; init; }
     public bool HasFile { get; init; }
+    public int EpisodeFileId { get; init; }
     public bool Monitored { get; init; }
     public IReadOnlyList<ArrImage> Images { get; init; } = [];
 

@@ -153,6 +153,8 @@ export const getItem = (id: string, signal?: AbortSignal) => apiGet<ItemDetail>(
 export const getSimilar = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/similar`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => apiGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
+/** Deletes a film, show or episode and its files through Radarr or Sonarr (main profile only). */
+export const deleteItem = (id: string) => request<void>('DELETE', `/items/${id}`)
 export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
 export const getPerson = (id: string, signal?: AbortSignal) => apiGet<Person>(`/people/${id}`, signal)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)

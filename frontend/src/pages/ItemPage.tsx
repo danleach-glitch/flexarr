@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import {
   analyzeItem,
   getItem,
+  getMe,
   getNextUp,
   getSimilar,
   imageUrl,
@@ -18,6 +19,7 @@ import { Facts } from '../components/Hero'
 import { Check, Film, Play } from '../components/icons'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
+import { DeleteDialog } from '../components/DeleteDialog'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import {
@@ -57,6 +59,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const series = ancestors[0]
   const navigate = useNavigate()
   const [trailer, setTrailer] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const access = useApi(getMe, [])
+  const canDelete = access.data?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
   const nextUp = useApi((signal) => (item.kind === 'Series' ? getNextUp(item.id, signal) : Promise.resolve(undefined)), [item.id, item.userData.unwatchedCount])
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
 
@@ -130,6 +135,11 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             <button className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
               <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
             </button>
+            {canDelete && (
+              <button className="button quiet danger" onClick={() => setDeleting(true)}>
+                Delete
+              </button>
+            )}
           </div>
           {progress !== null && (
             <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% watched`}>
@@ -161,6 +171,14 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
         {detail.files.length > 0 && <FileInfo files={detail.files} itemId={item.id} kind={item.kind} />}
       </div>
 
+      {deleting && (
+        <DeleteDialog
+          item={item}
+          onClose={() => setDeleting(false)}
+          // Back to what it belonged to: an episode's show, or the library.
+          onDeleted={() => navigate(item.kind === 'Episode' && series ? `/item/${series.id}?season=${item.seasonNumber}` : `/library/${item.libraryId}`, { replace: true })}
+        />
+      )}
       {trailer && detail.trailerYouTubeId && <TrailerDialog videoId={detail.trailerYouTubeId} title={item.title} onClose={() => setTrailer(false)} />}
     </article>
   )

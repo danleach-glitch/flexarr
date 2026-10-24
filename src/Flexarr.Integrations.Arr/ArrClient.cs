@@ -36,6 +36,18 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<SonarrEpisode>> GetEpisodesAsync(ArrInstance sonarr, int seriesId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<SonarrEpisode>>(sonarr, $"episode?seriesId={seriesId}&includeImages=true", ct);
 
+    public Task<SonarrEpisode> GetEpisodeAsync(ArrInstance sonarr, int episodeId, CancellationToken ct = default) =>
+        GetAsync<SonarrEpisode>(sonarr, $"episode/{episodeId}", ct);
+
+    /// <summary>Monitored episodes are downloaded when missing, so a deleted episode is unmonitored first.</summary>
+    public async Task SetEpisodesMonitoredAsync(ArrInstance sonarr, IReadOnlyList<int> episodeIds, bool monitored, CancellationToken ct = default)
+    {
+        using var request = Request(sonarr, HttpMethod.Put, "episode/monitor");
+        request.Content = JsonContent.Create(new { episodeIds, monitored }, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
     /// <summary>Sonarr proxies TVDB lookups. Accepts a title or "tvdb:123".</summary>
     public Task<IReadOnlyList<SonarrSeries>> LookupSeriesAsync(ArrInstance sonarr, string term, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<SonarrSeries>>(sonarr, $"series/lookup?term={Uri.EscapeDataString(term)}", ct);
@@ -50,6 +62,17 @@ public sealed class ArrClient(HttpClient httpClient)
         var include = instance.Kind == ArrKind.Radarr ? "includeMovie=true" : "includeSeries=true&includeEpisode=true";
         var page = await GetAsync<ArrPage<ArrQueueItem>>(instance, $"queue?pageSize=200&{include}", ct).ConfigureAwait(false);
         return page.Records;
+    }
+
+    /// <summary>
+    /// Deletes a film (Radarr), a show (Sonarr) or one episode's file (Sonarr) <b>and its files on disk</b>. Films and
+    /// shows are removed from the app entirely; import lists may add them back unless excluded in the app.
+    /// </summary>
+    public async Task DeleteAsync(ArrInstance instance, string path, CancellationToken ct = default)
+    {
+        using var request = Request(instance, HttpMethod.Delete, path);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
     }
 
     /// <summary>Runs an *arr command, e.g. MoviesSearch or EpisodeSearch.</summary>
