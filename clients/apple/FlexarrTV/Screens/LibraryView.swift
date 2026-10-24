@@ -22,6 +22,7 @@ struct LibraryView: View {
     @State private var isVisible = false
     /// Bumped by each reload (a new sort or genre), so an answer for the old one is dropped rather than shown or appended.
     @State private var generation = 0
+    @State private var isRefreshing = false
     @Environment(\.scenePhase) private var scenePhase
 
     private static let pageSize = 60
@@ -138,9 +139,22 @@ struct LibraryView: View {
     }
 
     /// After playback or watched changes, or after a while, refetch what is already on screen so badges update.
+    /// Only one runs at a time (playback ending and Back both ask within a second or two); one asked for while
+    /// it runs because something changed again is run once it finishes.
+    private func refreshLoaded() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        var token: Int
+        repeat {
+            token = model.refreshToken
+            await fetchLoaded()
+        } while token != model.refreshToken && !Task.isCancelled
+    }
+
     /// The server sends at most `maxPageSize` a request, so a long list comes back in several; whatever didn't
     /// (a page failed, or more were appended meanwhile) is kept as it was, so focus and scroll stay put.
-    private func refreshLoaded() async {
+    private func fetchLoaded() async {
         guard let client = model.client, !items.isEmpty else { return }
         let current = generation
         let token = model.refreshToken

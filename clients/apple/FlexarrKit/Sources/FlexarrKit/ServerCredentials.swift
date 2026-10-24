@@ -14,8 +14,12 @@ public struct ServerCredentials: Sendable, Equatable {
         self.profileToken = profileToken
     }
 
-    public var client: FlexarrClient {
-        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken)
+    public var client: FlexarrClient { client() }
+
+    /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets.
+    public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
+        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken,
+                      onUnauthorized: onUnauthorized)
     }
 }
 
