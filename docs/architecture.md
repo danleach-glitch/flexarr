@@ -29,17 +29,21 @@
 
 | Project | Responsibility |
 | --- | --- |
-| `Flexarr.Api` | Host: HTTP API, auth, background workers, static web client |
-| `Flexarr.Core` | Domain (libraries, media items), parsing, scanning abstractions — no ASP.NET dependency |
-| `Flexarr.Integrations.Arr` | \*arr API clients and webhook translation |
-
-Planned additions: `Flexarr.Data` (EF Core; SQLite + PostgreSQL providers), `Flexarr.Metadata` (TMDB/TVDB/MusicBrainz agents), `Flexarr.Streaming` (playback decisions, FFmpeg/HLS).
+| `Flexarr.Api` | Host: HTTP API, auth, playback sessions, background workers (scanning, intro detection, scrubbing previews), static web client |
+| `Flexarr.Core` | Domain and EF Core database (SQLite), parsing, scanning, ffprobe — no ASP.NET dependency |
+| `Flexarr.Metadata` | Metadata refresh from Sonarr/Radarr/TVmaze, image cache (resizing with ffmpeg), ambient colour extraction |
+| `Flexarr.Streaming` | Playback decisions, FFmpeg command building, HLS transcode sessions, subtitles, scrubbing previews, audio fingerprinting for intros/credits |
+| `Flexarr.Integrations.Arr` | Sonarr/Radarr/Lidarr and Seerr API clients, webhook translation |
 
 ## Key flows
 
-**Library update from an \*arr.** Sonarr imports an episode → POSTs its webhook to `/api/v1/webhooks/sonarr` → `ArrWebhookTranslator` turns it into a `LibraryScanRequest` for the series folder → the request goes on `ILibraryScanQueue` → `LibraryScanWorker` rescans just that folder. No periodic full-library scans needed.
+**Library update from an \*arr.** Sonarr imports an episode → POSTs its webhook to `/api/v1/webhooks/sonarr` → the path is mapped to Flexarr's view of the disk → the series folder is rescanned (bursts are coalesced) → new files are probed with ffprobe → metadata for new items is refreshed from Sonarr.
 
-**Playback (planned).** A client sends its device profile (containers, codecs, max bitrate). The server picks direct play, direct stream (remux) or transcode, and serves either the file with range requests or an HLS playlist backed by an FFmpeg session.
+**Metadata.** For each library, Flexarr fetches everything Radarr/Sonarr know (one call per app, plus episodes and credits) and matches items by folder path, then IMDb/TMDB/TVDB id. Titles the *arr apps don't manage are found through their lookup endpoints (which proxy TMDB/TVDB without keys). Artwork URLs are stored; images are fetched, resized and cached on first view, and an ambient colour is sampled from each.
+
+**Playback.** The client reports what it can play (from `canPlayType` in browsers). If the file fits, it's served as-is with range requests. Otherwise Flexarr creates a transcode session: a full VOD playlist of 6-second segments is returned immediately; each segment request starts (or reuses) an FFmpeg process positioned at that segment, with keyframes forced on segment boundaries and timestamps offset to match, so seeking anywhere is instant and segments from different runs line up. FFmpeg is paused (SIGSTOP) when it gets far ahead of the viewer. On macOS decode, scaling, HDR→SDR conversion and encode all run on the media engine.
+
+**Intros and credits.** For each season, the first 8 and last 5 minutes of audio of every episode are fingerprinted (32-bit sub-fingerprints every 8 ms from band-energy differences) and compared with neighbouring episodes: offset voting on exact matches finds the alignment, then the longest run with low bit error is the shared theme or credits. Chapter titles ("Intro", "Credits") take precedence. A background worker works through the library, prioritising what's being watched and giving way to viewers.
 
 ## Authentication
 

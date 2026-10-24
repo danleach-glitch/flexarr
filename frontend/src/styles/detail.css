@@ -352,6 +352,13 @@
     min-height: 72vh;
   }
 
+  /* Text sits over the middle of the picture on a phone, so the scrim has to do more work. */
+  .detail-art::after {
+    background:
+      linear-gradient(to top, var(--room) 8%, color-mix(in srgb, var(--room) 70%, transparent) 55%, transparent 85%),
+      radial-gradient(ellipse 90% 50% at 0% 100%, color-mix(in srgb, var(--ambient) 30%, transparent), transparent 70%);
+  }
+
   .episode {
     grid-template-columns: 132px minmax(0, 1fr);
     gap: 14px;

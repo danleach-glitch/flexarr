@@ -1,37 +1,26 @@
 # Roadmap
 
-Milestones are tracked on [GitHub](https://github.com/danleach-glitch/flexarr/milestones). Order is roughly priority; web and Apple TV are the first-class clients.
+Web and Apple TV are the first-class clients. Done items stay listed so the shape of the project is visible.
 
-## M0 — Foundations ✅
-Server skeleton, API-key auth, \*arr webhook intake, web client shell, tvOS app shell, CI (server/web/Apple), Docker image on GHCR, CodeQL, Dependabot.
+## Done
 
-## M1 — Library
-- Database (EF Core; SQLite default, PostgreSQL optional) and migrations
-- Library management API + UI (movies, TV, music; multiple root folders)
-- Scanner: filesystem walk, file watching, `ffprobe` media info
-- Parsers: movies (`Title (Year)`), TV (`SxxEyy`, daily, anime absolute), music (tags)
-- Metadata agents: TMDB, TVDB, MusicBrainz, fanart.tv; local NFO/artwork from the \*arrs
-- Artwork cache and image resizing
+- **Foundations:** server, API-key auth, CI (server, web, Apple, Docker, CodeQL), Docker image, macOS deploy
+- **Library:** SQLite database, scanner (films, TV, music), parsers (`Title (Year)`, `SxxEyy`, multi-episode, daily, specials, music tags), ffprobe media info, webhook-driven and scheduled rescans
+- **Metadata:** Sonarr/Radarr as the source (no keys), lookups for unmanaged titles, TVmaze cast, image cache with ambient colours, local and embedded music artwork
+- **Playback:** direct play / transcode decisions, HLS with seek-anywhere and hardware acceleration (VideoToolbox, VA-API, QSV, NVENC), HDR→SDR, subtitles (text and burned-in picture), audio/quality switching, resume and watch state, Up Next, intro/recap/credits detection, scrubbing previews
+- **Web client:** home rows, library grids, detail pages, person and genre pages, ⌘K search, player, music player, settings
+- **Beyond Plex:** Plex history import, Coming soon and downloads, library health, Seerr requests
 
-## M2 — Playback
-- Device profiles and direct play / direct stream / transcode decisions
-- HLS transcoding with FFmpeg, hardware acceleration
-- Subtitles (embedded, sidecar, burn-in), audio track selection
-- Music streaming, gapless playback
-- Watch state, resume points, "continue watching"/"on deck"
+## Next
 
-## M3 — Clients
-- Web: browse, detail pages, search, player
-- Apple TV: server discovery, home rows, detail pages, AVPlayer playback, Top Shelf
-- iOS/iPadOS from the same `FlexarrKit`
-
-## M4 — Users & access
-- Accounts, managed profiles, PIN, parental ratings
-- Per-user libraries and history; OIDC login
-- Remote access guide (reverse proxy, TLS)
-
-## M5 — Deeper \*arr integration
-Emby/Jellyfin-compatible refresh endpoint, calendars, queue, requests, ID-based matching (see [arr-integration.md](arr-integration.md)).
+- **Apple TV app:** browsing, detail pages and AVPlayer playback with skip intro and Up Next (in progress)
+- **Accounts:** multiple users with their own watch history and profiles, PIN, parental ratings; per-user Plex import (#15)
+- **PostgreSQL** as an alternative to SQLite (#14)
+- **File watching** for libraries not managed by the *arr apps (#3)
+- **Server discovery** over Bonjour for the Apple TV app (#11)
+- **Emby/Jellyfin-compatible refresh endpoint** so *arr apps work with their built-in connection (#10)
+- **iOS/iPadOS** from the shared `FlexarrKit`
 
 ## Later
-Collections & playlists, intro/credits detection, trickplay thumbnails, offline downloads, AirPlay/Chromecast, Live TV & DVR, Android/Android TV, statistics.
+
+Collections and playlists, offline downloads, Chromecast, Live TV and DVR, Android and Android TV, statistics, music metadata from Lidarr/MusicBrainz.

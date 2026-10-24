@@ -75,6 +75,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const playLabel = (() => {
     if (item.kind === 'Series') {
       if (!nextUp.data) return 'Play'
+      if (item.userData.watched) return `Watch again from ${episodeCode(nextUp.data)}`
       const resume = nextUp.data.userData.positionSeconds > 0
       return `${resume ? 'Resume' : 'Play'} ${episodeCode(nextUp.data)}`
     }
