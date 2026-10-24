@@ -19,7 +19,7 @@ public static class PathMapper
         ArgumentNullException.ThrowIfNull(mappings);
 
         var best = mappings
-            .Where(m => !string.IsNullOrWhiteSpace(m.From) && IsUnder(path, Trim(m.From)))
+            .Where(m => !string.IsNullOrWhiteSpace(m.From) && PathComparison.IsUnder(path, Trim(m.From)))
             .MaxBy(m => Trim(m.From).Length);
 
         if (best is null)
@@ -30,10 +30,6 @@ public static class PathMapper
         var from = Trim(best.From);
         return Trim(best.To) + path[from.Length..];
     }
-
-    private static bool IsUnder(string path, string root) =>
-        path.StartsWith(root, StringComparison.Ordinal)
-        && (path.Length == root.Length || path[root.Length] is '/' or '\\');
 
     private static string Trim(string path) => path.Length > 1 ? path.TrimEnd('/', '\\') : path;
 }

@@ -34,6 +34,9 @@ dotnet_diagnostic.CA2007.severity = none
 # Test names use Method_Scenario_Expectation.
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1515.severity = none
+# xUnit fixtures dispose via IAsyncLifetime.
+dotnet_diagnostic.CA1001.severity = none
+dotnet_diagnostic.CA1861.severity = none
 
 [*.{csproj,props,targets,slnx,xml}]
 indent_size = 2
@@ -43,3 +46,7 @@ indent_size = 4
 
 [Makefile]
 indent_style = tab
+
+[src/**/Migrations/**.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none

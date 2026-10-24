@@ -1,17 +1,38 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router'
 import { getSystemStatus, saveApiKey, UnauthorizedError, type SystemStatus } from './api/client'
+import { Layout } from './components/Layout'
+import { LibrariesProvider } from './hooks/libraries'
+import { HomePage } from './pages/HomePage'
+import { ItemPage } from './pages/ItemPage'
+import { LibraryPage } from './pages/LibraryPage'
+import { SettingsPage } from './pages/SettingsPage'
 
-const sections = ['Home', 'Movies', 'TV Shows', 'Music'] as const
-
-type StatusState =
+type ConnectionState =
   | { kind: 'loading' }
   | { kind: 'ready'; status: SystemStatus }
   | { kind: 'unauthorized' }
   | { kind: 'error'; message: string }
 
+/** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
+export function Shell({ status }: { status: SystemStatus }) {
+  return (
+    <LibrariesProvider>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage status={status} />} />
+          <Route path="library/:id" element={<LibraryPage />} />
+          <Route path="item/:id" element={<ItemPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<p className="muted">Page not found.</p>} />
+        </Route>
+      </Routes>
+    </LibrariesProvider>
+  )
+}
+
 export default function App() {
-  const [active, setActive] = useState<(typeof sections)[number]>('Home')
-  const [state, setState] = useState<StatusState>({ kind: 'loading' })
+  const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -38,57 +59,36 @@ export default function App() {
     setAttempt((n) => n + 1)
   }
 
-  return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          flex<span>arr</span>
-        </div>
-        <nav>
-          {sections.map((section) => (
-            <button
-              key={section}
-              className={section === active ? 'nav-item active' : 'nav-item'}
-              onClick={() => setActive(section)}
-            >
-              {section}
-            </button>
-          ))}
-        </nav>
-      </aside>
+  if (state.kind === 'ready') {
+    return (
+      <BrowserRouter>
+        <Shell status={state.status} />
+      </BrowserRouter>
+    )
+  }
 
-      <main className="content">
-        <h1>{active}</h1>
-        {active === 'Home' ? (
-          <section className="card" aria-label="Server status">
-            <h2>Server</h2>
-            {state.kind === 'loading' && <p className="muted">Connecting…</p>}
-            {state.kind === 'unauthorized' && (
-              <form className="api-key-form" onSubmit={submitApiKey}>
-                <label htmlFor="apiKey">API key</label>
-                <p className="muted">Find it in config.json in the server's data directory.</p>
-                <div className="row">
-                  <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
-                  <button type="submit">Connect</button>
-                </div>
-              </form>
-            )}
-            {state.kind === 'error' && <p className="error">Can't reach the server: {state.message}</p>}
-            {state.kind === 'ready' && (
-              <dl>
-                <dt>Version</dt>
-                <dd>{state.status.version}</dd>
-                <dt>Runtime</dt>
-                <dd>{state.status.runtimeVersion}</dd>
-                <dt>OS</dt>
-                <dd>{state.status.osDescription}</dd>
-              </dl>
-            )}
-          </section>
-        ) : (
-          <p className="muted">Your {active.toLowerCase()} library will appear here.</p>
+  return (
+    <div className="connect">
+      <div className="brand">
+        flex<span>arr</span>
+      </div>
+      <section className="card" aria-label="Server status">
+        <h2>Server</h2>
+        {state.kind === 'loading' && <p className="muted">Connecting…</p>}
+        {state.kind === 'error' && <p className="error">Can't reach the server: {state.message}</p>}
+        {state.kind === 'unauthorized' && (
+          <form className="api-key-form" onSubmit={submitApiKey}>
+            <label htmlFor="apiKey">API key</label>
+            <p className="muted">Find it in config.json in the server's data directory.</p>
+            <div className="row">
+              <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
+              <button type="submit" className="button">
+                Connect
+              </button>
+            </div>
+          </form>
         )}
-      </main>
+      </section>
     </div>
   )
 }
