@@ -35,6 +35,14 @@ public static class ArrWebhookTranslator
             return [];
         }
 
+        // The old file of an upgrade: the import that follows sends its own event once the new file is in place.
+        // Scanning now could catch the folder with neither file.
+        if (payload.EventType.EndsWith("FileDelete", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(payload.DeleteReason, "upgrade", StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+
         var reason = $"{source} {payload.EventType}";
         var paths = source switch
         {
@@ -47,6 +55,7 @@ public static class ArrWebhookTranslator
 
         return paths
             .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!.Normalize(System.Text.NormalizationForm.FormC))
             .Distinct(StringComparer.Ordinal)
             .Select(p => new LibraryScanRequest(p!, reason))
             .ToList();
