@@ -1,11 +1,12 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { imageUrl, type ItemSummary } from '../api/client'
+import { imageUrl, imageWidths, type ItemSummary } from '../api/client'
 import { usePlay } from '../hooks/usePlay'
 import { episodeHeading, formatDuration, year } from '../lib/format'
 import { Info, Play } from './icons'
 
 const ROTATE_MS = 10_000
+const BACKDROP_WIDTHS = [780, 1280, 1920]
 
 /** Facts as separate quiet items (no middle-dot strings). */
 export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string | null | undefined)[] }) {
@@ -34,7 +35,9 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
 
 /** `resume`, when given, is what the first title picks up from: the episode for a show you're partway through. */
 export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; overviews?: Record<string, string | null>; resume?: ItemSummary; top?: ReactNode }) {
-  const [index, setIndex] = useState(0)
+  // The one fading out is kept until the next change, so the cross-fade has something to fade from.
+  const [{ index, previous }, setShown] = useState({ index: 0, previous: -1 })
+  const setIndex = (next: number) => setShown((s) => (s.index === next ? s : { index: next, previous: s.index }))
   const [paused, setPaused] = useState(false)
   const play = usePlay()
   const navigate = useNavigate()
@@ -45,7 +48,7 @@ export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; 
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (items.length < 2 || paused || reduced) return
-    const timer = setInterval(() => setIndex((i) => (i + 1) % items.length), ROTATE_MS)
+    const timer = setInterval(() => setShown((s) => ({ index: (s.index + 1) % items.length, previous: s.index })), ROTATE_MS)
     return () => clearInterval(timer)
   }, [items.length, paused])
 
@@ -65,9 +68,20 @@ export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; 
     >
       {top && <div className="hero-top">{top}</div>}
       <div className="hero-art" aria-hidden="true">
-        {items.map((it, i) => (
-          <img key={it.id} src={imageUrl(it.artwork.backdrop, 1920)} alt="" className={i === index ? 'shown' : undefined} />
-        ))}
+        {/* Only the backdrops on screen or next up are loaded, sized for the screen; the first one comes first. */}
+        {items.map((it, i) =>
+          i === index || i === previous || i === (index + 1) % items.length ? (
+            <img
+              key={it.id}
+              src={imageUrl(it.artwork.backdrop, 1920)}
+              srcSet={imageWidths(it.artwork.backdrop, BACKDROP_WIDTHS)}
+              sizes="100vw"
+              fetchPriority={i === 0 ? 'high' : 'low'}
+              alt=""
+              className={i === index ? 'shown' : undefined}
+            />
+          ) : null,
+        )}
       </div>
       <div className="hero-content" aria-live="polite">
         {item.artwork.logo ? (

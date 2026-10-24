@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
 import { episodeCode, episodeHeading, progressOf, year } from '../lib/format'
@@ -131,8 +131,11 @@ function EpisodeText({ item }: { item: ItemSummary }) {
   )
 }
 
-/** `playLoneEpisode`: a show with just one unwatched episode plays it from the poster (Latest unwatched rows). */
-export function PosterCard({ item, playLoneEpisode = false }: { item: ItemSummary; playLoneEpisode?: boolean }) {
+/**
+ * `playLoneEpisode`: a show with just one unwatched episode plays it from the poster (Latest unwatched rows).
+ * Memoised: a grid can hold thousands, and they needn't re-render when the page around them does.
+ */
+export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = false }: { item: ItemSummary; playLoneEpisode?: boolean }) {
   const play = usePlay()
   const lone = playLoneEpisode && item.kind === 'Series' && item.userData.unwatchedCount === 1
   return (
@@ -164,7 +167,7 @@ export function PosterCard({ item, playLoneEpisode = false }: { item: ItemSummar
       )}
     </CardShell>
   )
-}
+})
 
 /** 16:9 card for episodes and Continue Watching: the still (or backdrop) with the show's name beneath. */
 export function WideCard({ item, showSeries = true }: { item: ItemSummary; showSeries?: boolean }) {

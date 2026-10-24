@@ -5,6 +5,7 @@ import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
+import { SessionProvider } from './hooks/session'
 import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExternalTitlePage } from './pages/ExternalTitlePage'
@@ -56,30 +57,32 @@ type ConnectionState =
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
 export function Shell() {
   return (
-    <LibrariesProvider>
-      <AudioPlayerProvider>
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="play/:id" element={<PlayerPage />} />
-            <Route element={<Layout />}>
-              <Route index element={<HomePage />} />
-              <Route path="library/:id" element={<LibraryPage />} />
-              <Route path="item/:id" element={<ItemPage />} />
-              <Route path="person/:id" element={<PersonPage />} />
-              <Route path="collections" element={<CollectionsPage />} />
-              <Route path="collection/:id" element={<CollectionPage />} />
-              <Route path="discover" element={<DiscoverPage />} />
-              <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
-              <Route path="upcoming" element={<UpcomingPage />} />
-              <Route path="link" element={<LinkPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="settings/:section" element={<SettingsPage />} />
-              <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </AudioPlayerProvider>
-    </LibrariesProvider>
+    <SessionProvider>
+      <LibrariesProvider>
+        <AudioPlayerProvider>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="play/:id" element={<PlayerPage />} />
+              <Route element={<Layout />}>
+                <Route index element={<HomePage />} />
+                <Route path="library/:id" element={<LibraryPage />} />
+                <Route path="item/:id" element={<ItemPage />} />
+                <Route path="person/:id" element={<PersonPage />} />
+                <Route path="collections" element={<CollectionsPage />} />
+                <Route path="collection/:id" element={<CollectionPage />} />
+                <Route path="discover" element={<DiscoverPage />} />
+                <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
+                <Route path="upcoming" element={<UpcomingPage />} />
+                <Route path="link" element={<LinkPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="settings/:section" element={<SettingsPage />} />
+                <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </AudioPlayerProvider>
+      </LibrariesProvider>
+    </SessionProvider>
   )
 }
 

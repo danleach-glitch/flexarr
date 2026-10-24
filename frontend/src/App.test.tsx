@@ -1,7 +1,9 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
+import { TrailerDialog } from './components/TrailerDialog'
+import { usePolling } from './hooks/usePolling'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
 beforeAll(() => {
@@ -387,5 +389,110 @@ describe('Profiles', () => {
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(sentPin).toBe('2468')
     expect(localStorage.getItem('flexarr.profile')).toBe('c1.sig')
+  })
+})
+
+describe('Library grid', () => {
+  // 210 films: a first page of 200, then "Show 10 more".
+  const films = Array.from({ length: 210 }, (_, i) => summary({ id: `f${i}`, title: `Film ${String(i).padStart(3, '0')}` }))
+  function grid(onItem?: (id: string) => void) {
+    const pages: number[] = []
+    mockApi({
+      '/libraries': [{ ...movies, scan: null, itemCount: films.length }],
+      '/libraries/lib-movies/genres': [],
+      '/libraries/lib-movies/items': (_: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        pages.push(skip)
+        return { total: films.length, items: films.slice(skip, skip + Number(url.searchParams.get('take'))) }
+      },
+      'POST /items/f3/watched': undefined,
+      '/items/f3': () => {
+        onItem?.('f3')
+        return detail({ ...films[3], userData: { ...films[3].userData, watched: true } })
+      },
+    })
+    return pages
+  }
+
+  it('loads "Show more" once however often it is clicked', async () => {
+    const pages = grid()
+    renderAt('/library/lib-movies?view=all')
+
+    const more = await screen.findByRole('button', { name: 'Show 10 more' })
+    fireEvent.click(more)
+    fireEvent.click(more)
+
+    expect(await screen.findByRole('link', { name: 'Film 209' })).toBeInTheDocument()
+    expect(pages).toEqual([0, 200])
+    expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
+  })
+
+  it('marks a title watched in place, keeping the pages already loaded', async () => {
+    const fetched: string[] = []
+    const pages = grid((id) => fetched.push(id))
+    renderAt('/library/lib-movies?view=all')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 10 more' }))
+    await screen.findByRole('link', { name: 'Film 209' })
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Film 003 as watched' }))
+
+    expect(await screen.findByRole('button', { name: 'Watched: mark Film 003 as unwatched' })).toHaveAttribute('aria-pressed', 'true')
+    await vi.waitFor(() => expect(fetched).toEqual(['f3']))
+    expect(pages).toEqual([0, 200])
+    expect(screen.getAllByRole('link', { name: /^Film \d+$/ })).toHaveLength(210)
+  })
+})
+
+describe('Requests', () => {
+  it('asks the server who you are once, however many parts of the page want to know', async () => {
+    const film = summary({ id: 'm1', title: 'The Nice Guys' })
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'owner', method: 'local', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [],
+      '/items/m1': detail(film),
+      '/items/m1/similar': [],
+    })
+
+    renderAt('/item/m1')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Nice Guys' })).toBeInTheDocument()
+    const calls = (path: string) => fetchMock.mock.calls.filter(([input]) => new URL(String(input), 'http://localhost').pathname === `/api/v1${path}`).length
+    await vi.waitFor(() => expect(calls('/me')).toBe(1))
+    expect(calls('/profiles')).toBe(1)
+    expect(calls('/items/m1')).toBe(1)
+  })
+
+  it("doesn't poll from a background tab, and catches up when it's shown", () => {
+    vi.useFakeTimers()
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    const tick = vi.fn()
+    try {
+      renderHook(() => usePolling(tick, 1000))
+      vi.advanceTimersByTime(5000)
+      expect(tick).not.toHaveBeenCalled()
+
+      hidden.mockReturnValue(false)
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(tick).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(2000)
+      expect(tick).toHaveBeenCalledTimes(3)
+    } finally {
+      hidden.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('Trailer', () => {
+  it('only embeds what looks like a YouTube video id', () => {
+    const { rerender } = render(<TrailerDialog videoId="dQw4w9WgXcQ" title="Film" onClose={() => {}} />)
+    expect(screen.getByTitle('Film trailer')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0')
+
+    rerender(<TrailerDialog videoId="../../evil?x=" title="Film" onClose={() => {}} />)
+    expect(screen.queryByTitle('Film trailer')).not.toBeInTheDocument()
+    expect(screen.getByText('This trailer can’t be played.')).toBeInTheDocument()
   })
 })

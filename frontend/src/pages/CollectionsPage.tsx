@@ -7,7 +7,6 @@ import {
   getCollection,
   getCollections,
   getCollectionSuggestions,
-  getMe,
   imageUrl,
   removeFromCollection,
   reorderCollection,
@@ -20,6 +19,7 @@ import { PosterCard } from '../components/Cards'
 import { CollectionEditor } from '../components/CollectionEditor'
 import { Play } from '../components/icons'
 import { RequestButton } from '../components/RequestButton'
+import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePlay } from '../hooks/usePlay'
 
@@ -30,10 +30,10 @@ export function CollectionsPage() {
   const collections = useApi(getCollections, [])
   // Only worked out when that tab is open (they take the server a moment).
   const suggestions = useApi((signal) => (suggested ? getCollectionSuggestions(signal) : Promise.resolve(null)), [suggested, collections.data])
-  const me = useApi(getMe, [])
+  const { me } = useSession()
   const [creating, setCreating] = useState(false)
   const navigate = useNavigate()
-  const isAdmin = me.data?.isAdmin ?? false
+  const isAdmin = me?.isAdmin ?? false
 
   const all = collections.data ?? []
   const sections = [
@@ -161,7 +161,7 @@ export function CollectionPage() {
   const { id = '' } = useParams()
   const [version, setVersion] = useState(0)
   const { data, error } = useApi((signal) => getCollection(id, signal), [id, version])
-  const me = useApi(getMe, [])
+  const { me } = useSession()
   const [editing, setEditing] = useState(false)
   const [dragging, setDragging] = useState<string>()
   const [order, setOrder] = useState<ItemSummary[]>()
@@ -329,7 +329,7 @@ export function CollectionPage() {
 
       {editing && (
         <CollectionEditor
-          isAdmin={me.data?.isAdmin ?? false}
+          isAdmin={me?.isAdmin ?? false}
           collection={c}
           rules={data.rules}
           onClose={() => setEditing(false)}

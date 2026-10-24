@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { getMe, getProfiles, saveProfileToken, selectProfile } from '../api/client'
+import { saveProfileToken, selectProfile } from '../api/client'
 import { useLibraries } from '../hooks/librariesContext'
-import { useApi } from '../hooks/useApi'
+import { useSession } from '../hooks/sessionContext'
 import { Gear, Search } from './icons'
 import { AddToCollectionHost } from './AddToCollection'
 import { NowPlaying } from './NowPlaying'
@@ -14,12 +14,11 @@ export function Layout() {
   const [scrolled, setScrolled] = useState(false)
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
-  const profiles = useApi(getProfiles, [])
-  const access = useApi(getMe, [])
+  const { me: access, profiles } = useSession()
   // Older servers have no /me; assume admin there, as before.
-  const isAdmin = access.data?.isAdmin ?? true
-  const me = profiles.data?.find((p) => p.isCurrent)
-  const other = profiles.data?.length === 2 ? profiles.data.find((p) => !p.isCurrent) : undefined
+  const isAdmin = access?.isAdmin ?? true
+  const me = profiles?.find((p) => p.isCurrent)
+  const other = profiles?.length === 2 ? profiles.find((p) => !p.isCurrent) : undefined
   const location = useLocation()
 
   // The profile menu closes on a click anywhere outside it, or Escape.
@@ -97,7 +96,7 @@ export function Layout() {
               <Gear />
             </NavLink>
           )}
-          {me && profiles.data && profiles.data.length > 1 && (
+          {me && profiles && profiles.length > 1 && (
             <div className="profile-menu-anchor" ref={profileAnchor}>
               <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
                 <Avatar profile={me} size={34} />

@@ -6,7 +6,6 @@ export interface AudioPlayer {
   index: number
   current: ItemSummary | undefined
   playing: boolean
-  time: number
   duration: number
   /** Replaces the queue and starts playing at `start`. */
   play: (tracks: ItemSummary[], start?: number) => void
@@ -18,6 +17,11 @@ export interface AudioPlayer {
 }
 
 export const AudioPlayerContext = createContext<AudioPlayer | null>(null)
+
+/** Where the track is, in whole seconds: its own context, so only the seek bar re-renders as music plays. */
+export const AudioTimeContext = createContext(0)
+
+export const useAudioTime = () => useContext(AudioTimeContext)
 
 export function useAudioPlayer(): AudioPlayer {
   const player = useContext(AudioPlayerContext)

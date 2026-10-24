@@ -4,7 +4,6 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import {
   analyzeItem,
   getItem,
-  getMe,
   getNextUp,
   getSimilar,
   imageUrl,
@@ -22,6 +21,7 @@ import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
+import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import {
@@ -62,8 +62,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const navigate = useNavigate()
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const access = useApi(getMe, [])
-  const canDelete = access.data?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
+  const { me } = useSession()
+  const canDelete = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
   const nextUp = useApi((signal) => (item.kind === 'Series' ? getNextUp(item.id, signal) : Promise.resolve(undefined)), [item.id, item.userData.unwatchedCount])
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
 

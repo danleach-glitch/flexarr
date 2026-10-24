@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { addToCollection, ApiError, createCollection, getItemCollections, getMe, removeFromCollection, type ItemCollection } from '../api/client'
+import { addToCollection, ApiError, createCollection, getItemCollections, removeFromCollection, type ItemCollection } from '../api/client'
+import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 
 /** Asks for the Add to collection dialog, from anywhere (a card's menu closes before it opens). */
@@ -24,7 +25,7 @@ export function AddToCollectionHost() {
 function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: string }; onClose: () => void }) {
   const [version, setVersion] = useState(0)
   const collections = useApi((signal) => getItemCollections(item.id, signal), [item.id, version])
-  const me = useApi(getMe, [])
+  const { me } = useSession()
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
   // Ticks show at once; the server catches up (and a failure puts them back).
@@ -63,7 +64,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
     e.preventDefault()
     if (!name.trim()) return
     void run(async () => {
-      const created = await createCollection({ name: name.trim(), personal: !(me.data?.isAdmin ?? false) })
+      const created = await createCollection({ name: name.trim(), personal: !(me?.isAdmin ?? false) })
       await addToCollection(created.id, item.id)
       setName('')
     })
