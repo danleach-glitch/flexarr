@@ -4,6 +4,19 @@ What's changed in Flexarr, newest first.
 
 ## 24 October 2026
 
+### Third pass: sign-in, streams and libraries
+- Away from home over Tailscale, you can now get to Settings by choosing the main profile with its PIN, from **Switch profile** or from the Settings page. That browser then stays signed in, shows under signed-in browsers, can be signed out there, and is signed out after two weeks unused or when the main PIN changes. Browsers no longer keep a reusable key for the main profile; if an earlier version stored one, you'll be asked for the PIN again (or tap **Not now**).
+- Changing or removing the main profile's PIN now asks for the current PIN. If you've forgotten it, you can use the API key instead.
+- Wrong-PIN lockouts are now per device, so someone else's guesses on a phone or tablet sharing your Tailscale account don't lock you out. Repeated guessing over days is locked out sooner.
+- Several screens on the same profile can now watch at once while the server has room. When it's full and someone starts another, the screen that has to give way says why, and screens no longer knock each other off in turn.
+- Moving a film or show to a new folder no longer slows scans: its watch history and collections move across once, in a fraction of a second.
+- When Radarr or Sonarr delete one title while a library drive looks disconnected, only that title is hidden; the rest of the folder stays on hold. **Confirm removal** only approves the numbers you saw, and asks you to check again if a scan has found something different.
+- A newly imported film or show gets its details from Radarr or Sonarr straight away, without fetching the whole library, and Coming soon and Downloads update right after a download finishes.
+- Leaving a library's full list before it finished loading, then pressing Back, now loads it again instead of showing a blank page. A small library shows titles added or removed while you were away, a deleted title doesn't come back, and keyboard focus returns to the title you opened.
+- On Apple TV, coming back to a library you'd scrolled far into (more than 500 titles) keeps the whole list and your place. Pressing Back while a TV finishes connecting no longer leaves an unused sign-in behind.
+- Scrolling quickly past lots of new posters no longer makes the ones you stop on wait behind the rest, and a poster the server was too busy for loads a few seconds later.
+- Deploys now keep the server's ASP.NET Core runtime on the latest security patch instead of the version first installed.
+
 ### Sign-in and profiles, second pass
 - Wrong PIN guesses lock out only the device guessing. Nobody can lock you out of the main profile anymore.
 - Over Tailscale, changing settings now takes the main profile's PIN, or signing that browser in with the API key, once. Watching works as before.
