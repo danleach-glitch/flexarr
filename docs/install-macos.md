@@ -28,6 +28,7 @@ The server listens on port **8383** on all interfaces: `http://<mac-name>.local:
 {
   "apiKey": "generated-on-first-run",
   "webhookSecret": "generated-on-first-run",
+  "imageSecret": "generated-on-first-run",
   "authenticationRequired": "Enabled",
   "pathMappings": [
     { "from": "/data", "to": "/Volumes/Media/data" }
@@ -40,6 +41,7 @@ The server listens on port **8383** on all interfaces: `http://<mac-name>.local:
 - **`pathMappings`**: when Sonarr/Radarr/Lidarr run in Docker they report container paths (`/data/tv/…`). Map them to the real paths on the Mac.
 - **`authenticationRequired`**: `Enabled` (default) or `DisabledForLocalAddresses`, which lets devices on your network in as the main profile without a key.
 - **`webhookSecret`**: what Sonarr/Radarr/Lidarr webhooks send. It can only start scans.
+- **`imageSecret`**: signs the links to outside artwork (Coming soon, requests, collections) that Flexarr hands to its apps, so nobody else can use it to fetch images. Leave it alone; changing it only breaks links already handed out until the page reloads.
 - **`trustedProxies`**: a reverse proxy on another machine or in Docker (`"172.17.0.1"`, or a range like `"10.0.0.0/24"`), whose `X-Forwarded-For` Flexarr should believe. Without it, everything forwarded by such a proxy counts as the internet. Read at startup.
 - **`knownHosts`**: extra names you reach Flexarr by on your network (split DNS, say). With `DisabledForLocalAddresses`, only requests addressed to IP addresses, `.local`-style names, this Mac's name and these sign in without a key.
 

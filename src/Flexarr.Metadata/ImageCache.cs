@@ -21,8 +21,11 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     private const int MaxRedirects = 3;
     private static readonly TimeSpan TrimInterval = TimeSpan.FromMinutes(10);
 
-    // Static: as a typed HttpClient this class is created per request, and the locks must be shared by all of them.
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.Ordinal);
+    /// <summary>
+    /// The download and resize under way for each image and width. Static: as a typed HttpClient this class is created
+    /// per request, and the work must be shared by all of them.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, Lazy<Task<string?>>> InFlight = new(StringComparer.Ordinal);
 
     /// <summary>A page of new posters shouldn't start dozens of ffmpegs at once.</summary>
     private static readonly SemaphoreSlim FfmpegSlots = new(Environment.ProcessorCount, Environment.ProcessorCount);
@@ -32,8 +35,21 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
     private string Directory => Path.Combine(settings.CacheDirectory, "images");
 
+    /// <summary>
+    /// The whole download, however slowly the host sends it: HttpClient.Timeout stops counting once the headers are in.
+    /// </summary>
+    internal TimeSpan DownloadTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Download and resize together, including any wait for an ffmpeg slot.</summary>
+    internal TimeSpan WorkTimeout { get; set; } = TimeSpan.FromMinutes(2);
+
     /// <summary>Returns the path of a cached copy at least <paramref name="width"/> wide, or null if it can't be fetched.</summary>
     /// <param name="remoteUrl">An https URL, or (from the library scanner only) a file:// or embedded:// one.</param>
+    /// <param name="width">The width wanted; snapped up to one of <see cref="ArtworkUrl.Widths"/>.</param>
+    /// <param name="ct">
+    /// Stops waiting. The download and resize carry on (on their own timeout) for whoever asks next, so an image
+    /// scrolled past on a TV and back again isn't fetched twice.
+    /// </param>
     public async Task<string?> GetAsync(string remoteUrl, int? width, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(remoteUrl);
@@ -47,92 +63,101 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             return hit;
         }
 
-        var lockKey = target;
-        var gate = Locks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(ct).ConfigureAwait(false);
+        var work = InFlight.GetOrAdd(target, t => new Lazy<Task<string?>>(() => Task.Run(() => ShareAsync(remoteUrl, snapped, t))));
+        return await work.Value.WaitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>One download and resize, shared by everyone who asks for this image at this width while it runs.</summary>
+    private async Task<string?> ShareAsync(string remoteUrl, int snapped, string target)
+    {
         try
         {
-            if (Cached(target) is { } raced)
-            {
-                return raced;
-            }
-
-            System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-
-            // Local artwork from music folders: cover.jpg next to the files, or art embedded in a track.
-            if (ArtworkUrl.IsLocal(remoteUrl))
-            {
-                var embedded = remoteUrl.StartsWith("embedded://", StringComparison.Ordinal);
-                var local = embedded ? remoteUrl["embedded://".Length..] : remoteUrl["file://".Length..];
-                if (!File.Exists(local))
-                {
-                    return null;
-                }
-
-                // A cover is read as the image it is; a track is a media file, and only its picture is taken.
-                var format = embedded ? null : InputFormat(await HeaderAsync(local, ct).ConfigureAwait(false));
-                if (!embedded && format is null)
-                {
-                    return null;
-                }
-
-                return await ResizeAsync(local, format, embedded, snapped, target, ct).ConfigureAwait(false) ? Written(target) : null;
-            }
-
-            if (!Uri.TryCreate(ArtworkUrl.ForWidth(remoteUrl, snapped), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            {
-                return null;
-            }
-
-            var source = $"{target}.{Guid.NewGuid():N}.download";
-            try
-            {
-                if (!await DownloadAsync(uri, remoteUrl, source, ct).ConfigureAwait(false))
-                {
-                    return null;
-                }
-
-                var downloaded = InputFormat(await HeaderAsync(source, ct).ConfigureAwait(false));
-                if (downloaded is null)
-                {
-                    LogNotAnImage(remoteUrl);
-                    return null;
-                }
-
-                // Scale down only (never up), keep aspect ratio; PNG logos keep transparency by staying PNG.
-                if (downloaded == "png_pipe")
-                {
-                    target = Path.ChangeExtension(target, ".png");
-                }
-
-                if (!await ResizeAsync(source, downloaded, false, snapped, target, ct).ConfigureAwait(false))
-                {
-                    File.Move(source, target, overwrite: true); // Serve the original rather than nothing.
-                }
-
-                return Written(target);
-            }
-            catch (HttpRequestException ex)
-            {
-                LogDownloadFailed(remoteUrl, (int?)ex.StatusCode ?? 0);
-                return null;
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                LogDownloadFailed(remoteUrl, 0); // timed out
-                return null;
-            }
-            finally
-            {
-                File.Delete(source);
-            }
+            using var timeout = new CancellationTokenSource(WorkTimeout);
+            return await FetchAsync(remoteUrl, snapped, target, timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            LogDownloadFailed(remoteUrl, 0); // timed out
+            return null;
         }
         finally
         {
-            gate.Release();
-            // Done with: drop it, unless someone else replaced it meanwhile. A request already waiting on this one
-            // still gets it; one arriving now makes a new one, and at worst repeats the work (writes are atomic).
-            Locks.TryRemove(new KeyValuePair<string, SemaphoreSlim>(lockKey, gate));
+            // Done with: the next request finds the file or, if this failed, tries again. Only this work can be in
+            // the map under its key until now, so this can't remove anyone else's.
+            InFlight.TryRemove(target, out _);
+        }
+    }
+
+    private async Task<string?> FetchAsync(string remoteUrl, int snapped, string target, CancellationToken ct)
+    {
+        if (Cached(target) is { } raced)
+        {
+            return raced;
+        }
+
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+        // Local artwork from music folders: cover.jpg next to the files, or art embedded in a track.
+        if (ArtworkUrl.IsLocal(remoteUrl))
+        {
+            var embedded = remoteUrl.StartsWith("embedded://", StringComparison.Ordinal);
+            var local = embedded ? remoteUrl["embedded://".Length..] : remoteUrl["file://".Length..];
+            if (!File.Exists(local))
+            {
+                return null;
+            }
+
+            // A cover is read as the image it is; a track is a media file, and only its picture is taken.
+            var format = embedded ? null : InputFormat(await HeaderAsync(local, ct).ConfigureAwait(false));
+            if (!embedded && format is null)
+            {
+                return null;
+            }
+
+            return await ResizeAsync(local, format, embedded, snapped, target, ct).ConfigureAwait(false) ? Written(target) : null;
+        }
+
+        if (!Uri.TryCreate(ArtworkUrl.ForWidth(remoteUrl, snapped), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return null;
+        }
+
+        var source = $"{target}.{Guid.NewGuid():N}.download";
+        try
+        {
+            if (!await DownloadAsync(uri, remoteUrl, source, ct).ConfigureAwait(false))
+            {
+                return null;
+            }
+
+            var downloaded = InputFormat(await HeaderAsync(source, ct).ConfigureAwait(false));
+            if (downloaded is null)
+            {
+                LogNotAnImage(remoteUrl);
+                return null;
+            }
+
+            // Scale down only (never up), keep aspect ratio; PNG logos keep transparency by staying PNG.
+            if (downloaded == "png_pipe")
+            {
+                target = Path.ChangeExtension(target, ".png");
+            }
+
+            if (!await ResizeAsync(source, downloaded, false, snapped, target, ct).ConfigureAwait(false))
+            {
+                File.Move(source, target, overwrite: true); // Serve the original rather than nothing.
+            }
+
+            return Written(target);
+        }
+        catch (HttpRequestException ex)
+        {
+            LogDownloadFailed(remoteUrl, (int?)ex.StatusCode ?? 0);
+            return null;
+        }
+        finally
+        {
+            File.Delete(source);
         }
     }
 
@@ -171,8 +196,11 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// Fetches at most <see cref="MaxDownloadBytes"/>, following redirects by hand: only to https on the same site
     /// (thetvdb.com to artworks.thetvdb.com, say), so an artwork host can't point the server anywhere else.
     /// </summary>
-    private async Task<bool> DownloadAsync(Uri uri, string remoteUrl, string path, CancellationToken ct)
+    private async Task<bool> DownloadAsync(Uri uri, string remoteUrl, string path, CancellationToken cancel)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        timeout.CancelAfter(DownloadTimeout);
+        var ct = timeout.Token;
         for (var hops = 0; ; hops++)
         {
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);

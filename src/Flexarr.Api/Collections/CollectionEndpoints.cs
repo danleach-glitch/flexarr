@@ -327,5 +327,5 @@ public static class CollectionEndpoints
 
     private static SmartRules? Rules(Collection c) => c.RulesJson is null ? null : JsonSerializer.Deserialize<SmartRules>(c.RulesJson, FranchiseSync.Json);
 
-    private static string? Remote(string? url) => url is null ? null : $"/api/v1/images/remote?url={Uri.EscapeDataString(url)}";
+    private static string? Remote(string? url) => ImageEndpoints.RemoteUrl(url);
 }

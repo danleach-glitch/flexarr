@@ -15,8 +15,9 @@ public static partial class ArtworkUrl
     };
 
     /// <summary>
-    /// A known artwork host's image, as a plain https URL with any query string or fragment dropped (so one image
-    /// is one cache entry, however the URL is decorated); null for anything else.
+    /// A known artwork host's image, as a plain https URL with any query string or fragment dropped, and TMDB's size
+    /// folder made /original/ (the cache picks the size from the width asked for), so one image is one cache entry
+    /// however the URL is decorated; null for anything else.
     /// </summary>
     public static string? TrustedRemote(string? url)
     {
@@ -26,10 +27,20 @@ public static partial class ArtworkUrl
             return null;
         }
 
+        var host = uri.Host.ToLowerInvariant();
         var path = uri.AbsolutePath;
-        return path.StartsWith(prefix, StringComparison.Ordinal) && ImagePath().IsMatch(path) && !path.Contains("..", StringComparison.Ordinal)
-            ? $"https://{uri.Host.ToLowerInvariant()}{path}"
-            : null;
+        if (!path.StartsWith(prefix, StringComparison.Ordinal) || !ImagePath().IsMatch(path) || path.Contains("..", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (host == "image.tmdb.org")
+        {
+            var sized = TmdbSized().Match(path);
+            return sized.Success ? $"https://{host}/t/p/original/{sized.Groups[1].Value}" : null;
+        }
+
+        return $"https://{host}{path}";
     }
 
     /// <summary>Artwork from a metadata source (Sonarr, Radarr, TVmaze, Seerr): only ever fetched over https.</summary>
@@ -41,6 +52,10 @@ public static partial class ArtworkUrl
 
     [GeneratedRegex(@"^/[A-Za-z0-9_\-./]+\.(?:jpe?g|png|webp)$", RegexOptions.IgnoreCase)]
     private static partial Regex ImagePath();
+
+    /// <summary>/t/p/{size}/{file}: TMDB keeps every image under a size folder (w92 … original).</summary>
+    [GeneratedRegex(@"^/t/p/[A-Za-z0-9_]+/([^/]+)$")]
+    private static partial Regex TmdbSized();
 
     /// <summary>Widths the image cache produces; requests snap up to the nearest one so the cache stays small.</summary>
     public static readonly int[] Widths = [92, 185, 342, 500, 780, 1280, 1920];

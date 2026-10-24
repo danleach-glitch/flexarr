@@ -1,8 +1,12 @@
+using System.Security.Cryptography;
+using System.Text;
+using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 namespace Flexarr.Api.Endpoints;
@@ -13,11 +17,35 @@ public static class ImageEndpoints
     private static readonly TimeSpan SourceTtl = TimeSpan.FromMinutes(10);
 
     /// <summary>
+    /// Signs /images/remote links, from <see cref="FlexarrOptions.ImageSecret"/>. Static so the endpoints that write
+    /// those links into their DTOs don't each need it passed in. Set once, by the first server in the process (only
+    /// tests start more than one), so signing and checking always use the same key.
+    /// </summary>
+    private static byte[]? _remoteKey;
+
+    /// <summary>
+    /// A link to outside artwork (Coming soon, downloads, requests, collections) through /images/remote, signed so
+    /// that only images the server handed out can be fetched through it. Null if it isn't artwork the server fetches.
+    /// </summary>
+    public static string? RemoteUrl(string? url) =>
+        ArtworkUrl.TrustedRemote(url) is { } trusted ? $"/api/v1/images/remote?url={Uri.EscapeDataString(trusted)}&s={Signature(trusted)}" : null;
+
+    private static string Signature(string trustedUrl)
+    {
+        var key = Volatile.Read(ref _remoteKey) ?? throw new InvalidOperationException("The image endpoints haven't been mapped.");
+        return Convert.ToHexStringLower(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(trustedUrl)).AsSpan(0, 16));
+    }
+
+    /// <summary>
     /// Cached, resized artwork. Anonymous so <c>&lt;img&gt;</c> tags and TV clients can load it directly;
     /// item ids are unguessable and artwork isn't sensitive.
     /// </summary>
     public static RouteGroupBuilder MapImageEndpoints(this RouteGroupBuilder api)
     {
+        ArgumentNullException.ThrowIfNull(api);
+        var secret = ((IEndpointRouteBuilder)api).ServiceProvider.GetRequiredService<IOptions<FlexarrOptions>>().Value.ImageSecret;
+        Interlocked.CompareExchange(ref _remoteKey, Encoding.UTF8.GetBytes(secret ?? throw new InvalidOperationException("No image secret.")), null);
+
         var group = api.MapGroup("/images").WithTags("Images").AllowAnonymous();
 
         group.MapGet("/items/{id:guid}/{kind}", async (Guid id, string kind, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, HttpContext http, CancellationToken ct) =>
@@ -44,11 +72,12 @@ public static class ImageEndpoints
 
         // Artwork for things not in the library yet (Coming soon, downloads). Only images on known artwork hosts, so
         // this can't be used to make the server fetch arbitrary URLs, and without query strings, so it can't be used
-        // to fill the cache with copies of one image.
-        group.MapGet("/remote", async (string url, int? w, ImageCache cache, HttpContext http, CancellationToken ct) =>
-            ArtworkUrl.TrustedRemote(url) is { } trusted
-                ? await ServeAsync(cache, trusted, w, http, ct)
-                : Results.BadRequest());
+        // to fill the cache with copies of one image. And only links the server signed (RemoteUrl), so nobody can
+        // page through TMDB with it, using the server's bandwidth and pushing real artwork out of the cache.
+        group.MapGet("/remote", async (string url, string? s, int? w, ImageCache cache, HttpContext http, CancellationToken ct) =>
+            ArtworkUrl.TrustedRemote(url) is not { } trusted ? Results.BadRequest()
+            : s is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(s), Encoding.ASCII.GetBytes(Signature(trusted))) ? Results.NotFound()
+            : await ServeAsync(cache, trusted, w, http, ct));
 
         group.MapGet("/people/{id:guid}", async (Guid id, int? w, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, HttpContext http, CancellationToken ct) =>
         {
@@ -117,13 +146,28 @@ public static class ImageEndpoints
 
     private static async Task<IResult> ServeAsync(ImageCache cache, string url, int? width, HttpContext http, CancellationToken ct)
     {
-        var path = await cache.GetAsync(url, width, ct);
-        if (path is null)
+        // Opened here rather than when the response is written: a trim of the cache can delete the file in between,
+        // and then it's fetched again, once. Once open, a trim can't take it away.
+        for (var attempt = 0; ; attempt++)
         {
-            return Results.NotFound();
-        }
+            var path = await cache.GetAsync(url, width, ct);
+            if (path is null)
+            {
+                return Results.NotFound();
+            }
 
-        http.Response.Headers[HeaderNames.CacheControl] = "public, max-age=2592000, immutable";
-        return Results.File(path, path.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/jpeg", enableRangeProcessing: false);
+            FileStream file;
+            try
+            {
+                file = File.Open(path, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Read, Share = FileShare.Read | FileShare.Delete, Options = FileOptions.Asynchronous });
+            }
+            catch (Exception ex) when (attempt == 0 && ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                continue;
+            }
+
+            http.Response.Headers[HeaderNames.CacheControl] = "public, max-age=2592000, immutable";
+            return Results.File(file, path.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/jpeg", enableRangeProcessing: false);
+        }
     }
 }

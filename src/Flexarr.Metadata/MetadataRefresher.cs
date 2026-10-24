@@ -491,10 +491,12 @@ public sealed partial class MetadataRefresher(
         item.BackdropUrl = backdrop;
         item.LogoUrl = Url("clearlogo");
 
-        if ((changed || item.AccentColor is null) && (backdrop ?? poster) is { } source)
+        // Only from artwork fetched over https: a file:// or embedded:// URL from Radarr or Sonarr isn't read off disk.
+        var httpsPoster = ArtworkUrl.IsHttps(poster) ? poster : null;
+        if ((changed || item.AccentColor is null) && (ArtworkUrl.IsHttps(backdrop) ? backdrop : httpsPoster) is { } source)
         {
             item.AccentColor = await images.AccentColorAsync(source, ct).ConfigureAwait(false)
-                ?? (poster is not null && poster != source ? await images.AccentColorAsync(poster, ct).ConfigureAwait(false) : null);
+                ?? (httpsPoster is not null && httpsPoster != source ? await images.AccentColorAsync(httpsPoster, ct).ConfigureAwait(false) : null);
         }
     }
 

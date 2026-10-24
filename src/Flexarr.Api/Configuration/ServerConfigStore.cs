@@ -83,6 +83,14 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
             options.WebhookSecret = secret;
             Update(options.DataDirectory, config => config["webhookSecret"] = secret);
         }
+
+        if (string.IsNullOrWhiteSpace(options.ImageSecret))
+        {
+            Directory.CreateDirectory(options.DataDirectory);
+            var secret = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+            options.ImageSecret = secret;
+            Update(options.DataDirectory, config => config["imageSecret"] = secret);
+        }
     }
 
     /// <summary>Earlier versions wrote config.json readable by everyone on the machine; make it this user's alone.</summary>

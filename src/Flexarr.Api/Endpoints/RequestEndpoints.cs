@@ -305,7 +305,7 @@ public static class RequestEndpoints
     }
 
     private static string? Tmdb(string? path, string size) =>
-        path is null ? null : $"/api/v1/images/remote?url={Uri.EscapeDataString($"https://image.tmdb.org/t/p/{size}{path}")}";
+        path is null ? null : ImageEndpoints.RemoteUrl($"https://image.tmdb.org/t/p/{size}{path}");
 
     /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item.</summary>
     private static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, CancellationToken ct)

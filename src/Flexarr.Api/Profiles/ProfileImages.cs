@@ -92,8 +92,27 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
         }
 
         using var _ = process;
-        var stderr = await process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+        string stderr;
+        try
+        {
+            stderr = await process.StandardError.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposing the Process doesn't stop it; a cancelled upload shouldn't leave ffmpeg running.
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // Already exited.
+            }
+
+            throw;
+        }
+
         if (process.ExitCode != 0)
         {
             LogConvertFailed(stderr.Trim());
