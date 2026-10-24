@@ -140,6 +140,7 @@ app.MapGroup("/api/v1")
     .MapUpcomingEndpoints()
     .MapHealthEndpoints()
     .MapDeleteEndpoints()
+    .MapLayoutEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints();

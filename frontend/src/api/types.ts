@@ -157,7 +157,8 @@ export interface Person {
 export interface HomeRow {
   id: string
   title: string
-  style: 'poster' | 'wide' | 'top10'
+  /** 'upcoming' marks where Coming soon goes; its titles are in Home.upcoming. */
+  style: 'poster' | 'wide' | 'top10' | 'upcoming'
   items: ItemSummary[]
   link: string | null
 }

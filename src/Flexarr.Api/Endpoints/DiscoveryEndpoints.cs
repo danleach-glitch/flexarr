@@ -99,23 +99,32 @@ public static partial class DiscoveryEndpoints
             // Coming soon is a bonus; the home page must render even if it fails.
             List<UpcomingDto> upcoming = [];
             var downloading = 0;
-            try
+            // Switched off in Settings: don't ask Sonarr and Radarr at all.
+            if (LayoutEndpoints.IsOn(options.Layout.Home, "upcoming"))
             {
-                upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
-                downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, db, null, ct)).Count;
+                try
+                {
+                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
+                    downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, db, null, ct)).Count;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogUpcomingFailed(services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Home"), ex);
+                }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                LogUpcomingFailed(services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Home"), ex);
-            }
-            return new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList(), upcoming, downloading, resume);
+
+            // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
+            rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
+            var shown = rows.Where(r => r.Items.Count > 0 || (r.Id == "upcoming" && upcoming.Count > 0));
+            return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, options.Layout.Home), upcoming, downloading, resume);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
             await ContinueWatchingAsync(db, playback, profile.Id, Math.Clamp(take ?? 20, 1, 50), ct)).WithTags("Discovery");
 
         // A library's own home page: what you're watching in it, what's new, the best of it, and its main genres.
-        api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PlaybackService playback, CancellationToken ct) =>
+        api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PlaybackService playback,
+            Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, CancellationToken ct) =>
         {
             if (await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct) is not { } library)
             {
@@ -170,7 +179,8 @@ public static partial class DiscoveryEndpoints
             var ids = rotation.Select(r => r.Id).ToList();
             var overviews = await db.MediaItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
 
-            return Results.Ok(new HomeDto(rotation, overviews, rows.Where(r => r.Items.Count > 0).ToList(), [], 0, resume));
+            var layout = movies ? options.CurrentValue.Layout.Movies : options.CurrentValue.Layout.Shows;
+            return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume));
         }).WithTags("Discovery");
 
         api.MapGet("/items/{id:guid}/similar", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

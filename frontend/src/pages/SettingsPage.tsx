@@ -16,6 +16,10 @@ import {
   linkTailscale,
   setTailscaleAccess,
   getAllLibraries,
+  getLayout,
+  saveLayout,
+  type Layout,
+  type RowChoice,
   importPlexAvatars,
   removeProfileImage,
   uploadProfileImage,
@@ -42,6 +46,7 @@ import { FolderPicker } from '../components/FolderPicker'
 import { Avatar } from '../components/ProfilePicker'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
+import { ChevronDown, ChevronUp } from '../components/icons'
 import { useApi } from '../hooks/useApi'
 import { episodeCode, formatClock, formatSize, libraryTypeLabel, relativeTime } from '../lib/format'
 
@@ -49,6 +54,7 @@ const sections = [
   { id: 'libraries', label: 'Libraries' },
   { id: 'profiles', label: 'Profiles' },
   { id: 'playback', label: 'Playback' },
+  { id: 'layout', label: 'Home and Browse' },
   { id: 'connections', label: 'Connections' },
   { id: 'remote', label: 'Remote access' },
   { id: 'activity', label: 'Activity' },
@@ -76,6 +82,7 @@ export function SettingsPage() {
         {section === 'libraries' && <LibrariesSection />}
         {section === 'profiles' && <ProfilesSection />}
         {section === 'playback' && <PlaybackSection />}
+        {section === 'layout' && <LayoutSection />}
         {section === 'connections' && <ConnectionsSection />}
         {section === 'remote' && <RemoteAccessSection />}
         {section === 'activity' && <ActivitySection />}
@@ -1111,6 +1118,85 @@ function ProfileForm({ profile, libraries, onDone, onCancel }: { profile?: Profi
         </button>
       </div>
     </form>
+  )
+}
+
+// ---------------------------------------------------------------- Home and Browse
+
+function LayoutSection() {
+  const { data, error } = useApi(getLayout, [])
+  const [draft, setDraft] = useState<Layout>()
+  const [saved, setSaved] = useState(false)
+  const layout = draft ?? data
+
+  if (error) return <p className="error">{error.message}</p>
+  if (!layout) return <p className="muted">Loading…</p>
+
+  const change = (key: keyof Layout, rows: RowChoice[]) => {
+    setDraft({ ...layout, [key]: rows })
+    setSaved(false)
+  }
+
+  return (
+    <section>
+      <header className="settings-header">
+        <h2>Home and Browse</h2>
+      </header>
+      <p className="settings-lede">Choose which rows appear on Home and on each library’s Browse view, and in what order. This applies to every profile.</p>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault()
+          await saveLayout(layout)
+          setSaved(true)
+        }}
+      >
+        <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)} />
+        <RowList title="Film libraries (Browse)" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
+        <RowList title="TV libraries (Browse)" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
+        <div className="form-actions">
+          {saved && (
+            <span className="muted" role="status">
+              Saved. Home and Browse show the new layout next time they load.
+            </span>
+          )}
+          <button type="submit" className="button" disabled={!draft}>
+            Save layout
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; onChange: (rows: RowChoice[]) => void }) {
+  const move = (from: number, to: number) => {
+    const next = [...rows]
+    const [row] = next.splice(from, 1)
+    next.splice(to, 0, row)
+    onChange(next)
+  }
+  return (
+    <fieldset className="panel row-list">
+      <legend className="settings-subhead">{title}</legend>
+      <ol>
+        {rows.map((row, i) => (
+          <li key={row.id}>
+            <label className="checkbox">
+              <input type="checkbox" checked={row.enabled} onChange={(e) => onChange(rows.map((r) => (r.id === row.id ? { ...r, enabled: e.target.checked } : r)))} />{' '}
+              <span className={row.enabled ? undefined : 'muted'}>{row.label}</span>
+            </label>
+            <span className="row-list-move">
+              <button type="button" className="icon-button" aria-label={`Move ${row.label} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+                <ChevronUp />
+              </button>
+              <button type="button" className="icon-button" aria-label={`Move ${row.label} down`} disabled={i === rows.length - 1} onClick={() => move(i, i + 1)}>
+                <ChevronDown />
+              </button>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </fieldset>
   )
 }
 

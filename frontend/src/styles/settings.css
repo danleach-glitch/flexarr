@@ -466,3 +466,43 @@
 .connections-add {
   margin: 16px 0 40px;
 }
+
+.row-list {
+  margin: 0 0 20px;
+}
+
+.row-list legend {
+  padding: 0 6px;
+}
+
+.row-list ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
+}
+
+.row-list li:last-child {
+  border-bottom: 0;
+}
+
+.row-list .checkbox {
+  margin-top: 0;
+}
+
+.row-list-move {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.row-list-move .icon-button:disabled {
+  opacity: 0.3;
+}

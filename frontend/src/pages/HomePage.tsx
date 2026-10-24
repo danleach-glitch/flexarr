@@ -32,13 +32,19 @@ export function HomePage() {
     <>
       <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />
       <div className="rows">
-        <HomeRows rows={data.rows} />
-        {data.upcoming.length > 0 && (
-          <Row title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
-            {data.upcoming.map((item) => (
-              <UpcomingCard key={item.id} item={item} />
-            ))}
-          </Row>
+        {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
+        {data.rows.map((row) =>
+          row.style === 'upcoming' ? (
+            data.upcoming.length > 0 && (
+              <Row key={row.id} title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
+                {data.upcoming.map((item) => (
+                  <UpcomingCard key={item.id} item={item} />
+                ))}
+              </Row>
+            )
+          ) : (
+            <HomeRows key={row.id} rows={[row]} />
+          ),
         )}
       </div>
     </>

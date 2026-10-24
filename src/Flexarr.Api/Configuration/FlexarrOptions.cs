@@ -42,6 +42,23 @@ public sealed class FlexarrOptions
 
     /// <summary>Rewrites paths received from *arr apps (typically running in Docker) to local paths.</summary>
     public List<PathMapping> PathMappings { get; set; } = [];
+
+    public LayoutOptions Layout { get; set; } = new();
+}
+
+/// <summary>Which rows Home and each library's Browse view show, in order. Rows not listed keep their built-in place.</summary>
+public sealed class LayoutOptions
+{
+    public List<RowSetting> Home { get; set; } = [];
+    public List<RowSetting> Movies { get; set; } = [];
+    public List<RowSetting> Shows { get; set; } = [];
+}
+
+/// <param name="Id">A row's id ("continue", "top-movies", "recent-{libraryId}", "genres" for all genre rows…).</param>
+public sealed class RowSetting
+{
+    public string Id { get; set; } = "";
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class TranscodingOptions

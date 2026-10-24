@@ -147,6 +147,25 @@ export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
   apiGet<{ name: string; count: number }[]>(`/libraries/${id}/genres`, signal)
 
 export const getHome = (signal?: AbortSignal) => apiGet<Home>('/home', signal)
+
+export interface RowChoice {
+  id: string
+  label: string
+  enabled: boolean
+}
+
+/** Which rows Home and each kind of library's Browse view show, in order. */
+export interface Layout {
+  home: RowChoice[]
+  movies: RowChoice[]
+  shows: RowChoice[]
+}
+
+export const getLayout = (signal?: AbortSignal) => apiGet<Layout>('/settings/layout', signal)
+export const saveLayout = (layout: Layout) => {
+  const strip = (rows: RowChoice[]) => rows.map(({ id, enabled }) => ({ id, enabled }))
+  return request<void>('PUT', '/settings/layout', { home: strip(layout.home), movies: strip(layout.movies), shows: strip(layout.shows) })
+}
 /** A library's own home page: hero and rows for just that library. */
 export const getLibraryBrowse = (id: string, signal?: AbortSignal) => apiGet<Home>(`/libraries/${id}/browse`, signal)
 export const getItem = (id: string, signal?: AbortSignal) => apiGet<ItemDetail>(`/items/${id}`, signal)

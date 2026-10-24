@@ -115,3 +115,13 @@ export const More = (p: IconProps) => (
     <circle cx="18.5" cy="12" r="2" />
   </svg>
 )
+export const ChevronUp = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="m6 15 6-6 6 6" />
+  </svg>
+)
+export const ChevronDown = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+)
