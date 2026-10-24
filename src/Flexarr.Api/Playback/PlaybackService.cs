@@ -204,6 +204,10 @@ public sealed class PlaybackService(
                 state = new PlaybackState { UserId = profile.Id, MediaItemId = id };
                 db.PlaybackStates.Add(state);
             }
+            else if (state.Watched == watched)
+            {
+                continue; // Already so: keep when it was watched, so history and "last watched" stay true.
+            }
 
             state.Watched = watched;
             state.PositionSeconds = 0;

@@ -462,3 +462,7 @@
   outline: 2px solid var(--ambient);
   outline-offset: 2px;
 }
+
+.connections-add {
+  margin: 16px 0 40px;
+}

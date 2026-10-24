@@ -42,14 +42,15 @@ public static partial class DiscoveryEndpoints
             }
 
             var libraries = await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct);
-            foreach (var library in libraries)
+            foreach (var library in libraries.Where(l => l.Type != LibraryType.Music))
             {
-                var recent = library.Type == LibraryType.Movies
-                    ? db.MediaItems.Where(i => i.LibraryId == library.Id && i.Kind == MediaKind.Movie).OrderByDescending(i => i.AddedAt)
-                    // A show's newest episodes bubble the show up, rather than listing every episode.
-                    : topLevel.Where(i => i.LibraryId == library.Id).OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
-                rows.Add(new HomeRowDto($"recent-{library.Id}", $"New in {library.Name}", "poster",
-                    await recent.Take(RowSize).Summaries(me).ToListAsync(ct), $"/library/{library.Id}?sort=added"));
+                var movies = library.Type == LibraryType.Movies;
+                // "in {library}" only when there's more than one library of the kind to tell apart.
+                var title = $"Latest unwatched {(movies ? "movies" : "shows")}"
+                    + (libraries.Count(l => l.Type == library.Type) > 1 ? $" in {library.Name}" : "");
+                rows.Add(new HomeRowDto($"recent-{library.Id}", title, "poster",
+                    await LatestUnwatched(topLevel.Where(i => i.LibraryId == library.Id), movies, me).Take(RowSize).Summaries(me).ToListAsync(ct),
+                    $"/library/{library.Id}?sort=added"));
             }
 
             rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
@@ -133,10 +134,8 @@ public static partial class DiscoveryEndpoints
             var continueWatching = (await ContinueWatchingAsync(db, playback, me, 60, ct)).Where(i => i.LibraryId == id).Take(RowSize).ToList();
             rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
 
-            var recent = movies
-                ? topLevel.OrderByDescending(i => i.AddedAt)
-                : topLevel.OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
-            rows.Add(new HomeRowDto("recent", movies ? "Recently added" : "New episodes", "poster", await recent.Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
+            rows.Add(new HomeRowDto("recent", movies ? "Latest unwatched movies" : "Latest unwatched shows", "poster",
+                await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
             rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
             rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",
                 await topLevel.Where(i => i.Year != null).OrderByDescending(i => i.Year).ThenByDescending(i => i.Popularity).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=year"));
@@ -328,6 +327,15 @@ public static partial class DiscoveryEndpoints
             ? ([lead, .. rotation.Where(r => r.Id != lead.Id).Take(4)], resume)
             : (rotation, null);
     }
+
+    /// <summary>
+    /// Newest first, leaving out what you've seen: films you've watched, and shows with no unwatched episodes. A show's
+    /// newest episode bubbles it up, rather than listing every episode.
+    /// </summary>
+    private static IOrderedQueryable<MediaItem> LatestUnwatched(IQueryable<MediaItem> topLevel, bool movies, string profileId) => movies
+        ? topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).OrderByDescending(i => i.AddedAt)
+        : topLevel.Where(i => i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)))
+            .OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
 
     private static IOrderedQueryable<MediaItem> TopRated(IQueryable<MediaItem> query) =>
         query.Where(i => i.CommunityRating != null)

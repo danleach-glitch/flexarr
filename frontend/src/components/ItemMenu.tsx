@@ -25,7 +25,7 @@ export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Se
 
 type Action = { label: string; run: () => void | Promise<void> } | 'divider'
 
-/** Everything you can do with a title from its card: play it, open it or what it belongs to, mark it watched. */
+/** Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) */
 export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoint; onClose: () => void }) {
   const navigate = useNavigate()
   const play = usePlay()
@@ -70,30 +70,21 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
     case 'Movie':
       actions.push({ label: resumable ? 'Resume' : 'Play', run: go(`/play/${item.id}`) })
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
-      actions.push({ label: 'Film details', run: go(`/item/${item.id}`) }, 'divider')
+      actions.push('divider')
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item.id, !item.userData.watched) })
       break
     case 'Episode':
       actions.push({ label: `${resumable ? 'Resume' : 'Play'} ${episodeCode(item)}`, run: go(`/play/${item.id}`) })
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
-      actions.push({ label: 'Episode details', run: go(`/item/${item.id}`) })
-      if (showId) {
-        actions.push({ label: `Go to season ${item.seasonNumber}`, run: go(`/item/${showId}?season=${item.seasonNumber}`) })
-        actions.push({ label: `Go to ${show}`, run: go(`/item/${showId}`) })
-      }
       actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item.id, !item.userData.watched) })
       if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark(showId, true) })
       break
     case 'Season':
       actions.push({ label: 'Play', run: () => (showId ? play({ ...item, id: showId, kind: 'Series' }) : navigate(`/item/${item.id}`)) })
-      if (showId) {
-        actions.push({ label: `Go to ${item.title.toLowerCase()}`, run: go(`/item/${showId}?season=${item.seasonNumber}`) })
-        actions.push({ label: `Go to ${show}`, run: go(`/item/${showId}`) })
-      }
       actions.push('divider', { label: item.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched', run: mark(item.id, !item.userData.watched) })
       break
     case 'Series':
-      actions.push({ label: 'Play next episode', run: () => play(item) }, { label: 'Show details', run: go(`/item/${item.id}`) }, 'divider')
+      actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
       actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item.id, !item.userData.watched) })
       break
   }

@@ -46,12 +46,12 @@ export function episodeCode(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNum
   return item.episodeNumberEnd ? `${code}–E${pad(item.episodeNumberEnd)}` : code
 }
 
-/** "Season 2, episode 5" for headings and screen readers. */
-export function episodeLabel(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'>): string {
+/** "Season 01 | Episode 10" for buttons and headings on a show's pages (dated shows give the date). */
+export function episodeHeading(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'>): string {
   if (item.airDate) return new Date(item.airDate).toLocaleDateString(undefined, { dateStyle: 'long' })
-  const season = item.seasonNumber === 0 ? 'Special' : `Season ${item.seasonNumber}`
-  const episodes = item.episodeNumberEnd ? `episodes ${item.episodeNumber}–${item.episodeNumberEnd}` : `episode ${item.episodeNumber}`
-  return `${season}, ${episodes}`
+  const season = item.seasonNumber === 0 ? 'Specials' : `Season ${pad(item.seasonNumber ?? 0)}`
+  const episode = item.episodeNumberEnd ? `Episodes ${pad(item.episodeNumber ?? 0)}–${pad(item.episodeNumberEnd)}` : `Episode ${pad(item.episodeNumber ?? 0)}`
+  return `${season} | ${episode}`
 }
 
 export const rangeLabel: Record<VideoRange, string | null> = {

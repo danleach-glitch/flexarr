@@ -15,6 +15,9 @@ export function TrailerDialog({ videoId, title, onClose }: { videoId: string; ti
           src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
           title={`${title} trailer`}
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          // YouTube refuses embeds that don't say which site they're on (error 153). The app otherwise sends no
+          // referrer off-site, so this iframe alone sends Flexarr's origin, never a page path.
+          referrerPolicy="strict-origin-when-cross-origin"
           allowFullScreen
         />
         <button className="button quiet small trailer-close" onClick={onClose} autoFocus>

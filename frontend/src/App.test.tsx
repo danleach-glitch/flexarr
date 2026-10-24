@@ -74,7 +74,10 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S01E05' }))
     const menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: 'Resume S01E05' })).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: 'Go to Severance' })).toBeInTheDocument()
+    // The card's text links to the show, the season and the episode.
+    expect(screen.getByRole('link', { name: 'Severance' })).toHaveAttribute('href', '/item/s1')
+    expect(screen.getByRole('link', { name: 'S01E05' })).toHaveAttribute('href', '/item/s1?season=1')
+    expect(screen.getByRole('link', { name: 'Pilot' })).toHaveAttribute('href', '/item/e5')
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' }))
 
     await vi.waitFor(() => expect(screen.queryByRole('heading', { name: 'Continue watching' })).not.toBeInTheDocument())
@@ -163,7 +166,7 @@ describe('Series page', () => {
     expect(await screen.findByRole('tab', { name: 'Season 1' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
     expect(screen.getByText('Liz meets Jack.')).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /Play S01E01/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Play Season 01 \| Episode 01/ })).toBeInTheDocument()
   })
 })
 

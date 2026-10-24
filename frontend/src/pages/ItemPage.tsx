@@ -21,8 +21,7 @@ import { TrailerDialog } from '../components/TrailerDialog'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import {
-  episodeCode,
-  episodeLabel,
+  episodeHeading,
   formatBitrate,
   formatChannels,
   formatClock,
@@ -76,9 +75,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const playLabel = (() => {
     if (item.kind === 'Series') {
       if (!nextUp.data) return 'Play'
-      if (item.userData.watched) return `Watch again from ${episodeCode(nextUp.data)}`
+      if (item.userData.watched) return `Watch again from ${episodeHeading(nextUp.data)}`
       const resume = nextUp.data.userData.positionSeconds > 0
-      return `${resume ? 'Resume' : 'Play'} ${episodeCode(nextUp.data)}`
+      return `${resume ? 'Resume' : 'Play'} ${episodeHeading(nextUp.data)}`
     }
     return progress ? `Resume from ${formatClock(item.userData.positionSeconds)}` : 'Play'
   })()
@@ -93,7 +92,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           {item.kind === 'Episode' && series && (
             <p className="detail-kicker">
               <Link to={`/item/${series.id}?season=${item.seasonNumber}`}>{series.title}</Link>
-              <span className="muted">{episodeLabel(item)}</span>
+              <span className="muted">{episodeHeading(item)}</span>
             </p>
           )}
           {logo && item.kind !== 'Episode' ? (

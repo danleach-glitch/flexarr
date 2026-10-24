@@ -49,34 +49,42 @@ function subtitle(item: ItemSummary): string | null {
 }
 
 /**
- * A card that opens its title, with a menu of everything else you can do with it (play, go to the show or season,
- * mark watched): the ⋯ button, or a right-click anywhere on the card.
+ * A card: its artwork opens (or plays) the title, the text beneath links to each part of it, like Plex (an episode's
+ * show, season and own page), and the ⋯ button or a right-click offers play and watched actions.
  */
-function CardShell({ item, to, className, children }: { item: ItemSummary; to: string; className: string; children: ReactNode }) {
+/**
+ * `playLabel` is for artwork that plays rather than opens; when the artwork opens the same page as the title link,
+ * it's left out of the tab order and hidden from screen readers so each card has one link to its page.
+ */
+function CardShell({ item, to, className, art, playLabel, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; children?: ReactNode }) {
   const [menuAt, setMenuAt] = useState<MenuPoint | null>(null)
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
   const menu = hasMenu(item)
   return (
-    <div className="card-shell" style={style}>
+    <div
+      className={`card card-shell ${className}`}
+      style={style}
+      onContextMenu={
+        menu
+          ? (e) => {
+              e.preventDefault()
+              setMenuAt({ x: e.clientX, y: e.clientY })
+            }
+          : undefined
+      }
+    >
       <Link
         to={to}
-        className={`card ${className}`}
-        style={style}
-        onContextMenu={
-          menu
-            ? (e) => {
-                e.preventDefault()
-                setMenuAt({ x: e.clientX, y: e.clientY })
-              }
-            : undefined
-        }
+        className="card-art"
+        {...(playLabel ? { 'aria-label': playLabel } : children ? { 'aria-hidden': true, tabIndex: -1 } : { 'aria-label': cardLabel(item) })}
       >
-        {children}
+        {art}
       </Link>
+      {children}
       {menu && (
         <button
           className="card-menu-button"
-          aria-label={`More for ${item.seriesTitle && item.kind === 'Episode' ? `${item.seriesTitle} ${episodeCode(item)}` : item.title}`}
+          aria-label={`More for ${cardLabel(item)}`}
           aria-haspopup="menu"
           aria-expanded={menuAt !== null}
           onClick={(e) => {
@@ -92,41 +100,76 @@ function CardShell({ item, to, className, children }: { item: ItemSummary; to: s
   )
 }
 
+const cardLabel = (item: ItemSummary) => (item.kind === 'Episode' && item.seriesTitle ? `${item.seriesTitle} ${episodeCode(item)}` : item.title)
+
+/** An episode's show, then its season-and-number and title, each linking where you'd expect. */
+function EpisodeText({ item }: { item: ItemSummary }) {
+  const show = item.seriesId
+  return (
+    <>
+      <span className="card-title">{show ? <Link to={`/item/${show}`}>{item.seriesTitle ?? item.title}</Link> : (item.seriesTitle ?? item.title)}</span>
+      <span className="card-subtitle">
+        {show ? <Link to={`/item/${show}?season=${item.seasonNumber}`}>{episodeCode(item)}</Link> : episodeCode(item)}{' '}
+        <Link to={`/item/${item.id}`}>{item.title}</Link>
+      </span>
+    </>
+  )
+}
+
 export function PosterCard({ item }: { item: ItemSummary }) {
   return (
-    <CardShell item={item} to={itemLink(item)} className="poster-card">
-      <div className="card-frame">
-        <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape={item.kind === 'Artist' || item.kind === 'Album' ? 'square' : 'poster'} />
-        <WatchState item={item} />
-        <Progress item={item} />
-      </div>
-      <span className="card-title">{item.title}</span>
-      <span className="card-subtitle">{subtitle(item)}</span>
+    <CardShell
+      item={item}
+      to={itemLink(item)}
+      className="poster-card"
+      art={
+        <div className="card-frame">
+          <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape={item.kind === 'Artist' || item.kind === 'Album' ? 'square' : 'poster'} />
+          <WatchState item={item} />
+          <Progress item={item} />
+        </div>
+      }
+    >
+      {item.kind === 'Episode' ? (
+        <EpisodeText item={item} />
+      ) : (
+        <>
+          <span className="card-title">
+            <Link to={itemLink(item)}>{item.title}</Link>
+          </span>
+          <span className="card-subtitle">
+            {item.kind === 'Season' && item.seriesId ? <Link to={`/item/${item.seriesId}`}>{item.seriesTitle}</Link> : subtitle(item)}
+          </span>
+        </>
+      )}
     </CardShell>
   )
 }
 
 /** 16:9 card for episodes and Continue Watching: the still (or backdrop) with the show's name beneath. */
 export function WideCard({ item, showSeries = true }: { item: ItemSummary; showSeries?: boolean }) {
-  const series = item.seriesTitle
   const image = item.artwork.thumb ?? item.artwork.backdrop
   const isEpisode = item.kind === 'Episode'
   return (
-    <CardShell item={item} to={isEpisode || item.kind === 'Movie' ? `/play/${item.id}` : itemLink(item)} className="wide-card">
-      <div className="card-frame">
-        <Artwork src={image} title={item.title} width={500} shape="wide" accent={item.accentColor} />
-        <Progress item={item} />
-      </div>
+    <CardShell
+      item={item}
+      to={isEpisode || item.kind === 'Movie' ? `/play/${item.id}` : itemLink(item)}
+      playLabel={isEpisode || item.kind === 'Movie' ? `${progressOf(item) !== null ? 'Resume' : 'Play'} ${cardLabel(item)}` : undefined}
+      className="wide-card"
+      art={
+        <div className="card-frame">
+          <Artwork src={image} title={item.title} width={500} shape="wide" accent={item.accentColor} />
+          <Progress item={item} />
+        </div>
+      }
+    >
       {isEpisode && showSeries ? (
-        <>
-          <span className="card-title">{series ?? item.title}</span>
-          <span className="card-subtitle">
-            {episodeCode(item)} {item.title}
-          </span>
-        </>
+        <EpisodeText item={item} />
       ) : (
         <>
-          <span className="card-title">{item.title}</span>
+          <span className="card-title">
+            <Link to={`/item/${item.id}`}>{item.title}</Link>
+          </span>
           <span className="card-subtitle">{isEpisode ? episodeCode(item) : year(item)}</span>
         </>
       )}
@@ -137,16 +180,23 @@ export function WideCard({ item, showSeries = true }: { item: ItemSummary; showS
 /** A ranked poster: the numeral is real information here, so it's set big in the marquee face. */
 export function Top10Card({ item, rank }: { item: ItemSummary; rank: number }) {
   return (
-    <CardShell item={item} to={itemLink(item)} className="top10-card">
-      <span className="top10-rank" aria-hidden="true">
-        {rank}
-      </span>
-      <div className="card-frame">
-        <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} />
-      </div>
-      <span className="visually-hidden">
-        Number {rank}: {item.title}
-      </span>
-    </CardShell>
+    <CardShell
+      item={item}
+      to={itemLink(item)}
+      className="top10-card"
+      art={
+        <>
+          <span className="top10-rank" aria-hidden="true">
+            {rank}
+          </span>
+          <div className="card-frame">
+            <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} />
+          </div>
+          <span className="visually-hidden">
+            Number {rank}: {item.title}
+          </span>
+        </>
+      }
+    />
   )
 }

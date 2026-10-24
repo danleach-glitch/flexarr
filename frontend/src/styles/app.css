@@ -235,11 +235,39 @@ kbd {
 
 /* Focus and hover glow in the title's own colour. */
 .card:hover .card-frame,
-.card:focus-visible .card-frame {
+.card:focus-visible .card-frame,
+.card-art:focus-visible .card-frame {
   transform: translateY(-3px);
   box-shadow:
     0 0 0 2px var(--ambient),
     0 12px 36px -8px color-mix(in srgb, var(--ambient) 55%, transparent);
+}
+
+.card-art {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-art);
+}
+
+.card-art:focus-visible {
+  outline: none;
+}
+
+/* The text under a card is links to its parts (show, season, episode); they look like text until pointed at. */
+.card-title a,
+.card-subtitle a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-title a:hover,
+.card-subtitle a:hover,
+.card-title a:focus-visible,
+.card-subtitle a:focus-visible {
+  color: var(--screen);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .card-title {
@@ -465,7 +493,8 @@ kbd {
 }
 
 /* Giant outlined marquee numerals tucked behind the poster. */
-.top10-card {
+.top10-card .card-art {
+  display: flex;
   flex-direction: row;
   align-items: flex-end;
 }
@@ -490,7 +519,7 @@ kbd {
 }
 
 .top10-card:hover .top10-rank,
-.top10-card:focus-visible .top10-rank {
+.top10-card .card-art:focus-visible .top10-rank {
   -webkit-text-stroke-color: var(--ambient);
 }
 
@@ -1626,7 +1655,7 @@ a.download-attention {
 }
 
 /* Top 10's poster sits right of its numeral. */
-.card-shell:has(.top10-card) .card-menu-button {
+.top10-card .card-menu-button {
   left: auto;
   right: 8px;
 }

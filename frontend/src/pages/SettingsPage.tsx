@@ -7,6 +7,7 @@ import {
   getActivity,
   getApiKey,
   getArrStatus,
+  getRequestStatus,
   getLibraryHealth,
   createProfile,
   deleteProfile,
@@ -48,7 +49,7 @@ const sections = [
   { id: 'libraries', label: 'Libraries' },
   { id: 'profiles', label: 'Profiles' },
   { id: 'playback', label: 'Playback' },
-  { id: 'connections', label: 'Sonarr and Radarr' },
+  { id: 'connections', label: 'Connections' },
   { id: 'remote', label: 'Remote access' },
   { id: 'activity', label: 'Activity' },
   { id: 'health', label: 'Library health' },
@@ -364,6 +365,7 @@ interface DraftConnection {
 function ConnectionsSection() {
   const { settings, save, saved, saveError } = useSettings()
   const status = useApi(getArrStatus, [settings])
+  const seerrStatus = useApi(getRequestStatus, [settings])
   const [connections, setConnections] = useState<DraftConnection[]>([])
   const [mappings, setMappings] = useState<Settings['pathMappings']>([])
   const [seerr, setSeerr] = useState({ baseUrl: '', apiKey: '', hasApiKey: false })
@@ -383,10 +385,11 @@ function ConnectionsSection() {
   return (
     <section>
       <header className="settings-header">
-        <h2>Sonarr and Radarr</h2>
+        <h2>Connections</h2>
       </header>
       <p className="settings-lede">
-        Flexarr reads artwork, descriptions, cast and trailers from your Sonarr and Radarr, so no other accounts or API keys are needed.
+        Flexarr reads artwork, descriptions, cast and trailers from your Sonarr and Radarr, so no other accounts or API keys are needed. Seerr adds
+        Discover and requests.
       </p>
       <form
         onSubmit={(e) => {
@@ -457,19 +460,34 @@ function ConnectionsSection() {
             </div>
           )
         })}
-        <button
-          type="button"
-          className="button quiet small"
-          onClick={() => setConnections((c) => [...c, { name: 'Sonarr', kind: 'Sonarr', baseUrl: 'http://localhost:8989', apiKey: '', hasApiKey: false }])}
-        >
-          Add a connection
-        </button>
+        <div className="connections-add">
+          <button
+            type="button"
+            className="button quiet small"
+            onClick={() => setConnections((c) => [...c, { name: 'Sonarr', kind: 'Sonarr', baseUrl: 'http://localhost:8989', apiKey: '', hasApiKey: false }])}
+          >
+            Add a connection
+          </button>
+        </div>
 
         <h3 className="settings-subhead">Requests</h3>
         <p className="settings-lede">
           Connect Seerr (or Overseerr or Jellyseerr) to see what's trending that you don't have yet, and request it in one click. Requests follow your Seerr rules.
         </p>
-        <div className="panel">
+        <div className="panel connection">
+          <div className="connection-status">
+            <span className={seerrStatus.data?.reachable ? 'status-dot ok' : seerrStatus.data?.configured ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
+            <strong>Seerr</strong>
+            <span className="muted">
+              {seerrStatus.loading
+                ? 'Checking…'
+                : !seerrStatus.data?.configured
+                  ? 'Not set up'
+                  : seerrStatus.data.reachable
+                    ? 'Connected'
+                    : 'Flexarr can’t reach Seerr at this address, or the API key isn’t right'}
+            </span>
+          </div>
           <div className="field-row">
             <label className="grow">
               Seerr address
