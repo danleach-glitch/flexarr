@@ -52,9 +52,9 @@ public static class UpcomingEndpoints
     /// <param name="host">The host the browser reached Flexarr on, for links into *arr apps configured as localhost.</param>
     public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, FlexarrDbContext db, string? host, CancellationToken ct)
     {
-        // From this week's Monday, so a calendar's first week is complete.
+        // From yesterday (a day's slack either side of UTC for the viewer's own "yesterday").
         var today = DateTime.UtcNow.Date;
-        var start = today.AddDays(-(((int)today.DayOfWeek + 6) % 7) - 1);
+        var start = today.AddDays(-2);
         var end = today.AddDays(days);
         var queue = await QueueAsync(options, arr, ct);
         var series = await SeriesIndexAsync(db, ct);

@@ -333,10 +333,20 @@ kbd {
   font-weight: 800;
 }
 
+/* Watched reads at a glance on any poster: a dark tick on a solid light disc, outlined for pale artwork. */
+.watched-mark {
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--screen);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.4);
+}
+
 .watched-mark svg {
-  width: 15px;
-  height: 15px;
-  color: var(--ambient);
+  width: 17px;
+  height: 17px;
+  color: var(--room);
+  stroke-width: 3;
 }
 
 /* ---------- Rows ---------- */
@@ -401,6 +411,9 @@ kbd {
   grid-auto-flow: column;
   gap: 18px;
   overflow-x: auto;
+  /* Rows only ever scroll sideways. Anything taller than the track (Top 10's numerals) must not make it a vertical
+     scroller, or the mouse wheel nudges the row instead of scrolling the page. */
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
   scroll-padding: 0 var(--edge);
@@ -1421,8 +1434,8 @@ a.upcoming-row:hover strong {
   border-top: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
 }
 
-/* Weeks start on Monday: a heavier rule marks each new week. */
-.day-row:nth-child(7n + 1) {
+/* A heavier rule marks each new week (Monday). */
+.day-row[data-week-start] {
   border-top: 2px solid var(--aisle);
 }
 
@@ -1474,6 +1487,7 @@ a.upcoming-row:hover strong {
   grid-auto-columns: 250px;
   gap: 10px;
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
   padding: 2px;

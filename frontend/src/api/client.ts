@@ -255,6 +255,39 @@ export const getExternalDiscover = (signal?: AbortSignal) =>
   apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
+/** A film or show you don't have, with what Seerr knows about it. */
+export interface ExternalDetail {
+  tmdbId: number
+  mediaType: 'movie' | 'tv'
+  title: string
+  tagline: string | null
+  year: number | null
+  overview: string | null
+  poster: string | null
+  backdrop: string | null
+  genres: string[]
+  runtimeMinutes: number | null
+  seasons: number | null
+  certification: string | null
+  status: string | null
+  tmdbRating: number | null
+  /** Rotten Tomatoes, percent. */
+  criticScore: number | null
+  audienceScore: number | null
+  imdbRating: number | null
+  trailerYouTubeId: string | null
+  cast: { name: string; character: string | null; image: string | null }[]
+  /** Directors (films) or creators (shows). */
+  madeBy: string[]
+  studio: string | null
+  availability: ExternalTitle['availability']
+  libraryItemId: string | null
+  recommendations: ExternalTitle[]
+}
+
+export const getExternalTitle = (mediaType: string, tmdbId: string, signal?: AbortSignal) =>
+  apiGet<ExternalDetail>(`/requests/title/${mediaType}/${tmdbId}`, signal)
+
 export interface Profile {
   id: string
   name: string

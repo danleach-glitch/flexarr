@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
@@ -34,6 +35,37 @@ public sealed record ExternalTitleDto(
 public sealed record ExternalRowDto(string Id, string Title, IReadOnlyList<ExternalTitleDto> Items);
 
 public sealed record TitleRequest(string MediaType, int TmdbId);
+
+public sealed record ExternalPersonDto(string Name, string? Character, string? Image);
+
+/// <summary>Everything worth knowing about a film or show you don't have, from Seerr (which gets it from TMDB).</summary>
+/// <param name="CriticScore">Rotten Tomatoes critics, percent.</param>
+/// <param name="AudienceScore">Rotten Tomatoes audience, percent.</param>
+public sealed record ExternalDetailDto(
+    int TmdbId,
+    string MediaType,
+    string Title,
+    string? Tagline,
+    int? Year,
+    string? Overview,
+    string? Poster,
+    string? Backdrop,
+    IReadOnlyList<string> Genres,
+    int? RuntimeMinutes,
+    int? Seasons,
+    string? Certification,
+    string? Status,
+    double? TmdbRating,
+    int? CriticScore,
+    int? AudienceScore,
+    double? ImdbRating,
+    string? TrailerYouTubeId,
+    IReadOnlyList<ExternalPersonDto> Cast,
+    IReadOnlyList<string> MadeBy,
+    string? Studio,
+    AvailabilityDto Availability,
+    Guid? LibraryItemId,
+    IReadOnlyList<ExternalTitleDto> Recommendations);
 
 public static class RequestEndpoints
 {
@@ -83,6 +115,38 @@ public static class RequestEndpoints
             return Results.Ok(rows);
         });
 
+        group.MapGet("/title/{mediaType}/{tmdbId:int}", async (string mediaType, int tmdbId, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (options.CurrentValue.Seerr?.Instance is not { } instance || mediaType is not ("movie" or "tv"))
+            {
+                return Results.NotFound();
+            }
+
+            var library = await LibraryIndexAsync(db, ct);
+            var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
+            library.TryGetValue($"{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}", out var itemId);
+            if (itemId == Guid.Empty && hidden.Hides(KindOf(mediaType)))
+            {
+                return Results.NotFound();
+            }
+
+            try
+            {
+                if (await seerr.GetAsync(instance, $"{mediaType}/{tmdbId}", ct) is not { } title)
+                {
+                    return Results.NotFound();
+                }
+
+                var ratings = await SafeGetAsync(seerr, instance, mediaType == "movie" ? $"movie/{tmdbId}/ratingscombined" : $"tv/{tmdbId}/ratings", ct);
+                var recommendations = await SafeGetAsync(seerr, instance, $"{mediaType}/{tmdbId}/recommendations", ct);
+                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden));
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Problem($"Seerr didn't answer ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+            }
+        });
+
         group.MapPost("/", async (TitleRequest request, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
         {
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
@@ -113,6 +177,85 @@ public static class RequestEndpoints
 
         return api;
     }
+
+    private static async Task<JsonElement?> SafeGetAsync(SeerrClient seerr, SeerrInstance instance, string path, CancellationToken ct)
+    {
+        try
+        {
+            return await seerr.GetAsync(instance, path, ct);
+        }
+        catch (HttpRequestException)
+        {
+            return null; // Ratings and recommendations are extras.
+        }
+    }
+
+    private static ExternalDetailDto Detail(string mediaType, JsonElement t, JsonElement? ratings, JsonElement? recommendations, Dictionary<string, Guid> library,
+        IReadOnlySet<Core.Libraries.LibraryType> hidden)
+    {
+        var movie = mediaType == "movie";
+        var summary = ToDto(t.Deserialize<SeerrResult>(Web)! with { MediaType = mediaType }, library);
+        IEnumerable<JsonElement> Array(JsonElement e, params string[] path)
+        {
+            foreach (var name in path)
+            {
+                if (e.ValueKind != JsonValueKind.Object || !e.TryGetProperty(name, out e))
+                {
+                    return [];
+                }
+            }
+
+            return e.ValueKind == JsonValueKind.Array ? e.EnumerateArray() : [];
+        }
+
+        // A US certificate, else British; Seerr lists every country's.
+        string? certification = movie
+            ? CertificateCountries.Select(country => Array(t, "releases", "results").Where(r => Str(r, "iso_3166_1") == country)
+                .SelectMany(r => Array(r, "release_dates")).Select(d => Str(d, "certification")).FirstOrDefault(c => !string.IsNullOrEmpty(c))).FirstOrDefault(c => c is not null)
+            : CertificateCountries.Select(country => Array(t, "contentRatings", "results").Where(r => Str(r, "iso_3166_1") == country).Select(r => Str(r, "rating")).FirstOrDefault())
+                .FirstOrDefault(c => !string.IsNullOrEmpty(c));
+
+        var videos = Array(t, "relatedVideos").Where(v => Str(v, "site") == "YouTube").ToList();
+        var trailer = videos.Where(v => Str(v, "type") == "Trailer").OrderByDescending(v => Str(v, "name")?.Contains("Official", StringComparison.OrdinalIgnoreCase) == true)
+            .Concat(videos.Where(v => Str(v, "type") == "Teaser")).Select(v => Str(v, "key")).FirstOrDefault();
+
+        var rt = ratings is { } r ? (movie ? (r.TryGetProperty("rt", out var x) ? x : default) : r) : default;
+        var imdb = ratings is { } r2 && movie && r2.TryGetProperty("imdb", out var i) ? Number(i, "criticsScore") : null;
+
+        var recs = recommendations is { } rec
+            ? Array(rec, "results").Select(e => e.Deserialize<SeerrResult>(Web)!).Where(e => e.MediaType is "movie" or "tv")
+                .Select(e => ToDto(e, library)).Where(e => e.LibraryItemId is not null || !hidden.Hides(KindOf(e.MediaType))).Take(20).ToList()
+            : [];
+
+        return new ExternalDetailDto(
+            summary.TmdbId, mediaType, summary.Title, NullIfEmpty(Str(t, "tagline")), summary.Year, summary.Overview, summary.Poster, summary.Backdrop,
+            Array(t, "genres").Select(g => Str(g, "name")).OfType<string>().ToList(),
+            movie ? (int?)Number(t, "runtime") : Array(t, "episodeRunTime").Select(e => (int?)e.GetDouble()).FirstOrDefault(),
+            movie ? null : (int?)Number(t, "numberOfSeasons"),
+            certification, Str(t, "status"),
+            Number(t, "voteAverage") is > 0 and var vote ? Math.Round(vote, 1) : null,
+            rt.ValueKind == JsonValueKind.Object ? (int?)Number(rt, "criticsScore") : null,
+            rt.ValueKind == JsonValueKind.Object ? (int?)Number(rt, "audienceScore") : null,
+            imdb,
+            trailer,
+            Array(t, "credits", "cast").OrderBy(c => Number(c, "order")).Take(20)
+                .Select(c => new ExternalPersonDto(Str(c, "name") ?? "", NullIfEmpty(Str(c, "character")), Tmdb(Str(c, "profilePath"), "w185"))).ToList(),
+            (movie ? Array(t, "credits", "crew").Where(c => Str(c, "job") == "Director") : Array(t, "createdBy")).Select(c => Str(c, "name")).OfType<string>().Distinct().ToList(),
+            (movie ? Array(t, "productionCompanies") : Array(t, "networks")).Select(c => Str(c, "name")).FirstOrDefault(),
+            summary.Availability, summary.LibraryItemId, recs);
+    }
+
+    private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
+
+    private static readonly string[] CertificateCountries = ["US", "GB"];
+
+    private static string? Str(JsonElement e, string name) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static double? Number(JsonElement e, string name) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
     private static MediaKind KindOf(string mediaType) => mediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
 

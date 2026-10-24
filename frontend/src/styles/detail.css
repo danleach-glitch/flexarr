@@ -596,3 +596,47 @@
     display: none;
   }
 }
+
+/* ---------- A title you don't have (from Discover) ---------- */
+
+.detail-tagline {
+  margin: 10px 0 0;
+  font-size: var(--step-1);
+  font-style: italic;
+  color: color-mix(in srgb, var(--screen) 80%, transparent);
+}
+
+.external-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 18px 0 0;
+}
+
+.external-ratings div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+
+.external-ratings dt {
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.external-ratings dd {
+  margin: 0;
+  font-family: var(--display);
+  font-size: var(--step-3);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.external-ratings dd .muted {
+  font-size: var(--step-0);
+}
+
+.detail-actions .external-state {
+  align-self: center;
+  font-weight: 700;
+}

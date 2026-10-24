@@ -50,6 +50,20 @@ public sealed class SeerrClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>Any read-only Seerr API path (e.g. "movie/603"), as JSON; null when Seerr has nothing there.</summary>
+    public async Task<JsonElement?> GetAsync(SeerrInstance seerr, string path, CancellationToken ct)
+    {
+        using var request = Request(seerr, HttpMethod.Get, path);
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(Json, ct).ConfigureAwait(false);
+    }
+
     public async Task<bool> PingAsync(SeerrInstance seerr, CancellationToken ct)
     {
         using var request = Request(seerr, HttpMethod.Get, "settings/main");

@@ -12,7 +12,18 @@ set -euo pipefail
 
 host="${1:?usage: $0 <ssh-host>}"
 label="io.github.flexarr.server"
-repo="$(cd "$(dirname "$0")/.." && pwd)"
+# The repo's path with each folder's real capitalisation. macOS paths are case-insensitive, but Roslyn matches
+# .editorconfig sections case-sensitively: building from ~/projects when the folder is ~/Projects makes the
+# analyzer settings silently not apply, failing the Release build.
+repo="$(python3 - "$(cd "$(dirname "$0")/.." && pwd)" <<'PY'
+import os, sys
+path = "/"
+for part in os.path.abspath(sys.argv[1]).strip("/").split("/"):
+    names = os.listdir(path)
+    path = os.path.join(path, part if part in names else next((n for n in names if n.lower() == part.lower()), part))
+print(path)
+PY
+)"
 out="$repo/artifacts/deploy"
 
 case "$(ssh "$host" uname -m)" in
@@ -25,8 +36,9 @@ echo "==> Building web client"
 (cd "$repo/frontend" && npm ci --silent && npm run build --silent)
 
 echo "==> Publishing server ($rid)"
+# Fresh build processes: reused MSBuild/compiler nodes can carry another working directory's path casing.
 rm -rf "$out"
-dotnet publish "$repo/src/Flexarr.Api" -c Release -r "$rid" --no-self-contained -p:UseAppHost=false -o "$out" --nologo -v quiet
+dotnet publish "$repo/src/Flexarr.Api" --disable-build-servers -c Release -r "$rid" --no-self-contained -p:UseAppHost=false -o "$out" --nologo -v quiet
 cp -R "$repo/frontend/dist" "$out/wwwroot"
 
 echo "==> Installing on $host"

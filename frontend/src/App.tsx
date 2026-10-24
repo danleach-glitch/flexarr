@@ -6,6 +6,7 @@ import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
 import { DiscoverPage } from './pages/DiscoverPage'
+import { ExternalTitlePage } from './pages/ExternalTitlePage'
 import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -43,6 +44,7 @@ export function Shell() {
               <Route path="item/:id" element={<ItemPage />} />
               <Route path="person/:id" element={<PersonPage />} />
               <Route path="discover" element={<DiscoverPage />} />
+              <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
               <Route path="upcoming" element={<UpcomingPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/:section" element={<SettingsPage />} />

@@ -5,21 +5,14 @@ import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 
-const WEEKS = 5
-
-/** Monday at midnight, local time, of the week containing `date`. */
-function startOfWeek(date: Date) {
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  day.setDate(day.getDate() - ((day.getDay() + 6) % 7))
-  return day
-}
+/** Yesterday (for what just arrived) and four weeks ahead. */
+const DAYS = 30
 
 const dayKey = (d: Date) => d.toDateString()
 
 export function UpcomingPage() {
   const today = new Date()
-  const first = startOfWeek(today)
-  const calendarDays = Array.from({ length: WEEKS * 7 }, (_, i) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + i))
+  const calendarDays = Array.from({ length: DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1 + i))
   const daysAhead = Math.ceil((calendarDays[calendarDays.length - 1].getTime() - today.getTime()) / 86_400_000) + 1
   const upcoming = useApi((signal) => getUpcoming(daysAhead, signal), [daysAhead])
   const downloads = useApi(getDownloads, [])
@@ -60,7 +53,14 @@ export function UpcomingPage() {
             const items = byDay.get(key) ?? []
             const past = d < new Date(today.getFullYear(), today.getMonth(), today.getDate())
             return (
-              <li key={key} className="day-row" data-today={key === todayKey || undefined} data-past={past || undefined} data-empty={items.length === 0 || undefined}>
+              <li
+                key={key}
+                className="day-row"
+                data-today={key === todayKey || undefined}
+                data-past={past || undefined}
+                data-empty={items.length === 0 || undefined}
+                data-week-start={d.getDay() === 1 || undefined}
+              >
                 <h2 className="day-row-date">
                   <span className="day-row-weekday">{key === todayKey ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' })}</span>
                   <span className="day-row-day">{d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>

@@ -140,11 +140,15 @@ public static partial class DiscoveryEndpoints
             rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
             rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",
                 await topLevel.Where(i => i.Year != null).OrderByDescending(i => i.Year).ThenByDescending(i => i.Popularity).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=year"));
-            rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster", await TopRated(unwatched).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=rating"));
-            if (!movies)
+            if (movies)
             {
+                rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster", await TopRated(unwatched).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=rating"));
+            }
+            else
+            {
+                // Watched is recorded per episode, so a show counts as unwatched only if no episode has been started.
                 var started = db.PlaybackStates.Where(p => p.UserId == me && p.MediaItem!.Kind == MediaKind.Episode).Select(p => p.MediaItem!.Parent!.ParentId).Distinct();
-                rows.Add(new HomeRowDto("unstarted", "Shows you haven't started", "poster",
+                rows.Add(new HomeRowDto("gems", "Highly rated, not yet started", "poster",
                     await TopRated(topLevel.Where(s => !started.Contains(s.Id))).Take(RowSize).Summaries(me).ToListAsync(ct)));
             }
 

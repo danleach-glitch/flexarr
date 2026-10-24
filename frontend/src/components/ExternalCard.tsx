@@ -1,23 +1,9 @@
-import { useState } from 'react'
 import { Link } from 'react-router'
-import { ApiError, imageUrl, requestTitle, type ExternalTitle } from '../api/client'
+import { imageUrl, type ExternalTitle } from '../api/client'
+import { RequestButton } from './RequestButton'
 
-/** A title from outside the library: a poster with one action, request it or open it. */
+/** A title from outside the library: its poster opens it (in Flexarr if you have it), with a request button. */
 export function ExternalCard({ title }: { title: ExternalTitle }) {
-  const [state, setState] = useState<ExternalTitle['availability'] | 'sending' | 'failed'>(title.availability)
-  const [message, setMessage] = useState<string>()
-
-  async function request() {
-    setState('sending')
-    try {
-      await requestTitle(title.mediaType, title.tmdbId)
-      setState('Requested')
-    } catch (e) {
-      setState('failed')
-      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The request didn’t go through.')
-    }
-  }
-
   const poster = (
     <div className="card-frame">
       <div className="artwork artwork-poster">
@@ -28,24 +14,15 @@ export function ExternalCard({ title }: { title: ExternalTitle }) {
 
   return (
     <div className="card external-card">
-      {title.libraryItemId ? (
-        <Link to={`/item/${title.libraryItemId}`} aria-label={`${title.title}, in your library`}>
-          {poster}
-        </Link>
-      ) : (
-        poster
-      )}
+      <Link
+        to={title.libraryItemId ? `/item/${title.libraryItemId}` : `/discover/${title.mediaType}/${title.tmdbId}`}
+        aria-label={title.libraryItemId ? `${title.title}, in your library` : `${title.title}, more about it`}
+      >
+        {poster}
+      </Link>
       <span className="card-title">{title.title}</span>
       <span className="card-subtitle">{[title.mediaType === 'tv' ? 'Series' : 'Film', title.year].filter(Boolean).join(', ')}</span>
-      {title.libraryItemId || state === 'Available' ? (
-        <span className="external-state">In your library</span>
-      ) : state === 'Requested' || state === 'PartlyAvailable' ? (
-        <span className="external-state">{state === 'Requested' ? 'Requested' : 'Partly in your library'}</span>
-      ) : (
-        <button className="button small quiet" onClick={request} disabled={state === 'sending'} title={message}>
-          {state === 'sending' ? 'Requesting…' : state === 'failed' ? 'Try again' : 'Request'}
-        </button>
-      )}
+      <RequestButton title={title} />
     </div>
   )
 }
