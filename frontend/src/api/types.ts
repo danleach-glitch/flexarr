@@ -163,8 +163,8 @@ export interface Person {
 export interface HomeRow {
   id: string
   title: string
-  /** 'upcoming' marks where Coming soon goes; its titles are in Home.upcoming. */
-  style: 'poster' | 'wide' | 'top10' | 'upcoming'
+  /** 'upcoming' marks where Coming soon goes; its titles are in Home.upcoming. 'tracks' rows play rather than open. */
+  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks'
   items: ItemSummary[]
   link: string | null
 }
@@ -221,11 +221,14 @@ export interface Home {
   downloading: number
 }
 
+/** Titles are films, shows and artists; albums and tracks come grouped on their own, a track with its album's name. */
 export interface SearchResults {
   titles: ItemSummary[]
   episodes: ItemSummary[]
   people: { id: string; name: string; image: string | null; credits: number }[]
   genres: string[]
+  albums: ItemSummary[]
+  tracks: { item: ItemSummary; album: string | null }[]
 }
 
 export interface Genre {

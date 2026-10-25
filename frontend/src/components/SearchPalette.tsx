@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { imageUrl, search, type SearchResults } from '../api/client'
+import { imageUrl, search, type ItemSummary, type SearchResults } from '../api/client'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { episodeCode, year } from '../lib/format'
 import { itemLink } from '../lib/links'
-import { Search } from './icons'
+import { Play, Search } from './icons'
 
 interface Result {
   key: string
@@ -12,6 +13,13 @@ interface Result {
   detail: string | null
   image: string | undefined
   href: string
+  /** A track: it can play from here, as well as open its album. */
+  track?: ItemSummary
+}
+
+function titleDetail(t: ItemSummary): string {
+  if (t.kind === 'Artist') return t.childCount === 1 ? '1 album' : `${t.childCount} albums`
+  return [t.kind === 'Series' ? 'Series' : 'Film', year(t)].filter(Boolean).join(', ')
 }
 
 function flatten(results: SearchResults): Result[] {
@@ -20,9 +28,27 @@ function flatten(results: SearchResults): Result[] {
       key: t.id,
       group: 'Titles',
       title: t.title,
-      detail: [t.kind === 'Series' ? 'Series' : 'Film', year(t)].filter(Boolean).join(', '),
+      detail: titleDetail(t),
       image: imageUrl(t.artwork.poster, 92),
       href: itemLink(t),
+    })),
+    ...results.albums.map((a) => ({
+      key: a.id,
+      group: 'Albums',
+      title: a.title,
+      detail: [a.seriesTitle, a.year].filter(Boolean).join(', '),
+      image: imageUrl(a.artwork.poster, 92),
+      href: `/item/${a.id}`,
+    })),
+    // A track opens its album (it has no page of its own), with the artist and album named beneath it.
+    ...results.tracks.map(({ item, album }) => ({
+      key: item.id,
+      group: 'Tracks',
+      title: item.title,
+      detail: [item.seriesTitle, album].filter(Boolean).join(', '),
+      image: imageUrl(item.artwork.poster, 92),
+      href: item.parentId ? `/item/${item.parentId}` : itemLink(item),
+      track: item,
     })),
     ...results.people.map((p) => ({
       key: p.id,
@@ -44,13 +70,14 @@ function flatten(results: SearchResults): Result[] {
   ]
 }
 
-/** ⌘K search across titles, people, episodes and genres, operable entirely from the keyboard. */
+/** ⌘K search across titles, albums, tracks, people, episodes and genres, operable entirely from the keyboard. */
 export function SearchPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Result[]>([])
   const [active, setActive] = useState(0)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const player = useAudioPlayer()
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => input.current?.focus(), [])
@@ -84,6 +111,17 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     return [...map.entries()]
   }, [results])
 
+  const open = (r: Result) => {
+    navigate(r.href)
+    onClose()
+  }
+
+  // Plays the track on its own, where you are: the palette closes but the page stays.
+  const play = (track: ItemSummary) => {
+    player.play([track], 0)
+    onClose()
+  }
+
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') onClose()
     else if (e.key === 'ArrowDown') {
@@ -93,8 +131,10 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
       e.preventDefault()
       setActive((a) => Math.max(0, a - 1))
     } else if (e.key === 'Enter' && results[active]) {
-      navigate(results[active].href)
-      onClose()
+      // Shift+Enter plays a track rather than opening its album.
+      const { track } = results[active]
+      if (e.shiftKey && track) play(track)
+      else open(results[active])
     }
   }
 
@@ -106,7 +146,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <input
             ref={input}
             type="search"
-            placeholder="Films, shows, episodes, people, genres"
+            placeholder="Films, shows, music, episodes, people, genres"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search your library"
@@ -122,25 +162,29 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
               <h3 className="palette-group">{group}</h3>
               {items.map((r) => {
                 const index = results.indexOf(r)
+                const { track } = r
                 return (
-                  <button
-                    key={r.key}
-                    id={`result-${r.key}`}
-                    role="option"
-                    aria-selected={index === active}
-                    className={index === active ? 'palette-result active' : 'palette-result'}
-                    onMouseEnter={() => setActive(index)}
-                    onClick={() => {
-                      navigate(r.href)
-                      onClose()
-                    }}
-                  >
-                    <span className={`palette-thumb palette-thumb-${r.group.toLowerCase()}`}>{r.image && <img src={r.image} alt="" />}</span>
-                    <span className="palette-text">
-                      <span>{r.title}</span>
-                      {r.detail && <span className="muted">{r.detail}</span>}
-                    </span>
-                  </button>
+                  <div key={r.key} className="palette-row">
+                    <button
+                      id={`result-${r.key}`}
+                      role="option"
+                      aria-selected={index === active}
+                      className={index === active ? 'palette-result active' : 'palette-result'}
+                      onMouseEnter={() => setActive(index)}
+                      onClick={() => open(r)}
+                    >
+                      <span className={`palette-thumb palette-thumb-${r.group.toLowerCase()}`}>{r.image && <img src={r.image} alt="" />}</span>
+                      <span className="palette-text">
+                        <span>{r.title}</span>
+                        {r.detail && <span className="muted">{r.detail}</span>}
+                      </span>
+                    </button>
+                    {track && (
+                      <button className="icon-button palette-play" aria-label={`Play ${r.title}`} onClick={() => play(track)}>
+                        <Play />
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </div>

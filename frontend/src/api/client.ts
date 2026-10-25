@@ -377,6 +377,9 @@ export const getLyrics = (id: string, signal?: AbortSignal) =>
     if (error instanceof ApiError && error.status === 404) return null
     throw error
   })
+
+/** Artist radio: about fifty tracks seeded from the artist. Not cached, so every press is a new station. */
+export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/radio`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
 const deleted = new Set<string>()

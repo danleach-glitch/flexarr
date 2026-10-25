@@ -206,6 +206,12 @@ export const Monitor = (p: IconProps) => (
     <path d="M8 20h8M12 16v4" />
   </svg>
 )
+export const Radio = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="2" />
+    <path d="M16.24 7.76a6 6 0 0 1 0 8.48M7.76 16.24a6 6 0 0 1 0-8.48M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14" />
+  </svg>
+)
 export const Shuffle = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />

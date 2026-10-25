@@ -275,7 +275,7 @@ describe('Search', () => {
     mockApi({
       '/libraries': [],
       '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
-      '/search': { titles: [niceGuys], episodes: [], people: [{ id: 'p1', name: 'Ryan Gosling', image: null, credits: 4 }], genres: [] },
+      '/search': { titles: [niceGuys], episodes: [], people: [{ id: 'p1', name: 'Ryan Gosling', image: null, credits: 4 }], genres: [], albums: [], tracks: [] },
       '/items/m1': detail(niceGuys),
       '/items/m1/similar': [],
     })

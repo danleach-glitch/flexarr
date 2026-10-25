@@ -607,6 +607,11 @@ kbd {
   gap: 40px;
 }
 
+/* Rows with no hero above them (a music library) start where the heading leaves off. */
+.rows.no-hero {
+  margin-top: 0;
+}
+
 .row-header {
   display: flex;
   align-items: center;
@@ -685,6 +690,15 @@ kbd {
 
 .row-people .row-track {
   grid-auto-columns: clamp(110px, 9vw, 150px);
+}
+
+/* Tracks are album covers: square, the same width as posters. */
+.row-tracks .row-track {
+  grid-auto-columns: clamp(128px, 12vw, 196px);
+}
+
+.track-card.current .card-title a {
+  color: var(--ambient, var(--screen));
 }
 
 .row-wide .row-track {
@@ -1272,8 +1286,31 @@ kbd {
   aspect-ratio: 1;
 }
 
+.palette-thumb-albums,
+.palette-thumb-tracks {
+  width: 44px;
+  aspect-ratio: 1;
+}
+
 .palette-thumb-genres {
   display: none;
+}
+
+/* A result and, for a track, the button that plays it where you are. */
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.palette-row .palette-result {
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-play {
+  flex: none;
+  margin-right: 6px;
 }
 
 .palette-thumb img {

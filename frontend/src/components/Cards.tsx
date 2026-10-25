@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
 import { episodeCode, episodeHeading, progressOf, year } from '../lib/format'
 import { itemLink } from '../lib/links'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
 import { Check, More } from './icons'
@@ -221,5 +222,34 @@ export function Top10Card({ item, rank }: { item: ItemSummary; rank: number }) {
         </>
       }
     />
+  )
+}
+
+/**
+ * A track in a row (Most played): its cover plays it, and the rest of the row follows on, like pressing play on a
+ * playlist. The text links to its album and its artist, since a track has no page of its own.
+ */
+export function TrackCard({ item, queue, index }: { item: ItemSummary; queue: ItemSummary[]; index: number }) {
+  const player = useAudioPlayer()
+  const album = item.parentId ? `/item/${item.parentId}` : itemLink(item)
+  const current = player.current?.id === item.id
+  return (
+    <CardShell
+      item={item}
+      to={album}
+      onOpen={() => player.play(queue, index)}
+      playLabel={`Play ${item.title}`}
+      className={current ? 'track-card current' : 'track-card'}
+      art={
+        <div className="card-frame">
+          <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape="square" />
+        </div>
+      }
+    >
+      <span className="card-title">
+        <Link to={album}>{item.title}</Link>
+      </span>
+      <span className="card-subtitle">{item.seriesId ? <Link to={`/item/${item.seriesId}`}>{item.seriesTitle}</Link> : item.seriesTitle}</span>
+    </CardShell>
   )
 }
