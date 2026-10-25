@@ -26,6 +26,7 @@ import {
   type PodcastEpisode,
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Check, More, Pause, Play } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
@@ -508,6 +509,7 @@ function PodcastShow() {
   const [pages, setPages] = useState(1)
   const [episodes, setEpisodes] = useState<{ total: number; items: PodcastEpisode[] }>()
   const [busy, setBusy] = useState(false)
+  const [marking, setMarking] = useState<'asking' | 'busy' | 'failed' | null>(null)
   const [expanded, setExpanded] = useState(false)
   const player = useAudioPlayer()
 
@@ -550,9 +552,14 @@ function PodcastShow() {
   const next = items.find((e) => episodeProgress(e) !== null) ?? items.find((e) => !e.userData.watched)
 
   async function markAllPlayed() {
-    if (!confirm(`Mark all ${podcast.episodeCount.toLocaleString()} episodes of ${podcast.title} as played?`)) return
-    await setWatched(podcast.id, true)
-    changed()
+    setMarking('busy')
+    try {
+      await setWatched(podcast.id, true)
+      setMarking(null)
+      changed()
+    } catch {
+      setMarking('failed')
+    }
   }
 
   return (
@@ -607,6 +614,21 @@ function PodcastShow() {
         </p>
       )}
 
+      {marking && (
+        <ConfirmDialog
+          title="Mark all as played?"
+          confirmLabel="Mark as played"
+          busy={marking === 'busy'}
+          error={marking === 'failed' ? "That didn't work. Try again." : undefined}
+          onConfirm={markAllPlayed}
+          onClose={() => setMarking(null)}
+        >
+          <p>
+            All {podcast.unplayedCount.toLocaleString()} unplayed {podcast.unplayedCount === 1 ? 'episode' : 'episodes'} of {podcast.title} will be marked as played.
+          </p>
+        </ConfirmDialog>
+      )}
+
       <section className="podcast-episodes">
         <div className="podcast-episodes-tools">
           <nav className="view-switch" aria-label="Which episodes">
@@ -623,8 +645,8 @@ function PodcastShow() {
             <option value="oldest">Oldest first</option>
           </select>
           {podcast.unplayedCount > 0 && (
-            <button className="button quiet small" onClick={markAllPlayed}>
-              <Check /> Mark all as played
+            <button className="icon-button podcast-mark-all" aria-label="Mark all as played" title="Mark all as played" onClick={() => setMarking('asking')}>
+              <Check />
             </button>
           )}
         </div>
