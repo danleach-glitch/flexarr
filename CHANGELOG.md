@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.19.0 · 26 October 2026
+
+### Play files directly on Apple TV, iPhone and iPad (experimental)
+- A new switch in the app's Settings, **Play files directly**, plays each file as it is on the device instead of a stream from the server: the device demuxes it and decodes in hardware, so every container plays with its picture untouched, HDR10, HLG and Dolby Vision included, and the server does nothing but send bytes. Built on [AetherEngine](https://github.com/superuser404notfound/AetherEngine).
+- Apple's player stays over the top: the same scrubbing, menus, Skip Intro, countdown and progress. The file's audio tracks and its picture subtitles (PGS, DVB) get menus of their own in the transport bar on Apple TV, with picture subtitles drawn over the video.
+- **Lossless surround**, a second switch, sends TrueHD, DTS-HD and FLAC soundtracks as multichannel PCM over HDMI for a receiver or eARC soundbar that takes it. Off, they're sent as Dolby Digital Plus, which anything plays.
+- Files the device can't decode in hardware (AVI, AV1 on older models, interlaced broadcasts) are converted by the server as before, and so is anything the engine can't open. Remote viewing with a quality limit and downloads are unaffected.
+- Off by default. The apps are about 11 MB bigger.
+
 ## 0.18.1 · 25 October 2026
 
 ### Fixed: the next-episode countdown during an episode's opening titles

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var error: String?
     @State private var confirmSignOut = false
     @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
+    @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
 
     var body: some View {
         HStack(alignment: .top, spacing: 100) {
@@ -57,6 +58,19 @@ struct SettingsView: View {
                         .font(.system(size: 24))
                         .foregroundStyle(Color.usher)
                         .frame(maxWidth: 900, alignment: .leading)
+                    if playsFilesDirectly {
+                        Button {
+                            losslessAudio.toggle()
+                            UserDefaults.standard.set(losslessAudio, forKey: "FlexarrEngineLossless")
+                        } label: {
+                            Label(losslessAudio ? "Lossless surround: on" : "Lossless surround: off", systemImage: "hifispeaker.2")
+                        }
+                        .buttonStyle(ActionButtonStyle())
+                        Text("TrueHD, DTS-HD and FLAC soundtracks as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they're sent as Dolby Digital Plus, which anything plays.")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Color.usher)
+                            .frame(maxWidth: 900, alignment: .leading)
+                    }
                 }
 
                 Button(role: .destructive) { confirmSignOut = true } label: {

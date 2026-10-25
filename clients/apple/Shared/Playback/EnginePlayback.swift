@@ -42,6 +42,9 @@ final class EnginePlayback {
         options.prepareNativeSubtitles = true   // text subtitles as renditions: Apple's menu, PiP and AirPlay have them
         options.serveIFramePlaylist = true      // Apple's scrubbing thumbnails
         options.externalSubtitles = sidecars()
+        // Surround as lossy Dolby Digital Plus (which any TV or bar takes), or lossless FLAC as multichannel PCM for a
+        // receiver or eARC soundbar that takes it: the viewer's choice in Settings.
+        options.audioBridgeMode = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless") ? .lossless : .surroundCompat
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)

@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(DownloadStore.self) private var downloads
     @State private var confirmDeleteDownloads = false
     @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
+    @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var confirmSignOut = false
@@ -35,10 +36,18 @@ struct SettingsView: View {
                     .tint(.silver)
                     .listRowBackground(Color.seat)
                     .onChange(of: playsFilesDirectly) { _, on in UserDefaults.standard.set(on, forKey: "FlexarrEngine") }
+                if playsFilesDirectly {
+                    Toggle("Lossless surround", isOn: $losslessAudio)
+                        .tint(.silver)
+                        .listRowBackground(Color.seat)
+                        .onChange(of: losslessAudio) { _, on in UserDefaults.standard.set(on, forKey: "FlexarrEngineLossless") }
+                }
             } header: {
                 Text("Playback")
             } footer: {
-                Text("Experimental. Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are, instead of a stream from the server. Downloads and remote viewing are unaffected.")
+                Text(playsFilesDirectly
+                    ? "Experimental. Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar over AirPlay or HDMI; off, they go as Dolby Digital Plus."
+                    : "Experimental. Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are, instead of a stream from the server. Downloads and remote viewing are unaffected.")
             }
 
             if let preferences {
