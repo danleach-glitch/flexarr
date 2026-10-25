@@ -2,16 +2,22 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.20.1 · 25 October 2026
 
 ### HDR10, HLG and Dolby Vision 7 and 8 play as they are on Apple TV
 - A copied HDR stream was refused by the Apple TV at the playlist ("unsupported URL"), so HDR10, HLG and Dolby Vision 7 and 8 were converted to SDR unless Play files directly was on. Two things were wrong on the server's side: the HEVC codec string in the playlist was written from a template rather than read off the file's own configuration record, and that record was copied into the stream with its SEI messages (x265's settings blob among them), which the Apple TV won't take for HDR. The string is now derived from the record (with the declared level capped at 5.1, which the Apple TV also insists on) and the record is cut down to its parameter sets, so a display showing HDR10 or HLG gets the original picture: HDR10 and HLG as they are, Dolby Vision 8.1 with its metadata for a Dolby Vision display or as HDR10 otherwise, and Dolby Vision 7 as its HDR10 base layer.
+
+### Music from Lidarr
+- With Lidarr connected (Settings › Connections), artists and albums take their names, years, overviews and artwork from it: the artist's own picture rather than an album cover, and every album's cover even when the files carry none. Tags remain the fallback, and the tags' spelling is kept as the original title.
+- On the web, an artist's page has Play and Shuffle for their whole catalogue (albums oldest first, then discs and tracks); the album page's Shuffle is a proper shuffle.
 
 ### Settings
 - **Play files directly** is on by default on Apple TV, iPhone and iPad (anyone who turned it off stays off). Its wording and the Apple TV Settings page are tidied: a Server card and a Playback card, with each explanation under its control.
 - The skip amount is no longer a setting on Apple TV (clicking the remote's edges always skips 30 seconds); iPhone and iPad keep the choice.
 
 ### Fixed
+- On Apple TV, the ring around the profile picture in the tab bar sat too high on the picture.
+- On Apple TV, opening "Who's watching?" from the tab bar with two profiles left the remote nowhere to move, since the profile already watching was disabled; it's a stop again, and choosing it just closes the picker.
 - Skipping back or forward moved the picture but the timeline's head waited for the seek to land, and a second click measured from where the picture still was; the head now moves at once and clicks add up.
 
 ## 0.20.0 · 25 October 2026
