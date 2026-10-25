@@ -15,9 +15,15 @@ final class ScrubberView: UIView {
     var onScrubBegan: (() -> Void)?
     var onScrubMoved: ((Double) -> Void)?
     var onScrubEnded: ((Double?) -> Void)?
+    /// An upward swipe on the remote while focused: the buttons above want focus.
+    var onSwipeUp: (() -> Void)?
 
     private(set) var isScrubbing = false
     private(set) var scrubPosition: Double = 0
+    /// Scanning with the remote: "▶▶ 4×" beside the time in the preview box.
+    var scanLabel: String? {
+        didSet { updateThumbnail() }
+    }
 
     private let track = CALayer()
     private let bufferedLayer = CALayer()
@@ -64,7 +70,11 @@ final class ScrubberView: UIView {
         thumbnail.clipsToBounds = true
         thumbnailTime.textColor = .white
         thumbnailTime.textAlignment = .center
-        thumbnailTime.font = .monospacedDigitSystemFont(ofSize: thumbnailWidth / 10, weight: .semibold)
+        #if os(tvOS)
+        thumbnailTime.font = .monospacedDigitSystemFont(ofSize: 24, weight: .medium)
+        #else
+        thumbnailTime.font = .monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
+        #endif
         thumbnailBox.addSubview(thumbnail)
         thumbnailBox.addSubview(thumbnailTime)
         addSubview(thumbnailBox)
@@ -103,11 +113,19 @@ final class ScrubberView: UIView {
         }
     }
 
-    /// Left and right on the remote while focused: the controller turns them into skips. A pan scrubs.
+    /// Left and right on the remote while focused: the controller turns them into skips. A sideways pan scrubs; an
+    /// upward one moves focus to the buttons (a recognizer on the focused view keeps the swipe from the focus engine).
     @objc private func panned(_ pan: UIPanGestureRecognizer) {
         guard duration > 0 else { return }
         switch pan.state {
         case .began:
+            let velocity = pan.velocity(in: self)
+            if abs(velocity.y) > abs(velocity.x) * 1.5 {
+                if velocity.y < 0 { onSwipeUp?() }
+                pan.isEnabled = false // let this swipe go
+                pan.isEnabled = true
+                return
+            }
             beginScrub()
             pan.setTranslation(.zero, in: self)
         case .changed:
@@ -122,18 +140,15 @@ final class ScrubberView: UIView {
         }
     }
 
-    /// Select while scrubbing: seek there. Otherwise nothing (the screen handles presses).
-    func commitScrubIfNeeded() -> Bool {
-        guard isScrubbing else { return false }
-        endScrub(cancelled: false)
-        return true
+    /// Scanning with the remote's edges: the screen moves the head and shows the preview; Select commits as usual.
+    func beginScan() {
+        if !isScrubbing { beginScrub() }
     }
 
-    func cancelScrubIfNeeded() -> Bool {
-        guard isScrubbing else { return false }
-        endScrub(cancelled: true)
-        return true
+    func moveScan(to seconds: Double) {
+        moveScrub(to: seconds)
     }
+
     #else
     @objc private func panned(_ pan: UIPanGestureRecognizer) {
         guard duration > 0 else { return }
@@ -163,6 +178,19 @@ final class ScrubberView: UIView {
 
     // MARK: Scrubbing
 
+    /// A head parked after a swipe (or a scan): seek there. Otherwise nothing.
+    @discardableResult func commitScrubIfNeeded() -> Bool {
+        guard isScrubbing else { return false }
+        endScrub(cancelled: false)
+        return true
+    }
+
+    @discardableResult func cancelScrubIfNeeded() -> Bool {
+        guard isScrubbing else { return false }
+        endScrub(cancelled: true)
+        return true
+    }
+
     private func beginScrub() {
         isScrubbing = true
         scrubPosition = position
@@ -188,8 +216,10 @@ final class ScrubberView: UIView {
 
     private func updateThumbnail() {
         guard isScrubbing else { return }
-        thumbnailTime.text = Self.clock(scrubPosition)
-        thumbnail.image = previews?.image(at: scrubPosition)
+        thumbnailTime.text = [scanLabel, Self.clock(scrubPosition)].compactMap { $0 }.joined(separator: "   ")
+        #if os(iOS)
+        thumbnail.image = previews?.image(at: scrubPosition) // on a television the time and speed are enough
+        #endif
         setNeedsLayout()
     }
 
@@ -225,8 +255,8 @@ final class ScrubberView: UIView {
 
         let hasImage = thumbnail.image != nil && previews?.isAvailable == true
         let imageHeight = hasImage ? thumbnailWidth / (previews?.aspectRatio ?? 16 / 9) : 0
-        let timeHeight = thumbnailTime.font.lineHeight + 8
-        let boxWidth = hasImage ? thumbnailWidth : thumbnailTime.font.lineHeight * 4
+        let timeHeight = thumbnailTime.font.lineHeight + 10
+        let boxWidth = hasImage ? thumbnailWidth : thumbnailTime.intrinsicContentSize.width + 28
         let boxHeight = imageHeight + timeHeight
         let boxX = max(0, min(knobX - boxWidth / 2, width - boxWidth))
         thumbnailBox.frame = CGRect(x: boxX, y: midY - knobSize - 12 - boxHeight, width: boxWidth, height: boxHeight)

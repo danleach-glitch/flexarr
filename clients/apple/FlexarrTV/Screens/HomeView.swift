@@ -142,10 +142,13 @@ struct HomeHero: View {
             }
             .padding(.leading, Layout.edge)
             .padding(.bottom, 40)
+            // The focusable part of the hero is this corner, which sits below the tab bar. Coming down from the tab bar
+            // the focus engine looks for a section beneath it; one spanning the whole hero (tab bar included) isn't,
+            // and the rows' second poster was winning.
+            .focusSection()
         }
         .frame(height: 900)
         .frame(maxWidth: .infinity)
-        .focusSection()
         // Coming down from the tab bar (or back up from the rows) lands on Play.
         .focusScope(heroScope)
         .defaultFocus($focusedButton, .play, priority: .userInitiated)

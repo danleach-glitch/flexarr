@@ -39,6 +39,15 @@ final class PlayerViewController: UIViewController {
     private var hideTask: Task<Void, Never>?
     private var lastNowPlayingUpdate = Date.distantPast
     private var subtitleDelay: Double?
+    private var menuOpen = false
+    private var finished = false
+    #if os(tvOS)
+    /// Scanning with the remote's edges held: the direction, the speed (2, 4, 8, 16×), where the head is, and the
+    /// press that may turn into a hold.
+    private var scan: (direction: Double, rate: Double, position: Double, link: CADisplayLink)?
+    private var lastScanFrame: CFTimeInterval = 0
+    private var holdTask: Task<Void, Never>?
+    #endif
     private var subtitleSize: SubtitleSize = .standard
     private var title_: (String, String?) = ("", nil)
     private var artwork: UIImage?
@@ -131,7 +140,23 @@ final class PlayerViewController: UIViewController {
         super.viewDidAppear(animated)
         #if os(iOS)
         isRestoringFromPictureInPicture = false
+        #else
+        // Focus must be in here, or the remote's Menu goes to the screen underneath and takes this one down with it.
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
         #endif
+    }
+
+    /// Gone from the screen other than by our own close (the system or the app underneath dismissed it): that's the
+    /// end of watching too, or the session would play on unseen. Apple's player told us this through its delegate.
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard !finished, isBeingDismissed || presentingViewController == nil else { return }
+        #if os(iOS)
+        if isInPictureInPicture { return }
+        #endif
+        log.info("Player dismissed from outside; stopping")
+        close()
     }
 
     #if os(iOS)
@@ -248,6 +273,20 @@ final class PlayerViewController: UIViewController {
             if let seconds { seek(to: seconds) }
             scheduleHide()
         }
+        controls.onMenuVisibility = { [weak self] button, visible in
+            guard let self else { return }
+            menuOpen = visible
+            if visible {
+                hideTask?.cancel()
+            } else {
+                #if os(tvOS)
+                controls.focusNext = button
+                setNeedsFocusUpdate()
+                updateFocusIfNeeded()
+                #endif
+                scheduleHide()
+            }
+        }
     }
 
     private func wireNowPlaying() {
@@ -276,6 +315,8 @@ final class PlayerViewController: UIViewController {
     /// `flash`: say "+30 s" on the picture, where nothing else shows the jump (a remote click, a double tap).
     func skip(_ seconds: Double, flash: Bool = false) {
         guard let transport else { return }
+        // A head parked after a swipe (not yet committed) is let go: the skip is the viewer's new position.
+        _ = controls.scrubber.cancelScrubIfNeeded()
         seek(to: transport.currentTime + seconds)
         if flash { controls.flashSkip(seconds) }
     }
@@ -295,6 +336,7 @@ final class PlayerViewController: UIViewController {
 
     /// Closes the screen when it's done: the controller asks, having stopped the session.
     func finish(completion: (() -> Void)? = nil) {
+        finished = true
         nowPlaying.deactivate()
         hideTask?.cancel()
         #if os(iOS)
@@ -345,7 +387,7 @@ final class PlayerViewController: UIViewController {
             #else
             try? await Task.sleep(for: .seconds(3))
             #endif
-            guard !Task.isCancelled, let self, let transport, transport.phase == .playing, !controls.scrubber.isScrubbing else { return }
+            guard !Task.isCancelled, let self, let transport, transport.isPlaying, !controls.scrubber.isScrubbing, !menuOpen else { return }
             hideControls()
         }
     }
@@ -379,9 +421,11 @@ final class PlayerViewController: UIViewController {
         for press in presses {
             switch press.type {
             case .playPause:
+                if scan != nil { endScan(commit: true); return }
                 togglePlayPause()
                 return
             case .select:
+                if scan != nil { endScan(commit: true); return }
                 if controls.scrubber.isFocused, controls.scrubber.commitScrubIfNeeded() { return }
                 if !controlsVisible && !controls.promptShown {
                     togglePlayPause()
@@ -392,6 +436,7 @@ final class PlayerViewController: UIViewController {
                     return
                 }
             case .menu:
+                if scan != nil { endScan(commit: false); return }
                 if controls.scrubber.cancelScrubIfNeeded() { return }
                 if controlsVisible {
                     hideControls()
@@ -400,9 +445,27 @@ final class PlayerViewController: UIViewController {
                 close()
                 return
             case .leftArrow, .rightArrow:
-                // Clicking the remote's edges skips, as in Apple's player, unless focus is on a button row.
+                let direction: Double = press.type == .leftArrow ? -1 : 1
+                // Scanning already: the same edge doubles the speed, the other turns it round.
+                if let current = scan {
+                    if current.direction == direction {
+                        scan?.rate = min(16, current.rate * 2)
+                    } else {
+                        scan?.direction = direction
+                        scan?.rate = 2
+                    }
+                    showScanRate()
+                    return
+                }
+                // The remote's edges skip when clicked and scan when held, unless focus is on a button row.
                 if !controlsVisible || controls.scrubber.isFocused {
-                    skip(press.type == .leftArrow ? -Self.skipSeconds : Self.skipSeconds, flash: !controlsVisible)
+                    holdTask?.cancel()
+                    holdTask = Task { [weak self] in
+                        try? await Task.sleep(for: .milliseconds(450))
+                        guard !Task.isCancelled, let self else { return }
+                        self.holdTask = nil
+                        self.beginScan(direction: direction)
+                    }
                     return
                 }
             default:
@@ -411,6 +474,70 @@ final class PlayerViewController: UIViewController {
             showControls()
         }
         super.pressesBegan(presses, with: event)
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses where press.type == .leftArrow || press.type == .rightArrow {
+            // Let go before it became a hold: a click, which skips.
+            if let holdTask {
+                holdTask.cancel()
+                self.holdTask = nil
+                skip(press.type == .leftArrow ? -Self.skipSeconds : Self.skipSeconds, flash: !controlsVisible)
+                return
+            }
+            if scan != nil { return }
+        }
+        super.pressesEnded(presses, with: event)
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        holdTask?.cancel()
+        holdTask = nil
+        super.pressesCancelled(presses, with: event)
+    }
+
+    // MARK: Scanning (Apple TV)
+
+    /// Fast forward or rewind with preview thumbnails: the picture pauses and the timeline's head runs at 2× (then 4,
+    /// 8, 16× with each click); Select or play/pause lands there.
+    private func beginScan(direction: Double) {
+        guard let transport, transport.duration > 0 else { return }
+        transport.pause()
+        showControls()
+        controls.scrubber.beginScan()
+        // Every frame, so the head glides even at 16×.
+        let link = CADisplayLink(target: self, selector: #selector(scanFrame))
+        lastScanFrame = 0
+        scan = (direction, 2, transport.currentTime, link)
+        link.add(to: .main, forMode: .common)
+        showScanRate()
+    }
+
+    @objc private func scanFrame(_ link: CADisplayLink) {
+        guard let current = scan, let transport else { return }
+        let elapsed = lastScanFrame == 0 ? 0 : link.timestamp - lastScanFrame
+        lastScanFrame = link.timestamp
+        // Plex's scale: 2× runs a minute of video a second, 4× two minutes, and so on.
+        let next = max(0, min(transport.duration, current.position + current.direction * current.rate * 30 * elapsed))
+        scan?.position = next
+        controls.scrubber.moveScan(to: next)
+        controls.setTime(position: next, duration: transport.duration, buffered: transport.bufferedTime)
+        if next <= 0 || next >= transport.duration { endScan(commit: true) }
+    }
+
+    private func endScan(commit: Bool) {
+        guard let current = scan else { return }
+        current.link.invalidate()
+        scan = nil
+        _ = commit ? controls.scrubber.commitScrubIfNeeded() : controls.scrubber.cancelScrubIfNeeded()
+        if commit { seek(to: current.position) }
+        transport?.play()
+        controls.scrubber.scanLabel = nil
+    }
+
+    private func showScanRate() {
+        guard let current = scan else { return }
+        controls.scrubber.scanLabel = current.direction < 0 ? "◀◀ \(Int(current.rate))×" : "▶▶ \(Int(current.rate))×"
     }
     #endif
 
@@ -507,7 +634,12 @@ final class PlayerViewController: UIViewController {
         default: spinner.stopAnimating()
         }
         controls.setPlaying(phase == .playing || phase == .buffering)
-        if phase == .playing { scheduleHide() } else { hideTask?.cancel(); if phase == .paused { showControls() } }
+        // A moment's buffering mid-play doesn't keep the controls up; a pause does.
+        switch phase {
+        case .playing: if hideTask == nil || hideTask!.isCancelled { scheduleHide() }
+        case .buffering: break
+        default: hideTask?.cancel(); if phase == .paused { showControls() }
+        }
         if let transport {
             nowPlaying.setTime(position: transport.currentTime, duration: transport.duration, rate: phase == .playing ? transport.rate : 0)
         }

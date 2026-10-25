@@ -6,13 +6,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Our own player on Apple TV, iPhone and iPad
 - Flexarr draws its own player now instead of Apple's: previous and next episode buttons (shuffle included), skip back and forward by a chosen amount (30 seconds unless Settings says 10 or 15), play/pause, a timeline with the intro and credits shaded and preview thumbnails while scrubbing, and menus for audio, subtitles (with timing and size inside) and playback speed. The title, episode and what's playing (resolution, sound, original or converted) sit in the corners; the controls sit on clear glass and fade after a few seconds of playing.
-- On Apple TV, the timeline takes the remote's swipes, clicking the remote's edges skips, Menu hides the controls and then closes, and the Skip Intro / Next Episode pill takes focus when it appears. On iPhone and iPad, a tap shows or hides the controls, two taps at the edges skip 10 seconds, AirPlay and Picture in Picture are in the top corner, and the lock screen, Control Center and a paired watch can play, pause, skip and move between episodes.
+- On Apple TV, the timeline takes the remote's swipes, clicking the remote's edges skips, holding an edge scans at 2× (a minute of video a second; each click doubles it to 4, 8 and 16×, the other edge turns it round, Select lands), Menu hides the controls and then closes, and the Skip Intro / Next Episode pill takes focus when it appears. On iPhone and iPad, a tap shows or hides the controls, two taps at the edges skip 10 seconds, AirPlay and Picture in Picture are in the top corner, and the lock screen, Control Center and a paired watch can play, pause, skip and move between episodes.
 - The audio track can be changed on a server stream too (the stream restarts where it was with the new track).
 - **Play files directly** now plays every file on the device: what the hardware can't decode (AV1, VC-1, MPEG-2, XviD and the like) is decoded in software, with the file's subtitles drawn by Flexarr. It no longer falls back to the server for those.
 - The server tells the apps which episode comes before the one playing, for the Previous Episode button.
 
 ### Fixed
 - The AirPlay button on iPhone and iPad showed the audio AirPlay symbol rather than the video one.
+- On the Apple TV Home screen, pressing down from the tab bar went to a poster in Continue Watching rather than Play on the featured title.
 
 ## 0.19.0 · 26 October 2026
 

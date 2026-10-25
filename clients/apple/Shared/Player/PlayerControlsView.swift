@@ -50,9 +50,9 @@ final class PlayerControlsView: UIView {
     private var hudTask: Task<Void, Never>?
 
     #if os(tvOS)
-    private static let symbolSize: CGFloat = 34
+    private static let symbolSize: CGFloat = 40
     private static let margin: CGFloat = 80
-    private static let bottomMargin: CGFloat = 56
+    private static let bottomMargin: CGFloat = 50
     #else
     private static let symbolSize: CGFloat = 22
     private static let margin: CGFloat = 20
@@ -73,9 +73,9 @@ final class PlayerControlsView: UIView {
         forwardButton = Self.button("goforward.10", size: Self.symbolSize)
         previousButton = Self.button("backward.end.fill", size: Self.symbolSize * 0.8)
         nextButton = Self.button("forward.end.fill", size: Self.symbolSize * 0.8)
-        audioButton = Self.button("waveform", size: Self.symbolSize * 0.8)
-        subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8)
-        speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8)
+        audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
+        subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
+        speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
         promptButton = Self.pill(filled: true)
         cancelButton = Self.pill(filled: false)
         #if os(iOS)
@@ -208,12 +208,7 @@ final class PlayerControlsView: UIView {
         hud.layer.shadowRadius = 6
         hud.layer.shadowOffset = .zero
 
-        #if os(tvOS)
-        let titles = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel, detailLabel])
-        titles.setCustomSpacing(8, after: subtitleLabel)
-        #else
-        let titles = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel]) // the detail sits bottom-left on a phone
-        #endif
+        let titles = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel]) // the detail sits bottom-left
         titles.axis = .vertical
         titles.spacing = 3
         let prompts = UIStackView(arrangedSubviews: [cancelButton, promptButton])
@@ -237,6 +232,14 @@ final class PlayerControlsView: UIView {
             button.isHidden = true
         }
         skipSeconds = 30
+        #if os(tvOS)
+        scrubber.onSwipeUp = { [weak self] in
+            guard let self else { return }
+            focusNext = playButton
+            setNeedsFocusUpdate()
+            updateFocusIfNeeded()
+        }
+        #endif
 
         for view in [titles, prompts, hud] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
@@ -258,45 +261,57 @@ final class PlayerControlsView: UIView {
         ])
 
         #if os(tvOS)
-        // Top: the title. Bottom: one glass bar holding the buttons (transport left, menus right), the timeline and
-        // the times; the pill floats above it on the right.
-        let bar = GlassView(cornerRadius: 30)
+        // The phone's layout at television scale: the title top-left; the transport as glass circles in the middle of
+        // the picture; the detail bottom-left and the menus in a glass capsule bottom-right, above the timeline with
+        // the times at its ends; the pill above the menus.
+        for (button, size) in [(previousButton, 100.0), (backButton, 116.0), (playButton, 150.0), (forwardButton, 116.0), (nextButton, 100.0)] {
+            NSLayoutConstraint.activate([button.widthAnchor.constraint(equalToConstant: size), button.heightAnchor.constraint(equalToConstant: size)])
+        }
         let transport = UIStackView(arrangedSubviews: [previousButton, backButton, playButton, forwardButton, nextButton])
         transport.axis = .horizontal
         transport.alignment = .center
-        transport.spacing = 6
+        transport.spacing = 36
         let menus = UIStackView(arrangedSubviews: [audioButton, subtitlesButton, speedButton])
         menus.axis = .horizontal
         menus.alignment = .center
-        menus.spacing = 6
-        for view in [transport, menus, scrubber, elapsedLabel, remainingLabel] as [UIView] {
+        menus.spacing = 8
+        for view in [transport, menus, scrubber, elapsedLabel, remainingLabel, detailLabel] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
-            bar.contentView.addSubview(view)
+            addSubview(view)
         }
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(bar)
-        let inset: CGFloat = 32
         NSLayoutConstraint.activate([
             titles.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: bottom),
             titles.leadingAnchor.constraint(equalTo: leadingAnchor, constant: margin),
             titles.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -margin),
-            bar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: margin),
-            bar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -margin),
-            bar.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -bottom),
-            transport.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: inset - 16),
-            transport.topAnchor.constraint(equalTo: bar.topAnchor, constant: 18),
-            menus.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -inset + 16),
-            menus.centerYAnchor.constraint(equalTo: transport.centerYAnchor),
-            scrubber.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: inset),
-            scrubber.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -inset),
-            scrubber.topAnchor.constraint(equalTo: transport.bottomAnchor, constant: 14),
-            elapsedLabel.leadingAnchor.constraint(equalTo: scrubber.leadingAnchor),
-            elapsedLabel.topAnchor.constraint(equalTo: scrubber.bottomAnchor, constant: 6),
-            elapsedLabel.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -22),
-            remainingLabel.trailingAnchor.constraint(equalTo: scrubber.trailingAnchor),
+            transport.centerXAnchor.constraint(equalTo: centerXAnchor),
+            transport.centerYAnchor.constraint(equalTo: centerYAnchor),
+            elapsedLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: margin),
+            elapsedLabel.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -bottom),
+            elapsedLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
+            remainingLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -margin),
             remainingLabel.centerYAnchor.constraint(equalTo: elapsedLabel.centerYAnchor),
-            prompts.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
-            prompts.bottomAnchor.constraint(equalTo: bar.topAnchor, constant: -20),
+            remainingLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 100),
+            scrubber.leadingAnchor.constraint(equalTo: elapsedLabel.trailingAnchor, constant: 24),
+            scrubber.trailingAnchor.constraint(equalTo: remainingLabel.leadingAnchor, constant: -24),
+            scrubber.centerYAnchor.constraint(equalTo: elapsedLabel.centerYAnchor),
+            menus.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -margin),
+            menus.bottomAnchor.constraint(equalTo: elapsedLabel.topAnchor, constant: -28),
+            detailLabel.leadingAnchor.constraint(equalTo: elapsedLabel.leadingAnchor),
+            detailLabel.centerYAnchor.constraint(equalTo: menus.centerYAnchor),
+            detailLabel.trailingAnchor.constraint(lessThanOrEqualTo: menus.leadingAnchor, constant: -24),
+            prompts.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -margin),
+            prompts.bottomAnchor.constraint(equalTo: menus.topAnchor, constant: -20),
+        ])
+        // Up from the menus: the circles are far to the left, outside the focus engine's upward search, so a guide
+        // above the capsule points the way to the play button.
+        let upFromMenus = UIFocusGuide()
+        addLayoutGuide(upFromMenus)
+        upFromMenus.preferredFocusEnvironments = [playButton]
+        NSLayoutConstraint.activate([
+            upFromMenus.leadingAnchor.constraint(equalTo: menus.leadingAnchor),
+            upFromMenus.trailingAnchor.constraint(equalTo: menus.trailingAnchor),
+            upFromMenus.bottomAnchor.constraint(equalTo: prompts.topAnchor),
+            upFromMenus.heightAnchor.constraint(equalToConstant: 160),
         ])
         #else
         // Top: close, the title, AirPlay and Picture in Picture. Middle: the transport in glass circles. Bottom: the
@@ -361,20 +376,72 @@ final class PlayerControlsView: UIView {
         #endif
     }
 
-    private static func button(_ symbol: String, size: CGFloat) -> UIButton {
+    /// A menu is open (or has just closed) on one of the menu buttons.
+    var onMenuVisibility: ((_ button: UIButton, _ visible: Bool) -> Void)?
+    #if os(tvOS)
+    /// Where focus goes next, once: the button whose menu just closed.
+    var focusNext: UIView?
+    #endif
+
+    private static func button(_ symbol: String, size: CGFloat, menu: Bool = false) -> UIButton {
         var configuration = UIButton.Configuration.plain()
         configuration.image = UIImage(systemName: symbol)
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)
-        #if os(tvOS)
-        configuration.baseForegroundColor = .white
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
-        #else
         configuration.baseForegroundColor = UIColor.white.withAlphaComponent(0.72) // the picture shows through the glyphs too
+        #if os(tvOS)
+        // Its own glass circle (the focus lift would be clipped inside a wrapper); focused, it goes white with a dark
+        // glyph like every tvOS button.
+        // The same glass as the phone: 22% black with a hairline, the glyph letting the picture through.
+        configuration.background.backgroundColor = UIColor.black.withAlphaComponent(0.22)
+        configuration.background.strokeColor = UIColor.white.withAlphaComponent(0.14)
+        configuration.background.strokeWidth = 1
+        configuration.cornerStyle = .capsule
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 22, leading: 22, bottom: 22, trailing: 22)
+        let button = menu ? MenuButton(configuration: configuration) : FocusButton(configuration: configuration)
+        button.configurationUpdateHandler = { button in
+            guard var updated = button.configuration else { return }
+            let focused = button.isFocused
+            let glyph = focused ? UIColor.black.withAlphaComponent(0.85) : UIColor.white.withAlphaComponent(0.72)
+            updated.background.backgroundColor = focused ? UIColor.white.withAlphaComponent(0.95) : UIColor.black.withAlphaComponent(0.22)
+            updated.baseForegroundColor = glyph
+            // tvOS draws symbol images at full strength whatever the foreground colour's alpha; tint the image itself.
+            updated.image = updated.image?.withTintColor(glyph, renderingMode: .alwaysOriginal)
+            button.configuration = updated
+        }
+        #else
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 11, bottom: 10, trailing: 11)
+        let button = menu ? MenuButton(configuration: configuration) : FocusButton(configuration: configuration)
         #endif
-        let button = UIButton(configuration: configuration)
         button.tintColor = configuration.baseForegroundColor
         return button
+    }
+
+    /// On Apple TV, a focused button redraws (white, dark glyph) and lifts a little.
+    class FocusButton: UIButton {
+        #if os(tvOS)
+        override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+            super.didUpdateFocus(in: context, with: coordinator)
+            setNeedsUpdateConfiguration()
+            coordinator.addCoordinatedAnimations { [self] in
+                transform = isFocused ? CGAffineTransform(scaleX: 1.12, y: 1.12) : .identity
+            }
+        }
+        #endif
+    }
+
+    /// Says when its menu opens and closes, so the controls stay up meanwhile and focus comes straight back to it.
+    final class MenuButton: FocusButton {
+        var controls: PlayerControlsView? { superview?.superview as? PlayerControlsView ?? superview?.superview?.superview as? PlayerControlsView ?? superview?.superview?.superview?.superview as? PlayerControlsView }
+
+        override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willDisplayMenuFor configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
+            super.contextMenuInteraction(interaction, willDisplayMenuFor: configuration, animator: animator)
+            controls?.onMenuVisibility?(self, true)
+        }
+
+        override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willEndFor configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
+            super.contextMenuInteraction(interaction, willEndFor: configuration, animator: animator)
+            controls?.onMenuVisibility?(self, false)
+        }
     }
 
     /// The Skip Intro / Next Episode pill (filled, in the app's colours) and Cancel beside it.
@@ -401,9 +468,13 @@ final class PlayerControlsView: UIView {
     }
 
     #if os(tvOS)
-    /// The timeline takes focus first; a pill that's showing takes it over.
+    /// The timeline takes focus first; a pill that's showing takes it over; a button whose menu just closed gets it back.
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
-        promptShown ? [promptButton] : [scrubber]
+        if let focusNext {
+            self.focusNext = nil
+            return [focusNext]
+        }
+        return promptShown ? [promptButton] : [scrubber]
     }
     #endif
 }
