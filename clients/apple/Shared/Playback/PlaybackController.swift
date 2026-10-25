@@ -33,6 +33,8 @@ final class PlaybackController: NSObject {
     var errorMessage: String?
     private(set) var problem: Problem = .other
     @ObservationIgnored var onSessionEnded: (() -> Void)?
+    /// Called as a title is asked for, before its screen comes up (so music can give way).
+    @ObservationIgnored var onWillStart: (() -> Void)?
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
 
@@ -99,6 +101,7 @@ final class PlaybackController: NSObject {
     func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient, shuffle: Bool = false,
               subtitleKey: String? = nil) {
         guard !isStarting else { return }
+        onWillStart?()
         self.client = client
         shuffling = shuffle
         trail = []
@@ -111,6 +114,7 @@ final class PlaybackController: NSObject {
     /// Plays a downloaded file: no server, no connection needed.
     func playOffline(_ info: PlaybackInfo) {
         guard !isStarting else { return }
+        onWillStart?()
         shuffling = false
         trail = []
         viewerSubtitleKey = nil
@@ -124,6 +128,7 @@ final class PlaybackController: NSObject {
     /// The error's main button, Watch here instead or Try again: asks for the stream that stopped again.
     func retry() {
         guard !isStarting, let retryRequest else { return }
+        onWillStart?()
         start(retryRequest)
     }
 

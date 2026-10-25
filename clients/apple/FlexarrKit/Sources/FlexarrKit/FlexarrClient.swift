@@ -97,6 +97,37 @@ public struct FlexarrClient: Sendable {
         try await get("items/\(id)/similar")
     }
 
+    /// Every track an artist (or one album) has, in the order a record collection plays: albums oldest first, then
+    /// disc and track. Servers before the endpoint answer 404, so the albums are fetched one by one instead.
+    public func tracks(of id: String) async throws -> [ItemSummary] {
+        do {
+            return try await get("items/\(id)/tracks")
+        } catch FlexarrClientError.http(status: 404, _) {
+            let detail = try await item(id)
+            if detail.item.kind == .album { return detail.children.filter { $0.kind == .track } }
+            var tracks: [ItemSummary] = []
+            // Oldest album first, as the endpoint orders them; the server lists an artist's albums newest first.
+            for album in detail.children.filter({ $0.kind == .album }).sorted(by: { ($0.year ?? .max, $0.title) < ($1.year ?? .max, $1.title) }) {
+                tracks += try await item(album.id).children.filter { $0.kind == .track }
+            }
+            return tracks
+        }
+    }
+
+    /// The signed-in profile's music playlists. Servers before playlists have none.
+    public func playlists() async throws -> [PlaylistSummary] {
+        do {
+            return try await get("playlists")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return []
+        }
+    }
+
+    /// A playlist with its tracks in order.
+    public func playlist(_ id: String) async throws -> PlaylistDetail {
+        try await get("playlists/\(id)")
+    }
+
     /// The episode to play next for a series or season, or `nil` when everything is watched.
     public func nextUp(_ id: String) async throws -> ItemSummary? {
         let data = try await send("GET", "items/\(id)/next-up")

@@ -63,6 +63,8 @@ struct TabStack<Content: View>: View {
                     destination(route)
                 }
         }
+        // Music carries on under every screen; the bar sits above the tab bar and opens Now Playing.
+        .safeAreaInset(edge: .bottom) { NowPlayingBar() }
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
         .onAppear(perform: consumeDeepLink)
@@ -77,14 +79,20 @@ struct TabStack<Content: View>: View {
     @ViewBuilder
     private func destination(_ route: Route) -> some View {
         switch route {
+        case .item(let item) where item.kind.isMusic:
+            MusicDestination(item: item)
         case .item(let item):
             DetailView(id: item.id, preview: item)
         case .itemID(let id):
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
+        case .library(let library, _) where library.type == .music:
+            MusicLibraryView(library: library)
         case .library(let library, let sort):
             LibraryView(library: library, initialSort: sort)
+        case .playlist(let playlist):
+            PlaylistView(playlist: playlist)
         }
     }
 }
@@ -106,7 +114,7 @@ struct LibrariesView: View {
                 List(model.libraries) { library in
                     Button { router.push(.library(library, .title)) } label: {
                         HStack(spacing: 14) {
-                            Image(systemName: library.type == .tvShows ? "tv" : "film")
+                            Image(systemName: library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : "film")
                                 .font(.title3)
                                 .foregroundStyle(Color.silver)
                                 .frame(width: 32)

@@ -44,6 +44,16 @@ final class NowPlaying {
         center.previousTrackCommand.isEnabled = false
     }
 
+    /// For music: previous and next track in place of the skip buttons.
+    func activateForMusic() {
+        activate(skipSeconds: 15)
+        let center = MPRemoteCommandCenter.shared()
+        center.skipForwardCommand.isEnabled = false
+        center.skipBackwardCommand.isEnabled = false
+        center.nextTrackCommand.isEnabled = true
+        center.previousTrackCommand.isEnabled = true
+    }
+
     func deactivate() {
         for (command, target) in targets { command.removeTarget(target) }
         targets = []
@@ -60,6 +70,17 @@ final class NowPlaying {
         } else {
             info[MPMediaItemPropertyArtwork] = nil
         }
+        push()
+    }
+
+    /// A track: the lock screen shows the artist and album under the title, and the system treats it as music
+    /// (the skip buttons give way to previous and next track).
+    func setTrack(title: String, artist: String?, album: String?, artwork: UIImage?) {
+        info[MPMediaItemPropertyTitle] = title
+        info[MPMediaItemPropertyArtist] = artist
+        info[MPMediaItemPropertyAlbumTitle] = album
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPMediaItemPropertyArtwork] = artwork.map(Self.artwork)
         push()
     }
 

@@ -1,0 +1,169 @@
+import FlexarrKit
+import SwiftUI
+
+/// The music that's playing, as a sheet: the cover, the track's name, a scrubber, the transport controls, AirPlay,
+/// and what comes next.
+struct NowPlayingView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Where the thumb is while the viewer drags it; nil when the track's own position shows.
+    @State private var scrubbing: Double?
+
+    private var music: MusicPlayer { model.music }
+
+    var body: some View {
+        ZStack {
+            RoomBackground(ambient: music.current?.glowColor, intensity: 0.45)
+            if let track = music.current {
+                ScrollView(.vertical) {
+                    VStack(spacing: 24) {
+                        Capsule().fill(Color.aisle).frame(width: 40, height: 5).padding(.top, 10)
+                        cover(track)
+                            .padding(.top, 8)
+                        titles(track)
+                        scrubber
+                        controls
+                        HStack {
+                            Spacer()
+                            RoutePicker().frame(width: 44, height: 44)
+                            Spacer()
+                        }
+                        upNext
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                StatusView(state: .empty("Nothing is playing."))
+            }
+        }
+        .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
+    }
+
+    private func cover(_ track: ItemSummary) -> some View {
+        ZStack {
+            if let artwork = music.artwork {
+                Image(uiImage: artwork).resizable().aspectRatio(contentMode: .fill)
+            } else {
+                SquareArtwork(item: track, imageWidth: 800)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: sizeClass == .regular ? 420 : 320)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
+        .shadow(color: track.glowColor.opacity(0.35), radius: 40)
+        // Smaller while paused, as every music app does.
+        .scaleEffect(music.isPlaying ? 1 : 0.9)
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: music.isPlaying)
+        .animation(.easeOut(duration: 0.3), value: track.id)
+    }
+
+    private func titles(_ track: ItemSummary) -> some View {
+        VStack(spacing: 4) {
+            Text(track.title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color.screen)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+            Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.usher)
+                .lineLimit(1)
+        }
+    }
+
+    private var scrubber: some View {
+        VStack(spacing: 4) {
+            Slider(value: Binding(
+                get: { scrubbing ?? music.position },
+                set: { scrubbing = $0 }
+            ), in: 0...max(1, music.duration)) { editing in
+                if !editing, let target = scrubbing {
+                    music.seek(to: target)
+                    scrubbing = nil
+                }
+            }
+            .tint(Color.screen)
+            HStack {
+                Text(Format.timestamp(scrubbing ?? music.position))
+                Spacer()
+                Text(music.duration > 0 ? "-" + Format.timestamp(max(0, music.duration - (scrubbing ?? music.position))) : "")
+            }
+            .font(.caption.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Color.usher)
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 0) {
+            Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: "shuffle") }
+                .buttonStyle(TransportStyle(size: 44, active: music.isShuffled))
+            Spacer()
+            Button { music.previous() } label: { Label("Previous", systemImage: "backward.fill") }
+                .buttonStyle(TransportStyle(size: 56))
+            Spacer()
+            Button { music.togglePlayPause() } label: {
+                if music.isLoading {
+                    ProgressView().tint(Color.screen)
+                } else {
+                    Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
+                }
+            }
+            .buttonStyle(TransportStyle(size: 76, filled: true))
+            Spacer()
+            Button { music.next() } label: { Label("Next", systemImage: "forward.fill") }
+                .buttonStyle(TransportStyle(size: 56))
+                .disabled(!music.hasNext)
+            Spacer()
+            Button { music.cycleRepeat() } label: {
+                Label("Repeat", systemImage: music.repeatMode == .one ? "repeat.1" : "repeat")
+            }
+            .buttonStyle(TransportStyle(size: 44, active: music.repeatMode != .off))
+        }
+    }
+
+    @ViewBuilder
+    private var upNext: some View {
+        let next = Array(music.upNext.prefix(20))
+        if !next.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Up next")
+                    .font(.marquee(22, weight: .bold))
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                ForEach(Array(next.enumerated()), id: \.element.id) { offset, track in
+                    TrackRow(track: track, number: offset + 1, isCurrent: false, isPlaying: false) {
+                        music.skip(to: music.index + 1 + offset)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Transport controls: an icon alone, or on a projected-white disc for Play. `active` lights shuffle and repeat.
+private struct TransportStyle: ButtonStyle {
+    var size: CGFloat
+    var filled = false
+    var active = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(.iconOnly)
+            .font(.system(size: size * (filled ? 0.42 : 0.5), weight: .semibold))
+            .foregroundStyle(filled ? Color.room : (active ? Color.silver : Color.screen))
+            .frame(width: size, height: size)
+            .background {
+                if filled { Circle().fill(Color.screen) }
+            }
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}

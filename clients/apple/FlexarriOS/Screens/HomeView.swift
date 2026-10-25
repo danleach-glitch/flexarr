@@ -65,7 +65,8 @@ struct HomeView: View {
                 if !home.featured.isEmpty {
                     HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)
                 }
-                ForEach(home.rows) { row in
+                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                ForEach(home.rows.filter(\.hasContent)) { row in
                     HomeRowView(row: row)
                 }
             }
@@ -178,12 +179,19 @@ struct HomeRowView: View {
             SectionHeading(title: row.title, action: linkedLibrary.map { library in { router.push(.library(library.0, library.1)) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
+                    // A playlists row carries playlists rather than items.
+                    ForEach(row.playlists ?? []) { playlist in
+                        PlaylistCard(playlist: playlist, width: Layout.posterWidth(sizeClass))
+                    }
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         switch row.style {
                         case .wide:
                             WideCard(item: item, width: Layout.wideWidth(sizeClass))
                         case .top10:
                             Top10Card(rank: index + 1, item: item, width: Layout.posterWidth(sizeClass))
+                        case .tracks:
+                            // A row of tracks plays: the one tapped first, the rest of the row after it.
+                            TrackCard(item: item, width: Layout.posterWidth(sizeClass)) { model.playTracks(row.items, from: index) }
                         default:
                             PosterCard(item: item, width: Layout.posterWidth(sizeClass))
                         }

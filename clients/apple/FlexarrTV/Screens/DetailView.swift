@@ -34,7 +34,10 @@ struct DetailView: View {
     var body: some View {
         ZStack {
             Color.room.ignoresSafeArea()
-            if let item {
+            if let item, item.kind.isMusic {
+                // Opened by id (a deep link, say) and turned out to be music: its own screen takes over.
+                MusicDestination(item: item)
+            } else if let item {
                 backdrop(for: item)
                 ScrollViewReader { proxy in
                     ScrollView(.vertical) {
