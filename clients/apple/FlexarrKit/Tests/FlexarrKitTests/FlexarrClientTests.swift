@@ -249,10 +249,12 @@ struct FlexarrClientTests {
         #expect(profile["hdr"] as? Bool == true)
         #expect(profile["containers"] as? [String] == ["mp4"])
         #expect(profile["videoCodecs"] as? [String] == ["h264", "hevc"])
-        #expect(profile["audioCodecs"] as? [String] == ["aac", "ac3", "eac3", "mp3"])
+        // Fragmented MP4: Dolby Digital Plus with its Atmos, and lossless FLAC up to 7.1.
+        #expect(profile["audioCodecs"] as? [String] == ["aac", "ac3", "eac3", "mp3", "flac", "alac"])
         #expect(profile["maxHeight"] as? Int == 2160)
-        #expect(profile["maxAudioChannels"] as? Int == 6)
+        #expect(profile["maxAudioChannels"] as? Int == 8)
         #expect(profile["maxBitrate"] as? Int == 0)
+        #expect(profile["fmp4"] as? Bool == true)
     }
 
     @Test func progressAndStopHitSessionEndpoints() async throws {
