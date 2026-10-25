@@ -11,13 +11,15 @@ namespace Flexarr.Streaming.Remux;
 /// <param name="SupplementalCodecs">Dolby Vision over an HDR10 or HLG base: what a Dolby Vision display can use.</param>
 /// <param name="VideoRange">"SDR", "PQ" or "HLG".</param>
 /// <param name="StripDolbyVision">Profile 7 (Blu-ray's two layers), which Apple can't play: its HDR10 base layer instead.</param>
+/// <param name="FrameRate">The video's frame rate, for the master playlist's FRAME-RATE.</param>
 public sealed record Repackage(
     IReadOnlyList<double> SegmentStarts,
     string CodecTag,
     string Codecs,
     string? SupplementalCodecs,
     string VideoRange,
-    bool StripDolbyVision)
+    bool StripDolbyVision,
+    double? FrameRate = null)
 {
     /// <summary>Segments last at least this long (keyframes can be a frame apart), up to the longest gap between keyframes.</summary>
     public const double MinSegmentSeconds = 3;
@@ -41,7 +43,58 @@ public sealed record Repackage(
         return starts;
     }
 
-    /// <summary>"avc1.640028", "hvc1.2.4.L153.B0", "dvh1.05.06".</summary>
+    /// <summary>
+    /// The highest HEVC level a master playlist declares (5.1, which covers 2160p60). Encoders stamp 5.2 on 1080p
+    /// streams, and an Apple TV 4K refuses a declared 5.2 outright while decoding the same bytes happily.
+    /// </summary>
+    private const int MaxDeclaredHevcLevel = 153;
+
+    /// <summary>
+    /// The CODECS string read off the file's own hvcC record (ISO 14496-15 Annex E), so the master playlist and the
+    /// init segment agree: an Apple TV checks them against each other and refuses the stream when they differ. A
+    /// Main 10 record with constraint flags 0x90 gives "hvc1.2.4.L153.90".
+    /// </summary>
+    public static string? HevcCodecs(string hevcConfigHex)
+    {
+        ArgumentNullException.ThrowIfNull(hevcConfigHex);
+        byte[] record;
+        try
+        {
+            record = Convert.FromHexString(hevcConfigHex);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+
+        if (record.Length < 13 || record[0] != 1)
+        {
+            return null;
+        }
+
+        var profileSpace = (record[1] >> 6) & 0x3;
+        var tier = ((record[1] >> 5) & 0x1) == 1 ? "H" : "L";
+        var profileIdc = record[1] & 0x1F;
+        var compatibility = (uint)(record[2] << 24 | record[3] << 16 | record[4] << 8 | record[5]);
+        // The compatibility flags are written in reverse bit order (flag 31 first), as hex without leading zeroes: a
+        // Main 10 record stores 0x20000000 and prints "4".
+        uint reversed = 0;
+        for (var i = 0; i < 32; i++)
+        {
+            if ((compatibility >> (31 - i) & 1) == 1)
+            {
+                reversed |= 1u << i;
+            }
+        }
+
+        var constraints = record[6..12].Reverse().SkipWhile(b => b == 0).Reverse().ToArray();
+        var space = profileSpace switch { 1 => "A", 2 => "B", 3 => "C", _ => "" };
+        var declaredLevel = Math.Min((int)record[12], MaxDeclaredHevcLevel);
+        var codecs = string.Create(CultureInfo.InvariantCulture, $"hvc1.{space}{profileIdc}.{reversed:x}.{tier}{declaredLevel}");
+        return constraints.Length == 0 ? codecs : codecs + "." + string.Join('.', constraints.Select(b => b.ToString("x2", CultureInfo.InvariantCulture)));
+    }
+
+    /// <summary>"avc1.640028", "hvc1.2.4.L153.90", "dvh1.05.06".</summary>
     public static string CodecsFor(VideoFacts video)
     {
         ArgumentNullException.ThrowIfNull(video);
@@ -53,6 +106,12 @@ public sealed record Repackage(
 
         if (video.Codec == "hevc")
         {
+            if (video.HevcConfig is { } config && HevcCodecs(config) is { } fromRecord)
+            {
+                return fromRecord;
+            }
+
+            level = Math.Min(level, MaxDeclaredHevcLevel);
             return video.Profile == "Main 10"
                 ? string.Create(CultureInfo.InvariantCulture, $"hvc1.2.4.L{level}.B0")
                 : string.Create(CultureInfo.InvariantCulture, $"hvc1.1.6.L{level}.B0");

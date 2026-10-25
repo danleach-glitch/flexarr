@@ -21,6 +21,8 @@ public sealed class PlaybackSession
     public TranscodeSession? Transcode { get; init; }
     public string? AudioLanguage { get; init; }
     public string? SubtitleLanguage { get; init; }
+    /// <summary>The stream's soundtrack carries Dolby Atmos (E-AC-3 with JOC): the master playlist says so.</summary>
+    public bool AudioIsAtmos { get; init; }
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
     public double LastPosition { get; set; }
     public bool Paused { get; set; }

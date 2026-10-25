@@ -13,6 +13,8 @@ namespace Flexarr.Streaming.Remux;
 /// <param name="DolbyVisionProfile">5, 7, 8…; null without Dolby Vision.</param>
 /// <param name="DolbyVisionCompatibility">The base layer's: 1 HDR10, 2 SDR, 4 HLG, 0 none (profile 5).</param>
 /// <param name="StartTime">When the video's first frame is, in the file's own time (ffmpeg counts from here).</param>
+/// <param name="HevcConfig">HEVC only: the first 13 bytes of the file's hvcC record as hex (profile, tier, compatibility
+/// flags, constraint flags, level), which the HLS CODECS attribute must agree with. Null for H.264 and for Annex-B files.</param>
 public sealed record VideoFacts(
     string Codec,
     string? Profile,
@@ -24,7 +26,9 @@ public sealed record VideoFacts(
     int? DolbyVisionProfile = null,
     int? DolbyVisionLevel = null,
     int? DolbyVisionCompatibility = null,
-    double StartTime = 0);
+    double StartTime = 0,
+    string? HevcConfig = null,
+    double? FrameRate = null);
 
 /// <summary>A video's keyframe times (where a copied stream can be cut) and its facts.</summary>
 public sealed record RemuxInfo(IReadOnlyList<double> Keyframes, VideoFacts Video);
@@ -53,6 +57,13 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
         if (_known.TryGetValue(key, out var known) || TryLoad(key) is { } loaded && _known.TryAdd(key, known = loaded))
         {
+            // Indexed before the hvcC record was kept: probe the facts again (the keyframes still stand).
+            if ((known.Video.FrameRate is null || known.Video.Codec == "hevc" && known.Video.HevcConfig is null)
+                && await ProbeAsync(path, ct).ConfigureAwait(false) is { } refreshed)
+            {
+                known = Remember(key, known with { Video = refreshed });
+            }
+
             return known;
         }
 
@@ -145,7 +156,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
     private async Task<VideoFacts?> ProbeAsync(string path, CancellationToken ct)
     {
-        var output = await RunAsync(["-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", path], ct).ConfigureAwait(false);
+        var output = await RunAsync(["-v", "error", "-select_streams", "v:0", "-show_streams", "-show_data", "-of", "json", path], ct).ConfigureAwait(false);
         return output is null ? null : ParseFacts(output);
     }
 
@@ -174,6 +185,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
         }
 
         var fieldOrder = Str(stream, "field_order");
+        var codec = Str(stream, "codec_name") ?? "";
         return new VideoFacts(
             Str(stream, "codec_name") ?? "",
             Str(stream, "profile"),
@@ -185,7 +197,75 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
             dvProfile,
             dvLevel,
             dvCompat,
-            double.TryParse(Str(stream, "start_time"), NumberStyles.Float, CultureInfo.InvariantCulture, out var startTime) ? startTime : 0);
+            double.TryParse(Str(stream, "start_time"), NumberStyles.Float, CultureInfo.InvariantCulture, out var startTime) ? startTime : 0,
+            codec == "hevc" ? HevcConfigFrom(Str(stream, "extradata")) : null,
+            FrameRateFrom(Str(stream, "avg_frame_rate")) ?? FrameRateFrom(Str(stream, "r_frame_rate")));
+    }
+
+    /// <summary>ffprobe's "24000/1001" as 23.976; null for "0/0" and the like.</summary>
+    public static double? FrameRateFrom(string? ratio)
+    {
+        if (ratio is null)
+        {
+            return null;
+        }
+
+        var parts = ratio.Split('/');
+        if (parts.Length == 2 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var n)
+            && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && d > 0 && n > 0)
+        {
+            return n / d;
+        }
+
+        return double.TryParse(ratio, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && value > 0 ? value : null;
+    }
+
+    /// <summary>
+    /// The hvcC header out of ffprobe's extradata dump ("00000000: 0102 2000 0000 9000 ..." lines): its first 13 bytes
+    /// as hex, or null when the extradata isn't an hvcC record (Annex-B start codes, say).
+    /// </summary>
+    public static string? HevcConfigFrom(string? extradataDump)
+    {
+        if (string.IsNullOrEmpty(extradataDump))
+        {
+            return null;
+        }
+
+        var bytes = new List<byte>();
+        foreach (var line in extradataDump.Split('\n'))
+        {
+            var colon = line.IndexOf(':', StringComparison.Ordinal);
+            if (colon < 0)
+            {
+                continue;
+            }
+
+            // "0102 2000 0000 9000 0000 0000 99f0 00fc  .. ............." : hex pairs, then the ASCII column.
+            var hex = line[(colon + 1)..];
+            var ascii = hex.IndexOf("  ", StringComparison.Ordinal);
+            if (ascii >= 0)
+            {
+                hex = hex[..ascii];
+            }
+
+            foreach (var group in hex.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                for (var i = 0; i + 1 < group.Length; i += 2)
+                {
+                    if (byte.TryParse(group.AsSpan(i, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+                    {
+                        bytes.Add(b);
+                    }
+                }
+            }
+
+            if (bytes.Count >= 13)
+            {
+                break;
+            }
+        }
+
+        return bytes.Count >= 13 && bytes[0] == 1 ? Convert.ToHexStringLower(bytes.Take(13).ToArray()) : null;
     }
 
     /// <summary>Every video packet's flags, for files without an index: the keyframes' times.</summary>

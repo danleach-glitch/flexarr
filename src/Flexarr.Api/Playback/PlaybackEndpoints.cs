@@ -152,7 +152,7 @@ public static class PlaybackEndpoints
 
             try
             {
-                return await transcode.GetInitAsync(ct) is { } path ? Results.File(path, "video/mp4") : Results.NotFound();
+                return await transcode.GetInitBytesAsync(ct) is { } init ? Results.Bytes(init, "video/mp4") : Results.NotFound();
             }
             catch (TranscodeLimitException ex)
             {

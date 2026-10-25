@@ -136,16 +136,20 @@ public class PlaybackDeciderTests
     }
 
     [Fact]
-    public void Hdr10AndHlg_AreStillConverted_UntilAppleTvTakesACopiedHdr10Stream()
+    public void Hdr10AndHlg_AreCopied_ForADisplayShowingThem_AndConvertedOtherwise()
     {
         var hdr10 = File("mkv", "hevc", "eac3", 6, VideoRange.Hdr10);
-        Assert.Null(Repackaged(hdr10, AppleTvFmp4 with { Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084")));
+        var copied = Repackaged(hdr10, AppleTvFmp4 with { Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084"))!;
+        Assert.Equal(("hvc1", "PQ"), (copied.Repackage!.CodecTag, copied.Repackage.VideoRange));
         Assert.Null(Repackaged(hdr10, AppleTvFmp4, Info("hevc", "Main 10", 153, "smpte2084")));
-        Assert.Null(Repackaged(File("mkv", "hevc", "aac", 2, VideoRange.Hlg), AppleTvFmp4 with { Hlg = true }, Info("hevc", "Main 10", 153, "arib-std-b67")));
+        Assert.Null(Repackaged(hdr10, AppleTvFmp4 with { Hdr10 = true, Hdr = false }, Info("hevc", "Main 10", 153, "smpte2084")));
+        var hlg = Repackaged(File("mkv", "hevc", "aac", 2, VideoRange.Hlg), AppleTvFmp4 with { Hlg = true }, Info("hevc", "Main 10", 153, "arib-std-b67"))!;
+        Assert.Equal("HLG", hlg.Repackage!.VideoRange);
+        Assert.Null(Repackaged(File("mkv", "hevc", "aac", 2, VideoRange.Hlg), AppleTvFmp4 with { Hdr10 = true }, Info("hevc", "Main 10", 153, "arib-std-b67")));
     }
 
     [Fact]
-    public void DolbyVision_Profile5IsCopiedForADolbyVisionDisplay_Profiles7And8AreStillConverted()
+    public void DolbyVision_Profile5ForADolbyVisionDisplay_Profiles7And8OnTheirHdr10BaseLayer()
     {
         var dv = File("mkv", "hevc", "eac3", 6, VideoRange.DolbyVision);
 
@@ -153,8 +157,34 @@ public class PlaybackDeciderTests
         Assert.Equal(("dvh1", "dvh1.05.06", "PQ"), (five.Repackage!.CodecTag, five.Repackage.Codecs, five.Repackage.VideoRange));
         Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = false }, Info("hevc", "Main 10", 120, null, dvProfile: 5, dvCompat: 0)));
 
-        Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = true, Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 8, dvCompat: 1)));
-        Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = true, Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 7, dvCompat: 1)));
+        // Profile 8.1: HDR10 base layer with the Dolby Vision metadata kept and declared, for a display that takes it.
+        var eight = Repackaged(dv, AppleTvFmp4 with { DolbyVision = true, Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 8, dvCompat: 1))!;
+        Assert.Equal(("hvc1", "dvh1.08.06/db1p", false), (eight.Repackage!.CodecTag, eight.Repackage.SupplementalCodecs, eight.Repackage.StripDolbyVision));
+        // Without Dolby Vision on the display, the same file is plain HDR10.
+        var eightHdr = Repackaged(dv, AppleTvFmp4 with { Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 8, dvCompat: 1))!;
+        Assert.Null(eightHdr.Repackage!.SupplementalCodecs);
+        // Profile 7: the enhancement layer is stripped and the HDR10 base layer plays.
+        var seven = Repackaged(dv, AppleTvFmp4 with { DolbyVision = true, Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 7, dvCompat: 1))!;
+        Assert.True(seven.Repackage!.StripDolbyVision);
+        Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 7, dvCompat: 1)));
+    }
+
+    /// <summary>
+    /// An Apple TV checks the master's CODECS against the init segment's hvcC and refuses a mismatch, so the string
+    /// is read off the record itself (and the declared level capped at 5.1, which it also insists on).
+    /// </summary>
+    [Fact]
+    public void HevcCodecs_ComeFromTheFilesOwnRecord()
+    {
+        // Green Book, HDR10: Main 10, compatibility 0x20000000, constraints 0x90, level 153.
+        Assert.Equal("hvc1.2.4.L153.90", Repackage.HevcCodecs("01022000000090000000000099"));
+        // Main, high tier, level 156: capped at 153, the 0xB0 constraints kept.
+        Assert.Equal("hvc1.1.6.H153.b0", Repackage.HevcCodecs("012160000000b00000000000" + "9c"));
+        Assert.Null(Repackage.HevcCodecs("00000001"));
+        Assert.Equal("hvc1.2.4.L153.90", Repackage.CodecsFor(new VideoFacts("hevc", "Main 10", 156, 1920, 1080, false, "smpte2084", HevcConfig: "01022000000090000000000099")));
+        Assert.Equal("hvc1.2.4.L153.B0", Repackage.CodecsFor(new VideoFacts("hevc", "Main 10", 156, 1920, 1080, false, "smpte2084")));
+        Assert.Equal("01022000000090000000000099", RemuxIndex.HevcConfigFrom("\n00000000: 0102 2000 0000 9000 0000 0000 99f0 00fc  .. .............\n00000010: fdfa fa00 000f 0420 0001 0019 4001 0c01  ....... ....@...\n"));
+        Assert.Null(RemuxIndex.HevcConfigFrom("\n00000000: 0000 0001 4001 0c01 ffff 0220 0000 0300  ...@...... ....\n"));
     }
 
     [Fact]

@@ -105,14 +105,15 @@ public static class PlaybackDecider
         };
         var dolbyVision = video.DolbyVisionProfile;
         var range = dolbyVision == 5 || video.ColorTransfer == "smpte2084" ? "PQ" : video.ColorTransfer == "arib-std-b67" ? "HLG" : "SDR";
-        // What's copied as it is: SDR, and Dolby Vision profile 5 on a Dolby Vision display. HDR10, HLG and Dolby
-        // Vision 7 and 8 (which ride on an HDR10 base layer) are still converted: tvOS 18 refuses a copied HDR10 stream
-        // at the playlist, even on a display in HDR10 mode, for a reason not yet understood. The profile's Hdr10 and
-        // Hlg say what the display shows, for when it is.
+        // What's copied as it is: SDR; Dolby Vision profile 5 on a Dolby Vision display; HDR10, and Dolby Vision 7 and
+        // 8 (which ride on an HDR10 base layer), on a display showing HDR10; HLG on one showing HLG. The profile's Hdr10
+        // and Hlg say what the display shows; a player that doesn't say (older apps) gets HDR converted.
         var presentable = range switch
         {
             "SDR" => true,
             _ when dolbyVision == 5 => profile.Hdr && profile.DolbyVision,
+            "PQ" => profile.Hdr && profile.Hdr10 == true,
+            "HLG" => profile.Hdr && profile.Hlg == true,
             _ => false,
         };
         if (!profile.Fmp4 || options.ForceTranscode || plan.BurnSubtitle is not null || !playable || video.Interlaced
@@ -141,7 +142,8 @@ public static class PlaybackDecider
             Repackage.CodecsFor(video),
             supplemental,
             range,
-            StripDolbyVision: dolbyVision == 7);
+            StripDolbyVision: dolbyVision == 7,
+            FrameRate: video.FrameRate);
         return plan with
         {
             TargetWidth = video.Width,

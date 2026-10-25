@@ -138,6 +138,7 @@ public sealed class PlaybackService(
             Transcode = transcode,
             AudioLanguage = decision.Audio?.Language,
             SubtitleLanguage = decision.Subtitle?.Language,
+            AudioIsAtmos = decision.Audio?.Profile?.Contains("Atmos", StringComparison.OrdinalIgnoreCase) == true,
         });
 
         var start = request.StartPositionSeconds
@@ -574,10 +575,31 @@ public sealed class PlaybackService(
         var video = plan.Repackage?.Codecs ?? $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
         var codecs = plan.AudioCodecTag is { } audio ? $"{video},{audio}" : video;
         var bandwidth = plan.VideoBitrate + plan.AudioBitrate;
-        // Repackaged video says what it is, so the TV switches to HDR or Dolby Vision for it.
-        var range = plan.Repackage is { } repackage
-            ? $",VIDEO-RANGE={repackage.VideoRange}{(repackage.SupplementalCodecs is { } dv ? $",SUPPLEMENTAL-CODECS=\"{dv}\"" : "")}"
-            : "";
+        // Repackaged video says what it is, so the TV switches to HDR or Dolby Vision for it; and the Apple TV wants
+        // the full account of an HDR stream before it will take it: the soundtrack declared as a rendition (muxed, so
+        // no URI) with its channels, the frame rate, the average bandwidth and that there are no closed captions.
+        var range = "";
+        var audioGroup = "";
+        if (plan.Repackage is { } repackage)
+        {
+            range = $",VIDEO-RANGE={repackage.VideoRange}{(repackage.SupplementalCodecs is { } dv ? $",SUPPLEMENTAL-CODECS=\"{dv}\"" : "")}";
+            if (repackage.FrameRate is { } fps)
+            {
+                range += string.Create(CultureInfo.InvariantCulture, $",FRAME-RATE={fps:0.000}");
+            }
+
+            if (plan.AudioCodecTag is not null)
+            {
+                var language = PlaylistText(session.AudioLanguage ?? "") is { Length: > 0 } tag ? tag : "und";
+                var channels = session.AudioIsAtmos && plan.CopyAudio && plan.SourceAudioCodec == "eac3" ? "16/JOC" : plan.AudioChannels.ToString(CultureInfo.InvariantCulture);
+                builder.Append(CultureInfo.InvariantCulture,
+                    $"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"{PlaylistText(Languages.Label(session.AudioLanguage, null, false))}\",LANGUAGE=\"{language}\",DEFAULT=YES,AUTOSELECT=YES,CHANNELS=\"{channels}\"\n");
+                audioGroup = ",AUDIO=\"aud\"";
+            }
+
+            range = $",AVERAGE-BANDWIDTH={bandwidth}" + range + audioGroup + ",CLOSED-CAPTIONS=NONE";
+        }
+
         builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={plan.TargetWidth}x{plan.TargetHeight},CODECS=\"{codecs}\"{range}{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
         return builder.ToString();
     }

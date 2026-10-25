@@ -49,6 +49,146 @@ public static class Mp4Fragments
         return null;
     }
 
+    /// <summary>
+    /// The initialisation segment with its HEVC configuration record (hvcC) cut down to the parameter sets. ffmpeg
+    /// copies every NAL array out of the file's extradata into the record, SEI messages included (x265's settings
+    /// blob among them), and an Apple TV refuses an HDR stream whose record carries them; AVPlayer only needs the
+    /// VPS, SPS and PPS there. A segment without an hvcC (H.264, say) comes back as it is.
+    /// </summary>
+    public static byte[] TrimHevcConfig(byte[] init)
+    {
+        ArgumentNullException.ThrowIfNull(init);
+        // The path down to the record, remembering each container's size field to shrink afterwards.
+        var ancestors = new List<int>();
+        var offset = 0;
+        var length = init.Length;
+        foreach (var type in new[] { "moov", "trak", "mdia", "minf", "stbl", "stsd" })
+        {
+            if (!FindChild(init, offset, length, type, out var at, out var size))
+            {
+                return init;
+            }
+
+            ancestors.Add(at);
+            offset = at + 8 + (type == "stsd" ? 8 : 0); // stsd: version/flags and entry count before the entries
+            length = at + size;
+        }
+
+        var entryAt = -1;
+        foreach (var entry in new[] { "hvc1", "hev1", "dvh1", "dvhe" })
+        {
+            if (FindChild(init, offset, length, entry, out var at, out var size))
+            {
+                (entryAt, length) = (at, at + size);
+                break;
+            }
+        }
+
+        if (entryAt < 0 || !FindChild(init, entryAt + 8 + 78, length, "hvcC", out var hvccAt, out var hvccSize) || hvccSize < 8 + 23)
+        {
+            return init;
+        }
+
+        ancestors.Add(entryAt);
+        var record = init.AsSpan(hvccAt + 8, hvccSize - 8);
+        var trimmed = TrimRecord(record);
+        if (trimmed is null || trimmed.Length == record.Length)
+        {
+            return init;
+        }
+
+        var removed = record.Length - trimmed.Length;
+        var result = new byte[init.Length - removed];
+        init.AsSpan(0, hvccAt + 8).CopyTo(result);
+        trimmed.CopyTo(result.AsSpan(hvccAt + 8));
+        init.AsSpan(hvccAt + hvccSize).CopyTo(result.AsSpan(hvccAt + 8 + trimmed.Length));
+        BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(hvccAt), (uint)(8 + trimmed.Length));
+        foreach (var at in ancestors)
+        {
+            BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(at), BinaryPrimitives.ReadUInt32BigEndian(result.AsSpan(at)) - (uint)removed);
+        }
+
+        return result;
+    }
+
+    /// <summary>The record with only its VPS (32), SPS (33) and PPS (34) arrays; null when it can't be read.</summary>
+    private static byte[]? TrimRecord(ReadOnlySpan<byte> record)
+    {
+        if (record.Length < 23 || record[0] != 1)
+        {
+            return null;
+        }
+
+        var kept = new List<byte>(record[..22].ToArray());
+        var arrays = 0;
+        var at = 23;
+        for (var i = 0; i < record[22]; i++)
+        {
+            if (at + 3 > record.Length)
+            {
+                return null;
+            }
+
+            var start = at;
+            var nalType = record[at] & 0x3F;
+            var count = BinaryPrimitives.ReadUInt16BigEndian(record[(at + 1)..]);
+            at += 3;
+            for (var n = 0; n < count; n++)
+            {
+                if (at + 2 > record.Length)
+                {
+                    return null;
+                }
+
+                at += 2 + BinaryPrimitives.ReadUInt16BigEndian(record[at..]);
+            }
+
+            if (at > record.Length)
+            {
+                return null;
+            }
+
+            if (nalType is 32 or 33 or 34)
+            {
+                kept.AddRange(record[start..at].ToArray());
+                arrays++;
+            }
+        }
+
+        kept.Insert(22, (byte)arrays);
+        return [.. kept];
+    }
+
+    /// <summary>The first child box of this type between <paramref name="from"/> and <paramref name="end"/>.</summary>
+    private static bool FindChild(byte[] data, int from, int end, string type, out int at, out int size)
+    {
+        var offset = from;
+        while (offset + 8 <= end)
+        {
+            var boxSize = (long)BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(offset));
+            if (boxSize == 0)
+            {
+                boxSize = end - offset;
+            }
+
+            if (boxSize < 8 || offset + boxSize > end)
+            {
+                break;
+            }
+
+            if (data.AsSpan(offset + 4, 4).SequenceEqual(System.Text.Encoding.ASCII.GetBytes(type)))
+            {
+                (at, size) = (offset, (int)boxSize);
+                return true;
+            }
+
+            offset += (int)boxSize;
+        }
+
+        (at, size) = (-1, 0);
+        return false;
+    }
+
     /// <summary>The body of the first child box of this type (empty when there's none).</summary>
     private static ReadOnlySpan<byte> Find(ReadOnlySpan<byte> data, string type)
     {

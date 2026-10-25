@@ -41,6 +41,9 @@ final class PlayerViewController: UIViewController {
     private var subtitleDelay: Double?
     private var menuOpen = false
     private var finished = false
+    /// Where the viewer last asked to go, until the picture gets there: skips add up from here, and the timeline shows
+    /// it rather than the clock (which only moves once the seek has landed).
+    private var seekTarget: (seconds: Double, at: Date)?
     #if os(tvOS)
     /// Scanning with the remote's edges held: the direction, the speed (2, 4, 8, 16×), where the head is, and the
     /// press that may turn into a hold.
@@ -318,13 +321,14 @@ final class PlayerViewController: UIViewController {
         guard let transport else { return }
         // A head parked after a swipe (not yet committed) is let go: the skip is the viewer's new position.
         _ = controls.scrubber.cancelScrubIfNeeded()
-        seek(to: transport.currentTime + seconds)
+        seek(to: (seekTarget?.seconds ?? transport.currentTime) + seconds)
         if flash { controls.flashSkip(seconds) }
     }
 
     func seek(to seconds: Double) {
         guard let transport else { return }
         let target = max(0, min(seconds, transport.duration > 0 ? transport.duration : seconds))
+        seekTarget = (target, Date())
         transport.seek(to: target)
         controls.setTime(position: target, duration: transport.duration, buffered: transport.bufferedTime)
         delegate?.playerScreen(self, didSeekTo: target)
@@ -666,6 +670,16 @@ extension PlayerViewController: PlayerTransportDelegate {
 
     func transport(_ transport: PlayerTransport, tick seconds: Double) {
         guard isViewLoaded else { return }
+        // Until a seek lands (the clock reaches its target, give or take), the timeline keeps showing the target.
+        if let pending = seekTarget {
+            if abs(seconds - pending.seconds) < 2 || Date().timeIntervalSince(pending.at) > 15 {
+                seekTarget = nil
+            } else {
+                controls.setTime(position: pending.seconds, duration: transport.duration, buffered: transport.bufferedTime)
+                delegate?.playerScreen(self, tick: seconds)
+                return
+            }
+        }
         controls.setTime(position: seconds, duration: transport.duration, buffered: transport.bufferedTime)
         if Date().timeIntervalSince(lastNowPlayingUpdate) > 1 {
             lastNowPlayingUpdate = Date()

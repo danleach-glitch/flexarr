@@ -105,6 +105,28 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
 
+    private byte[]? _init;
+
+    /// <summary>
+    /// The init segment as sent to players: a copied HEVC stream's configuration record is cut down to its parameter
+    /// sets (<see cref="Mp4Fragments.TrimHevcConfig"/>), which an Apple TV insists on for HDR. Read once.
+    /// </summary>
+    public async Task<byte[]?> GetInitBytesAsync(CancellationToken ct)
+    {
+        if (_init is not null)
+        {
+            return _init;
+        }
+
+        if (await GetInitAsync(ct).ConfigureAwait(false) is not { } path)
+        {
+            return null;
+        }
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        return _init = Plan.Repackage is null ? bytes : Mp4Fragments.TrimHevcConfig(bytes);
+    }
+
     /// <summary>
     /// The fragmented MP4 initialisation segment (codecs and, for Dolby Digital Plus, its Atmos), which ffmpeg writes as
     /// it starts. Players fetch it before any segment, so ffmpeg is started at the opening segment if it isn't running,

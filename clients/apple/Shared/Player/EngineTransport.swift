@@ -86,6 +86,22 @@ final class EngineTransport: PlayerTransport {
             }
             self.loading = false
             log.info("Route \(self.engine.videoRoute.rawValue, privacy: .public), audio \(self.engine.audioTracks.count) tracks, subtitles \(self.engine.subtitleTracks.count)")
+            #if DEBUG
+            // `-FlexarrDumpEngine YES`: what the engine's own HLS server hands AVPlayer (playlists and init segment),
+            // for comparing with what our server serves when the TV refuses ours.
+            if UserDefaults.standard.bool(forKey: "FlexarrDumpEngine") {
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(4))
+                    guard let self else { return }
+                    let item = self.engine.currentAVPlayerItem ?? self.engine.currentAVPlayer?.currentItem
+                    guard let url = (item?.asset as? AVURLAsset)?.url else {
+                        log.info("DUMP: no player item (route \(self.engine.videoRoute.rawValue, privacy: .public))")
+                        return
+                    }
+                    await Self.dumpServed(url)
+                }
+            }
+            #endif
             self.selectInitialSubtitle(subtitleKey ?? self.info.selectedSubtitleKey)
             self.engine.play()
             self.updatePhase()
@@ -280,6 +296,68 @@ final class EngineTransport: PlayerTransport {
             let seconds = skipInterval.seconds
             await MainActor.run { [source] in source.skip(by: seconds) }
         }
+    }
+    #endif
+
+    #if DEBUG
+    private static func dumpServed(_ master: URL) async {
+        guard let (data, _) = try? await URLSession.shared.data(from: master), let text = String(data: data, encoding: .utf8) else {
+            log.info("DUMP master: couldn't fetch \(master.absoluteString, privacy: .public)")
+            return
+        }
+        for line in text.split(separator: "\n") { log.info("DUMP master: \(line, privacy: .public)") }
+        // The first media playlist, and its init segment.
+        let lines = text.split(separator: "\n").map(String.init)
+        guard let mediaLine = lines.first(where: { !$0.hasPrefix("#") && !$0.isEmpty }), let media = URL(string: mediaLine, relativeTo: master),
+              let (mediaData, _) = try? await URLSession.shared.data(from: media), let mediaText = String(data: mediaData, encoding: .utf8) else { return }
+        for line in mediaText.split(separator: "\n").prefix(14) { log.info("DUMP media: \(line, privacy: .public)") }
+        guard let mapLine = mediaText.split(separator: "\n").first(where: { $0.hasPrefix("#EXT-X-MAP") }),
+              let uriStart = mapLine.range(of: "URI=\""), let uriEnd = mapLine[uriStart.upperBound...].firstIndex(of: "\""),
+              let initURL = URL(string: String(mapLine[uriStart.upperBound..<uriEnd]), relativeTo: media),
+              let (initData, _) = try? await URLSession.shared.data(from: initURL) else { return }
+        log.info("DUMP init: \(initData.count) bytes, boxes \(Self.boxes(initData), privacy: .public)")
+        if let hvcC = Self.find(box: "hvcC", in: initData) {
+            log.info("DUMP init hvcC: \(hvcC.prefix(23).map { String(format: "%02x", $0) }.joined(), privacy: .public)")
+        }
+        for name in ["colr", "mdcv", "clli", "dvcC", "dvvC", "pasp"] {
+            if let box = Self.find(box: name, in: initData) { log.info("DUMP init \(name, privacy: .public): \(box.map { String(format: "%02x", $0) }.joined(), privacy: .public)") }
+        }
+    }
+
+    /// Box names in order, with their sizes, through the whole buffer (containers descended into).
+    private static func boxes(_ data: Data) -> String {
+        var names: [String] = []
+        func walk(_ start: Int, _ end: Int, _ depth: Int) {
+            var offset = start
+            while offset + 8 <= end {
+                let size = Int(data[offset]) << 24 | Int(data[offset + 1]) << 16 | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
+                let type = String(bytes: data[(offset + 4)..<(offset + 8)], encoding: .isoLatin1) ?? "????"
+                let length = size == 0 ? end - offset : size
+                guard length >= 8 else { return }
+                names.append(String(repeating: ".", count: depth) + type + "(\(length))")
+                if ["moov", "trak", "mdia", "minf", "stbl", "mvex", "dinf"].contains(type) { walk(offset + 8, min(end, offset + length), depth + 1) }
+                if type == "stsd" { walk(offset + 16, min(end, offset + length), depth + 1) }
+                if ["hvc1", "hev1", "dvh1", "dvhe", "avc1"].contains(type) { walk(offset + 8 + 78, min(end, offset + length), depth + 1) }
+                offset += length
+            }
+        }
+        walk(0, data.count, 0)
+        return names.joined(separator: " ")
+    }
+
+    /// The payload of the first box called `name` (a flat search).
+    private static func find(box name: String, in data: Data) -> [UInt8]? {
+        let needle = Array(name.utf8)
+        let bytes = [UInt8](data)
+        var i = 4
+        while i + 4 <= bytes.count {
+            if Array(bytes[i..<(i + 4)]) == needle {
+                let size = Int(bytes[i - 4]) << 24 | Int(bytes[i - 3]) << 16 | Int(bytes[i - 2]) << 8 | Int(bytes[i - 1])
+                if size >= 8, i - 4 + size <= bytes.count { return Array(bytes[(i + 4)..<(i - 4 + size)]) }
+            }
+            i += 1
+        }
+        return nil
     }
     #endif
 
