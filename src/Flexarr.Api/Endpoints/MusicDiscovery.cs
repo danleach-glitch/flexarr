@@ -25,12 +25,17 @@ public static class MusicDiscovery
     private const double OwnShare = 0.4;
 
     /// <summary>
-    /// Recently played, Most played and More from artists you play, for one music library or (null) all of them. Rows
-    /// with nothing in them are left out, so a profile that hasn't played any music gets none.
+    /// Your playlists, Recently played, Most played and More from artists you play, for one music library or (null)
+    /// all of them. Rows with nothing in them are left out, so a profile that hasn't played any music gets none.
     /// </summary>
     public static async Task<List<HomeRowDto>> RowsAsync(FlexarrDbContext db, string profileId, Guid? libraryId, int size, CancellationToken ct)
     {
         var rows = new List<HomeRowDto>();
+        // Playlists span libraries, so every music library's Browse offers them.
+        if (await Playlists.PlaylistEndpoints.HomeRowAsync(db, profileId, size, ct) is { } playlists)
+        {
+            rows.Add(playlists);
+        }
         var played = db.PlaybackStates.Where(p => p.UserId == profileId && p.MediaItem!.Kind == MediaKind.Track && (libraryId == null || p.MediaItem.LibraryId == libraryId));
 
         // Albums, most recently played first: the album is what you'd put on again, rather than the one track.
@@ -69,7 +74,7 @@ public static class MusicDiscovery
             rows.Add(new HomeRowDto("music-artists", "More from artists you play", "poster", await InOrderAsync(db, picks.Take(size), profileId, ct)));
         }
 
-        return rows.Where(r => r.Items.Count > 0).ToList();
+        return rows.Where(r => r.HasContent).ToList();
     }
 
     /// <summary>Everything a radio station seeded from <paramref name="artistId"/> could play, for the picker.</summary>

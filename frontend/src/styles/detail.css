@@ -1030,3 +1030,181 @@ button.queue-track:focus-visible {
   align-self: center;
   font-weight: 700;
 }
+
+/* ---------- Playlists ---------- */
+
+/* Playlist artwork is square, like an album's; a note stands in when there are no covers yet. */
+.collage.square {
+  aspect-ratio: 1;
+}
+
+.playlist-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.playlist-cover-empty svg {
+  width: 40%;
+  height: 40%;
+  color: var(--usher);
+}
+
+.music-cover .collage,
+.music-cover .playlist-cover {
+  width: 100%;
+}
+
+.playlist-new,
+.playlist-rename {
+  align-items: center;
+}
+
+.playlist-rename {
+  max-width: 560px;
+  margin-bottom: 8px;
+}
+
+.playlist-rename input {
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+
+/* A row: the grip, the track (with its cover and artist), then its buttons, which show on hover or focus. */
+.playlist-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: center;
+  border-radius: var(--radius-control);
+}
+
+.playlist-entry:hover,
+.playlist-entry:focus-within {
+  background: var(--seat);
+}
+
+.playlist-entry.dragging {
+  opacity: 0.4;
+}
+
+.playlist-entry.drag-over {
+  box-shadow: inset 0 2px 0 var(--ambient, var(--screen));
+}
+
+.playlist-entry .track {
+  grid-template-columns: 32px 44px minmax(0, 1fr) auto;
+  padding: 8px 12px 8px 4px;
+}
+
+.playlist-track-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--seat-raised);
+}
+
+.playlist-track-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playlist-track-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.playlist-track-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-track-text .muted {
+  font-size: var(--step--1);
+}
+
+.playlist-entry .queue-actions {
+  margin-right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.playlist-entry:hover .queue-actions,
+.playlist-entry:focus-within .queue-actions,
+.playlist-entry .queue-actions:has([aria-expanded='true']) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .playlist-entry .queue-actions {
+    opacity: 1;
+  }
+}
+
+/* The Add to playlist dialog: each playlist is a button with its cover. */
+.add-to-playlist {
+  width: min(560px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.add-to-playlist h2 {
+  margin-bottom: 18px;
+}
+
+.playlist-choices {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playlist-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.playlist-choice:hover,
+.playlist-choice:focus-visible {
+  background: var(--seat-raised);
+}
+
+.playlist-choice:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.playlist-choice-art {
+  flex: none;
+  width: 44px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.playlist-choice-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.playlist-choice-text .muted {
+  font-size: var(--step--1);
+}

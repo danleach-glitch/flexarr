@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { getTracks, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
+import { openAddToPlaylist } from './AddToPlaylist'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { announceWatched } from '../hooks/watched'
@@ -62,6 +63,7 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
         { label: 'Play', run: async () => music.play(await getTracks(item.id), 0) },
         { label: 'Play next', run: async () => music.playNext(await getTracks(item.id)) },
         { label: 'Add to queue', run: async () => music.enqueue(await getTracks(item.id)) },
+        { label: 'Add to playlist…', run: () => openAddToPlaylist(item) },
       )
       break
   }

@@ -641,6 +641,62 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("PlaybackStates");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.Playlist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CoverItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId", "Name");
+
+                    b.ToTable("Playlists");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.PlaylistItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PlaylistId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.HasIndex("PlaylistId", "Position");
+
+                    b.ToTable("PlaylistItems");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.Profile", b =>
                 {
                     b.Property<string>("Id")
@@ -902,6 +958,32 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("MediaItem");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.Playlist", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.PlaylistItem", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Playlist", null)
+                        .WithMany("Items")
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.WatchTombstone", b =>
                 {
                     b.OwnsMany("Flexarr.Core.Media.TombstoneCollection", "Collections", b1 =>
@@ -1014,6 +1096,11 @@ namespace Flexarr.Core.Data.Migrations
             modelBuilder.Entity("Flexarr.Core.Media.Person", b =>
                 {
                     b.Navigation("Credits");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.Playlist", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

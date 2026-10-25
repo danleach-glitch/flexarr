@@ -15,6 +15,8 @@ import type {
   PlaybackInfo,
   PlaybackPreferences,
   PlaybackRequest,
+  PlaylistDetail,
+  PlaylistSummary,
   SearchResults,
   Settings,
   SettingsUpdate,
@@ -483,6 +485,25 @@ export const addToCollection = (id: string, itemId: string) => request<void>('PO
 export const removeFromCollection = (id: string, itemId: string) => request<void>('DELETE', `/collections/${id}/items/${itemId}`)
 export const reorderCollection = (id: string, itemIds: string[]) => request<void>('PUT', `/collections/${id}/order`, { itemIds })
 export const getItemCollections = (itemId: string, signal?: AbortSignal) => cachedGet<ItemCollection[]>(`/items/${itemId}/collections`, signal)
+// ---------- Playlists (music; each profile's own)
+
+export const getPlaylists = (signal?: AbortSignal) => cachedGet<PlaylistSummary[]>('/playlists', signal)
+export const getPlaylist = (id: string, signal?: AbortSignal) => cachedGet<PlaylistDetail>(`/playlists/${id}`, signal)
+/** Starts a playlist, with tracks, albums or artists in it if given (albums and artists bring all their tracks). */
+export const createPlaylist = (name: string, itemIds: string[] = []) => request<PlaylistSummary>('POST', '/playlists', { name, itemIds })
+export const renamePlaylist = (id: string, name: string) => request<PlaylistSummary>('PUT', `/playlists/${id}`, { name })
+/** An album's or track's cover for the playlist, or (null) back to the mosaic of its tracks' covers. */
+export const setPlaylistCover = (id: string, coverItemId: string | null) =>
+  request<PlaylistSummary>('PUT', `/playlists/${id}`, coverItemId ? { coverItemId } : { clearCover: true })
+export const deletePlaylist = (id: string) => request<void>('DELETE', `/playlists/${id}`)
+/** Appends tracks, albums or artists; `skipDuplicates` leaves out tracks the playlist already has. */
+export const addToPlaylist = (id: string, itemIds: string[], skipDuplicates = false) =>
+  request<{ added: number; summary: PlaylistSummary }>('POST', `/playlists/${id}/items`, { itemIds, skipDuplicates })
+export const removeFromPlaylist = (id: string, entryId: number) => request<void>('DELETE', `/playlists/${id}/items/${entryId}`)
+/** Moves an entry to `position` (from 0; past the end means last). */
+export const movePlaylistEntry = (id: string, entryId: number, position: number) =>
+  request<void>('PUT', `/playlists/${id}/items/${entryId}/position`, { position })
+
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
 

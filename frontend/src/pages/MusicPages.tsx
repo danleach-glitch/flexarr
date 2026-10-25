@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link } from 'react-router'
 import { getRadio, getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
+import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
@@ -19,16 +20,20 @@ export function shuffled(tracks: ItemSummary[]): ItemSummary[] {
   return out
 }
 
-/** The queue actions for a set of tracks, as a menu offers them. */
-function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSummary[]> | ItemSummary[]): MenuAction[] {
+/**
+ * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or
+ * artist) a way into a playlist.
+ */
+export function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSummary[]> | ItemSummary[], item?: PlaylistAddition): MenuAction[] {
   return [
     { label: 'Play next', run: async () => player.playNext(await tracks()) },
     { label: 'Add to queue', run: async () => player.enqueue(await tracks()) },
+    ...(item ? [{ label: 'Add to playlist…', run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
   ]
 }
 
 /** The ⋯ beside Play and Shuffle, with the queue actions for the whole album or artist. */
-function MoreButton({ label, actions, disabled }: { label: string; actions: MenuAction[]; disabled?: boolean }) {
+export function MoreButton({ label, actions, disabled }: { label: string; actions: MenuAction[]; disabled?: boolean }) {
   const [at, setAt] = useState<MenuPoint | null>(null)
   return (
     <>
@@ -94,7 +99,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0)} disabled={tracks.length < 2}>
               Shuffle
             </button>
-            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => tracks)} disabled={tracks.length === 0} />
+            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => tracks, item)} disabled={tracks.length === 0} />
           </div>
         </div>
       </header>
@@ -134,7 +139,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
         <Menu
           label={`More for ${tracks[trackMenu.index].title}`}
           at={trackMenu.at}
-          actions={[{ label: 'Play', run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]])]}
+          actions={[{ label: 'Play', run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]], tracks[trackMenu.index])]}
           onClose={() => setTrackMenu(null)}
         />
       )}
@@ -208,7 +213,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
             <button className="button quiet" onClick={() => void startRadio()} disabled={albums.length === 0 || loading}>
               <Radio /> Radio
             </button>
-            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id))} disabled={albums.length === 0} />
+            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id), item)} disabled={albums.length === 0} />
           </div>
         </div>
       </header>

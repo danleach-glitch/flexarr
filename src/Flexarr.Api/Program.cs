@@ -6,6 +6,7 @@ using Flexarr.Api.Downloads;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
 using Flexarr.Api.Playback;
+using Flexarr.Api.Playlists;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
 using Flexarr.Api.Security;
@@ -221,6 +222,7 @@ app.MapGroup("/api/v1")
     .MapLayoutEndpoints()
     .MapPairingApprovalEndpoints()
     .MapCollectionEndpoints()
+    .MapPlaylistEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()

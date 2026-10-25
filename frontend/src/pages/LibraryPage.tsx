@@ -46,6 +46,7 @@ function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
       <Link to={`/library/${library.id}?view=all`} aria-current={all ? 'page' : undefined}>
         {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists' }[library.type]}
       </Link>
+      {library.type === 'Music' && <Link to="/playlists">Playlists</Link>}
     </nav>
   )
 }
