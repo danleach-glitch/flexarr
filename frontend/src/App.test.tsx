@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { waitFor, act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
@@ -693,7 +693,9 @@ describe('Player', () => {
       document.querySelector('video')!.dispatchEvent(new Event('error'))
     })
 
-    expect(await screen.findByRole('alertdialog')).toHaveTextContent(takenOver)
+    // The dialog can open with the plain "stopped" message and take the server's reason a moment later (CI runners
+    // are slow), so wait for the text rather than the dialog.
+    await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent(takenOver))
     expect(requests).toHaveLength(1)
   })
 

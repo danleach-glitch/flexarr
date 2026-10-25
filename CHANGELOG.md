@@ -2,6 +2,16 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.22.0 · 25 October 2026
+
+### Music on Apple TV, iPhone and iPad
+- Music libraries open in the apps: artists (with their pictures), albums, tracks and your playlists, with Play and Shuffle on every artist, album and playlist, and the Home rows for music (Recently played, Most played, More from artists you play, Your playlists).
+- A queue player: next and previous, seek, shuffle and repeat; one Now Playing screen on Apple TV (its own tab while music plays, play/pause from anywhere on the remote) and a mini-player above the tab bar on iPhone and iPad that opens the Now Playing sheet with cover, scrubber, controls and the queue.
+- The lock screen, Control Center and a watch control the music; AirPlay from the Now Playing sheet; playing a film pauses the music and the remote goes back to it afterwards.
+
+### Albums by kind
+- With Lidarr connected, an artist's page shelves albums into Albums, EPs and singles, Live and compilations, and Other, and an album page says "EP" or "Live" before its year.
+
 ## 0.21.1 · 25 October 2026
 
 ### Fixed: the iPhone and iPad apps away from home
