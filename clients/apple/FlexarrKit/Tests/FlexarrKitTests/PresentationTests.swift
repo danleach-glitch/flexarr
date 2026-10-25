@@ -28,6 +28,23 @@ struct DateTests {
     }
 }
 
+struct LyricsTests {
+    @Test func theActiveLineIsTheLastWhoseTimeHasCome() throws {
+        let lyrics = try Fixture.decode(Lyrics.self, "lyrics")
+
+        #expect(lyrics.activeLine(at: 0) == nil) // Before the first line, nothing is sung yet.
+        #expect(lyrics.activeLine(at: 12) == 0)
+        #expect(lyrics.activeLine(at: 17) == 1)
+        #expect(lyrics.activeLine(at: 20) == 2) // The empty line between verses counts: the one before is over.
+        #expect(lyrics.activeLine(at: 300) == 3)
+    }
+
+    @Test func unsyncedLyricsHaveNoActiveLine() {
+        let plain = Lyrics(synced: false, lines: [LyricLine(time: nil, text: "Where do you think you're going?")])
+        #expect(plain.activeLine(at: 10) == nil)
+    }
+}
+
 struct FormatTests {
     @Test func runtimes() {
         #expect(Format.runtime(minutes: 116) == "1h 56m")

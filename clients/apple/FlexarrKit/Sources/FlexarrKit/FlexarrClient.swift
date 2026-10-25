@@ -114,6 +114,15 @@ public struct FlexarrClient: Sendable {
         }
     }
 
+    /// A track's lyrics, or nil when it has none (servers before lyrics have none for any track).
+    public func lyrics(of id: String) async throws -> Lyrics? {
+        do {
+            return try await get("items/\(id)/lyrics")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return nil
+        }
+    }
+
     /// The signed-in profile's music playlists. Servers before playlists have none.
     public func playlists() async throws -> [PlaylistSummary] {
         do {
