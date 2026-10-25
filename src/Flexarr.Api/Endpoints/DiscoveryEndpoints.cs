@@ -8,7 +8,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Endpoints;
 
-public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null);
+/// <param name="Playlists">For the "playlists" style: the profile's playlists, which aren't items (Items is empty then).</param>
+public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null, IReadOnlyList<Playlists.PlaylistSummaryDto>? Playlists = null)
+{
+    /// <summary>Whether there's anything to show: a row of items, or of playlists.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasContent => Items.Count > 0 || Playlists is { Count: > 0 };
+}
 
 /// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
 public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading, ItemSummaryDto? Resume = null);
@@ -129,7 +135,7 @@ public static partial class DiscoveryEndpoints
 
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
-            var shown = rows.Where(r => r.Items.Count > 0 || (r.Id == "upcoming" && upcoming.Count > 0));
+            var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0));
             return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, options.Layout.Home), upcoming, downloading, resume);
         }).WithTags("Discovery");
 
@@ -155,7 +161,7 @@ public static partial class DiscoveryEndpoints
                 musicRows.Add(new HomeRowDto("recent", "New albums", "poster",
                     await db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album).OrderByDescending(i => i.AddedAt).Take(RowSize).Summaries(me).ToListAsync(ct),
                     $"{all}&sort=added"));
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), musicRows.Where(r => r.Items.Count > 0).ToList(), [], 0));
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), musicRows.Where(r => r.HasContent).ToList(), [], 0));
             }
 
             var movies = library.Type == LibraryType.Movies;

@@ -21,6 +21,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<WatchTombstone> WatchTombstones => Set<WatchTombstone>();
     public DbSet<Download> Downloads => Set<Download>();
+    public DbSet<Playlist> Playlists => Set<Playlist>();
+    public DbSet<PlaylistItem> PlaylistItems => Set<PlaylistItem>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -115,6 +117,23 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasKey(i => new { i.CollectionId, i.MediaItemId });
             // A title that leaves the library leaves its collections.
             e.HasOne(i => i.MediaItem).WithMany().HasForeignKey(i => i.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Playlist>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(120);
+            e.Property(p => p.ProfileId).HasMaxLength(64);
+            // A profile's playlists go with it.
+            e.HasOne<Profile>().WithMany().HasForeignKey(p => p.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.Items).WithOne().HasForeignKey(i => i.PlaylistId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(p => new { p.ProfileId, p.Name });
+        });
+
+        modelBuilder.Entity<PlaylistItem>(e =>
+        {
+            // A track that leaves the library leaves every playlist it was in.
+            e.HasOne(i => i.MediaItem).WithMany().HasForeignKey(i => i.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(i => new { i.PlaylistId, i.Position });
         });
 
         modelBuilder.Entity<WatchTombstone>(e =>
