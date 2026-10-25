@@ -285,12 +285,12 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
     /// The display shows HDR10 and HLG as they are right now (an Apple TV on a fixed Dolby Vision output doesn't).
     public var hdr10: Bool?
     public var hlg: Bool?
-    /// The player picks among a file's audio tracks itself, so any track plays as it is (AetherEngine).
-    public var switchesAudioTracks: Bool?
+    /// The player demuxes the file itself (AetherEngine): any audio track, and picture subtitles drawn by it.
+    public var selectsTracksItself: Bool?
 
     public init(client: String, containers: [String], videoCodecs: [String], audioCodecs: [String],
                 hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int, fmp4: Bool? = nil, dolbyVision: Bool? = nil,
-                hdr10: Bool? = nil, hlg: Bool? = nil, switchesAudioTracks: Bool? = nil) {
+                hdr10: Bool? = nil, hlg: Bool? = nil, selectsTracksItself: Bool? = nil) {
         self.client = client
         self.containers = containers
         self.videoCodecs = videoCodecs
@@ -303,7 +303,7 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
         self.dolbyVision = dolbyVision
         self.hdr10 = hdr10
         self.hlg = hlg
-        self.switchesAudioTracks = switchesAudioTracks
+        self.selectsTracksItself = selectsTracksItself
     }
 
     /// What AVPlayer on Apple TV can direct play. Anything else comes as HLS in fragmented MP4: H.264 and HEVC video as
@@ -342,7 +342,7 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
             dolbyVision: dolbyVision,
             hdr10: hdr10,
             hlg: hlg,
-            switchesAudioTracks: true
+            selectsTracksItself: true
         )
     }
 

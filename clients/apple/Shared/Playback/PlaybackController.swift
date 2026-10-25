@@ -79,7 +79,9 @@ final class PlaybackController: NSObject {
     /// player over the top. On when Settings says so, or `-FlexarrEngine YES`.
     static var usesEngine: Bool { UserDefaults.standard.bool(forKey: "FlexarrEngine") }
     #if canImport(AetherEngine)
-    @ObservationIgnored private var engine: AetherEngine?
+    @ObservationIgnored private var engine: EnginePlayback?
+    /// A title the engine couldn't play: its server stream instead, until the next title.
+    @ObservationIgnored private var engineSuppressedItem: String?
     #endif
     /// Playing a show on shuffle: each next episode is a random one.
     @ObservationIgnored private var shuffling = false
@@ -182,10 +184,8 @@ final class PlaybackController: NSObject {
     private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
         var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: shuffling ? true : nil)
         #if canImport(AetherEngine)
-        if Self.usesEngine {
-            // The engine carries the file's own subtitles; a picture subtitle mustn't make the server burn one in.
+        if Self.usesEngine, engineSuppressedItem != itemId {
             request.profile = Self.engineProfile
-            request.subtitleKey = "off"
         }
         #endif
         return request
@@ -319,6 +319,31 @@ final class PlaybackController: NSObject {
     private func updateSubtitleMenu() {
         #if os(tvOS)
         guard let viewController, let info else { return }
+        var menus: [UIMenuElement] = []
+        #if canImport(AetherEngine)
+        if let engine {
+            // Through the engine: the file's audio tracks, and its picture subtitles, which Apple's panel can't list.
+            if engine.audioTracks.count > 1 {
+                menus.append(UIMenu(title: "Audio", image: UIImage(systemName: "waveform"), children: engine.audioTracks.map { track in
+                    UIAction(title: Self.trackLabel(track), state: track.id == engine.activeAudioTrack ? .on : .off) { [weak engine] _ in
+                        MainActor.assumeIsolated { engine?.selectAudioTrack(track.id) }
+                    }
+                }))
+            }
+            if !engine.pictureSubtitleTracks.isEmpty {
+                let off = UIAction(title: "Off", state: engine.activePictureSubtitle == nil ? .on : .off) { [weak engine] _ in
+                    MainActor.assumeIsolated { engine?.selectPictureSubtitle(nil) }
+                }
+                menus.append(UIMenu(title: "Picture subtitles", image: UIImage(systemName: "captions.bubble"), children: [off] + engine.pictureSubtitleTracks.map { track in
+                    UIAction(title: Self.trackLabel(track), state: track.id == engine.activePictureSubtitle ? .on : .off) { [weak engine] _ in
+                        MainActor.assumeIsolated { engine?.selectPictureSubtitle(track.id) }
+                    }
+                }))
+            }
+            viewController.transportBarCustomMenuItems = menus
+            return
+        }
+        #endif
         guard !info.isOffline, !info.subtitleBurnedIn, info.subtitles.contains(where: \.isText) else {
             viewController.transportBarCustomMenuItems = []
             return
@@ -391,54 +416,47 @@ final class PlaybackController: NSObject {
     }
 
     #if canImport(AetherEngine)
-    /// Opens the file itself through AetherEngine and hands its AVPlayer to the controller already on screen, so
-    /// everything else here (markers, the countdown, reporting, subtitles) works as it does for a server stream.
+    /// Opens the file itself through AetherEngine and hands its AVPlayer to the controller already on screen. If the
+    /// engine can't play it (software decoding isn't hosted yet, or it fails), the server's stream takes over.
     private func startEngine(_ info: PlaybackInfo, in controller: AVPlayerViewController) {
-        guard let client, let url = client.url(for: info.url) else { return }
-        let engine: AetherEngine
+        guard let client else { return }
+        let engine: EnginePlayback
         do {
-            engine = try AetherEngine()
+            engine = try EnginePlayback(info: info, client: client, controller: controller)
         } catch {
-            return dismissPlayer { self.show(.other, message: "The player engine couldn't start: \(error.localizedDescription)", retry: nil) }
+            return fallBackFromEngine(info, reason: error.localizedDescription)
         }
 
         self.engine = engine
-        var options = LoadOptions()
-        options.prepareNativeSubtitles = true   // text subtitles as renditions: Apple's menu, PiP and AirPlay have them
-        options.serveIFramePlaylist = true      // Apple's scrubbing thumbnails
-        let modes = AVPlayer.availableHDRModes
-        options.panelIsInHDRMode = !modes.isEmpty
-        options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
-        #if os(tvOS)
-        options.matchContentEnabled = controller.view.window?.avDisplayManager.isDisplayCriteriaMatchingEnabled ?? false
-        #endif
-        let start = info.startPositionSeconds
-        log.info("Engine: opening \(info.item.title, privacy: .public) at \(start)")
-        Task { [weak self] in
-            do {
-                // The server's choice of audio track (the profile's languages) is the engine's to apply.
-                _ = try await engine.load(url: url, startPosition: start > 1 ? start : nil, options: options,
-                                          audioSourceStreamIndex: info.selectedAudioIndex.map(Int32.init))
-            } catch {
-                guard let self, self.engine === engine else { return }
-                log.error("Engine failed: \(error.localizedDescription, privacy: .public)")
-                return dismissPlayer { self.show(.other, message: "This file couldn't be played on the device: \(error.localizedDescription)", retry: nil) }
-            }
-
-            guard let self, self.engine === engine, viewController === controller else { return }
-            guard let player = engine.currentAVPlayer else {
-                // Software decoding draws into the engine's own view, which this build doesn't have yet.
-                return dismissPlayer { self.show(.other, message: "This file needs software decoding, which isn't in this build yet.", retry: nil) }
-            }
-
+        engine.onReady = { [weak self, weak engine] player in
+            guard let self, let engine, self.engine === engine, viewController === controller else { return }
             player.appliesMediaSelectionCriteriaAutomatically = false
             controller.player = player
             self.player = player
             attach(info)
-            // The engine opened the file where playback starts; the controller's own time is the file's.
-            pendingSeek = 0
-            log.info("Engine route \(engine.videoRoute.rawValue, privacy: .public): player at \(player.currentTime().seconds), engine clock \(engine.clock.currentTime)")
+            pendingSeek = 0 // the engine opened the file where playback starts, on the file's own timeline
+            updateSubtitleMenu()
         }
+        engine.onFailure = { [weak self, weak engine] reason in
+            guard let self, let engine, self.engine === engine else { return }
+            fallBackFromEngine(info, reason: reason)
+        }
+        engine.onTracksChanged = { [weak self] in self?.updateSubtitleMenu() }
+        engine.start(at: info.startPositionSeconds, audioIndex: info.selectedAudioIndex)
+    }
+
+    /// The engine couldn't play this title: ask the server for its stream instead, from the same place.
+    private func fallBackFromEngine(_ info: PlaybackInfo, reason: String) {
+        log.info("Engine fell back to the server for \(info.item.title, privacy: .public): \(reason, privacy: .public)")
+        engine?.stop()
+        engine = nil
+        engineSuppressedItem = info.item.id
+        guard let client else { return }
+        let position = info.startPositionSeconds
+        Task { try? await client.stopPlayback(sessionId: info.sessionId) }
+        var request = request(for: info.item.id, startAt: position)
+        request.subtitleKey = (viewerSubtitleKey ?? info.selectedSubtitleKey) ?? "off"
+        start(request)
     }
     #endif
 
@@ -530,6 +548,9 @@ final class PlaybackController: NSObject {
             return
         }
         selectedSubtitleName = .some(selected?.displayName)
+        #if canImport(AetherEngine)
+        engine?.nativeSubtitleChanged()
+        #endif
         if let selected {
             guard let key = SubtitleMatch.key(for: Self.subtitleOption(selected), in: info) else { return }
             viewerSubtitleKey = .some(key)
@@ -538,6 +559,25 @@ final class PlaybackController: NSObject {
         }
         log.info("Subtitles chosen in the player: \(selected?.displayName ?? "off", privacy: .public)")
     }
+
+    #if canImport(AetherEngine)
+    /// "English · E-AC-3 5.1", "Commentary · AAC stereo".
+    private static func trackLabel(_ track: TrackInfo) -> String {
+        let language = Locale.current.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
+        let name = track.name.isEmpty || track.name == track.language ? language : track.name
+        let channels = switch track.channels {
+        case 8: "7.1"
+        case 6: "5.1"
+        case 2: "stereo"
+        case 1: "mono"
+        case 0: ""
+        default: "\(track.channels)-channel"
+        }
+        let detail = [track.codec.uppercased().replacingOccurrences(of: "EAC3", with: "E-AC-3").replacingOccurrences(of: "AC3", with: "AC-3"), channels]
+            .filter { !$0.isEmpty }.joined(separator: " ")
+        return [name, detail].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+    #endif
 
     private static func subtitleOption(_ option: AVMediaSelectionOption) -> SubtitleOption {
         SubtitleOption(name: option.displayName, language: option.extendedLanguageTag ?? option.locale?.identifier,
@@ -756,6 +796,9 @@ final class PlaybackController: NSObject {
     }
 
     private func prepareNext() {
+        #if canImport(AetherEngine)
+        if engine != nil { return } // the next file opens in a moment through the engine; nothing to get ready
+        #endif
         guard let client, let current = info, !current.isOffline, let next = current.next, !nextCancelled,
               prepared?.info.item.id != next.id, preparing == nil else { return }
         var request = nextRequest(next, after: current)
@@ -1040,6 +1083,7 @@ final class PlaybackController: NSObject {
         #if canImport(AetherEngine)
         engine?.stop()
         engine = nil
+        if info?.item.id != engineSuppressedItem { engineSuppressedItem = nil }
         #endif
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }

@@ -39,8 +39,8 @@ public sealed record DeviceProfile
     public bool? Hlg { get; init; }
 
     /// <summary>
-    /// The player picks among a file's audio tracks itself (a demuxer on the device), so any track can be played as it
-    /// is. Otherwise only the first track can: browsers and AVPlayer can't switch tracks in a plain file.
+    /// The player demuxes the file itself (AetherEngine), so it picks any audio track and draws picture subtitles on
+    /// its own. Otherwise only the first audio track plays as it is, and picture subtitles have to be burned in.
     /// </summary>
-    public bool SwitchesAudioTracks { get; init; }
+    public bool SelectsTracksItself { get; init; }
 }

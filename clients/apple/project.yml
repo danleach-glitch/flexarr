@@ -94,6 +94,7 @@ targets:
     sources: [Shared, FlexarriOS]
     dependencies:
       - package: FlexarrKit
+      - package: AetherEngine
     info:
       path: FlexarriOS/Info.plist
       properties:

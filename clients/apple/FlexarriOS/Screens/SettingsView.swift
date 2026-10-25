@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @State private var confirmDeleteDownloads = false
+    @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var confirmSignOut = false
@@ -27,6 +28,17 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                     .listRowBackground(Color.seat)
                 }
+            }
+
+            Section {
+                Toggle("Play files directly", isOn: $playsFilesDirectly)
+                    .tint(.silver)
+                    .listRowBackground(Color.seat)
+                    .onChange(of: playsFilesDirectly) { _, on in UserDefaults.standard.set(on, forKey: "FlexarrEngine") }
+            } header: {
+                Text("Playback")
+            } footer: {
+                Text("Experimental. Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are, instead of a stream from the server. Downloads and remote viewing are unaffected.")
             }
 
             if let preferences {

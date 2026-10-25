@@ -158,14 +158,16 @@ public class PlaybackDeciderTests
     }
 
     [Fact]
-    public void APlayerThatSwitchesAudioTracksItself_GetsTheFileWhicheverTrackIsChosen()
+    public void APlayerThatSelectsTracksItself_GetsTheFile_WhicheverAudioTrackOrPictureSubtitleIsChosen()
     {
         var file = File("mkv", "h264", "aac", 2);
         file.Streams = [.. file.Streams, new MediaStream { Index = 2, Type = StreamType.Audio, Codec = "aac", Channels = 2, Language = "eng" }];
-        var engine = AppleTvFmp4 with { Containers = ["mp4", "mkv"], SwitchesAudioTracks = true };
+        var pgs = new SubtitleTrack("e3", 3, null, "hdmv_pgs_subtitle", "eng", null, false, false);
+        var engine = AppleTvFmp4 with { Containers = ["mp4", "mkv"], SelectsTracksItself = true };
 
-        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, engine, [], new PlaybackOptions(AudioStreamIndex: 2)).Method);
-        Assert.Equal(PlaybackMethod.Transcode, PlaybackDecider.Decide(file, engine with { SwitchesAudioTracks = false }, [], new PlaybackOptions(AudioStreamIndex: 2)).Method);
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, engine, [pgs], new PlaybackOptions(AudioStreamIndex: 2, SubtitleKey: "e3")).Method);
+        Assert.Equal(PlaybackMethod.Transcode, PlaybackDecider.Decide(file, engine with { SelectsTracksItself = false }, [pgs], new PlaybackOptions(AudioStreamIndex: 2)).Method);
+        Assert.Equal(PlaybackMethod.Transcode, PlaybackDecider.Decide(file, engine with { SelectsTracksItself = false }, [pgs], new PlaybackOptions(SubtitleKey: "e3")).Method);
     }
 
     [Fact]
