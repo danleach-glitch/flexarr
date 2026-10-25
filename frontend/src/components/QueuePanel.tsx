@@ -87,7 +87,7 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
   const text = (track: ItemSummary) => (
     <span className="queue-text">
       <strong>{track.title}</strong>
-      <span className="muted">{track.seriesTitle}</span>
+      <span className="muted">{track.trackArtist ?? track.seriesTitle}</span>
     </span>
   )
 

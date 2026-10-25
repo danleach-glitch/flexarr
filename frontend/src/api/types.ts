@@ -87,6 +87,8 @@ export interface ItemSummary {
   seriesId?: string | null
   /** Albums only: what sort of release it is, when Lidarr has said. */
   albumType?: AlbumType | null
+  /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
+  trackArtist?: string | null
 }
 
 export interface Paged<T> {

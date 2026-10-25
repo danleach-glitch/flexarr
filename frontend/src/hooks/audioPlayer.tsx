@@ -176,7 +176,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!('mediaSession' in navigator) || !current) return
     navigator.mediaSession.metadata = new MediaMetadata({
       title: current.title,
-      artist: current.seriesTitle ?? undefined,
+      artist: current.trackArtist ?? current.seriesTitle ?? undefined,
       artwork: current.artwork.poster ? [{ src: imageUrl(current.artwork.poster, 500)!, sizes: '500x500', type: 'image/jpeg' }] : [],
     })
     navigator.mediaSession.setActionHandler('play', toggle)

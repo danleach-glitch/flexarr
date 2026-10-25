@@ -82,6 +82,17 @@ describe('AlbumPage', () => {
     expect(facts()).toEqual(['Dire Straits', '1982', '1 track', '3m'])
   })
 
+  it("names a track's own artist under its title, and only when it has one", () => {
+    const various = summary({ id: 'drive', kind: 'Album', title: 'Drive', year: 2011, albumType: 'soundtrack', parentId: 'va', seriesTitle: 'Various Artists', seriesId: 'va' })
+    const nightcall = summary({ id: 't2', kind: 'Track', title: 'Nightcall', parentId: 'drive', seriesTitle: 'Various Artists', trackArtist: 'Kavinsky' })
+    const own = summary({ id: 't3', kind: 'Track', title: 'Tick of the Clock', parentId: 'drive', seriesTitle: 'Various Artists' })
+    renderPage(<AlbumPage detail={detail(various, { ancestors: [summary({ id: 'va', kind: 'Artist', title: 'Various Artists' })], children: [nightcall, own] }) as unknown as ItemDetail} />)
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows[0].querySelector('.track-artist')?.textContent).toBe('Kavinsky')
+    expect(rows[1].querySelector('.track-artist')).toBeNull()
+  })
+
   it('has a word for every kind worth one', () => {
     expect((['ep', 'single', 'live', 'compilation', 'soundtrack'] as AlbumType[]).map(albumTypeLabel)).toEqual(['EP', 'Single', 'Live', 'Compilation', 'Soundtrack'])
     expect(['album', 'other', null, undefined].map((t) => albumTypeLabel(t as AlbumType | null | undefined))).toEqual([null, null, null, null])

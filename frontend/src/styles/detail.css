@@ -542,6 +542,16 @@
   white-space: nowrap;
 }
 
+/* The track's own artist, under its title, where it isn't the album's. */
+.track-artist {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--usher);
+  font-size: var(--step--1);
+  font-weight: 400;
+}
+
 .track-time {
   color: var(--usher);
   font-variant-numeric: tabular-nums;
