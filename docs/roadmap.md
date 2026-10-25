@@ -25,4 +25,6 @@ Web and Apple TV are the first-class clients. Done items stay listed so the shap
 
 ## Later
 
+[Parity with a leading Apple TV client](parity.md) lists what each gap below would take.
+
 Playlists, offline downloads, Chromecast, Live TV and DVR, Android and Android TV, statistics, music metadata from Lidarr/MusicBrainz.
