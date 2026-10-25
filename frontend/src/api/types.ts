@@ -507,6 +507,8 @@ export interface PodcastPreferences {
   /** How many of each show's newest unplayed episodes they keep. */
   keepEpisodes: number
   speed: number
+  /** Podcasts has a place in the sidebar. */
+  showInSidebar: boolean
 }
 
 export interface Podcast {

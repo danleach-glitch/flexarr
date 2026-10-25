@@ -9,14 +9,12 @@ import {
   getPodcastEpisode,
   getPodcastEpisodes,
   getPodcastGenres,
-  getPodcastPreferences,
   getPodcasts,
   getPodcastStatus,
   getTopPodcasts,
   imageUrl,
   importOpml,
   opmlUrl,
-  savePodcastPreferences,
   searchPodcasts,
   setWatched,
   subscribePodcast,
@@ -31,10 +29,9 @@ import { Check, More, Pause, Play } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
-import { podcastSpeeds, useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
+import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
-import { useSession } from '../hooks/sessionContext'
-import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl, speedLabel } from '../lib/podcasts'
+import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
 
 const PAGE = 50
 
@@ -61,7 +58,6 @@ function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children
 /** Podcasts need a Podcasts library; without one (or with it hidden from this profile) the page says what to do. */
 function PodcastsGate({ children }: { children: ReactNode }) {
   const status = useApi((signal) => getPodcastStatus(signal), [])
-  const { me } = useSession()
   if (status.error) return <p className="page-message error">{status.error.message}</p>
   if (!status.data) return <p className="page-message muted">Loading…</p>
   if (status.data.available) return <>{children}</>
@@ -70,20 +66,10 @@ function PodcastsGate({ children }: { children: ReactNode }) {
       <PodcastsHeader view="yours" />
       <section className="podcast-empty panel">
         {status.data.needsLibrary ? (
-          me?.isAdmin ? (
-            <>
-              <h2>Add a Podcasts library to get started</h2>
-              <p className="muted">
-                Podcasts live in a library of their own. In <Link to="/settings/libraries">Settings › Libraries</Link>, add one of the Podcasts type with a
-                folder for episodes on their way to phones (a Podcasts folder beside your other media is fine; it stays small).
-              </p>
-            </>
-          ) : (
-            <>
-              <h2>Podcasts aren't set up yet</h2>
-              <p className="muted">Ask whoever runs Flexarr to add a Podcasts library in Settings.</p>
-            </>
-          )
+          <>
+            <h2>Podcasts aren't ready yet</h2>
+            <p className="muted">Restart Flexarr to set them up.</p>
+          </>
         ) : (
           <>
             <h2>Podcasts aren't available on this profile</h2>
@@ -114,7 +100,6 @@ function PodcastsHome() {
   const listening = useApi((signal) => getContinueListening(signal), [version])
   const fresh = useApi((signal) => getNewEpisodes(signal, true), [version])
   const [importing, setImporting] = useState<string | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const file = useRef<HTMLInputElement>(null)
 
   async function importFile(chosen: File) {
@@ -147,9 +132,6 @@ function PodcastsHome() {
               if (chosen) void importFile(chosen)
             }}
           />
-          <button className="button quiet small" onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen} aria-controls="podcast-settings">
-            Settings
-          </button>
           <button className="button quiet small" onClick={() => file.current?.click()}>
             Import from another app
           </button>
@@ -166,7 +148,6 @@ function PodcastsHome() {
         </p>
       )}
       {podcasts.error && <p className="error">{podcasts.error.message}</p>}
-      {settingsOpen && <PodcastSettings />}
 
       {empty && (
         <section className="podcast-empty panel">
@@ -659,52 +640,6 @@ function PodcastShow() {
         )}
       </section>
     </article>
-  )
-}
-
-/** How every followed show behaves for this profile: whether phones keep new episodes, how many, and the speed. */
-function PodcastSettings() {
-  const [version, setVersion] = useState(0)
-  const preferences = useApi((signal) => getPodcastPreferences(signal), [version])
-  const player = useAudioPlayer()
-  const p = preferences.data
-  const save = async (changes: Parameters<typeof savePodcastPreferences>[0]) => {
-    if (changes.speed !== undefined) player.setSpeed(changes.speed)
-    else await savePodcastPreferences(changes)
-    setVersion((v) => v + 1)
-  }
-  if (!p) return null
-  return (
-    <section id="podcast-settings" className="podcast-settings panel" aria-label="Podcast settings">
-      <label className="podcast-setting">
-        <input type="checkbox" checked={p.autoDownload} onChange={(e) => void save({ autoDownload: e.target.checked })} />
-        <span className="podcast-setting-text">
-          Download new episodes to iPhone and iPad
-          <span className="muted">On Wi-Fi, by themselves, for every show you follow. Episodes can always be downloaded by hand.</span>
-        </span>
-      </label>
-      <label className="podcast-setting">
-        <span>Keep</span>
-        <select value={p.keepEpisodes} disabled={!p.autoDownload} onChange={(e) => void save({ keepEpisodes: Number(e.target.value) })}>
-          {[1, 2, 3, 5, 10].map((n) => (
-            <option key={n} value={n}>
-              {n === 1 ? 'the newest episode' : `the newest ${n} episodes`}
-            </option>
-          ))}
-        </select>
-        <span className="muted">of each show that you haven't played</span>
-      </label>
-      <label className="podcast-setting">
-        <span>Speed</span>
-        <select value={p.speed} onChange={(e) => void save({ speed: Number(e.target.value) })}>
-          {podcastSpeeds.map((speed) => (
-            <option key={speed} value={speed}>
-              {speedLabel(speed)}
-            </option>
-          ))}
-        </select>
-      </label>
-    </section>
   )
 }
 

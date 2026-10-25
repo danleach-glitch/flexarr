@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { getItem, getNextEpisode, getPodcastPreferences, imageUrl, savePodcastPreferences, type ItemSummary } from '../api/client'
-import { episodeAsTrack } from '../lib/podcasts'
+import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
@@ -144,13 +144,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     engine().rateChanged()
   }, [speedFor, engine])
 
-  // The profile's podcast speed, once a podcast plays.
+  // The profile's podcast speed, once a podcast plays, and again when Settings changes it.
   const podcastPlaying = isPodcast(current)
   useEffect(() => {
     if (!podcastPlaying) return
     const controller = new AbortController()
-    getPodcastPreferences(controller.signal).then((p) => setUsualSpeed(p.speed), () => undefined)
-    return () => controller.abort()
+    const load = () => getPodcastPreferences(controller.signal).then((p) => setUsualSpeed(p.speed), () => undefined)
+    void load()
+    window.addEventListener(PODCAST_PREFERENCES_CHANGED, load)
+    return () => {
+      controller.abort()
+      window.removeEventListener(PODCAST_PREFERENCES_CHANGED, load)
+    }
   }, [podcastPlaying])
 
   // The sleep timer, checked every few seconds while it's set.

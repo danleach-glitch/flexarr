@@ -17,7 +17,27 @@ public sealed record PodcastAddResult(Guid? PodcastId, string? Error);
 /// </summary>
 public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher fetcher, TimeProvider clock, ILogger<PodcastLibrary> logger)
 {
-    /// <summary>The Podcasts library this profile can see; null when there's none (Settings › Libraries adds one).</summary>
+    /// <summary>
+    /// Podcasts are part of Flexarr rather than a library someone adds: there's always one Podcasts library, made on
+    /// first start with a folder in the data directory (Settings › Podcasts can move it, say beside the rest of the
+    /// media). It can't be removed, and no second one can be added.
+    /// </summary>
+    public static async Task EnsureLibraryAsync(FlexarrDbContext db, Configuration.FlexarrOptions options, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(options);
+        if (await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Type == LibraryType.Podcasts, ct))
+        {
+            return;
+        }
+
+        var folder = Path.GetFullPath(Path.Combine(options.DataDirectory, "podcasts"));
+        Directory.CreateDirectory(folder);
+        db.Libraries.Add(new Library { Name = "Podcasts", Type = LibraryType.Podcasts, Folders = [new LibraryFolder { Path = folder }] });
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>The Podcasts library this profile can see; null when it's hidden from it.</summary>
     public Task<Library?> LibraryAsync(CancellationToken ct) =>
         db.Libraries.AsNoTracking().Include(l => l.Folders).Where(l => l.Type == LibraryType.Podcasts).OrderBy(l => l.CreatedAt).FirstOrDefaultAsync(ct);
 
@@ -29,7 +49,7 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
     {
         if (await LibraryAsync(ct) is not { } library)
         {
-            return new PodcastAddResult(null, "Add a Podcasts library in Settings first.");
+            return new PodcastAddResult(null, "Podcasts aren't available on this profile.");
         }
 
         if (FeedParser.WebUrl(feedUrl) is not { } url)

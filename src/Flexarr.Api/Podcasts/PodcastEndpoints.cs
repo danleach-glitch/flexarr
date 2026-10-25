@@ -21,10 +21,11 @@ public sealed record PodcastSubscriptionDto(DateTime SubscribedAt);
 /// <param name="AutoDownload">Phones keep the newest episodes of followed shows without being asked (on Wi-Fi).</param>
 /// <param name="KeepEpisodes">How many of each show's newest unplayed episodes they keep.</param>
 /// <param name="Speed">The speed podcasts play at.</param>
-public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, double Speed);
+/// <param name="ShowInSidebar">Podcasts has a place in the web app's sidebar.</param>
+public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, double Speed, bool ShowInSidebar = true);
 
 /// <summary>Changes podcast settings; fields left out keep what they were.</summary>
-public sealed record PodcastPreferencesRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? Speed = null);
+public sealed record PodcastPreferencesRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? Speed = null, bool? ShowInSidebar = null);
 
 public sealed record PodcastDto(
     Guid Id,
@@ -250,7 +251,7 @@ public static class PodcastEndpoints
         });
 
         group.MapGet("/preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            await db.Profiles.Where(p => p.Id == profile.Id).Select(p => new PodcastPreferencesDto(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed))
+            await db.Profiles.Where(p => p.Id == profile.Id).Select(p => new PodcastPreferencesDto(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed, p.PodcastsInSidebar))
                 .FirstOrDefaultAsync(ct) is { } preferences ? Results.Ok(preferences) : Results.NotFound());
 
         group.MapPut("/preferences", async (PodcastPreferencesRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -268,8 +269,9 @@ public static class PodcastEndpoints
             me.PodcastAutoDownload = request.AutoDownload ?? me.PodcastAutoDownload;
             me.PodcastKeepEpisodes = request.KeepEpisodes ?? me.PodcastKeepEpisodes;
             me.PodcastSpeed = request.Speed ?? me.PodcastSpeed;
+            me.PodcastsInSidebar = request.ShowInSidebar ?? me.PodcastsInSidebar;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(new PodcastPreferencesDto(me.PodcastAutoDownload, me.PodcastKeepEpisodes, me.PodcastSpeed));
+            return Results.Ok(new PodcastPreferencesDto(me.PodcastAutoDownload, me.PodcastKeepEpisodes, me.PodcastSpeed, me.PodcastsInSidebar));
         });
 
         group.MapDelete("/{id:guid}/subscription", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

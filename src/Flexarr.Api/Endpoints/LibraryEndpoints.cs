@@ -36,6 +36,11 @@ public static class LibraryEndpoints
 
         group.MapPost("/", async (LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, CancellationToken ct) =>
         {
+            if (request.Type == LibraryType.Podcasts)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["type"] = ["Podcasts are built in: their folder is in Settings › Podcasts."] });
+            }
+
             if (await ValidateAsync(request, null, db, ct) is { } problem)
             {
                 return problem;
@@ -91,8 +96,14 @@ public static class LibraryEndpoints
             return Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
+        // Podcasts are part of Flexarr: their library stays (Settings › Podcasts moves its folder).
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
-            await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound())
+            await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).Select(l => (LibraryType?)l.Type).FirstOrDefaultAsync(ct) switch
+            {
+                null => Results.NotFound(),
+                LibraryType.Podcasts => Results.ValidationProblem(new Dictionary<string, string[]> { ["type"] = ["Podcasts can't be removed."] }),
+                _ => await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound(),
+            })
             .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapPost("/{id:guid}/scan", async (Guid id, bool? refreshMetadata, FlexarrDbContext db, ILibraryScanQueue queue, CancellationToken ct) =>

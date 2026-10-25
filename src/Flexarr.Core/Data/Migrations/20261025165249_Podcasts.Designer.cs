@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261025163236_Podcasts")]
+    [Migration("20261025165249_Podcasts")]
     partial class Podcasts
     {
         /// <inheritdoc />
@@ -747,6 +747,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<double>("PodcastSpeed")
                         .HasColumnType("REAL");
 
+                    b.Property<bool>("PodcastsInSidebar")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("SkipCredits")
                         .HasColumnType("INTEGER");
 
@@ -783,6 +786,7 @@ namespace Flexarr.Core.Data.Migrations
                             PodcastAutoDownload = true,
                             PodcastKeepEpisodes = 3,
                             PodcastSpeed = 1.0,
+                            PodcastsInSidebar = true,
                             SkipCredits = false,
                             SkipIntros = false,
                             SkipRecaps = false,

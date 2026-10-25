@@ -20,7 +20,8 @@ export function HomePage() {
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="hero hero-loading" aria-busy="true" />
 
-  if (libraries.length === 0) {
+  // Podcasts come built in, so they don't count as somewhere to start from.
+  if (libraries.every((l) => l.type === 'Podcasts')) {
     return (
       <section className="welcome">
         <h1>Your cinema is empty</h1>

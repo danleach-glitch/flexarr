@@ -51,6 +51,9 @@ public sealed class Profile
     /// <summary>The speed podcasts play at.</summary>
     public double PodcastSpeed { get; set; } = 1;
 
+    /// <summary>Podcasts has a place in the web app's sidebar, among the libraries.</summary>
+    public bool PodcastsInSidebar { get; set; } = true;
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));

@@ -65,3 +65,6 @@ export const looksLikeFeedUrl = (text: string) => /^https?:\/\/\S+\.\S+/i.test(t
 
 /** "1.5×", "1×". */
 export const speedLabel = (speed: number) => `${Number(speed.toFixed(2))}×`
+
+/** Fired on window when podcast settings are saved, so the sidebar can follow. */
+export const PODCAST_PREFERENCES_CHANGED = 'flexarr:podcast-preferences'

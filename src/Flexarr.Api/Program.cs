@@ -192,6 +192,7 @@ using (var scope = app.Services.CreateScope())
     // Readers (the web app, players) don't wait on a scan's writes, or the other way round. Stored in the file, but
     // a database created or restored elsewhere may not have it.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    await PodcastLibrary.EnsureLibraryAsync(db, app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value, CancellationToken.None);
 }
 
 app.Use((http, next) =>

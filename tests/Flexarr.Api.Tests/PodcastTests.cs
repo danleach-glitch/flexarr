@@ -138,11 +138,12 @@ public sealed class PodcastTests : IDisposable
 
     private static Uri Api(string path) => new($"/api/v1/{path}", UriKind.Relative);
 
+    /// <summary>The built-in Podcasts library's folder (made on first start).</summary>
     private async Task<string> AddLibraryAsync()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_factory.MediaDirectory, "podcasts")).FullName;
-        (await Client().PostAsJsonAsync(Api("libraries"), new { name = "Podcasts", type = "Podcasts", folders = new[] { folder } })).EnsureSuccessStatusCode();
-        return folder;
+        var libraries = await GetAsync(Client(), "libraries?all=true");
+        var podcasts = Assert.Single(libraries.EnumerateArray(), l => l.GetProperty("type").GetString() == "Podcasts");
+        return podcasts.GetProperty("folders")[0].GetString()!;
     }
 
     private static async Task<JsonElement> AddPodcastAsync(HttpClient client, string url = FeedUrl)
@@ -155,16 +156,23 @@ public sealed class PodcastTests : IDisposable
     private static async Task<JsonElement> GetAsync(HttpClient client, string path) => await client.GetFromJsonAsync<JsonElement>(Api(path));
 
     [Fact]
-    public async Task WithoutAPodcastsLibrary_AddingSaysWhatToDo()
+    public async Task Podcasts_AreBuiltIn_WithALibraryThatCantBeRemovedOrDoubled()
     {
         var client = Client();
         var status = await GetAsync(client, "podcasts/status");
-        Assert.False(status.GetProperty("available").GetBoolean());
-        Assert.True(status.GetProperty("needsLibrary").GetBoolean());
+        Assert.True(status.GetProperty("available").GetBoolean());
 
-        var response = await client.PostAsJsonAsync(Api("podcasts"), new { feedUrl = FeedUrl });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        Assert.Contains("Podcasts library", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var folder = await AddLibraryAsync();
+        Assert.True(Directory.Exists(folder));
+        var id = (await GetAsync(client, "libraries?all=true")).EnumerateArray().Single(l => l.GetProperty("type").GetString() == "Podcasts").GetProperty("id").GetString();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.DeleteAsync(Api($"libraries/{id}"))).StatusCode);
+        var second = await client.PostAsJsonAsync(Api("libraries"), new { name = "More podcasts", type = "Podcasts", folders = new[] { _factory.MediaDirectory } });
+        Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+
+        // Its folder can move (beside the rest of the media, say).
+        var moved = Directory.CreateDirectory(Path.Combine(_factory.MediaDirectory, "Podcasts")).FullName;
+        (await client.PutAsJsonAsync(Api($"libraries/{id}"), new { name = "Podcasts", type = "Podcasts", folders = new[] { moved } })).EnsureSuccessStatusCode();
+        Assert.Equal(moved, await AddLibraryAsync());
     }
 
     [Fact]

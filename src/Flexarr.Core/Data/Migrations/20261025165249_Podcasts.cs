@@ -33,6 +33,13 @@ namespace Flexarr.Core.Data.Migrations
                 nullable: false,
                 defaultValue: 1.0);
 
+            migrationBuilder.AddColumn<bool>(
+                name: "PodcastsInSidebar",
+                table: "Profiles",
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: true);
+
             migrationBuilder.CreateTable(
                 name: "PodcastFeeds",
                 columns: table => new
@@ -128,8 +135,8 @@ namespace Flexarr.Core.Data.Migrations
                 table: "Profiles",
                 keyColumn: "Id",
                 keyValue: "owner",
-                columns: new[] { "PodcastAutoDownload", "PodcastKeepEpisodes", "PodcastSpeed" },
-                values: new object[] { true, 3, 1.0 });
+                columns: new[] { "PodcastAutoDownload", "PodcastKeepEpisodes", "PodcastSpeed", "PodcastsInSidebar" },
+                values: new object[] { true, 3, 1.0, true });
 
             migrationBuilder.CreateIndex(
                 name: "IX_PodcastEpisodes_FeedId_EpisodeGuid",
@@ -186,6 +193,10 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropColumn(
                 name: "PodcastSpeed",
+                table: "Profiles");
+
+            migrationBuilder.DropColumn(
+                name: "PodcastsInSidebar",
                 table: "Profiles");
         }
     }
