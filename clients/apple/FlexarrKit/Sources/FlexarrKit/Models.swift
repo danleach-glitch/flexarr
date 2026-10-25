@@ -285,10 +285,12 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
     /// The display shows HDR10 and HLG as they are right now (an Apple TV on a fixed Dolby Vision output doesn't).
     public var hdr10: Bool?
     public var hlg: Bool?
+    /// The player picks among a file's audio tracks itself, so any track plays as it is (AetherEngine).
+    public var switchesAudioTracks: Bool?
 
     public init(client: String, containers: [String], videoCodecs: [String], audioCodecs: [String],
                 hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int, fmp4: Bool? = nil, dolbyVision: Bool? = nil,
-                hdr10: Bool? = nil, hlg: Bool? = nil) {
+                hdr10: Bool? = nil, hlg: Bool? = nil, switchesAudioTracks: Bool? = nil) {
         self.client = client
         self.containers = containers
         self.videoCodecs = videoCodecs
@@ -301,6 +303,7 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
         self.dolbyVision = dolbyVision
         self.hdr10 = hdr10
         self.hlg = hlg
+        self.switchesAudioTracks = switchesAudioTracks
     }
 
     /// What AVPlayer on Apple TV can direct play. Anything else comes as HLS in fragmented MP4: H.264 and HEVC video as
@@ -320,6 +323,26 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
             dolbyVision: dolbyVision,
             hdr10: hdr10,
             hlg: hlg
+        )
+    }
+
+    /// What AetherEngine plays as it is on the device (experimental): the common containers, every codec it decodes
+    /// in hardware or software, and every audio codec it carries, so the server sends the file rather than a stream.
+    public static func engine(client: String, hdr: Bool, dolbyVision: Bool, hdr10: Bool?, hlg: Bool?) -> DeviceProfile {
+        DeviceProfile(
+            client: client,
+            containers: ["mp4", "m4v", "mov", "mkv", "webm", "avi", "mpegts", "ts", "wmv", "flv"],
+            videoCodecs: ["h264", "hevc", "av1", "vp9", "mpeg4", "mpeg2video", "vc1", "msmpeg4v3", "wmv3", "h263"],
+            audioCodecs: ["aac", "ac3", "eac3", "mp3", "mp2", "flac", "alac", "truehd", "dts", "opus", "vorbis", "pcm_s16le", "pcm_s24le", "pcm_s32le", "wmav2", "wmapro"],
+            hdr: hdr,
+            maxHeight: 2160,
+            maxAudioChannels: 8,
+            maxBitrate: 0,
+            fmp4: true,
+            dolbyVision: dolbyVision,
+            hdr10: hdr10,
+            hlg: hlg,
+            switchesAudioTracks: true
         )
     }
 

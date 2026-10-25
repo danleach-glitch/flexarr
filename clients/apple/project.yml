@@ -17,6 +17,10 @@ settings:
 packages:
   FlexarrKit:
     path: FlexarrKit
+  # Experimental (spike): plays files as they are on the device, FFmpeg demuxing and VideoToolbox decoding.
+  AetherEngine:
+    url: https://github.com/superuser404notfound/AetherEngine
+    from: 7.47.0
 targets:
   FlexarrTV:
     type: application
@@ -25,6 +29,7 @@ targets:
     sources: [Shared, FlexarrTV]
     dependencies:
       - package: FlexarrKit
+      - package: AetherEngine
       - target: FlexarrTopShelf
     entitlements:
       path: FlexarrTV/FlexarrTV.entitlements

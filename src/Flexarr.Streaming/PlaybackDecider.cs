@@ -206,7 +206,7 @@ public static class PlaybackDecider
         }
 
         // Browsers can't switch audio tracks in a plain <video>; any track but the first needs conversion.
-        if (audio is not null && audioStreams.Count > 1 && audio.Index != audioStreams[0].Index)
+        if (audio is not null && audioStreams.Count > 1 && audio.Index != audioStreams[0].Index && !profile.SwitchesAudioTracks)
         {
             reasons.Add("The chosen audio track isn't the file's first");
         }

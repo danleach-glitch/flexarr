@@ -158,6 +158,17 @@ public class PlaybackDeciderTests
     }
 
     [Fact]
+    public void APlayerThatSwitchesAudioTracksItself_GetsTheFileWhicheverTrackIsChosen()
+    {
+        var file = File("mkv", "h264", "aac", 2);
+        file.Streams = [.. file.Streams, new MediaStream { Index = 2, Type = StreamType.Audio, Codec = "aac", Channels = 2, Language = "eng" }];
+        var engine = AppleTvFmp4 with { Containers = ["mp4", "mkv"], SwitchesAudioTracks = true };
+
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, engine, [], new PlaybackOptions(AudioStreamIndex: 2)).Method);
+        Assert.Equal(PlaybackMethod.Transcode, PlaybackDecider.Decide(file, engine with { SwitchesAudioTracks = false }, [], new PlaybackOptions(AudioStreamIndex: 2)).Method);
+    }
+
+    [Fact]
     public void NotRepackaged_WhenItHasToBeConvertedAnyway()
     {
         var file = File("mkv", "h264", "aac", 2);

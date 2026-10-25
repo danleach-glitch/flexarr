@@ -1,5 +1,8 @@
 import AVFoundation
 import AVKit
+#if canImport(AetherEngine)
+import AetherEngine
+#endif
 import FlexarrKit
 import Observation
 import os
@@ -71,6 +74,13 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var lastTick: (position: Double, at: Date)?
     /// Where downloaded files' watching goes, and their next episodes come from (set by the iOS app).
     @ObservationIgnored weak var offlineLibrary: OfflineLibrary?
+
+    /// Experimental: the file played as it is on the device (AetherEngine demuxes, VideoToolbox decodes), with Apple's
+    /// player over the top. On when Settings says so, or `-FlexarrEngine YES`.
+    static var usesEngine: Bool { UserDefaults.standard.bool(forKey: "FlexarrEngine") }
+    #if canImport(AetherEngine)
+    @ObservationIgnored private var engine: AetherEngine?
+    #endif
     /// Playing a show on shuffle: each next episode is a random one.
     @ObservationIgnored private var shuffling = false
     /// The profile's auto-play and skip choices, from the session.
@@ -170,8 +180,29 @@ final class PlaybackController: NSObject {
     }
 
     private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
-        PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: shuffling ? true : nil)
+        var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: shuffling ? true : nil)
+        #if canImport(AetherEngine)
+        if Self.usesEngine {
+            // The engine carries the file's own subtitles; a picture subtitle mustn't make the server burn one in.
+            request.profile = Self.engineProfile
+            request.subtitleKey = "off"
+        }
+        #endif
+        return request
     }
+
+    #if canImport(AetherEngine)
+    private static var engineProfile: DeviceProfile {
+        let modes = AVPlayer.availableHDRModes
+        #if os(tvOS)
+        let client = "tvos"
+        #else
+        let client = "ios"
+        #endif
+        return .engine(client: client, hdr: AVPlayer.eligibleForHDRPlayback, dolbyVision: supportsDolbyVision,
+                       hdr10: modes.contains(.hdr10), hlg: modes.contains(.hlg))
+    }
+    #endif
 
     private static var deviceProfile: DeviceProfile {
         // What the display shows right now: an Apple TV on a fixed Dolby Vision output, say, has no HDR10 mode and
@@ -312,15 +343,20 @@ final class PlaybackController: NSObject {
 
     private func present(_ info: PlaybackInfo) throws {
         stop(reportingTo: nil)
-        let item = try makeItem(for: info)
-        let player = AVPlayer(playerItem: item)
+        var throughEngine = false
+        #if canImport(AetherEngine)
+        throughEngine = Self.usesEngine && !info.isOffline && info.method == .directPlay
+        #endif
+        // Through the engine, the controller opens empty and gets the engine's own player once the file is open.
+        let player = throughEngine ? AVPlayer() : AVPlayer(playerItem: try makeItem(for: info))
         // Subtitles are chosen here (`applySubtitles`), from the server's choice or the viewer's. Left to itself AVPlayer
         // re-chooses by the device's language, turning subtitles back on after the viewer turned them off.
         player.appliesMediaSelectionCriteriaAutomatically = false
 
         #if os(tvOS)
         let controller = AVPlayerViewController()
-        controller.appliesPreferredDisplayCriteriaAutomatically = true
+        // The engine sets the display's mode (HDR, Dolby Vision) itself; AVKit does so from the server's playlists.
+        controller.appliesPreferredDisplayCriteriaAutomatically = !throughEngine
         #else
         let controller = PlayerViewController()
         controller.modalPresentationStyle = .fullScreen
@@ -341,11 +377,70 @@ final class PlaybackController: NSObject {
 
         self.player = player
         self.viewController = controller
-        attach(info)
+        if !throughEngine {
+            attach(info)
+        }
 
         guard let presenter = Self.topViewController() else { return }
         presenter.present(controller, animated: true)
+        #if canImport(AetherEngine)
+        if throughEngine {
+            startEngine(info, in: controller)
+        }
+        #endif
     }
+
+    #if canImport(AetherEngine)
+    /// Opens the file itself through AetherEngine and hands its AVPlayer to the controller already on screen, so
+    /// everything else here (markers, the countdown, reporting, subtitles) works as it does for a server stream.
+    private func startEngine(_ info: PlaybackInfo, in controller: AVPlayerViewController) {
+        guard let client, let url = client.url(for: info.url) else { return }
+        let engine: AetherEngine
+        do {
+            engine = try AetherEngine()
+        } catch {
+            return dismissPlayer { self.show(.other, message: "The player engine couldn't start: \(error.localizedDescription)", retry: nil) }
+        }
+
+        self.engine = engine
+        var options = LoadOptions()
+        options.prepareNativeSubtitles = true   // text subtitles as renditions: Apple's menu, PiP and AirPlay have them
+        options.serveIFramePlaylist = true      // Apple's scrubbing thumbnails
+        let modes = AVPlayer.availableHDRModes
+        options.panelIsInHDRMode = !modes.isEmpty
+        options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
+        #if os(tvOS)
+        options.matchContentEnabled = controller.view.window?.avDisplayManager.isDisplayCriteriaMatchingEnabled ?? false
+        #endif
+        let start = info.startPositionSeconds
+        log.info("Engine: opening \(info.item.title, privacy: .public) at \(start)")
+        Task { [weak self] in
+            do {
+                // The server's choice of audio track (the profile's languages) is the engine's to apply.
+                _ = try await engine.load(url: url, startPosition: start > 1 ? start : nil, options: options,
+                                          audioSourceStreamIndex: info.selectedAudioIndex.map(Int32.init))
+            } catch {
+                guard let self, self.engine === engine else { return }
+                log.error("Engine failed: \(error.localizedDescription, privacy: .public)")
+                return dismissPlayer { self.show(.other, message: "This file couldn't be played on the device: \(error.localizedDescription)", retry: nil) }
+            }
+
+            guard let self, self.engine === engine, viewController === controller else { return }
+            guard let player = engine.currentAVPlayer else {
+                // Software decoding draws into the engine's own view, which this build doesn't have yet.
+                return dismissPlayer { self.show(.other, message: "This file needs software decoding, which isn't in this build yet.", retry: nil) }
+            }
+
+            player.appliesMediaSelectionCriteriaAutomatically = false
+            controller.player = player
+            self.player = player
+            attach(info)
+            // The engine opened the file where playback starts; the controller's own time is the file's.
+            pendingSeek = 0
+            log.info("Engine route \(engine.videoRoute.rawValue, privacy: .public): player at \(player.currentTime().seconds), engine clock \(engine.clock.currentTime)")
+        }
+    }
+    #endif
 
     /// Wires observers for the session in `info` onto the current player item.
     private func attach(_ info: PlaybackInfo) {
@@ -942,6 +1037,10 @@ final class PlaybackController: NSObject {
             }
         }
         player?.pause()
+        #if canImport(AetherEngine)
+        engine?.stop()
+        engine = nil
+        #endif
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         if let selectionObserver { NotificationCenter.default.removeObserver(selectionObserver) }

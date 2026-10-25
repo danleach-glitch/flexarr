@@ -37,4 +37,10 @@ public sealed record DeviceProfile
     /// </summary>
     public bool? Hdr10 { get; init; }
     public bool? Hlg { get; init; }
+
+    /// <summary>
+    /// The player picks among a file's audio tracks itself (a demuxer on the device), so any track can be played as it
+    /// is. Otherwise only the first track can: browsers and AVPlayer can't switch tracks in a plain file.
+    /// </summary>
+    public bool SwitchesAudioTracks { get; init; }
 }

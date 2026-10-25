@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var confirmSignOut = false
+    @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
 
     var body: some View {
         HStack(alignment: .top, spacing: 100) {
@@ -40,6 +41,23 @@ struct SettingsView: View {
                 }
                 .padding(36)
                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.seat))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Playback")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(Color.usher)
+                    Button {
+                        playsFilesDirectly.toggle()
+                        UserDefaults.standard.set(playsFilesDirectly, forKey: "FlexarrEngine")
+                    } label: {
+                        Label(playsFilesDirectly ? "Play files directly: on" : "Play files directly: off", systemImage: "cpu")
+                    }
+                    .buttonStyle(ActionButtonStyle())
+                    Text("Experimental. Plays the file itself on this Apple TV, every format with HDR and Dolby Vision as they are, instead of a stream from the server.")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Color.usher)
+                        .frame(maxWidth: 900, alignment: .leading)
+                }
 
                 Button(role: .destructive) { confirmSignOut = true } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
