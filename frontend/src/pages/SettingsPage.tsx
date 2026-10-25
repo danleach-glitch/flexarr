@@ -36,6 +36,7 @@ import {
   saveLayout,
   type ItemSummary,
   type PlaybackPreferences,
+  type SubtitleSize,
   type LibraryHealth,
   type HeldFolder,
   type Layout,
@@ -449,15 +450,17 @@ function WhileWatching() {
   const me = profiles?.find((p) => p.isCurrent)
   if (!preferences) return null
 
-  const options: { key: keyof PlaybackPreferences; label: string; help: string }[] = [
+  type Toggle = 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits'
+  const options: { key: Toggle; label: string; help: string }[] = [
     { key: 'autoPlayNext', label: 'Auto-play the next episode', help: 'A five-second countdown, then the next episode starts.' },
     { key: 'skipIntros', label: 'Skip intros', help: 'Jumps past the opening titles by itself.' },
     { key: 'skipRecaps', label: 'Skip recaps', help: 'Jumps past “Previously on…” by itself.' },
     { key: 'skipCredits', label: 'Skip credits', help: 'Moves on to the next episode as the credits start.' },
   ]
 
-  async function toggle(key: keyof PlaybackPreferences) {
-    const next = { ...preferences!, [key]: !preferences![key] }
+  const toggle = (key: Toggle) => change({ ...preferences, [key]: !preferences[key] })
+
+  async function change(next: PlaybackPreferences) {
     setPreferences(next)
     setError(undefined)
     try {
@@ -482,6 +485,16 @@ function WhileWatching() {
             </span>
           </label>
         ))}
+        <label className="field">
+          <span className="field-label">Subtitle size</span>
+          <select value={preferences.subtitleSize ?? 'Standard'} onChange={(e) => void change({ ...preferences, subtitleSize: e.target.value as SubtitleSize })}>
+            <option value="Small">Small</option>
+            <option value="Standard">Standard</option>
+            <option value="Large">Large</option>
+            <option value="ExtraLarge">Extra large</option>
+          </select>
+          <span className="field-help">On the web, iPhone, iPad and Apple TV. Subtitles that run early or late can be moved from the player’s subtitles menu.</span>
+        </label>
         {error && (
           <p className="error" role="alert">
             {error}

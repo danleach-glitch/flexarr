@@ -106,12 +106,15 @@ final class PlaybackController: NSObject {
 
     /// Starts playback. `startAt` nil lets the server choose the resume point; 0 starts over. With `shuffle`,
     /// `itemId` is a show: a random episode starts, and every next one is random too.
-    func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient, shuffle: Bool = false) {
+    func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient, shuffle: Bool = false,
+              subtitleKey: String? = nil) {
         guard !isStarting else { return }
         self.client = client
         shuffling = shuffle
-        viewerSubtitleKey = nil
-        start(request(for: itemId, startAt: startAt))
+        viewerSubtitleKey = subtitleKey.map { .some($0) }
+        var request = request(for: itemId, startAt: startAt)
+        if let subtitleKey { request.subtitleKey = subtitleKey }
+        start(request)
     }
 
     /// Plays a downloaded file: no server, no connection needed.
@@ -183,7 +186,97 @@ final class PlaybackController: NSObject {
         guard let url = local ?? client?.url(for: info.url) else { throw FlexarrClientError.invalidResponse }
         let item = AVPlayerItem(url: url)
         item.externalMetadata = Self.metadata(for: info, artwork: nil, overview: nil)
+        Self.applySubtitleSize(info.preferences?.subtitleSize, to: item)
         return item
+    }
+
+    // MARK: Subtitle timing and size
+
+    /// The timings offered in the player: a pick restarts the stream (about two seconds) with the subtitles moved.
+    private static let delayChoices: [Double] = [-2, -1, -0.5, 0, 0.5, 1, 2]
+
+    /// Draws subtitles at the profile's size, as a percentage of the player's own.
+    private static func applySubtitleSize(_ size: SubtitleSize?, to item: AVPlayerItem) {
+        let percent = (size ?? .standard).percent
+        item.textStyleRules = percent == 100 ? nil
+            : AVTextStyleRule(textMarkupAttributes: [kCMTextMarkupAttribute_RelativeFontSize as String: percent]).map { [$0] }
+    }
+
+    /// "In time", "0.5s later", "1s earlier".
+    static func delayLabel(_ seconds: Double) -> String {
+        guard seconds != 0 else { return "In time" }
+        let amount = abs(seconds).formatted(.number.precision(.fractionLength(0...2)))
+        return "\(amount)s \(seconds > 0 ? "later" : "earlier")"
+    }
+
+    /// Shows this title's subtitles later (or earlier): remembered on the server, which shifts them, and the stream
+    /// opened again where it was so the player fetches them anew.
+    func setSubtitleDelay(_ seconds: Double) {
+        guard let client, let current = info, !current.isOffline, !isRecovering else { return }
+        Task {
+            do {
+                try await client.setSubtitleDelay(itemId: current.item.id, seconds: seconds)
+            } catch {
+                log.error("Couldn't move subtitles: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            guard self.info?.sessionId == current.sessionId else { return }
+            let request = PlaybackRequest(
+                itemId: current.item.id, profile: Self.deviceProfile, fileId: current.fileId,
+                audioStreamIndex: current.selectedAudioIndex, subtitleKey: (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off",
+                startPositionSeconds: position, replacesSessionId: current.sessionId, shuffle: shuffling ? true : nil)
+            isRecovering = true
+            defer { isRecovering = false }
+            do {
+                let info = try await client.startPlayback(request)
+                guard self.info?.sessionId == current.sessionId else {
+                    try? await client.stopPlayback(sessionId: info.sessionId)
+                    return
+                }
+                let item = try makeItem(for: info)
+                player?.replaceCurrentItem(with: item)
+                attach(info)
+            } catch {
+                dismissPlayer { self.show(error, retry: request) }
+            }
+        }
+    }
+
+    /// The profile's subtitle size, changed while watching: drawn at once, and saved for every device.
+    func setSubtitleSize(_ size: SubtitleSize) {
+        preferences.subtitleSize = size
+        if let item = player?.currentItem { Self.applySubtitleSize(size, to: item) }
+        updateSubtitleMenu()
+        if let client {
+            let saved = preferences
+            Task { try? await client.setPlaybackPreferences(saved) }
+        }
+    }
+
+    /// On Apple TV, a Subtitles menu in the player's bar for timing and size (when there are subtitles to adjust).
+    private func updateSubtitleMenu() {
+        #if os(tvOS)
+        guard let viewController, let info else { return }
+        guard !info.isOffline, !info.subtitleBurnedIn, info.subtitles.contains(where: \.isText) else {
+            viewController.transportBarCustomMenuItems = []
+            return
+        }
+        let current = info.subtitleDelaySeconds ?? 0
+        let choices = Set(Self.delayChoices + [current]).sorted()
+        let timing = UIMenu(title: "Timing", options: .displayInline, children: choices.map { seconds in
+            UIAction(title: Self.delayLabel(seconds), state: seconds == current ? .on : .off) { [weak self] _ in
+                MainActor.assumeIsolated { if seconds != current { self?.setSubtitleDelay(seconds) } }
+            }
+        })
+        let size = UIMenu(title: "Size", options: .displayInline, children: SubtitleSize.allCases.map { size in
+            UIAction(title: size.label, state: size == (preferences.subtitleSize ?? .standard) ? .on : .off) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setSubtitleSize(size) }
+            }
+        })
+        viewController.transportBarCustomMenuItems = [
+            UIMenu(title: "Subtitle timing and size", image: UIImage(systemName: "captions.bubble"), children: [timing, size]),
+        ]
+        #endif
     }
 
     private func present(_ info: PlaybackInfo) throws {
@@ -239,6 +332,7 @@ final class PlaybackController: NSObject {
         lastReport = Date()
         pendingSeek = info.startPositionSeconds
         updateContextualActions()
+        updateSubtitleMenu()
         loadRichMetadata(for: info, into: item)
 
         observations = [

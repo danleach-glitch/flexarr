@@ -164,7 +164,7 @@ public sealed class PlaybackService(
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct);
         var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
@@ -189,7 +189,8 @@ public sealed class PlaybackService(
             next is null ? null : await db.MediaItems.Where(i => i.Id == next.Id).Summaries(profile.Id).FirstAsync(ct),
             decision.Transcode is { } t ? $"{t.TargetHeight}p H.264 at {t.VideoBitrate / 1_000_000.0:0.#} Mbps" + (t.ToneMap ? ", HDR converted to SDR" : "") : null,
             shuffling,
-            watching);
+            watching,
+            state?.SubtitleDelaySeconds ?? 0);
     }
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)

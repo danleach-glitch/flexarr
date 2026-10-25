@@ -1,7 +1,8 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { ApiError, beaconProgress, imageUrl, reportProgress, setPlaybackPreferences, startPlayback, stopPlayback, type PlaybackInfo, type PlaybackPreferences } from '../api/client'
+import { ApiError, beaconProgress, imageUrl, reportProgress, setPlaybackPreferences, setSubtitleDelay, startPlayback, stopPlayback, type PlaybackInfo, type PlaybackPreferences } from '../api/client'
+import type { SubtitleSize } from '../api/client'
 import {
   Back,
   Captions,
@@ -42,7 +43,22 @@ function dropPrepared() {
   prepared = null
 }
 
-const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false }
+const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Standard' }
+
+/** How much bigger than standard each subtitle size draws (player.css scales ::cue by --cue-scale). */
+export const subtitleScale: Record<SubtitleSize, number> = { Small: 0.8, Standard: 1, Large: 1.25, ExtraLarge: 1.5 }
+const subtitleSizes: { value: SubtitleSize; label: string }[] = [
+  { value: 'Small', label: 'Small' },
+  { value: 'Standard', label: 'Standard' },
+  { value: 'Large', label: 'Large' },
+  { value: 'ExtraLarge', label: 'Extra large' },
+]
+
+/** "In time", "0.5s later", "1.25s earlier". */
+function delayLabel(seconds: number) {
+  if (seconds === 0) return 'In time'
+  return `${Math.abs(seconds)}s ${seconds > 0 ? 'later' : 'earlier'}`
+}
 const HIDE_CHROME_MS = 3000
 const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
 const TAKEN_OVER = 'Someone started watching on another screen, so this one had to stop.'
@@ -119,6 +135,8 @@ export function PlayerPage() {
   // The episode is over (it ended, or its credits began with Skip credits on): the countdown to the next one runs.
   const [finished, setFinished] = useState(false)
   const [preferences, setPreferences] = useState<PlaybackPreferences>(defaultPreferences)
+  const [subtitleDelay, setSubtitleDelayState] = useState(0)
+  const scale = subtitleScale[preferences.subtitleSize ?? 'Standard']
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
   const preparing = useRef<{ itemId: string } | null>(null)
@@ -228,7 +246,8 @@ export function PlayerPage() {
         session.current = playback.sessionId
         playingItem.current = playback.item.id
         setInfo(playback)
-        if (playback.preferences) setPreferences(playback.preferences)
+        if (playback.preferences) setPreferences({ ...defaultPreferences, ...playback.preferences })
+        setSubtitleDelayState(playback.subtitleDelaySeconds ?? 0)
         setSubtitleKey(playback.selectedSubtitleKey)
         attach(playback, options.startPositionSeconds ?? playback.startPositionSeconds)
         return true
@@ -419,7 +438,7 @@ export function PlayerPage() {
     const place = () => {
       const height = el.getBoundingClientRect().height || innerHeight
       const lift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : height * 0.08
-      const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * 1.3 + 2
+      const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * scale * 1.3 + 2
       for (const track of Array.from(el.textTracks)) {
         if (track.mode !== 'showing' || !track.cues) continue
         const cues = placed.has(track) ? track.activeCues : track.cues
@@ -450,7 +469,7 @@ export function PlayerPage() {
       tracks.removeEventListener('change', place)
       window.removeEventListener('resize', onResize)
     }
-  }, [chrome, subtitleKey])
+  }, [chrome, subtitleKey, scale])
 
   // Show the chosen text subtitle track (the <track> is swapped when the choice changes).
   useEffect(() => {
@@ -619,8 +638,23 @@ export function PlayerPage() {
   // Leaving the player lets an unused next episode go.
   useEffect(() => () => dropPrepared(), [])
 
+  /** Moves this title's subtitles by a quarter of a second, remembered for next time; the subtitles reload shifted. */
+  function nudgeSubtitles(by: number) {
+    const id = playingItem.current
+    if (!id) return
+    const next = by === 0 ? 0 : Math.round((subtitleDelay + by) * 100) / 100
+    if (Math.abs(next) > 60) return
+    void setSubtitleDelay(id, next).then(() => setSubtitleDelayState(next))
+  }
+
+  function chooseSubtitleSize(size: SubtitleSize) {
+    const next = { ...preferences, subtitleSize: size }
+    setPreferences(next)
+    void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
+  }
+
   /** Turns one of the profile's playback preferences on or off, here and for its other devices. */
-  function togglePreference(key: keyof PlaybackPreferences) {
+  function togglePreference(key: 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits') {
     const next = { ...preferences, [key]: !preferences[key] }
     setPreferences(next)
     void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
@@ -700,12 +734,14 @@ export function PlayerPage() {
   const series = info?.ancestors[0]
   const accent = item?.accentColor ?? series?.accentColor
   const selectedText = info?.subtitles.find((s) => s.key === subtitleKey && s.isText && s.url)
+  // The server shifts the cues; a new address (with the delay in it) fetches them again.
+  const textUrl = selectedText?.url ? `${selectedText.url}${selectedText.url.includes('?') ? '&' : '?'}delay=${subtitleDelay}` : undefined
 
   return (
     <div
       ref={container}
       className={chromeShown ? 'player' : 'player chrome-hidden'}
-      style={accent ? ({ '--ambient': accent } as CSSProperties) : undefined}
+      style={{ ...(accent ? { '--ambient': accent } : {}), '--cue-scale': scale } as CSSProperties}
       onMouseMove={wake}
       onClick={(e) => !error && e.target === video.current && toggle()}
     >
@@ -719,9 +755,9 @@ export function PlayerPage() {
       >
         {selectedText && (
           <track
-            key={selectedText.key}
+            key={textUrl}
             kind="subtitles"
-            src={selectedText.url!}
+            src={textUrl}
             srcLang={selectedText.language ?? 'und'}
             label={selectedText.key}
             default
@@ -884,7 +920,36 @@ export function PlayerPage() {
                       {!s.isText && <span className="muted"> (burned in)</span>}
                     </MenuItem>
                   ))}
+                  {selectedText && (
+                    <>
+                      <h3>Timing</h3>
+                      <div className="player-menu-stepper">
+                        <button aria-label="Show subtitles earlier" onClick={() => nudgeSubtitles(-0.25)}>
+                          −
+                        </button>
+                        <span aria-live="polite">{delayLabel(subtitleDelay)}</span>
+                        <button aria-label="Show subtitles later" onClick={() => nudgeSubtitles(0.25)}>
+                          +
+                        </button>
+                      </div>
+                      {subtitleDelay !== 0 && (
+                        <button className="player-menu-item" onClick={() => nudgeSubtitles(0)}>
+                          Reset timing
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
+                {info.subtitles.some((s) => s.isText) && (
+                  <div className="player-menu-column">
+                    <h3>Subtitle size</h3>
+                    {subtitleSizes.map((s) => (
+                      <MenuItem key={s.value} selected={(preferences.subtitleSize ?? 'Standard') === s.value} onClick={() => chooseSubtitleSize(s.value)}>
+                        {s.label}
+                      </MenuItem>
+                    ))}
+                  </div>
+                )}
                 {info.audioTracks.length > 1 && (
                   <div className="player-menu-column">
                     <h3>Audio</h3>

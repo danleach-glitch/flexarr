@@ -83,8 +83,8 @@ final class ScreenshotTour: XCTestCase {
         shot("10-search-empty")
         let field = app.searchFields.firstMatch
         if field.waitForExistence(timeout: 3) {
-            field.tap()
-            field.typeText("the")
+            // Focused already: typing goes straight in.
+            app.typeText("the")
             pause(3)
             shot("11-search")
         }

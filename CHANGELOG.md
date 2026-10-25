@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.16.0 · 25 October 2026
+
+### Subtitle timing and size
+- Subtitles that come too early or too late can be moved to match the speech: in the web player's subtitles menu (a quarter of a second at a time), or on Apple TV from the subtitles button in the player's bar. Each film or episode remembers its own.
+- Choose how big subtitles are, **Small**, **Standard**, **Large** or **Extra large**: in Settings › Playback on the web, Settings on iPhone and iPad, or the player on the web and Apple TV. Each profile has its own, on every device.
+
+### Changed on iPhone and iPad
+- Opening Search puts you straight in the search field with the keyboard up.
+
 ## 0.15.3 · 25 October 2026
 
 ### Fixed on iPhone and iPad

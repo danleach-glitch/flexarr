@@ -179,6 +179,11 @@ public struct FlexarrClient: Sendable {
         _ = try await send("PUT", "me/playback-preferences", body: preferences)
     }
 
+    /// Remembers how far this title's subtitles are moved (later when positive); used the next time they're fetched.
+    public func setSubtitleDelay(itemId: String, seconds: Double) async throws {
+        _ = try await send("PUT", "items/\(itemId)/subtitle-delay", body: SubtitleDelayBody(seconds: seconds))
+    }
+
     // MARK: Profiles
 
     public func profiles() async throws -> [Profile] {

@@ -47,10 +47,15 @@ public sealed record PlaybackInfoDto(
     ItemSummaryDto? Next,
     string? TranscodeSummary,
     bool Shuffle = false,
-    PlaybackPreferencesDto? Preferences = null);
+    PlaybackPreferencesDto? Preferences = null,
+    double SubtitleDelaySeconds = 0);
 
 /// <summary>How this profile likes to watch: auto-play the next episode, and what to skip without asking.</summary>
-public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, bool SkipRecaps, bool SkipCredits);
+/// <param name="SubtitleSize">Left out (an older app saving its toggles), the profile's size is kept.</param>
+public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, bool SkipRecaps, bool SkipCredits, SubtitleSize? SubtitleSize = null);
+
+/// <summary>Subtitles shown later (positive) or earlier (negative), in seconds.</summary>
+public sealed record SubtitleDelayRequest(double Seconds);
 
 public sealed record ProgressRequest(double PositionSeconds, bool Paused = false, bool Ended = false);
 

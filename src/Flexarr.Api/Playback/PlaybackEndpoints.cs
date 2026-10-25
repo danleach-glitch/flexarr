@@ -35,7 +35,7 @@ public static class PlaybackEndpoints
         // Each profile's own: anyone signed in as it may change them, admin or not.
         api.MapGet("/me/playback-preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits)).FirstOrDefaultAsync(ct) is { } found
+                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct) is { } found
                 ? Results.Ok(found)
                 : Results.NotFound()).WithTags("Playback");
 
@@ -50,8 +50,34 @@ public static class PlaybackEndpoints
             found.SkipIntros = preferences.SkipIntros;
             found.SkipRecaps = preferences.SkipRecaps;
             found.SkipCredits = preferences.SkipCredits;
+            found.SubtitleSize = preferences.SubtitleSize ?? found.SubtitleSize;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(preferences);
+            return Results.Ok(preferences with { SubtitleSize = found.SubtitleSize });
+        }).WithTags("Playback");
+
+        // Remembered for the title, and applied to its subtitles from the next time they're fetched.
+        api.MapPut("/items/{id:guid}/subtitle-delay", async (Guid id, SubtitleDelayRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > 60)
+            {
+                return Results.Problem("Subtitles can be moved up to a minute either way.", statusCode: 400);
+            }
+
+            if (!await db.MediaItems.AnyAsync(i => i.Id == id, ct))
+            {
+                return Results.NotFound();
+            }
+
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == id, ct);
+            if (state is null)
+            {
+                state = new PlaybackState { UserId = profile.Id, MediaItemId = id };
+                db.PlaybackStates.Add(state);
+            }
+
+            state.SubtitleDelaySeconds = Math.Round(request.Seconds, 3);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
         }).WithTags("Playback");
 
         api.MapGet("/items/{id:guid}/next-up", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
@@ -159,9 +185,15 @@ public static class PlaybackEndpoints
                 return Results.Problem("These subtitles couldn't be converted.", statusCode: 422);
             }
 
-            return hls == true
-                ? Results.Text(Subtitles.WithHlsTimestampMap(await File.ReadAllTextAsync(path, ct)), "text/vtt")
-                : Results.File(path, "text/vtt");
+            var delay = await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId)
+                .Select(p => p.SubtitleDelaySeconds).FirstOrDefaultAsync(ct);
+            if (hls != true && delay == 0)
+            {
+                return Results.File(path, "text/vtt");
+            }
+
+            var vtt = Subtitles.Shift(await File.ReadAllTextAsync(path, ct), delay);
+            return Results.Text(hls == true ? Subtitles.WithHlsTimestampMap(vtt) : vtt, "text/vtt");
         });
 
         group.MapGet("/subtitles/{key}.m3u8", (string sid, string key, PlaybackSessions sessions, HttpContext http) =>

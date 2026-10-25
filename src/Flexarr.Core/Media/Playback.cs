@@ -19,6 +19,9 @@ public sealed class PlaybackState
     /// <summary>Preferred audio/subtitle languages carry over between episodes of a series.</summary>
     public string? AudioLanguage { get; set; }
     public string? SubtitleLanguage { get; set; }
+
+    /// <summary>Seconds this item's subtitles are shown later (or, negative, earlier) to match the speech.</summary>
+    public double SubtitleDelaySeconds { get; set; }
 }
 
 public enum MarkerType

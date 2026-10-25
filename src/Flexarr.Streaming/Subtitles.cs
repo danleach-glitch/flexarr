@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -180,6 +181,62 @@ public static partial class Subtitles
     }
 
     /// <summary>Prefixes WebVTT with the timestamp mapping Apple's HLS players need to sync with MPEG-TS segments.</summary>
+    /// <summary>Moves every cue <paramref name="seconds"/> later (earlier when negative). Cues pushed before the start go.</summary>
+    public static string Shift(string vtt, double seconds)
+    {
+        ArgumentNullException.ThrowIfNull(vtt);
+        if (seconds == 0)
+        {
+            return vtt;
+        }
+
+        var builder = new StringBuilder(vtt.Length);
+        var blocks = vtt.Replace("\r\n", "\n", StringComparison.Ordinal).Split("\n\n");
+        for (var i = 0; i < blocks.Length; i++)
+        {
+            var block = blocks[i];
+            var timing = CueTiming().Match(block);
+            if (timing.Success)
+            {
+                var start = ParseTime(timing.Groups["start"].Value) + seconds;
+                var end = ParseTime(timing.Groups["end"].Value) + seconds;
+                if (end <= 0)
+                {
+                    continue;
+                }
+
+                block = block[..timing.Index] + FormatTime(Math.Max(0, start)) + " --> " + FormatTime(end) + block[(timing.Index + timing.Length)..];
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.Append("\n\n");
+            }
+
+            builder.Append(block);
+        }
+
+        return builder.ToString();
+    }
+
+    private static double ParseTime(string value)
+    {
+        var parts = value.Split(':');
+        var seconds = double.Parse(parts[^1], CultureInfo.InvariantCulture);
+        var minutes = int.Parse(parts[^2], CultureInfo.InvariantCulture);
+        var hours = parts.Length > 2 ? int.Parse(parts[0], CultureInfo.InvariantCulture) : 0;
+        return (hours * 3600) + (minutes * 60) + seconds;
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        var time = TimeSpan.FromMilliseconds(Math.Round(seconds * 1000));
+        return string.Create(CultureInfo.InvariantCulture, $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}.{time.Milliseconds:000}");
+    }
+
+    [GeneratedRegex(@"(?<start>(?:\d+:)?\d{2}:\d{2}\.\d{3})\s+-->\s+(?<end>(?:\d+:)?\d{2}:\d{2}\.\d{3})")]
+    private static partial Regex CueTiming();
+
     public static string WithHlsTimestampMap(string vtt)
     {
         ArgumentNullException.ThrowIfNull(vtt);

@@ -477,6 +477,7 @@ export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal)
 export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
+export const setSubtitleDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/subtitle-delay`, { seconds })
 export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>
   request<void>('POST', `/playback/${sessionId}/progress`, { positionSeconds, paused, ended })
 

@@ -35,10 +35,28 @@ struct SettingsView: View {
                     toggle("Skip intros", \.skipIntros, preferences)
                     toggle("Skip recaps", \.skipRecaps, preferences)
                     toggle("Skip credits", \.skipCredits, preferences)
+                    Picker("Subtitle size", selection: Binding(
+                        get: { preferences.subtitleSize == .unknown ? .standard : preferences.subtitleSize ?? .standard },
+                        set: { size in
+                            var changed = preferences
+                            changed.subtitleSize = size
+                            self.preferences = changed
+                            Task {
+                                do {
+                                    try await model.client?.setPlaybackPreferences(changed)
+                                } catch {
+                                    self.preferences = preferences
+                                }
+                            }
+                        }
+                    )) {
+                        ForEach(SubtitleSize.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .listRowBackground(Color.seat)
                 } header: {
                     Text("While watching")
                 } footer: {
-                    Text("Auto-play counts down five seconds, then starts the next episode. Skip credits moves on as the credits start. Each profile has its own, on every device.")
+                    Text("Auto-play counts down five seconds, then starts the next episode. Skip credits moves on as the credits start. Each profile has its own, on every device. Subtitles that run early or late can be moved on Apple TV or the web.")
                 }
             }
 

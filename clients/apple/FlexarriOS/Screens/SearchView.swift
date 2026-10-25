@@ -5,6 +5,7 @@ struct SearchView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var query = ""
+    @FocusState private var typing: Bool
     @State private var results: SearchResults?
     @State private var error: String?
 
@@ -53,6 +54,9 @@ struct SearchView: View {
         .navigationTitle("Search")
         // Always showing: left to itself, iOS tucks the field away until the page is pulled down.
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, shows, episodes and people")
+        // Opening Search is for typing: the field's ready with the keyboard up.
+        .searchFocused($typing)
+        .onAppear { if query.isEmpty { typing = true } }
         .task(id: query) {
             // Debounce typing so each keystroke doesn't hit the server.
             try? await Task.sleep(for: .milliseconds(300))

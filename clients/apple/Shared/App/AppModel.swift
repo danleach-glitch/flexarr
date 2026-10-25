@@ -57,10 +57,10 @@ final class AppModel {
         player.onSessionEnded = { [weak self] in self?.invalidate() }
         #if DEBUG
         // `-FlexarrPlay <id>` plays a title once the app's up (as flexarr://play/<id>, without tvOS asking first).
-        if let id = defaults.string(forKey: "FlexarrPlay") {
+        if let play = defaults.string(forKey: "FlexarrPlay") {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
-                if let url = URL(string: "flexarr://play/\(id)") { open(url: url) }
+                if let url = URL(string: "flexarr://play/\(play)") { open(url: url) }
             }
         }
         #endif
@@ -278,11 +278,12 @@ final class AppModel {
         switch host {
         case "item": pendingRoute = .itemID(id)
         case "play":
-            // flexarr://play/<id>?t=<seconds> starts at a given time.
+            // flexarr://play/<id>?t=<seconds>&s=<subtitle key> starts at a given time, with those subtitles.
             guard let client else { return }
-            let start = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "t" })?.value.flatMap(Double.init)
-            player.play(itemId: id, preview: nil, startAt: start, client: client)
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let start = query.first(where: { $0.name == "t" })?.value.flatMap(Double.init)
+            let subtitles = query.first(where: { $0.name == "s" })?.value
+            player.play(itemId: id, preview: nil, startAt: start, client: client, subtitleKey: subtitles)
         default: break
         }
     }

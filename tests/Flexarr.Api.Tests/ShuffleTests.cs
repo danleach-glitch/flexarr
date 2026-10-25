@@ -1,9 +1,11 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Flexarr.Api.Playback;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -192,5 +194,43 @@ public sealed class PlaybackPreferencesTests : IDisposable
         Assert.True(saved.GetProperty("skipIntros").GetBoolean());
         Assert.True(saved.GetProperty("skipRecaps").GetBoolean());
         Assert.True(saved.GetProperty("skipCredits").GetBoolean());
+    }
+
+    [Fact]
+    public async Task SubtitleSize_IsStandardToStart_AndKeptWhenAnOlderAppSavesItsToggles()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var uri = new Uri("/api/v1/me/playback-preferences", UriKind.Relative);
+        Assert.Equal("Standard", (await client.GetFromJsonAsync<JsonElement>(uri)).GetProperty("subtitleSize").GetString());
+
+        (await client.PutAsJsonAsync(uri, new { autoPlayNext = true, skipIntros = false, skipRecaps = false, skipCredits = false, subtitleSize = "Large" })).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync(uri, new { autoPlayNext = false, skipIntros = false, skipRecaps = false, skipCredits = false })).EnsureSuccessStatusCode();
+
+        var saved = await client.GetFromJsonAsync<JsonElement>(uri);
+        Assert.Equal("Large", saved.GetProperty("subtitleSize").GetString());
+        Assert.False(saved.GetProperty("autoPlayNext").GetBoolean());
+    }
+
+    [Fact]
+    public async Task SubtitleDelay_IsRememberedForTheTitle_WithinAMinute()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var movie = new MediaItem { LibraryId = Guid.NewGuid(), Kind = MediaKind.Movie, Title = "Film", SortTitle = "film" };
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.AddRange(new Library { Id = movie.LibraryId, Name = "Films", Type = LibraryType.Movies }, movie);
+            await db.SaveChangesAsync();
+        }
+
+        var uri = new Uri($"/api/v1/items/{movie.Id}/subtitle-delay", UriKind.Relative);
+        (await client.PutAsJsonAsync(uri, new { seconds = -1.5 })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(uri, new { seconds = 90 })).StatusCode);
+
+        using var check = _factory.Services.CreateScope();
+        var state = await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == movie.Id);
+        Assert.Equal(-1.5, state.SubtitleDelaySeconds);
     }
 }

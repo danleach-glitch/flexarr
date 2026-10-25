@@ -316,6 +316,8 @@ export interface PlaybackInfo {
   transcodeSummary: string | null
   shuffle?: boolean
   preferences?: PlaybackPreferences | null
+  /** This title's subtitles are shown this many seconds later (earlier when negative). */
+  subtitleDelaySeconds?: number
 }
 
 export interface TranscodingSettings {
@@ -386,4 +388,7 @@ export interface PlaybackPreferences {
   skipIntros: boolean
   skipRecaps: boolean
   skipCredits: boolean
+  subtitleSize?: SubtitleSize
 }
+
+export type SubtitleSize = 'Small' | 'Standard' | 'Large' | 'ExtraLarge'

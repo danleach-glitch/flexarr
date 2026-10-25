@@ -623,6 +623,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<double>("PositionSeconds")
                         .HasColumnType("REAL");
 
+                    b.Property<double>("SubtitleDelaySeconds")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("SubtitleLanguage")
                         .HasColumnType("TEXT");
 
@@ -678,6 +681,11 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("SkipRecaps")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SubtitleSize")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TailscaleLogin")
                         .HasColumnType("TEXT");
 
@@ -699,7 +707,8 @@ namespace Flexarr.Core.Data.Migrations
                             Name = "Main profile",
                             SkipCredits = false,
                             SkipIntros = false,
-                            SkipRecaps = false
+                            SkipRecaps = false,
+                            SubtitleSize = "Standard"
                         });
                 });
 

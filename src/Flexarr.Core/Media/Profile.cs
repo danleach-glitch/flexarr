@@ -39,6 +39,9 @@ public sealed class Profile
 
     public bool SkipCredits { get; set; }
 
+    /// <summary>How big subtitles are drawn, on every device.</summary>
+    public SubtitleSize SubtitleSize { get; set; } = SubtitleSize.Standard;
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
@@ -75,4 +78,12 @@ public sealed class Profile
         var actual = Rfc2898DeriveBytes.Pbkdf2(pin, Convert.FromBase64String(parts[1]), iterations, HashAlgorithmName.SHA256, expected.Length);
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
+}
+
+public enum SubtitleSize
+{
+    Small,
+    Standard,
+    Large,
+    ExtraLarge,
 }

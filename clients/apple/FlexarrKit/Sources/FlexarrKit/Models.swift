@@ -405,6 +405,8 @@ public struct PlaybackInfo: Codable, Sendable {
     public let shuffle: Bool?
     /// The profile's auto-play and skip preferences. Absent from servers before they existed.
     public let preferences: PlaybackPreferences?
+    /// This title's subtitles are shown this many seconds later (earlier when negative). The server shifts them.
+    public var subtitleDelaySeconds: Double? = nil
 }
 
 /// How a profile likes to watch: auto-play the next episode, and what to skip without asking.
@@ -413,12 +415,16 @@ public struct PlaybackPreferences: Codable, Sendable, Hashable {
     public var skipIntros: Bool
     public var skipRecaps: Bool
     public var skipCredits: Bool
+    /// Absent from servers before subtitle sizes; left out when saving, the server keeps the profile's own.
+    public var subtitleSize: SubtitleSize?
 
-    public init(autoPlayNext: Bool = true, skipIntros: Bool = false, skipRecaps: Bool = false, skipCredits: Bool = false) {
+    public init(autoPlayNext: Bool = true, skipIntros: Bool = false, skipRecaps: Bool = false, skipCredits: Bool = false,
+                subtitleSize: SubtitleSize? = nil) {
         self.autoPlayNext = autoPlayNext
         self.skipIntros = skipIntros
         self.skipRecaps = skipRecaps
         self.skipCredits = skipCredits
+        self.subtitleSize = subtitleSize
     }
 
     /// What a profile starts with, and what's assumed from a server that doesn't say.
@@ -582,4 +588,36 @@ extension PlaybackInfo {
 
     /// Played from a downloaded file rather than streamed.
     public var isOffline: Bool { sessionId.hasPrefix("offline-") }
+}
+
+// MARK: - Subtitles
+
+/// How big subtitles are drawn: one setting per profile, followed by every device.
+public enum SubtitleSize: String, ForwardCompatibleEnum, CaseIterable {
+    case small = "Small", standard = "Standard", large = "Large", extraLarge = "ExtraLarge", unknown
+
+    public static var allCases: [SubtitleSize] { [.small, .standard, .large, .extraLarge] }
+
+    public var label: String {
+        switch self {
+        case .small: "Small"
+        case .standard, .unknown: "Standard"
+        case .large: "Large"
+        case .extraLarge: "Extra large"
+        }
+    }
+
+    /// Percent of the player's own size (as the web player scales its cues).
+    public var percent: Int {
+        switch self {
+        case .small: 80
+        case .standard, .unknown: 100
+        case .large: 125
+        case .extraLarge: 150
+        }
+    }
+}
+
+struct SubtitleDelayBody: Codable, Sendable {
+    let seconds: Double
 }
