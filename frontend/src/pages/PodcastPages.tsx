@@ -265,11 +265,9 @@ function EpisodeRow({ episode, showPodcast, onChanged }: { episode: PodcastEpiso
 
   return (
     <div className={played ? 'podcast-episode-row played' : 'podcast-episode-row'}>
-      {showPodcast && (
-        <Link to={`/podcasts/${episode.podcastId}`} className="podcast-episode-art" tabIndex={-1} aria-hidden="true">
-          <Artwork src={episode.artwork.thumb ?? episode.artwork.poster} title={episode.podcastTitle} width={185} accent={episode.accentColor} shape="square" />
-        </Link>
-      )}
+      <Link to={`/podcasts/episode/${episode.id}`} className="podcast-episode-art" tabIndex={-1} aria-hidden="true">
+        <Artwork src={episode.artwork.thumb ?? episode.artwork.poster} title={episode.podcastTitle} width={185} accent={episode.accentColor} shape="square" />
+      </Link>
       <div className="podcast-episode-text">
         <p className="podcast-episode-meta">
           {showPodcast && (
