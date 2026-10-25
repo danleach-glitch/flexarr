@@ -1,17 +1,18 @@
 using System.Diagnostics;
+using Flexarr.Streaming.Remux;
 using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Streaming;
 
 /// <summary>
 /// One viewer's HLS transcode of one file. Segments are produced by an ffmpeg process that is started at
-/// whatever segment the player asks for, restarted when the player seeks outside what's been produced,
-/// and paused while it's far ahead of playback.
+/// whatever segment the player asks for and restarted when the player seeks outside what's been produced. ffmpeg
+/// paces itself (<see cref="FfmpegCommand.RunAheadSeconds"/> ahead, then real time), so it never runs hours ahead of
+/// the viewer. It's never paused with SIGSTOP: on macOS, .NET spins on a stopped child and can't start another
+/// process until it's resumed, which froze every other stream.
 /// </summary>
 public sealed partial class TranscodeSession : IAsyncDisposable
 {
-    private const int RunAhead = 30;       // segments (3 minutes) produced beyond the last request before pausing
-    private const int ResumeAt = 15;       // resume once playback is within this many segments
     private const int SeekTolerance = 4;   // a request this far past what's produced waits rather than restarts
 
     /// <summary>How long a new or restarted session counts as active before ffmpeg is running.</summary>
@@ -21,18 +22,22 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly Action<TranscodeSession>? _reserve;
 
-    // Held while ffmpeg is started, stopped, paused or resumed. Never disposed: a request may still be waiting on it.
+    // Held while ffmpeg is started or stopped. Never disposed: a request may still be waiting on it.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _playlistLock = new();
     private volatile Process? _process;
     private int _startSegment;
-    private bool _paused;
     private bool _released;
     private volatile bool _disposed;
     private string? _lastError;
 
     // What ffmpeg's playlist listed when it was last read, and its size and time then (it's polled every 100 ms).
     private HashSet<int> _completed = [];
+
+    // Repackaged runs: each fragment's place on the timeline (from its own timestamp), and which make up each segment.
+    private readonly Dictionary<string, (double Start, double End)> _fragments = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, List<string>> _segmentFragments = [];
+    private uint? _timescale;
     private int _highestCompleted = -1;
     private (long Length, DateTime Written) _playlistStamp;
 
@@ -61,7 +66,25 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double DurationSeconds { get; }
     public TranscodePlan Plan { get; }
     public string Directory { get; }
-    public int SegmentCount => FfmpegCommand.SegmentCount(DurationSeconds);
+    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds);
+
+    /// <summary>The segment playing at <paramref name="seconds"/>.</summary>
+    public int SegmentAt(double seconds)
+    {
+        if (Plan.Repackage is not { } repackage)
+        {
+            return Math.Clamp((int)(Math.Max(0, seconds) / FfmpegCommand.SegmentSeconds), 0, SegmentCount - 1);
+        }
+
+        var starts = repackage.SegmentStarts;
+        var index = 0;
+        while (index + 1 < starts.Count && starts[index + 1] <= seconds)
+        {
+            index++;
+        }
+
+        return index;
+    }
     public DateTime Created { get; } = DateTime.UtcNow;
     public DateTime LastAccess { get; internal set; } = DateTime.UtcNow;
     public int LastRequested { get; private set; }
@@ -76,7 +99,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// <summary>Where playback opens (a resume point), written into the playlist.</summary>
     public double StartSeconds { get; set; }
 
-    public string MediaPlaylist() => FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4);
+    public string MediaPlaylist() => Plan.Repackage is { } repackage
+        ? FfmpegCommand.MediaPlaylist(repackage.SegmentStarts, DurationSeconds, StartSeconds)
+        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4);
 
     private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
 
@@ -96,7 +121,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         Task<string?>? opening = null;
         if (!File.Exists(path))
         {
-            opening = GetSegmentAsync((int)(Math.Max(0, StartSeconds) / FfmpegCommand.SegmentSeconds), ct);
+            opening = GetSegmentAsync(SegmentAt(StartSeconds), ct);
         }
 
         // Written in one go once ffmpeg has its codecs; done when its size stops changing.
@@ -157,10 +182,6 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
                     await StartAsync(index).ConfigureAwait(false);
                 }
-                else if (_paused)
-                {
-                    ResumeProcess();
-                }
             }
         }
         finally
@@ -184,39 +205,47 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             await Task.Delay(100, ct).ConfigureAwait(false);
         }
 
-        return path;
+        return Plan.Repackage is null ? path : await JoinFragmentsAsync(index, path, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Called periodically: pauses ffmpeg when it's far ahead of the viewer, resumes it when they catch up.</summary>
-    public void Throttle()
+    /// <summary>A repackaged segment: its keyframe fragments one after another (each a moof and its mdat), written once.</summary>
+    private async Task<string?> JoinFragmentsAsync(int index, string path, CancellationToken ct)
     {
-        // Skip a tick rather than wait while a request is starting or stopping ffmpeg.
-        if (!ProcessSignals.Supported || !_gate.Wait(0))
+        if (File.Exists(path))
         {
-            return;
+            return path;
         }
 
+        List<string> parts;
+        lock (_playlistLock)
+        {
+            if (!_segmentFragments.TryGetValue(index, out var names))
+            {
+                return null;
+            }
+
+            parts = [.. names];
+        }
+
+        var partial = path + ".part";
         try
         {
-            if (_process is not { } process || !IsAlive(process))
+            await using (var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                return;
+                foreach (var part in parts)
+                {
+                    await using var input = File.OpenRead(Path.Combine(Directory, part));
+                    await input.CopyToAsync(output, ct).ConfigureAwait(false);
+                }
             }
 
-            var ahead = HighestComplete() - LastRequested;
-            if (!_paused && ahead > RunAhead)
-            {
-                ProcessSignals.Pause(process.Id);
-                _paused = true;
-            }
-            else if (_paused && ahead < ResumeAt)
-            {
-                ResumeProcess();
-            }
+            File.Move(partial, path, overwrite: true);
+            return path;
         }
-        finally
+        catch (IOException)
         {
-            _gate.Release();
+            // A restart deleted the fragments meanwhile: the player asks again and gets the new run's.
+            return null;
         }
     }
 
@@ -304,15 +333,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     {
         if (_process is { } process && IsAlive(process))
         {
-            if (_paused)
-            {
-                ProcessSignals.Resume(process.Id);
-            }
-
             ProcessSignals.KillTree(process);
         }
-
-        _paused = false;
     }
 
     /// <summary>Call with the gate held.</summary>
@@ -333,7 +355,6 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _lastError = null;
         StartedAt = DateTime.UtcNow;
         _startSegment = segment;
-        _paused = false;
         _released = false;
         var process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {_settings.FfmpegPath}");
         process.ErrorDataReceived += (_, e) =>
@@ -343,6 +364,22 @@ public sealed partial class TranscodeSession : IAsyncDisposable
                 _lastError = e.Data;
             }
         };
+        process.EnableRaisingEvents = true;
+        process.Exited += (_, _) =>
+        {
+            // A run that ends with an error (not one stopped on purpose, which is killed) says why.
+            try
+            {
+                if (process.ExitCode is not (0 or 137 or -1) && !_disposed)
+                {
+                    LogExited(Id, segment, process.ExitCode, _lastError ?? "no message");
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Disposed meanwhile.
+            }
+        };
         process.BeginErrorReadLine();
 
         // Swap in the new process before disposing the old, so nothing reads a disposed one from the field.
@@ -350,16 +387,6 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         previous?.Dispose();
         LogStarted(Id, segment, Plan.TargetHeight, Plan.VideoBitrate / 1000);
         return Task.CompletedTask;
-    }
-
-    private void ResumeProcess()
-    {
-        if (_process is { } process && IsAlive(process))
-        {
-            ProcessSignals.Resume(process.Id);
-        }
-
-        _paused = false;
     }
 
     private void Touch(int index)
@@ -382,6 +409,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             _completed = [];
             _highestCompleted = -1;
             _playlistStamp = default;
+            _fragments.Clear();
+            _segmentFragments.Clear();
+            _timescale = null;
         }
     }
 
@@ -447,6 +477,13 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             return; // Being rewritten; try again on the next poll.
         }
 
+        if (Plan.Repackage is { } repackage)
+        {
+            RefreshFragments(lines, repackage);
+            _playlistStamp = stamp;
+            return;
+        }
+
         var done = new HashSet<int>();
         var highest = -1;
         foreach (var line in lines)
@@ -464,8 +501,99 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _playlistStamp = stamp;
     }
 
+    /// <summary>
+    /// Places each fragment ffmpeg has finished by its own start time, then marks a segment complete once fragments run
+    /// unbroken from its start to the next one's (or the end of the film). Call with the playlist lock held.
+    /// </summary>
+    private void RefreshFragments(string[] lines, Repackage repackage)
+    {
+        // Allows for a keyframe's decode time running a little ahead of its presentation time (B-frames).
+        const double Slack = 0.5;
+        if (_timescale is null)
+        {
+            try
+            {
+                _timescale = Mp4Fragments.Timescale(File.ReadAllBytes(Path.Combine(Directory, "init.mp4")));
+            }
+            catch (IOException)
+            {
+                return;
+            }
+
+            if (_timescale is null or 0)
+            {
+                _timescale = null;
+                return;
+            }
+        }
+
+        double duration = 0;
+        var ended = false;
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("#EXTINF:", StringComparison.Ordinal))
+            {
+                var text = line.AsSpan(8).TrimEnd(',');
+                duration = double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+            }
+            else if (line.StartsWith("frag", StringComparison.Ordinal) && !_fragments.ContainsKey(line))
+            {
+                try
+                {
+                    using var file = File.OpenRead(Path.Combine(Directory, line));
+                    var head = new byte[Math.Min(file.Length, 64 * 1024)];
+                    file.ReadExactly(head);
+                    if (Mp4Fragments.DecodeTime(head) is { } decodeTime)
+                    {
+                        var start = decodeTime / (double)_timescale.Value;
+                        _fragments[line] = (start, start + duration);
+                    }
+                }
+                catch (IOException)
+                {
+                    return; // Try again on the next poll.
+                }
+            }
+            else if (line.StartsWith("#EXT-X-ENDLIST", StringComparison.Ordinal))
+            {
+                ended = true;
+            }
+        }
+
+        var starts = repackage.SegmentStarts;
+        var byStart = _fragments.OrderBy(f => f.Value.Start).ToList();
+        var done = new HashSet<int>();
+        var highest = -1;
+        _segmentFragments.Clear();
+        for (var i = 0; i < starts.Count; i++)
+        {
+            var from = starts[i];
+            var to = i + 1 < starts.Count ? starts[i + 1] : DurationSeconds;
+            var parts = byStart.Where(f => f.Value.Start >= from - Slack && f.Value.Start < to - Slack).ToList();
+            if (parts.Count == 0 || parts[0].Value.Start > from + 0.05)
+            {
+                continue;
+            }
+
+            var reaches = parts[^1].Value.End >= to - Slack || (ended && i == starts.Count - 1);
+            var unbroken = parts.Zip(parts.Skip(1)).All(p => p.Second.Value.Start - p.First.Value.End < 0.1);
+            if (reaches && unbroken)
+            {
+                done.Add(i);
+                highest = Math.Max(highest, i);
+                _segmentFragments[i] = [.. parts.Select(p => p.Key)];
+            }
+        }
+
+        _completed = done;
+        _highestCompleted = highest;
+    }
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Transcode {Session}: starting at segment {Segment} ({Height}p, {Kbps} kbps)")]
     private partial void LogStarted(string session, int segment, int height, long kbps);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Transcode {Session}: ffmpeg started at segment {Segment} exited with {Code}: {Error}")]
+    private partial void LogExited(string session, int segment, int code, string error);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Transcode {Session}: segment {Segment} failed: {Error}")]
     private partial void LogSegmentFailed(string session, int segment, string error);

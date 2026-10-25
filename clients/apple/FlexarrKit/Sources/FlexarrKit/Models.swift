@@ -280,9 +280,15 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
     /// Converted streams come as fragmented MP4, which carries lossless FLAC and Dolby Atmos (servers before 0.17
     /// ignore it and send MPEG-TS).
     public var fmp4: Bool?
+    /// The display shows Dolby Vision (so profile 5, which has no HDR10 underneath, can be sent as it is).
+    public var dolbyVision: Bool?
+    /// The display shows HDR10 and HLG as they are right now (an Apple TV on a fixed Dolby Vision output doesn't).
+    public var hdr10: Bool?
+    public var hlg: Bool?
 
     public init(client: String, containers: [String], videoCodecs: [String], audioCodecs: [String],
-                hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int, fmp4: Bool? = nil) {
+                hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int, fmp4: Bool? = nil, dolbyVision: Bool? = nil,
+                hdr10: Bool? = nil, hlg: Bool? = nil) {
         self.client = client
         self.containers = containers
         self.videoCodecs = videoCodecs
@@ -292,11 +298,15 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
         self.maxAudioChannels = maxAudioChannels
         self.maxBitrate = maxBitrate
         self.fmp4 = fmp4
+        self.dolbyVision = dolbyVision
+        self.hdr10 = hdr10
+        self.hlg = hlg
     }
 
-    /// What AVPlayer on Apple TV can direct play. Anything else is converted to HLS in fragmented MP4: Dolby Digital
-    /// Plus passes through with its Atmos, and TrueHD, DTS and the like come as lossless FLAC, up to 7.1.
-    public static func tvOS(hdr: Bool) -> DeviceProfile {
+    /// What AVPlayer on Apple TV can direct play. Anything else comes as HLS in fragmented MP4: H.264 and HEVC video as
+    /// it is (HDR and Dolby Vision kept), Dolby Digital Plus with its Atmos, and TrueHD, DTS and the like as lossless
+    /// FLAC, up to 7.1.
+    public static func tvOS(hdr: Bool, dolbyVision: Bool = false, hdr10: Bool? = nil, hlg: Bool? = nil) -> DeviceProfile {
         DeviceProfile(
             client: "tvos",
             containers: ["mp4"],
@@ -306,14 +316,17 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
             maxHeight: 2160,
             maxAudioChannels: 8,
             maxBitrate: 0,
-            fmp4: true
+            fmp4: true,
+            dolbyVision: dolbyVision,
+            hdr10: hdr10,
+            hlg: hlg
         )
     }
 
     /// What AVPlayer on iPhone and iPad can direct play: the same formats as Apple TV (AVPlayer mixes surround
     /// down for headphones and speakers, and passes it on over AirPlay).
-    public static func iOS(hdr: Bool) -> DeviceProfile {
-        var profile = tvOS(hdr: hdr)
+    public static func iOS(hdr: Bool, dolbyVision: Bool = false, hdr10: Bool? = nil, hlg: Bool? = nil) -> DeviceProfile {
+        var profile = tvOS(hdr: hdr, dolbyVision: dolbyVision, hdr10: hdr10, hlg: hlg)
         profile.client = "ios"
         return profile
     }

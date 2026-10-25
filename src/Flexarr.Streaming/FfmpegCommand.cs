@@ -1,4 +1,5 @@
 using System.Globalization;
+using Flexarr.Streaming.Remux;
 
 namespace Flexarr.Streaming;
 
@@ -6,6 +7,15 @@ namespace Flexarr.Streaming;
 public static class FfmpegCommand
 {
     public const int SegmentSeconds = 6;
+
+    /// <summary>
+    /// How far ahead of real time a stream is produced: this much in one burst, then at playback speed, so a viewer
+    /// has a buffer to seek within without the server encoding the whole film at once.
+    /// </summary>
+    public const int RunAheadSeconds = 180;
+
+    /// <summary>ffmpeg's own pacing: the burst, then real time (ffmpeg 6 and later for the burst).</summary>
+    private static readonly string[] Pacing = ["-readrate", "1.0", "-readrate_initial_burst", RunAheadSeconds.ToString(CultureInfo.InvariantCulture)];
 
     /// <summary>
     /// Arguments to produce segments <paramref name="startSegment"/>.. of <paramref name="input"/> into
@@ -17,6 +27,11 @@ public static class FfmpegCommand
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(settings);
+
+        if (plan.Repackage is { } repackage)
+        {
+            return Repackaged(input, plan, repackage, startSegment, outputDirectory);
+        }
 
         // Audio-only plans (music) have no video stream, so nothing to decode on the GPU.
         var audioOnly = plan.VideoStreamIndex < 0;
@@ -57,7 +72,7 @@ public static class FfmpegCommand
                 break;
         }
 
-        args.AddRange(["-ss", start, "-i", input]);
+        args.AddRange([.. Pacing, "-ss", start, "-i", input]);
         if (burn?.ExternalPath is { } subtitleFile)
         {
             args.AddRange(["-ss", start, "-i", subtitleFile]);
@@ -70,6 +85,40 @@ public static class FfmpegCommand
         }
 
         AddAudioAndOutput(args, plan, start, startSegment, outputDirectory);
+        return args;
+    }
+
+    /// <summary>
+    /// Arguments to copy the video as it is from segment <paramref name="startSegment"/>'s keyframe, into fragmented MP4
+    /// cut at every keyframe (frag0.m4s, frag1.m4s…). The session finds each fragment's place by its own timestamp and
+    /// serves a segment as the fragments between two of <see cref="Repackage.SegmentStarts"/>.
+    /// </summary>
+    private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory)
+    {
+        var start = repackage.SegmentStarts[Math.Clamp(startSegment, 0, repackage.SegmentStarts.Count - 1)].ToString("0.###", CultureInfo.InvariantCulture);
+        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing, "-ss", start, "-i", input];
+        args.AddRange(["-map", $"0:{plan.VideoStreamIndex}", "-c:v", "copy", "-tag:v", repackage.CodecTag]);
+        if (repackage.StripDolbyVision)
+        {
+            args.AddRange(["-bsf:v", "dovi_rpu=strip=1"]);
+        }
+
+        // Keep the file's own timeline (from its start), so fragments from any run line up with the index; "unofficial"
+        // lets the MP4 muxer write the Dolby Vision configuration box.
+        args.AddRange(["-copyts", "-start_at_zero", "-avoid_negative_ts", "disabled", "-strict", "unofficial"]);
+        AddAudio(args, plan);
+        args.AddRange([
+            "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
+            "-max_muxing_queue_size", "4096",
+            "-f", "hls",
+            "-hls_time", "0.001",
+            "-hls_list_size", "0",
+            "-hls_playlist_type", "event",
+            "-start_number", "0",
+            "-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", "init.mp4", "-hls_segment_options", "movflags=+frag_discont",
+            "-hls_segment_filename", Path.Combine(outputDirectory, "frag%d.m4s"),
+            Path.Combine(outputDirectory, "ffmpeg.m3u8"),
+        ]);
         return args;
     }
 
@@ -207,27 +256,7 @@ public static class FfmpegCommand
 
     private static void AddAudioAndOutput(List<string> args, TranscodePlan plan, string start, int startSegment, string outputDirectory)
     {
-        // ---- Audio
-        if (plan.AudioStreamIndex is { } audioIndex)
-        {
-            var channels = plan.AudioChannels.ToString(CultureInfo.InvariantCulture);
-            args.AddRange(["-map", $"0:{audioIndex}"]);
-            if (plan.CopyAudio)
-            {
-                args.AddRange(["-c:a", "copy"]);
-            }
-            else if (plan.LosslessAudio)
-            {
-                // FLAC at 48 kHz, 24-bit from a lossless source (16 is plenty for a lossy one). Its block size is
-                // set because the MP4 muxer otherwise hands the encoder one it refuses.
-                args.AddRange(["-c:a", "flac", "-ac", channels, "-ar", "48000", "-frame_size", "4096"]);
-                args.AddRange(plan.HighResolutionAudio ? ["-sample_fmt", "s32", "-bits_per_raw_sample", "24"] : ["-sample_fmt", "s16"]);
-            }
-            else
-            {
-                args.AddRange(["-c:a", "aac", "-ac", channels, "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
-            }
-        }
+        AddAudio(args, plan);
 
         // Fragmented MP4: the MP4 muxer starts each run's timestamps at zero unless told every fragment may jump, so
         // segments from a run started mid-film line up with the rest.
@@ -249,6 +278,30 @@ public static class FfmpegCommand
             "-hls_segment_filename", Path.Combine(outputDirectory, segmentFile),
             Path.Combine(outputDirectory, "ffmpeg.m3u8"),
         ]);
+    }
+
+    private static void AddAudio(List<string> args, TranscodePlan plan)
+    {
+        if (plan.AudioStreamIndex is { } audioIndex)
+        {
+            var channels = plan.AudioChannels.ToString(CultureInfo.InvariantCulture);
+            args.AddRange(["-map", $"0:{audioIndex}"]);
+            if (plan.CopyAudio)
+            {
+                args.AddRange(["-c:a", "copy"]);
+            }
+            else if (plan.LosslessAudio)
+            {
+                // FLAC at 48 kHz, 24-bit from a lossless source (16 is plenty for a lossy one). Its block size is
+                // set because the MP4 muxer otherwise hands the encoder one it refuses.
+                args.AddRange(["-c:a", "flac", "-ac", channels, "-ar", "48000", "-frame_size", "4096"]);
+                args.AddRange(plan.HighResolutionAudio ? ["-sample_fmt", "s32", "-bits_per_raw_sample", "24"] : ["-sample_fmt", "s16"]);
+            }
+            else
+            {
+                args.AddRange(["-c:a", "aac", "-ac", channels, "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
+            }
+        }
     }
 
     /// <summary>
@@ -277,6 +330,27 @@ public static class FfmpegCommand
         {
             var length = Math.Min(SegmentSeconds, durationSeconds - (i * SegmentSeconds));
             builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{length:F3},\n{i}.{(fmp4 ? "m4s" : "ts")}\n");
+        }
+
+        return builder.Append("#EXT-X-ENDLIST\n").ToString();
+    }
+
+    /// <summary>A VOD playlist of a repackaged video's segments, which start at its keyframes and so vary in length.</summary>
+    public static string MediaPlaylist(IReadOnlyList<double> segmentStarts, double durationSeconds, double startSeconds = 0)
+    {
+        ArgumentNullException.ThrowIfNull(segmentStarts);
+        var lengths = segmentStarts.Select((start, i) => (i + 1 < segmentStarts.Count ? segmentStarts[i + 1] : durationSeconds) - start).ToList();
+        var builder = new System.Text.StringBuilder("#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:");
+        builder.Append(CultureInfo.InvariantCulture, $"{(int)Math.Ceiling(lengths.Max())}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+        if (startSeconds > 0 && startSeconds < durationSeconds)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-START:TIME-OFFSET={startSeconds:F3},PRECISE=YES\n");
+        }
+
+        builder.Append("#EXT-X-MAP:URI=\"init.mp4\"\n");
+        for (var i = 0; i < lengths.Count; i++)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{lengths[i]:F3},\n{i}.m4s\n");
         }
 
         return builder.Append("#EXT-X-ENDLIST\n").ToString();

@@ -174,11 +174,23 @@ final class PlaybackController: NSObject {
     }
 
     private static var deviceProfile: DeviceProfile {
+        // What the display shows right now: an Apple TV on a fixed Dolby Vision output, say, has no HDR10 mode and
+        // refuses plain HDR10 streams, so those are converted for it instead.
+        let modes = AVPlayer.availableHDRModes
         #if os(tvOS)
-        .tvOS(hdr: AVPlayer.eligibleForHDRPlayback)
+        return .tvOS(hdr: AVPlayer.eligibleForHDRPlayback, dolbyVision: supportsDolbyVision, hdr10: modes.contains(.hdr10), hlg: modes.contains(.hlg))
         #else
-        .iOS(hdr: AVPlayer.eligibleForHDRPlayback)
+        return .iOS(hdr: AVPlayer.eligibleForHDRPlayback, dolbyVision: supportsDolbyVision, hdr10: modes.contains(.hdr10), hlg: modes.contains(.hlg))
         #endif
+    }
+
+    /// The display (or the TV the Apple TV is plugged into) shows Dolby Vision.
+    private static var supportsDolbyVision: Bool {
+        #if DEBUG
+        // `-FlexarrNoDolbyVision YES` asks for HDR10 only, to tell a Dolby Vision problem from an HDR one.
+        if UserDefaults.standard.bool(forKey: "FlexarrNoDolbyVision") { return false }
+        #endif
+        return AVPlayer.availableHDRModes.contains(.dolbyVision)
     }
 
     private func makeItem(for info: PlaybackInfo) throws -> AVPlayerItem {
@@ -461,6 +473,10 @@ final class PlaybackController: NSObject {
         case .failed:
             let reason = message ?? "The stream couldn't be opened."
             log.error("Item failed: \(reason, privacy: .public)")
+            // AVFoundation's own account of what went wrong with the playlists (the error alone says little).
+            for event in player?.currentItem?.errorLog()?.events.prefix(5) ?? [] {
+                log.error("Item failed, detail: \(event.errorStatusCode) \(event.errorComment ?? "", privacy: .public) \(event.uri ?? "", privacy: .private)")
+            }
             if hasPlayed {
                 recover(reason: reason)
             } else {

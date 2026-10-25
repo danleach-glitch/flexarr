@@ -96,7 +96,7 @@ public sealed partial class PlaybackSessions
     private partial void LogExpireFailed(Exception ex, string session);
 }
 
-/// <summary>Throttles and cleans up transcodes every few seconds.</summary>
+/// <summary>Stops idle transcodes and cleans up every few seconds.</summary>
 public sealed partial class PlaybackSweeper(PlaybackSessions sessions, TranscodeManager transcodes, ILogger<PlaybackSweeper> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

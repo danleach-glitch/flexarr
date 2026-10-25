@@ -2,6 +2,16 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.18.0 · 25 October 2026
+
+### Apple TV, iPhone and iPad play the original video
+- MKV files with H.264 or HEVC video are no longer re-encoded for Apple devices: the server repackages the original picture into the stream, cut at the file's own keyframes, with almost no work for the machine running Flexarr. Starting and seeking stay instant.
+- Dolby Vision profile 5 plays as Dolby Vision on a Dolby Vision display. HDR10, HLG and Dolby Vision profiles 7 and 8 are still converted for now: Apple TV refuses a copied HDR10 stream for a reason still being worked out.
+- MKV keyframe indexes are read in milliseconds; other files are indexed in the background and play repackaged from the next time.
+
+### Fixed: streams that wouldn't start while another was paused
+- On a Mac, a stream that had got well ahead of its viewer was paused, and while it was, nothing else could start: another screen's stream, the next episode getting ready, a download's conversion, or your own stream after a jump. The player sat on its spinner or said "Couldn't play this". ffmpeg now paces itself (three minutes ahead, then real time) and is never paused.
+
 ## 0.17.1 · 25 October 2026
 
 ### Changed: Top Shelf on Apple TV

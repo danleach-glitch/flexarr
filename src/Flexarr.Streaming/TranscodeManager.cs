@@ -171,10 +171,6 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                 {
                     await session.StopProcessAsync(StopAfterIdle).ConfigureAwait(false);
                 }
-                else
-                {
-                    session.Throttle();
-                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

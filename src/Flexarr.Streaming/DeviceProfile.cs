@@ -26,4 +26,15 @@ public sealed record DeviceProfile
     /// 7.1, and Dolby Digital Plus with its Atmos signalled.
     /// </summary>
     public bool Fmp4 { get; init; }
+
+    /// <summary>The display shows Dolby Vision: profile 5 (which has no HDR10 fallback) can be sent as it is.</summary>
+    public bool DolbyVision { get; init; }
+
+    /// <summary>
+    /// The display shows HDR10 (PQ) and HLG right now. An Apple TV set to a fixed Dolby Vision output refuses plain
+    /// HDR10 streams outright, so these say what's presentable, not just what the hardware can do. Left out by older
+    /// apps: assumed from <see cref="Hdr"/>.
+    /// </summary>
+    public bool? Hdr10 { get; init; }
+    public bool? Hlg { get; init; }
 }

@@ -1,5 +1,6 @@
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
+using Flexarr.Streaming.Remux;
 
 namespace Flexarr.Core.Tests;
 
@@ -108,6 +109,64 @@ public class PlaybackDeciderTests
         Assert.False(plan.Fmp4);
         Assert.False(plan.LosslessAudio);
         Assert.Equal(6, plan.AudioChannels);
+    }
+
+    // ---- Repackaging: the video copied as it is, when the device can show it.
+
+    private static RemuxInfo Info(string codec = "h264", string? profile = "High", int level = 120, string? transfer = "bt709",
+        int? dvProfile = null, int? dvCompat = null, int width = 1920, int height = 1080) =>
+        new(Enumerable.Range(0, 100).Select(i => i * 2.0).ToList(),
+            new VideoFacts(codec, profile, level, width, height, false, transfer, dvProfile, dvProfile is null ? null : 6, dvCompat));
+
+    private static TranscodePlan? Repackaged(MediaFile file, DeviceProfile profile, RemuxInfo info, PlaybackOptions? options = null) =>
+        PlaybackDecider.Repackaged(PlaybackDecider.Decide(file, profile, [], options ?? new PlaybackOptions()).Transcode!, file, profile, options ?? new PlaybackOptions(), info);
+
+    [Fact]
+    public void Sdr_IsRepackaged_WithItsOwnCodecAndKeyframeSegments()
+    {
+        var plan = Repackaged(File("mkv", "h264", "aac", 2), AppleTvFmp4, Info())!;
+
+        Assert.NotNull(plan.Repackage);
+        Assert.Equal(("avc1", "avc1.640078", "SDR"), (plan.Repackage.CodecTag, plan.Repackage.Codecs, plan.Repackage.VideoRange));
+        Assert.True(plan.Fmp4);
+        Assert.False(plan.ToneMap);
+        Assert.Equal(0, plan.Repackage.SegmentStarts[0]);
+        Assert.True(plan.Repackage.SegmentStarts.Count > 20);
+        Assert.Equal("hvc1.2.4.L153.B0", Repackaged(File("mkv", "hevc", "aac", 2), AppleTvFmp4, Info("hevc", "Main 10", 153))!.Repackage!.Codecs);
+    }
+
+    [Fact]
+    public void Hdr10AndHlg_AreStillConverted_UntilAppleTvTakesACopiedHdr10Stream()
+    {
+        var hdr10 = File("mkv", "hevc", "eac3", 6, VideoRange.Hdr10);
+        Assert.Null(Repackaged(hdr10, AppleTvFmp4 with { Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084")));
+        Assert.Null(Repackaged(hdr10, AppleTvFmp4, Info("hevc", "Main 10", 153, "smpte2084")));
+        Assert.Null(Repackaged(File("mkv", "hevc", "aac", 2, VideoRange.Hlg), AppleTvFmp4 with { Hlg = true }, Info("hevc", "Main 10", 153, "arib-std-b67")));
+    }
+
+    [Fact]
+    public void DolbyVision_Profile5IsCopiedForADolbyVisionDisplay_Profiles7And8AreStillConverted()
+    {
+        var dv = File("mkv", "hevc", "eac3", 6, VideoRange.DolbyVision);
+
+        var five = Repackaged(dv, AppleTvFmp4 with { DolbyVision = true }, Info("hevc", "Main 10", 120, null, dvProfile: 5, dvCompat: 0))!;
+        Assert.Equal(("dvh1", "dvh1.05.06", "PQ"), (five.Repackage!.CodecTag, five.Repackage.Codecs, five.Repackage.VideoRange));
+        Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = false }, Info("hevc", "Main 10", 120, null, dvProfile: 5, dvCompat: 0)));
+
+        Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = true, Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 8, dvCompat: 1)));
+        Assert.Null(Repackaged(dv, AppleTvFmp4 with { DolbyVision = true, Hdr10 = true }, Info("hevc", "Main 10", 153, "smpte2084", dvProfile: 7, dvCompat: 1)));
+    }
+
+    [Fact]
+    public void NotRepackaged_WhenItHasToBeConvertedAnyway()
+    {
+        var file = File("mkv", "h264", "aac", 2);
+        Assert.Null(Repackaged(file, AppleTvFmp4, Info(), new PlaybackOptions(MaxBitrate: 4_000_000)));
+        Assert.Null(Repackaged(file, AppleTvFmp4, Info(), new PlaybackOptions(ForceTranscode: true)));
+        Assert.Null(Repackaged(file, AppleTvFmp4 with { MaxHeight = 720 }, Info()));
+        Assert.Null(Repackaged(file, AppleTvFmp4, Info() with { Video = Info().Video with { Interlaced = true } }));
+        Assert.Null(Repackaged(file, AppleTvFmp4, Info("vp9", null)));
+        Assert.Null(Repackaged(file, AppleTv, Info())); // no fragmented MP4: MPEG-TS can't carry a copied HEVC/H.264 this way
     }
 
     [Fact]

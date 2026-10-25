@@ -249,7 +249,6 @@ public static class PlaybackEndpoints
         MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes,
     };
 
-    /// <summary>A transcode that's gone: 410 with the reason when it was ended for another viewer, else 404.</summary>
     /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet.</summary>
     private static async Task<IResult> Segment(string sid, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)
     {
@@ -275,6 +274,7 @@ public static class PlaybackEndpoints
             : Results.Problem("The segment couldn't be converted.", statusCode: 500);
     }
 
+    /// <summary>A transcode that's gone: 410 with the reason when it was ended for another viewer, else 404.</summary>
     private static IResult Missing(TranscodeManager transcodes, string sid) =>
         transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) : Results.NotFound();
 

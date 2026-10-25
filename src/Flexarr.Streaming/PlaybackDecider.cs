@@ -1,4 +1,6 @@
+using System.Globalization;
 using Flexarr.Core.Media;
+using Flexarr.Streaming.Remux;
 
 namespace Flexarr.Streaming;
 
@@ -37,6 +39,9 @@ public sealed record TranscodePlan(
     bool LosslessAudio = false,
     bool HighResolutionAudio = false)
 {
+    /// <summary>The video is copied as it is (repackaged), cut at <see cref="Repackage.SegmentStarts"/>; null when it's converted.</summary>
+    public Repackage? Repackage { get; init; }
+
     /// <summary>RFC 6381 codec string for the audio in the HLS output, for the master playlist.</summary>
     public string? AudioCodecTag => AudioStreamIndex is null ? null : LosslessAudio ? "fLaC" : !CopyAudio ? "mp4a.40.2" : SourceAudioCodec switch
     {
@@ -74,6 +79,78 @@ public static class PlaybackDecider
     private static bool IsLossless(MediaStream audio) =>
         audio.Codec is "truehd" or "mlp" or "flac" or "alac" || audio.Codec.StartsWith("pcm_", StringComparison.Ordinal)
         || (audio.Codec == "dts" && audio.Profile?.Contains("MA", StringComparison.Ordinal) == true);
+
+    /// <summary>
+    /// The conversion <paramref name="plan"/> with the video copied as it is instead, when this device can play the
+    /// file's video and only its container (or sound) stood in the way: the original picture, HDR and Dolby Vision
+    /// included, for a fraction of the work. Null when the video has to be converted after all.
+    /// </summary>
+    public static TranscodePlan? Repackaged(TranscodePlan plan, MediaFile file, DeviceProfile profile, PlaybackOptions options, RemuxInfo info)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(info);
+
+        var video = info.Video;
+        var maxHeight = Math.Min(profile.MaxHeight, options.MaxHeight ?? int.MaxValue);
+        var maxBitrate = Min(profile.MaxBitrate, options.MaxBitrate ?? 0);
+        var playable = video.Codec switch
+        {
+            "h264" => video.Profile is "Baseline" or "Constrained Baseline" or "Main" or "High",
+            "hevc" => video.Profile is "Main" or "Main 10",
+            _ => false,
+        };
+        var dolbyVision = video.DolbyVisionProfile;
+        var range = dolbyVision == 5 || video.ColorTransfer == "smpte2084" ? "PQ" : video.ColorTransfer == "arib-std-b67" ? "HLG" : "SDR";
+        // What's copied as it is: SDR, and Dolby Vision profile 5 on a Dolby Vision display. HDR10, HLG and Dolby
+        // Vision 7 and 8 (which ride on an HDR10 base layer) are still converted: tvOS 18 refuses a copied HDR10 stream
+        // at the playlist, even on a display in HDR10 mode, for a reason not yet understood. The profile's Hdr10 and
+        // Hlg say what the display shows, for when it is.
+        var presentable = range switch
+        {
+            "SDR" => true,
+            _ when dolbyVision == 5 => profile.Hdr && profile.DolbyVision,
+            _ => false,
+        };
+        if (!profile.Fmp4 || options.ForceTranscode || plan.BurnSubtitle is not null || !playable || video.Interlaced
+            || !profile.VideoCodecs.Contains(video.Codec, StringComparer.OrdinalIgnoreCase)
+            || Math.Max(video.Height, video.Width * 9 / 16) > maxHeight
+            || (maxBitrate > 0 && (file.Bitrate ?? long.MaxValue) > maxBitrate)
+            || !presentable
+            || dolbyVision is not (null or 5 or 7 or 8)
+            || info.Keyframes.Count < 2)
+        {
+            return null;
+        }
+
+        var duration = file.DurationSeconds ?? info.Keyframes[^1];
+        var supplemental = dolbyVision == 8 && profile.DolbyVision
+            ? video.DolbyVisionCompatibility switch
+            {
+                1 => string.Create(CultureInfo.InvariantCulture, $"dvh1.08.{video.DolbyVisionLevel ?? 6:00}/db1p"),
+                4 => string.Create(CultureInfo.InvariantCulture, $"dvh1.08.{video.DolbyVisionLevel ?? 6:00}/db4h"),
+                _ => null,
+            }
+            : null;
+        var repackage = new Repackage(
+            Repackage.SegmentStartsFrom(info.Keyframes, video.StartTime, duration),
+            CodecTag: dolbyVision == 5 ? "dvh1" : video.Codec == "hevc" ? "hvc1" : "avc1",
+            Repackage.CodecsFor(video),
+            supplemental,
+            range,
+            StripDolbyVision: dolbyVision == 7);
+        return plan with
+        {
+            TargetWidth = video.Width,
+            TargetHeight = video.Height,
+            VideoBitrate = file.Bitrate ?? plan.VideoBitrate,
+            ToneMap = false,
+            Fmp4 = true,
+            Repackage = repackage,
+        };
+    }
 
     public static PlaybackDecision Decide(MediaFile file, DeviceProfile profile, IReadOnlyList<SubtitleTrack> subtitles, PlaybackOptions options)
     {

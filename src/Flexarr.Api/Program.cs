@@ -115,6 +115,10 @@ builder.Services.AddSingleton<TrickplayQueue>();
 builder.Services.AddSingleton<SubtitleCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
+builder.Services.AddSingleton(sp => new Flexarr.Streaming.Remux.RemuxIndex(
+    Flexarr.Api.Playback.PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptions<FlexarrOptions>>().Value),
+    sp.GetRequiredService<IOptions<FlexarrOptions>>().Value.FfprobePath,
+    sp.GetRequiredService<ILogger<Flexarr.Streaming.Remux.RemuxIndex>>()));
 builder.Services.AddSingleton<DownloadPreparer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DownloadPreparer>());
 builder.Services.AddHttpContextAccessor();

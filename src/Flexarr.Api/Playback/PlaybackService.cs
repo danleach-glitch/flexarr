@@ -6,6 +6,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
+using Flexarr.Streaming.Remux;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +19,7 @@ public sealed class PlaybackService(
     MarkerQueue markerQueue,
     TrickplayQueue trickplay,
     SubtitleCache subtitleCache,
+    RemuxIndex remuxIndex,
     CurrentProfile profile,
     IOptionsMonitor<FlexarrOptions> options)
 {
@@ -77,8 +79,18 @@ public sealed class PlaybackService(
 
         var transcoding = options.CurrentValue.Transcoding;
         var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var decision = PlaybackDecider.Decide(file, request.Profile, subtitles,
-            new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode));
+        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode);
+        var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
+
+        // A player that takes fragmented MP4 (Apple's) gets the video as it is when only the container or the sound was
+        // in the way: the original picture, HDR and Dolby Vision included. It needs the file's keyframes, which an MKV
+        // indexes; others are scanned in the background and repackaged from next time.
+        if (decision.Transcode is { } converting && request.Profile.Fmp4 && file.VideoCodec is "h264" or "hevc"
+            && await remuxIndex.GetAsync(file.Path, ct) is { } index
+            && PlaybackDecider.Repackaged(converting, file, request.Profile, playbackOptions, index) is { } repackaged)
+        {
+            decision = decision with { Transcode = repackaged };
+        }
 
         // The player's own previous session (before an audio switch, a recovery) ends first, so it isn't left encoding
         // ahead for nobody and doesn't count towards the transcode limit. Only that one: the same profile may be
@@ -140,7 +152,7 @@ public sealed class PlaybackService(
         {
             // ffmpeg starts with the first segment asked for: ask now for the one playback opens at, so it's ready
             // when the player is.
-            var segment = (int)(Math.Max(0, start) / FfmpegCommand.SegmentSeconds);
+            var segment = warming.SegmentAt(start);
             _ = Task.Run(async () =>
             {
                 try
@@ -187,7 +199,7 @@ public sealed class PlaybackService(
             summary,
             ancestors,
             next is null ? null : await db.MediaItems.Where(i => i.Id == next.Id).Summaries(profile.Id).FirstAsync(ct),
-            decision.Transcode is { } t ? $"{t.TargetHeight}p H.264 at {t.VideoBitrate / 1_000_000.0:0.#} Mbps" + (t.ToneMap ? ", HDR converted to SDR" : "") : null,
+            decision.Transcode is { } t ? Summary(t, file) : null,
             shuffling,
             watching,
             state?.SubtitleDelaySeconds ?? 0);
@@ -472,6 +484,28 @@ public sealed class PlaybackService(
     }
 
 
+    /// <summary>What the player's info panel says about the stream: "Original HEVC (Dolby Vision), FLAC 7.1 sound".</summary>
+    private static string Summary(TranscodePlan plan, MediaFile file)
+    {
+        var sound = plan.CopyAudio ? null : plan.LosslessAudio ? $"lossless FLAC {Channels(plan.AudioChannels)} sound" : null;
+        if (plan.Repackage is { } repackage)
+        {
+            var range = file.VideoRange switch
+            {
+                VideoRange.DolbyVision when !repackage.StripDolbyVision => " (Dolby Vision)",
+                VideoRange.Sdr => "",
+                _ => repackage.VideoRange == "HLG" ? " (HLG)" : " (HDR10)",
+            };
+            var original = $"Original {(file.VideoCodec == "hevc" ? "HEVC" : "H.264")}{range}, repackaged";
+            return sound is null ? original : $"{original}, {sound}";
+        }
+
+        var converted = $"{plan.TargetHeight}p H.264 at {plan.VideoBitrate / 1_000_000.0:0.#} Mbps" + (plan.ToneMap ? ", HDR converted to SDR" : "");
+        return sound is null ? converted : $"{converted}, {sound}";
+    }
+
+    private static string Channels(int channels) => channels switch { 8 => "7.1", 6 => "5.1", 2 => "stereo", 1 => "mono", _ => $"{channels}-channel" };
+
     public static string MasterPlaylist(PlaybackSession session, bool includeSubtitles)
     {
         var plan = session.Transcode!.Plan;
@@ -494,10 +528,14 @@ public sealed class PlaybackService(
                 $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{language}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
         }
 
-        var video = $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
+        var video = plan.Repackage?.Codecs ?? $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
         var codecs = plan.AudioCodecTag is { } audio ? $"{video},{audio}" : video;
         var bandwidth = plan.VideoBitrate + plan.AudioBitrate;
-        builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={plan.TargetWidth}x{plan.TargetHeight},CODECS=\"{codecs}\"{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
+        // Repackaged video says what it is, so the TV switches to HDR or Dolby Vision for it.
+        var range = plan.Repackage is { } repackage
+            ? $",VIDEO-RANGE={repackage.VideoRange}{(repackage.SupplementalCodecs is { } dv ? $",SUPPLEMENTAL-CODECS=\"{dv}\"" : "")}"
+            : "";
+        builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={plan.TargetWidth}x{plan.TargetHeight},CODECS=\"{codecs}\"{range}{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
         return builder.ToString();
     }
 
