@@ -185,6 +185,8 @@ final class EngineTransport: PlayerTransport {
             engine.selectSubtitleTrack(index: index)
         } else {
             engine.clearSubtitle()
+            decodedCues = []
+            shownCueIDs = []
             overlay.show([])
         }
     }
@@ -361,6 +363,23 @@ final class EngineTransport: PlayerTransport {
     }
     #endif
 
+    // MARK: Subtitles on screen
+
+    /// The engine publishes a window of decoded cues around the playhead, not just what's on screen now, so the line
+    /// to draw is whichever cues' spans the clock is inside. Picked again on every tick, so a line goes when its time
+    /// is up rather than piling up under the next ones.
+    private var decodedCues: [SubtitleCue] = []
+    private var shownCueIDs: [Int] = []
+
+    private func showCues(at seconds: Double) {
+        overlay.videoSize = videoSize
+        let active = decodedCues.filter { $0.startTime <= seconds && seconds < $0.endTime }
+        let ids = active.map(\.id)
+        guard ids != shownCueIDs else { return }
+        shownCueIDs = ids
+        overlay.show(active)
+    }
+
     // MARK: Observation
 
     private func observe() {
@@ -372,6 +391,7 @@ final class EngineTransport: PlayerTransport {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] seconds in
                 guard let self, !self.loading else { return }
+                self.showCues(at: seconds)
                 self.delegate?.transport(self, tick: seconds)
             }
             .store(in: &cancellables)
@@ -379,8 +399,8 @@ final class EngineTransport: PlayerTransport {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] cues in
                 guard let self else { return }
-                self.overlay.videoSize = self.videoSize
-                self.overlay.show(cues)
+                self.decodedCues = cues
+                self.showCues(at: self.currentTime)
             }
             .store(in: &cancellables)
         engine.$audioTracks.combineLatest(engine.$subtitleTracks, engine.$activeAudioTrackIndex)
