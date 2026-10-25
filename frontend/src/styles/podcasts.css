@@ -137,7 +137,8 @@
 }
 
 .podcast-page .music-header {
-  align-items: flex-end;
+  /* The artwork stays put at the top when the description opens out below the buttons. */
+  align-items: flex-start;
 }
 
 .podcast-overview {
