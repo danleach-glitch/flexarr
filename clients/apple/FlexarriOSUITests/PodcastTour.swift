@@ -37,7 +37,9 @@ final class PodcastTour: XCTestCase {
         guard try await client.podcastStatus()?.available == true else { throw XCTSkip("no Podcasts library") }
         app.tabBars.buttons["Libraries"].firstMatch.tap()
         pause(2)
-        app.buttons["Podcasts"].firstMatch.tap()
+        let podcasts = app.buttons["Podcasts"].firstMatch
+        XCTAssertTrue(podcasts.waitForExistence(timeout: 15), "Libraries should offer Podcasts")
+        podcasts.tap()
         pause(4)
         shot("40-podcasts")
 
@@ -58,6 +60,17 @@ final class PodcastTour: XCTestCase {
             pause(3)
         }
         shot("43-show-following")
+
+        // Swiping an episode right marks it played: it leaves the Unplayed list.
+        let row = app.cells.containing(NSPredicate(format: "label BEGINSWITH 'Play '")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "episodes should be listed")
+        let before = row.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Play '")).firstMatch.label
+        // A full swipe: from the left of the row's title to its far right.
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+            .press(forDuration: 0.05, thenDragTo: row.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.3)), withVelocity: .fast, thenHoldForDuration: 0)
+        pause(4)
+        shot("43b-swiped-played")
+        XCTAssertFalse(app.buttons[before].exists, "a played episode leaves the Unplayed list")
 
         let play = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Play '")).firstMatch
         XCTAssertTrue(play.waitForExistence(timeout: 10), "episodes should have a Play button")

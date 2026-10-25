@@ -5,6 +5,7 @@ import SwiftUI
 /// finding more. Without a Podcasts library on the server, it says how to get one.
 struct PodcastsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var home = PodcastsHomeModel()
@@ -27,7 +28,7 @@ struct PodcastsView: View {
         .navigationTitle("Podcasts")
         .toolbar {
             if model.podcastStatus?.available != false {
-                NavigationLink { PodcastBrowseView() } label: { Label("Browse", systemImage: "magnifyingglass") }
+                Button { router.push(.podcastBrowse) } label: { Label("Browse", systemImage: "magnifyingglass") }
             }
         }
         .task(id: model.refreshToken) { await load() }
@@ -37,62 +38,62 @@ struct PodcastsView: View {
         }
     }
 
+    /// A List, for the episodes' swipe actions; it draws nothing of its own.
     private var content: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 28) {
-                if home.isEmpty {
-                    VStack(spacing: 16) {
-                        Text("Follow a show and its new episodes come here, and to this \(ThisDevice.name) on Wi-Fi.")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(Color.usher)
-                            .multilineTextAlignment(.center)
-                        NavigationLink { PodcastBrowseView() } label: {
-                            Label("Browse podcasts", systemImage: "magnifyingglass")
-                        }
-                        .buttonStyle(ActionButtonStyle(prominent: true))
+        List {
+            if home.isEmpty {
+                VStack(spacing: 16) {
+                    Text("Follow a show and its new episodes come here, and to this \(ThisDevice.name) on Wi-Fi.")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.usher)
+                        .multilineTextAlignment(.center)
+                    Button { router.push(.podcastBrowse) } label: {
+                        Label("Browse podcasts", systemImage: "magnifyingglass")
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, Layout.edge)
-                    .padding(.top, 60)
+                    .buttonStyle(ActionButtonStyle(prominent: true))
                 }
-                if !home.podcasts.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        SectionHeading(title: "Your podcasts")
-                        ScrollView(.horizontal) {
-                            LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                ForEach(home.podcasts) { PodcastCard(podcast: $0).frame(width: Layout.posterWidth(sizeClass)) }
-                            }
-                            .padding(.horizontal, Layout.edge)
-                        }
-                        .scrollIndicators(.hidden)
-                    }
-                }
-                if !home.listening.isEmpty {
-                    episodes("Continue listening", home.listening)
-                }
-                let listening = Set(home.listening.map(\.id))
-                let unplayed = home.newEpisodes.filter { !$0.isPlayed && !listening.contains($0.id) }
-                if !unplayed.isEmpty {
-                    episodes("New episodes", Array(unplayed.prefix(15)))
-                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Layout.edge)
+                .padding(.top, 60)
+                .bareListRow()
             }
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            if !home.podcasts.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionHeading(title: "Your podcasts")
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                            ForEach(home.podcasts) { PodcastCard(podcast: $0).frame(width: Layout.posterWidth(sizeClass)) }
+                        }
+                        .padding(.horizontal, Layout.edge)
+                    }
+                    .scrollIndicators(.hidden)
+                }
+                .padding(.vertical, 8)
+                .bareListRow()
+            }
+            if !home.listening.isEmpty {
+                episodes("Continue listening", home.listening)
+            }
+            let listening = Set(home.listening.map(\.id))
+            let unplayed = home.newEpisodes.filter { !$0.isPlayed && !listening.contains($0.id) }
+            if !unplayed.isEmpty {
+                episodes("New episodes", Array(unplayed.prefix(15)))
+            }
+            Color.clear.frame(height: 24).bareListRow()
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable { await load() }
     }
 
+    @ViewBuilder
     private func episodes(_ title: String, _ list: [PodcastEpisode]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            SectionHeading(title: title)
-            VStack(spacing: 0) {
-                ForEach(list) { episode in
-                    PodcastEpisodeRow(episode: episode, showsPodcast: true)
-                    if episode.id != list.last?.id { Divider().overlay(Color.aisle) }
-                }
-            }
-            .padding(.horizontal, Layout.edge)
-            .frame(maxWidth: 760, alignment: .leading)
+        SectionHeading(title: title)
+            .padding(.top, 20)
+            .bareListRow()
+        ForEach(list) { episode in
+            PodcastEpisodeRow(episode: episode, showsPodcast: true)
+                .episodeListRow()
         }
     }
 

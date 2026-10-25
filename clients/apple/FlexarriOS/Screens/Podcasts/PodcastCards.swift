@@ -118,9 +118,11 @@ struct DirectoryCard: View {
 }
 
 /// An episode in a list: when it came out, its title and the start of its notes, then Play (with how far it's got),
-/// how long is left, and its download. Tapping the row opens the whole notes.
+/// how long is left, and its download. Tapping the row opens the whole notes. In a `List`, swiping right marks it
+/// played (or unplayed again), and swiping left downloads it or removes the download.
 struct PodcastEpisodeRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var downloads
     let episode: PodcastEpisode
     /// Lists of several shows' episodes name the show and show its artwork.
     var showsPodcast = false
@@ -129,53 +131,101 @@ struct PodcastEpisodeRow: View {
     private var isCurrent: Bool { model.music.current?.id == episode.id }
 
     var body: some View {
-        Button { showingNotes = true } label: {
-            HStack(alignment: .top, spacing: 12) {
-                if showsPodcast {
-                    PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
-                                   imageWidth: 185, cornerRadius: 6)
-                        .frame(width: 56, height: 56)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text([showsPodcast ? episode.podcastTitle : nil, episode.dateLine].compactMap { $0 }.joined(separator: "  "))
-                        .font(.caption.weight(.semibold))
+        HStack(alignment: .top, spacing: 12) {
+            if showsPodcast {
+                PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
+                               imageWidth: 185, cornerRadius: 6)
+                    .frame(width: 56, height: 56)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text([showsPodcast ? episode.podcastTitle : nil, episode.dateLine].compactMap { $0 }.joined(separator: "  "))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+                    .lineLimit(1)
+                Text(episode.title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(episode.isPlayed ? Color.usher : Color.screen)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if let overview = episode.overview {
+                    Text(overview)
+                        .font(.subheadline)
                         .foregroundStyle(Color.usher)
-                        .lineLimit(1)
-                    Text(episode.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(episode.isPlayed ? Color.usher : Color.screen)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    if let overview = episode.overview {
-                        Text(overview)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.usher)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
-                    HStack(spacing: 12) {
-                        EpisodePlayButton(episode: episode)
-                        if let time = episode.timeLine {
-                            Text(time)
-                                .font(.caption.weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(Color.usher)
-                        }
-                        Spacer(minLength: 0)
-                        EpisodeDownloadButton(episode: episode)
-                    }
-                    .padding(.top, 4)
                 }
+                HStack(spacing: 12) {
+                    EpisodePlayButton(episode: episode)
+                    if let time = episode.timeLine {
+                        Text(time)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.usher)
+                    }
+                    Spacer(minLength: 0)
+                    EpisodeDownloadButton(episode: episode)
+                }
+                .padding(.top, 4)
             }
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        // Not a Button: in a List, the row's own buttons (Play, download) then take their own taps.
+        .onTapGesture { showingNotes = true }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Show notes") { showingNotes = true }
+        .accessibilityAction(named: episode.isPlayed ? "Mark as unplayed" : "Mark as played") { togglePlayed() }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button { togglePlayed() } label: {
+                Label(episode.isPlayed ? "Unplayed" : "Played", systemImage: episode.isPlayed ? "arrow.uturn.backward.circle" : "checkmark.circle.fill")
+            }
+            .tint(episode.isPlayed ? Color.aisle : Color.played)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let download = downloads.entry(for: episode.id) {
+                Button(role: .destructive) { downloads.remove(download.id) } label: {
+                    Label(download.isDownloaded ? "Remove download" : "Stop download", systemImage: "trash")
+                }
+            } else {
+                Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
+                    Label("Download", systemImage: "arrow.down.circle")
+                }
+                .tint(Color.aisle)
+            }
+        }
         .sheet(isPresented: $showingNotes) {
             EpisodeSheet(episode: episode)
                 .presentationDetents([.medium, .large])
                 .presentationBackground(Color.room)
         }
+    }
+
+    private func togglePlayed() {
+        Task {
+            await model.setWatched(episode.summary, !episode.isPlayed)
+            await downloads.reconcilePodcasts()
+        }
+    }
+}
+
+extension Color {
+    /// A swipe's "played" tint, as podcast apps use.
+    static let played = Color(rgb: RGB(hex: "#6B5BB5")!)
+}
+
+extension View {
+    /// A row of a List that draws itself: no background, no separator, edge to edge.
+    func bareListRow() -> some View {
+        listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
+    }
+
+    /// An episode row in a List: on the shared edge, with a quiet separator, at a readable width on iPad.
+    func episodeListRow() -> some View {
+        frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .listRowInsets(EdgeInsets(top: 0, leading: Layout.edge, bottom: 0, trailing: Layout.edge))
+            .listRowBackground(Color.clear)
+            .listRowSeparatorTint(Color.aisle)
     }
 }
 
@@ -204,7 +254,7 @@ struct EpisodePlayButton: View {
             .frame(width: 30, height: 30)
             .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .accessibilityLabel(playing ? "Pause" : "Play \(episode.title)")
     }
 }
@@ -246,7 +296,7 @@ struct EpisodeDownloadButton: View {
             .frame(width: 30, height: 30)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .accessibilityLabel(download?.isDownloaded == true ? "Downloaded" : download == nil ? "Download" : "Downloading")
         .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {

@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// A show: its artwork, who makes it and what it's about, Follow, then its episodes newest first: the unplayed ones,
-/// or all, with Mark all as played.
+/// or all, and a button that marks them all played.
 struct PodcastView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
@@ -24,13 +24,31 @@ struct PodcastView: View {
         ZStack {
             RoomBackground(ambient: podcastGlow(page.podcast?.accentColor ?? preview?.accentColor), intensity: 0.3)
             if let podcast = page.podcast {
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 20) {
-                        header(podcast)
-                        episodes
+                // A List, for the episodes' swipe actions; it draws nothing of its own.
+                List {
+                    header(podcast)
+                        .padding(.bottom, 8)
+                        .bareListRow()
+                    episodesHeading(podcast)
+                        .episodeListRow()
+                        .listRowSeparator(.hidden)
+                    if page.episodes.isEmpty {
+                        StatusView(state: .empty(page.unplayedOnly ? "You’re up to date." : "No episodes yet."))
+                            .frame(height: 160)
+                            .bareListRow()
                     }
-                    .padding(.bottom, 32)
+                    ForEach(Array(page.episodes.enumerated()), id: \.element.id) { index, episode in
+                        PodcastEpisodeRow(episode: episode)
+                            .onAppear { if let client = model.client { page.loadMoreIfNeeded(at: index, client: client) } }
+                            .episodeListRow()
+                    }
+                    if page.isLoadingMore {
+                        ProgressView().frame(maxWidth: .infinity).padding(20).bareListRow()
+                    }
+                    Color.clear.frame(height: 24).bareListRow()
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .refreshable { await refresh() }
             } else if let error = page.error {
                 StatusView(state: .failed(error) { Task { await load() } })
@@ -40,8 +58,8 @@ struct PodcastView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .confirmationDialog("Mark every episode as played?", isPresented: $markingAllPlayed, titleVisibility: .visible) {
-            Button("Mark all as played") {
+        .alert("Mark all as played?", isPresented: $markingAllPlayed) {
+            Button("Mark as Played") {
                 Task {
                     await page.markAllPlayed(model: model)
                     await downloads.reconcilePodcasts()
@@ -49,7 +67,9 @@ struct PodcastView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("New episodes from now on show as unplayed. Downloads of played episodes are deleted.")
+            if let podcast = page.podcast {
+                Text("All \(podcast.episodeCount.formatted()) episodes of \(podcast.title) will be marked as played.")
+            }
         }
         .confirmationDialog("Stop following this show?", isPresented: $unfollowing, titleVisibility: .visible) {
             Button("Stop following", role: .destructive) {
@@ -138,47 +158,35 @@ struct PodcastView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    private var episodes: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(page.unplayedOnly ? "\(page.total.formatted()) unplayed" : page.total == 1 ? "1 episode" : "\(page.total.formatted()) episodes")
-                    .font(.marquee(22, weight: .bold))
-                    .foregroundStyle(Color.screen)
-                Spacer()
-                @Bindable var page = page
-                Picker("Show", selection: $page.unplayedOnly) {
-                    Text("Unplayed").tag(true)
-                    Text("All").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-            }
-            if let podcast = page.podcast, podcast.unplayedCount > 0 {
+    /// How many episodes, Mark all as played, and Unplayed or All.
+    private func episodesHeading(_ podcast: Podcast) -> some View {
+        HStack(spacing: 12) {
+            Text(page.unplayedOnly ? "\(page.total.formatted()) unplayed" : page.total == 1 ? "1 episode" : "\(page.total.formatted()) episodes")
+                .font(.marquee(22, weight: .bold))
+                .foregroundStyle(Color.screen)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            if podcast.unplayedCount > 0 {
                 Button { markingAllPlayed = true } label: {
-                    Label("Mark all as played", systemImage: "checkmark.circle")
-                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "checkmark.circle")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
                 }
-                .foregroundStyle(Color.silver)
-                .padding(.vertical, 4)
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Mark all as played")
             }
-            if page.episodes.isEmpty {
-                StatusView(state: .empty(page.unplayedOnly ? "You’re up to date." : "No episodes yet."))
-                    .frame(height: 160)
+            @Bindable var page = page
+            Picker("Show", selection: $page.unplayedOnly) {
+                Text("Unplayed").tag(true)
+                Text("All").tag(false)
             }
-            LazyVStack(spacing: 0) {
-                ForEach(Array(page.episodes.enumerated()), id: \.element.id) { index, episode in
-                    PodcastEpisodeRow(episode: episode)
-                        .onAppear { if let client = model.client { page.loadMoreIfNeeded(at: index, client: client) } }
-                    Divider().overlay(Color.aisle)
-                }
-            }
-            if page.isLoadingMore {
-                ProgressView().frame(maxWidth: .infinity).padding(20)
-            }
+            .pickerStyle(.segmented)
+            .fixedSize()
         }
-        .padding(.horizontal, Layout.edge)
-        .frame(maxWidth: 760)
-        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
     }
 
     private func load() async {

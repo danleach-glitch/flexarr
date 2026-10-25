@@ -262,7 +262,7 @@ struct TabStack<Content: View>: View {
             LibraryView(library: library, initialSort: sort)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
-        case .podcasts:
+        case .podcasts, .podcastBrowse:
             // Podcasts are on iPhone, iPad and the web; nothing on the Apple TV goes here.
             EmptyView()
         }

@@ -497,6 +497,8 @@ enum Route: Hashable {
     case playlist(PlaylistSummary)
     /// The shows followed and their newest episodes (iPhone and iPad).
     case podcasts
+    /// Finding podcasts in Apple's directory (iPhone and iPad).
+    case podcastBrowse
 }
 
 /// One navigation stack per tab.

@@ -102,6 +102,8 @@ struct TabStack<Content: View>: View {
             PlaylistView(playlist: playlist)
         case .podcasts:
             PodcastsView()
+        case .podcastBrowse:
+            PodcastBrowseView()
         }
     }
 }
