@@ -8,6 +8,8 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     case unexpectedResponse
     case invalidResponse
     case invalidAddress
+    /// Neither the home address nor the one for away from home could be reached.
+    case unreachable
 
     public var errorDescription: String? {
         switch self {
@@ -21,13 +23,18 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
             "The server sent a response that couldn't be read."
         case .invalidAddress:
             "That doesn't look like a server address. Try something like http://192.168.1.20:8383."
+        case .unreachable:
+            "Couldn't reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device."
         }
     }
 }
 
 /// Talks to a Flexarr server's `/api/v1` REST API. Shared by the tvOS, iOS and macOS apps.
 public struct FlexarrClient: Sendable {
-    public let baseURL: URL
+    /// The server's addresses; requests go to whichever answered last (see `ServerAddresses`).
+    public let addresses: ServerAddresses
+    /// The address in use now: streams and artwork are resolved against it.
+    public var baseURL: URL { addresses.current }
     public let apiKey: String?
     /// The chosen profile's token (from `selectProfile`); nil acts as the main profile.
     public let profileToken: String?
@@ -37,7 +44,14 @@ public struct FlexarrClient: Sendable {
 
     public init(baseURL: URL, apiKey: String? = nil, profileToken: String? = nil, session: URLSession = .shared,
                 onUnauthorized: (@Sendable () -> Void)? = nil) {
-        self.baseURL = baseURL
+        self.init(addresses: ServerAddresses(home: baseURL, remote: nil), apiKey: apiKey, profileToken: profileToken,
+                  session: session, onUnauthorized: onUnauthorized)
+    }
+
+    /// A client that can reach the server at home or away (see `ServerAddresses`).
+    public init(addresses: ServerAddresses, apiKey: String? = nil, profileToken: String? = nil, session: URLSession = .shared,
+                onUnauthorized: (@Sendable () -> Void)? = nil) {
+        self.addresses = addresses
         self.apiKey = apiKey
         self.profileToken = profileToken
         self.session = session
@@ -337,25 +351,7 @@ public struct FlexarrClient: Sendable {
     }
 
     private func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil) async throws -> Data {
-        var url = baseURL.appending(path: "api/v1/\(path)")
-        if !query.isEmpty { url.append(queryItems: query) }
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let apiKey, !apiKey.isEmpty {
-            request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
-        }
-        if let profileToken, !profileToken.isEmpty {
-            request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile")
-        }
-        if let bodyData {
-            request.httpBody = bodyData
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
+        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData)
 
         switch http.statusCode {
         case 204, 202:
@@ -371,6 +367,136 @@ public struct FlexarrClient: Sendable {
             throw FlexarrClientError.unauthorized
         default:
             throw FlexarrClientError.http(status: http.statusCode, message: Self.problemMessage(data))
+        }
+    }
+
+    private func request(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, at base: URL) -> URLRequest {
+        var url = base.appending(path: "api/v1/\(path)")
+        if !query.isEmpty { url.append(queryItems: query) }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let apiKey, !apiKey.isEmpty {
+            request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+        }
+        if let profileToken, !profileToken.isEmpty {
+            request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile")
+        }
+        if let bodyData {
+            request.httpBody = bodyData
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        return request
+    }
+
+    private typealias Answer = (data: Data, response: HTTPURLResponse)
+
+    /// Sends the request to the address that answered last. With a second address, a GET that can't connect to the
+    /// first (or hasn't heard back after `ServerAddresses.alternateDelay`) is also sent there and the first answer
+    /// wins; anything else only moves over once the first address has failed to connect, so a write is never sent
+    /// twice. Whichever address answers is used from then on.
+    private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?) async throws -> Answer {
+        let primary = addresses.current
+        let first = request(method, path, query: query, bodyData: bodyData, at: primary)
+        guard let alternate = addresses.alternate(to: primary) else {
+            return try await exchange(first)
+        }
+
+        let second = request(method, path, query: query, bodyData: bodyData, at: alternate)
+        let answer: Answer
+        let reached: URL
+        if method == "GET" {
+            (answer, reached) = try await race(first, at: primary, then: second, at: alternate)
+        } else {
+            do {
+                answer = try await exchange(first)
+                reached = primary
+            } catch let error where Self.couldNotConnect(error) {
+                guard let other = try? await exchange(second) else { throw FlexarrClientError.unreachable }
+                answer = other
+                reached = alternate
+            }
+        }
+        addresses.reached(reached)
+        checkHomeIfDue()
+        return answer
+    }
+
+    private func exchange(_ request: URLRequest) async throws -> Answer {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
+        return (data, http)
+    }
+
+    /// Both requests at once, the second starting after a moment (or at once, if the first can't connect). The first
+    /// answer wins, and the other is cancelled. An answer that isn't a connection problem (the server refused it, say)
+    /// from the first address ends it: the other address wouldn't say anything different.
+    private func race(_ first: URLRequest, at primary: URL, then second: URLRequest, at alternate: URL) async throws -> (Answer, URL) {
+        typealias Attempt = (url: URL, result: Result<Answer, Error>)
+        let delay = Task { try? await Task.sleep(for: ServerAddresses.alternateDelay) }
+        return try await withThrowingTaskGroup(of: Attempt.self) { group in
+            group.addTask {
+                let result = await Self.attempt { try await self.exchange(first) }
+                if case .failure(let error) = result, Self.couldNotConnect(error) { delay.cancel() }
+                return (primary, result)
+            }
+            group.addTask {
+                _ = await delay.value
+                if Task.isCancelled { return (alternate, .failure(CancellationError())) }
+                return (alternate, await Self.attempt { try await self.exchange(second) })
+            }
+
+            for try await attempt in group {
+                switch attempt.result {
+                case .success(let answer):
+                    group.cancelAll()
+                    delay.cancel()
+                    return (answer, attempt.url)
+                case .failure(let error):
+                    if attempt.url == primary, !Self.couldNotConnect(error) {
+                        group.cancelAll()
+                        delay.cancel()
+                        throw error
+                    }
+                    // Couldn't connect (or the alternate was called off): wait for the other one.
+                }
+            }
+            throw FlexarrClientError.unreachable
+        }
+    }
+
+    private static func attempt<T: Sendable>(_ work: () async throws -> T) async -> Result<T, Error> {
+        do {
+            return .success(try await work())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// The address didn't answer at all (as opposed to answering with an error or the request being cancelled).
+    static func couldNotConnect(_ error: Error) -> Bool {
+        guard let error = error as? URLError else { return false }
+        switch error.code {
+        case .cannotFindHost, .dnsLookupFailed, .cannotConnectToHost, .networkConnectionLost, .timedOut,
+             .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff, .secureConnectionFailed,
+             .appTransportSecurityRequiresSecureConnection:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// While away, sees every few minutes whether home answers again, and goes back to it when it does.
+    private func checkHomeIfDue() {
+        guard addresses.shouldCheckHome() else { return }
+        var probe = request("GET", "system/status", query: [], bodyData: nil, at: addresses.home)
+        probe.timeoutInterval = 5
+        let session = session
+        let addresses = addresses
+        Task.detached {
+            guard let (_, response) = try? await session.data(for: probe), (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+            addresses.reached(addresses.home)
         }
     }
 

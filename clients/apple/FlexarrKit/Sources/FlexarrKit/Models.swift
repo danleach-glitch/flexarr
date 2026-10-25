@@ -59,6 +59,9 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     public let osDescription: String
     public let runtimeVersion: String
     public let startTime: Date
+    /// The server's address for away from home (over Tailscale), once remote access is turned on. Absent from
+    /// servers older than 0.21.
+    public var remoteUrl: URL?
 }
 
 // MARK: - Libraries

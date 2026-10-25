@@ -32,6 +32,9 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 40) {
                     card("Server") {
                         row("Address", model.credentials?.address.absoluteString ?? "")
+                        if let remote = model.credentials?.remoteAddress {
+                            row("Away from home", remote.absoluteString)
+                        }
                         if let status {
                             row("Version", ServerVersion.short(status.version))
                             row("Running on", status.osDescription)

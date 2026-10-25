@@ -137,8 +137,12 @@ struct SettingsView: View {
                 Text("Say \u{201C}Play the next episode of Curb Your Enthusiasm in Flexarr\u{201D}, \u{201C}Continue watching in Flexarr\u{201D} or \u{201C}Pause Flexarr\u{201D}. Shows play from the episode you're up to. Choose an Apple TV here and Siri plays there (Flexarr needs to be open on it); you can also name one as you ask.")
             }
 
-            Section("Server") {
+            Section {
                 row("Address", model.credentials?.address.absoluteString ?? "")
+                if let remote = model.credentials?.remoteAddress {
+                    row("Away from home", remote.absoluteString)
+                    row("Connected", model.client?.addresses.isAway == true ? "Away, over Tailscale" : "At home")
+                }
                 if let status {
                     row("Version", ServerVersion.short(status.version))
                     row("Running on", status.osDescription)
@@ -149,6 +153,12 @@ struct SettingsView: View {
                     row("Status", "Checking")
                 }
                 row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
+            } header: {
+                Text("Server")
+            } footer: {
+                Text(model.credentials?.remoteAddress == nil
+                     ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this \(ThisDevice.name) picks the address up by itself."
+                     : "Away from home, this \(ThisDevice.name) reaches the server over Tailscale when it can't be reached at home. Tailscale needs to be connected on this \(ThisDevice.name).")
             }
 
             Section {

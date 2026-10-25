@@ -69,6 +69,24 @@ private func stubbedClient(_ stub: StubProtocol.Stub, apiKey: String? = "secret"
     return (client, host)
 }
 
+/// A client with a home address and one for away from home. Hosts with no stub can't be connected to (the stub
+/// protocol fails them with `cannotConnectToHost`), which stands in for being away from home or Tailscale being off.
+private func pairedClient(home: StubProtocol.Stub?, remote: StubProtocol.Stub?) -> (client: FlexarrClient, home: String, remote: String) {
+    let homeHost = "home-\(UUID().uuidString.lowercased()).local"
+    let remoteHost = "remote-\(UUID().uuidString.lowercased()).ts.net"
+    if let home { StubProtocol.register(host: homeHost, home) }
+    if let remote { StubProtocol.register(host: remoteHost, remote) }
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [StubProtocol.self]
+    let addresses = ServerAddresses(home: URL(string: "http://\(homeHost):8383")!, remote: URL(string: "https://\(remoteHost):8443")!)
+    let client = FlexarrClient(addresses: addresses, apiKey: "secret", session: URLSession(configuration: configuration))
+    return (client, homeHost, remoteHost)
+}
+
+private let statusJSON = Data("""
+{"appName":"Flexarr","version":"0.21.0","osDescription":"macOS","runtimeVersion":".NET 10","startTime":"2026-10-25T12:00:00Z","remoteUrl":"https://mini.tail1234.ts.net:8443"}
+""".utf8)
+
 private final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
@@ -339,5 +357,106 @@ struct CommandStreamTests {
         } catch {
             #expect(error as? FlexarrClientError == .http(status: 403, message: nil))
         }
+    }
+}
+
+struct ServerAddressesTests {
+    @Test func startsAtHomeAndOffersTheOtherAddress() {
+        let home = URL(string: "http://mini.local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
+        let addresses = ServerAddresses(home: home, remote: remote)
+        #expect(addresses.current == home)
+        #expect(addresses.alternate(to: home) == remote)
+        #expect(addresses.alternate(to: remote) == home)
+        #expect(ServerAddresses(home: home, remote: nil).alternate(to: home) == nil)
+        // The same address twice is just the one address.
+        #expect(ServerAddresses(home: home, remote: home).remote == nil)
+    }
+
+    @Test func checksHomeOncePerIntervalWhileAway() {
+        let home = URL(string: "http://mini.local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
+        let addresses = ServerAddresses(home: home, remote: remote)
+        let start = Date()
+        #expect(!addresses.shouldCheckHome(now: start), "at home there's nothing to check")
+        addresses.reached(remote)
+        #expect(addresses.isAway)
+        #expect(!addresses.shouldCheckHome(now: start + 60), "leaving home starts the clock; it just failed")
+        #expect(addresses.shouldCheckHome(now: start + ServerAddresses.homeCheckInterval + 1))
+        #expect(!addresses.shouldCheckHome(now: start + ServerAddresses.homeCheckInterval + 2), "once per interval")
+        addresses.reached(home)
+        #expect(!addresses.isAway)
+    }
+
+    @Test func sharedInstancesAreOnePerPair() {
+        let home = URL(string: "http://shared-\(UUID().uuidString).local:8383")!, remote = URL(string: "https://mini.ts.net:8443")!
+        #expect(ServerAddresses.shared(home: home, remote: remote) === ServerAddresses.shared(home: home, remote: remote))
+        #expect(ServerAddresses.shared(home: home, remote: remote) !== ServerAddresses.shared(home: home, remote: nil))
+    }
+}
+
+struct RemoteFallbackTests {
+    @Test func readsFallBackToTheRemoteAddressWhenHomeCannotConnect() async throws {
+        let (client, home, remote) = pairedClient(home: nil, remote: .init(status: 200, body: statusJSON))
+
+        let status = try await client.systemStatus()
+
+        #expect(status.remoteUrl == URL(string: "https://mini.tail1234.ts.net:8443"))
+        #expect(client.baseURL.host() == remote, "the address that answered is used from now on")
+        #expect(client.addresses.isAway)
+        #expect(StubProtocol.recorded(host: home).count == 1)
+        #expect(StubProtocol.recorded(host: remote).count == 1)
+
+        // The next request goes straight to the remote address (the home probe waits for its interval).
+        _ = try await client.systemStatus()
+        #expect(StubProtocol.recorded(host: home).count == 1)
+        #expect(StubProtocol.recorded(host: remote).count == 2)
+    }
+
+    @Test func homeIsPreferredWhenItAnswers() async throws {
+        let (client, home, remote) = pairedClient(home: .init(status: 200, body: statusJSON), remote: .init(status: 200, body: statusJSON))
+
+        _ = try await client.systemStatus()
+
+        #expect(client.baseURL.host() == home)
+        #expect(StubProtocol.recorded(host: home).count == 1)
+        #expect(StubProtocol.recorded(host: remote).isEmpty, "home answered before the remote attempt was due")
+    }
+
+    @Test func writesTryHomeFirstAndMoveOverOnlyWhenItCannotConnect() async throws {
+        let (client, home, remote) = pairedClient(home: nil, remote: .init(status: 204, body: Data()))
+
+        try await client.setWatched("item-1", watched: true)
+
+        #expect(StubProtocol.recorded(host: home).count == 1)
+        #expect(StubProtocol.recorded(host: remote).count == 1)
+        #expect(StubProtocol.recorded(host: remote).first?.httpMethod == "POST")
+        #expect(client.addresses.isAway)
+    }
+
+    @Test func anAnswerFromHomeIsNotRetriedRemotely() async throws {
+        let (client, _, remote) = pairedClient(home: .init(status: 404, body: Data()), remote: .init(status: 200, body: statusJSON))
+
+        await #expect(throws: FlexarrClientError.http(status: 404, message: nil)) {
+            try await client.systemStatus()
+        }
+        #expect(StubProtocol.recorded(host: remote).isEmpty, "the server answered; the other address wouldn't say anything different")
+        #expect(!client.addresses.isAway)
+    }
+
+    @Test func neitherAddressAnsweringIsOneError() async throws {
+        let (client, home, remote) = pairedClient(home: nil, remote: nil)
+
+        await #expect(throws: FlexarrClientError.unreachable) {
+            try await client.systemStatus()
+        }
+        #expect(StubProtocol.recorded(host: home).count == 1)
+        #expect(StubProtocol.recorded(host: remote).count == 1)
+    }
+
+    @Test func statusWithoutARemoteAddressStillDecodes() throws {
+        let data = Data("""
+        {"appName":"Flexarr","version":"0.20.1","osDescription":"macOS","runtimeVersion":".NET 10","startTime":"2026-10-25T12:00:00Z"}
+        """.utf8)
+        let status = try FlexarrClient.decoder.decode(SystemStatus.self, from: data)
+        #expect(status.remoteUrl == nil)
     }
 }

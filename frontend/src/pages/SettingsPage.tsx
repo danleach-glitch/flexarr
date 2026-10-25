@@ -2371,7 +2371,8 @@ function RemoteAccessSection() {
                   </button>
                 </div>
                 <p className="field-help">
-                  Open it on any phone, laptop or Apple TV with the Tailscale app signed in to your tailnet. It has a real HTTPS certificate.
+                  Open it on any phone, laptop or Apple TV with the Tailscale app signed in to your tailnet. It has a real HTTPS certificate. The
+                  iPhone, iPad and Apple TV apps learn it from the server and switch to it by themselves when they can't reach the server at home.
                 </p>
               </div>
             )}
