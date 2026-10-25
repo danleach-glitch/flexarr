@@ -36,6 +36,7 @@ public sealed record TranscodePlan(
     SubtitleTrack? BurnSubtitle,
     string? SourceAudioCodec = null,
     bool Fmp4 = false,
+    string? SourceVideoCodec = null,
     bool LosslessAudio = false,
     bool HighResolutionAudio = false)
 {
@@ -275,6 +276,7 @@ public static class PlaybackDecider
             subtitle is { IsText: false } ? subtitle : null,
             audio?.Codec,
             fmp4,
+            video.Codec,
             lossless,
             HighResolutionAudio: lossless && IsLossless(audio!));
 

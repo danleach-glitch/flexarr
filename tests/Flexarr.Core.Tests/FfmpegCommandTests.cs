@@ -54,6 +54,23 @@ public class FfmpegCommandTests
         Assert.Contains("-map 0:0 -c:a aac -ac 2", args, StringComparison.Ordinal);
     }
 
+    /// <summary>An AVI's MPEG-4 (XviD) asked of VideoToolbox fails outright: decoded in software, encoded in hardware.</summary>
+    [Fact]
+    public void AVideoTheGpuCantDecode_IsDecodedInSoftware_AndStillEncodedInHardware()
+    {
+        var plan = new TranscodePlan(0, 1, 720, 304, 1_500_000, ToneMap: false, CopyAudio: true, AudioChannels: 6, BurnSubtitle: null, "ac3", Fmp4: true, SourceVideoCodec: "mpeg4");
+
+        var args = FfmpegCommand.Hls("/in.avi", plan, 20, "/out", Settings(HardwareAcceleration.VideoToolbox));
+
+        Assert.DoesNotContain("-hwaccel", args);
+        Assert.Contains("scale=720:304,format=yuv420p", args);
+        Assert.Contains("h264_videotoolbox", args);
+
+        var hevc = FfmpegCommand.Hls("/in.mkv", plan with { SourceVideoCodec = "hevc" }, 20, "/out", Settings(HardwareAcceleration.VideoToolbox));
+        Assert.Contains("-hwaccel", hevc);
+        Assert.Contains(hevc, a => a.StartsWith("scale_vt=", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void MediaPlaylist_ListsEverySegment_WithAShortLastOne()
     {

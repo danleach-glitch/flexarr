@@ -40,8 +40,9 @@ public static class FfmpegCommand
         var burn = plan.BurnSubtitle;
         var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y" };
 
-        // Decode on the GPU. Keep frames on the GPU unless subtitles need burning in (overlay runs on the CPU).
-        switch (hw)
+        // Decode on the GPU when it can (H.264 and HEVC); an AVI's MPEG-4, VC-1 and the like are decoded in software
+        // and still encoded in hardware. Keep frames on the GPU unless subtitles need burning in (overlay runs on the CPU).
+        switch (DecodesInHardware(hw, plan.SourceVideoCodec))
         {
             case HardwareAcceleration.VideoToolbox:
                 args.AddRange(["-hwaccel", "videotoolbox"]);
@@ -135,7 +136,7 @@ public static class FfmpegCommand
 
         var hw = plan is null || plan.VideoStreamIndex < 0 ? HardwareAcceleration.None : settings.Resolved;
         var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats" };
-        switch (hw)
+        switch (DecodesInHardware(hw, plan?.SourceVideoCodec))
         {
             case HardwareAcceleration.VideoToolbox:
                 args.AddRange(["-hwaccel", "videotoolbox", "-hwaccel_output_format", "videotoolbox_vld"]);
@@ -216,15 +217,29 @@ public static class FfmpegCommand
         return args;
     }
 
+    /// <summary>The GPU decodes H.264 and HEVC; asked to decode anything else, VideoToolbox fails outright, so those go
+    /// through the software decoder (cheap: they're old, small formats) and only the encoder runs in hardware.</summary>
+    internal static HardwareAcceleration DecodesInHardware(HardwareAcceleration hw, string? sourceCodec) =>
+        sourceCodec is null or "h264" or "hevc" ? hw : HardwareAcceleration.None;
+
     private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings)
     {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
         var width = plan.TargetWidth.ToString(CultureInfo.InvariantCulture);
+        var decodedInSoftware = DecodesInHardware(hw, plan.SourceVideoCodec) == HardwareAcceleration.None && hw != HardwareAcceleration.None;
         if (burn is not null)
         {
             var subtitleInput = burn.ExternalPath is null ? $"[0:{burn.StreamIndex}]" : "[1:0]";
             var tail = hw == HardwareAcceleration.Vaapi ? ",format=nv12,hwupload" : ",format=yuv420p";
             args.AddRange(["-filter_complex", $"[0:{plan.VideoStreamIndex}]{subtitleInput}overlay,scale={width}:{height}{tail}[v]", "-map", "[v]"]);
+        }
+        else if (decodedInSoftware)
+        {
+            // Software frames scaled (and HDR mapped to SDR) on the CPU, then handed to the hardware encoder.
+            args.AddRange(["-map", $"0:{plan.VideoStreamIndex}"]);
+            var tonemap = plan.ToneMap ? "zscale=transfer=linear:npl=100,tonemap=hable,zscale=transfer=bt709:matrix=bt709:primaries=bt709," : "";
+            var tail = hw == HardwareAcceleration.Vaapi ? "format=nv12,hwupload" : "format=yuv420p";
+            args.AddRange(["-vf", $"{tonemap}scale={width}:{height},{tail}"]);
         }
         else
         {

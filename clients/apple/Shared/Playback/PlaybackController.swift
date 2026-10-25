@@ -324,7 +324,9 @@ final class PlaybackController: NSObject {
         if let engine {
             // Through the engine: the file's audio tracks, and its picture subtitles, which Apple's panel can't list.
             if engine.audioTracks.count > 1 {
-                menus.append(UIMenu(title: "Audio", image: UIImage(systemName: "waveform"), children: engine.audioTracks.map { track in
+                // Apple's own audio and subtitle buttons stay beside these (they list the file's text subtitles), so
+                // these look different and say what they hold.
+                menus.append(UIMenu(title: "Audio language", image: UIImage(systemName: "globe"), children: engine.audioTracks.map { track in
                     UIAction(title: Self.trackLabel(track), state: track.id == engine.activeAudioTrack ? .on : .off) { [weak engine] _ in
                         MainActor.assumeIsolated { engine?.selectAudioTrack(track.id) }
                     }
@@ -334,7 +336,7 @@ final class PlaybackController: NSObject {
                 let off = UIAction(title: "Off", state: engine.activePictureSubtitle == nil ? .on : .off) { [weak engine] _ in
                     MainActor.assumeIsolated { engine?.selectPictureSubtitle(nil) }
                 }
-                menus.append(UIMenu(title: "Picture subtitles", image: UIImage(systemName: "captions.bubble"), children: [off] + engine.pictureSubtitleTracks.map { track in
+                menus.append(UIMenu(title: "Picture subtitles", image: UIImage(systemName: "photo.on.rectangle.angled"), children: [off] + engine.pictureSubtitleTracks.map { track in
                     UIAction(title: Self.trackLabel(track), state: track.id == engine.activePictureSubtitle ? .on : .off) { [weak engine] _ in
                         MainActor.assumeIsolated { engine?.selectPictureSubtitle(track.id) }
                     }

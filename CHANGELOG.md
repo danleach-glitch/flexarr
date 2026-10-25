@@ -11,6 +11,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Files the device can't decode in hardware (AVI, AV1 on older models, interlaced broadcasts) are converted by the server as before, and so is anything the engine can't open. Remote viewing with a quality limit and downloads are unaffected.
 - Off by default. The apps are about 11 MB bigger.
 
+### Fixed: AVI and other old formats wouldn't convert on a Mac
+- With hardware acceleration on a Mac, converting a file whose video the GPU can't decode (AVI's MPEG-4 and XviD, VC-1, and the like) failed before the first frame, so the player sat on its spinner. Those files are now decoded in software and still encoded in hardware.
+
 ## 0.18.1 · 25 October 2026
 
 ### Fixed: the next-episode countdown during an episode's opening titles
