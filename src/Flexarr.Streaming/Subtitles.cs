@@ -237,12 +237,13 @@ public static partial class Subtitles
     [GeneratedRegex(@"(?<start>(?:\d+:)?\d{2}:\d{2}\.\d{3})\s+-->\s+(?<end>(?:\d+:)?\d{2}:\d{2}\.\d{3})")]
     private static partial Regex CueTiming();
 
-    public static string WithHlsTimestampMap(string vtt)
+    public static string WithHlsTimestampMap(string vtt, bool fmp4 = false)
     {
         ArgumentNullException.ThrowIfNull(vtt);
 
-        // ffmpeg's MPEG-TS muxer starts timestamps 1.4s in (126000 at 90kHz); playlist time 0 maps to that.
-        const string map = "X-TIMESTAMP-MAP=MPEGTS:126000,LOCAL:00:00:00.000";
+        // ffmpeg's MPEG-TS muxer starts timestamps 1.4s in (126000 at 90kHz); playlist time 0 maps to that. Fragmented
+        // MP4 segments carry the film's own time from zero.
+        var map = fmp4 ? "X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000" : "X-TIMESTAMP-MAP=MPEGTS:126000,LOCAL:00:00:00.000";
         var newline = vtt.IndexOf('\n', StringComparison.Ordinal);
         return newline < 0 ? $"WEBVTT\n{map}\n" : string.Concat(vtt.AsSpan(0, newline + 1), map, "\n", vtt.AsSpan(newline + 1));
     }

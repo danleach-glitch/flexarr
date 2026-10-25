@@ -10,8 +10,10 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.16.0"
+    MARKETING_VERSION: "0.17.0"
     CURRENT_PROJECT_VERSION: "1"
+    # The Apple TV app's bundle ID; its Top Shelf extension's is this plus .topshelf. `make apple-install` sets it.
+    FLEXARR_TV_BUNDLE_ID: io.github.flexarr.tv
 packages:
   FlexarrKit:
     path: FlexarrKit
@@ -23,10 +25,18 @@ targets:
     sources: [Shared, FlexarrTV]
     dependencies:
       - package: FlexarrKit
+      - target: FlexarrTopShelf
+    entitlements:
+      path: FlexarrTV/FlexarrTV.entitlements
+      properties:
+        # The sign-in shared between the app and its Top Shelf extension.
+        keychain-access-groups: [$(AppIdentifierPrefix)io.github.flexarr.shared]
     info:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        # Where the sign-in is shared with the Top Shelf extension.
+        FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -42,9 +52,37 @@ targets:
             CFBundleURLSchemes: [flexarr]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.tv
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_TV_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "3"
         ASSETCATALOG_COMPILER_APPICON_NAME: App Icon & Top Shelf Image
+  # Continue Watching on the Apple TV Home screen's Top Shelf.
+  FlexarrTopShelf:
+    type: app-extension
+    platform: tvOS
+    sources: [FlexarrTopShelf]
+    dependencies:
+      - package: FlexarrKit
+    entitlements:
+      path: FlexarrTopShelf/FlexarrTopShelf.entitlements
+      properties:
+        # The sign-in shared between the app and its Top Shelf extension.
+        keychain-access-groups: [$(AppIdentifierPrefix)io.github.flexarr.shared]
+    info:
+      path: FlexarrTopShelf/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.tv-top-shelf
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_TV_BUNDLE_ID).topshelf
+        TARGETED_DEVICE_FAMILY: "3"
   FlexarriOS:
     type: application
     platform: iOS

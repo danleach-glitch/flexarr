@@ -20,4 +20,10 @@ public sealed record DeviceProfile
 
     /// <summary>Bits per second; 0 = no limit.</summary>
     public long MaxBitrate { get; init; }
+
+    /// <summary>
+    /// The client plays HLS in fragmented MP4 (Apple's players). That can carry what MPEG-TS can't: lossless FLAC up to
+    /// 7.1, and Dolby Digital Plus with its Atmos signalled.
+    /// </summary>
+    public bool Fmp4 { get; init; }
 }

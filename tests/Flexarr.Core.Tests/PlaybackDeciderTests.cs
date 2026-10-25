@@ -55,6 +55,61 @@ public class PlaybackDeciderTests
         Assert.Equal("ec-3", decision.Transcode.AudioCodecTag);
     }
 
+    /// <summary>The Apple apps from 0.17: fragmented MP4 segments, FLAC and ALAC, and 7.1.</summary>
+    private static readonly DeviceProfile AppleTvFmp4 = AppleTv with { AudioCodecs = ["aac", "ac3", "eac3", "mp3", "flac", "alac"], MaxAudioChannels = 8, Fmp4 = true };
+
+    [Fact]
+    public void Fmp4_PassesDolbyAtmosThrough_AndKeeps71()
+    {
+        var atmos = PlaybackDecider.Decide(File("mkv", "h264", "eac3", 6, audioProfile: "Dolby Digital Plus + Dolby Atmos"), AppleTvFmp4, [], new PlaybackOptions()).Transcode!;
+        Assert.True(atmos.Fmp4);
+        Assert.True(atmos.CopyAudio);
+        Assert.Equal("ec-3", atmos.AudioCodecTag);
+
+        var sevenOne = PlaybackDecider.Decide(File("mkv", "h264", "eac3", 8), AppleTvFmp4, [], new PlaybackOptions()).Transcode!;
+        Assert.True(sevenOne.CopyAudio);
+        Assert.Equal(8, sevenOne.AudioChannels);
+    }
+
+    [Theory]
+    [InlineData("truehd", null, 8, true)]
+    [InlineData("dts", "DTS-HD MA", 8, true)]
+    [InlineData("pcm_s24le", null, 6, true)]
+    [InlineData("dts", "DTS", 6, false)]
+    [InlineData("opus", null, 8, false)]
+    public void Fmp4_TurnsWhatAppleCantPlay_IntoLosslessFlac(string codec, string? profile, int channels, bool highResolution)
+    {
+        var plan = PlaybackDecider.Decide(File("mkv", "h264", codec, channels, audioProfile: profile), AppleTvFmp4, [], new PlaybackOptions()).Transcode!;
+
+        Assert.True(plan.LosslessAudio);
+        Assert.False(plan.CopyAudio);
+        Assert.Equal(channels, plan.AudioChannels);
+        Assert.Equal(highResolution, plan.HighResolutionAudio);
+        Assert.Equal("fLaC", plan.AudioCodecTag);
+    }
+
+    [Fact]
+    public void Fmp4_StereoOrATightBitrateCap_StillGetsAac()
+    {
+        var stereo = PlaybackDecider.Decide(File("mkv", "h264", "mp2", 2), AppleTvFmp4, [], new PlaybackOptions()).Transcode!;
+        Assert.False(stereo.LosslessAudio);
+        Assert.Equal("mp4a.40.2", stereo.AudioCodecTag);
+
+        var remote = PlaybackDecider.Decide(File("mkv", "h264", "truehd", 8), AppleTvFmp4, [], new PlaybackOptions(MaxBitrate: 8_000_000)).Transcode!;
+        Assert.False(remote.LosslessAudio);
+        Assert.Equal(6, remote.AudioChannels);
+    }
+
+    [Fact]
+    public void WithoutFmp4_TrueHdIsAac51_AsBefore()
+    {
+        var plan = PlaybackDecider.Decide(File("mkv", "h264", "truehd", 8), AppleTv, [], new PlaybackOptions()).Transcode!;
+
+        Assert.False(plan.Fmp4);
+        Assert.False(plan.LosslessAudio);
+        Assert.Equal(6, plan.AudioChannels);
+    }
+
     [Fact]
     public void HdrOnSdrDisplay_IsToneMapped()
     {
@@ -108,7 +163,8 @@ public class PlaybackDeciderTests
         Assert.Equal(2, decision.Transcode!.AudioStreamIndex);
     }
 
-    private static MediaFile File(string container, string video, string audio, int channels, VideoRange range = VideoRange.Sdr, int height = 1080, long bitrate = 8_000_000) => new()
+    private static MediaFile File(string container, string video, string audio, int channels, VideoRange range = VideoRange.Sdr, int height = 1080, long bitrate = 8_000_000,
+        string? audioProfile = null) => new()
     {
         Path = "/media/file",
         Container = container,
@@ -123,7 +179,7 @@ public class PlaybackDeciderTests
         Streams =
         [
             new MediaStream { Index = 0, Type = StreamType.Video, Codec = video, Width = height * 16 / 9, Height = height },
-            new MediaStream { Index = 1, Type = StreamType.Audio, Codec = audio, Channels = channels, IsDefault = true, Language = "eng" },
+            new MediaStream { Index = 1, Type = StreamType.Audio, Codec = audio, Profile = audioProfile, Channels = channels, IsDefault = true, Language = "eng" },
         ],
     };
 

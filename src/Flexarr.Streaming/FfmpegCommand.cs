@@ -210,11 +210,30 @@ public static class FfmpegCommand
         // ---- Audio
         if (plan.AudioStreamIndex is { } audioIndex)
         {
+            var channels = plan.AudioChannels.ToString(CultureInfo.InvariantCulture);
             args.AddRange(["-map", $"0:{audioIndex}"]);
-            args.AddRange(plan.CopyAudio
-                ? ["-c:a", "copy"]
-                : ["-c:a", "aac", "-ac", plan.AudioChannels.ToString(CultureInfo.InvariantCulture), "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
+            if (plan.CopyAudio)
+            {
+                args.AddRange(["-c:a", "copy"]);
+            }
+            else if (plan.LosslessAudio)
+            {
+                // FLAC at 48 kHz, 24-bit from a lossless source (16 is plenty for a lossy one). Its block size is
+                // set because the MP4 muxer otherwise hands the encoder one it refuses.
+                args.AddRange(["-c:a", "flac", "-ac", channels, "-ar", "48000", "-frame_size", "4096"]);
+                args.AddRange(plan.HighResolutionAudio ? ["-sample_fmt", "s32", "-bits_per_raw_sample", "24"] : ["-sample_fmt", "s16"]);
+            }
+            else
+            {
+                args.AddRange(["-c:a", "aac", "-ac", channels, "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
+            }
         }
+
+        // Fragmented MP4: the MP4 muxer starts each run's timestamps at zero unless told every fragment may jump, so
+        // segments from a run started mid-film line up with the rest.
+        var (segmentFile, fmp4) = plan.Fmp4
+            ? ("seg%d.m4s", (string[])["-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", "init.mp4", "-hls_segment_options", "movflags=+frag_discont"])
+            : ("seg%d.ts", []);
 
         // ---- HLS output
         args.AddRange([
@@ -226,7 +245,8 @@ public static class FfmpegCommand
             "-hls_list_size", "0",
             "-hls_playlist_type", "event",
             "-start_number", startSegment.ToString(CultureInfo.InvariantCulture),
-            "-hls_segment_filename", Path.Combine(outputDirectory, "seg%d.ts"),
+            .. fmp4,
+            "-hls_segment_filename", Path.Combine(outputDirectory, segmentFile),
             Path.Combine(outputDirectory, "ffmpeg.m3u8"),
         ]);
     }
@@ -236,13 +256,18 @@ public static class FfmpegCommand
     /// <paramref name="startSeconds"/>, it says where to open (EXT-X-START), so a player resuming partway fetches from
     /// there rather than from the beginning first.
     /// </summary>
-    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0)
+    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0, bool fmp4 = false)
     {
         var count = SegmentCount(durationSeconds);
         var builder = new System.Text.StringBuilder();
-        builder.Append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:")
+        builder.Append(fmp4 ? "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:" : "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:")
             .Append(SegmentSeconds + 1)
             .Append("\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+        if (fmp4)
+        {
+            builder.Append("#EXT-X-MAP:URI=\"init.mp4\"\n");
+        }
+
         if (startSeconds > 0 && startSeconds < durationSeconds)
         {
             builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-START:TIME-OFFSET={startSeconds:F3},PRECISE=YES\n");
@@ -251,7 +276,7 @@ public static class FfmpegCommand
         for (var i = 0; i < count; i++)
         {
             var length = Math.Min(SegmentSeconds, durationSeconds - (i * SegmentSeconds));
-            builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{length:F3},\n{i}.ts\n");
+            builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{length:F3},\n{i}.{(fmp4 ? "m4s" : "ts")}\n");
         }
 
         return builder.Append("#EXT-X-ENDLIST\n").ToString();

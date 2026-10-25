@@ -142,29 +142,27 @@ public static class PlaybackEndpoints
                 ? Playlist(http, transcode.MediaPlaylist())
                 : Missing(transcodes, sid));
 
-        group.MapGet("/{segment:int}.ts", async (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+        // Fragmented MP4 (Apple's players): the initialisation segment, then .m4s segments served like .ts ones.
+        group.MapGet("/init.mp4", async (string sid, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { Transcode: { } transcode })
             {
                 return Missing(transcodes, sid);
             }
 
-            string? path;
             try
             {
-                path = await transcode.GetSegmentAsync(segment, ct);
+                return await transcode.GetInitAsync(ct) is { } path ? Results.File(path, "video/mp4") : Results.NotFound();
             }
             catch (TranscodeLimitException ex)
             {
-                // Back from a long pause to find the others using every slot. The player gives up and its recovery
-                // asks for a new session, which is refused with this same message for the viewer to see.
                 return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
             }
-
-            return path is not null ? Results.File(path, "video/mp2t")
-                : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
-                : Results.Problem("The segment couldn't be converted.", statusCode: 500);
         });
+        group.MapGet("/{segment:int}.m4s", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+            Segment(sid, segment, "video/iso.segment", sessions, transcodes, ct));
+        group.MapGet("/{segment:int}.ts", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+            Segment(sid, segment, "video/mp2t", sessions, transcodes, ct));
 
         group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles, CancellationToken ct) =>
         {
@@ -193,7 +191,7 @@ public static class PlaybackEndpoints
             }
 
             var vtt = Subtitles.Shift(await File.ReadAllTextAsync(path, ct), delay);
-            return Results.Text(hls == true ? Subtitles.WithHlsTimestampMap(vtt) : vtt, "text/vtt");
+            return Results.Text(hls == true ? Subtitles.WithHlsTimestampMap(vtt, session.Transcode?.Plan.Fmp4 == true) : vtt, "text/vtt");
         });
 
         group.MapGet("/subtitles/{key}.m3u8", (string sid, string key, PlaybackSessions sessions, HttpContext http) =>
@@ -252,6 +250,31 @@ public static class PlaybackEndpoints
     };
 
     /// <summary>A transcode that's gone: 410 with the reason when it was ended for another viewer, else 404.</summary>
+    /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet.</summary>
+    private static async Task<IResult> Segment(string sid, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)
+    {
+        if (sessions.Get(sid) is not { Transcode: { } transcode })
+        {
+            return Missing(transcodes, sid);
+        }
+
+        string? path;
+        try
+        {
+            path = await transcode.GetSegmentAsync(segment, ct);
+        }
+        catch (TranscodeLimitException ex)
+        {
+            // Back from a long pause to find the others using every slot. The player gives up and its recovery
+            // asks for a new session, which is refused with this same message for the viewer to see.
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: "The server is busy");
+        }
+
+        return path is not null ? Results.File(path, contentType)
+            : transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) // ended while this request waited
+            : Results.Problem("The segment couldn't be converted.", statusCode: 500);
+    }
+
     private static IResult Missing(TranscodeManager transcodes, string sid) =>
         transcodes.TakenOverReason(sid) is { } reason ? TakenOver(reason) : Results.NotFound();
 

@@ -32,16 +32,24 @@ public sealed record TranscodePlan(
     bool CopyAudio,
     int AudioChannels,
     SubtitleTrack? BurnSubtitle,
-    string? SourceAudioCodec = null)
+    string? SourceAudioCodec = null,
+    bool Fmp4 = false,
+    bool LosslessAudio = false,
+    bool HighResolutionAudio = false)
 {
     /// <summary>RFC 6381 codec string for the audio in the HLS output, for the master playlist.</summary>
-    public string? AudioCodecTag => AudioStreamIndex is null ? null : !CopyAudio ? "mp4a.40.2" : SourceAudioCodec switch
+    public string? AudioCodecTag => AudioStreamIndex is null ? null : LosslessAudio ? "fLaC" : !CopyAudio ? "mp4a.40.2" : SourceAudioCodec switch
     {
         "ac3" => "ac-3",
         "eac3" => "ec-3",
         "mp3" => "mp4a.40.34",
+        "flac" => "fLaC",
+        "alac" => "alac",
         _ => "mp4a.40.2",
     };
+
+    /// <summary>About how many bits per second the audio takes, for the master playlist's BANDWIDTH.</summary>
+    public long AudioBitrate => LosslessAudio ? AudioChannels * (HighResolutionAudio ? 600_000L : 400_000L) : AudioChannels > 2 ? 640_000 : 192_000;
 }
 
 public sealed record PlaybackDecision(
@@ -55,6 +63,17 @@ public sealed record PlaybackDecision(
 public static class PlaybackDecider
 {
     private static readonly HashSet<string> HlsAudioCodecs = new(StringComparer.OrdinalIgnoreCase) { "aac", "mp3", "ac3", "eac3" };
+
+    /// <summary>What fragmented MP4 carries as it is: MPEG-TS's codecs and lossless FLAC and ALAC.</summary>
+    private static readonly HashSet<string> Fmp4AudioCodecs = new(StringComparer.OrdinalIgnoreCase) { "aac", "mp3", "ac3", "eac3", "flac", "alac" };
+
+    /// <summary>Below this cap (a remote connection, say), lossless audio is too big and converts to AAC instead.</summary>
+    private const long LosslessMinBitrate = 20_000_000;
+
+    /// <summary>TrueHD, DTS-HD Master Audio, PCM and the lossless codecs: worth keeping lossless.</summary>
+    private static bool IsLossless(MediaStream audio) =>
+        audio.Codec is "truehd" or "mlp" or "flac" or "alac" || audio.Codec.StartsWith("pcm_", StringComparison.Ordinal)
+        || (audio.Codec == "dts" && audio.Profile?.Contains("MA", StringComparison.Ordinal) == true);
 
     public static PlaybackDecision Decide(MediaFile file, DeviceProfile profile, IReadOnlyList<SubtitleTrack> subtitles, PlaybackOptions options)
     {
@@ -153,10 +172,19 @@ public static class PlaybackDecider
             bitrate = Math.Min(bitrate, Math.Max((long)(source * 1.1), 1_500_000));
         }
 
+        // Fragmented MP4 (Apple's players) passes Dolby Digital Plus through with its Atmos, and FLAC up to 7.1.
+        var fmp4 = profile.Fmp4;
+        var channels = audio?.Channels ?? 2;
         var copyAudio = audio is not null
-            && HlsAudioCodecs.Contains(audio.Codec)
+            && (fmp4 ? Fmp4AudioCodecs : HlsAudioCodecs).Contains(audio.Codec)
             && profile.AudioCodecs.Contains(audio.Codec, StringComparer.OrdinalIgnoreCase)
-            && (audio.Channels ?? 2) <= profile.MaxAudioChannels;
+            && channels <= profile.MaxAudioChannels;
+        // What can't go as it is goes lossless (FLAC) when it's lossless or surround to begin with, so a DTS or
+        // TrueHD track loses nothing more on the way; stereo, or a tight bitrate cap, gets AAC as before.
+        var lossless = !copyAudio && audio is not null && fmp4
+            && profile.AudioCodecs.Contains("flac", StringComparer.OrdinalIgnoreCase)
+            && (maxBitrate == 0 || maxBitrate >= LosslessMinBitrate)
+            && (IsLossless(audio) || channels > 2);
 
         var plan = new TranscodePlan(
             video.Index,
@@ -166,9 +194,12 @@ public static class PlaybackDecider
             Math.Max(bitrate, 500_000),
             ToneMap: file.VideoRange != VideoRange.Sdr,
             copyAudio,
-            Math.Clamp(Math.Min(audio?.Channels ?? 2, profile.MaxAudioChannels), 1, 6),
+            Math.Clamp(Math.Min(channels, profile.MaxAudioChannels), 1, lossless || copyAudio ? 8 : 6),
             subtitle is { IsText: false } ? subtitle : null,
-            audio?.Codec);
+            audio?.Codec,
+            fmp4,
+            lossless,
+            HighResolutionAudio: lossless && IsLossless(audio!));
 
         return new PlaybackDecision(PlaybackMethod.Transcode, reasons, audio, subtitle, plan);
     }

@@ -1,4 +1,6 @@
+import FlexarrKit
 import SwiftUI
+import TVServices
 
 @main
 struct FlexarrTVApp: App {
@@ -46,6 +48,12 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
+        // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
+        .task(id: model.credentials) {
+            SharedSignIn.save(model.credentials.map { SharedSignIn.Value(address: $0.address, apiKey: $0.apiKey, profileToken: $0.profileToken) })
+            TVTopShelfContentProvider.topShelfContentDidChange()
+        }
+        .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }
         .overlay {
             if model.player.isStarting {
                 ZStack {

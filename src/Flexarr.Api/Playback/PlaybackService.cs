@@ -475,7 +475,7 @@ public sealed class PlaybackService(
     public static string MasterPlaylist(PlaybackSession session, bool includeSubtitles)
     {
         var plan = session.Transcode!.Plan;
-        var builder = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+        var builder = new StringBuilder(plan.Fmp4 ? "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n" : "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-INDEPENDENT-SEGMENTS\n");
         var text = includeSubtitles ? session.Subtitles.Where(s => s.IsText).ToList() : [];
         var used = new HashSet<string>(StringComparer.Ordinal);
         foreach (var subtitle in text)
@@ -496,7 +496,7 @@ public sealed class PlaybackService(
 
         var video = $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
         var codecs = plan.AudioCodecTag is { } audio ? $"{video},{audio}" : video;
-        var bandwidth = plan.VideoBitrate + (plan.AudioChannels > 2 ? 384_000 : 192_000);
+        var bandwidth = plan.VideoBitrate + plan.AudioBitrate;
         builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={plan.TargetWidth}x{plan.TargetHeight},CODECS=\"{codecs}\"{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
         return builder.ToString();
     }

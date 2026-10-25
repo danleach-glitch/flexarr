@@ -73,6 +73,17 @@ public class FfmpegCommandTests
         Assert.DoesNotContain("EXT-X-START", FfmpegCommand.MediaPlaylist(2600, 2700), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MediaPlaylist_InFragmentedMp4_PointsAtTheInitSegmentAndM4sSegments()
+    {
+        var playlist = FfmpegCommand.MediaPlaylist(20, fmp4: true);
+
+        Assert.StartsWith("#EXTM3U\n#EXT-X-VERSION:7\n", playlist, StringComparison.Ordinal);
+        Assert.Contains("#EXT-X-MAP:URI=\"init.mp4\"\n", playlist, StringComparison.Ordinal);
+        Assert.Contains("#EXTINF:6.000,\n0.m4s", playlist, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ts", playlist, StringComparison.Ordinal);
+    }
+
     private static TranscodeSettings Settings(HardwareAcceleration hw) => new() { CacheDirectory = "/cache", HardwareAcceleration = hw };
 }
 

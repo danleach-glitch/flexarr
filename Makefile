@@ -42,7 +42,7 @@ apple-install: ## Build, sign and install the tvOS app on a paired Apple TV
 	test -n "$$device" || { echo "No paired Apple TV found (Xcode › Window › Devices and Simulators, or ⇧⌘2)"; exit 1; }; \
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination "id=$$device" \
 		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-		DEVELOPMENT_TEAM=$(TEAM) PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic build -quiet && \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-appletvos/FlexarrTV.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
 

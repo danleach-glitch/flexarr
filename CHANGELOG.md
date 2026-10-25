@@ -2,6 +2,17 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.17.0 · 25 October 2026
+
+### Dolby Atmos and lossless sound on Apple TV, iPhone and iPad
+- Films with Dolby Atmos in Dolby Digital Plus now reach Apple TV with their Atmos intact and signalled, ready for an Atmos receiver, soundbar or HomePods.
+- TrueHD, DTS-HD Master Audio and PCM soundtracks, which Apple TV can't play as they are, now arrive as lossless FLAC, up to 7.1, instead of being squeezed into 5.1 AAC. Plain DTS is decoded with nothing more lost on the way.
+- Over a connection with a quality limit (watching away from home, say), the sound is compressed as before.
+- This needs the Flexarr 0.17 app; older apps and the web player stream as they did.
+
+### Top Shelf on Apple TV
+- With Flexarr in the top row of the Apple TV Home screen, the Top Shelf shows what you're watching: big artwork for each title in Continue Watching, ready to play or open.
+
 ## 0.16.0 · 25 October 2026
 
 ### Subtitle timing and size

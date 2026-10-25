@@ -277,9 +277,12 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
     public var maxHeight: Int
     public var maxAudioChannels: Int
     public var maxBitrate: Int
+    /// Converted streams come as fragmented MP4, which carries lossless FLAC and Dolby Atmos (servers before 0.17
+    /// ignore it and send MPEG-TS).
+    public var fmp4: Bool?
 
     public init(client: String, containers: [String], videoCodecs: [String], audioCodecs: [String],
-                hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int) {
+                hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int, fmp4: Bool? = nil) {
         self.client = client
         self.containers = containers
         self.videoCodecs = videoCodecs
@@ -288,19 +291,22 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
         self.maxHeight = maxHeight
         self.maxAudioChannels = maxAudioChannels
         self.maxBitrate = maxBitrate
+        self.fmp4 = fmp4
     }
 
-    /// What AVPlayer on Apple TV can direct play. Anything else is remuxed/transcoded to HLS.
+    /// What AVPlayer on Apple TV can direct play. Anything else is converted to HLS in fragmented MP4: Dolby Digital
+    /// Plus passes through with its Atmos, and TrueHD, DTS and the like come as lossless FLAC, up to 7.1.
     public static func tvOS(hdr: Bool) -> DeviceProfile {
         DeviceProfile(
             client: "tvos",
             containers: ["mp4"],
             videoCodecs: ["h264", "hevc"],
-            audioCodecs: ["aac", "ac3", "eac3", "mp3"],
+            audioCodecs: ["aac", "ac3", "eac3", "mp3", "flac", "alac"],
             hdr: hdr,
             maxHeight: 2160,
-            maxAudioChannels: 6,
-            maxBitrate: 0
+            maxAudioChannels: 8,
+            maxBitrate: 0,
+            fmp4: true
         )
     }
 

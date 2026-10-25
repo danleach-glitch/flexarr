@@ -190,6 +190,25 @@ final class PlaybackController: NSObject {
         return item
     }
 
+    #if DEBUG
+    /// What the player received for sound (codec and channels) and where it's going: for checking passthrough.
+    private static func logAudioFormat(of item: AVPlayerItem) {
+        Task {
+            for track in item.tracks {
+                guard let assetTrack = track.assetTrack, assetTrack.mediaType == .audio,
+                      let formats = try? await assetTrack.load(.formatDescriptions) else { continue }
+                for format in formats {
+                    let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee
+                    let id = asbd.map { String(format: "%c%c%c%c", ($0.mFormatID >> 24) & 255, ($0.mFormatID >> 16) & 255, ($0.mFormatID >> 8) & 255, $0.mFormatID & 255) } ?? "?"
+                    log.info("Audio: \(id, privacy: .public) \(asbd?.mChannelsPerFrame ?? 0) ch")
+                }
+            }
+            let route = AVAudioSession.sharedInstance().currentRoute.outputs.map { "\($0.portType.rawValue) \($0.portName)" }
+            log.info("Audio route: \(route.joined(separator: ", "), privacy: .public)")
+        }
+    }
+    #endif
+
     // MARK: Subtitle timing and size
 
     /// The timings offered in the player: a pick restarts the stream (about two seconds) with the subtitles moved.
@@ -423,6 +442,9 @@ final class PlaybackController: NSObject {
         case .readyToPlay:
             guard let player else { return }
             hasPlayed = true
+            #if DEBUG
+            if let item = player.currentItem { Self.logAudioFormat(of: item) }
+            #endif
             if let item = player.currentItem { applySubtitles(to: item) }
             // A stream that says where to open (EXT-X-START) is there already: no second trip to the server.
             let opened = player.currentTime().seconds

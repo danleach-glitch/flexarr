@@ -76,7 +76,52 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// <summary>Where playback opens (a resume point), written into the playlist.</summary>
     public double StartSeconds { get; set; }
 
-    public string MediaPlaylist() => FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds);
+    public string MediaPlaylist() => FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4);
+
+    private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
+
+    /// <summary>
+    /// The fragmented MP4 initialisation segment (codecs and, for Dolby Digital Plus, its Atmos), which ffmpeg writes as
+    /// it starts. Players fetch it before any segment, so ffmpeg is started at the opening segment if it isn't running,
+    /// and the init segment sent as soon as it's written: players give up on it sooner than on a media segment.
+    /// </summary>
+    public async Task<string?> GetInitAsync(CancellationToken ct)
+    {
+        var path = Path.Combine(Directory, "init.mp4");
+        if (!Plan.Fmp4)
+        {
+            return null;
+        }
+
+        Task<string?>? opening = null;
+        if (!File.Exists(path))
+        {
+            opening = GetSegmentAsync((int)(Math.Max(0, StartSeconds) / FfmpegCommand.SegmentSeconds), ct);
+        }
+
+        // Written in one go once ffmpeg has its codecs; done when its size stops changing.
+        var deadline = DateTime.UtcNow.AddSeconds(45);
+        long last = -1;
+        while (DateTime.UtcNow < deadline && !_disposed)
+        {
+            var size = File.Exists(path) ? new FileInfo(path).Length : 0;
+            if (size > 0 && size == last)
+            {
+                return path;
+            }
+
+            if (opening is { IsCompleted: true } && size == 0)
+            {
+                await opening.ConfigureAwait(false); // ffmpeg failed: let its exception (or null) through
+                return File.Exists(path) ? path : null;
+            }
+
+            last = size;
+            await Task.Delay(100, ct).ConfigureAwait(false);
+        }
+
+        return null;
+    }
 
     /// <summary>Returns the path of segment <paramref name="index"/> once it is complete, transcoding it if needed.</summary>
     /// <exception cref="TranscodeLimitException">ffmpeg had stopped, and starting it again would go over the server's limit.</exception>
@@ -88,7 +133,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
 
         Touch(index);
-        var path = Path.Combine(Directory, $"seg{index}.ts");
+        var path = Path.Combine(Directory, $"seg{index}{SegmentExtension}");
 
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -406,8 +451,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         var highest = -1;
         foreach (var line in lines)
         {
-            if (line.StartsWith("seg", StringComparison.Ordinal) && line.EndsWith(".ts", StringComparison.Ordinal)
-                && int.TryParse(line.AsSpan(3, line.Length - 6), System.Globalization.CultureInfo.InvariantCulture, out var n))
+            if (line.StartsWith("seg", StringComparison.Ordinal) && line.EndsWith(SegmentExtension, StringComparison.Ordinal)
+                && int.TryParse(line.AsSpan(3, line.Length - 3 - SegmentExtension.Length), System.Globalization.CultureInfo.InvariantCulture, out var n))
             {
                 done.Add(n);
                 highest = Math.Max(highest, n);
