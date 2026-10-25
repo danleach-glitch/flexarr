@@ -90,7 +90,10 @@ public sealed class PodcastEpisode
     public string? TranscriptType { get; set; }
 }
 
-/// <summary>A profile following a podcast: its new episodes show up for them, and their phone fetches them.</summary>
+/// <summary>
+/// A profile following a podcast: its new episodes show up for them, and their phone fetches them (as the profile's
+/// podcast settings say, <see cref="Media.Profile.PodcastAutoDownload"/>).
+/// </summary>
 public sealed class PodcastSubscription
 {
     public required string ProfileId { get; set; }
@@ -101,13 +104,4 @@ public sealed class PodcastSubscription
     public PodcastFeed? Feed { get; set; }
 
     public DateTime SubscribedAt { get; set; } = DateTime.UtcNow;
-
-    /// <summary>Phones keep the newest episodes of this show without being asked (on Wi-Fi).</summary>
-    public bool AutoDownload { get; set; } = true;
-
-    /// <summary>How many of the newest unplayed episodes the phone keeps when <see cref="AutoDownload"/> is on.</summary>
-    public int KeepEpisodes { get; set; } = 3;
-
-    /// <summary>The speed this show plays at, when it isn't the profile's usual one.</summary>
-    public double? PlaybackSpeed { get; set; }
 }

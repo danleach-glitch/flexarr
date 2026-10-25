@@ -26,8 +26,8 @@ import type {
   PodcastCountry,
   PodcastEpisode,
   PodcastGenre,
+  PodcastPreferences,
   PodcastStatus,
-  PodcastSubscription,
   SearchResults,
   Settings,
   SettingsUpdate,
@@ -540,8 +540,7 @@ export const getPodcast = (id: string, signal?: AbortSignal) => cachedGet<Podcas
 export const addPodcast = (show: { iTunesId: number } | { feedUrl: string }) => request<Podcast>('POST', '/podcasts', show)
 export const deletePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}`)
 export const refreshPodcast = (id: string) => request<Podcast>('POST', `/podcasts/${id}/refresh`)
-export const subscribePodcast = (id: string, changes: Partial<Pick<PodcastSubscription, 'autoDownload' | 'keepEpisodes'>> & { playbackSpeed?: number } = {}) =>
-  request<Podcast>('PUT', `/podcasts/${id}/subscription`, changes)
+export const subscribePodcast = (id: string) => request<Podcast>('PUT', `/podcasts/${id}/subscription`, {})
 export const unsubscribePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}/subscription`)
 
 export function getPodcastEpisodes(
@@ -559,6 +558,10 @@ export function getPodcastEpisodes(
 }
 
 export const getPodcastEpisode = (id: string, signal?: AbortSignal) => cachedGet<PodcastEpisode>(`/podcasts/episodes/${id}`, signal)
+/** What auto-play goes on to after an episode: the show's next, else the newest unplayed of the shows followed. */
+export const getNextEpisode = (id: string) => apiGet<PodcastEpisode | undefined>(`/podcasts/episodes/${id}/next`)
+export const getPodcastPreferences = (signal?: AbortSignal) => cachedGet<PodcastPreferences>('/podcasts/preferences', signal)
+export const savePodcastPreferences = (changes: Partial<PodcastPreferences>) => request<PodcastPreferences>('PUT', '/podcasts/preferences', changes)
 export const getNewEpisodes = (signal?: AbortSignal, unplayed = false) =>
   cachedGet<PodcastEpisode[]>(`/podcasts/new${unplayed ? '?unplayed=true' : ''}`, signal)
 export const getContinueListening = (signal?: AbortSignal) => cachedGet<PodcastEpisode[]>('/podcasts/continue', signal)

@@ -28,9 +28,9 @@ export interface AudioPlayer {
   /** Jumps back (negative) or forward from where it is: podcasts' 15 back, 30 on. */
   skipBy: (seconds: number) => void
   stop: () => void
-  /** How fast podcast episodes play (music always plays at 1×): the show's own speed, else the one last chosen. */
+  /** How fast podcast episodes play (music always plays at 1×): the profile's podcast speed. */
   speed: number
-  /** Sets the speed: the show's own when it has one, else the speed for every show. */
+  /** Sets the podcast speed, for every show, here and on the profile's other devices. */
   setSpeed: (speed: number) => void
   /** A sleep timer: playback pauses at `until` (a Date.now() time), or when the episode ends. Null when there's none. */
   sleep: SleepTimer | null

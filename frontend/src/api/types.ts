@@ -498,10 +498,15 @@ export interface PodcastStatus {
 
 export interface PodcastSubscription {
   subscribedAt: string
+}
+
+/** A profile's podcast settings, for every show it follows. */
+export interface PodcastPreferences {
+  /** Phones keep the newest episodes of followed shows without being asked (on Wi-Fi). */
   autoDownload: boolean
+  /** How many of each show's newest unplayed episodes they keep. */
   keepEpisodes: number
-  /** The speed this show plays at, when it isn't the usual one. */
-  playbackSpeed: number | null
+  speed: number
 }
 
 export interface Podcast {

@@ -735,6 +735,15 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("PinHash")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("PodcastAutoDownload")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PodcastKeepEpisodes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("PodcastSpeed")
+                        .HasColumnType("REAL");
+
                     b.Property<bool>("SkipCredits")
                         .HasColumnType("INTEGER");
 
@@ -768,6 +777,9 @@ namespace Flexarr.Core.Data.Migrations
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
                             HiddenLibraryIds = "[]",
                             Name = "Main profile",
+                            PodcastAutoDownload = true,
+                            PodcastKeepEpisodes = 3,
+                            PodcastSpeed = 1.0,
                             SkipCredits = false,
                             SkipIntros = false,
                             SkipRecaps = false,
@@ -945,15 +957,6 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<Guid>("FeedId")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("AutoDownload")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("KeepEpisodes")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<double?>("PlaybackSpeed")
-                        .HasColumnType("REAL");
 
                     b.Property<DateTime>("SubscribedAt")
                         .HasColumnType("TEXT");

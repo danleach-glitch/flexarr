@@ -15,7 +15,16 @@ namespace Flexarr.Api.Podcasts;
 /// <param name="NeedsLibrary">There's no Podcasts library at all: the main profile can add one in Settings.</param>
 public sealed record PodcastStatusDto(bool Available, bool NeedsLibrary, string Country);
 
-public sealed record PodcastSubscriptionDto(DateTime SubscribedAt, bool AutoDownload, int KeepEpisodes, double? PlaybackSpeed);
+public sealed record PodcastSubscriptionDto(DateTime SubscribedAt);
+
+/// <summary>A profile's podcast settings, for every show it follows.</summary>
+/// <param name="AutoDownload">Phones keep the newest episodes of followed shows without being asked (on Wi-Fi).</param>
+/// <param name="KeepEpisodes">How many of each show's newest unplayed episodes they keep.</param>
+/// <param name="Speed">The speed podcasts play at.</param>
+public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, double Speed);
+
+/// <summary>Changes podcast settings; fields left out keep what they were.</summary>
+public sealed record PodcastPreferencesRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? Speed = null);
 
 public sealed record PodcastDto(
     Guid Id,
@@ -62,10 +71,6 @@ public sealed record DirectoryPodcastDto(long ITunesId, string Title, string? Au
 
 /// <summary>Adds a podcast: by Apple's id (from search or the charts), or by its feed's address.</summary>
 public sealed record AddPodcastRequest(string? FeedUrl = null, long? ITunesId = null);
-
-/// <summary>Follows a podcast, or changes how; fields left out keep what they were.</summary>
-/// <param name="PlaybackSpeed">0 goes back to the profile's usual speed.</param>
-public sealed record SubscriptionRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? PlaybackSpeed = null);
 
 /// <summary>An episode the phone should have without being asked, from a show it auto-downloads.</summary>
 public sealed record AutoDownloadDto(Guid EpisodeId, Guid PodcastId);
@@ -180,6 +185,30 @@ public static class PodcastEndpoints
                 ? Results.Ok(episode)
                 : Results.NotFound());
 
+        // What auto-play goes on to after an episode: the show's next episode (the one after it, unplayed), else the
+        // newest unplayed episode of the shows this profile follows. 204 when there's nothing left to hear.
+        group.MapGet("/episodes/{id:guid}/next", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var current = await db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.PodcastEpisode)
+                .Select(i => new { i.ParentId, i.SortTitle }).FirstOrDefaultAsync(ct);
+            if (current is null)
+            {
+                return Results.NotFound();
+            }
+
+            var unplayed = db.MediaItems.Where(i => i.Kind == MediaKind.PodcastEpisode && i.Id != id
+                && i.Enclosure!.EpisodeType != PodcastEpisodeType.Trailer
+                && !i.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched));
+#pragma warning disable CA1309 // translated to SQL, which compares the dates (yyyyMMddHHmmss) as they are
+            var after = unplayed.Where(i => i.ParentId == current.ParentId && string.Compare(i.SortTitle, current.SortTitle) > 0).OrderBy(i => i.SortTitle);
+#pragma warning restore CA1309
+            var subscribed = db.PodcastSubscriptions.Where(s => s.ProfileId == profile.Id).Select(s => s.FeedId);
+            var newest = unplayed.Where(i => i.ParentId != null && subscribed.Contains(i.ParentId.Value)).OrderByDescending(i => i.AddedAt);
+            var next = await Episodes(after.Take(1), profile.Id, ListOverview).FirstOrDefaultAsync(ct)
+                ?? await Episodes(newest.Take(1), profile.Id, ListOverview).FirstOrDefaultAsync(ct);
+            return next is null ? Results.NoContent() : Results.Ok(next);
+        });
+
         // The newest episodes of the shows this profile follows.
         group.MapGet("/new", async (int? limit, bool? unplayed, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
@@ -202,36 +231,45 @@ public static class PodcastEndpoints
             return episodes.OrderByDescending(e => e.UserData.LastPlayedAt).ToList();
         });
 
-        group.MapPut("/{id:guid}/subscription", async (Guid id, SubscriptionRequest request, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue,
-            CancellationToken ct) =>
+        // Follows a podcast (a body, if any, is ignored: how followed shows behave is the profile's podcast settings).
+        group.MapPut("/{id:guid}/subscription", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, CancellationToken ct) =>
         {
             if (!await db.MediaItems.AnyAsync(i => i.Id == id && i.Kind == MediaKind.Podcast, ct))
             {
                 return Results.NotFound();
             }
 
-            if (request.KeepEpisodes is < 1 or > 50 || request.PlaybackSpeed is < 0 or > 4)
+            if (!await db.PodcastSubscriptions.AnyAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["subscription"] = ["Keep 1 to 50 episodes, at a speed of up to 4×."] });
-            }
-
-            var subscription = await db.PodcastSubscriptions.FirstOrDefaultAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct);
-            if (subscription is null)
-            {
-                subscription = new PodcastSubscription { ProfileId = profile.Id, FeedId = id };
-                db.PodcastSubscriptions.Add(subscription);
+                db.PodcastSubscriptions.Add(new PodcastSubscription { ProfileId = profile.Id, FeedId = id });
+                await db.SaveChangesAsync(ct);
                 queue.Enqueue(id); // caught up straight away, rather than at its next turn
             }
 
-            subscription.AutoDownload = request.AutoDownload ?? subscription.AutoDownload;
-            subscription.KeepEpisodes = request.KeepEpisodes ?? subscription.KeepEpisodes;
-            if (request.PlaybackSpeed is { } speed)
+            return Results.Ok(await PodcastAsync(db, id, profile.Id, ct));
+        });
+
+        group.MapGet("/preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+            await db.Profiles.Where(p => p.Id == profile.Id).Select(p => new PodcastPreferencesDto(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed))
+                .FirstOrDefaultAsync(ct) is { } preferences ? Results.Ok(preferences) : Results.NotFound());
+
+        group.MapPut("/preferences", async (PodcastPreferencesRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (request.KeepEpisodes is < 1 or > 50 || request.Speed is < 0.5 or > 4)
             {
-                subscription.PlaybackSpeed = speed == 0 ? null : speed;
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["preferences"] = ["Keep 1 to 50 episodes, at a speed from 0.5× to 4×."] });
             }
 
+            if (await db.Profiles.FirstOrDefaultAsync(p => p.Id == profile.Id, ct) is not { } me)
+            {
+                return Results.NotFound();
+            }
+
+            me.PodcastAutoDownload = request.AutoDownload ?? me.PodcastAutoDownload;
+            me.PodcastKeepEpisodes = request.KeepEpisodes ?? me.PodcastKeepEpisodes;
+            me.PodcastSpeed = request.Speed ?? me.PodcastSpeed;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(await PodcastAsync(db, id, profile.Id, ct));
+            return Results.Ok(new PodcastPreferencesDto(me.PodcastAutoDownload, me.PodcastKeepEpisodes, me.PodcastSpeed));
         });
 
         group.MapDelete("/{id:guid}/subscription", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -259,15 +297,22 @@ public static class PodcastEndpoints
         // What a phone should have without being asked: the newest unplayed episodes of each show it auto-downloads.
         group.MapGet("/auto-downloads", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            var subscriptions = await db.PodcastSubscriptions.AsNoTracking().Where(s => s.ProfileId == profile.Id && s.AutoDownload).ToListAsync(ct);
-            var wanted = new List<AutoDownloadDto>();
-            foreach (var subscription in subscriptions)
+            var settings = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
+                .Select(p => new { p.PodcastAutoDownload, p.PodcastKeepEpisodes }).FirstOrDefaultAsync(ct);
+            if (settings is not { PodcastAutoDownload: true })
             {
-                var episodes = await db.MediaItems.Where(i => i.ParentId == subscription.FeedId && i.Kind == MediaKind.PodcastEpisode
+                return [];
+            }
+
+            var feeds = await db.PodcastSubscriptions.AsNoTracking().Where(s => s.ProfileId == profile.Id).Select(s => s.FeedId).ToListAsync(ct);
+            var wanted = new List<AutoDownloadDto>();
+            foreach (var feed in feeds)
+            {
+                var episodes = await db.MediaItems.Where(i => i.ParentId == feed && i.Kind == MediaKind.PodcastEpisode
                         && i.Enclosure!.EpisodeType != PodcastEpisodeType.Trailer
                         && !i.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched))
-                    .OrderByDescending(i => i.SortTitle).Take(subscription.KeepEpisodes).Select(i => i.Id).ToListAsync(ct);
-                wanted.AddRange(episodes.Select(e => new AutoDownloadDto(e, subscription.FeedId)));
+                    .OrderByDescending(i => i.SortTitle).Take(settings.PodcastKeepEpisodes).Select(i => i.Id).ToListAsync(ct);
+                wanted.AddRange(episodes.Select(e => new AutoDownloadDto(e, feed)));
             }
 
             return wanted;
@@ -380,7 +425,7 @@ public static class PodcastEndpoints
                 Item = i,
                 Feed = i.Feed!,
                 Subscription = db.PodcastSubscriptions.Where(s => s.ProfileId == profileId && s.FeedId == i.Id)
-                    .Select(s => new PodcastSubscriptionDto(s.SubscribedAt, s.AutoDownload, s.KeepEpisodes, s.PlaybackSpeed)).FirstOrDefault(),
+                    .Select(s => new PodcastSubscriptionDto(s.SubscribedAt)).FirstOrDefault(),
                 Count = i.Children.Count,
                 Unplayed = i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)),
                 Latest = i.Children.Max(e => (DateTime?)e.AddedAt),

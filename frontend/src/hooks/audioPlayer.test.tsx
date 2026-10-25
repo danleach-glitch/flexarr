@@ -374,10 +374,14 @@ describe('AudioPlayerProvider', () => {
     const first = episode('e1', 'First')
     const second = episode('e2', 'Second')
 
-    /** The server resumes e1 at 300 s; remembers progress reports; the show plays at its own speed when `showSpeed` is set. */
-    function podcastApi(showSpeed: number | null) {
+    /**
+     * The server resumes e1 at 300 s, remembers progress reports and speed changes, keeps the profile's podcast speed
+     * (`speed`, or none for an older server) and after e1 auto-plays e2.
+     */
+    function podcastApi(speed: number | null) {
       const requests: { itemId: string; startPositionSeconds?: number }[] = []
       const progress: { session: string; positionSeconds: number; paused: boolean; ended: boolean }[] = []
+      const saved: unknown[] = []
       mockApi({
         'POST /playback': (init?: RequestInit) => {
           const body = JSON.parse(String(init?.body)) as { itemId: string; startPositionSeconds?: number }
@@ -397,7 +401,12 @@ describe('AudioPlayerProvider', () => {
             subtitleBurnedIn: false,
           }
         },
-        '/podcasts/pod-1': { id: 'pod-1', subscription: { playbackSpeed: showSpeed } },
+        ...(speed ? { 'GET /podcasts/preferences': { autoDownload: true, keepEpisodes: 3, speed } } : {}),
+        'PUT /podcasts/preferences': (init?: RequestInit) => {
+          saved.push(JSON.parse(String(init?.body)))
+          return { autoDownload: true, keepEpisodes: 3, speed: 2 }
+        },
+        '/podcasts/episodes/e1/next': second,
         ...Object.fromEntries(
           ['e1', 'e2'].flatMap((id) => [
             [`DELETE /playback/session-${id}`, () => undefined],
@@ -405,7 +414,7 @@ describe('AudioPlayerProvider', () => {
           ]),
         ),
       })
-      return { requests, progress }
+      return { requests, progress, saved }
     }
 
     it('resume where the server says, without levels, at the speed last chosen', async () => {
@@ -434,25 +443,32 @@ describe('AudioPlayerProvider', () => {
       act(() => a.pause())
       await waitFor(() => expect(fetchCalls.progress).toContainEqual({ session: 'session-e1', positionSeconds: 315, paused: true, ended: false }))
 
+      // A new speed is every show's, kept on the server for the profile's other devices.
       act(() => result.current.setSpeed(2))
       expect(a.playbackRate).toBe(2)
-      expect(localStorage.getItem('flexarr.podcastSpeed')).toBe('2')
+      await waitFor(() => expect(fetchCalls.saved).toEqual([{ speed: 2 }]))
     })
 
-    it('play at the show’s own speed, and a sleep timer set to the end of the episode stops there', async () => {
+    it('play at the profile’s speed, go on to the next episode by themselves, and a sleep timer can stop at the end', async () => {
       const { requests, progress } = podcastApi(1.25)
       const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
-      act(() => result.current.play([first, second] as unknown as ItemSummary[], 0))
-      const [a] = elements()
+      act(() => result.current.play([first] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
       await waitFor(() => expect(a.playbackRate).toBe(1.25))
 
-      act(() => result.current.setSleep({ endOfEpisode: true }))
+      // Nothing queued after it: auto-play asks the server what's next.
       ends(a)
-      await waitFor(() => expect(progress).toContainEqual(expect.objectContaining({ session: 'session-e1', ended: true })))
-      expect(result.current.current?.id).toBe('e1')
+      await waitFor(() => expect(result.current.current?.id).toBe('e2'))
+      await waitFor(() => expect(requests.map((r) => r.itemId)).toEqual(['e1', 'e2']))
+      const playing = [a, b].find((el) => el.src.endsWith('/stream/e2'))!
+
+      act(() => result.current.setSleep({ endOfEpisode: true }))
+      ends(playing)
+      await waitFor(() => expect(progress).toContainEqual(expect.objectContaining({ session: 'session-e2', ended: true })))
+      expect(result.current.current?.id).toBe('e2')
       expect(result.current.playing).toBe(false)
       expect(result.current.sleep).toBeNull()
-      expect(requests.map((r) => r.itemId)).toEqual(['e1'])
+      expect(requests.map((r) => r.itemId)).toEqual(['e1', 'e2'])
     })
   })
 })

@@ -7,11 +7,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Podcasts
 - A new kind of library, Podcasts (Settings › Libraries). Its folder only holds episodes on their way to phones; the shows come from their feeds.
 - Browse finds shows in Apple's podcast directory: top charts by category, and search. Paste a feed's address to add a show Apple doesn't list. Settings › Libraries chooses whose charts (the server's country unless you pick another).
-- Follow a show and its new episodes appear under Podcasts, with Continue listening for episodes you're part way through. Each profile follows its own shows. Flexarr checks feeds by itself, more often for shows that publish often.
-- Episodes play in the music bar, from where you left off on any device, with 15 seconds back and 30 on, a speed from 0.8× to 3× (remembered, or set for one show), and a sleep timer.
+- Follow a show and it joins the row of shows you follow under Podcasts, above Continue listening and the newest episodes you haven't heard. A show's page lists unplayed episodes first, and Mark all as played clears a back catalogue in one go. Each profile follows its own shows. Flexarr checks feeds by itself, more often for shows that publish often.
+- Episodes play in the music bar, from where you left off on any device, with 15 seconds back and 30 on, a speed from 0.8× to 3×, and a sleep timer. When one ends, the show's next episode plays, or else the newest you haven't heard.
+- Podcast settings (Podcasts › Settings) are each profile's own and cover every show: whether phones download new episodes, how many to keep, and the speed.
 - Bring the shows you follow from another podcast app: export them as OPML (Pocket Casts, Overcast and most others can) and use Import from another app. Export gives them back.
 - Episodes play through the server, so they work over Tailscale as they do at home, and podcast hosts don't see each listener.
-- iPhone and iPad: Podcasts under Libraries, with the same Browse, following and player (back 15 and on 30 on the lock screen too, speeds, a sleep timer). Download any episode to listen with no connection. The newest episodes of the shows you follow download by themselves on Wi-Fi only (turn this off in Settings › Downloads, or per show); played ones are cleared away, and what you hear offline counts once you're back online.
+- iPhone and iPad: Podcasts under Libraries, laid out as on the web, with Settings › Podcasts for the same podcast settings. When an episode ends the next plays; with no connection, the show's next downloaded episode. Podcasts under Libraries, with the same Browse, following and player (back 15 and on 30 on the lock screen too, speeds, a sleep timer). Download any episode to listen with no connection. The newest episodes of the shows you follow download by themselves on Wi-Fi only (turn this off in the podcast settings); played ones are cleared away, and what you hear offline counts once you're back online.
 
 ## 0.23.0 · 25 October 2026
 

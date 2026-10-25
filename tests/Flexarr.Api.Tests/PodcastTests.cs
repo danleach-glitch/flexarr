@@ -187,9 +187,7 @@ public sealed class PodcastTests : IDisposable
         Assert.Empty((await GetAsync(client, "podcasts")).EnumerateArray());
 
         var subscribed = await (await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { })).Content.ReadFromJsonAsync<JsonElement>();
-        var subscription = subscribed.GetProperty("subscription");
-        Assert.True(subscription.GetProperty("autoDownload").GetBoolean()); // on unless turned off
-        Assert.Equal(3, subscription.GetProperty("keepEpisodes").GetInt32());
+        Assert.NotEqual(JsonValueKind.Null, subscribed.GetProperty("subscription").ValueKind);
         Assert.Equal(id, Assert.Single((await GetAsync(client, "podcasts")).EnumerateArray()).GetProperty("id").GetString());
 
         var episodes = await GetAsync(client, $"podcasts/{id}/episodes");
@@ -283,12 +281,43 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task AutoPlay_GoesOnToTheShowsNextEpisode_ThenTheNewestFromFollowedShows()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { });
+        var episodes = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray()
+            .ToDictionary(e => e.GetProperty("title").GetString()!, e => e.GetProperty("id").GetString()!);
+
+        // After episode 1 comes episode 2 (the next one out), skipping one already heard.
+        await client.PostAsJsonAsync(Api($"items/{episodes["Episode 2"]}/watched"), new { watched = true });
+        Assert.Equal("Episode 3", (await GetAsync(client, $"podcasts/episodes/{episodes["Episode 1"]}/next")).GetProperty("title").GetString());
+
+        // After the newest, the newest unplayed of the shows followed.
+        Assert.Equal("Episode 1", (await GetAsync(client, $"podcasts/episodes/{episodes["Episode 3"]}/next")).GetProperty("title").GetString());
+
+        // Nothing left: 204.
+        await client.PostAsJsonAsync(Api($"items/{id}/watched"), new { watched = true });
+        Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync(Api($"podcasts/episodes/{episodes["Episode 3"]}/next"))).StatusCode);
+    }
+
+    [Fact]
     public async Task AutoDownloads_AreTheNewestUnplayedEpisodes_OfShowsThatWantThem()
     {
         await AddLibraryAsync();
         var client = Client();
         var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
-        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { keepEpisodes = 2 });
+        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { });
+
+        // On, keeping 3, at the usual speed, unless the profile says otherwise.
+        var preferences = await GetAsync(client, "podcasts/preferences");
+        Assert.True(preferences.GetProperty("autoDownload").GetBoolean());
+        Assert.Equal(3, preferences.GetProperty("keepEpisodes").GetInt32());
+        Assert.Equal(1, preferences.GetProperty("speed").GetDouble());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api("podcasts/preferences"), new { keepEpisodes = 0 })).StatusCode);
+        var changed = await (await client.PutAsJsonAsync(Api("podcasts/preferences"), new { keepEpisodes = 2, speed = 1.5 })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal((true, 2, 1.5), (changed.GetProperty("autoDownload").GetBoolean(), changed.GetProperty("keepEpisodes").GetInt32(), changed.GetProperty("speed").GetDouble()));
         var episodes = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray().ToList();
 
         var wanted = await GetAsync(client, "podcasts/auto-downloads");
@@ -297,11 +326,11 @@ public sealed class PodcastTests : IDisposable
 
         // Played: the next one down takes its place. Never the trailer.
         await client.PostAsJsonAsync(Api($"items/{episodes[0].GetProperty("id").GetString()}/watched"), new { watched = true });
-        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { keepEpisodes = 10 });
+        await client.PutAsJsonAsync(Api("podcasts/preferences"), new { keepEpisodes = 10 });
         wanted = await GetAsync(client, "podcasts/auto-downloads");
         Assert.Equal(["Episode 2", "Episode 1"], wanted.EnumerateArray().Select(w => episodes.First(e => e.GetProperty("id").GetString() == w.GetProperty("episodeId").GetString()).GetProperty("title").GetString()));
 
-        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { autoDownload = false });
+        await client.PutAsJsonAsync(Api("podcasts/preferences"), new { autoDownload = false });
         Assert.Empty((await GetAsync(client, "podcasts/auto-downloads")).EnumerateArray());
     }
 

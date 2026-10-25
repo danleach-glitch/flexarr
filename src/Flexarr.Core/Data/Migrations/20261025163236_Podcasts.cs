@@ -11,6 +11,28 @@ namespace Flexarr.Core.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Profiles that existed before podcasts get the same settings as new ones.
+            migrationBuilder.AddColumn<bool>(
+                name: "PodcastAutoDownload",
+                table: "Profiles",
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: true);
+
+            migrationBuilder.AddColumn<int>(
+                name: "PodcastKeepEpisodes",
+                table: "Profiles",
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: 3);
+
+            migrationBuilder.AddColumn<double>(
+                name: "PodcastSpeed",
+                table: "Profiles",
+                type: "REAL",
+                nullable: false,
+                defaultValue: 1.0);
+
             migrationBuilder.CreateTable(
                 name: "PodcastFeeds",
                 columns: table => new
@@ -83,10 +105,7 @@ namespace Flexarr.Core.Data.Migrations
                 {
                     ProfileId = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     FeedId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SubscribedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    AutoDownload = table.Column<bool>(type: "INTEGER", nullable: false),
-                    KeepEpisodes = table.Column<int>(type: "INTEGER", nullable: false),
-                    PlaybackSpeed = table.Column<double>(type: "REAL", nullable: true)
+                    SubscribedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -104,6 +123,13 @@ namespace Flexarr.Core.Data.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.UpdateData(
+                table: "Profiles",
+                keyColumn: "Id",
+                keyValue: "owner",
+                columns: new[] { "PodcastAutoDownload", "PodcastKeepEpisodes", "PodcastSpeed" },
+                values: new object[] { true, 3, 1.0 });
 
             migrationBuilder.CreateIndex(
                 name: "IX_PodcastEpisodes_FeedId_EpisodeGuid",
@@ -149,6 +175,18 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "PodcastFeeds");
+
+            migrationBuilder.DropColumn(
+                name: "PodcastAutoDownload",
+                table: "Profiles");
+
+            migrationBuilder.DropColumn(
+                name: "PodcastKeepEpisodes",
+                table: "Profiles");
+
+            migrationBuilder.DropColumn(
+                name: "PodcastSpeed",
+                table: "Profiles");
         }
     }
 }

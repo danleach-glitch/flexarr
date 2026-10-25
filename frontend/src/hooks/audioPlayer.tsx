@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { getItem, getPodcast, imageUrl, subscribePodcast, type ItemSummary } from '../api/client'
+import { getItem, getNextEpisode, getPodcastPreferences, imageUrl, savePodcastPreferences, type ItemSummary } from '../api/client'
+import { episodeAsTrack } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
@@ -44,13 +45,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const { tracks: queue, index } = state
   const current = queue[index]
 
-  // Podcasts' speed: each show's own (from its subscription), else the one last chosen here.
+  // Podcasts' speed, one for every show: the profile's (kept on the server, so the phone plays at it too), with the
+  // last one seen here to start with.
   const [usualSpeed, setUsualSpeed] = useState(storedSpeed)
-  const [showSpeeds, setShowSpeeds] = useState<Record<string, number | null>>({})
-  const speedFor = useCallback(
-    (track: ItemSummary | undefined) => (isPodcast(track) ? ((track!.parentId && showSpeeds[track!.parentId]) || usualSpeed) : 1),
-    [showSpeeds, usualSpeed],
-  )
+  const speedFor = useCallback((track: ItemSummary | undefined) => (isPodcast(track) ? usualSpeed : 1), [usualSpeed])
   const speedForRef = useRef(speedFor)
   const [sleep, setSleep] = useState<SleepTimer | null>(null)
   const sleepRef = useRef(sleep)
@@ -96,7 +94,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         playing: setPlaying,
         duration: setDuration,
         advanced: () => dispatch({ type: 'advance' }),
-        ended: () => dispatch({ type: 'next' }),
+        ended: () => {
+          const { tracks, index, epoch } = stateRef.current
+          const finished = tracks[index]
+          if (!isPodcast(finished) || index + 1 < tracks.length) {
+            dispatch({ type: 'next' })
+            return
+          }
+          // Auto-play: the show's next episode, else the newest unplayed of the shows followed. Unless something else
+          // was started meanwhile.
+          void getNextEpisode(finished!.id).then(
+            (episode) => {
+              if (episode && stateRef.current.epoch === epoch) dispatch({ type: 'play', tracks: [episodeAsTrack(episode)] })
+            },
+            () => undefined,
+          )
+        },
         rate: (track) => speedForRef.current(track),
         stopAtEnd: () => sleepRef.current !== null && 'endOfEpisode' in sleepRef.current,
         stoppedAtEnd: () => setSleep(null),
@@ -131,17 +144,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     engine().rateChanged()
   }, [speedFor, engine])
 
-  // A show's own speed, the first time one of its episodes plays.
-  const podcastId = isPodcast(current) ? current?.parentId : null
+  // The profile's podcast speed, once a podcast plays.
+  const podcastPlaying = isPodcast(current)
   useEffect(() => {
-    if (!podcastId || podcastId in showSpeeds) return
+    if (!podcastPlaying) return
     const controller = new AbortController()
-    getPodcast(podcastId, controller.signal).then(
-      (p) => setShowSpeeds((speeds) => ({ ...speeds, [podcastId]: p.subscription?.playbackSpeed ?? null })),
-      () => undefined,
-    )
+    getPodcastPreferences(controller.signal).then((p) => setUsualSpeed(p.speed), () => undefined)
     return () => controller.abort()
-  }, [podcastId, showSpeeds])
+  }, [podcastPlaying])
 
   // The sleep timer, checked every few seconds while it's set.
   useEffect(() => {
@@ -230,25 +240,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'stop' })
     setSleep(null)
   }, [engine])
-  const speed = speedFor(current) || usualSpeed
-  const setSpeed = useCallback(
-    (next: number) => {
-      const show = isPodcast(current) ? current?.parentId : null
-      if (show && showSpeeds[show]) {
-        // This show plays at a speed of its own: that's what changes.
-        setShowSpeeds((speeds) => ({ ...speeds, [show]: next }))
-        void subscribePodcast(show, { playbackSpeed: next }).catch(() => undefined)
-        return
-      }
-      setUsualSpeed(next)
-      try {
-        localStorage.setItem(speedKey, String(next))
-      } catch {
-        // Not remembered, which is fine.
-      }
-    },
-    [current, showSpeeds],
-  )
+  const speed = usualSpeed
+  const setSpeed = useCallback((next: number) => {
+    setUsualSpeed(next)
+    void savePodcastPreferences({ speed: next }).catch(() => undefined)
+    try {
+      localStorage.setItem(speedKey, String(next))
+    } catch {
+      // Not remembered here, which is fine: the server has it.
+    }
+  }, [])
   const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.

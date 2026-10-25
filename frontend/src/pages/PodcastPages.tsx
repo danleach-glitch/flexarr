@@ -3,20 +3,20 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   addPodcast,
   ApiError,
-  deletePodcast,
   getContinueListening,
   getNewEpisodes,
   getPodcast,
   getPodcastEpisode,
   getPodcastEpisodes,
   getPodcastGenres,
+  getPodcastPreferences,
   getPodcasts,
   getPodcastStatus,
   getTopPodcasts,
   imageUrl,
   importOpml,
   opmlUrl,
-  refreshPodcast,
+  savePodcastPreferences,
   searchPodcasts,
   setWatched,
   subscribePodcast,
@@ -110,8 +110,9 @@ function PodcastsHome() {
   const changed = useCallback(() => setVersion((v) => v + 1), [])
   const podcasts = useApi((signal) => getPodcasts(signal), [version])
   const listening = useApi((signal) => getContinueListening(signal), [version])
-  const fresh = useApi((signal) => getNewEpisodes(signal), [version])
+  const fresh = useApi((signal) => getNewEpisodes(signal, true), [version])
   const [importing, setImporting] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const file = useRef<HTMLInputElement>(null)
 
   async function importFile(chosen: File) {
@@ -144,6 +145,9 @@ function PodcastsHome() {
               if (chosen) void importFile(chosen)
             }}
           />
+          <button className="button quiet small" onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen} aria-controls="podcast-settings">
+            Settings
+          </button>
           <button className="button quiet small" onClick={() => file.current?.click()}>
             Import from another app
           </button>
@@ -160,6 +164,7 @@ function PodcastsHome() {
         </p>
       )}
       {podcasts.error && <p className="error">{podcasts.error.message}</p>}
+      {settingsOpen && <PodcastSettings />}
 
       {empty && (
         <section className="podcast-empty panel">
@@ -174,6 +179,14 @@ function PodcastsHome() {
         </section>
       )}
 
+      {(podcasts.data?.length ?? 0) > 0 && (
+        <Row title="Following" style="poster">
+          {podcasts.data!.map((podcast) => (
+            <PodcastCard key={podcast.id} podcast={podcast} />
+          ))}
+        </Row>
+      )}
+
       {(listening.data?.length ?? 0) > 0 && (
         <Row title="Continue listening" style="poster">
           {listening.data!.map((episode) => (
@@ -186,17 +199,6 @@ function PodcastsHome() {
         <section className="podcast-section">
           <h2>New episodes</h2>
           <EpisodeList episodes={fresh.data!.slice(0, 20)} showPodcast onChanged={changed} />
-        </section>
-      )}
-
-      {(podcasts.data?.length ?? 0) > 0 && (
-        <section className="podcast-section">
-          <h2>Following</h2>
-          <div className="poster-grid square">
-            {podcasts.data!.map((podcast) => (
-              <PodcastCard key={podcast.id} podcast={podcast} />
-            ))}
-          </div>
         </section>
       )}
     </div>
@@ -522,19 +524,15 @@ export function PodcastPage() {
 function PodcastShow() {
   const { id = '' } = useParams()
   useMusicPage()
-  const navigate = useNavigate()
-  const { me } = useSession()
   const [version, setVersion] = useState(0)
   const changed = useCallback(() => setVersion((v) => v + 1), [])
   const show = useApi((signal) => getPodcast(id, signal), [id, version])
-  const [filter, setFilter] = useState<'all' | 'unplayed'>('all')
+  const [filter, setFilter] = useState<'all' | 'unplayed'>('unplayed')
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [pages, setPages] = useState(1)
   const [episodes, setEpisodes] = useState<{ total: number; items: PodcastEpisode[] }>()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [menu, setMenu] = useState<MenuPoint | null>(null)
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const player = useAudioPlayer()
@@ -567,7 +565,6 @@ function PodcastShow() {
     setBusy(true)
     try {
       await (subscription ? unsubscribePodcast(podcast.id) : subscribePodcast(podcast.id))
-      if (subscription) setSettingsOpen(false)
       changed()
     } finally {
       setBusy(false)
@@ -578,39 +575,11 @@ function PodcastShow() {
   const items = episodes?.items ?? []
   const next = items.find((e) => episodeProgress(e) !== null) ?? items.find((e) => !e.userData.watched)
 
-  const actions: MenuAction[] = [
-    {
-      label: 'Check for new episodes',
-      run: async () => {
-        await refreshPodcast(podcast.id)
-        changed()
-      },
-    },
-    {
-      label: 'Mark every episode played',
-      run: async () => {
-        if (!confirm(`Mark all ${podcast.episodeCount} episodes of ${podcast.title} as played?`)) return
-        await setWatched(podcast.id, true)
-        changed()
-      },
-    },
-    { label: 'Copy the feed address', run: () => navigator.clipboard?.writeText(podcast.feedUrl) },
-    ...(podcast.link ? [{ label: 'Open the website', run: () => void window.open(podcast.link!, '_blank', 'noopener,noreferrer') }] : []),
-    ...(me?.isAdmin
-      ? [
-          'divider' as const,
-          {
-            label: 'Remove from Flexarr…',
-            danger: true,
-            run: async () => {
-              if (!confirm(`Remove ${podcast.title} from Flexarr? Everyone who follows it stops, and what they've played is forgotten.`)) return
-              await deletePodcast(podcast.id)
-              navigate('/podcasts')
-            },
-          },
-        ]
-      : []),
-  ]
+  async function markAllPlayed() {
+    if (!confirm(`Mark all ${podcast.episodeCount.toLocaleString()} episodes of ${podcast.title} as played?`)) return
+    await setWatched(podcast.id, true)
+    changed()
+  }
 
   return (
     <article className="music-page podcast-page" style={podcast.accentColor ? ({ '--ambient': podcast.accentColor } as CSSProperties) : undefined}>
@@ -644,23 +613,6 @@ function PodcastShow() {
                 'Follow'
               )}
             </button>
-            {subscription && (
-              <button className="button quiet" onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen} aria-controls="podcast-settings">
-                Settings
-              </button>
-            )}
-            <button
-              className="button quiet more-button"
-              aria-label={`More for ${podcast.title}`}
-              aria-haspopup="menu"
-              aria-expanded={menu !== null}
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect()
-                setMenu(menu ? null : { x: r.left, y: r.bottom + 6 })
-              }}
-            >
-              <More />
-            </button>
           </div>
           {podcast.overview && (
             <>
@@ -674,23 +626,21 @@ function PodcastShow() {
           )}
         </div>
       </header>
-      {menu && <Menu label={`More for ${podcast.title}`} at={menu} actions={actions} onClose={() => setMenu(null)} />}
 
       {podcast.error && (
         <p className="podcast-notice" role="status">
           The feed couldn't be checked last time: {podcast.error}
         </p>
       )}
-      {subscription && settingsOpen && <SubscriptionSettings podcast={podcast} onChanged={changed} />}
 
       <section className="podcast-episodes">
         <div className="podcast-episodes-tools">
           <nav className="view-switch" aria-label="Which episodes">
-            <button aria-current={filter === 'all' ? 'page' : undefined} onClick={() => setFilter('all')}>
-              All
-            </button>
             <button aria-current={filter === 'unplayed' ? 'page' : undefined} onClick={() => setFilter('unplayed')}>
               Unplayed{podcast.unplayedCount > 0 ? ` (${podcast.unplayedCount.toLocaleString()})` : ''}
+            </button>
+            <button aria-current={filter === 'all' ? 'page' : undefined} onClick={() => setFilter('all')}>
+              All
             </button>
           </nav>
           <input type="search" placeholder="Search episodes" aria-label="Search episodes" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -698,9 +648,14 @@ function PodcastShow() {
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
           </select>
+          {podcast.unplayedCount > 0 && (
+            <button className="button quiet small" onClick={markAllPlayed}>
+              <Check /> Mark all as played
+            </button>
+          )}
         </div>
         {episodes && episodes.items.length === 0 && (
-          <p className="muted">{q ? `No episodes match “${q}”.` : filter === 'unplayed' ? "You've heard every episode." : 'No episodes yet.'}</p>
+          <p className="muted">{q ? `No episodes match “${q}”.` : filter === 'unplayed' ? 'There are no unplayed episodes.' : 'No episodes yet.'}</p>
         )}
         <EpisodeList episodes={items} onChanged={changed} />
         {episodes && episodes.items.length < episodes.total && (
@@ -713,44 +668,47 @@ function PodcastShow() {
   )
 }
 
-/** How a followed show behaves: whether phones keep its new episodes, how many, and its own speed. */
-function SubscriptionSettings({ podcast, onChanged }: { podcast: Podcast; onChanged: () => void }) {
-  const subscription = podcast.subscription!
-  const save = async (changes: Parameters<typeof subscribePodcast>[1]) => {
-    await subscribePodcast(podcast.id, changes)
-    onChanged()
+/** How every followed show behaves for this profile: whether phones keep new episodes, how many, and the speed. */
+function PodcastSettings() {
+  const [version, setVersion] = useState(0)
+  const preferences = useApi((signal) => getPodcastPreferences(signal), [version])
+  const player = useAudioPlayer()
+  const p = preferences.data
+  const save = async (changes: Parameters<typeof savePodcastPreferences>[0]) => {
+    if (changes.speed !== undefined) player.setSpeed(changes.speed)
+    else await savePodcastPreferences(changes)
+    setVersion((v) => v + 1)
   }
+  if (!p) return null
   return (
-    <section id="podcast-settings" className="podcast-settings panel" aria-label={`Settings for ${podcast.title}`}>
+    <section id="podcast-settings" className="podcast-settings panel" aria-label="Podcast settings">
       <label className="podcast-setting">
-        <input type="checkbox" checked={subscription.autoDownload} onChange={(e) => void save({ autoDownload: e.target.checked })} />
+        <input type="checkbox" checked={p.autoDownload} onChange={(e) => void save({ autoDownload: e.target.checked })} />
         <span className="podcast-setting-text">
           Download new episodes to iPhone and iPad
-          <span className="muted">On Wi-Fi, by themselves. Episodes can always be downloaded by hand.</span>
+          <span className="muted">On Wi-Fi, by themselves, for every show you follow. Episodes can always be downloaded by hand.</span>
         </span>
       </label>
       <label className="podcast-setting">
         <span>Keep</span>
-        <select value={subscription.keepEpisodes} disabled={!subscription.autoDownload} onChange={(e) => void save({ keepEpisodes: Number(e.target.value) })}>
+        <select value={p.keepEpisodes} disabled={!p.autoDownload} onChange={(e) => void save({ keepEpisodes: Number(e.target.value) })}>
           {[1, 2, 3, 5, 10].map((n) => (
             <option key={n} value={n}>
               {n === 1 ? 'the newest episode' : `the newest ${n} episodes`}
             </option>
           ))}
         </select>
-        <span className="muted">that you haven't played</span>
+        <span className="muted">of each show that you haven't played</span>
       </label>
       <label className="podcast-setting">
         <span>Speed</span>
-        <select value={subscription.playbackSpeed ?? 0} onChange={(e) => void save({ playbackSpeed: Number(e.target.value) })}>
-          <option value={0}>As usual</option>
+        <select value={p.speed} onChange={(e) => void save({ speed: Number(e.target.value) })}>
           {podcastSpeeds.map((speed) => (
             <option key={speed} value={speed}>
               {speedLabel(speed)}
             </option>
           ))}
         </select>
-        <span className="muted">for this show</span>
       </label>
     </section>
   )
