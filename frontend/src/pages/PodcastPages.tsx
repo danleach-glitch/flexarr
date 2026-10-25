@@ -28,6 +28,7 @@ import {
 import { Artwork } from '../components/Artwork'
 import { Check, More, Pause, Play } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
+import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
 import { podcastSpeeds, useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
@@ -222,33 +223,6 @@ function PodcastCard({ podcast }: { podcast: Podcast }) {
         <Link to={`/podcasts/${podcast.id}`}>{podcast.title}</Link>
       </span>
       <span className="card-subtitle">{podcast.author ?? ''}</span>
-    </article>
-  )
-}
-
-/** An episode you're part way through: its artwork with how far you got, and Resume. */
-function EpisodeCard({ episode }: { episode: PodcastEpisode }) {
-  const player = useAudioPlayer()
-  const progress = episodeProgress(episode)
-  return (
-    <article className="card card-shell poster-card podcast-card">
-      <div className="card-frame">
-        <Artwork src={episode.artwork.thumb ?? episode.artwork.poster} title={episode.podcastTitle} width={342} accent={episode.accentColor} shape="square" />
-        <button type="button" className="card-play" aria-label={`Resume ${episode.title}`} onClick={() => player.play([episodeAsTrack(episode)])}>
-          <Play />
-        </button>
-        {progress !== null && (
-          <span className="progress" aria-hidden="true">
-            <span style={{ width: `${progress * 100}%` }} />
-          </span>
-        )}
-      </div>
-      <span className="card-title">
-        <Link to={`/podcasts/episode/${episode.id}`}>{episode.title}</Link>
-      </span>
-      <span className="card-subtitle">
-        <Link to={`/podcasts/${episode.podcastId}`}>{episode.podcastTitle}</Link> · {episodeLength(episode)}
-      </span>
     </article>
   )
 }
