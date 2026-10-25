@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.18.1 · 25 October 2026
+
+### Fixed: the next-episode countdown during an episode's opening titles
+- An episode whose chapters name its opening titles "Credits" (Peacemaker, Luther) was taken to be ending there, so with Skip credits on, the countdown to the next episode started during the intro. Opening credits early in an episode are now an intro to skip; only credits near the end move on to the next episode. Affected episodes are re-analysed.
+
 ## 0.18.0 · 25 October 2026
 
 ### Apple TV, iPhone and iPad play the original video

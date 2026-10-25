@@ -112,6 +112,10 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
             return markers;
         }
 
+        // How long the file is, as far as its chapters go: a "Credits" chapter early in it is the opening credits.
+        var total = chapters.EnumerateArray()
+            .Select(c => double.TryParse(c.GetProperty("end_time").GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var e) ? e : 0)
+            .DefaultIfEmpty(0).Max();
         foreach (var chapter in chapters.EnumerateArray())
         {
             var title = chapter.TryGetProperty("tags", out var tags) && tags.TryGetProperty("title", out var t) ? t.GetString() : null;
@@ -127,6 +131,12 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
                 && double.TryParse(chapter.GetProperty("end_time").GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var end)
                 && end > start)
             {
+                // Opening credits (Peacemaker's dance, Luther's titles) are an intro to skip, not the end to move on from.
+                if (kind == MarkerType.Credits && total > 0 && start < total * 0.6)
+                {
+                    kind = MarkerType.Intro;
+                }
+
                 markers.Add(new DetectedMarker(kind, start, end, "chapters"));
             }
         }
