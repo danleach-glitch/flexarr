@@ -2,6 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.15.2 · 25 October 2026
+
+### Changed on iPhone and iPad
+- **Download** starts straight away, with no question about size. Choose the size once in Settings › Downloads: **Automatic (720p)**, **Original** or **Small (480p)**. A title whose original won't play on the phone comes at 1080p instead.
+- While a download's on its way, its button shows how far it's got; tap it to stop or remove the download.
+- On a title's page, **Play** or **Resume** has a line to itself, so it no longer squeezes onto two lines. Start over, Download, Watched and Show sit underneath, each with its name.
+
 ## 0.15.1 · 25 October 2026
 
 ### Fixed: resuming on Apple TV took ages

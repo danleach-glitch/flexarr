@@ -43,6 +43,12 @@ struct SettingsView: View {
             }
 
             Section {
+                Picker("Size", selection: Binding(get: { downloads.quality }, set: { downloads.quality = $0 })) {
+                    Text("Automatic (720p)").tag(DownloadQuality.medium)
+                    Text("Original").tag(DownloadQuality.original)
+                    Text("Small (480p)").tag(DownloadQuality.small)
+                }
+                .listRowBackground(Color.seat)
                 Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
                     .tint(.silver)
                     .listRowBackground(Color.seat)
@@ -56,7 +62,7 @@ struct SettingsView: View {
             } header: {
                 Text("Downloads")
             } footer: {
-                Text("Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them.")
+                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them.")
             }
 
             Section("Server") {

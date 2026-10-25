@@ -113,6 +113,37 @@ struct RoundActionStyle: ButtonStyle {
     }
 }
 
+/// A round action with its name underneath (the row under Play on a title's page).
+struct LabeledActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(Stacked())
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    private struct Stacked: LabelStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            VStack(spacing: 6) {
+                configuration.icon
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .frame(width: 48, height: 48)
+                    .background(Circle().fill(Color.screen.opacity(0.14)))
+                configuration.title
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.usher)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+    }
+}
+
 /// Small selectable pill for seasons and sorting.
 struct PillButtonStyle: ButtonStyle {
     var selected: Bool

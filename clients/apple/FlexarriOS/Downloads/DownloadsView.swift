@@ -123,38 +123,31 @@ private struct DownloadRow: View {
     }
 }
 
-/// The download button on a title's page: choose a size, then follow it; once it's here, it's marked so.
+/// The download button on a title's page: downloads at once, at the size chosen in Settings. Once it's on its way
+/// or here, tapping offers to remove it.
 struct DownloadButton: View {
-    @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var store
     let item: ItemSummary
-    @State private var options: [DownloadOption]?
-    @State private var choosing = false
+    @State private var removing = false
     @State private var error: String?
 
     var body: some View {
         let download = store.entry(for: item.id)
         Button {
-            if download == nil || isFailed(download) { choosing = true }
+            if download == nil || isFailed(download) {
+                Task { await start() }
+            } else {
+                removing = true
+            }
         } label: {
             Label(label(download), systemImage: icon(download))
         }
-        .buttonStyle(RoundActionStyle())
-        .confirmationDialog("Download \(item.kind == .episode ? "this episode" : item.title)", isPresented: $choosing, titleVisibility: .visible) {
-            if let options {
-                ForEach(options.filter(\.available)) { option in
-                    Button("\(option.quality.label), about \(ByteCountFormatter.string(fromByteCount: option.estimatedBytes, countStyle: .file))") {
-                        Task { await start(option.quality) }
-                    }
-                }
+        .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?",
+                            isPresented: $removing, titleVisibility: .visible) {
+            Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
+                if let download { store.delete(download.id) }
             }
             Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(options == nil ? "Checking the sizes…" : "Smaller sizes take less space and download faster. Each is got ready on your server first.")
-        }
-        .task(id: choosing) {
-            guard choosing, options == nil, let client = model.client else { return }
-            options = try? await client.downloadOptions(item.id)
         }
         .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
@@ -163,9 +156,9 @@ struct DownloadButton: View {
         }
     }
 
-    private func start(_ quality: DownloadQuality) async {
+    private func start() async {
         do {
-            try await store.download(itemId: item.id, quality: quality)
+            try await store.download(itemId: item.id)
         } catch {
             self.error = ConnectionError(error).message
         }
@@ -178,15 +171,17 @@ struct DownloadButton: View {
     private func label(_ download: LocalDownload?) -> String {
         switch download?.state {
         case nil: "Download"
-        case .preparing, .downloading: "Downloading"
+        case .preparing: "Preparing"
+        case .downloading(let progress): "\(Int(progress * 100))%"
         case .downloaded: "Downloaded"
-        case .failed: "Download again"
+        case .failed: "Try again"
         }
     }
 
     private func icon(_ download: LocalDownload?) -> String {
         switch download?.state {
-        case nil, .failed: "arrow.down.circle"
+        case nil: "arrow.down"
+        case .failed: "exclamationmark.arrow.circlepath"
         case .preparing, .downloading: "arrow.down.circle.dotted"
         case .downloaded: "checkmark.circle.fill"
         }

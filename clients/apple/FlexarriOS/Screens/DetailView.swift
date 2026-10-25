@@ -134,7 +134,8 @@ struct DetailView: View {
     private func actions(_ item: ItemSummary) -> some View {
         let playable = playTarget(item)
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
-        HStack(spacing: 10) {
+        // Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named.
+        VStack(spacing: 18) {
             if let playable {
                 Button { model.play(playable) } label: {
                     Label(playLabel(playable, container: item), systemImage: "play.fill")
@@ -142,37 +143,38 @@ struct DetailView: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
                 .monospacedDigit()
+            }
 
-                if playable.isResumable {
+            HStack(alignment: .top, spacing: 8) {
+                if let playable, playable.isResumable {
                     Button { model.play(playable, fromBeginning: true) } label: {
                         Label("Start over", systemImage: "arrow.counterclockwise")
                     }
-                    .buttonStyle(RoundActionStyle())
+                }
+
+                if item.kind == .movie || item.kind == .episode {
+                    DownloadButton(item: item)
+                }
+
+                if item.kind == .series, item.childCount > 0 {
+                    Button { model.shuffle(item) } label: {
+                        Label("Shuffle", systemImage: "shuffle")
+                    }
+                }
+
+                Button { Task { await model.setWatched(item, !watched) } } label: {
+                    Label(watched ? "Unwatched" : "Watched", systemImage: watched ? "eye.slash" : "checkmark")
+                }
+                .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
+
+                if item.kind == .episode, let series {
+                    Button { router.push(.item(series)) } label: {
+                        Label("Show", systemImage: "rectangle.stack")
+                    }
+                    .accessibilityLabel("Go to show")
                 }
             }
-
-            if item.kind == .movie || item.kind == .episode {
-                DownloadButton(item: item)
-            }
-
-            if item.kind == .series, item.childCount > 0 {
-                Button { model.shuffle(item) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
-                }
-                .buttonStyle(RoundActionStyle())
-            }
-
-            Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark")
-            }
-            .buttonStyle(RoundActionStyle())
-
-            if item.kind == .episode, let series {
-                Button { router.push(.item(series)) } label: {
-                    Label("Go to show", systemImage: "rectangle.stack")
-                }
-                .buttonStyle(RoundActionStyle())
-            }
+            .buttonStyle(LabeledActionStyle())
         }
         .frame(maxWidth: 520, alignment: .leading)
     }

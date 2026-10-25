@@ -61,6 +61,10 @@ final class DownloadStore: NSObject, OfflineLibrary {
     private(set) var all: [LocalDownload] = []
     /// The profile watching: whose downloads show. Remembered, so they show with no connection too.
     private(set) var profileId: String? = UserDefaults.standard.string(forKey: "downloads.profile")
+    /// The size downloads are made at: Medium unless changed in Settings.
+    var quality: DownloadQuality = UserDefaults.standard.string(forKey: "downloads.quality").flatMap(DownloadQuality.init(rawValue:)) ?? .medium {
+        didSet { UserDefaults.standard.set(quality.rawValue, forKey: "downloads.quality") }
+    }
     /// Fetch the next episode by itself, on Wi-Fi.
     var downloadsNext: Bool = UserDefaults.standard.object(forKey: "downloads.next") as? Bool ?? true {
         didSet { UserDefaults.standard.set(downloadsNext, forKey: "downloads.next") }
@@ -160,6 +164,17 @@ final class DownloadStore: NSObject, OfflineLibrary {
     }
 
     // MARK: Downloading
+
+    /// Downloads a title at the size chosen in Settings. An original the phone can't play comes at High instead.
+    func download(itemId: String) async throws {
+        guard let client else { throw FlexarrClientError.invalidResponse }
+        var quality = quality
+        if quality == .original, let options = try? await client.downloadOptions(itemId),
+           options.first(where: { $0.quality == .original })?.available == false {
+            quality = .high
+        }
+        try await download(itemId: itemId, quality: quality)
+    }
 
     /// Asks the server to get a title ready at this size, then fetches it when it is.
     func download(itemId: String, quality: DownloadQuality, automatic: Bool = false) async throws {
