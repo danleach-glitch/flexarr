@@ -1,5 +1,5 @@
-export type LibraryType = 'Movies' | 'TvShows' | 'Music'
-export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track'
+export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts'
+export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track' | 'Podcast' | 'PodcastEpisode'
 export type VideoRange = 'Sdr' | 'Hdr10' | 'Hlg' | 'DolbyVision'
 export type StreamType = 'Video' | 'Audio' | 'Subtitle'
 export type CreditRole = 'Actor' | 'Director' | 'Writer' | 'Producer' | 'Creator'
@@ -91,6 +91,11 @@ export interface ItemSummary {
   albumType?: AlbumType | null
   /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
   trackArtist?: string | null
+  /**
+   * Not from the server: where the player starts this queue entry, for a podcast episode played from the start rather
+   * than from where it was left.
+   */
+  playFrom?: number
 }
 
 export interface Paged<T> {
@@ -409,6 +414,8 @@ export interface Settings {
   ffprobePath: string
   /** What Sonarr, Radarr and Lidarr webhooks send instead of the API key. */
   webhookSecret?: string | null
+  /** The podcast charts' country: the one chosen (null for the server's region), and the one in use. */
+  podcasts?: { country: string | null; resolvedCountry: string }
 }
 
 export interface SettingsUpdate {
@@ -417,6 +424,8 @@ export interface SettingsUpdate {
   pathMappings?: Settings['pathMappings']
   arr?: { name: string; kind: ArrKind; baseUrl: string; apiKey?: string }[]
   seerr?: { baseUrl: string; apiKey?: string }
+  /** An empty country goes back to the server's region. */
+  podcasts?: { country: string }
 }
 
 export interface ArrStatus {
@@ -474,4 +483,99 @@ export interface Loudness {
   albumGain: number | null
   trackPeak: number | null
   albumPeak: number | null
+}
+
+// ---------- Podcasts
+
+export interface PodcastStatus {
+  /** There's a Podcasts library this profile can see. */
+  available: boolean
+  /** There's no Podcasts library at all: the main profile can add one in Settings. */
+  needsLibrary: boolean
+  /** The country whose charts and directory Browse shows. */
+  country: string
+}
+
+export interface PodcastSubscription {
+  subscribedAt: string
+  autoDownload: boolean
+  keepEpisodes: number
+  /** The speed this show plays at, when it isn't the usual one. */
+  playbackSpeed: number | null
+}
+
+export interface Podcast {
+  id: string
+  title: string
+  author: string | null
+  overview: string | null
+  artwork: Artwork
+  accentColor: string | null
+  link: string | null
+  categories: string[]
+  explicit: boolean
+  episodeCount: number
+  unplayedCount: number
+  latestEpisodeAt: string | null
+  iTunesId: number | null
+  feedUrl: string
+  checkedAt: string | null
+  /** Why the feed couldn't be fetched last time. */
+  error: string | null
+  /** Null when this profile doesn't follow it. */
+  subscription: PodcastSubscription | null
+}
+
+export type PodcastEpisodeType = 'Full' | 'Trailer' | 'Bonus'
+
+export interface PodcastEpisode {
+  id: string
+  podcastId: string
+  podcastTitle: string
+  title: string
+  /** The notes as plain text: cut short in lists, whole from a single episode's page. */
+  overview: string | null
+  publishedAt: string | null
+  durationSeconds: number | null
+  season: number | null
+  episode: number | null
+  episodeType: PodcastEpisodeType
+  explicit: boolean
+  artwork: Artwork
+  accentColor: string | null
+  userData: UserData
+  sizeBytes: number | null
+  hasTranscript: boolean
+}
+
+/** A show in Apple's podcast directory. */
+export interface DirectoryPodcast {
+  iTunesId: number
+  title: string
+  author: string | null
+  artwork: string | null
+  genre: string | null
+  explicit: boolean
+  episodeCount: number | null
+  /** False when Apple gives no feed for it, so it can't be added. */
+  hasFeed: boolean
+  /** Set when it's in the library already. */
+  podcastId: string | null
+  subscribed: boolean
+}
+
+export interface PodcastGenre {
+  id: number
+  name: string
+}
+
+export interface PodcastCountry {
+  code: string
+  name: string
+}
+
+export interface OpmlImport {
+  added: number
+  alreadySubscribed: number
+  failed: string[]
 }

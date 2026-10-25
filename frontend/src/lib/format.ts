@@ -81,4 +81,4 @@ export function progressOf(item: ItemSummary): number | null {
   return Math.min(1, item.userData.positionSeconds / duration)
 }
 
-export const libraryTypeLabel = { Movies: 'Movies', TvShows: 'TV Shows', Music: 'Music' } as const
+export const libraryTypeLabel = { Movies: 'Movies', TvShows: 'TV Shows', Music: 'Music', Podcasts: 'Podcasts' } as const

@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { getItem, imageUrl, type ItemSummary } from '../api/client'
+import { getItem, getPodcast, imageUrl, subscribePodcast, type ItemSummary } from '../api/client'
 import { useMusicSettings } from '../lib/musicSettings'
-import { createEngine, type AudioEngine } from './audioEngine'
-import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer } from './audioPlayerContext'
+import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
+import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
+
+const speedKey = 'flexarr.podcastSpeed'
+
+function storedSpeed(): number {
+  try {
+    const speed = Number(localStorage.getItem(speedKey))
+    return speed >= 0.5 && speed <= 4 ? speed : 1
+  } catch {
+    return 1
+  }
+}
 
 /**
  * Music playback that survives navigation: two <audio> elements for the whole app (one plays while the next track gets
@@ -33,12 +44,26 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const { tracks: queue, index } = state
   const current = queue[index]
 
+  // Podcasts' speed: each show's own (from its subscription), else the one last chosen here.
+  const [usualSpeed, setUsualSpeed] = useState(storedSpeed)
+  const [showSpeeds, setShowSpeeds] = useState<Record<string, number | null>>({})
+  const speedFor = useCallback(
+    (track: ItemSummary | undefined) => (isPodcast(track) ? ((track!.parentId && showSpeeds[track!.parentId]) || usualSpeed) : 1),
+    [showSpeeds, usualSpeed],
+  )
+  const speedForRef = useRef(speedFor)
+  const [sleep, setSleep] = useState<SleepTimer | null>(null)
+  const sleepRef = useRef(sleep)
+
   useEffect(() => {
     stateRef.current = state
   }, [state])
   useEffect(() => {
     settingsRef.current = settings
   }, [settings])
+  useEffect(() => {
+    sleepRef.current = sleep
+  }, [sleep])
 
   const persist = useCallback((at: number) => {
     const s = stateRef.current
@@ -72,6 +97,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         duration: setDuration,
         advanced: () => dispatch({ type: 'advance' }),
         ended: () => dispatch({ type: 'next' }),
+        rate: (track) => speedForRef.current(track),
+        stopAtEnd: () => sleepRef.current !== null && 'endOfEpisode' in sleepRef.current,
+        stoppedAtEnd: () => setSleep(null),
       })),
     [persist],
   )
@@ -97,6 +125,34 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [queue, index, persist, engine])
 
   useEffect(() => engine().settingsChanged(), [settings, engine])
+
+  useEffect(() => {
+    speedForRef.current = speedFor
+    engine().rateChanged()
+  }, [speedFor, engine])
+
+  // A show's own speed, the first time one of its episodes plays.
+  const podcastId = isPodcast(current) ? current?.parentId : null
+  useEffect(() => {
+    if (!podcastId || podcastId in showSpeeds) return
+    const controller = new AbortController()
+    getPodcast(podcastId, controller.signal).then(
+      (p) => setShowSpeeds((speeds) => ({ ...speeds, [podcastId]: p.subscription?.playbackSpeed ?? null })),
+      () => undefined,
+    )
+    return () => controller.abort()
+  }, [podcastId, showSpeeds])
+
+  // The sleep timer, checked every few seconds while it's set.
+  useEffect(() => {
+    if (!sleep || !('until' in sleep)) return
+    const timer = window.setInterval(() => {
+      if (Date.now() < sleep.until) return
+      engine().pause()
+      setSleep(null)
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [sleep, engine])
 
   useEffect(() => {
     const save = () => persist(position.current)
@@ -165,10 +221,34 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       setTime(Math.floor(seconds))
     }
   }, [engine])
+  const skipBy = useCallback((seconds: number) => {
+    const at = engine().loaded() ? engine().currentTime() : position.current
+    seek(Math.max(0, at + seconds))
+  }, [engine, seek])
   const stop = useCallback(() => {
     engine().stop()
     dispatch({ type: 'stop' })
+    setSleep(null)
   }, [engine])
+  const speed = speedFor(current) || usualSpeed
+  const setSpeed = useCallback(
+    (next: number) => {
+      const show = isPodcast(current) ? current?.parentId : null
+      if (show && showSpeeds[show]) {
+        // This show plays at a speed of its own: that's what changes.
+        setShowSpeeds((speeds) => ({ ...speeds, [show]: next }))
+        void subscribePodcast(show, { playbackSpeed: next }).catch(() => undefined)
+        return
+      }
+      setUsualSpeed(next)
+      try {
+        localStorage.setItem(speedKey, String(next))
+      } catch {
+        // Not remembered, which is fine.
+      }
+    },
+    [current, showSpeeds],
+  )
   const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.
@@ -186,7 +266,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     navigator.mediaSession.setActionHandler('seekto', (details) => {
       if (details.seekTime !== undefined) seek(details.seekTime)
     })
-  }, [current, toggle, next, previous, seek])
+    // Podcasts: the system's skip buttons go back 15 seconds and on 30, as in every podcast app.
+    const podcast = isPodcast(current)
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', podcast ? (d) => skipBy(-(d.seekOffset ?? 15)) : null)
+      navigator.mediaSession.setActionHandler('seekforward', podcast ? (d) => skipBy(d.seekOffset ?? 30) : null)
+    } catch {
+      // A browser without these actions.
+    }
+  }, [current, toggle, next, previous, seek, skipBy])
 
   const value = useMemo<AudioPlayer>(
     () => ({
@@ -207,9 +295,37 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       next,
       previous,
       seek,
+      skipBy,
       stop,
+      speed,
+      setSpeed,
+      sleep,
+      setSleep,
     }),
-    [queue, index, current, playing, duration, musicPages, play, enqueue, playNext, removeFromQueue, moveInQueue, clearQueue, skipTo, toggle, next, previous, seek, stop],
+    [
+      queue,
+      index,
+      current,
+      playing,
+      duration,
+      musicPages,
+      play,
+      enqueue,
+      playNext,
+      removeFromQueue,
+      moveInQueue,
+      clearQueue,
+      skipTo,
+      toggle,
+      next,
+      previous,
+      seek,
+      skipBy,
+      stop,
+      speed,
+      setSpeed,
+      sleep,
+    ],
   )
   return (
     <AudioPlayerContext value={value}>

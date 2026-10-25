@@ -2,6 +2,16 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Podcasts
+- A new kind of library, Podcasts (Settings › Libraries). Its folder only holds episodes on their way to phones; the shows come from their feeds.
+- Browse finds shows in Apple's podcast directory: top charts by category, and search. Paste a feed's address to add a show Apple doesn't list. Settings › Libraries chooses whose charts (the server's country unless you pick another).
+- Follow a show and its new episodes appear under Podcasts, with Continue listening for episodes you're part way through. Each profile follows its own shows. Flexarr checks feeds by itself, more often for shows that publish often.
+- Episodes play in the music bar, from where you left off on any device, with 15 seconds back and 30 on, a speed from 0.8× to 3× (remembered, or set for one show), and a sleep timer.
+- Bring the shows you follow from another podcast app: export them as OPML (Pocket Casts, Overcast and most others can) and use Import from another app. Export gives them back.
+- Episodes play through the server, so they work over Tailscale as they do at home, and podcast hosts don't see each listener.
+
 ## 0.23.0 · 25 October 2026
 
 ### Made for you

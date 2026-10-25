@@ -219,7 +219,7 @@ export function Layout() {
                 {libraries.map((library) => {
                   const Icon = libraryIcons[library.type] ?? Film
                   return (
-                    <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
+                    <NavLink key={library.id} to={library.type === 'Podcasts' ? '/podcasts' : `/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
                       <Icon />
                       <span className="sidebar-label">{library.name}</span>
                       {library.scan && <span className="scan-dot" aria-label="Scanning" />}

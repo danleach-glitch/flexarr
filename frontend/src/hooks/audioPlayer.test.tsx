@@ -368,4 +368,91 @@ describe('AudioPlayerProvider', () => {
       expect(gainOf(b)).toEqual([])
     })
   })
+
+  describe('podcast episodes', () => {
+    const episode = (id: string, title: string) => summary({ id, kind: 'PodcastEpisode', title, parentId: 'pod-1', seriesTitle: 'The Show', seriesId: 'pod-1', durationSeconds: 3600 })
+    const first = episode('e1', 'First')
+    const second = episode('e2', 'Second')
+
+    /** The server resumes e1 at 300 s; remembers progress reports; the show plays at its own speed when `showSpeed` is set. */
+    function podcastApi(showSpeed: number | null) {
+      const requests: { itemId: string; startPositionSeconds?: number }[] = []
+      const progress: { session: string; positionSeconds: number; paused: boolean; ended: boolean }[] = []
+      mockApi({
+        'POST /playback': (init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body)) as { itemId: string; startPositionSeconds?: number }
+          requests.push(body)
+          return {
+            sessionId: `session-${body.itemId}`,
+            method: 'DirectPlay',
+            url: `/stream/${body.itemId}`,
+            reasons: [],
+            durationSeconds: 3600,
+            startPositionSeconds: body.startPositionSeconds ?? (body.itemId === 'e1' ? 300 : 0),
+            fileId: '',
+            audioTracks: [],
+            selectedAudioIndex: null,
+            subtitles: [],
+            selectedSubtitleKey: null,
+            subtitleBurnedIn: false,
+          }
+        },
+        '/podcasts/pod-1': { id: 'pod-1', subscription: { playbackSpeed: showSpeed } },
+        ...Object.fromEntries(
+          ['e1', 'e2'].flatMap((id) => [
+            [`DELETE /playback/session-${id}`, () => undefined],
+            [`POST /playback/session-${id}/progress`, (init?: RequestInit) => void progress.push({ session: `session-${id}`, ...JSON.parse(String(init?.body)) })],
+          ]),
+        ),
+      })
+      return { requests, progress }
+    }
+
+    it('resume where the server says, without levels, at the speed last chosen', async () => {
+      localStorage.setItem('flexarr.podcastSpeed', '1.5')
+      const fetchCalls = podcastApi(null)
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+
+      act(() => result.current.play([first] as unknown as ItemSummary[], 0))
+      // No start given: the server knows where this profile got to.
+      await waitFor(() => expect(fetchCalls.requests).toEqual([{ itemId: 'e1', profile: expect.anything() }]))
+      const [a] = elements()
+      await waitFor(() => expect(a.playbackRate).toBe(1.5))
+      expect(result.current.speed).toBe(1.5)
+      act(() => {
+        a.dispatchEvent(new Event('loadedmetadata'))
+      })
+      expect(a.currentTime).toBe(300)
+
+      // 15 back, 30 on.
+      act(() => result.current.skipBy(30))
+      expect(a.currentTime).toBe(330)
+      act(() => result.current.skipBy(-15))
+      expect(a.currentTime).toBe(315)
+
+      // Pausing says where, so another device picks it up there.
+      act(() => a.pause())
+      await waitFor(() => expect(fetchCalls.progress).toContainEqual({ session: 'session-e1', positionSeconds: 315, paused: true, ended: false }))
+
+      act(() => result.current.setSpeed(2))
+      expect(a.playbackRate).toBe(2)
+      expect(localStorage.getItem('flexarr.podcastSpeed')).toBe('2')
+    })
+
+    it('play at the show’s own speed, and a sleep timer set to the end of the episode stops there', async () => {
+      const { requests, progress } = podcastApi(1.25)
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([first, second] as unknown as ItemSummary[], 0))
+      const [a] = elements()
+      await waitFor(() => expect(a.playbackRate).toBe(1.25))
+
+      act(() => result.current.setSleep({ endOfEpisode: true }))
+      ends(a)
+      await waitFor(() => expect(progress).toContainEqual(expect.objectContaining({ session: 'session-e1', ended: true })))
+      expect(result.current.current?.id).toBe('e1')
+      expect(result.current.playing).toBe(false)
+      expect(result.current.sleep).toBeNull()
+      expect(requests.map((r) => r.itemId)).toEqual(['e1'])
+    })
+  })
 })

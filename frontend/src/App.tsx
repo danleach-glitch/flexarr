@@ -26,6 +26,7 @@ import { LibraryPage } from './pages/LibraryPage'
 import { MixPage } from './pages/MixPage'
 import { PersonPage } from './pages/PersonPage'
 import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
+import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from './pages/PodcastPages'
 import { UpcomingPage } from './pages/UpcomingPage'
 import { LinkPage } from './pages/LinkPage'
 import './styles/tokens.css'
@@ -34,6 +35,7 @@ import './styles/app.css'
 import './styles/detail.css'
 import './styles/player.css'
 import './styles/settings.css'
+import './styles/podcasts.css'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
@@ -87,6 +89,10 @@ export function Shell() {
                 <Route path="playlists" element={<PlaylistsPage />} />
                 <Route path="playlist/:id" element={<PlaylistPage />} />
                 <Route path="mix/:id" element={<MixPage />} />
+                <Route path="podcasts" element={<PodcastsPage />} />
+                <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
+                <Route path="podcasts/episode/:id" element={<PodcastEpisodePage />} />
+                <Route path="podcasts/:id" element={<PodcastPage />} />
                 <Route path="discover" element={<DiscoverPage />} />
                 <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
                 <Route path="upcoming" element={<UpcomingPage />} />

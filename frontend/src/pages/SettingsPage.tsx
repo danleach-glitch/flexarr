@@ -48,6 +48,7 @@ import {
   getProfiles,
   selectProfile,
   updateProfile,
+  getPodcastCountries,
   getSettings,
   importFromPlex,
   saveSettings,
@@ -282,7 +283,43 @@ function LibrariesSection() {
         <LibraryRow key={library.id} library={library} onChange={reload} />
       ))}
       {libraries.length === 0 && !adding && <p className="muted">No libraries yet. Add one to start.</p>}
+      {libraries.some((l) => l.type === 'Podcasts') && <PodcastSettings />}
     </section>
+  )
+}
+
+/** Which country's charts and directory Podcasts › Browse shows. */
+function PodcastSettings() {
+  const settings = useApi((signal) => getSettings(signal), [])
+  const countries = useApi((signal) => getPodcastCountries(signal), [])
+  const [saved, setSaved] = useState<string | null>(null)
+  const chosen = settings.data?.podcasts?.country ?? ''
+  const inUse = settings.data?.podcasts?.resolvedCountry
+  const regionName = countries.data?.find((c) => c.code === inUse)?.name
+
+  async function choose(country: string) {
+    await saveSettings({ podcasts: { country } })
+    settings.reload()
+    setSaved('Saved.')
+  }
+
+  return (
+    <div className="panel podcast-country">
+      <h3>Podcasts</h3>
+      <label className="field">
+        <span className="field-label">Charts and search from</span>
+        <select value={chosen} onChange={(e) => void choose(e.target.value)} disabled={!settings.data || !countries.data}>
+          <option value="">{`This server's region${!chosen && regionName ? ` (${regionName})` : ''}`}</option>
+          {countries.data?.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">The country whose top charts and podcast directory Browse shows, from Apple Podcasts. Everyone on this server sees the same.</p>
+      {saved && <p className="muted" role="status">{saved}</p>}
+    </div>
   )
 }
 
@@ -296,6 +333,7 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
   }
 
   const Icon = libraryIcons[library.type] ?? Film
+  const podcasts = library.type === 'Podcasts'
   return (
     <div className="panel library-row">
       <div>
@@ -304,7 +342,9 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           {library.name}
         </h3>
         <p className="muted">
-          {libraryTypeLabel[library.type]}, {library.itemCount.toLocaleString()} titles, last scanned {relativeTime(library.lastScannedAt)}
+          {podcasts
+            ? `Podcasts, ${library.itemCount.toLocaleString()} ${library.itemCount === 1 ? 'show' : 'shows'}. Episodes come from their feeds; the folder only holds ones on their way to phones.`
+            : `${libraryTypeLabel[library.type]}, ${library.itemCount.toLocaleString()} titles, last scanned ${relativeTime(library.lastScannedAt)}`}
         </p>
         {library.folders.map((f) => (
           <code key={f} className="folder">
@@ -315,15 +355,19 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
         {message && <p className="muted">{message}</p>}
       </div>
       <div className="library-row-actions">
-        <button className="button quiet small" disabled={!!library.scan} onClick={() => scanLibrary(library.id).then(() => setTimeout(onChange, 2500))}>
-          Scan for changes
-        </button>
-        <button
-          className="button quiet small"
-          onClick={() => scanLibrary(library.id, true).then(() => setMessage('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.'))}
-        >
-          Refresh metadata
-        </button>
+        {!podcasts && (
+          <>
+            <button className="button quiet small" disabled={!!library.scan} onClick={() => scanLibrary(library.id).then(() => setTimeout(onChange, 2500))}>
+              Scan for changes
+            </button>
+            <button
+              className="button quiet small"
+              onClick={() => scanLibrary(library.id, true).then(() => setMessage('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.'))}
+            >
+              Refresh metadata
+            </button>
+          </>
+        )}
         <button className="button danger small" onClick={remove}>
           Remove
         </button>
@@ -361,6 +405,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             <option value="Movies">Films</option>
             <option value="TvShows">TV shows</option>
             <option value="Music">Music</option>
+            <option value="Podcasts">Podcasts</option>
           </select>
         </label>
         <label>
@@ -368,6 +413,12 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
           <input type="text" value={name} placeholder={libraryTypeLabel[type]} onChange={(e) => setName(e.target.value)} />
         </label>
       </div>
+      {type === 'Podcasts' && (
+        <p className="muted">
+          Podcasts come from their feeds, not from files. Choose a folder (a Podcasts folder beside your other media is fine) to hold episodes on their way
+          to phones; each is deleted once the phone has it.
+        </p>
+      )}
       <div className="field">
         <span className="field-label">Folders</span>
         {folders.map((f) => (

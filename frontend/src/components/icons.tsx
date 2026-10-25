@@ -96,6 +96,32 @@ export const Forward10 = (p: IconProps) => (
     <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">10</text>
   </svg>
 )
+export const Replay15 = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />
+    <path d="M4 4v4.5h4.5" />
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">15</text>
+  </svg>
+)
+export const Forward30 = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.5" />
+    <path d="M20 4v4.5h-4.5" />
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">30</text>
+  </svg>
+)
+export const Microphone = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="9" y="2.5" width="6" height="11" rx="3" />
+    <path d="M5.5 10.5a6.5 6.5 0 0 0 13 0" />
+    <path d="M12 17v4.5M8.5 21.5h7" />
+  </svg>
+)
+export const Moon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+  </svg>
+)
 export const Next = (p: IconProps) => (
   <svg {...base} {...p} fill="currentColor" stroke="none">
     <path d="M5 5.5v13a1 1 0 0 0 1.6.8l9-6.5a1 1 0 0 0 0-1.6l-9-6.5A1 1 0 0 0 5 5.5Z" />
