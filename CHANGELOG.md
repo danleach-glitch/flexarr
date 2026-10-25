@@ -2,7 +2,18 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.23.0 · 25 October 2026
+
+### Made for you
+- Up to four daily mixes for each profile, built from what it plays: artists grouped by the genres they share ("Rock Mix", "Dire Straits, Mark Knopfler & more"), about 40 tracks each, the same all day and fresh tomorrow. A Made for you row on Home and in a music library's Browse (movable or off in Settings › Home), and a page for each mix with Play and Shuffle. Mixes appear once a profile has played twenty or so tracks. On the web for now; the Apple apps follow.
+- A New albums row on Home, newest first, when there's a music library.
+
+### Albums on iPhone and iPad, offline
+- A Download button on every album and playlist. Tracks the phone plays as they are (AAC, ALAC, MP3, FLAC, WAV, AIFF) are kept as they are; anything else is converted to AAC. Downloads has a Music section, downloaded tracks carry a tick, and they play from the phone with no connection; what you listen to offline counts once you're back.
+
+### Lyrics in the apps, and track artists
+- Lyrics on Apple TV, iPhone and iPad, from the same files as the web: a Lyrics button on the Now Playing screen, timed lyrics follow the song with the current line lit, and choosing a line jumps there.
+- A track by someone other than the album's artist (a duet, a compilation) shows its own artist under its title, on the web and in the apps, and the player names them. Albums tagged as compilations without an album artist are filed under Various Artists rather than split across their tracks' artists. Tracks already in a library pick this up when their files are next added.
 
 ### Added
 - Siri: "Shuffle Family Guy in Flexarr" plays a show's episodes in a random order, here or on the Apple TV ("… on the living room TV"); also in the Shortcuts app, and for assistants through the play tool's `shuffle` flag.
