@@ -11,6 +11,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Episodes play in the music bar, from where you left off on any device, with 15 seconds back and 30 on, a speed from 0.8× to 3× (remembered, or set for one show), and a sleep timer.
 - Bring the shows you follow from another podcast app: export them as OPML (Pocket Casts, Overcast and most others can) and use Import from another app. Export gives them back.
 - Episodes play through the server, so they work over Tailscale as they do at home, and podcast hosts don't see each listener.
+- iPhone and iPad: Podcasts under Libraries, with the same Browse, following and player (back 15 and on 30 on the lock screen too, speeds, a sleep timer). Download any episode to listen with no connection. The newest episodes of the shows you follow download by themselves on Wi-Fi only (turn this off in Settings › Downloads, or per show); played ones are cleared away, and what you hear offline counts once you're back online.
 
 ## 0.23.0 · 25 October 2026
 
