@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.17.1 · 25 October 2026
+
+### Changed: Top Shelf on Apple TV
+- The Top Shelf shows Continue Watching as a row of posters, the show's for an episode, each with a bar for how far through it you are and the episode underneath. Select one to open it, or press Play to carry on.
+
 ## 0.17.0 · 25 October 2026
 
 ### Dolby Atmos and lossless sound on Apple TV, iPhone and iPad
