@@ -24,6 +24,7 @@ import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PersonPage } from './pages/PersonPage'
+import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
 import { UpcomingPage } from './pages/UpcomingPage'
 import { LinkPage } from './pages/LinkPage'
 import './styles/tokens.css'
@@ -82,6 +83,8 @@ export function Shell() {
                 <Route path="person/:id" element={<PersonPage />} />
                 <Route path="collections" element={<CollectionsPage />} />
                 <Route path="collection/:id" element={<CollectionPage />} />
+                <Route path="playlists" element={<PlaylistsPage />} />
+                <Route path="playlist/:id" element={<PlaylistPage />} />
                 <Route path="discover" element={<DiscoverPage />} />
                 <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
                 <Route path="upcoming" element={<UpcomingPage />} />

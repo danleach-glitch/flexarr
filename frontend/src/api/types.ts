@@ -163,10 +163,39 @@ export interface Person {
 export interface HomeRow {
   id: string
   title: string
-  /** 'upcoming' marks where Coming soon goes; its titles are in Home.upcoming. 'tracks' rows play rather than open. */
-  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks'
+  /**
+   * 'upcoming' marks where Coming soon goes; its titles are in Home.upcoming. 'tracks' rows play rather than open.
+   * 'playlists' rows carry the profile's playlists in `playlists` (items is empty).
+   */
+  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks' | 'playlists'
   items: ItemSummary[]
   link: string | null
+  playlists?: PlaylistSummary[] | null
+}
+
+/** One of the profile's music playlists, as a list shows it. */
+export interface PlaylistSummary {
+  id: string
+  name: string
+  trackCount: number
+  durationSeconds: number
+  /** Up to four of its tracks' album covers, first tracks first, for a mosaic. */
+  covers: string[]
+  /** A cover chosen for it, shown instead of the mosaic. */
+  cover: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** A place in a playlist: the entry (what's moved or removed) and the track in it. */
+export interface PlaylistTrack {
+  entryId: number
+  track: ItemSummary
+}
+
+export interface PlaylistDetail {
+  summary: PlaylistSummary
+  tracks: PlaylistTrack[]
 }
 
 export interface DownloadState {

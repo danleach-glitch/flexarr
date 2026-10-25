@@ -4,9 +4,10 @@ import { askForProfile, selectProfile, signOut } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Search, Stack } from './icons'
+import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Music, Search, Stack } from './icons'
 import { libraryIcons } from './libraryIcons'
 import { AddToCollectionHost } from './AddToCollection'
+import { AddToPlaylistHost } from './AddToPlaylist'
 import { NowPlaying } from './NowPlaying'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
@@ -234,6 +235,12 @@ export function Layout() {
               <Stack />
               <span className="sidebar-label">Collections</span>
             </NavLink>
+            {libraries.some((l) => l.type === 'Music') && (
+              <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
+                <Music />
+                <span className="sidebar-label">Playlists</span>
+              </NavLink>
+            )}
             <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
               <Compass />
               <span className="sidebar-label">Discover</span>
@@ -252,6 +259,7 @@ export function Layout() {
       <main id="main" className="page">
         <Outlet />
         <AddToCollectionHost />
+        <AddToPlaylistHost />
       </main>
       <NowPlaying />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
