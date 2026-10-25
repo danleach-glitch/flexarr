@@ -67,6 +67,44 @@ final class MusicTour: XCTestCase {
         shot("36-now-playing-paused")
     }
 
+    /// A track with lyrics: its album (track artists under the titles, where they differ), the track from its row,
+    /// Now Playing, then the Lyrics panel following the song.
+    func testLyrics() async throws {
+        guard let (track, album) = try await trackWithLyrics() else { throw XCTSkip("no track has lyrics") }
+        app.open(URL(string: "flexarr://item/\(album)")!)
+        pause(5)
+        shot("37-album-with-lyrics")
+        app.buttons.containing(NSPredicate(format: "label CONTAINS %@", track.title)).firstMatch.tap()
+        pause(6)
+
+        let bar = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Now playing'")).firstMatch
+        XCTAssertTrue(bar.waitForExistence(timeout: 5), "the now-playing bar should be up")
+        bar.buttons.firstMatch.tap()
+        pause(3)
+        let lyrics = app.buttons["Lyrics"].firstMatch
+        XCTAssertTrue(lyrics.waitForExistence(timeout: 5), "a track with lyrics offers them")
+        lyrics.tap()
+        pause(2)
+        shot("38-lyrics")
+        pause(8)
+        shot("39-lyrics-later")
+    }
+
+    /// A track in the library that has lyrics (synced ones preferred, as they're the ones that move), with its album's id.
+    private func trackWithLyrics() async throws -> (ItemSummary, String)? {
+        let libraries = try await client.libraries()
+        guard let music = libraries.first(where: { $0.type == .music }) else { return nil }
+        var plain: (ItemSummary, String)?
+        for artist in try await client.libraryItems(music.id, take: 10).items {
+            for track in try await client.tracks(of: artist.id) {
+                guard let album = track.parentId, let lyrics = try await client.lyrics(of: track.id) else { continue }
+                if lyrics.synced { return (track, album) }
+                plain = plain ?? (track, album)
+            }
+        }
+        return plain
+    }
+
     private func pause(_ seconds: TimeInterval) {
         Thread.sleep(forTimeInterval: seconds)
     }

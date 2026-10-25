@@ -134,6 +134,8 @@ struct TrackRow: View {
     let number: Int
     let isCurrent: Bool
     let isPlaying: Bool
+    /// Under the title: the track's own artist, where it isn't the album's.
+    var subtitle: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -150,9 +152,16 @@ struct TrackRow: View {
                     }
                 }
                 .frame(width: 56, alignment: .trailing)
-                Text(track.title)
-                    .font(.system(size: 28, weight: isCurrent ? .bold : .medium))
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(.system(size: 28, weight: isCurrent ? .bold : .medium))
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 21, weight: .medium))
+                            .opacity(0.7)
+                    }
+                }
+                .lineLimit(1)
                 Spacer(minLength: 20)
                 if let duration = track.durationSeconds, duration > 0 {
                     Text(Format.timestamp(duration))

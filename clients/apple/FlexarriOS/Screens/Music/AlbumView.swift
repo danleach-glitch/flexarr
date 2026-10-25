@@ -114,7 +114,8 @@ struct AlbumView: View {
                     }
                     ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { offset, track in
                         TrackRow(track: track, number: track.trackNumber ?? offset + 1,
-                                 isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying) {
+                                 isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
+                                 subtitle: track.trackArtist) {
                             if model.music.current?.id == track.id {
                                 model.music.togglePlayPause()
                             } else if let index = tracks.firstIndex(of: track) {

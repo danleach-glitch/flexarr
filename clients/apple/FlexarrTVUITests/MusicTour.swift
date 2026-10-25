@@ -82,6 +82,47 @@ final class MusicTour: XCTestCase {
         shot("40-now-playing-paused")
     }
 
+    /// An album whose opener has lyrics: Play, then Now Playing's Lyrics control opens the words, and Menu comes back.
+    func test3Lyrics() async throws {
+        guard let album = try await albumOpeningWithLyrics() else { throw XCTSkip("no album opens with lyrics") }
+        app.open(URL(string: "flexarr://item/\(album)")!)
+        pause(5)
+        shot("41-album-with-lyrics")
+        // Down from the tab bar: past the artist's pill, when the album has one, to Play.
+        for _ in 0..<3 where !app.buttons["Play"].firstMatch.hasFocus {
+            press(.down, wait: 1.5)
+        }
+        logFocus("album")
+        press(.select, wait: 7)
+        press(.up, times: 6, wait: 0.6)
+        press(.right, times: 8, wait: 0.6)
+        press(.down, wait: 1.5) // Play/Pause, then past Next and Repeat to Lyrics.
+        press(.right, times: 3, wait: 1)
+        logFocus("lyrics control")
+        shot("42-now-playing-lyrics-focused")
+        press(.select, wait: 3)
+        shot("43-lyrics")
+        pause(8)
+        shot("44-lyrics-later")
+        press(.menu, wait: 2)
+        shot("45-back-from-lyrics")
+        logFocus("after lyrics")
+    }
+
+    /// The first album in the library whose first track has lyrics.
+    private func albumOpeningWithLyrics() async throws -> String? {
+        let libraries = try await client.libraries()
+        guard let music = libraries.first(where: { $0.type == .music }) else { return nil }
+        for artist in try await client.libraryItems(music.id, take: 10).items {
+            var seen = Set<String>()
+            for track in try await client.tracks(of: artist.id) {
+                guard let album = track.parentId, seen.insert(album).inserted else { continue }
+                if try await client.lyrics(of: track.id) != nil { return album }
+            }
+        }
+        return nil
+    }
+
     private func logFocus(_ stop: String) {
         let states = app.buttons.allElementsBoundByIndex.prefix(40).map { "\($0.label)=\($0.hasFocus)" }
         print("FOCUS[\(stop)]: \(states.joined(separator: " | "))")
