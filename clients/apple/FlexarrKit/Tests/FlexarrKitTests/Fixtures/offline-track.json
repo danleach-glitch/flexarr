@@ -1,0 +1,53 @@
+{
+ "id": "01a17a4c-1f6e-7d8e-9c21-2a4a1f0f6b10",
+ "itemId": "01a172cc-3621-7948-b6de-6f49d8067a8c",
+ "quality": "Original",
+ "status": "Ready",
+ "progress": 1,
+ "sizeBytes": 31457280,
+ "error": null,
+ "item": {
+  "id": "01a172cc-3621-7948-b6de-6f49d8067a8c",
+  "libraryId": "01a172c5-dc50-77aa-a4ca-12d032b6de76",
+  "parentId": "01a172cc-3621-74d2-8da8-81a478de1413",
+  "kind": "Track",
+  "title": "Once Upon A Time In The West",
+  "year": 1979,
+  "seasonNumber": null,
+  "episodeNumber": null,
+  "episodeNumberEnd": null,
+  "airDate": null,
+  "childCount": 0,
+  "durationSeconds": 326.333333,
+  "resolution": null,
+  "addedAt": "2026-10-25T11:15:39",
+  "artwork": {
+   "poster": "/api/v1/images/items/01a172cc-3621-7948-b6de-6f49d8067a8c/poster?v=0",
+   "backdrop": "/api/v1/images/items/01a172cc-3621-7948-b6de-6f49d8067a8c/backdrop?v=0",
+   "logo": "/api/v1/images/items/01a172cc-3621-7948-b6de-6f49d8067a8c/logo?v=0",
+   "thumb": null
+  },
+  "accentColor": "#2f51bb",
+  "communityRating": null,
+  "criticRating": null,
+  "contentRating": null,
+  "runtimeMinutes": null,
+  "releaseDate": null,
+  "userData": {
+   "positionSeconds": 0,
+   "watched": false,
+   "playCount": 0,
+   "lastPlayedAt": null,
+   "unwatchedCount": null
+  },
+  "seriesTitle": "Dire Straits",
+  "discNumber": 1,
+  "trackNumber": 1,
+  "seriesId": "01a172cc-3620-79f8-aff0-b0091da8f986"
+ },
+ "markers": [],
+ "durationSeconds": 326.333333,
+ "nextId": null,
+ "createdAt": "2026-10-25T13:02:11.4181234",
+ "fileName": "01a17a4c1f6e7d8e9c212a4a1f0f6b10.flac"
+}

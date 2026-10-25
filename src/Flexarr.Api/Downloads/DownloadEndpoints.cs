@@ -12,7 +12,8 @@ namespace Flexarr.Api.Downloads;
 
 /// <summary>
 /// A download, with what the device needs to show and play it with no connection: the title, its markers (for Skip
-/// Intro) and the next episode (to fetch that one too).
+/// Intro) and the next episode (to fetch that one too). <paramref name="FileName"/> is what the file comes as once
+/// it's ready ("….mp4", or a track's "….mp3", "….flac" or "….m4a"), so the device keeps it under a name its player opens.
 /// </summary>
 public sealed record DownloadDto(
     Guid Id,
@@ -26,7 +27,8 @@ public sealed record DownloadDto(
     IReadOnlyList<MarkerDto> Markers,
     double DurationSeconds,
     Guid? NextId,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? FileName = null);
 
 /// <param name="Available">False for an Original the phone couldn't play: another size will do.</param>
 public sealed record DownloadOptionDto(DownloadQuality Quality, long EstimatedBytes, bool Available);
@@ -35,12 +37,23 @@ public sealed record DownloadRequest(Guid ItemId, DownloadQuality Quality);
 
 public static class DownloadEndpoints
 {
-    /// <summary>Downloads for offline watching, each profile's own.</summary>
+    /// <summary>Downloads for offline watching and listening, each profile's own.</summary>
     public static RouteGroupBuilder MapDownloadEndpoints(this RouteGroupBuilder api)
     {
+        // Films and episodes come in sizes; a track (or a whole album, its tracks together) comes one way: as it is,
+        // or as AAC when the phone can't play the file.
         api.MapGet("/items/{id:guid}/download-options", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
         {
-            var file = await BestFileAsync(db, id, ct);
+            var kind = await db.MediaItems.Where(i => i.Id == id).Select(i => (MediaKind?)i.Kind).FirstOrDefaultAsync(ct);
+            if (kind is MediaKind.Track or MediaKind.Album)
+            {
+                var files = await TrackFilesAsync(db, id, kind.Value, ct);
+                return files.Count == 0
+                    ? Results.NotFound()
+                    : Results.Ok(new List<DownloadOptionDto> { new(DownloadQuality.Original, files.Sum(f => DownloadPlanner.EstimateBytes(f, DownloadQuality.Original)), true) });
+            }
+
+            var file = kind is MediaKind.Movie or MediaKind.Episode ? await BestFileAsync(db, id, ct) : null;
             return file is null
                 ? Results.NotFound()
                 : Results.Ok(Enum.GetValues<DownloadQuality>().Select(q => new DownloadOptionDto(q, DownloadPlanner.EstimateBytes(file, q),
@@ -68,17 +81,20 @@ public static class DownloadEndpoints
         group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
-            if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode) || await BestFileAsync(db, item.Id, ct) is null)
+            if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track) || await BestFileAsync(db, item.Id, ct) is null)
             {
                 return Results.NotFound();
             }
 
+            // A track has no sizes: it's always the original (or its AAC), whatever the device's setting for films.
+            var quality = item.Kind == MediaKind.Track ? DownloadQuality.Original : request.Quality;
+
             // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out.
-            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == request.Quality
+            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == quality
                 && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired, ct);
             if (existing is null)
             {
-                existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = request.Quality, Status = DownloadStatus.Queued };
+                existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued };
                 db.Downloads.Add(existing);
                 await db.SaveChangesAsync(ct);
             }
@@ -92,9 +108,9 @@ public static class DownloadEndpoints
         // The file itself, resumable (ranges), once it's ready.
         group.MapGet("/{id:guid}/file", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            var download = await db.Downloads.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct);
+            var download = await db.Downloads.AsNoTracking().Include(d => d.MediaItem).FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct);
             return download is { Status: DownloadStatus.Ready, FilePath: { } path } && File.Exists(path)
-                ? Results.File(path, "video/mp4", $"{id:N}.mp4", enableRangeProcessing: true)
+                ? Results.File(path, DownloadFiles.ContentType(download), DownloadFiles.Name(download), enableRangeProcessing: true)
                 : Results.NotFound();
         });
 
@@ -136,6 +152,24 @@ public static class DownloadEndpoints
             .Where(f => f.MediaItemId == itemId && f.ProbeError == null && f.MissingSince == null)
             .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
 
+    /// <summary>The file of a track, or the files of an album's tracks (one each), for sizing a download.</summary>
+    private static async Task<List<MediaFile>> TrackFilesAsync(FlexarrDbContext db, Guid id, MediaKind kind, CancellationToken ct)
+    {
+        List<Guid> tracks = kind == MediaKind.Track
+            ? [id]
+            : await db.MediaItems.Where(i => i.ParentId == id && i.Kind == MediaKind.Track).Select(i => i.Id).ToListAsync(ct);
+        var files = new List<MediaFile>();
+        foreach (var track in tracks)
+        {
+            if (await BestFileAsync(db, track, ct) is { } file)
+            {
+                files.Add(file);
+            }
+        }
+
+        return files;
+    }
+
     private static async Task<DownloadDto?> ToDtoAsync(FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, Guid id, CancellationToken ct)
     {
         var download = await db.Downloads.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct);
@@ -145,6 +179,8 @@ public static class DownloadEndpoints
             return null; // gone, or in a library this profile can't see
         }
 
+        download.MediaItem = item;
+
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var file = await db.MediaFiles.AsNoTracking().Include(f => f.Markers)
             .Where(f => f.MediaItemId == item.Id && f.ProbeError == null && f.MissingSince == null)
@@ -152,6 +188,50 @@ public static class DownloadEndpoints
         var next = await playback.NextEpisodeAsync(item, ct);
         return new DownloadDto(download.Id, item.Id, download.Quality, download.Status, download.Progress, download.SizeBytes, download.Error, summary,
             file?.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList() ?? [],
-            file?.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60, next?.Id, download.CreatedAt);
+            file?.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60, next?.Id, download.CreatedAt,
+            download is { Status: DownloadStatus.Ready, FilePath: not null } ? DownloadFiles.Name(download) : null);
     }
+}
+
+/// <summary>
+/// What a download's file is called and typed when it's fetched. Films and episodes are always MP4s (an original MOV
+/// or M4V plays as one); a track keeps its own kind of file, which the phone's player opens by its extension.
+/// </summary>
+public static class DownloadFiles
+{
+    private static readonly Dictionary<string, string> AudioTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".mp3"] = "audio/mpeg",
+        [".flac"] = "audio/flac",
+        [".m4a"] = "audio/mp4",
+        [".wav"] = "audio/wav",
+        [".aiff"] = "audio/aiff",
+    };
+
+    /// <summary>".mp4", or a track's ".mp3", ".flac", ".m4a", ".wav" or ".aiff" (an MP4 or MOV holding only sound is an M4A).</summary>
+    public static string Extension(Download download)
+    {
+        ArgumentNullException.ThrowIfNull(download);
+        if (download.MediaItem?.Kind != MediaKind.Track)
+        {
+            return ".mp4";
+        }
+
+        var extension = Path.GetExtension(download.FilePath ?? "").ToLowerInvariant();
+        return extension switch
+        {
+            ".aif" => ".aiff",
+            ".mp4" or ".mov" or ".m4b" => ".m4a",
+            _ when AudioTypes.ContainsKey(extension) => extension,
+            _ => ".m4a",
+        };
+    }
+
+    public static string Name(Download download)
+    {
+        ArgumentNullException.ThrowIfNull(download);
+        return $"{download.Id:N}{Extension(download)}";
+    }
+
+    public static string ContentType(Download download) => AudioTypes.TryGetValue(Extension(download), out var type) ? type : "video/mp4";
 }

@@ -226,3 +226,22 @@ struct MusicDecodingTests {
         #expect(discs[1].tracks.map(\.title) == ["Once Upon A Time In The West"])
     }
 }
+
+struct DownloadDecodingTests {
+    @Test func aTrackDownloadSaysWhatKindOfFileItComesAs() throws {
+        let download = try Fixture.decode(OfflineDownload.self, "offline-track")
+        #expect(download.item.kind == .track)
+        #expect(download.quality == .original)
+        #expect(download.status == .ready)
+        #expect(download.fileName?.hasSuffix(".flac") == true)
+        #expect(download.fileExtension == "flac")
+    }
+
+    @Test func aDownloadFromAnOlderServerIsAnMp4() throws {
+        var json = try #require(JSONSerialization.jsonObject(with: Fixture.data("offline-track")) as? [String: Any])
+        json.removeValue(forKey: "fileName")
+        let download = try FlexarrClient.decoder.decode(OfflineDownload.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(download.fileName == nil)
+        #expect(download.fileExtension == "mp4")
+    }
+}

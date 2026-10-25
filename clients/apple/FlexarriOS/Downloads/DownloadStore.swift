@@ -7,7 +7,7 @@ import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "downloads")
 
-/// A film or episode kept on this device for watching with no connection.
+/// A film, episode or track kept on this device for watching or listening with no connection.
 struct LocalDownload: Codable, Identifiable, Hashable {
     enum State: Codable, Hashable {
         /// The server is converting it (0 to 1).
@@ -31,6 +31,9 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     var sizeBytes: Int64?
     /// In the downloads folder, once it's here.
     var fileName: String?
+    /// What the server will send it as ("….flac", say), known once it's ready: the file is kept under that extension.
+    var remoteFileName: String?
+    /// Its picture: a film's own; tracks of one album share their cover.
     var imageFileName: String?
     /// Where watching got to, and when it was finished (it's deleted a day after).
     var position: Double = 0
@@ -50,15 +53,75 @@ struct UnsentProgress: Codable, Hashable {
     var playedAt: Date
 }
 
+/// An album or playlist downloaded whole: its tracks (as downloads of their own, in order) under one picture and
+/// name, browsable and playable with no connection. A track in two collections is downloaded once.
+struct LocalCollection: Codable, Identifiable, Hashable {
+    enum Kind: String, Codable {
+        case album, playlist
+    }
+
+    /// Where a collection's tracks stand, taken together.
+    enum Status: Hashable {
+        /// Tracks are still being asked for, or the server is getting them ready.
+        case preparing
+        /// Some are here (0 to 1 of the whole).
+        case downloading(Double)
+        case downloaded
+        case failed(String)
+    }
+
+    /// The album's item id, or the playlist's id.
+    let id: String
+    let profileId: String
+    let kind: Kind
+    var title: String
+    /// The artist, for an album.
+    var subtitle: String?
+    /// The album itself, for Now Playing's album name and the page's colour.
+    var album: ItemSummary?
+    var accentColor: String?
+    var trackIds: [String]
+    var imageFileName: String?
+    /// About how big it'll be, from the server, before the files are here.
+    var estimatedBytes: Int64?
+    var createdAt = Date()
+
+    /// What the tracks' states add up to: all here, some here, still preparing, or one that failed.
+    static func status(of states: [LocalDownload.State?]) -> Status {
+        guard !states.isEmpty else { return .preparing }
+        if let failure = states.compactMap({ state -> String? in if case .failed(let message) = state { message } else { nil } }).first {
+            return .failed(failure)
+        }
+        let fractions = states.map { state -> Double in
+            switch state {
+            case .downloaded: 1
+            case .downloading(let fraction): fraction
+            case .preparing, nil: 0
+            case .failed: 0
+            }
+        }
+        if fractions.allSatisfy({ $0 >= 1 }) { return .downloaded }
+        if states.contains(where: { if case .downloading = $0 { true } else { $0 == .downloaded } }) {
+            return .downloading(fractions.reduce(0, +) / Double(fractions.count))
+        }
+        return .preparing
+    }
+}
+
 /// Downloads on this device: asking the server to get them ready, fetching them in the background (even with the
 /// app closed), playing them offline, sending what was watched once there's a connection, fetching the next
-/// episode by itself (on Wi-Fi), and deleting episodes a day after they're finished.
+/// episode by itself (on Wi-Fi), and deleting episodes a day after they're finished. Albums and playlists come as
+/// collections of track downloads.
 @MainActor
 @Observable
-final class DownloadStore: NSObject, OfflineLibrary {
+final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     static let sessionIdentifier = "io.github.flexarr.downloads"
 
     private(set) var all: [LocalDownload] = []
+    private(set) var collections: [LocalCollection] = []
+    /// Collections whose tracks are still being asked of the server (observed, so a collection whose requests were
+    /// cut short shows as failed as soon as they stop).
+    private var queueing: Set<String> = []
     /// The profile watching: whose downloads show. Remembered, so they show with no connection too.
     private(set) var profileId: String? = UserDefaults.standard.string(forKey: "downloads.profile")
     /// The size downloads are made at: Medium unless changed in Settings.
@@ -93,11 +156,15 @@ final class DownloadStore: NSObject, OfflineLibrary {
     }()
 
     private static let manifest = folder.appending(path: "downloads.json")
+    private static let collectionsManifest = folder.appending(path: "collections.json")
 
     override init() {
         super.init()
         if let data = try? Data(contentsOf: Self.manifest), let saved = try? FlexarrClient.decoder.decode([LocalDownload].self, from: data) {
             all = saved
+        }
+        if let data = try? Data(contentsOf: Self.collectionsManifest), let saved = try? FlexarrClient.decoder.decode([LocalCollection].self, from: data) {
+            collections = saved
         }
         let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
         configuration.sessionSendsLaunchEvents = true
@@ -116,12 +183,51 @@ final class DownloadStore: NSObject, OfflineLibrary {
         all.filter { $0.profileId == profileId }.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// This profile's films and episodes (tracks show under their albums and playlists).
+    var videoDownloads: [LocalDownload] { downloads.filter { $0.item.kind != .track } }
+
+    /// This profile's albums and playlists, newest first.
+    var musicCollections: [LocalCollection] {
+        collections.filter { $0.profileId == profileId }.sorted { $0.createdAt > $1.createdAt }
+    }
+
     func entry(for itemId: String) -> LocalDownload? {
         all.first { $0.profileId == profileId && $0.item.id == itemId }
     }
 
+    func collection(for id: String) -> LocalCollection? {
+        collections.first { $0.profileId == profileId && $0.id == id }
+    }
+
+    /// A collection's tracks in its order (those asked for so far).
+    func tracks(in collection: LocalCollection) -> [LocalDownload] {
+        collection.trackIds.compactMap(entry(for:))
+    }
+
+    func status(of collection: LocalCollection) -> LocalCollection.Status {
+        let states = collection.trackIds.map { entry(for: $0)?.state }
+        // A track never asked for (the requests were cut short) counts as failed, unless they're still being made.
+        if !queueing.contains(collection.id), states.contains(where: { $0 == nil }) {
+            return .failed("Some tracks weren't downloaded. Try again.")
+        }
+        return LocalCollection.status(of: states)
+    }
+
+    func isDownloaded(trackId: String) -> Bool {
+        entry(for: trackId)?.isDownloaded == true
+    }
+
+    /// Every track of this album (or playlist) is here.
+    func isDownloaded(collectionId: String) -> Bool {
+        collection(for: collectionId).map { status(of: $0) == .downloaded } ?? false
+    }
+
     var bytesUsed: Int64 {
         all.filter(\.isDownloaded).compactMap(\.sizeBytes).reduce(0, +)
+    }
+
+    func bytesUsed(by collection: LocalCollection) -> Int64 {
+        tracks(in: collection).filter(\.isDownloaded).compactMap(\.sizeBytes).reduce(0, +)
     }
 
     // MARK: Connecting
@@ -200,6 +306,69 @@ final class DownloadStore: NSObject, OfflineLibrary {
         poll()
     }
 
+    // MARK: Albums and playlists
+
+    /// Downloads an album: a collection under its cover, and each track in order. Asking again for one that's here
+    /// (or partly here) fetches what's missing.
+    func download(album: ItemSummary, tracks: [ItemSummary]) async throws {
+        guard let profileId else { throw FlexarrClientError.invalidResponse }
+        var collection = self.collection(for: album.id)
+            ?? LocalCollection(id: album.id, profileId: profileId, kind: .album, title: album.title, subtitle: album.artistName,
+                               album: album, accentColor: album.accentColor, trackIds: [])
+        collection.album = album
+        collection.imageFileName = collection.imageFileName ?? Self.coverName(forAlbum: album.id)
+        try await download(collection, tracks: tracks, coverPath: album.artwork.poster)
+    }
+
+    /// Downloads a playlist: its tracks as they are now, under its chosen cover (or its tracks' covers, as a mosaic).
+    func download(playlist: PlaylistSummary, tracks: [ItemSummary]) async throws {
+        guard let profileId else { throw FlexarrClientError.invalidResponse }
+        var collection = self.collection(for: playlist.id)
+            ?? LocalCollection(id: playlist.id, profileId: profileId, kind: .playlist, title: playlist.name, subtitle: nil,
+                               album: nil, accentColor: tracks.first?.accentColor, trackIds: [])
+        collection.title = playlist.name
+        collection.imageFileName = collection.imageFileName ?? playlist.cover.map { _ in "playlist-\(playlist.id).jpg" }
+        try await download(collection, tracks: tracks, coverPath: playlist.cover)
+    }
+
+    private func download(_ collection: LocalCollection, tracks: [ItemSummary], coverPath: String?) async throws {
+        guard let client else { throw FlexarrClientError.invalidResponse }
+        var collection = collection
+        collection.trackIds = tracks.map(\.id)
+        collections.removeAll { $0.id == collection.id && $0.profileId == collection.profileId }
+        collections.append(collection)
+        saveCollections()
+        queueing.insert(collection.id)
+        defer { queueing.remove(collection.id) }
+        log.info("Downloading \(collection.title, privacy: .public): \(tracks.count) tracks")
+
+        if let name = collection.imageFileName, !FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path(percentEncoded: false)) {
+            await fetchImage(at: coverPath, named: name)
+        }
+        if collection.kind == .album, collection.estimatedBytes == nil,
+           let estimate = try? await client.downloadOptions(collection.id).first?.estimatedBytes {
+            updateCollection(collection.id) { $0.estimatedBytes = estimate }
+        }
+        for track in tracks {
+            try await download(itemId: track.id, quality: .original)
+        }
+    }
+
+    /// Deletes a collection and its tracks, except tracks another collection still holds.
+    func remove(collectionId: String) {
+        guard let collection = collection(for: collectionId) else { return }
+        let kept = Set(collections.filter { $0.id != collection.id && $0.profileId == collection.profileId }.flatMap(\.trackIds))
+        for trackId in collection.trackIds where !kept.contains(trackId) {
+            if let track = entry(for: trackId) { delete(track.id) }
+        }
+        collections.removeAll { $0.id == collection.id && $0.profileId == collection.profileId }
+        saveCollections()
+        removeImageIfUnused(collection.imageFileName)
+    }
+
+    /// The album's cover, saved once for its tracks and the album itself.
+    nonisolated private static func coverName(forAlbum albumId: String) -> String { "cover-\(albumId).jpg" }
+
     /// Follows the server getting downloads ready, every few seconds while any are.
     private func poll() {
         guard polling == nil else { return }
@@ -229,6 +398,7 @@ final class DownloadStore: NSObject, OfflineLibrary {
                 $0.sizeBytes = remote.sizeBytes
                 $0.nextId = remote.nextId
                 $0.markers = remote.markers
+                $0.remoteFileName = remote.fileName
             }
             let task = session.downloadTask(with: client.downloadFileRequest(remote.id))
             task.taskDescription = remote.id
@@ -242,12 +412,23 @@ final class DownloadStore: NSObject, OfflineLibrary {
         }
     }
 
+    /// Saves the picture a download shows: a film's backdrop, an episode's still, or a track's album cover (one file
+    /// for the whole album, kept as long as anything uses it).
     private func fetchImage(for item: ItemSummary, id: String) async -> String? {
+        if item.kind == .track {
+            let name = Self.coverName(forAlbum: item.parentId ?? item.id)
+            if FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path(percentEncoded: false)) { return name }
+            return await fetchImage(at: item.artwork.poster, named: name, width: 600)
+        }
         let path = item.kind == .episode ? (item.artwork.thumb ?? item.artwork.backdrop) : (item.artwork.backdrop ?? item.artwork.poster)
-        guard let url = client?.imageURL(path, width: 500), let (data, _) = try? await URLSession.shared.data(from: url), UIImage(data: data) != nil else {
+        return await fetchImage(at: path, named: "\(id).jpg")
+    }
+
+    @discardableResult
+    private func fetchImage(at path: String?, named name: String, width: Int = 500) async -> String? {
+        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(from: url), UIImage(data: data) != nil else {
             return nil
         }
-        let name = "\(id).jpg"
         try? data.write(to: Self.folder.appending(path: name))
         return name
     }
@@ -259,17 +440,28 @@ final class DownloadStore: NSObject, OfflineLibrary {
         session.getAllTasks { tasks in
             for task in tasks where task.taskDescription == id { task.cancel() }
         }
-        for name in [download.fileName, download.imageFileName].compactMap({ $0 }) {
+        if let name = download.fileName {
             try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
         }
         all.removeAll { $0.id == id }
         save()
+        removeImageIfUnused(download.imageFileName)
         if let client { Task { try? await client.deleteDownload(id) } }
+    }
+
+    /// A picture goes once nothing shows it any more (an album's cover is shared by its tracks).
+    private func removeImageIfUnused(_ name: String?) {
+        guard let name, !all.contains(where: { $0.imageFileName == name }), !collections.contains(where: { $0.imageFileName == name }) else { return }
+        try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
     }
 
     /// Signing out: every download goes, whoever's it was.
     func deleteAll() {
         for id in all.map(\.id) { delete(id) }
+        let pictures = collections.compactMap(\.imageFileName)
+        collections = []
+        saveCollections()
+        for name in pictures { removeImageIfUnused(name) }
         profileId = nil
         UserDefaults.standard.removeObject(forKey: "downloads.profile")
     }
@@ -317,6 +509,23 @@ final class DownloadStore: NSObject, OfflineLibrary {
         return playbackInfo(for: download, preferences: info.preferences)
     }
 
+    // MARK: Listening (OfflineMusicLibrary)
+
+    func localFile(for trackId: String) -> URL? {
+        guard let download = entry(for: trackId), download.isDownloaded, let name = download.fileName else { return nil }
+        return Self.folder.appending(path: name)
+    }
+
+    func localArtwork(for trackId: String) -> UIImage? {
+        image(named: entry(for: trackId)?.imageFileName)
+    }
+
+    /// A saved picture, by the name a download or collection holds.
+    func image(named name: String?) -> UIImage? {
+        guard let name else { return nil }
+        return UIImage(contentsOfFile: Self.folder.appending(path: name).path(percentEncoded: false))
+    }
+
     // MARK: Saving
 
     private func update(_ id: String, _ change: (inout LocalDownload) -> Void) {
@@ -325,12 +534,26 @@ final class DownloadStore: NSObject, OfflineLibrary {
         save()
     }
 
+    private func updateCollection(_ id: String, _ change: (inout LocalCollection) -> Void) {
+        guard let index = collections.firstIndex(where: { $0.id == id && $0.profileId == profileId }) else { return }
+        change(&collections[index])
+        saveCollections()
+    }
+
+    private static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
+
     private func save(throttled: Bool = false) {
         if throttled, Date().timeIntervalSince(lastSaved) < 2 { return }
         lastSaved = Date()
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        if let data = try? encoder.encode(all) { try? data.write(to: Self.manifest, options: .atomic) }
+        if let data = try? Self.encoder.encode(all) { try? data.write(to: Self.manifest, options: .atomic) }
+    }
+
+    private func saveCollections() {
+        if let data = try? Self.encoder.encode(collections) { try? data.write(to: Self.collectionsManifest, options: .atomic) }
     }
 
     fileprivate func progressed(_ id: String, _ fraction: Double) {
@@ -373,7 +596,10 @@ extension DownloadStore: URLSessionDownloadDelegate {
             MainActor.assumeIsolated { stopped(id, URLError(.badServerResponse)) }
             return
         }
-        let name = "\(id).mp4"
+        // Kept under the extension the server sent it as (a track's .flac or .mp3), so the player opens it right.
+        let sent = downloadTask.response?.suggestedFilename.map { ($0 as NSString).pathExtension } ?? ""
+        let known = MainActor.assumeIsolated { all.first { $0.id == id }?.remoteFileName.map { ($0 as NSString).pathExtension } ?? "" }
+        let name = "\(id).\([sent, known, "mp4"].first { !$0.isEmpty && $0.count <= 5 } ?? "mp4")"
         let destination = DownloadStore.folder.appending(path: name)
         try? FileManager.default.removeItem(at: destination)
         do {

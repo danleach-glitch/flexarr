@@ -83,6 +83,70 @@ public class DownloadPlannerTests
         Assert.InRange(medium, 800_000_000, 1_100_000_000);
     }
 
+    [Theory]
+    [InlineData("mp3", "mp3")]
+    [InlineData("flac", "flac")]
+    [InlineData("mov,mp4,m4a,3gp,3g2,mj2", "aac")]
+    [InlineData("mov,mp4,m4a,3gp,3g2,mj2", "alac")]
+    [InlineData("wav", "pcm_s16le")]
+    public void ATrackThePhonePlays_IsSentAsItIs_WhateverSizeWasAsked(string container, string codec)
+    {
+        var file = Track(container, codec);
+
+        Assert.True(DownloadPlanner.CanKeepTrack(file));
+        foreach (var quality in Enum.GetValues<DownloadQuality>())
+        {
+            var plan = DownloadPlanner.Plan(file, quality, []);
+            Assert.NotNull(plan);
+            Assert.True(plan.IsAudioOnly);
+            Assert.True(plan.SendAsIs);
+            Assert.Null(plan.Convert);
+            Assert.Equal(0, plan.AudioIndex);
+        }
+
+        Assert.Equal(file.Size, DownloadPlanner.EstimateBytes(file, DownloadQuality.Original));
+    }
+
+    [Theory]
+    [InlineData("ogg", "vorbis", 2)]
+    [InlineData("ogg", "opus", 2)]
+    [InlineData("asf", "wmav2", 6)]
+    [InlineData("matroska,webm", "flac", 2)]
+    public void ATrackThePhoneCantPlay_IsConvertedToStereoAac(string container, string codec, int channels)
+    {
+        var file = Track(container, codec, channels);
+
+        Assert.False(DownloadPlanner.CanKeepTrack(file));
+        var plan = DownloadPlanner.Plan(file, DownloadQuality.Original, [])!;
+        Assert.True(plan.IsAudioOnly);
+        Assert.False(plan.SendAsIs);
+        Assert.NotNull(plan.Convert);
+        Assert.Equal(-1, plan.Convert.VideoStreamIndex);
+        Assert.Equal(2, plan.Convert.AudioChannels);
+        // Four minutes at 256 kbps.
+        Assert.Equal(256_000L * 240 / 8, DownloadPlanner.EstimateBytes(file, DownloadQuality.Original));
+    }
+
+    [Fact]
+    public void AFileWithNeitherPictureNorSound_HasNoPlan()
+    {
+        var file = Track("mp3", "mp3");
+        file.Streams.Clear();
+
+        Assert.Null(DownloadPlanner.Plan(file, DownloadQuality.Original, []));
+    }
+
+    private static MediaFile Track(string container, string codec, int channels = 2) => new()
+    {
+        Path = "/media/track",
+        Container = container,
+        AudioCodec = codec,
+        AudioChannels = channels,
+        DurationSeconds = 240,
+        Size = 9_000_000,
+        Streams = [new MediaStream { Index = 0, Type = StreamType.Audio, Codec = codec, Channels = channels, IsDefault = true }],
+    };
+
     private static MediaFile File(string container, string video, string audio, int channels, int height = 1080, long bitrate = 8_000_000) => new()
     {
         Path = "/media/file",

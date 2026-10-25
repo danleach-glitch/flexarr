@@ -217,6 +217,23 @@ public static class FfmpegCommand
         return args;
     }
 
+    /// <summary>
+    /// Arguments to make an M4A of a track for keeping on a phone: its sound (stream <paramref name="audioIndex"/>)
+    /// as AAC at <see cref="DownloadPlanner.TrackBitrate"/>, folded to stereo if there's more. Progress goes to stdout.
+    /// </summary>
+    public static IReadOnlyList<string> M4a(string input, int audioIndex, int channels, string output)
+    {
+        var rate = (DownloadPlanner.TrackBitrate / 1000).ToString(CultureInfo.InvariantCulture) + "k";
+        return
+        [
+            "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats",
+            "-i", input,
+            "-map", $"0:{audioIndex}", "-vn", "-sn", "-dn",
+            "-c:a", "aac", "-ac", Math.Clamp(channels, 1, 2).ToString(CultureInfo.InvariantCulture), "-b:a", rate,
+            "-map_metadata", "-1", "-map_chapters", "-1", "-movflags", "+faststart", "-f", "ipod", output,
+        ];
+    }
+
     /// <summary>The GPU decodes H.264 and HEVC; asked to decode anything else, VideoToolbox fails outright, so those go
     /// through the software decoder (cheap: they're old, small formats) and only the encoder runs in hardware.</summary>
     internal static HardwareAcceleration DecodesInHardware(HardwareAcceleration hw, string? sourceCodec) =>

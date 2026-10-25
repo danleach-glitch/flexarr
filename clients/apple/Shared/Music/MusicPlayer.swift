@@ -7,10 +7,21 @@ import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "music")
 
+/// Where downloaded tracks are kept, so one plays from its file with no server session (and no connection): the
+/// iPhone's downloads. A play heard through is recorded here, to be told to the server once there's a connection.
+@MainActor
+protocol OfflineMusicLibrary: AnyObject {
+    /// The track's file on this device, if it's downloaded.
+    func localFile(for trackId: String) -> URL?
+    /// The cover saved with it.
+    func localArtwork(for trackId: String) -> UIImage?
+    func record(itemId: String, position: Double, finished: Bool)
+}
+
 /// Plays a queue of tracks through one AVPlayer: each track is its own server session (started as it comes up,
 /// reported on as it plays, ended as it finishes), so the server's history and stream limits see music the way they
-/// see video. Lives for the app's lifetime so music carries on while the viewer browses, and tells the lock screen,
-/// Control Center and the Siri Remote what's playing.
+/// see video. A downloaded track plays from its file instead, with no session. Lives for the app's lifetime so music
+/// carries on while the viewer browses, and tells the lock screen, Control Center and the Siri Remote what's playing.
 @MainActor
 @Observable
 final class MusicPlayer {
@@ -38,9 +49,13 @@ final class MusicPlayer {
     private(set) var repeatMode: RepeatMode = .off
     /// The current track's cover, once fetched (also what the lock screen shows).
     private(set) var artwork: UIImage?
+    /// The current track is playing from its downloaded file rather than the server.
+    private(set) var isPlayingOffline = false
     var errorMessage: String?
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
+    /// Where downloaded tracks come from (set by the iOS app; the Apple TV has none).
+    @ObservationIgnored weak var offlineLibrary: OfflineMusicLibrary?
 
     @ObservationIgnored private var client: FlexarrClient?
     /// The queue as it was given, for turning shuffle back off.
@@ -217,6 +232,7 @@ final class MusicPlayer {
         position = 0
         duration = 0
         artwork = nil
+        isPlayingOffline = false
         isLoading = false
         nowPlaying.deactivate()
     }
@@ -241,7 +257,7 @@ final class MusicPlayer {
     // MARK: Sessions
 
     private func startCurrent() {
-        guard let client, let track = current else { return }
+        guard let track = current else { return }
         generation += 1
         let mine = generation
         endSession()
@@ -254,7 +270,25 @@ final class MusicPlayer {
         yieldedToVideo = false
         activateAudioSession()
         pushNowPlaying()
+
+        // Downloaded: its file, its saved cover, no session (and no connection needed).
+        if let file = offlineLibrary?.localFile(for: track.id) {
+            isPlayingOffline = true
+            artwork = offlineLibrary?.localArtwork(for: track.id)
+            attach(AVPlayerItem(url: file))
+            player.play()
+            isLoading = false
+            pushNowPlaying()
+            if artwork == nil { loadArtwork(for: track, generation: mine) }
+            return
+        }
+
+        isPlayingOffline = false
         loadArtwork(for: track, generation: mine)
+        guard let client else {
+            isLoading = false
+            return
+        }
         Task {
             do {
                 // Tracks always start over: a half-heard song isn't resumed the way a film is.
@@ -321,6 +355,10 @@ final class MusicPlayer {
     }
 
     private func trackEnded() {
+        if isPlayingOffline, recordsHistory, let track = current {
+            // Heard through with no session: the play goes to the server when there's a connection.
+            offlineLibrary?.record(itemId: track.id, position: 0, finished: true)
+        }
         report(paused: true, ended: true)
         if repeatMode == .one {
             startCurrent()

@@ -85,6 +85,83 @@ public sealed class DownloadTests : IDisposable
         Assert.Equal(1, state.PlayCount);
     }
 
+    [Fact]
+    public async Task ATrackThePhonePlays_ComesAsItIs_AsItsOwnKindOfFile_WhateverSizeWasAsked()
+    {
+        var (album, tracks) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000), ("flac", "flac", ".flac", 30_000_000));
+        var client = Client();
+
+        // One size for a track and for its album: the files as they are.
+        var trackOptions = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{tracks[0].Id}/download-options", UriKind.Relative));
+        var option = Assert.Single(trackOptions.EnumerateArray());
+        Assert.Equal("Original", option.GetProperty("quality").GetString());
+        Assert.True(option.GetProperty("available").GetBoolean());
+        Assert.Equal(new FileInfo(tracks[0].Path).Length, option.GetProperty("estimatedBytes").GetInt64());
+        var albumOptions = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{album}/download-options", UriKind.Relative));
+        Assert.Equal(tracks.Sum(t => new FileInfo(t.Path).Length), Assert.Single(albumOptions.EnumerateArray()).GetProperty("estimatedBytes").GetInt64());
+
+        // Asked for at the phone's film size: it's the original all the same.
+        var created = await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = tracks[1].Id, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Original", created.GetProperty("quality").GetString());
+        Assert.Equal("Track", created.GetProperty("item").GetProperty("kind").GetString());
+        var id = created.GetProperty("id").GetString()!;
+
+        var ready = await WaitForAsync(client, id, "Ready");
+        Assert.Equal(new FileInfo(tracks[1].Path).Length, ready.GetProperty("sizeBytes").GetInt64());
+        Assert.Equal($"{Guid.Parse(id):N}.flac", ready.GetProperty("fileName").GetString());
+
+        var file = await client.GetAsync(new Uri($"/api/v1/offline/{id}/file", UriKind.Relative));
+        Assert.Equal("audio/flac", file.Content.Headers.ContentType?.MediaType);
+        Assert.EndsWith(".flac", file.Content.Headers.ContentDisposition?.FileName?.Trim('"'), StringComparison.Ordinal);
+
+        // Received: the library's own file stays.
+        (await client.PostAsync(new Uri($"/api/v1/offline/{id}/received", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        Assert.True(File.Exists(tracks[1].Path));
+    }
+
+    [Fact]
+    public async Task ATrackThePhoneCantPlay_IsOffered_AtTheSizeOfItsAac()
+    {
+        var (_, tracks) = await AddAlbumAsync(("ogg", "vorbis", ".ogg", 5_000_000));
+        var client = Client();
+
+        var options = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{tracks[0].Id}/download-options", UriKind.Relative));
+        var option = Assert.Single(options.EnumerateArray());
+        Assert.True(option.GetProperty("available").GetBoolean());
+        // 240 seconds at 256 kbps.
+        Assert.Equal(256_000L * 240 / 8, option.GetProperty("estimatedBytes").GetInt64());
+
+        var response = await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = tracks[0].Id, quality = "Original" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Queued", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task ListeningOffline_CountsEveryPlay()
+    {
+        var (_, tracks) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000));
+        var client = Client();
+        var uri = new Uri($"/api/v1/items/{tracks[0].Id}/offline-progress", UriKind.Relative);
+
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 0, finished = true, playedAt = DateTime.UtcNow.AddHours(-2) })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 0, finished = true, playedAt = DateTime.UtcNow.AddHours(-1) })).EnsureSuccessStatusCode();
+
+        using var scope = _factory.Services.CreateScope();
+        var state = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == tracks[0].Id);
+        Assert.Equal(2, state.PlayCount);
+    }
+
+    [Fact]
+    public async Task AnArtist_HasNoDownloadOptions()
+    {
+        var (album, _) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000));
+        using var scope = _factory.Services.CreateScope();
+        var artist = (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.SingleAsync(i => i.Id == album)).ParentId;
+
+        Assert.Equal(HttpStatusCode.NotFound, (await Client().GetAsync(new Uri($"/api/v1/items/{artist}/download-options", UriKind.Relative))).StatusCode);
+    }
+
     private async Task<double> PositionAsync(Guid item)
     {
         using var scope = _factory.Services.CreateScope();
@@ -114,6 +191,35 @@ public sealed class DownloadTests : IDisposable
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
         return client;
+    }
+
+    /// <summary>An album of one track per file given: (ffprobe container, audio codec, extension, bitrate), each 240 seconds long.</summary>
+    private async Task<(Guid Album, List<(Guid Id, string Path)> Tracks)> AddAlbumAsync(params (string Container, string Codec, string Extension, long Bitrate)[] files)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+        var artist = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Band", SortTitle = "band" };
+        var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "Record", SortTitle = "record", ParentId = artist.Id, Year = 1985 };
+        db.AddRange(library, artist, album);
+        var tracks = new List<(Guid, string)>();
+        foreach (var (file, n) in files.Select((f, i) => (f, i + 1)))
+        {
+            var path = Path.Combine(_factory.MediaDirectory, $"{Guid.NewGuid():N}{file.Extension}");
+            await File.WriteAllBytesAsync(path, Enumerable.Range(0, 1024 * n).Select(i => (byte)i).ToArray());
+            var track = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Track, Title = $"Song {n}", SortTitle = $"song {n}", ParentId = album.Id, TrackNumber = n };
+            db.Add(track);
+            db.Add(new MediaFile
+            {
+                MediaItemId = track.Id, Path = path, Size = 1024 * n, Container = file.Container, DurationSeconds = 240, Bitrate = file.Bitrate,
+                AudioCodec = file.Codec, AudioChannels = 2,
+                Streams = [new MediaStream { Index = 0, Type = StreamType.Audio, Codec = file.Codec, Channels = 2, IsDefault = true }],
+            });
+            tracks.Add((track.Id, path));
+        }
+
+        await db.SaveChangesAsync();
+        return (album.Id, tracks);
     }
 
     private async Task<(Guid Movie, string Path)> AddMovieAsync(string container, string video, string audio)

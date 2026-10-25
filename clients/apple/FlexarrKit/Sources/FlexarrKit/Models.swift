@@ -695,6 +695,15 @@ public struct OfflineDownload: Codable, Sendable, Hashable, Identifiable {
     public let markers: [Marker]
     public let durationSeconds: Double
     public let nextId: String?
+    /// What the file comes as once it's ready: "….mp4", or a track's "….mp3", "….flac" or "….m4a". Absent from
+    /// servers before music downloads, which only sent MP4s.
+    public var fileName: String? = nil
+
+    /// The extension the file should be kept under, so the device's player opens it: "mp4" unless the server says.
+    public var fileExtension: String {
+        let ext = (fileName as NSString?)?.pathExtension ?? ""
+        return ext.isEmpty ? "mp4" : ext
+    }
 }
 
 struct DownloadRequestBody: Codable, Sendable {

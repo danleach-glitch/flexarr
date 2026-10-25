@@ -12,7 +12,8 @@ namespace Flexarr.Api.Downloads;
 
 /// <summary>
 /// Gets downloads ready, one at a time and at low priority: it waits while anyone is watching something that's being
-/// converted, so it never slows a stream down. Downloads not fetched within a week are deleted.
+/// converted, so it never slows a stream down. Films and episodes become MP4s, tracks stay as they are or become M4As.
+/// Downloads not fetched within a week are deleted.
 /// </summary>
 public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, TranscodeManager transcodes,
     ILogger<DownloadPreparer> logger) : BackgroundService
@@ -61,7 +62,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var folder = Folder(options.CurrentValue);
         if (Directory.Exists(folder))
         {
-            foreach (var partial in Directory.EnumerateFiles(folder, "*.part.mp4"))
+            foreach (var partial in Directory.EnumerateFiles(folder, "*.part.*"))
             {
                 File.Delete(partial);
             }
@@ -117,7 +118,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             download.Status = DownloadStatus.Failed;
             download.Error = file is null
                 ? "The file for this title can't be read."
-                : "This file can't be kept on a phone as it is. Choose another size.";
+                : file.Streams.All(s => s.Type != StreamType.Video)
+                    ? "This track's file has no sound in it that can be played."
+                    : "This file can't be kept on a phone as it is. Choose another size.";
             await db.SaveChangesAsync(ct);
             return;
         }
@@ -141,10 +144,13 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
         var folder = Folder(options.CurrentValue);
         Directory.CreateDirectory(folder);
-        var partial = Path.Combine(folder, $"{download.Id:N}.part.mp4");
-        var finished = Path.Combine(folder, $"{download.Id:N}.mp4");
+        var extension = plan.IsAudioOnly ? "m4a" : "mp4";
+        var partial = Path.Combine(folder, $"{download.Id:N}.part.{extension}");
+        var finished = Path.Combine(folder, $"{download.Id:N}.{extension}");
         var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
-        var args = FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, settings);
+        var args = plan.IsAudioOnly
+            ? FfmpegCommand.M4a(file.Path, plan.AudioIndex ?? 0, plan.Convert?.AudioChannels ?? 2, partial)
+            : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, settings);
         var error = await RunAsync(settings.FfmpegPath, args, file.DurationSeconds ?? 0, download.Id, ct);
 
         // Deleted while it was being made? Then there's nothing to keep.
