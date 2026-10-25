@@ -53,6 +53,9 @@ export interface UserData {
   unwatchedCount: number | null
 }
 
+/** What sort of release an album is, as the server boils Lidarr's types down; an album without one is a plain album. */
+export type AlbumType = 'album' | 'ep' | 'single' | 'live' | 'compilation' | 'soundtrack' | 'other'
+
 export interface ItemSummary {
   id: string
   libraryId: string
@@ -82,6 +85,8 @@ export interface ItemSummary {
   trackNumber: number | null
   /** The show's id for episodes and seasons (the artist's for tracks and albums). */
   seriesId?: string | null
+  /** Albums only: what sort of release it is, when Lidarr has said. */
+  albumType?: AlbumType | null
 }
 
 export interface Paged<T> {

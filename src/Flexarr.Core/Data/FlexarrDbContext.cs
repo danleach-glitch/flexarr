@@ -56,6 +56,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         {
             // Every item (seasons and episodes too) carries its library, so hiding one hides all of it.
             e.HasQueryFilter(i => !HiddenLibraryIds.Contains(i.LibraryId) && i.MissingSince == null);
+            e.Property(i => i.AlbumType).HasMaxLength(16);
             e.HasOne(i => i.Parent).WithMany(i => i.Children).HasForeignKey(i => i.ParentId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(i => i.Files).WithOne(f => f.MediaItem).HasForeignKey(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });

@@ -46,6 +46,12 @@ public sealed class MediaItem
     /// <summary>MusicBrainz release id for albums, artist id for artists.</summary>
     public string? MusicBrainzId { get; set; }
 
+    /// <summary>
+    /// What sort of release an album is: one of <see cref="AlbumKind"/>'s values. Lidarr tells us; tags rarely say,
+    /// so the scanner leaves it null, and an album without one is taken to be a plain album.
+    /// </summary>
+    public string? AlbumType { get; set; }
+
     public string? TvdbId { get; set; }
     public string? TmdbId { get; set; }
     public string? ImdbId { get; set; }

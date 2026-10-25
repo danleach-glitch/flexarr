@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link } from 'react-router'
-import { getRadio, getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
+import { getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
@@ -30,6 +30,51 @@ export function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSumm
     { label: 'Add to queue', run: async () => player.enqueue(await tracks()) },
     ...(item ? [{ label: 'Add to playlist…', run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
   ]
+}
+
+/** What an album's page calls its kind of release: nothing for a plain album, or one nobody has typed. */
+export function albumTypeLabel(type: AlbumType | null | undefined): string | null {
+  switch (type) {
+    case 'ep':
+      return 'EP'
+    case 'single':
+      return 'Single'
+    case 'live':
+      return 'Live'
+    case 'compilation':
+      return 'Compilation'
+    case 'soundtrack':
+      return 'Soundtrack'
+    default:
+      return null
+  }
+}
+
+const sectionTitles = ['Albums', 'EPs and singles', 'Live and compilations', 'Other'] as const
+type SectionTitle = (typeof sectionTitles)[number]
+
+// Where each kind is shelved. Anything else (plain albums, soundtracks the artist made, albums nobody has typed) is
+// an album, so a kind this build doesn't know never hides one.
+const shelf: Partial<Record<string, SectionTitle>> = {
+  ep: 'EPs and singles',
+  single: 'EPs and singles',
+  live: 'Live and compilations',
+  compilation: 'Live and compilations',
+  other: 'Other',
+}
+
+/**
+ * An artist's albums in the sections a record shop shelves them by, as Spotify lists them: albums, then EPs and
+ * singles, then live albums and compilations, then the rest. Within a section they keep the order given (newest
+ * first, from the server); a section with nothing in it is left out.
+ */
+export function albumSections(albums: ItemSummary[]): { title: SectionTitle; albums: ItemSummary[] }[] {
+  const grouped = new Map<SectionTitle, ItemSummary[]>()
+  for (const album of albums) {
+    const title = shelf[album.albumType ?? ''] ?? 'Albums'
+    grouped.set(title, [...(grouped.get(title) ?? []), album])
+  }
+  return sectionTitles.filter((title) => grouped.has(title)).map((title) => ({ title, albums: grouped.get(title)! }))
 }
 
 /** The ⋯ beside Play and Shuffle, with the queue actions for the whole album or artist. */
@@ -63,6 +108,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
   const artist = detail.ancestors[0]
   const total = tracks.reduce((sum, t) => sum + (t.durationSeconds ?? 0), 0)
   const discs = new Set(tracks.map((t) => t.discNumber ?? 1)).size
+  const kind = albumTypeLabel(item.albumType)
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
 
@@ -88,6 +134,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
                 {artist.title}
               </Link>
             )}
+            {kind && <span>{kind}</span>}
             {item.year && <span>{item.year}</span>}
             <span>{tracks.length === 1 ? '1 track' : `${tracks.length} tracks`}</span>
             {total > 0 && <span>{formatDuration(total)}</span>}
@@ -159,7 +206,10 @@ function PlayingLyrics({ tracks }: { tracks: ItemSummary[] }) {
   return <LyricsPanel trackId={current.id} currentTime={time} title={current.title} onSeek={player.seek} />
 }
 
-/** An artist and their albums, newest first. Play and Shuffle take every track they have; Radio mixes in artists like them. */
+/**
+ * An artist and their albums, newest first, shelved by kind (see {@link albumSections}). Play and Shuffle take every
+ * track they have; Radio mixes in artists like them.
+ */
 export function ArtistPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
   useMusicPage()
@@ -217,11 +267,21 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
           </div>
         </div>
       </header>
-      <div className="poster-grid music-albums">
-        {albums.map((album) => (
-          <PosterCard key={album.id} item={album} />
-        ))}
-      </div>
+      {albumSections(albums).map((section) => {
+        const headingId = `music-section-${section.title.toLowerCase().replace(/\W+/g, '-')}`
+        return (
+          <section key={section.title} className="music-section" aria-labelledby={headingId}>
+            <h2 id={headingId} className="music-section-title">
+              {section.title}
+            </h2>
+            <div className="poster-grid music-albums">
+              {section.albums.map((album) => (
+                <PosterCard key={album.id} item={album} />
+              ))}
+            </div>
+          </section>
+        )
+      })}
     </article>
   )
 }
