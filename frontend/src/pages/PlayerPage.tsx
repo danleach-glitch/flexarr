@@ -30,6 +30,18 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
 /** The countdown between one episode finishing and the next starting. */
 const UP_NEXT_SECONDS = 5
 
+/**
+ * The next episode's session, started during the credits so it opens at once. Kept outside the page so it survives
+ * the move to the next episode's address, which is the same page with another id.
+ */
+let prepared: { itemId: string; info: PlaybackInfo } | null = null
+
+/** Lets the prepared session go (best effort): it wasn't wanted, or something else is playing. */
+function dropPrepared() {
+  if (prepared) void stopPlayback(prepared.info.sessionId).catch(() => undefined)
+  prepared = null
+}
+
 const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false }
 const HIDE_CHROME_MS = 3000
 const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
@@ -108,6 +120,8 @@ export function PlayerPage() {
   const [finished, setFinished] = useState(false)
   const [preferences, setPreferences] = useState<PlaybackPreferences>(defaultPreferences)
   const [notice, setNotice] = useState<string>()
+  // The latest request to get the next episode ready, so an older answer arriving late is let go.
+  const preparing = useRef<{ itemId: string } | null>(null)
   // Intros and recaps already skipped by themselves, so seeking back into one to watch it isn't overruled.
   const autoSkipped = useRef(new Set<string>())
 
@@ -189,7 +203,11 @@ export function PlayerPage() {
       const request = ++requests.current
       const replaces = session.current
       try {
-        const playback = await startPlayback({
+        // The next episode, got ready during the last one's credits, opens straight away.
+        const ready = !options.audioStreamIndex && !options.subtitleKey && !options.forceTranscode && !replaces && prepared?.itemId === id ? prepared.info : null
+        if (ready) prepared = null
+        else dropPrepared()
+        const playback = ready ?? await startPlayback({
           itemId: playingItem.current ?? id,
           shuffle: shuffleRef.current || undefined,
           profile: detectProfile(),
@@ -565,6 +583,42 @@ export function PlayerPage() {
     if (counting && countdown <= 0) playNext()
   }, [countdown, counting, playNext])
 
+  // Get the next episode ready once the Up Next card shows (the credits, or the last moments), and let it go if the
+  // viewer heads back into the episode.
+  useEffect(() => {
+    const next = info?.next
+    if (!next) return
+    if (!showUpNext) {
+      if (prepared && !finished) dropPrepared()
+      return
+    }
+    if (prepared?.itemId === next.id) return
+    dropPrepared()
+    const q = quality
+    const preset = qualities.find((x) => x.value === q)
+    const claim = { itemId: next.id }
+    void startPlayback({
+      itemId: next.id,
+      profile: detectProfile(),
+      startPositionSeconds: 0,
+      maxHeight: q === 'auto' ? undefined : q,
+      maxBitrate: preset?.bitrate,
+      forceTranscode: q !== 'auto' || undefined,
+      shuffle: shuffle || undefined,
+      prepare: true,
+    })
+      .then((ready) => {
+        // Still wanted? (Not if the card went away, or another episode is being got ready, meanwhile.)
+        if (prepared === null && claim === preparing.current) prepared = { itemId: next.id, info: ready }
+        else void stopPlayback(ready.sessionId).catch(() => undefined)
+      })
+      .catch(() => undefined) // A busy server: the next episode starts the usual way.
+    preparing.current = claim
+  }, [showUpNext, info, finished, quality, shuffle])
+
+  // Leaving the player lets an unused next episode go.
+  useEffect(() => () => dropPrepared(), [])
+
   /** Turns one of the profile's playback preferences on or off, here and for its other devices. */
   function togglePreference(key: keyof PlaybackPreferences) {
     const next = { ...preferences, [key]: !preferences[key] }
@@ -575,6 +629,7 @@ export function PlayerPage() {
   /** Not now: hide the card, and if the credits were skipped, let them play. */
   function cancelUpNext() {
     setUpNextCancelled(true)
+    dropPrepared()
     if (finished && video.current && !video.current.ended) void video.current.play()
     setFinished(false)
   }

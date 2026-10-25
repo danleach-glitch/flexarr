@@ -10,7 +10,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.13.1"
+    MARKETING_VERSION: "0.14.0"
     CURRENT_PROJECT_VERSION: "1"
 packages:
   FlexarrKit:

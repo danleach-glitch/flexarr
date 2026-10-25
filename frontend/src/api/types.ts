@@ -266,6 +266,8 @@ export interface PlaybackRequest {
   replacesSessionId?: string
   /** With a show's id, plays a random episode; with an episode's, Next is a random one. */
   shuffle?: boolean
+  /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
+  prepare?: boolean
 }
 
 export interface AudioTrack {

@@ -17,7 +17,10 @@ public sealed record PlaybackRequest(
     // The session this one takes over from (an audio switch, a recovery), ended before this one starts.
     string? ReplacesSessionId = null,
     // Shuffle a show: with the show's id, a random episode starts; with an episode's, Next is a random one.
-    bool Shuffle = false);
+    bool Shuffle = false,
+    // Getting the next episode ready while this one's credits play: conversion starts now, so it opens at once. It
+    // never takes another screen's place; with the server full, it's refused (503) and the player starts normally.
+    bool Prepare = false);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 

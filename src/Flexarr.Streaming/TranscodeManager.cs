@@ -55,7 +55,9 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// the problem to another screen, whose own restart would take the next.
     /// </summary>
     /// <exception cref="TranscodeLimitException">Every slot is in use and nobody has to give one up.</exception>
-    public async Task<TranscodeSession> CreateAsync(string profileId, string input, double durationSeconds, TranscodePlan plan, bool restarting = false)
+    /// <param name="preparing">Getting the next episode ready: like a restart, it never takes anyone's place.</param>
+    public async Task<TranscodeSession> CreateAsync(string profileId, string input, double durationSeconds, TranscodePlan plan, bool restarting = false,
+        bool preparing = false)
     {
         var current = settings();
         var limit = current.MaxConcurrentTranscodes;
@@ -70,6 +72,11 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                 {
                     throw new TranscodeLimitException(
                         "The stream stopped, and Flexarr is now busy playing on other screens. Try again when one of them finishes.");
+                }
+
+                if (preparing)
+                {
+                    throw new TranscodeLimitException("Flexarr is busy playing on other screens, so the next episode wasn't got ready.");
                 }
 
                 var share = PerProfileLimit;

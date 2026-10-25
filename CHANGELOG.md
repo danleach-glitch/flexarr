@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.14.0 · 25 October 2026
+
+### The next episode starts straight away
+- While an episode's credits play, Flexarr gets the next one ready, so when the countdown ends (or you press Next) it starts at once instead of after a few seconds of loading. On the web, iPhone, iPad and Apple TV.
+- It never takes a screen away from anyone: if the server is already busy playing elsewhere, the next episode just starts the usual way.
+
 ## 0.13.1 · 24 October 2026
 
 ### Changed

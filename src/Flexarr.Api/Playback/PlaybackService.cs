@@ -106,7 +106,7 @@ public sealed class PlaybackService(
         TranscodeSession? transcode = null;
         if (decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
         {
-            transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting);
+            transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting, request.Prepare);
             id = transcode.Id;
         }
 
@@ -130,6 +130,24 @@ public sealed class PlaybackService(
 
         var start = request.StartPositionSeconds
             ?? (state is { Watched: false, PositionSeconds: > MinResumeSeconds } && state.PositionSeconds < duration * WatchedThreshold ? state.PositionSeconds : 0);
+
+        if (request.Prepare && transcode is { } warming)
+        {
+            // ffmpeg starts with the first segment asked for: ask now for the one playback opens at, so it's ready
+            // when the player is.
+            var segment = (int)(Math.Max(0, start) / FfmpegCommand.SegmentSeconds);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await warming.GetSegmentAsync(segment, CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    // Getting ahead is a nicety: the player asks for the segment itself and sees any real problem.
+                }
+            }, CancellationToken.None);
+        }
 
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var ancestors = new List<ItemSummaryDto>();

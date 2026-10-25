@@ -75,6 +75,30 @@ public sealed class PlaybackSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task GettingTheNextEpisodeReady_NeverEndsAScreen_AndIsRefusedWhenTheServerIsFull()
+    {
+        var movie = await AddMovieAsync();
+        var client = Client();
+
+        // With room, it's an ordinary session.
+        var prepared = await client.PostAsJsonAsync(new Uri("/api/v1/playback", UriKind.Relative),
+            new { itemId = movie, profile = new { }, forceTranscode = true, prepare = true });
+        prepared.EnsureSuccessStatusCode();
+        var preparedId = (await prepared.Content.ReadFromJsonAsync<StartedPlayback>())!.SessionId;
+        Assert.True(await ExistsAsync(client, preparedId));
+
+        // Full: the screens playing carry on, and the next episode just isn't got ready.
+        var screens = new[] { preparedId, await StartAsync(client, movie), await StartAsync(client, movie) };
+        var refused = await client.PostAsJsonAsync(new Uri("/api/v1/playback", UriKind.Relative),
+            new { itemId = movie, profile = new { }, forceTranscode = true, prepare = true });
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, refused.StatusCode);
+        foreach (var screen in screens)
+        {
+            Assert.True(await ExistsAsync(client, screen));
+        }
+    }
+
+    [Fact]
     public async Task RestartingAStreamTheServerForgot_EndsNobody_AndSaysTheServerIsBusy()
     {
         var movie = await AddMovieAsync();

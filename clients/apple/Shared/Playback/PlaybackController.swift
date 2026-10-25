@@ -74,6 +74,9 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     /// Cancel was chosen: no more offers of the next episode for this one.
     @ObservationIgnored private var nextCancelled = false
+    /// The next episode's session, started during the credits so it opens at once, and the request for it.
+    @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo)?
+    @ObservationIgnored private var preparing: Task<Void, Never>?
     private static let countdownSeconds = 5
     #if os(iOS)
     /// Skip Intro / Next Episode, over the player.
@@ -445,6 +448,8 @@ final class PlaybackController: NSObject {
             log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
             prompt = next
             updateContextualActions()
+            // The credits started: get the next episode ready. Back out of them: let it go.
+            if next == .nextEpisode { prepareNext() } else if !isFinishing { dropPrepared() }
         }
         if Date().timeIntervalSince(lastReport) >= Self.reportInterval, player?.timeControlStatus == .playing {
             report(paused: false)
@@ -470,10 +475,52 @@ final class PlaybackController: NSObject {
 
     // MARK: Markers and next episode
 
+    /// The request for the episode after `current`. Subtitles turned off carry on to it; a chosen track is the
+    /// server's to match there. The player's Off keeps forced subtitles (foreign dialogue) on, which counts as off.
+    private func nextRequest(_ next: ItemSummary, after current: PlaybackInfo) -> PlaybackRequest {
+        var request = request(for: next.id, startAt: nil)
+        let forced = Set(current.subtitles.filter(\.isForced).map(\.key))
+        if case .some(let key) = viewerSubtitleKey, key.map(forced.contains) ?? true {
+            request.subtitleKey = "off"
+        }
+        return request
+    }
+
+    /// Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
+    /// server says no, and then it starts the usual way.
+    private func prepareNext() {
+        guard let client, let current = info, let next = current.next, !nextCancelled,
+              prepared?.info.item.id != next.id, preparing == nil else { return }
+        var request = nextRequest(next, after: current)
+        request.prepare = true
+        let playing = current.sessionId
+        preparing = Task {
+            defer { preparing = nil }
+            guard let ready = try? await client.startPlayback(request) else { return }
+            // Still wanted? (Not if this episode was closed, or moved on from, meanwhile.)
+            guard info?.sessionId == playing, !nextCancelled else {
+                try? await client.stopPlayback(sessionId: ready.sessionId)
+                return
+            }
+            log.info("Next episode ready: \(ready.item.title, privacy: .public)")
+            prepared = (request, ready)
+        }
+    }
+
+    /// Lets the prepared session go (best effort): it wasn't wanted, or playback ended.
+    private func dropPrepared() {
+        preparing?.cancel()
+        preparing = nil
+        guard let prepared, let client else { self.prepared = nil; return }
+        self.prepared = nil
+        Task { try? await client.stopPlayback(sessionId: prepared.info.sessionId) }
+    }
+
     /// The episode is over: count down to the next one if auto-play is on, else wait to be asked.
     private func beginFinishing() {
         guard info?.next != nil, !isFinishing else { return }
         isFinishing = true
+        prepareNext()
         countdownTask?.cancel()
         if preferences.autoPlayNext {
             countdown = Self.countdownSeconds
@@ -503,6 +550,7 @@ final class PlaybackController: NSObject {
     /// Not now: stop counting, and if the credits were skipped, let them play.
     private func cancelNext() {
         nextCancelled = true
+        dropPrepared()
         let ended = player.map { $0.currentTime() >= ($0.currentItem?.duration ?? .positiveInfinity) } ?? true
         endFinishing()
         if !ended { player?.play() }
@@ -658,17 +706,18 @@ final class PlaybackController: NSObject {
             defer { isAdvancing = false }
             try? await client.stopPlayback(sessionId: finished)
             do {
-                // Subtitles turned off carry on to the next episode; a chosen track is the server's to match there.
-                var nextRequest = request(for: next.id, startAt: nil)
-                // The player's Off keeps forced subtitles (foreign dialogue) on, which counts as off here.
-                let forced = Set(current.subtitles.filter(\.isForced).map(\.key))
-                if case .some(let key) = viewerSubtitleKey, key.map(forced.contains) ?? true {
-                    nextRequest.subtitleKey = "off"
-                    viewerSubtitleKey = .some(nil)
+                let nextRequest = nextRequest(next, after: current)
+                viewerSubtitleKey = nextRequest.subtitleKey == "off" ? .some(nil) : nil
+                // Got ready during the credits (with the same subtitles): it opens straight away.
+                let info: PlaybackInfo
+                if let ready = prepared, ready.info.item.id == next.id, ready.request.subtitleKey == nextRequest.subtitleKey {
+                    prepared = nil
+                    log.info("Using the next episode got ready during the credits")
+                    info = ready.info
                 } else {
-                    viewerSubtitleKey = nil
+                    dropPrepared()
+                    info = try await client.startPlayback(nextRequest)
                 }
-                let info = try await client.startPlayback(nextRequest)
                 guard self.info?.sessionId == finished else { // Closed meanwhile.
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
@@ -724,6 +773,7 @@ final class PlaybackController: NSObject {
         countdown = nil
         countdownTask?.cancel()
         countdownTask = nil
+        dropPrepared()
         if client != nil { onSessionEnded?() }
     }
 

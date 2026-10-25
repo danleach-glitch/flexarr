@@ -328,6 +328,8 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     public var replacesSessionId: String?
     /// With a show's id, a random episode starts; with an episode's, its `next` is a random one.
     public var shuffle: Bool?
+    /// Getting the next episode ready during the credits: conversion starts now, and it never ends another screen.
+    public var prepare: Bool?
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
