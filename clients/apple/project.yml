@@ -122,12 +122,11 @@ targets:
         # Only HTTPS and Apple's own crypto, which is exempt from export documentation.
         ITSAppUsesNonExemptEncryption: false
         # How "Flexarr" tends to come out of speech recognition, so Siri still knows which app is meant.
+        # App Store Connect rejects more than three per language (ITMS-90626).
         INAlternativeAppNames:
           - INAlternativeAppName: Flexar
-          - INAlternativeAppName: Flex R
-          - INAlternativeAppName: Flex are
           - INAlternativeAppName: Flexer
-          - INAlternativeAppName: Flex arr
+          - INAlternativeAppName: Flex are
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.ios
