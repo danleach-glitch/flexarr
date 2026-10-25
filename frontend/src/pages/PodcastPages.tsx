@@ -133,7 +133,7 @@ function PodcastsHome() {
             }}
           />
           <button className="button quiet small" onClick={() => file.current?.click()}>
-            Import from another app
+            Import
           </button>
           {!empty && (
             <a className="button quiet small" href={opmlUrl} download="Flexarr podcasts.opml">
@@ -154,7 +154,7 @@ function PodcastsHome() {
           <h2>Follow a podcast to see its new episodes here</h2>
           <p className="muted">
             Find shows in <Link to="/podcasts/browse">Browse</Link>, or bring the ones you follow in another app: export them from it as OPML (Pocket Casts, Overcast and
-            most others can), then use Import from another app.
+            most others can), then use Import.
           </p>
           <Link className="button" to="/podcasts/browse">
             Browse podcasts
