@@ -81,6 +81,10 @@ extension ItemSummary {
             if childCount > 0 { facts.append(childCount == 1 ? "1 season" : "\(childCount) seasons") }
         case .season:
             if childCount > 0 { facts.append(childCount == 1 ? "1 episode" : "\(childCount) episodes") }
+        case .artist:
+            if childCount > 0 { facts.append(childCount == 1 ? "1 album" : "\(childCount) albums") }
+        case .album:
+            if childCount > 0 { facts.append(childCount == 1 ? "1 track" : "\(childCount) tracks") }
         default:
             if let runtime = runtimeMinutes.flatMap(Format.runtime(minutes:)) ?? durationSeconds.flatMap(Format.runtime(seconds:)) {
                 facts.append(runtime)
@@ -90,6 +94,26 @@ extension ItemSummary {
         if let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
         if let resolution, !resolution.isEmpty { facts.append(resolution) }
         return facts
+    }
+}
+
+// MARK: - Music
+
+extension ItemSummary {
+    /// The artist's name for a track or album, as the server sends it alongside the title.
+    public var artistName: String? { kind.isMusic ? seriesTitle : nil }
+
+    /// "46m" for an album's tracks played end to end, or nil when none has a length.
+    public static func totalRuntime(of tracks: [ItemSummary]) -> String? {
+        let total = tracks.reduce(0.0) { $0 + ($1.durationSeconds ?? 0) }
+        return total > 0 ? Format.runtime(seconds: total) : nil
+    }
+
+    /// Tracks in the order they play, grouped by disc. One group when the album is a single disc (or no disc is numbered).
+    public static func discs(of tracks: [ItemSummary]) -> [(disc: Int, tracks: [ItemSummary])] {
+        var groups: [Int: [ItemSummary]] = [:]
+        for track in tracks { groups[track.discNumber ?? 1, default: []].append(track) }
+        return groups.keys.sorted().map { (disc: $0, tracks: groups[$0]!) }
     }
 }
 

@@ -24,7 +24,16 @@ public enum LibraryType: String, ForwardCompatibleEnum {
 }
 
 public enum MediaKind: String, ForwardCompatibleEnum {
-    case movie = "Movie", series = "Series", season = "Season", episode = "Episode", unknown
+    case movie = "Movie", series = "Series", season = "Season", episode = "Episode"
+    case artist = "Artist", album = "Album", track = "Track", unknown
+
+    /// An artist, album or track: listened to, not watched, so the music screens and player take it.
+    public var isMusic: Bool {
+        switch self {
+        case .artist, .album, .track: true
+        default: false
+        }
+    }
 }
 
 public enum VideoRange: String, ForwardCompatibleEnum {
@@ -48,7 +57,12 @@ public enum MarkerType: String, ForwardCompatibleEnum {
 }
 
 public enum HomeRowStyle: String, ForwardCompatibleEnum {
-    case poster, wide, top10, unknown
+    case poster, wide, top10
+    /// The items are tracks (most played, say): shown as tracks that play, not titles that open.
+    case tracks
+    /// The profile's playlists; `items` is empty, the playlists come from `GET /playlists`.
+    case playlists
+    case unknown
 }
 
 // MARK: - System
@@ -155,7 +169,13 @@ public struct ItemSummary: Codable, Sendable, Hashable, Identifiable {
     public let runtimeMinutes: Int?
     public let releaseDate: String?
     public let userData: UserData
+    /// The show for episodes and seasons; the artist for tracks and albums.
     public let seriesTitle: String?
+    /// Tracks only. Absent from servers before music.
+    public var discNumber: Int? = nil
+    public var trackNumber: Int? = nil
+    /// The show's id for episodes and seasons, the artist's for tracks and albums. Absent from servers before it existed.
+    public var seriesId: String? = nil
 }
 
 public struct MediaStream: Codable, Sendable, Hashable {
@@ -238,6 +258,43 @@ public struct HomeRow: Codable, Sendable, Identifiable, Hashable {
     public let style: HomeRowStyle
     public let items: [ItemSummary]
     public let link: String?
+    /// A `playlists` row's content (`items` is empty then). Absent from servers before playlists.
+    public var playlists: [PlaylistSummary]? = nil
+
+    /// Whether there's anything to show: a row of items, or of playlists. A row of neither would be a bare heading.
+    public var hasContent: Bool { !items.isEmpty || !(playlists ?? []).isEmpty }
+}
+
+// MARK: - Playlists
+
+/// One of the profile's music playlists, as a list shows it.
+public struct PlaylistSummary: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let trackCount: Int
+    public let durationSeconds: Double
+    /// Up to four of its tracks' album covers, first tracks first, for a mosaic.
+    public let covers: [String]
+    /// A cover chosen for it, shown instead of the mosaic.
+    public let cover: String?
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    /// "12 tracks".
+    public var trackCountLabel: String { trackCount == 1 ? "1 track" : "\(trackCount) tracks" }
+}
+
+/// A place in a playlist: the entry (what's moved or removed) and the track in it.
+public struct PlaylistTrack: Codable, Sendable, Hashable, Identifiable {
+    public let entryId: Int
+    public let track: ItemSummary
+
+    public var id: Int { entryId }
+}
+
+public struct PlaylistDetail: Codable, Sendable {
+    public let summary: PlaylistSummary
+    public let tracks: [PlaylistTrack]
 }
 
 public struct Home: Codable, Sendable {

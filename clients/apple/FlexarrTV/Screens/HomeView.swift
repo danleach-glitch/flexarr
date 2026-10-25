@@ -49,7 +49,8 @@ struct HomeView: View {
                 if !home.featured.isEmpty {
                     HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)
                 }
-                ForEach(home.rows) { row in
+                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                ForEach(home.rows.filter(\.hasContent)) { row in
                     HomeRowView(row: row)
                 }
             }
@@ -247,12 +248,19 @@ struct HomeRowView: View {
             RowHeading(title: row.title)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 30 : Layout.rowSpacing) {
+                    // A playlists row carries playlists rather than items.
+                    ForEach(row.playlists ?? []) { playlist in
+                        PlaylistCard(playlist: playlist) { router.push(.playlist(playlist)) }
+                    }
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         switch row.style {
                         case .wide:
                             WideCard(item: item) { model.play(item) }
                         case .top10:
                             Top10Card(rank: index + 1, item: item) { router.push(.item(item)) }
+                        case .tracks:
+                            // A row of tracks plays: the one pressed first, the rest of the row after it.
+                            TrackCard(item: item) { model.playTracks(row.items, from: index) }
                         default:
                             PosterCard(item: item) { router.push(.item(item)) }
                         }

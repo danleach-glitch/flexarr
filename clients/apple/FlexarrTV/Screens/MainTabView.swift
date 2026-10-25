@@ -7,6 +7,8 @@ enum TabID: Hashable {
     case library(String)
     case search
     case settings
+    /// Only while music plays.
+    case nowPlaying
 }
 
 /// tvOS top tabs: Home, one per library, Search and Settings, with who's watching in the top right
@@ -25,7 +27,13 @@ struct MainTabView: View {
             }
             ForEach(model.libraries) { library in
                 Tab(value: TabID.library(library.id)) {
-                    TabStack { LibraryView(library: library) }
+                    TabStack {
+                        if library.type == .music {
+                            MusicLibraryView(library: library)
+                        } else {
+                            LibraryView(library: library)
+                        }
+                    }
                 } label: {
                     Text(library.name)
                 }
@@ -38,6 +46,20 @@ struct MainTabView: View {
             } label: {
                 Text("Settings")
             }
+            // Music that's playing gets a tab of its own, as the Music app does: the surest way to reach it with
+            // the remote from anywhere.
+            if model.music.current != nil {
+                Tab(value: TabID.nowPlaying) {
+                    NowPlayingView()
+                } label: {
+                    Label("Now Playing", systemImage: "waveform")
+                }
+            }
+        }
+        // The remote's play/pause button runs the music from any screen (the video player takes it over while it's up).
+        .onPlayPauseCommand { if model.music.current != nil { model.music.togglePlayPause() } }
+        .onChange(of: model.music.current == nil) { _, stopped in
+            if stopped, selection == .nowPlaying { selection = .home }
         }
         .overlay(alignment: .topTrailing) {
             if model.profiles.count > 1, let current = model.currentProfile {
@@ -208,6 +230,8 @@ struct TabStack<Content: View>: View {
                     destination(route)
                 }
         }
+        // Music carries on under every screen; the bar says what's playing and opens Now Playing.
+        .safeAreaInset(edge: .bottom) { NowPlayingBar() }
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
         .onAppear(perform: consumeDeepLink)
@@ -222,14 +246,20 @@ struct TabStack<Content: View>: View {
     @ViewBuilder
     private func destination(_ route: Route) -> some View {
         switch route {
+        case .item(let item) where item.kind.isMusic:
+            MusicDestination(item: item)
         case .item(let item):
             DetailView(id: item.id, preview: item)
         case .itemID(let id):
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
+        case .library(let library, _) where library.type == .music:
+            MusicLibraryView(library: library)
         case .library(let library, let sort):
             LibraryView(library: library, initialSort: sort)
+        case .playlist(let playlist):
+            PlaylistView(playlist: playlist)
         }
     }
 }

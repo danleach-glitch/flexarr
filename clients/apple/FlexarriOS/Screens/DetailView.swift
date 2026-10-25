@@ -36,7 +36,10 @@ struct DetailView: View {
     var body: some View {
         ZStack {
             RoomBackground(ambient: ambient, intensity: 0.22)
-            if let item {
+            if let item, item.kind.isMusic {
+                // Opened by id (a deep link, say) and turned out to be music: its own screen takes over.
+                MusicDestination(item: item)
+            } else if let item {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 28) {
                         header(item)

@@ -341,3 +341,17 @@ struct CommandStreamTests {
         }
     }
 }
+
+struct MusicClientTests {
+    @Test func fetchesAnArtistsTracksInOneRequest() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("tracks")))
+
+        let tracks = try await client.tracks(of: "01a172cc-3620-79f8-aff0-b0091da8f986")
+
+        #expect(tracks.count == 3)
+        #expect(tracks.first?.kind == .track)
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "GET")
+        #expect(request.url?.path == "/api/v1/items/01a172cc-3620-79f8-aff0-b0091da8f986/tracks")
+    }
+}

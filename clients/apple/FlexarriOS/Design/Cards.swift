@@ -45,7 +45,8 @@ struct PosterArtwork: View {
 
     var body: some View {
         Color.seat
-            .aspectRatio(2 / 3, contentMode: .fit)
+            // Album covers and artist pictures are square; everything else is a 2:3 poster.
+            .aspectRatio(item.kind.isMusic ? 1 : 2 / 3, contentMode: .fit)
             .overlay {
                 RemoteImage(url: model.client?.imageURL(item.artwork.poster, width: 342)) {
                     ZStack {

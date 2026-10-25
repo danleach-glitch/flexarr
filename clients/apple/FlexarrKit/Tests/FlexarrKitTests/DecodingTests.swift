@@ -129,3 +129,100 @@ struct DecodingTests {
 extension ItemSummary {
     var thumbOrBackdrop: String? { artwork.thumb ?? artwork.backdrop }
 }
+
+struct MusicDecodingTests {
+    @Test func artistDetailListsAlbumsNewestFirst() throws {
+        let detail = try Fixture.decode(ItemDetail.self, "item-artist")
+
+        #expect(detail.item.kind == .artist)
+        #expect(detail.item.kind.isMusic)
+        #expect(detail.item.title == "Dire Straits")
+        #expect(detail.item.facts == ["4 albums", "9.4"])
+        #expect(detail.genres.contains("Rock"))
+        #expect(detail.children.allSatisfy { $0.kind == .album })
+        #expect(detail.children.map(\.year) == [1991, 1982, 1980, 1979])
+        #expect(detail.children.first?.artistName == "Dire Straits")
+        #expect(detail.children.first?.seriesId == detail.item.id)
+    }
+
+    @Test func albumDetailHasNumberedTracks() throws {
+        let detail = try Fixture.decode(ItemDetail.self, "item-album")
+
+        #expect(detail.item.kind == .album)
+        #expect(detail.item.title == "On Every Street")
+        #expect(detail.item.facts == ["1991", "12 tracks", "7.5"])
+        #expect(detail.ancestors.map(\.kind) == [.artist])
+        #expect(detail.children.allSatisfy { $0.kind == .track })
+        #expect(detail.children.map(\.trackNumber) == [1, 2, 3, 4, 5])
+        #expect(detail.children.first?.discNumber == nil)
+        #expect(detail.children.first?.title == "Calling Elvis")
+        #expect(detail.children.first?.durationSeconds == 387.4)
+        #expect(ItemSummary.totalRuntime(of: detail.children) == "25m")
+        let discs = ItemSummary.discs(of: detail.children)
+        #expect(discs.count == 1)
+        #expect(discs.first?.disc == 1)
+        #expect(discs.first?.tracks.count == 5)
+    }
+
+    @Test func tracksAreOrderedAcrossAlbums() throws {
+        let tracks = try Fixture.decode([ItemSummary].self, "tracks")
+
+        #expect(tracks.count == 3)
+        #expect(tracks.allSatisfy { $0.kind == .track && $0.artistName == "Dire Straits" })
+        // Oldest album first, then track order; the third is the next album's opener.
+        #expect(tracks.map(\.trackNumber) == [1, 2, 1])
+        #expect(tracks[0].parentId == tracks[1].parentId)
+        #expect(tracks[2].parentId != tracks[0].parentId)
+    }
+
+    @Test func playlistCarriesItsTracksInOrder() throws {
+        // A playlist as the server sends it, wrapped around the captured track summaries.
+        let tracks = try Fixture.data("tracks")
+        let entries = try FlexarrClient.decoder.decode([ItemSummary].self, from: tracks)
+        let wrapped = try #require(JSONSerialization.jsonObject(with: tracks) as? [Any])
+        let detailObject: [String: Any] = [
+            "summary": ["id": "7c1d", "name": "Road trip", "trackCount": 3, "durationSeconds": 912.5,
+                        "covers": ["/api/v1/images/items/a/poster", "/api/v1/images/items/b/poster"], "cover": NSNull(),
+                        "createdAt": "2026-10-25T10:00:00", "updatedAt": "2026-10-25T11:30:00.123456"],
+            "tracks": wrapped.enumerated().map { ["entryId": $0.offset + 5, "track": $0.element] },
+        ]
+
+        let detail = try FlexarrClient.decoder.decode(PlaylistDetail.self, from: JSONSerialization.data(withJSONObject: detailObject))
+
+        #expect(detail.summary.name == "Road trip")
+        #expect(detail.summary.trackCountLabel == "3 tracks")
+        #expect(detail.summary.covers.count == 2)
+        #expect(detail.summary.cover == nil)
+        #expect(detail.tracks.map(\.entryId) == [5, 6, 7])
+        #expect(detail.tracks.map(\.track) == entries)
+    }
+
+    @Test func homeRowOfPlaylistsHasContentWithNoItems() throws {
+        let json = """
+        {"id":"playlists","title":"Your playlists","style":"playlists","items":[],"link":null,
+         "playlists":[{"id":"7c1d","name":"Road trip","trackCount":3,"durationSeconds":912.5,"covers":[],"cover":null,
+                       "createdAt":"2026-10-25T10:00:00","updatedAt":"2026-10-25T11:30:00"}]}
+        """
+        let row = try FlexarrClient.decoder.decode(HomeRow.self, from: Data(json.utf8))
+        #expect(row.style == .playlists)
+        #expect(row.hasContent)
+        #expect(row.playlists?.first?.name == "Road trip")
+
+        let empty = try FlexarrClient.decoder.decode(HomeRow.self, from: Data(#"{"id":"x","title":"Nothing","style":"future","items":[],"link":null}"#.utf8))
+        #expect(empty.style == .unknown)
+        #expect(!empty.hasContent)
+    }
+
+    @Test func discsAreGroupedAndOrdered() throws {
+        // The first track moved to a second disc still comes after the first disc's.
+        var data = try #require(JSONSerialization.jsonObject(with: Fixture.data("tracks")) as? [[String: Any]])
+        data[0]["discNumber"] = 2
+        let tracks = try FlexarrClient.decoder.decode([ItemSummary].self, from: JSONSerialization.data(withJSONObject: data))
+
+        let discs = ItemSummary.discs(of: tracks)
+
+        #expect(discs.map(\.disc) == [1, 2])
+        #expect(discs[0].tracks.count == 2)
+        #expect(discs[1].tracks.map(\.title) == ["Once Upon A Time In The West"])
+    }
+}

@@ -32,6 +32,7 @@ final class AppModel {
     let store = CredentialStore()
     let player = PlaybackController()
     private let commands = DeviceCommandListener()
+    let music = MusicPlayer()
     #if DEBUG
     /// Launch-argument sign-ins (simulator runs, the screenshot tour) act as the main profile
     /// unless `-FlexarrAskProfile YES` asks.
@@ -55,9 +56,15 @@ final class AppModel {
         // `-FlexarrNoHistory YES` plays without reporting progress, so test runs against a
         // real server don't change its watch history.
         player.recordsHistory = !defaults.bool(forKey: "FlexarrNoHistory")
+        music.recordsHistory = player.recordsHistory
         #endif
         phase = store.load().map(Phase.signedIn) ?? .signedOut
-        player.onSessionEnded = { [weak self] in self?.invalidate() }
+        player.onSessionEnded = { [weak self] in
+            self?.invalidate()
+            self?.music.videoEnded()
+        }
+        // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
+        player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
         #if DEBUG
         // `-FlexarrPlay <id>` plays a title once the app's up (as flexarr://play/<id>, without tvOS asking first).
         if let play = defaults.string(forKey: "FlexarrPlay") {
@@ -124,6 +131,7 @@ final class AppModel {
 
     private func forget() {
         player.stop()
+        music.stop()
         store.clear()
         libraries = []
         resetProfiles()
@@ -232,6 +240,7 @@ final class AppModel {
             throw ConnectionError(error)
         }
         player.stop()
+        music.stop()
         credentials.profileToken = selection.token
         store.saveProfile(selection.token)
         profiles = profiles.map { $0.marked(current: $0.id == profile.id) }
@@ -249,7 +258,7 @@ final class AppModel {
     func loadLibraries() async {
         guard let client else { return }
         do {
-            libraries = try await client.libraries().filter { $0.type != .music }
+            libraries = try await client.libraries()
             librariesError = nil
         } catch {
             librariesError = ConnectionError(error).message
@@ -272,7 +281,7 @@ final class AppModel {
     }
 
     /// Plays a movie or episode directly; for a series or season, plays its next-up episode
-    /// (or opens the details when everything has been watched).
+    /// (or opens the details when everything has been watched). Music opens its page.
     func playBest(_ item: ItemSummary, router: Router) async {
         guard let client else { return }
         switch item.kind {
@@ -282,9 +291,28 @@ final class AppModel {
             } else {
                 router.push(.item(item))
             }
+        case .artist, .album, .track:
+            router.push(.item(item))
         default:
             play(item)
         }
+    }
+
+    // MARK: Music
+
+    /// Plays `tracks` from the one at `start` (or a fresh shuffle of them). `albums` lends them their album names.
+    func playTracks(_ tracks: [ItemSummary], from start: Int = 0, shuffled: Bool = false, albums: [ItemSummary] = []) {
+        guard let client else { return }
+        music.play(tracks, from: start, shuffled: shuffled, albums: albums, client: client)
+    }
+
+    /// Everything an artist or album has, in order or shuffled.
+    func playAll(of page: MusicPageModel, shuffled: Bool) async {
+        guard let client else { return }
+        let tracks = await page.allTracks(client: client)
+        guard !tracks.isEmpty else { return }
+        let albums = page.item?.kind == .album ? [page.item].compactMap { $0 } : page.albums
+        music.play(tracks, shuffled: shuffled, albums: albums, client: client)
     }
 
     func setWatched(_ item: ItemSummary, _ watched: Bool) async {
@@ -402,6 +430,7 @@ enum Route: Hashable {
     case itemID(String)
     case person(id: String, name: String)
     case library(Library, LibrarySort)
+    case playlist(PlaylistSummary)
 }
 
 /// One navigation stack per tab.

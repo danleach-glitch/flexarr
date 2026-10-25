@@ -54,7 +54,8 @@ struct PosterArtwork: View {
                     .padding(16)
             }
         }
-        .frame(width: width, height: width * 1.5)
+        // Album covers and artist pictures are square; everything else is a 2:3 poster.
+        .frame(width: width, height: item.kind.isMusic ? width : width * 1.5)
         .overlay(alignment: .bottom) {
             if let progress = item.progress {
                 ProgressBar(value: progress).padding(12)
