@@ -161,7 +161,10 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
               <div className="track-row" onContextMenu={(e) => openMenu(i, { x: e.clientX, y: e.clientY })(e)}>
                 <button className={isCurrent ? 'track current' : 'track'} onClick={() => player.play(tracks, i)} aria-current={isCurrent || undefined}>
                   <span className="track-number">{isCurrent && player.playing ? <Play /> : (track.trackNumber ?? i + 1)}</span>
-                  <span className="track-title">{track.title}</span>
+                  <span className="track-title">
+                    {track.title}
+                    {track.trackArtist && <span className="track-artist">{track.trackArtist}</span>}
+                  </span>
                   <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
                 </button>
                 <button

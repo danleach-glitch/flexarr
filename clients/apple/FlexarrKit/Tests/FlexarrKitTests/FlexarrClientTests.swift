@@ -388,6 +388,23 @@ struct MusicClientTests {
         #expect(request.httpMethod == "GET")
         #expect(request.url?.path == "/api/v1/items/01a172cc-3620-79f8-aff0-b0091da8f986/tracks")
     }
+
+    @Test func fetchesATracksLyrics() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("lyrics")))
+
+        let lyrics = try #require(try await client.lyrics(of: "01a172cc-3621-7948-b6de-6f49d8067a8c"))
+
+        #expect(lyrics.synced)
+        #expect(lyrics.lines.count == 4)
+        #expect(lyrics.lines[1] == LyricLine(time: 15.5, text: "He takes the road as it comes"))
+        #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/items/01a172cc-3621-7948-b6de-6f49d8067a8c/lyrics")
+    }
+
+    @Test func aTrackWithoutLyricsHasNone() async throws {
+        let (client, _) = stubbedClient(.init(status: 404, body: Data()))
+
+        #expect(try await client.lyrics(of: "01a172cc-3621-7948-b6de-6f49d8067a8c") == nil)
+    }
 }
 
 struct ServerAddressesTests {

@@ -100,8 +100,9 @@ extension ItemSummary {
 // MARK: - Music
 
 extension ItemSummary {
-    /// The artist's name for a track or album, as the server sends it alongside the title.
-    public var artistName: String? { kind.isMusic ? seriesTitle : nil }
+    /// Who to name as the artist of a track or album: the track's own artist when it has one (a compilation's tracks,
+    /// a featured artist), otherwise the album's, as the server sends it alongside the title.
+    public var artistName: String? { kind.isMusic ? trackArtist ?? seriesTitle : nil }
 
     /// "46m" for an album's tracks played end to end, or nil when none has a length.
     public static func totalRuntime(of tracks: [ItemSummary]) -> String? {
@@ -114,6 +115,20 @@ extension ItemSummary {
         var groups: [Int: [ItemSummary]] = [:]
         for track in tracks { groups[track.discNumber ?? 1, default: []].append(track) }
         return groups.keys.sorted().map { (disc: $0, tracks: groups[$0]!) }
+    }
+}
+
+extension Lyrics {
+    /// The line being sung `time` seconds in: the last whose time has come, or nil before the first (and always for
+    /// lyrics that aren't synced).
+    public func activeLine(at time: Double) -> Int? {
+        guard synced else { return nil }
+        var active: Int?
+        for (index, line) in lines.enumerated() {
+            guard let at = line.time else { continue }
+            if at <= time { active = index } else { break }
+        }
+        return active
     }
 }
 

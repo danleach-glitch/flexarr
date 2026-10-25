@@ -156,6 +156,8 @@ struct TrackRow: View {
     var isDownloaded = false
     /// Not playable here (a track of a download that hasn't arrived).
     var isDimmed = false
+    /// Under the title: the track's own artist, where it isn't the album's.
+    var subtitle: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -174,10 +176,17 @@ struct TrackRow: View {
                     }
                 }
                 .frame(width: 28, alignment: .trailing)
-                Text(track.title)
-                    .font(.body.weight(isCurrent ? .semibold : .regular))
-                    .foregroundStyle(Color.screen)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(track.title)
+                        .font(.body.weight(isCurrent ? .semibold : .regular))
+                        .foregroundStyle(Color.screen)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(Color.usher)
+                    }
+                }
+                .lineLimit(1)
                 Spacer(minLength: 12)
                 if isDownloaded {
                     DownloadedMark()

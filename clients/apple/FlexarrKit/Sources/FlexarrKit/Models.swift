@@ -179,6 +179,30 @@ public struct ItemSummary: Codable, Sendable, Hashable, Identifiable {
     public var trackNumber: Int? = nil
     /// The show's id for episodes and seasons, the artist's for tracks and albums. Absent from servers before it existed.
     public var seriesId: String? = nil
+    /// Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist).
+    public var trackArtist: String? = nil
+}
+
+/// One line of a track's lyrics; `time` (seconds into the track) is set throughout synced lyrics and never otherwise.
+public struct LyricLine: Codable, Sendable, Hashable {
+    public let time: Double?
+    public let text: String
+
+    public init(time: Double?, text: String) {
+        self.time = time
+        self.text = text
+    }
+}
+
+/// A track's lyrics: synced to the music when every line has a time, otherwise plain text.
+public struct Lyrics: Codable, Sendable, Hashable {
+    public let synced: Bool
+    public let lines: [LyricLine]
+
+    public init(synced: Bool, lines: [LyricLine]) {
+        self.synced = synced
+        self.lines = lines
+    }
 }
 
 public struct MediaStream: Codable, Sendable, Hashable {

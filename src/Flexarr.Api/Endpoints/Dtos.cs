@@ -47,7 +47,8 @@ public sealed record ItemSummaryDto(
     int? DiscNumber,
     int? TrackNumber,
     Guid? SeriesId = null,
-    string? AlbumType = null);
+    string? AlbumType = null,
+    string? TrackArtist = null);
 
 /// <summary>The viewer's state for an item. UnwatchedCount is set for series and seasons.</summary>
 public sealed record UserDataDto(double PositionSeconds, bool Watched, int PlayCount, DateTime? LastPlayedAt, int? UnwatchedCount);

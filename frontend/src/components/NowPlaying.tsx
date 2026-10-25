@@ -27,7 +27,8 @@ export function NowPlaying() {
   const duration = player.duration || track?.durationSeconds || 0
   const upcoming = Math.max(0, player.queue.length - player.index - 1)
   const album = track?.parentId ? `/item/${track.parentId}` : undefined
-  const artist = track?.seriesId ? `/item/${track.seriesId}` : undefined
+  // A track with an artist of its own (on a compilation, say) names them instead; they have no page to link to.
+  const artist = track?.seriesId && !track.trackArtist ? `/item/${track.seriesId}` : undefined
 
   const closeQueue = () => {
     setQueueOpen(false)
@@ -65,7 +66,7 @@ export function NowPlaying() {
                     {track.seriesTitle}
                   </Link>
                 ) : (
-                  <span className="now-playing-artist">{track.seriesTitle}</span>
+                  <span className="now-playing-artist">{track.trackArtist ?? track.seriesTitle}</span>
                 )}
               </>
             ) : (

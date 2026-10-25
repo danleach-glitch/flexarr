@@ -3,12 +3,16 @@ import SwiftUI
 
 /// The music that's playing, as its own tab while there is any: the cover, the track's name, how far it's got, the
 /// transport controls and what comes next. The remote's play/pause works here as everywhere; Menu goes back to the
-/// tab bar with the music on.
+/// tab bar with the music on. A Lyrics control, there when the track has any, opens the words as a page of their own,
+/// which Menu closes.
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model
     @FocusState private var focusedControl: Control?
+    @State private var lyrics = LyricsLoader()
+    /// Lyrics are wanted; the page shows while the track that's playing has some.
+    @State private var showingLyrics = false
 
-    private enum Control: Hashable { case shuffle, previous, playPause, next, `repeat` }
+    private enum Control: Hashable { case shuffle, previous, playPause, next, `repeat`, lyrics }
 
     private var music: MusicPlayer { model.music }
 
@@ -16,52 +20,79 @@ struct NowPlayingView: View {
         ZStack {
             RoomBackground(ambient: music.current?.glowColor, intensity: 0.5)
             if let track = music.current {
-                HStack(alignment: .center, spacing: 100) {
-                    cover(track)
-                    VStack(alignment: .leading, spacing: 40) {
-                        titles(track)
-                        timeline
-                        controls
-                        upNext
+                if showingLyrics, let found = lyrics.lyrics {
+                    lyricsPage(track, found)
+                } else {
+                    HStack(alignment: .center, spacing: 100) {
+                        cover(track, size: 640)
+                        VStack(alignment: .leading, spacing: 40) {
+                            titles(track)
+                            timeline
+                            controls
+                            upNext
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, Layout.edge + 40)
+                    .padding(.top, 130)
+                    .padding(.bottom, 60)
                 }
-                .padding(.horizontal, Layout.edge + 40)
-                .padding(.top, 130)
-                .padding(.bottom, 60)
             } else {
                 StatusView(state: .empty("Nothing is playing."))
             }
         }
         .defaultFocus($focusedControl, .playPause)
+        .task(id: music.current?.id) { await lyrics.load(music.current, client: model.client) }
     }
 
-    private func cover(_ track: ItemSummary) -> some View {
+    /// The words beside a smaller cover, the track's name and the timeline. Menu comes back here.
+    private func lyricsPage(_ track: ItemSummary, _ found: Lyrics) -> some View {
+        HStack(alignment: .top, spacing: 90) {
+            VStack(alignment: .leading, spacing: 36) {
+                cover(track, size: 400)
+                titles(track, compact: true)
+                timeline
+            }
+            .frame(width: 520)
+            .padding(.top, 20)
+            LyricsView(lyrics: found, position: music.position) { music.seek(to: $0) }
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, Layout.edge + 40)
+        .padding(.top, 110)
+        .padding(.bottom, 40)
+        .onExitCommand {
+            showingLyrics = false
+            focusedControl = .lyrics
+        }
+    }
+
+    private func cover(_ track: ItemSummary, size: CGFloat) -> some View {
         ZStack {
             if let artwork = music.artwork {
                 Image(uiImage: artwork)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                SquareArtwork(item: track, size: 640)
+                SquareArtwork(item: track, size: size)
             }
         }
-        .frame(width: 640, height: 640)
+        .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 40, y: 24)
         .shadow(color: track.glowColor.opacity(0.35), radius: 80)
         .animation(.easeOut(duration: 0.35), value: track.id)
     }
 
-    private func titles(_ track: ItemSummary) -> some View {
+    private func titles(_ track: ItemSummary, compact: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(track.title)
-                .font(.marquee(64, weight: .heavy))
+                .font(.marquee(compact ? 44 : 64, weight: .heavy))
                 .foregroundStyle(Color.screen)
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
             Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "   "))
-                .font(.system(size: 30, weight: .medium))
+                .font(.system(size: compact ? 26 : 30, weight: .medium))
                 .foregroundStyle(Color.usher)
                 .lineLimit(1)
         }
@@ -104,6 +135,11 @@ struct NowPlayingView: View {
             }
             .buttonStyle(RoundControlStyle(size: 84, active: music.repeatMode != .off))
             .focused($focusedControl, equals: .repeat)
+            if lyrics.lyrics != nil {
+                Button { showingLyrics = true } label: { Label("Lyrics", systemImage: "quote.bubble") }
+                    .buttonStyle(RoundControlStyle(size: 84))
+                    .focused($focusedControl, equals: .lyrics)
+            }
             if music.isLoading {
                 ProgressView().scaleEffect(1.2)
             }

@@ -168,7 +168,10 @@ struct MusicDecodingTests {
         let tracks = try Fixture.decode([ItemSummary].self, "tracks")
 
         #expect(tracks.count == 3)
-        #expect(tracks.allSatisfy { $0.kind == .track && $0.artistName == "Dire Straits" })
+        #expect(tracks.allSatisfy { $0.kind == .track && $0.seriesTitle == "Dire Straits" })
+        // The album's artist is named unless the track has its own.
+        #expect(tracks.prefix(2).allSatisfy { $0.artistName == "Dire Straits" && $0.trackArtist == nil })
+        #expect(tracks[2].trackArtist == "Mark Knopfler" && tracks[2].artistName == "Mark Knopfler")
         // Oldest album first, then track order; the third is the next album's opener.
         #expect(tracks.map(\.trackNumber) == [1, 2, 1])
         #expect(tracks[0].parentId == tracks[1].parentId)

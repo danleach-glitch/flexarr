@@ -70,6 +70,7 @@ export function summary(overrides: Record<string, unknown>) {
     discNumber: null,
     trackNumber: null,
     albumType: null,
+    trackArtist: null,
     ...overrides,
   }
 }
