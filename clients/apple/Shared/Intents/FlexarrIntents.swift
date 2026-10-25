@@ -150,7 +150,7 @@ enum Play {
     static func target(_ named: DeviceEntity?) -> DeviceEntity {
         if let named { return named }
         #if os(iOS)
-        if let id = AppModel.siriDevice, !id.isEmpty { return DeviceEntity(id: id, name: AppModel.siriDeviceName ?? "the Apple TV", online: true) }
+        if let id = AppModel.siriDevice, !id.isEmpty { return DeviceEntity(id: id, name: AppModel.siriDeviceName ?? "the TV", online: true) }
         #endif
         return .here
     }
@@ -201,7 +201,7 @@ enum Play {
 /// plays (resuming where it was left).
 struct PlayTitleIntent: AppIntent {
     static let title: LocalizedStringResource = "Play a film or show"
-    static let description = IntentDescription("Plays a film, or the next episode of a show: here, or on another Apple TV, iPhone or iPad signed in to your Flexarr server.",
+    static let description = IntentDescription("Plays a film, or the next episode of a show: here, or on another device signed in to your Flexarr server.",
                                                categoryName: "Playback")
 
     @Parameter(title: "Film or show", requestValueDialog: "What would you like to watch?")
