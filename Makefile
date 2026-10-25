@@ -63,6 +63,9 @@ ios-install: ## Build, sign and install the iOS app on a connected iPhone or iPa
 #   make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios
 # Each upload needs a higher build number, so it defaults to the current time.
 BUILD ?= $(shell date +%Y%m%d%H%M)
+# Sign in to App Store Connect with an API key instead of Xcode's account: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8).
+ASC_AUTH = $(if $(ASC_KEY_ID),-authenticationKeyID $(ASC_KEY_ID) -authenticationKeyIssuerID $(ASC_ISSUER_ID) -authenticationKeyPath $(ASC_KEY_PATH))
+
 ios-upload: ## Archive the iOS app and upload it to App Store Connect
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
@@ -74,7 +77,7 @@ ios-upload: ## Archive the iOS app and upload it to App Store Connect
 		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
 		'</dict></plist>' > build/apple/ExportOptions.plist
 	xcodebuild -exportArchive -archivePath build/apple/FlexarriOS.xcarchive -exportOptionsPlist build/apple/ExportOptions.plist \
-		-exportPath build/apple/export -allowProvisioningUpdates
+		-exportPath build/apple/export -allowProvisioningUpdates $(ASC_AUTH)
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
