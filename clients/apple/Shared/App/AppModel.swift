@@ -310,8 +310,13 @@ final class AppModel {
             } else {
                 router.push(.item(item))
             }
-        case .artist, .album, .track:
-            router.push(.item(item))
+        case .artist, .album:
+            // A Play button on an artist or album plays them; their pages are a click on the card.
+            if let tracks = try? await client.tracks(of: item.id), !tracks.isEmpty {
+                music.play(tracks, from: 0, shuffled: false, albums: item.kind == .album ? [item] : [], client: client)
+            }
+        case .track:
+            playTracks([item])
         default:
             play(item)
         }

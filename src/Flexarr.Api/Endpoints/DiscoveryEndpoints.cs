@@ -319,7 +319,9 @@ public static partial class DiscoveryEndpoints
     public static async Task<List<ItemSummaryDto>> ContinueWatchingAsync(FlexarrDbContext db, string profileId, int limit, Guid? libraryId, CancellationToken ct)
     {
         var states = db.PlaybackStates.Where(p => p.UserId == profileId && (libraryId == null || p.MediaItem!.LibraryId == libraryId));
-        var inProgress = await states.Where(p => !p.Watched && p.PositionSeconds > 0)
+        // Films and episodes only: a track half played is music's business (its Recently played row), and a Play button
+        // on an album in the hero would be a different thing from resuming a film.
+        var inProgress = await states.Where(p => !p.Watched && p.PositionSeconds > 0 && (p.MediaItem!.Kind == MediaKind.Movie || p.MediaItem.Kind == MediaKind.Episode))
             .OrderByDescending(p => p.LastPlayedAt).Take(limit)
             .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent != null ? p.MediaItem.Parent.ParentId : null })
             .ToListAsync(ct);

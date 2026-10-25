@@ -6,6 +6,7 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -64,6 +65,30 @@ public class MusicDiscoveryTests(FlexarrApiFactory factory) : IClassFixture<Flex
         Assert.Contains(mainHome.Rows, r => r.Id == "music-recent" && r.Items.Any(i => i.Title == "Different Class"));
         Assert.DoesNotContain(samHome!.Rows, r => r.Id.StartsWith("music-", StringComparison.Ordinal));
         Assert.Contains(layout!.Home, r => r.Id == "music-top");
+    }
+
+    /// <summary>
+    /// A track left half played is music's business (Recently played), not Continue Watching's: an album in the Home
+    /// hero with a Resume button would be wrong, and on Apple TV it took Home over.
+    /// </summary>
+    [Fact]
+    public async Task ContinueWatching_AndTheHomeHero_LeaveMusicAlone()
+    {
+        var music = await SeedListeningAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var track = await db.MediaItems.SingleAsync(i => i.LibraryId == music.Library && i.Title == "Babies");
+            db.Add(new PlaybackState { MediaItemId = track.Id, PositionSeconds = 90, Watched = false, LastPlayedAt = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var continueWatching = await Client().GetFromJsonAsync<List<ItemSummaryDto>>(Api("/home/continue"), Json);
+        var home = await Client().GetFromJsonAsync<HomeDto>(Api("/home"), Json);
+
+        Assert.DoesNotContain(continueWatching!, i => i.Title == "Babies");
+        Assert.DoesNotContain(home!.Featured, i => i.Kind is MediaKind.Album or MediaKind.Track or MediaKind.Artist);
+        Assert.DoesNotContain(home.Rows.Where(r => r.Id == "continue").SelectMany(r => r.Items), i => i.Title == "Babies");
     }
 
     [Fact]

@@ -12,6 +12,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Albums by kind
 - With Lidarr connected, an artist's page shelves albums into Albums, EPs and singles, Live and compilations, and Other, and an album page says "EP" or "Live" before its year.
 
+### Fixed
+- Music no longer appears in Continue Watching or as the featured title on Home (a half-played track belongs to music's own Recently played row). On Apple TV, a Play button on an artist or album in a row plays them rather than opening their page.
+
 ## 0.21.1 · 25 October 2026
 
 ### Fixed: the iPhone and iPad apps away from home
