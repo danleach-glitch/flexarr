@@ -9,6 +9,7 @@ import type {
   ItemSummary,
   Library,
   LibraryRequest,
+  Loudness,
   Lyrics,
   Paged,
   Person,
@@ -376,6 +377,13 @@ export const getTracks = (id: string, signal?: AbortSignal) => cachedGet<ItemSum
 /** A track's lyrics, or null when it has none: the server answers 404, which here is an answer rather than a failure. */
 export const getLyrics = (id: string, signal?: AbortSignal) =>
   cachedGet<Lyrics>(`/items/${id}/lyrics`, signal).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) return null
+    throw error
+  })
+
+/** A track's ReplayGain, or null when the server has no file for it (404). Tags it lacks come back as nulls inside. */
+export const getLoudness = (id: string, signal?: AbortSignal) =>
+  cachedGet<Loudness>(`/items/${id}/loudness`, signal).catch((error: unknown) => {
     if (error instanceof ApiError && error.status === 404) return null
     throw error
   })

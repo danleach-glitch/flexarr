@@ -1,35 +1,34 @@
-import type Hls from 'hls.js'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { getItem, imageUrl, reportProgress, startPlayback, stopPlayback, type ItemSummary } from '../api/client'
-import { detectProfile } from '../lib/profile'
+import { getItem, imageUrl, type ItemSummary } from '../api/client'
+import { useMusicSettings } from '../lib/musicSettings'
+import { createEngine, type AudioEngine } from './audioEngine'
 import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
 
 /**
- * Music playback that survives navigation: one <audio> element for the whole app, a queue, and
- * Media Session integration so keyboard media keys and the OS "now playing" controls work.
+ * Music playback that survives navigation: two <audio> elements for the whole app (one plays while the next track gets
+ * ready in the other, so tracks follow each other without a gap, or crossfade), a queue, and Media Session integration
+ * so keyboard media keys and the OS "now playing" controls work.
  *
  * The queue is also kept in sessionStorage (as ids), so a reload brings it back paused where it was.
  */
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
-  // One audio.current for the app's lifetime, rendered below and only touched from effects and handlers.
-  const audio = useRef<HTMLAudioElement>(null)
-  const hls = useRef<Hls | null>(null)
-  const session = useRef<string | undefined>(undefined)
+  // The elements live for the app's lifetime, rendered below and only touched by the engine.
+  const audioA = useRef<HTMLAudioElement>(null)
+  const audioB = useRef<HTMLAudioElement>(null)
   const [state, dispatch] = useReducer(queueReducer, emptyQueue)
   const stateRef = useRef(state)
+  const settings = useMusicSettings()
+  const settingsRef = useRef(settings)
   const [playing, setPlaying] = useState(false)
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [musicPages, setMusicPages] = useState(0)
-  // Whether the <audio> holds the current track. A restored queue hasn't been loaded: Play does that, from `resumeAt`.
-  const loaded = useRef(false)
+  // Where a restored queue was: Play starts from there rather than the beginning.
   const resumeAt = useRef(0)
-  // The position worth remembering, kept current from timeupdate so saving never has to ask the element.
+  // The position worth remembering, kept current from the engine so saving never has to ask an element.
   const position = useRef(0)
   const lastSaved = useRef(-1)
-  // Skipping quickly starts loads that overtake each other: only the latest gets to touch the element.
-  const loadCount = useRef(0)
 
   const { tracks: queue, index } = state
   const current = queue[index]
@@ -37,6 +36,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     stateRef.current = state
   }, [state])
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
 
   const persist = useCallback((at: number) => {
     const s = stateRef.current
@@ -50,66 +52,31 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const unload = useCallback(() => {
-    const el = audio.current
-    loadCount.current += 1
-    hls.current?.destroy()
-    hls.current = null
-    if (session.current) void stopPlayback(session.current)
-    session.current = undefined
-    loaded.current = false
-    if (el) {
-      el.pause()
-      el.removeAttribute('src')
-    }
-    position.current = 0
-    setTime(0)
-    setDuration(0)
-    setPlaying(false)
-  }, [])
+  // The engine drives the elements and reports back. Made on first use, from effects and handlers only.
+  const engineRef = useRef<AudioEngine>(null)
+  const engine = useCallback(
+    () =>
+      (engineRef.current ??= createEngine({
+        queue: () => stateRef.current,
+        settings: () => settingsRef.current,
+        time: (seconds) => {
+          position.current = seconds
+          const whole = Math.floor(seconds)
+          setTime(whole)
+          if (whole % 5 === 0 && whole !== lastSaved.current) {
+            lastSaved.current = whole
+            persist(whole)
+          }
+        },
+        playing: setPlaying,
+        duration: setDuration,
+        advanced: () => dispatch({ type: 'advance' }),
+        ended: () => dispatch({ type: 'next' }),
+      })),
+    [persist],
+  )
 
-  const load = useCallback(async (track: ItemSummary, startAt = 0) => {
-    const el = audio.current
-    if (!el) return
-    const mine = ++loadCount.current
-    hls.current?.destroy()
-    hls.current = null
-    if (session.current) void stopPlayback(session.current)
-    session.current = undefined
-    loaded.current = true
-    position.current = startAt
-    setTime(Math.floor(startAt))
-    setDuration(track.durationSeconds ?? 0)
-
-    const info = await startPlayback({ itemId: track.id, profile: detectProfile(), startPositionSeconds: startAt })
-    if (mine !== loadCount.current) {
-      void stopPlayback(info.sessionId)
-      return
-    }
-    session.current = info.sessionId
-    setDuration(info.durationSeconds)
-
-    if (info.method === 'Transcode' && !el.canPlayType('application/vnd.apple.mpegurl')) {
-      const { default: HlsPlayer } = await import('hls.js/light')
-      if (mine !== loadCount.current) return
-      const player = new HlsPlayer({ startPosition: startAt > 0 ? startAt : -1 })
-      player.loadSource(info.url)
-      player.attachMedia(el)
-      hls.current = player
-    } else {
-      el.src = info.url
-      if (startAt > 0) {
-        el.addEventListener(
-          'loadedmetadata',
-          () => {
-            el.currentTime = startAt
-          },
-          { once: true },
-        )
-      }
-    }
-    await el.play().catch(() => setPlaying(false))
-  }, [])
+  useEffect(() => engine().attach([audioA.current, audioB.current].filter((el): el is HTMLAudioElement => el !== null)), [engine])
 
   // Start the current track whenever the queue asks for it (epoch); a restored queue (epoch 0) waits for Play.
   // The reducer bumps epoch exactly when playback should (re)start; other changes to the queue leave the track alone.
@@ -118,14 +85,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     resumeAt.current = 0
     const { tracks, index } = stateRef.current
     const track = tracks[index]
-    if (track) void load(track)
-    else unload()
-  }, [state.epoch, load, unload])
+    if (track) void engine().load(track, index)
+    else engine().stop()
+  }, [state.epoch, engine])
 
   // Remember the queue as it changes, and the position now and then while it plays and when the page goes.
+  // A changed queue may also mean the track got ready as "next" no longer is.
   useEffect(() => {
     persist(position.current)
-  }, [queue, index, persist])
+    engine().queueChanged()
+  }, [queue, index, persist, engine])
+
+  useEffect(() => engine().settingsChanged(), [settings, engine])
 
   useEffect(() => {
     const save = () => persist(position.current)
@@ -164,36 +135,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => {
-    const el = audio.current
-    if (!el) return
-    const onTime = () => {
-      const seconds = Math.floor(el.currentTime)
-      position.current = el.currentTime
-      setTime(seconds)
-      if (seconds % 5 === 0 && seconds !== lastSaved.current) {
-        lastSaved.current = seconds
-        persist(seconds)
-      }
-    }
-    const onPlay = () => setPlaying(true)
-    const onPause = () => setPlaying(false)
-    const onEnded = () => {
-      if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
-      dispatch({ type: 'next' })
-    }
-    el.addEventListener('timeupdate', onTime)
-    el.addEventListener('play', onPlay)
-    el.addEventListener('pause', onPause)
-    el.addEventListener('ended', onEnded)
-    return () => {
-      el.removeEventListener('timeupdate', onTime)
-      el.removeEventListener('play', onPlay)
-      el.removeEventListener('pause', onPause)
-      el.removeEventListener('ended', onEnded)
-    }
-  }, [persist])
-
   const play = useCallback((tracks: ItemSummary[], start = 0) => dispatch({ type: 'play', tracks, index: start }), [])
   const enqueue = useCallback((tracks: ItemSummary[]) => dispatch({ type: 'enqueue', tracks }), [])
   const playNext = useCallback((tracks: ItemSummary[]) => dispatch({ type: 'playNext', tracks }), [])
@@ -202,35 +143,32 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const clearQueue = useCallback(() => dispatch({ type: 'clear' }), [])
   const skipTo = useCallback((at: number) => dispatch({ type: 'skipTo', index: at }), [])
   const toggle = useCallback(() => {
-    const el = audio.current
-    if (!el) return
-    if (!loaded.current) {
+    if (!engine().loaded()) {
       // Restored after a reload and not yet started: load it from where it was.
-      if (current) void load(current, resumeAt.current)
+      if (current) void engine().load(current, index, resumeAt.current)
       return
     }
-    if (el.paused) void el.play()
-    else el.pause()
-  }, [current, load])
+    if (engine().paused()) engine().play()
+    else engine().pause()
+  }, [current, index, engine])
   const next = useCallback(() => dispatch({ type: 'next' }), [])
   const previous = useCallback(() => {
     // Like every music player: back restarts the track unless you're at its very start.
-    const el = audio.current
-    if (el && loaded.current && el.currentTime > 3) el.currentTime = 0
+    if (engine().loaded() && engine().currentTime() > 3) engine().seek(0)
     else dispatch({ type: 'previous' })
-  }, [])
+  }, [engine])
   const seek = useCallback((seconds: number) => {
-    if (loaded.current && audio.current) audio.current.currentTime = seconds
+    if (engine().loaded()) engine().seek(seconds)
     else {
       resumeAt.current = seconds
       position.current = seconds
       setTime(Math.floor(seconds))
     }
-  }, [])
+  }, [engine])
   const stop = useCallback(() => {
-    unload()
+    engine().stop()
     dispatch({ type: 'stop' })
-  }, [unload])
+  }, [engine])
   const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.
@@ -278,7 +216,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       <MusicPagesContext value={countMusicPage}>
         <AudioTimeContext value={time}>
           {children}
-          <audio ref={audio} hidden />
+          {/* preload="auto" so the next track buffers as soon as it has a source, before anyone presses anything. */}
+          <audio ref={audioA} hidden preload="auto" />
+          <audio ref={audioB} hidden preload="auto" />
         </AudioTimeContext>
       </MusicPagesContext>
     </AudioPlayerContext>

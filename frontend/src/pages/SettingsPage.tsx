@@ -78,6 +78,7 @@ import { useSession } from '../hooks/sessionContext'
 import { ChevronDown, ChevronUp, External, Eye, EyeOff, Film } from '../components/icons'
 import { libraryIcons } from '../components/libraryIcons'
 import { useApi } from '../hooks/useApi'
+import { crossfadeChoices, useMusicSettings, writeMusicSettings } from '../lib/musicSettings'
 import { usePolling } from '../hooks/usePolling'
 import { appLink, appLogos } from '../lib/apps'
 import { episodeCode, formatClock, formatSize, libraryTypeLabel, relativeTime } from '../lib/format'
@@ -505,6 +506,37 @@ function WhileWatching() {
   )
 }
 
+/** How music plays in this browser: crossfade and ReplayGain. Kept on the device, since speakers and taste differ by room. */
+function MusicOnThisDevice() {
+  const settings = useMusicSettings()
+  return (
+    <>
+      <h3 className="settings-subhead">Music on this device</h3>
+      <div className="panel">
+        <p className="field-help">For this browser only; every device has its own.</p>
+        <label className="checkbox preference">
+          <input type="checkbox" checked={settings.normalise} onChange={(e) => writeMusicSettings({ normalise: e.target.checked })} />
+          <span>
+            <strong>Normalise volume</strong>
+            <span className="muted"> Levels tracks by their ReplayGain tags, so a quiet album and a loud one play at about the same volume. Tracks without tags play as they are.</span>
+          </span>
+        </label>
+        <label className="field">
+          <span className="field-label">Crossfade</span>
+          <select value={settings.crossfade} onChange={(e) => writeMusicSettings({ crossfade: Number(e.target.value) })}>
+            {crossfadeChoices.map((seconds) => (
+              <option key={seconds} value={seconds}>
+                {seconds === 0 ? 'Off' : `${seconds} seconds`}
+              </option>
+            ))}
+          </select>
+          <span className="field-help">Fades the next track in as the current one ends. Off, tracks follow each other without a gap.</span>
+        </label>
+      </div>
+    </>
+  )
+}
+
 function PlaybackSection() {
   const { settings, save, saved, saveError, waiting } = useSettings()
   const [draft, setDraft] = useState<Settings['transcoding']>()
@@ -517,6 +549,7 @@ function PlaybackSection() {
         <h2>Playback</h2>
       </header>
       <WhileWatching />
+      <MusicOnThisDevice />
       <h3 className="settings-subhead">Converting video</h3>
       <p className="settings-lede">
         Files your device can play are sent untouched. Everything else is converted as you watch; with hardware acceleration, conversion runs on the graphics chip

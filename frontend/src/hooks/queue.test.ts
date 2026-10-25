@@ -18,6 +18,14 @@ describe('queueReducer', () => {
     expect(state.epoch).toBe(1)
   })
 
+  it('advance moves to the next track without asking for playback, and stays put at the end', () => {
+    const state = playing(a, b)
+    const advanced = queueReducer(state, { type: 'advance' })
+    expect(advanced.index).toBe(1)
+    expect(advanced.epoch).toBe(state.epoch)
+    expect(queueReducer(advanced, { type: 'advance' })).toBe(advanced)
+  })
+
   it('play clamps an index past the end', () => {
     expect(run({ type: 'play', tracks: [a, b], index: 7 }).index).toBe(1)
   })

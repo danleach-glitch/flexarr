@@ -27,6 +27,8 @@ export type QueueAction =
   | { type: 'clear' }
   | { type: 'skipTo'; index: number }
   | { type: 'next' }
+  /** The player has already moved on to the next track by itself (gapless): the index follows, playback is left alone. */
+  | { type: 'advance' }
   | { type: 'previous' }
   /** A queue read back from storage, shown paused. Ignored once something has been asked to play. */
   | { type: 'restore'; tracks: ItemSummary[]; index: number }
@@ -87,6 +89,9 @@ export function queueReducer(state: QueueState, action: QueueAction): QueueState
     case 'next':
       if (state.index + 1 >= state.tracks.length) return state
       return { ...state, index: state.index + 1, epoch: state.epoch + 1 }
+    case 'advance':
+      if (state.index + 1 >= state.tracks.length) return state
+      return { ...state, index: state.index + 1 }
     case 'previous':
       if (state.tracks.length === 0) return state
       return { ...state, index: Math.max(0, state.index - 1), epoch: state.epoch + 1 }

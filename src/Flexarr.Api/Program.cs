@@ -138,6 +138,7 @@ builder.Services.AddSingleton<MarkerQueue>();
 builder.Services.AddSingleton<TrickplayQueue>();
 builder.Services.AddSingleton<SubtitleCache>();
 builder.Services.AddSingleton<LyricsCache>();
+builder.Services.AddSingleton<LoudnessCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Remux.RemuxIndex(
@@ -231,6 +232,7 @@ app.MapGroup("/api/v1")
     .MapLibraryEndpoints()
     .MapItemEndpoints()
     .MapLyricsEndpoints()
+    .MapLoudnessEndpoints()
     .MapFilesystemEndpoints()
     .MapPeopleEndpoints()
     .MapPlaybackEndpoints()

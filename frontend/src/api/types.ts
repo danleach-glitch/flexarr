@@ -438,3 +438,11 @@ export interface Lyrics {
   synced: boolean
   lines: LyricLine[]
 }
+
+/** A track's ReplayGain: gains in dB, peaks as a fraction of full scale, null for what its tags don't say. */
+export interface Loudness {
+  trackGain: number | null
+  albumGain: number | null
+  trackPeak: number | null
+  albumPeak: number | null
+}

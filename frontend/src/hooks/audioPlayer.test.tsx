@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ItemSummary } from '../api/types'
 import { detail, mockApi, summary } from '../test/mockApi'
 import { AudioPlayerProvider } from './audioPlayer'
@@ -7,21 +7,42 @@ import { useAudioPlayer } from './audioPlayerContext'
 import { queueStorageKey } from './queue'
 
 beforeAll(() => {
-  // jsdom has no media playback.
-  window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined)
-  window.HTMLMediaElement.prototype.pause = vi.fn()
+  // jsdom has no media playback: play/pause keep `paused` honest and fire their events, and nothing else.
+  Object.defineProperty(window.HTMLMediaElement.prototype, 'paused', {
+    configurable: true,
+    get(this: HTMLMediaElement) {
+      return this.dataset.playing !== '1'
+    },
+  })
+  window.HTMLMediaElement.prototype.play = vi.fn(function (this: HTMLMediaElement) {
+    if (this.paused) {
+      this.dataset.playing = '1'
+      this.dispatchEvent(new Event('play'))
+    }
+    return Promise.resolve()
+  })
+  window.HTMLMediaElement.prototype.pause = vi.fn(function (this: HTMLMediaElement) {
+    if (!this.paused) {
+      delete this.dataset.playing
+      this.dispatchEvent(new Event('pause'))
+    }
+  })
 })
 
+beforeEach(() => localStorage.clear())
 afterEach(() => vi.unstubAllGlobals())
 
-const track = (id: string, title: string) => summary({ id, kind: 'Track', title, parentId: 'album-1', seriesTitle: 'Artist', seriesId: 'artist-1', durationSeconds: 240 })
+const track = (id: string, title: string, album = 'album-1') => summary({ id, kind: 'Track', title, parentId: album, seriesTitle: 'Artist', seriesId: 'artist-1', durationSeconds: 240 })
 const one = track('t1', 'One')
 const two = track('t2', 'Two')
+const three = track('t3', 'Three', 'album-2')
 const album = detail(summary({ id: 'album-1', kind: 'Album', title: 'Album' }), { children: [one, two] })
 
-/** Answers playback requests and remembers what was asked for. */
+/** Answers playback requests and remembers what was asked for, and which sessions were ended. */
 function playbackApi(extra: Record<string, unknown> = {}) {
   const requests: { itemId: string; startPositionSeconds?: number }[] = []
+  const stopped: string[] = []
+  const ended: string[] = []
   mockApi({
     ...extra,
     'POST /playback': (init?: RequestInit) => {
@@ -42,17 +63,39 @@ function playbackApi(extra: Record<string, unknown> = {}) {
         subtitleBurnedIn: false,
       }
     },
-    'DELETE /playback/session-t1': undefined,
-    'DELETE /playback/session-t2': undefined,
+    ...Object.fromEntries(
+      ['t1', 't2', 't3'].flatMap((id) => [
+        [`DELETE /playback/session-${id}`, () => void stopped.push(`session-${id}`)],
+        [`POST /playback/session-${id}/progress`, (init?: RequestInit) => void ((JSON.parse(String(init?.body)) as { ended: boolean }).ended && ended.push(`session-${id}`))],
+      ]),
+    ),
   })
-  return requests
+  return { requests, stopped, ended }
 }
 
 const stored = () => JSON.parse(sessionStorage.getItem(queueStorageKey) ?? 'null') as { ids: string[]; albums: string[]; index: number; position: number } | null
 
+/** The two elements, as the provider renders them. */
+const elements = () => Array.from(document.querySelectorAll('audio'))
+
+/** Moves an element to `seconds` of a track the server said is 251 s long and lets the player notice. */
+function tick(el: HTMLAudioElement, seconds: number) {
+  act(() => {
+    el.currentTime = seconds
+    el.dispatchEvent(new Event('timeupdate'))
+  })
+}
+
+/** The element reaches the end of its track: browsers pause it and say so, then say it ended. */
+const ends = (el: HTMLAudioElement) =>
+  act(() => {
+    el.pause()
+    el.dispatchEvent(new Event('ended'))
+  })
+
 describe('AudioPlayerProvider', () => {
   it('plays a queue, asks the server for the track and remembers the queue for a reload', async () => {
-    const requests = playbackApi()
+    const { requests } = playbackApi()
     const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
 
     act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
@@ -78,7 +121,7 @@ describe('AudioPlayerProvider', () => {
 
   it('brings a stored queue back paused after a reload, and Play picks up where it was', async () => {
     sessionStorage.setItem(queueStorageKey, JSON.stringify({ ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }))
-    const requests = playbackApi({ '/items/album-1': album })
+    const { requests } = playbackApi({ '/items/album-1': album })
     const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
 
     await waitFor(() => expect(result.current.queue.map((t) => t.id)).toEqual(['t1', 't2']))
@@ -116,5 +159,213 @@ describe('AudioPlayerProvider', () => {
     })
     expect(result.current.queue.map((t) => t.id)).toEqual(['t2'])
     expect(stored()?.ids).toEqual(['t2'])
+  })
+
+  describe('gapless', () => {
+    it('gets the next track ready in the other element near the end, and switches to it the moment the track ends', async () => {
+      const { requests, stopped, ended } = playbackApi()
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+
+      // Well before the end nothing is asked for; within ten seconds of it, the next track's session starts.
+      tick(a, 200)
+      expect(requests).toHaveLength(1)
+      tick(a, 242)
+      await waitFor(() => expect(requests[1]).toMatchObject({ itemId: 't2', startPositionSeconds: 0 }))
+      await waitFor(() => expect(b.getAttribute('src')).toBe('/stream/t2'))
+      expect(b.paused).toBe(true)
+      expect(result.current.index).toBe(0)
+      expect(stopped).toEqual([])
+
+      // The end: the other element plays at once, with no further request; the old session is reported ended and stopped.
+      ends(a)
+      expect(result.current.index).toBe(1)
+      expect(result.current.current?.id).toBe('t2')
+      expect(b.paused).toBe(false)
+      expect(requests).toHaveLength(2)
+      await waitFor(() => expect(stopped).toEqual(['session-t1']))
+      await waitFor(() => expect(ended).toEqual(['session-t1']))
+      expect(a.getAttribute('src')).toBeNull()
+      expect(result.current.playing).toBe(true)
+      expect(result.current.duration).toBe(251)
+
+      // Now the first element is the spare one, and gets what follows: the elements take turns.
+      act(() => result.current.enqueue([three] as unknown as ItemSummary[]))
+      tick(b, 245)
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t3'))
+    })
+
+    it('lets a prepared next track go when the queue changes so it is no longer next', async () => {
+      const { requests, stopped } = playbackApi()
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+      tick(a, 245)
+      await waitFor(() => expect(b.getAttribute('src')).toBe('/stream/t2'))
+
+      act(() => result.current.playNext([three] as unknown as ItemSummary[]))
+      await waitFor(() => expect(stopped).toEqual(['session-t2']))
+      expect(b.getAttribute('src')).toBeNull()
+
+      // The track that is next now takes its place at the next tick.
+      tick(a, 246)
+      await waitFor(() => expect(b.getAttribute('src')).toBe('/stream/t3'))
+      expect(requests.map((r) => r.itemId)).toEqual(['t1', 't2', 't3'])
+    })
+
+    it('Next while the next track is ready switches to it without asking the server again', async () => {
+      const { requests, stopped } = playbackApi()
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+      tick(a, 245)
+      await waitFor(() => expect(b.getAttribute('src')).toBe('/stream/t2'))
+
+      act(() => result.current.next())
+      expect(result.current.index).toBe(1)
+      expect(b.paused).toBe(false)
+      await waitFor(() => expect(stopped).toEqual(['session-t1']))
+      expect(requests).toHaveLength(2)
+    })
+
+    it('a load that overtakes a half-prepared next track ends the session it was given', async () => {
+      const held: (() => void)[] = []
+      const { stopped } = playbackApi()
+      // The second request (for t2) is held back until the test lets it through.
+      const { requests } = { requests: [] as string[] }
+      mockApi({
+        'POST /playback': (init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body)) as { itemId: string }
+          requests.push(body.itemId)
+          const answer = {
+            sessionId: `session-${body.itemId}`,
+            method: 'DirectPlay',
+            url: `/stream/${body.itemId}`,
+            reasons: [],
+            durationSeconds: 251,
+            startPositionSeconds: 0,
+            fileId: 'f1',
+            audioTracks: [],
+            selectedAudioIndex: null,
+            subtitles: [],
+            selectedSubtitleKey: null,
+            subtitleBurnedIn: false,
+          }
+          return body.itemId === 't2' ? new Promise((resolve) => held.push(() => resolve(answer))) : answer
+        },
+        'DELETE /playback/session-t1': () => void stopped.push('session-t1'),
+        'DELETE /playback/session-t2': () => void stopped.push('session-t2'),
+        'DELETE /playback/session-t3': () => void stopped.push('session-t3'),
+      })
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+      tick(a, 245)
+      await waitFor(() => expect(requests).toEqual(['t1', 't2']))
+
+      // The listener skips elsewhere while t2's session is still being made.
+      act(() => result.current.play([three] as unknown as ItemSummary[], 0))
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t3'))
+      await act(async () => {
+        held.forEach((release) => release())
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(stopped).toContain('session-t2'))
+      expect(b.getAttribute('src')).toBeNull()
+    })
+  })
+
+  describe('crossfade and loudness', () => {
+    /** A stand-in Web Audio graph that records what each element's gain was told to do. */
+    function stubWebAudio() {
+      const gains: { el: HTMLMediaElement | undefined; calls: string[] }[] = []
+      class FakeContext {
+        currentTime = 100
+        state = 'running'
+        destination = {}
+        resume = vi.fn().mockResolvedValue(undefined)
+        createGain() {
+          const record = { el: undefined as HTMLMediaElement | undefined, calls: [] as string[] }
+          gains.push(record)
+          const param = {
+            value: 1,
+            cancelScheduledValues: () => undefined,
+            setValueAtTime: (v: number) => void record.calls.push(`set ${+v.toFixed(3)}`),
+            linearRampToValueAtTime: (v: number, at: number) => void record.calls.push(`ramp ${+v.toFixed(3)} over ${+(at - 100).toFixed(1)}`),
+          }
+          return { gain: param, connect: () => undefined, record }
+        }
+        createMediaElementSource(el: HTMLMediaElement) {
+          return { connect: (gain: { record: { el: HTMLMediaElement | undefined } }) => void (gain.record.el = el) }
+        }
+      }
+      vi.stubGlobal('AudioContext', FakeContext)
+      return (el: HTMLMediaElement) => gains.find((g) => g.el === el)?.calls ?? []
+    }
+
+    it('starts the next track early and fades the two across each other, moving the queue on at the start of the fade', async () => {
+      localStorage.setItem('flexarr.crossfade', '4')
+      const gainOf = stubWebAudio()
+      const { stopped, ended } = playbackApi()
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+      tick(a, 242)
+      await waitFor(() => expect(b.getAttribute('src')).toBe('/stream/t2'))
+
+      // Six seconds left: not yet. Three: the fade begins.
+      tick(a, 245)
+      expect(result.current.index).toBe(0)
+      tick(a, 248)
+      expect(result.current.index).toBe(1)
+      expect(b.paused).toBe(false)
+      expect(a.paused).toBe(false)
+      expect(gainOf(b).slice(-2)).toEqual(['set 0', 'ramp 1 over 4'])
+      expect(gainOf(a).slice(-1)).toEqual(['ramp 0 over 4'])
+      expect(stopped).toEqual([])
+
+      // Pausing holds both; the old track's end finishes it off.
+      act(() => result.current.toggle())
+      expect(a.paused).toBe(true)
+      expect(b.paused).toBe(true)
+      act(() => result.current.toggle())
+      expect(a.paused).toBe(false)
+      ends(a)
+      await waitFor(() => expect(stopped).toEqual(['session-t1']))
+      expect(ended).toEqual(['session-t1'])
+      expect(result.current.index).toBe(1)
+      expect(result.current.playing).toBe(true)
+    })
+
+    it('levels each track by its ReplayGain, album gain within an album, unless normalising is off', async () => {
+      const gainOf = stubWebAudio()
+      playbackApi({
+        '/items/t1/loudness': { trackGain: -6.0206, albumGain: -12.0412, trackPeak: 0.5, albumPeak: 0.5 },
+        '/items/t3/loudness': { trackGain: 6.0206, albumGain: null, trackPeak: 0.8, albumPeak: null },
+      })
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      // One and Two are from the same album: One gets the album gain (-12 dB, a quarter).
+      act(() => result.current.play([one, two, three] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(gainOf(a)).toEqual(['set 0.25']))
+
+      // Three stands alone and has no album gain: its own, +6 dB, held back by its peak to 1/0.8.
+      act(() => result.current.skipTo(2))
+      await waitFor(() => expect(gainOf(a).slice(-1)).toEqual(['set 1.25']))
+
+      // Turning normalising off brings the track back to unity straight away.
+      act(() => {
+        localStorage.setItem('flexarr.normaliseVolume', '0')
+        window.dispatchEvent(new Event('flexarr:music-settings'))
+      })
+      expect(gainOf(a).slice(-1)).toEqual(['set 1'])
+      expect(gainOf(b)).toEqual([])
+    })
   })
 })
