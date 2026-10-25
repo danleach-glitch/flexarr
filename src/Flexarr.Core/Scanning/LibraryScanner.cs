@@ -59,6 +59,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     public async Task<ScanResult> ScanAsync(Library library, string? scope, bool retryFailedProbes, bool deleted, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(library);
+        if (library.Type == LibraryType.Podcasts)
+        {
+            return new ScanResult(0, 0, 0, 0, 0, 0); // its episodes come from their feeds, not from the folder
+        }
+
         try
         {
             return await ScanCoreAsync(library, scope, retryFailedProbes, deleted, cancellationToken).ConfigureAwait(false);

@@ -20,11 +20,12 @@ public static class ItemQueries
                 Backdrop = i.BackdropUrl != null || (i.Parent != null && (i.Parent.BackdropUrl != null || (i.Parent.Parent != null && i.Parent.Parent.BackdropUrl != null))),
                 Logo = i.LogoUrl != null || (i.Parent != null && (i.Parent.LogoUrl != null || (i.Parent.Parent != null && i.Parent.Parent.LogoUrl != null))),
                 Accent = i.AccentColor ?? (i.Parent != null ? i.Parent.AccentColor ?? (i.Parent.Parent != null ? i.Parent.Parent.AccentColor : null) : null),
-                // The show for episodes and seasons; the artist for tracks and albums.
+                // The show for episodes and seasons; the artist for tracks and albums; the podcast for its episodes.
                 SeriesTitle = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.Parent!.Title
-                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album ? i.Parent!.Title : null,
+                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.Parent!.Title : null,
                 SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.ParentId
-                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album ? i.ParentId : null,
+                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.ParentId : null,
+                PodcastDuration = i.Enclosure != null ? i.Enclosure.DurationSeconds : null,
                 State = i.PlaybackStates.Where(p => p.UserId == profileId)
                     .Select(p => new { p.PositionSeconds, p.Watched, p.PlayCount, p.LastPlayedAt }).FirstOrDefault(),
                 Unwatched = i.Kind == MediaKind.Series
@@ -36,7 +37,7 @@ public static class ItemQueries
             .Select(x => new ItemSummaryDto(
                 x.Item.Id, x.Item.LibraryId, x.Item.ParentId, x.Item.Kind, x.Item.Title, x.Item.Year, x.Item.SeasonNumber, x.Item.EpisodeNumber,
                 x.Item.EpisodeNumberEnd, x.Item.AirDate, x.ChildCount,
-                x.Best == null ? null : x.Best.DurationSeconds,
+                x.Best == null ? x.PodcastDuration : x.Best.DurationSeconds,
                 x.Best == null ? null : Resolution.Label(x.Best.Width, x.Best.Height),
                 x.Item.AddedAt,
                 ArtworkUrls.For(x.Item.Id, x.Item.MetadataUpdatedAt == null ? 0 : x.Item.MetadataUpdatedAt.Value.Ticks / 10_000_000,

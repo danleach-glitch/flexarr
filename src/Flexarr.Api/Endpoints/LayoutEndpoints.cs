@@ -27,7 +27,7 @@ public static class LayoutEndpoints
         group.MapGet("/", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
             var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
-            var libraries = all.Where(l => l.Type != LibraryType.Music).ToList();
+            var libraries = all.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows).ToList();
             var me = profile.Id;
             var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
                 .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);

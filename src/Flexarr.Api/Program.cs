@@ -9,6 +9,7 @@ using Flexarr.Api.Import;
 using Flexarr.Api.Mcp;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Playlists;
+using Flexarr.Api.Podcasts;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
 using Flexarr.Api.Security;
@@ -88,6 +89,14 @@ builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAg
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
+// Podcast feeds and episodes come from anywhere on the internet, and only from the internet (see PodcastFetcher).
+// No overall timeout: a relayed episode streams for as long as it's listened to.
+builder.Services.AddHttpClient<PodcastFetcher>(c => c.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(PodcastFetcher.CreateHandler);
+builder.Services.AddHttpClient<PodcastDirectory>(c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<PodcastLibrary>();
+builder.Services.AddSingleton<PodcastRefreshQueue>();
+builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -248,6 +257,7 @@ app.MapGroup("/api/v1")
     .MapPairingApprovalEndpoints()
     .MapCollectionEndpoints()
     .MapPlaylistEndpoints()
+    .MapPodcastEndpoints()
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()

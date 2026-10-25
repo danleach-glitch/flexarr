@@ -67,6 +67,17 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                 File.Delete(partial);
             }
         }
+
+        // Podcast episodes half fetched into the Podcasts library's folders.
+        var podcastFolders = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type == Core.Libraries.LibraryType.Podcasts)
+            .SelectMany(l => l.Folders).Select(f => f.Path).ToListAsync(ct);
+        foreach (var root in podcastFolders.Where(Directory.Exists))
+        {
+            foreach (var partial in Directory.EnumerateFiles(root, "*.part.*", SearchOption.AllDirectories))
+            {
+                File.Delete(partial);
+            }
+        }
     }
 
     private async Task ExpireAsync(CancellationToken ct)
@@ -112,6 +123,12 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var file = await db.MediaFiles.AsNoTracking().Include(f => f.Streams)
             .Where(f => f.MediaItemId == download.MediaItemId && f.ProbeError == null && f.MissingSince == null)
             .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
+        if (file is null && await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == download.MediaItemId, ct) is { } enclosure)
+        {
+            await PreparePodcastAsync(scope.ServiceProvider, db, download, enclosure, ct);
+            return;
+        }
+
         var plan = file is null ? null : DownloadPlanner.Plan(file, download.Quality, Subtitles.For(file));
         if (file is null || plan is null)
         {
@@ -172,6 +189,152 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Podcast episodes the phone plays as they come; anything else (Ogg, Opus) becomes an M4A.</summary>
+    private static readonly HashSet<string> PhonePodcastFiles = new(StringComparer.OrdinalIgnoreCase) { ".mp3", ".m4a", ".aac", ".mp4" };
+
+    /// <summary>The longest episode file fetched for a phone (some are hours of uncompressed sound).</summary>
+    private const long MaxPodcastBytes = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// A podcast episode isn't on the server: it's fetched from its host into the Podcasts library's folder (or the
+    /// downloads folder when there's no library folder to hand), for the phone to take and the server to then delete.
+    /// </summary>
+    private async Task PreparePodcastAsync(IServiceProvider services, FlexarrDbContext db, Download download, Core.Podcasts.PodcastEpisode enclosure, CancellationToken ct)
+    {
+        download.Status = DownloadStatus.Preparing;
+        download.Progress = 0;
+        await db.SaveChangesAsync(ct);
+        LogPreparing(download.Id, "podcast");
+
+        var show = await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == enclosure.FeedId).Select(i => i.Title).FirstOrDefaultAsync(ct) ?? "Podcast";
+        var root = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type == Core.Libraries.LibraryType.Podcasts).OrderBy(l => l.CreatedAt)
+            .SelectMany(l => l.Folders).Select(f => f.Path).FirstOrDefaultAsync(ct);
+        var folder = root is not null && Directory.Exists(root) ? Path.Combine(root, SafeName(show)) : Folder(options.CurrentValue);
+        Directory.CreateDirectory(folder);
+
+        var extension = Path.GetExtension(new Uri(enclosure.AudioUrl).AbsolutePath).ToLowerInvariant() is { Length: > 1 and <= 5 } fromUrl ? fromUrl
+            : enclosure.MimeType is "audio/mp4" or "audio/x-m4a" or "audio/aac" ? ".m4a" : ".mp3";
+        var partial = Path.Combine(folder, $"{download.Id:N}.part{extension}");
+        var error = await FetchAsync(services.GetRequiredService<Podcasts.PodcastFetcher>(), enclosure, partial, download.Id, ct);
+
+        string? finished = null;
+        if (error is null && PhonePodcastFiles.Contains(extension))
+        {
+            finished = Path.Combine(folder, $"{download.Id:N}{extension}");
+            File.Move(partial, finished, overwrite: true);
+        }
+        else if (error is null)
+        {
+            finished = Path.Combine(folder, $"{download.Id:N}.m4a");
+            var converting = Path.Combine(folder, $"{download.Id:N}.part.m4a");
+            var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
+            error = await RunAsync(settings.FfmpegPath, FfmpegCommand.M4a(partial, 0, 2, converting), enclosure.DurationSeconds ?? 0, download.Id, ct);
+            File.Delete(partial);
+            if (error is null)
+            {
+                File.Move(converting, finished, overwrite: true);
+            }
+            else
+            {
+                File.Delete(converting);
+            }
+        }
+        else
+        {
+            File.Delete(partial);
+        }
+
+        await db.Entry(download).ReloadAsync(ct);
+        if (error is null && finished is not null && db.Entry(download).State != EntityState.Detached)
+        {
+            download.FilePath = finished;
+            download.IsLibraryFile = false;
+            download.SizeBytes = new FileInfo(finished).Length;
+            download.Progress = 1;
+            download.Status = DownloadStatus.Ready;
+            download.ReadyAt = DateTime.UtcNow;
+        }
+        else
+        {
+            if (finished is not null && error is null)
+            {
+                File.Delete(finished); // deleted while it was being fetched
+            }
+
+            download.Status = DownloadStatus.Failed;
+            download.Error = error ?? "The episode couldn't be fetched.";
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Fetches an episode's file from its host, noting progress; null when it worked, else why not.</summary>
+    private async Task<string?> FetchAsync(Podcasts.PodcastFetcher fetcher, Core.Podcasts.PodcastEpisode enclosure, string path, Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var (response, _, _) = await fetcher.GetAsync(new Uri(enclosure.AudioUrl), null, ct);
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    return $"The podcast's host answered {(int)response.StatusCode}.";
+                }
+
+                var total = response.Content.Headers.ContentLength ?? enclosure.LengthBytes;
+                if (total > MaxPodcastBytes)
+                {
+                    return "This episode's file is too big to keep on a phone.";
+                }
+
+                await using var body = await response.Content.ReadAsStreamAsync(ct);
+                await using var output = File.Create(path);
+                var buffer = new byte[81920];
+                long done = 0;
+                var lastSaved = DateTime.UtcNow;
+                int read;
+                while ((read = await body.ReadAsync(buffer, ct)) > 0)
+                {
+                    done += read;
+                    if (done > MaxPodcastBytes)
+                    {
+                        return "This episode's file is too big to keep on a phone.";
+                    }
+
+                    await output.WriteAsync(buffer.AsMemory(0, read), ct);
+                    if (total > 0 && DateTime.UtcNow - lastSaved > TimeSpan.FromSeconds(2))
+                    {
+                        lastSaved = DateTime.UtcNow;
+                        if (!await SaveProgressAsync(id, Math.Clamp((double)done / total.Value, 0, 0.99), ct))
+                        {
+                            return "Deleted while it was being fetched.";
+                        }
+                    }
+                }
+
+                return done == 0 ? "The podcast's host sent an empty file." : null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            LogPodcastFetchFailed(id, ex.Message);
+            return "The podcast's host couldn't be reached.";
+        }
+        catch (IOException ex)
+        {
+            LogPodcastFetchFailed(id, ex.Message);
+            return "The episode couldn't be saved on the server.";
+        }
+    }
+
+    /// <summary>A show's title as a folder name: without characters file systems refuse, and never empty.</summary>
+    internal static string SafeName(string title)
+    {
+        var invalid = Path.GetInvalidFileNameChars().Concat([':', '/', '\\', '?', '*', '"', '<', '>', '|']).ToHashSet();
+        var name = new string([.. title.Select(c => invalid.Contains(c) || char.IsControl(c) ? ' ' : c)]).Trim().Trim('.');
+        return name.Length == 0 ? "Podcast" : name.Length > 100 ? name[..100].Trim() : name;
     }
 
     /// <summary>Runs ffmpeg, noting its progress; null when it worked, else what went wrong.</summary>
@@ -244,6 +407,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Converting download {Id} failed: {Errors}")]
     private partial void LogFfmpegFailed(Guid id, string errors);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Fetching podcast episode for download {Id} failed: {Error}")]
+    private partial void LogPodcastFetchFailed(Guid id, string error);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Preparing downloads failed")]
     private partial void LogFailed(Exception exception);

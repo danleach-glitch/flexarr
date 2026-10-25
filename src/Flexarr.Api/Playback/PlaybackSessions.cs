@@ -16,6 +16,18 @@ public sealed class PlaybackSession
     public string? SignInId { get; init; }
     public required Guid FileId { get; init; }
     public required string FilePath { get; init; }
+
+    /// <summary>
+    /// A podcast episode's sound file on its host, relayed by the stream endpoint (see <see cref="Podcasts.PodcastRelay"/>);
+    /// <see cref="FilePath"/> is empty then.
+    /// </summary>
+    public string? RemoteUrl { get; init; }
+
+    /// <summary>
+    /// Where <see cref="RemoteUrl"/>'s redirects (podcast hosts chain several, for counting listens) last led, so a
+    /// seek goes straight there rather than through them all again.
+    /// </summary>
+    public string? ResolvedRemoteUrl { get; set; }
     public required string? Container { get; init; }
     public required double DurationSeconds { get; init; }
     public required PlaybackMethod Method { get; init; }

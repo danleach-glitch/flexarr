@@ -818,6 +818,153 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("WatchTombstones");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastEpisode", b =>
+                {
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AudioUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChaptersUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("DurationSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("EpisodeGuid")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EpisodeType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Explicit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("FeedId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LengthBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MimeType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TranscriptType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TranscriptUrl")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("MediaItemId");
+
+                    b.HasIndex("FeedId", "EpisodeGuid")
+                        .IsUnique();
+
+                    b.HasIndex("FeedId", "PublishedAt");
+
+                    b.ToTable("PodcastEpisodes");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastFeed", b =>
+                {
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("Categories")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ETag")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Explicit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Failures")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ITunesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Language")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastModified")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Link")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NewEpisodeAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("NextCheckAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PodcastGuid")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("MediaItemId");
+
+                    b.HasIndex("ITunesId");
+
+                    b.HasIndex("NextCheckAt");
+
+                    b.HasIndex("Url")
+                        .IsUnique();
+
+                    b.ToTable("PodcastFeeds");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastSubscription", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FeedId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AutoDownload")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("KeepEpisodes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("PlaybackSpeed")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("SubscribedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ProfileId", "FeedId");
+
+                    b.HasIndex("FeedId");
+
+                    b.ToTable("PodcastSubscriptions");
+                });
+
             modelBuilder.Entity("GenreMediaItem", b =>
                 {
                     b.Property<int>("GenresId")
@@ -1057,6 +1204,51 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Playback");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastEpisode", b =>
+                {
+                    b.HasOne("Flexarr.Core.Podcasts.PodcastFeed", null)
+                        .WithMany()
+                        .HasForeignKey("FeedId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
+                        .WithOne("Enclosure")
+                        .HasForeignKey("Flexarr.Core.Podcasts.PodcastEpisode", "MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastFeed", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
+                        .WithOne("Feed")
+                        .HasForeignKey("Flexarr.Core.Podcasts.PodcastFeed", "MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastSubscription", b =>
+                {
+                    b.HasOne("Flexarr.Core.Podcasts.PodcastFeed", "Feed")
+                        .WithMany()
+                        .HasForeignKey("FeedId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Feed");
+                });
+
             modelBuilder.Entity("GenreMediaItem", b =>
                 {
                     b.HasOne("Flexarr.Core.Media.Genre", null)
@@ -1094,6 +1286,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Credits");
+
+                    b.Navigation("Enclosure");
+
+                    b.Navigation("Feed");
 
                     b.Navigation("Files");
 

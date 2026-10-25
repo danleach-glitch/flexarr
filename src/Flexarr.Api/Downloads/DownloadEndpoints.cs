@@ -45,6 +45,15 @@ public static class DownloadEndpoints
         api.MapGet("/items/{id:guid}/download-options", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
         {
             var kind = await db.MediaItems.Where(i => i.Id == id).Select(i => (MediaKind?)i.Kind).FirstOrDefaultAsync(ct);
+            if (kind is MediaKind.PodcastEpisode)
+            {
+                // As the feed has it; the size is the feed's word, or a guess from its length at 128 kbit/s.
+                var enclosure = await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == id, ct);
+                return enclosure is null
+                    ? Results.NotFound()
+                    : Results.Ok(new List<DownloadOptionDto> { new(DownloadQuality.Original, enclosure.LengthBytes ?? (long)((enclosure.DurationSeconds ?? 3600) * 16_000), true) });
+            }
+
             if (kind is MediaKind.Track or MediaKind.Album)
             {
                 var files = await TrackFilesAsync(db, id, kind.Value, ct);
@@ -81,13 +90,16 @@ public static class DownloadEndpoints
         group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
-            if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track) || await BestFileAsync(db, item.Id, ct) is null)
+            if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode)
+                || (item.Kind == MediaKind.PodcastEpisode
+                    ? !await db.PodcastEpisodes.AnyAsync(e => e.MediaItemId == item.Id, ct)
+                    : await BestFileAsync(db, item.Id, ct) is null))
             {
                 return Results.NotFound();
             }
 
-            // A track has no sizes: it's always the original (or its AAC), whatever the device's setting for films.
-            var quality = item.Kind == MediaKind.Track ? DownloadQuality.Original : request.Quality;
+            // A track or podcast episode has no sizes: it's always the original (or its AAC), whatever the device's setting for films.
+            var quality = item.Kind is MediaKind.Track or MediaKind.PodcastEpisode ? DownloadQuality.Original : request.Quality;
 
             // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out.
             var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == quality
@@ -188,7 +200,7 @@ public static class DownloadEndpoints
         var next = await playback.NextEpisodeAsync(item, ct);
         return new DownloadDto(download.Id, item.Id, download.Quality, download.Status, download.Progress, download.SizeBytes, download.Error, summary,
             file?.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList() ?? [],
-            file?.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60, next?.Id, download.CreatedAt,
+            file?.DurationSeconds ?? summary.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60, next?.Id, download.CreatedAt,
             download is { Status: DownloadStatus.Ready, FilePath: not null } ? DownloadFiles.Name(download) : null);
     }
 }
@@ -206,13 +218,17 @@ public static class DownloadFiles
         [".m4a"] = "audio/mp4",
         [".wav"] = "audio/wav",
         [".aiff"] = "audio/aiff",
+        [".aac"] = "audio/aac",
     };
 
-    /// <summary>".mp4", or a track's ".mp3", ".flac", ".m4a", ".wav" or ".aiff" (an MP4 or MOV holding only sound is an M4A).</summary>
+    /// <summary>
+    /// ".mp4", or a track's or podcast episode's ".mp3", ".flac", ".m4a", ".aac", ".wav" or ".aiff" (an MP4 or MOV holding
+    /// only sound is an M4A).
+    /// </summary>
     public static string Extension(Download download)
     {
         ArgumentNullException.ThrowIfNull(download);
-        if (download.MediaItem?.Kind != MediaKind.Track)
+        if (download.MediaItem?.Kind is not (MediaKind.Track or MediaKind.PodcastEpisode))
         {
             return ".mp4";
         }

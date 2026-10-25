@@ -88,6 +88,19 @@ public sealed class FlexarrOptions
     public List<PathMapping> PathMappings { get; set; } = [];
 
     public LayoutOptions Layout { get; set; } = new();
+
+    public PodcastOptions Podcasts { get; set; } = new();
+}
+
+public sealed class PodcastOptions
+{
+    /// <summary>
+    /// The country whose podcast charts and directory Browse shows, as a two-letter code ("gb", "us"). Unset, it's
+    /// the server's own region.
+    /// </summary>
+    public string? Country { get; set; }
+
+    public string ResolvedCountry => Flexarr.Api.Podcasts.PodcastCountries.Resolve(Country);
 }
 
 /// <summary>Which rows Home and each library's Browse view show, in order. Rows not listed keep their built-in place.</summary>
