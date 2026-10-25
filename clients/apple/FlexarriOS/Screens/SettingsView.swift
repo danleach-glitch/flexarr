@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
     @State private var preferences: PlaybackPreferences?
+    @State private var devices: [Device] = []
+    @State private var siriDevice = AppModel.siriDevice ?? ""
 
     var body: some View {
         List {
@@ -113,6 +115,28 @@ struct SettingsView: View {
                 Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them.")
             }
 
+            Section {
+                Picker("Siri plays on", selection: $siriDevice) {
+                    Text("This \(ThisDevice.name)").tag("")
+                    ForEach(devices.filter { !$0.isThisOne }) { device in
+                        Text(device.name).tag(device.id)
+                    }
+                    if !siriDevice.isEmpty, !devices.contains(where: { $0.id == siriDevice }) {
+                        Text(AppModel.siriDeviceName ?? "A device no longer signed in").tag(siriDevice)
+                    }
+                }
+                .tint(.silver)
+                .listRowBackground(Color.seat)
+                .onChange(of: siriDevice) { _, id in
+                    AppModel.siriDevice = id.isEmpty ? nil : id
+                    AppModel.siriDeviceName = devices.first { $0.id == id }?.name
+                }
+            } header: {
+                Text("Siri")
+            } footer: {
+                Text("Say \u{201C}Play the next episode of Curb Your Enthusiasm in Flexarr\u{201D}, \u{201C}Continue watching in Flexarr\u{201D} or \u{201C}Pause Flexarr\u{201D}. Shows play from the episode you're up to. Choose an Apple TV here and Siri plays there (Flexarr needs to be open on it); you can also name one as you ask.")
+            }
+
             Section("Server") {
                 row("Address", model.credentials?.address.absoluteString ?? "")
                 if let status {
@@ -193,6 +217,7 @@ struct SettingsView: View {
     private func load() async {
         guard let client = model.client else { return }
         async let loadedPreferences = try? client.playbackPreferences()
+        async let loadedDevices = try? client.devices()
         do {
             status = try await client.systemStatus()
             error = nil
@@ -200,5 +225,6 @@ struct SettingsView: View {
             self.error = ConnectionError(error).message
         }
         if let loaded = await loadedPreferences { preferences = loaded }
+        if let loaded = await loadedDevices { devices = loaded }
     }
 }

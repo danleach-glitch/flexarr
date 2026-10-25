@@ -224,6 +224,73 @@ public struct FlexarrClient: Sendable {
         try await get("pairing/\(id)")
     }
 
+    // MARK: Devices (playing on another screen)
+
+    /// Every Apple TV, iPhone and iPad signed in to the server, the ones with Flexarr open first.
+    public func devices() async throws -> [Device] {
+        try await get("devices")
+    }
+
+    /// Tells a device to play a title. A show's or season's id plays the episode that device's profile is up to; the
+    /// result says which, and whether the device took it (Flexarr must be open on it).
+    public func play(on deviceId: String, itemId: String, fromBeginning: Bool = false) async throws -> DeviceCommandResult {
+        let data = try await send("POST", "devices/\(deviceId)/play", body: DevicePlayBody(itemId: itemId, fromBeginning: fromBeginning))
+        return try decode(DeviceCommandResult.self, from: data)
+    }
+
+    /// Pauses, resumes or stops what a device is playing.
+    public func control(device deviceId: String, _ action: DeviceControl) async throws -> DeviceCommandResult {
+        let data = try await send("POST", "devices/\(deviceId)/\(action.rawValue)")
+        return try decode(DeviceCommandResult.self, from: data)
+    }
+
+    /// Commands sent to this device, as they arrive, over one long-lived request (server-sent events). Ends when the
+    /// server closes it (a newer connection from this device took over) or the connection drops; the caller opens it
+    /// again. Only a device signed in with its own token has one: with the API key the server answers 403.
+    public func commandStream() -> AsyncThrowingStream<DeviceCommand, Error> {
+        var request = URLRequest(url: baseURL.appending(path: "api/v1/devices/commands"))
+        request.timeoutInterval = 90 // The server writes a comment every 20 seconds.
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
+        if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
+        let prepared = request
+        let session = self.session
+        let onUnauthorized = self.onUnauthorized
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let (bytes, response) = try await session.bytes(for: prepared)
+                    guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
+                    switch http.statusCode {
+                    case 200..<300: break
+                    case 401:
+                        onUnauthorized?()
+                        throw FlexarrClientError.unauthorized
+                    default: throw FlexarrClientError.http(status: http.statusCode, message: nil)
+                    }
+                    // Split lines by hand: an event ends with an empty line, which `AsyncBytes.lines` leaves out.
+                    var events = ServerSentEvents()
+                    var line: [UInt8] = []
+                    for try await byte in bytes {
+                        guard byte == UInt8(ascii: "\n") else {
+                            line.append(byte)
+                            continue
+                        }
+                        if line.last == UInt8(ascii: "\r") { line.removeLast() }
+                        let text = String(decoding: line, as: UTF8.self)
+                        line.removeAll(keepingCapacity: true)
+                        guard let event = events.feed(text), event.name == "command" else { continue }
+                        continuation.yield(try Self.decoder.decode(DeviceCommand.self, from: Data(event.data.utf8)))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     // MARK: Sign-in
 
     /// How this client signed in, which profile it acts for, and whether it may manage the server.

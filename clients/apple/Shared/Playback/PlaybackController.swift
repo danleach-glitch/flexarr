@@ -705,6 +705,22 @@ final class PlaybackController: NSObject {
         }
     }
 
+    // MARK: Commands from elsewhere
+
+    /// Pauses the picture, as a command from another device asks (nothing to do with no title up).
+    func pause() {
+        transport?.pause()
+    }
+
+    func resume() {
+        transport?.play()
+    }
+
+    /// Closes the player screen, ending the session.
+    func closePlayer() {
+        dismissPlayer()
+    }
+
     // MARK: Stop
 
     /// Stops the current session (reporting the final position) and tears down the transport.

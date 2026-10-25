@@ -4,8 +4,8 @@ name: Flexarr
 options:
   bundleIdPrefix: io.github.flexarr
   deploymentTarget:
-    tvOS: "18.0"
-    iOS: "18.0"
+    tvOS: "18.2"
+    iOS: "18.2"
   createIntermediateGroups: true
 settings:
   base:

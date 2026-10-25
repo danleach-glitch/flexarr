@@ -24,11 +24,14 @@ final class AppModel {
     private(set) var refreshToken = 0
     /// Set by deep links (`flexarr://item/<id>`); the selected tab's stack pushes it.
     var pendingRoute: Route?
+    /// Words to search for, from Siri ("Search for Fargo in Flexarr"); the Search tab takes them.
+    var pendingSearch: String?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
 
     let store = CredentialStore()
     let player = PlaybackController()
+    private let commands = DeviceCommandListener()
     #if DEBUG
     /// Launch-argument sign-ins (simulator runs, the screenshot tour) act as the main profile
     /// unless `-FlexarrAskProfile YES` asks.
@@ -197,7 +200,26 @@ final class AppModel {
         #if DEBUG
         if skipsProfileChoice { needsProfileChoice = false }
         #endif
+        // Siri learns the library's titles from the signed-in server, so "play the next <show>" is understood.
+        if !needsProfileChoice { FlexarrShortcuts.updateAppShortcutParameters() }
     }
+
+    #if os(iOS)
+    /// The device Siri plays on when none is named: an Apple TV's sign-in id, or nil for this iPhone or iPad.
+    static var siriDevice: String? {
+        get { UserDefaults.standard.string(forKey: "FlexarrSiriDevice") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "FlexarrSiriDevice")
+            if newValue == nil { UserDefaults.standard.removeObject(forKey: "FlexarrSiriDeviceName") }
+        }
+    }
+
+    /// That device's name as last seen, for what Siri says.
+    static var siriDeviceName: String? {
+        get { UserDefaults.standard.string(forKey: "FlexarrSiriDeviceName") }
+        set { UserDefaults.standard.set(newValue, forKey: "FlexarrSiriDeviceName") }
+    }
+    #endif
 
     /// Makes `profile` the one watching on this device (remembered across launches). A wrong
     /// PIN throws the server's message. Every screen reloads, since history and libraries differ.
@@ -269,6 +291,40 @@ final class AppModel {
         guard let client else { return }
         try? await client.setWatched(item.id, watched: watched)
         invalidate()
+    }
+
+    // MARK: Commands from other devices
+
+    /// Listens for commands while the app is in front and signed in (with a profile chosen); stops otherwise.
+    func listenForCommands(_ inFront: Bool) {
+        guard inFront, let client, profilesLoaded, !needsProfileChoice else {
+            commands.stop()
+            return
+        }
+        commands.start(client) { [weak self] command in self?.handle(command) }
+    }
+
+    /// Does what another device, the web app or an assistant asked: play a title here, or pause, resume or stop.
+    func handle(_ command: DeviceCommand) {
+        switch command.kind {
+        case .play:
+            guard let client, let id = command.itemId else { return }
+            player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client)
+        case .pause: player.pause()
+        case .resume: player.resume()
+        case .stop: player.closePlayer()
+        case .unknown: break
+        }
+    }
+
+    /// Plays a title here as an intent asked (Siri, Shortcuts): a show's next episode, a film as it is.
+    func playFromIntent(itemId: String) async {
+        guard let client else { return }
+        if let detail = try? await client.item(itemId), detail.item.kind == .series || detail.item.kind == .season {
+            if let next = try? await client.nextUp(itemId) { play(next) } else { pendingRoute = .itemID(itemId) }
+        } else {
+            player.play(itemId: itemId, preview: nil, startAt: nil, client: client)
+        }
     }
 
     func open(url: URL) {

@@ -83,6 +83,8 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 - Profiles with their own Continue Watching, history and Up Next, an optional PIN, and a profile picker when Flexarr opens, on the web and on Apple TV
 - Choose which libraries each profile can see
 - Each browser and device gets a sign-in of its own, which you can sign out from Settings; an Apple TV connects by scanning a QR code
+- **Siri**: "Play the next episode of Curb Your Enthusiasm in Flexarr" plays the episode you're up to, on your iPhone or on the Apple TV you choose; "Continue watching in Flexarr", "Pause Flexarr"
+- **An assistant's way in**: Flexarr is an MCP server, so Claude (or any MCP client) can search your library, see what's playing on every screen and play something on the TV
 - **Away from home over Tailscale**, with no ports opened on your router
 
 ### Music
@@ -134,6 +136,27 @@ For an Apple TV:
 For an iPhone or iPad, connect it to the Mac (or pair it over Wi-Fi in Devices and Simulators), turn on Developer Mode on the device (Settings › Privacy & Security), then run `make ios-install TEAM=<your team id> BUNDLE_ID=com.yourname.flexarr.ios`.
 
 With a free Apple ID the apps stop opening after 7 days; run the same command again.
+
+### Siri and Shortcuts
+
+Once the iPhone or iPad app has signed in, Siri understands, with no setting up:
+
+- "Play **the next episode of** *Curb Your Enthusiasm* in Flexarr" (or "play the next *Traitors*", "watch *Heat*"): a show plays the episode you're up to, a film resumes where you left it
+- "Continue watching in Flexarr": the top of Continue Watching
+- "Pause Flexarr", "Resume Flexarr", "Stop Flexarr"
+- "Search for *Fargo* in Flexarr"
+
+Siri needs the app's name in the phrase. Playback lands on the iPhone unless Settings › Siri plays on names an Apple TV, in which case it plays there (you can also name one as you ask: "… on the living room TV"). The Apple TV only takes commands while Flexarr is open on it; a command sent while it isn't waits two minutes for you to open the app. The same intents are in the Shortcuts app, so a shortcut can wake the Apple TV, open Flexarr on it and play, in one go. The Apple TV app has the same intents for Siri on the Siri Remote; whether tvOS hands third-party apps such requests is Apple's call and hasn't been confirmed.
+
+### An assistant (MCP)
+
+Flexarr is an [MCP](https://modelcontextprotocol.io) server at `http://<server>:8383/api/v1/mcp`, signed in with the API key as an `X-Api-Key` header (or `?apikey=`). An assistant connected to it can search the library, list Continue Watching and what's playing on every screen, play a title on an Apple TV, iPhone or iPad with Flexarr open, pause, resume and stop it, and mark things watched. For Claude Code:
+
+```bash
+claude mcp add --transport http flexarr http://mini.local:8383/api/v1/mcp --header "X-Api-Key: <your key>"
+```
+
+Any sign-in works, and the assistant acts as that profile: a device token or a browser's session gives it that device's or browser's profile, and only sign-ins the main profile made (or the key) may play on other devices.
 
 ## Quick start (Docker)
 

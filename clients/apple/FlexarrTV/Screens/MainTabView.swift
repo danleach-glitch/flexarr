@@ -55,6 +55,9 @@ struct MainTabView: View {
         .onChange(of: model.pendingRoute) { _, route in
             if route != nil { selection = .home }
         }
+        .onChange(of: model.pendingSearch) { _, words in
+            if words != nil { selection = .search }
+        }
     }
 }
 

@@ -664,6 +664,85 @@ extension PlaybackInfo {
     public var isOffline: Bool { sessionId.hasPrefix("offline-") }
 }
 
+// MARK: - Devices
+
+/// What a device last reported playing.
+public struct NowPlaying: Codable, Sendable, Hashable {
+    public let item: ItemSummary
+    public let positionSeconds: Double
+    public let durationSeconds: Double
+    public let paused: Bool
+}
+
+/// An Apple TV, iPhone or iPad signed in to the server, as a place to play something.
+public struct Device: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    /// Flexarr is open on it and would take a command now. Offline, a command waits two minutes for it.
+    public let online: Bool
+    public let lastUsedAt: Date
+    public let profileId: String
+    public let profileName: String?
+    /// The device asking.
+    public let isThisOne: Bool
+    public let nowPlaying: NowPlaying?
+
+    public init(id: String, name: String, online: Bool, lastUsedAt: Date, profileId: String, profileName: String?, isThisOne: Bool, nowPlaying: NowPlaying?) {
+        self.id = id
+        self.name = name
+        self.online = online
+        self.lastUsedAt = lastUsedAt
+        self.profileId = profileId
+        self.profileName = profileName
+        self.isThisOne = isThisOne
+        self.nowPlaying = nowPlaying
+    }
+}
+
+public enum DeviceCommandKind: String, ForwardCompatibleEnum {
+    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", unknown
+}
+
+/// Something another device, the web app or an assistant asked this device to do.
+public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let kind: DeviceCommandKind
+    /// With `play`, the film, episode or track to start (never a show: the server has worked out the episode).
+    public let itemId: String?
+    public let fromBeginning: Bool
+    /// Who asked ("Dan's iPhone"), when known.
+    public let sentBy: String?
+    public let sentAt: Date
+
+    public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date) {
+        self.id = id
+        self.kind = kind
+        self.itemId = itemId
+        self.fromBeginning = fromBeginning
+        self.sentBy = sentBy
+        self.sentAt = sentAt
+    }
+}
+
+/// What came of telling a device to do something.
+public struct DeviceCommandResult: Codable, Sendable, Hashable {
+    /// The device took it. False: Flexarr isn't open on it; the command waits two minutes for it to be opened.
+    public let delivered: Bool
+    public let deviceName: String
+    /// For play: what will play (the episode, when a show was asked for).
+    public let item: ItemSummary?
+}
+
+/// Pause, resume or stop, for `FlexarrClient.control(device:_:)`.
+public enum DeviceControl: String, Sendable {
+    case pause, resume, stop
+}
+
+struct DevicePlayBody: Codable, Sendable {
+    let itemId: String
+    let fromBeginning: Bool
+}
+
 // MARK: - Subtitles
 
 /// How big subtitles are drawn: one setting per profile, followed by every device.

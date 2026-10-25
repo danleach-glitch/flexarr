@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 /// Owns the downloads, so the system can hand back ones that finished while the app was closed.
@@ -19,7 +20,10 @@ struct FlexarriOSApp: App {
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 48 * 1024 * 1024, diskCapacity: 384 * 1024 * 1024)
-        _model = State(initialValue: AppModel())
+        let model = AppModel()
+        _model = State(initialValue: model)
+        // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents).
+        AppDependencyManager.shared.add(dependency: model)
     }
 
     var body: some Scene {
@@ -37,6 +41,7 @@ struct FlexarriOSApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -69,6 +74,10 @@ struct RootView: View {
         }
         .onChange(of: model.phase) { old, new in
             if case .signedIn = old, new == .signedOut { downloads.deleteAll() }
+        }
+        // While in front and signed in, another device (or Siri on one) can play here.
+        .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {
+            model.listenForCommands(scenePhase == .active)
         }
         .overlay {
             if model.player.isStarting {

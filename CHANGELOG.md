@@ -4,6 +4,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Siri: "Play the next episode of Curb Your Enthusiasm in Flexarr"
+- On iPhone and iPad, Siri plays a film or the next episode of a show by name ("play the next *Traitors* in Flexarr", "watch *Heat* in Flexarr"), picks up Continue Watching ("continue watching in Flexarr"), pauses, resumes and stops ("pause Flexarr"), and searches ("search for *Fargo* in Flexarr"). The app's name has to be in the phrase. Siri learns your library's titles when the app signs in.
+- Settings › Siri on iPhone and iPad chooses where Siri plays: this device, or an Apple TV with Flexarr open; or name a device as you ask ("… on the living room TV"). An Apple TV that isn't listening gets the command when Flexarr is opened on it within two minutes.
+- The same actions are in the Shortcuts app, for automations (wake the Apple TV, open Flexarr on it, play).
+- The Apple TV app carries the same intents for the Siri Remote, though whether tvOS passes a third-party app such requests is still to be confirmed on a real Apple TV.
+
 ### Play on another device, and an assistant's way in (MCP)
 - An Apple TV, iPhone or iPad with Flexarr open can be told what to play from elsewhere: the server lists the devices signed in (`GET /api/v1/devices`, with whether each is listening and what it's playing) and takes `POST /api/v1/devices/{id}/play` with a title's id (a show's plays the episode that device's profile is up to), and `pause`, `resume` and `stop`. A command to a device that isn't listening waits two minutes for Flexarr to be opened on it.
 - Flexarr is an MCP server at `/api/v1/mcp` (sign in with the API key as `X-Api-Key`, or `?apikey=`): an assistant such as Claude can search the library, see Continue Watching and what's playing on every screen, play a title on a device, pause, resume and stop it, and mark things watched.

@@ -1,14 +1,19 @@
+import AppIntents
 import FlexarrKit
 import SwiftUI
 import TVServices
 
 @main
 struct FlexarrTVApp: App {
-    @State private var model = AppModel()
+    @State private var model: AppModel
 
     init() {
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 512 * 1024 * 1024)
+        let model = AppModel()
+        _model = State(initialValue: model)
+        // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents).
+        AppDependencyManager.shared.add(dependency: model)
     }
 
     var body: some Scene {
@@ -23,6 +28,7 @@ struct FlexarrTVApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -54,6 +60,10 @@ struct RootView: View {
             TVTopShelfContentProvider.topShelfContentDidChange()
         }
         .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }
+        // While in front and signed in, an iPhone (or Siri on it), the web app or an assistant can play here.
+        .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {
+            model.listenForCommands(scenePhase == .active)
+        }
         .overlay {
             if model.player.isStarting {
                 ZStack {

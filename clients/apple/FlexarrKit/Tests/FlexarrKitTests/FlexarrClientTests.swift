@@ -317,3 +317,27 @@ struct FlexarrClientTests {
         #expect(FlexarrClient.normalizeAddress(input) == nil)
     }
 }
+
+struct CommandStreamTests {
+    @Test func commandStream_yieldsEachCommandEvent_andSkipsCommentsAndCRLF() async throws {
+        let body = ": connected\n\nevent: command\r\ndata: {\"id\":\"a\",\"kind\":\"Play\",\"itemId\":\"x\",\"fromBeginning\":false,\"sentBy\":null,\"sentAt\":\"2026-10-25T10:00:00Z\"}\r\n\r\n"
+            + ": ping\n\nevent: command\ndata: {\"id\":\"b\",\"kind\":\"Pause\",\"itemId\":null,\"fromBeginning\":false,\"sentBy\":\"Dan's iPhone\",\"sentAt\":\"2026-10-25T10:00:05Z\"}\n\n"
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(body.utf8), contentType: "text/event-stream"))
+        var kinds: [DeviceCommandKind] = []
+        for try await command in client.commandStream() { kinds.append(command.kind) }
+        #expect(kinds == [.play, .pause])
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.url?.path == "/api/v1/devices/commands")
+        #expect(request.value(forHTTPHeaderField: "X-Api-Key") == "secret")
+    }
+
+    @Test func commandStream_refusedWithTheApiKey_throws403() async {
+        let (client, _) = stubbedClient(.init(status: 403, body: Data("{\"detail\":\"Only a device\"}".utf8)))
+        do {
+            for try await _ in client.commandStream() {}
+            Issue.record("expected a 403")
+        } catch {
+            #expect(error as? FlexarrClientError == .http(status: 403, message: nil))
+        }
+    }
+}

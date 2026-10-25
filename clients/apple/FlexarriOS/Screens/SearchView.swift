@@ -56,7 +56,11 @@ struct SearchView: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, shows, episodes and people")
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
-        .onAppear { if query.isEmpty { typing = true } }
+        .onAppear {
+            takeSiriSearch()
+            if query.isEmpty { typing = true }
+        }
+        .onChange(of: model.pendingSearch) { takeSiriSearch() }
         .task(id: query) {
             // Debounce typing so each keystroke doesn't hit the server.
             try? await Task.sleep(for: .milliseconds(300))
@@ -74,6 +78,14 @@ struct SearchView: View {
             }
             .scrollIndicators(.hidden)
         }
+    }
+
+    /// "Search for Fargo in Flexarr" said to Siri: the words go in the field and the search runs.
+    private func takeSiriSearch() {
+        guard let words = model.pendingSearch else { return }
+        model.pendingSearch = nil
+        query = words
+        typing = false
     }
 
     private func search() async {

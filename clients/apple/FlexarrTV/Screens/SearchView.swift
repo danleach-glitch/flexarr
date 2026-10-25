@@ -50,6 +50,8 @@ struct SearchView: View {
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
         .searchable(text: $query, prompt: "Movies, shows, episodes and people")
+        .onAppear(perform: takeSiriSearch)
+        .onChange(of: model.pendingSearch) { takeSiriSearch() }
         .task(id: query) {
             // Debounce typing so each keystroke doesn't hit the server.
             try? await Task.sleep(for: .milliseconds(300))
@@ -70,6 +72,13 @@ struct SearchView: View {
             .scrollClipDisabled()
             .focusSection()
         }
+    }
+
+    /// "Search for Fargo in Flexarr" said to Siri: the words go in the field and the search runs.
+    private func takeSiriSearch() {
+        guard let words = model.pendingSearch else { return }
+        model.pendingSearch = nil
+        query = words
     }
 
     private func search() async {
