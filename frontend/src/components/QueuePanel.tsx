@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { imageUrl, type ItemSummary } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { ChevronDown, ChevronUp, Close, Grip } from './icons'
@@ -8,7 +8,7 @@ import { ChevronDown, ChevronUp, Close, Grip } from './icons'
  * order (or moved with the arrow buttons from the keyboard), removed, or cleared in one go. Escape or a click
  * elsewhere closes it.
  */
-export function QueuePanel({ onClose }: { onClose: () => void }) {
+export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CSSProperties }) {
   const player = useAudioPlayer()
   const panel = useRef<HTMLElement>(null)
   const [dragging, setDragging] = useState<number | null>(null)
@@ -92,7 +92,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
   )
 
   return (
-    <section id="queue-panel" ref={panel} className="queue-panel" role="dialog" aria-label="Queue">
+    <section id="queue-panel" ref={panel} className="queue-panel" role="dialog" aria-label="Queue" style={style}>
       <header className="queue-head">
         <h2>Queue</h2>
         <button className="button quiet small" onClick={player.clearQueue} disabled={upcoming.length === 0}>

@@ -24,7 +24,7 @@ function playbackApi(extra: Record<string, unknown> = {}) {
   const requests: { itemId: string; startPositionSeconds?: number }[] = []
   mockApi({
     ...extra,
-    'POST /playback': (init) => {
+    'POST /playback': (init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { itemId: string; startPositionSeconds?: number }
       requests.push(body)
       return {

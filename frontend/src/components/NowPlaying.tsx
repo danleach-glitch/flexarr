@@ -33,11 +33,13 @@ export function NowPlaying() {
     setQueueOpen(false)
     queueButton.current?.focus()
   }
+  // The track's colour, for the bar and the queue alike.
+  const accent = track?.accentColor ? ({ '--ambient': track.accentColor } as CSSProperties) : undefined
 
   return (
     <>
-      {queueOpen && track && <QueuePanel onClose={closeQueue} />}
-      <aside className="now-playing" aria-label="Now playing" style={track?.accentColor ? ({ '--ambient': track.accentColor } as CSSProperties) : undefined}>
+      {queueOpen && track && <QueuePanel onClose={closeQueue} style={accent} />}
+      <aside className="now-playing" aria-label="Now playing" style={accent}>
         <div className="now-playing-track">
           {album ? (
             <Link to={album} className="now-playing-cover" tabIndex={-1} aria-hidden="true">
