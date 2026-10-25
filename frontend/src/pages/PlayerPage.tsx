@@ -1,7 +1,7 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { ApiError, beaconProgress, imageUrl, reportProgress, setPlaybackPreferences, setSubtitleDelay, startPlayback, stopPlayback, type PlaybackInfo, type PlaybackPreferences } from '../api/client'
+import { ApiError, beaconProgress, imageUrl, reportProgress, setPlaybackPreferences, setSubtitleChoice, setSubtitleDelay, startPlayback, stopPlayback, type PlaybackInfo, type PlaybackPreferences } from '../api/client'
 import type { SubtitleSize } from '../api/client'
 import {
   Back,
@@ -533,6 +533,8 @@ export function PlayerPage() {
     } else {
       setSubtitleKey(key)
       setSubtitleStatus(key ? 'loading' : 'idle')
+      // Switched here in the browser, so the server must be told for the choice to hold next time.
+      if (info) void setSubtitleChoice(info.sessionId, key).catch(() => undefined)
     }
   }
 

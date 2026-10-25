@@ -519,6 +519,8 @@ export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('P
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
 export const setSubtitleDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/subtitle-delay`, { seconds })
+/** The subtitles the viewer picked in the player (a track's key, or null for off), remembered for the title and its show. */
+export const setSubtitleChoice = (sessionId: string, key: string | null) => request<void>('PUT', `/playback/${sessionId}/subtitle`, { key: key ?? 'off' })
 export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>
   request<void>('POST', `/playback/${sessionId}/progress`, { positionSeconds, paused, ended })
 

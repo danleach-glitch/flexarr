@@ -336,6 +336,22 @@ struct FlexarrClientTests {
     }
 }
 
+struct SubtitleChoiceTests {
+    @Test func tellsTheServerWhatTheViewerPicked_OffIncluded() async throws {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+
+        try await client.setSubtitle(sessionId: "s1", key: nil)
+        try await client.setSubtitle(sessionId: "s1", key: "e2")
+
+        let requests = StubProtocol.recorded(host: host)
+        #expect(requests.count == 2)
+        #expect(requests.first?.httpMethod == "PUT")
+        #expect(requests.first?.url?.path == "/api/v1/playback/s1/subtitle")
+        #expect(String(data: requests.first?.httpBody ?? Data(), encoding: .utf8) == #"{"key":"off"}"#)
+        #expect(String(data: requests.last?.httpBody ?? Data(), encoding: .utf8) == #"{"key":"e2"}"#)
+    }
+}
+
 struct CommandStreamTests {
     @Test func commandStream_yieldsEachCommandEvent_andSkipsCommentsAndCRLF() async throws {
         let body = ": connected\n\nevent: command\r\ndata: {\"id\":\"a\",\"kind\":\"Play\",\"itemId\":\"x\",\"fromBeginning\":false,\"sentBy\":null,\"sentAt\":\"2026-10-25T10:00:00Z\"}\r\n\r\n"

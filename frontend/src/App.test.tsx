@@ -699,6 +699,28 @@ describe('Player', () => {
     expect(requests).toHaveLength(1)
   })
 
+  it('tells the server when subtitles are switched in the browser, so the choice holds next time', async () => {
+    const choices: unknown[] = []
+    const english = { key: 'e2', label: 'English', codec: 'subrip', language: 'eng', isForced: false, isDefault: false, isText: true, url: '/api/v1/playback/s1/subtitles/e2.vtt' }
+    mockApi({
+      '/libraries': [],
+      'POST /playback': () => ({ ...transcode('s1'), subtitles: [english], selectedSubtitleKey: 'e2' }),
+      'PUT /playback/s1/subtitle': (init?: RequestInit) => {
+        choices.push(JSON.parse(String(init?.body)))
+      },
+    })
+
+    renderAt('/play/e1')
+    await screen.findByText('Pilot')
+
+    // The subtitles shortcut: off, since they're on. The title can show before the stream's details arrive, and a press
+    // before then does nothing, so press until the choice goes out.
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: 'c' })
+      expect(choices).toEqual([{ key: 'off' }])
+    })
+  })
+
   it('recovers once when the stream errors twice while asking why it stopped', async () => {
     const requests: unknown[] = []
     const answers: ((response: Response) => void)[] = []

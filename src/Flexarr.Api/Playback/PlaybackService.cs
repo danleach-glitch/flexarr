@@ -138,7 +138,9 @@ public sealed class PlaybackService(
             CreditsStart = credits,
             Transcode = transcode,
             AudioLanguage = decision.Audio?.Language,
-            SubtitleLanguage = decision.Subtitle?.Language,
+            // Forced subtitles aren't a preference (the server puts them on by itself, and players carry the choice
+            // over to the next episode): remembering their language would turn the full subtitles on next time.
+            SubtitleLanguage = decision.Subtitle is { IsForced: true } ? null : decision.Subtitle?.Language,
             AudioIsAtmos = decision.Audio?.Profile?.Contains("Atmos", StringComparison.OrdinalIgnoreCase) == true,
         });
 

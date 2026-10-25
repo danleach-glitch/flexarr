@@ -23,7 +23,8 @@ public sealed class PlaybackSession
     public required double? CreditsStart { get; init; }
     public TranscodeSession? Transcode { get; init; }
     public string? AudioLanguage { get; init; }
-    public string? SubtitleLanguage { get; init; }
+    /// <summary>The subtitles showing: the server's choice at the start, then whatever the viewer picks in the player.</summary>
+    public string? SubtitleLanguage { get; set; }
     /// <summary>The stream's soundtrack carries Dolby Atmos (E-AC-3 with JOC): the master playlist says so.</summary>
     public bool AudioIsAtmos { get; init; }
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;

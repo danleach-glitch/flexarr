@@ -28,6 +28,9 @@ public sealed record SubtitleTrackDto(string Key, string Label, string Codec, st
 
 public sealed record MarkerDto(MarkerType Type, double Start, double End);
 
+/// <summary>The subtitles the viewer picked in the player: a track's key, or "off".</summary>
+public sealed record SubtitleChoiceRequest(string Key);
+
 public sealed record PlaybackInfoDto(
     string SessionId,
     PlaybackMethod Method,

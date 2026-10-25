@@ -127,6 +127,41 @@ public static class PlaybackEndpoints
     {
         var group = api.MapGroup("/playback/{sid}").WithTags("Streaming").AllowAnonymous();
 
+        // The viewer chose subtitles (or none) in the player: the session takes note, so the choice is what the next
+        // sitting and the next episode start with. Apple's player switches renditions on the device, so without this
+        // the server's own first choice came back every time.
+        group.MapPut("/subtitle", async (string sid, SubtitleChoiceRequest request, PlaybackSessions sessions, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (sessions.Get(sid) is not { } session)
+            {
+                return Results.NotFound();
+            }
+
+            string? language = null;
+            if (request.Key != "off")
+            {
+                if (session.Subtitles.FirstOrDefault(s => s.Key == request.Key) is not { } track)
+                {
+                    return Results.NotFound();
+                }
+
+                language = track.IsForced ? null : track.Language; // forced tracks come on by themselves; not a preference
+            }
+
+            session.SubtitleLanguage = language;
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
+            if (state is null)
+            {
+                state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
+                db.PlaybackStates.Add(state);
+            }
+
+            state.SubtitleLanguage = language;
+            state.LastPlayedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        }).WithTags("Playback");
+
         group.MapGet("/stream", (string sid, PlaybackSessions sessions) =>
             sessions.Get(sid) is { Method: PlaybackMethod.DirectPlay } session
                 ? Results.File(session.FilePath, ContentType(session.Container), enableRangeProcessing: true)

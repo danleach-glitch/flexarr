@@ -174,6 +174,15 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "playback/\(sessionId)")
     }
 
+    /// The viewer picked subtitles in the player (a track's key, or nil for off): remembered for next time.
+    public func setSubtitle(sessionId: String, key: String?) async throws {
+        _ = try await send("PUT", "playback/\(sessionId)/subtitle", body: SubtitleChoice(key: key ?? "off"))
+    }
+
+    private struct SubtitleChoice: Encodable {
+        let key: String
+    }
+
     /// This session's scrubbing previews: nil until the server has made them (ask again later).
     public func trickplay(sessionId: String) async throws -> TrickplayManifest? {
         do {

@@ -182,7 +182,8 @@ final class PlaybackController: NSObject {
         var request = request(for: current.item.id, startAt: position > 0 ? position : lastPosition)
         request.fileId = current.fileId
         request.audioStreamIndex = audioIndex ?? current.selectedAudioIndex
-        request.subtitleKey = (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off"
+        // The viewer's pick ("off" included) wins; otherwise what's showing, or nothing, and the server decides.
+        request.subtitleKey = viewerSubtitleKey.map { $0 ?? "off" } ?? current.selectedSubtitleKey
         request.replacesSessionId = current.sessionId
         return request
     }
@@ -292,7 +293,7 @@ final class PlaybackController: NSObject {
         let position = lastPosition > 0 ? lastPosition : info.startPositionSeconds
         Task { try? await client.stopPlayback(sessionId: info.sessionId) }
         var request = request(for: info.item.id, startAt: position)
-        request.subtitleKey = (viewerSubtitleKey ?? info.selectedSubtitleKey) ?? "off"
+        request.subtitleKey = viewerSubtitleKey.map { $0 ?? "off" } ?? info.selectedSubtitleKey
         self.info = nil
         start(request)
     }
@@ -865,6 +866,10 @@ extension PlaybackController: PlayerScreenDelegate {
     func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??) {
         viewerSubtitleKey = key
         log.info("Subtitles chosen in the player: \(key.flatMap { $0 } ?? "off", privacy: .public)")
+        // The server remembers the pick for this title and its show, so it holds next time.
+        if let client, let info, !info.isOffline, case .some(let chosen) = key {
+            Task { try? await client.setSubtitle(sessionId: info.sessionId, key: chosen) }
+        }
     }
 
     func playerScreen(_ screen: PlayerViewController, subtitleDelay seconds: Double) {

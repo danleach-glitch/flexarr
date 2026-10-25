@@ -14,6 +14,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Fixed
 - Music no longer appears in Continue Watching or as the featured title on Home (a half-played track belongs to music's own Recently played row). On Apple TV, a Play button on an artist or album in a row plays them rather than opening their page.
+- Turning subtitles off (or picking a track) in the Apple TV, iPhone and web players is now remembered for the title and its show: the next sitting and the next episode start the way you left them, instead of the server's first choice coming back. Forced subtitles the server puts on by itself no longer count as a preference that turns the full subtitles on next time.
 
 ## 0.21.1 · 25 October 2026
 
