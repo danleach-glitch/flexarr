@@ -48,7 +48,8 @@ public sealed record PlaybackInfoDto(
     string? TranscodeSummary,
     bool Shuffle = false,
     PlaybackPreferencesDto? Preferences = null,
-    double SubtitleDelaySeconds = 0);
+    double SubtitleDelaySeconds = 0,
+    ItemSummaryDto? Previous = null);
 
 /// <summary>How this profile likes to watch: auto-play the next episode, and what to skip without asking.</summary>
 /// <param name="SubtitleSize">Left out (an older app saving its toggles), the profile's size is kept.</param>

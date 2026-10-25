@@ -129,6 +129,20 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "playback/\(sessionId)")
     }
 
+    /// This session's scrubbing previews: nil until the server has made them (ask again later).
+    public func trickplay(sessionId: String) async throws -> TrickplayManifest? {
+        do {
+            return try await get("playback/\(sessionId)/trickplay.json")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return nil
+        }
+    }
+
+    /// One sheet of a session's scrubbing previews. Needs no API key.
+    public func trickplaySheetURL(sessionId: String, sheet: Int) -> URL? {
+        url(for: "/api/v1/playback/\(sessionId)/trickplay/\(sheet).jpg")
+    }
+
     // MARK: Downloads
 
     /// The sizes this title can be downloaded at, with about how big each would be.

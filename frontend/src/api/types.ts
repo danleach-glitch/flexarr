@@ -313,6 +313,8 @@ export interface PlaybackInfo {
   item: ItemSummary
   ancestors: ItemSummary[]
   next: ItemSummary | null
+  /** The episode before this one, in order (null on shuffle, and from servers before it existed). */
+  previous?: ItemSummary | null
   transcodeSummary: string | null
   shuffle?: boolean
   preferences?: PlaybackPreferences | null

@@ -178,6 +178,8 @@ public sealed class PlaybackService(
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
             .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct);
         var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
+        // On shuffle the player keeps its own trail of what it played; in order, the episode before this one.
+        var before = shuffling ? null : await PreviousEpisodeAsync(item, ct);
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
 
@@ -202,7 +204,8 @@ public sealed class PlaybackService(
             decision.Transcode is { } t ? Summary(t, file) : null,
             shuffling,
             watching,
-            state?.SubtitleDelaySeconds ?? 0);
+            state?.SubtitleDelaySeconds ?? 0,
+            before is null ? null : await db.MediaItems.Where(i => i.Id == before.Id).Summaries(profile.Id).FirstAsync(ct));
     }
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
@@ -400,6 +403,21 @@ public sealed class PlaybackService(
             : null;
     }
 
+    /// <summary>The episode before this one: previous in the season, else the last of the previous season.</summary>
+    public async Task<MediaItem?> PreviousEpisodeAsync(MediaItem episode, CancellationToken ct)
+    {
+        if (episode.Kind != MediaKind.Episode || episode.ParentId is not { } seasonId
+            || await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is not { } seriesId)
+        {
+            return null;
+        }
+
+        var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
+        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && PreviousBefore(episodes, current) is { } previous
+            ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == previous.Id, ct)
+            : null;
+    }
+
     /// <summary>On shuffle, a random other episode of the show this one is from.</summary>
     private async Task<MediaItem?> ShuffleNextAsync(MediaItem episode, CancellationToken ct) =>
         episode.ParentId is { } seasonId && await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is { } seriesId
@@ -483,6 +501,31 @@ public sealed class PlaybackService(
             .OrderBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
     }
 
+
+    /// <summary>
+    /// The episode before <paramref name="current"/>: the mirror of <see cref="NextAfter"/>. Previous in its season, else
+    /// the last of the previous regular season.
+    /// </summary>
+    internal static EpisodeRef? PreviousBefore(IReadOnlyList<EpisodeRef> episodes, EpisodeRef current)
+    {
+        var season = episodes.Where(e => e.SeasonId == current.SeasonId);
+        EpisodeRef? previous;
+        if (current.AirDate is not null)
+        {
+            var byDate = season.Where(e => e.AirDate is not null)
+                .OrderBy(e => e.AirDate).ThenBy(e => e.SortTitle, StringComparer.Ordinal).ThenBy(e => e.Id).ToList();
+            previous = byDate.TakeWhile(e => e.Id != current.Id).LastOrDefault();
+        }
+        else
+        {
+            var before = current.EpisodeNumber ?? 0;
+            previous = season.Where(e => (e.EpisodeNumberEnd ?? e.EpisodeNumber) < before)
+                .OrderByDescending(e => e.EpisodeNumberEnd ?? e.EpisodeNumber).ThenByDescending(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+        }
+
+        return previous ?? episodes.Where(e => e.SeasonNumber < current.SeasonNumber && e.SeasonNumber > 0)
+            .OrderByDescending(e => e.SeasonNumber).ThenByDescending(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+    }
 
     /// <summary>What the player's info panel says about the stream: "Original HEVC (Dolby Vision), FLAC 7.1 sound".</summary>
     private static string Summary(TranscodePlan plan, MediaFile file)

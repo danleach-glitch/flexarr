@@ -1,12 +1,7 @@
 import AVFoundation
-import AVKit
-#if canImport(AetherEngine)
-import AetherEngine
-#endif
 import FlexarrKit
 import Observation
 import os
-import SwiftUI
 import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "playback")
@@ -19,9 +14,9 @@ protocol OfflineLibrary: AnyObject {
     func nextInfo(after info: PlaybackInfo) -> PlaybackInfo?
 }
 
-/// Owns one playback session at a time: starts it on the server, presents
-/// AVPlayerViewController, reports progress, offers Skip Intro / Next Episode (contextual actions on
-/// Apple TV, a floating button on iPhone and iPad), auto-advances, and stops the session on exit.
+/// Owns one playback session at a time: starts it on the server, puts the player screen up with the right transport
+/// (Apple's player over a server stream or a download, or the engine over the file itself), reports progress, offers
+/// Skip Intro and Next Episode, auto-advances, moves between episodes, and stops the session on exit.
 @MainActor
 @Observable
 final class PlaybackController: NSObject {
@@ -43,48 +38,33 @@ final class PlaybackController: NSObject {
 
     @ObservationIgnored private var client: FlexarrClient?
     @ObservationIgnored private var info: PlaybackInfo?
-    @ObservationIgnored private var player: AVPlayer?
-    @ObservationIgnored private var viewController: AVPlayerViewController?
-    @ObservationIgnored private var timeObserver: Any?
-    @ObservationIgnored private var observations: [NSKeyValueObservation] = []
-    @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var screen: PlayerViewController?
+    @ObservationIgnored private var transport: PlayerTransport?
     @ObservationIgnored private var lastReport = Date.distantPast
     @ObservationIgnored private var prompt: PlaybackPrompt = .none
-    @ObservationIgnored private var pendingSeek: Double = 0
     @ObservationIgnored private var isAdvancing = false
     @ObservationIgnored private var isRecovering = false
     @ObservationIgnored private var hasPlayed = false
     @ObservationIgnored private var lastRecovery = Date.distantPast
-    /// Where playback last was, for recovering after the item fails (when its own time may be gone).
+    /// Where playback last was, for recovering after the stream fails (when its own time may be gone).
     @ObservationIgnored private var lastPosition: Double = 0
     /// What `retry` asks for (nil: nothing to offer).
     @ObservationIgnored private var retryRequest: PlaybackRequest?
     /// The viewer's own subtitle choice in the player's menu for this title: nil if they haven't made one, `.some(nil)`
     /// for off. It outlives a recovered stream, and "off" carries on to the next episode.
     @ObservationIgnored private var viewerSubtitleKey: String??
-    /// The current item's subtitle options, once loaded, and the one last selected (by us or the viewer).
-    @ObservationIgnored private var legibleGroup: AVMediaSelectionGroup?
-    @ObservationIgnored private var selectedSubtitleName: String??
-    @ObservationIgnored private var selectionObserver: NSObjectProtocol?
-    @ObservationIgnored private var jumpObserver: NSObjectProtocol?
-    /// Until when a subtitle change is the player's own rather than the viewer's: it re-chooses subtitles as a seek
-    /// lands (with the device muted, iOS's "On (Mute)" turns them back on), which can take a while on a transcode.
-    @ObservationIgnored private var subtitleGuardUntil = Date.distantPast
-    /// The last position the clock reported, and when, for telling a seek from playing on.
-    @ObservationIgnored private var lastTick: (position: Double, at: Date)?
     /// Where downloaded files' watching goes, and their next episodes come from (set by the iOS app).
     @ObservationIgnored weak var offlineLibrary: OfflineLibrary?
 
-    /// Experimental: the file played as it is on the device (AetherEngine demuxes, VideoToolbox decodes), with Apple's
-    /// player over the top. On when Settings says so, or `-FlexarrEngine YES`.
+    /// The file played as it is on the device (AetherEngine demuxes it, the device decodes it). On when Settings says
+    /// so, or `-FlexarrEngine YES`.
     static var usesEngine: Bool { UserDefaults.standard.bool(forKey: "FlexarrEngine") }
-    #if canImport(AetherEngine)
-    @ObservationIgnored private var engine: EnginePlayback?
     /// A title the engine couldn't play: its server stream instead, until the next title.
     @ObservationIgnored private var engineSuppressedItem: String?
-    #endif
     /// Playing a show on shuffle: each next episode is a random one.
     @ObservationIgnored private var shuffling = false
+    /// What was played before the current title in this sitting, for Previous Episode (on shuffle, the server can't say).
+    @ObservationIgnored private var trail: [ItemSummary] = []
     /// The profile's auto-play and skip choices, from the session.
     @ObservationIgnored private var preferences = PlaybackPreferences.standard
     /// Intros and recaps already skipped by themselves, so seeking back to watch one isn't overruled.
@@ -100,17 +80,6 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo)?
     @ObservationIgnored private var preparing: Task<Void, Never>?
     private static let countdownSeconds = 5
-    #if os(iOS)
-    /// Skip Intro / Next Episode, over the player.
-    @ObservationIgnored private var promptButton: UIButton?
-    /// Beside it while counting down to the next episode.
-    @ObservationIgnored private var cancelButton: UIButton?
-    /// Playing on in Picture in Picture: the player was put away, but the session goes on.
-    @ObservationIgnored private var isInPictureInPicture = false
-    /// Picture in Picture is ending by coming back to the full player, rather than by being closed.
-    @ObservationIgnored private var isRestoringFromPictureInPicture = false
-    #endif
-
     private static let reportInterval: TimeInterval = 10
     private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
 
@@ -123,6 +92,7 @@ final class PlaybackController: NSObject {
         guard !isStarting else { return }
         self.client = client
         shuffling = shuffle
+        trail = []
         viewerSubtitleKey = subtitleKey.map { .some($0) }
         var request = request(for: itemId, startAt: startAt)
         if let subtitleKey { request.subtitleKey = subtitleKey }
@@ -133,6 +103,7 @@ final class PlaybackController: NSObject {
     func playOffline(_ info: PlaybackInfo) {
         guard !isStarting else { return }
         shuffling = false
+        trail = []
         viewerSubtitleKey = nil
         do {
             try present(info)
@@ -191,6 +162,17 @@ final class PlaybackController: NSObject {
         return request
     }
 
+    /// The request that opens the current title again where it is: after moving its subtitles, or with another audio
+    /// track, or when its stream failed.
+    private func reopenRequest(_ current: PlaybackInfo, audioIndex: Int? = nil) -> PlaybackRequest {
+        var request = request(for: current.item.id, startAt: position > 0 ? position : lastPosition)
+        request.fileId = current.fileId
+        request.audioStreamIndex = audioIndex ?? current.selectedAudioIndex
+        request.subtitleKey = (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off"
+        request.replacesSessionId = current.sessionId
+        return request
+    }
+
     #if canImport(AetherEngine)
     private static var engineProfile: DeviceProfile {
         let modes = AVPlayer.availableHDRModes
@@ -224,52 +206,91 @@ final class PlaybackController: NSObject {
         return AVPlayer.availableHDRModes.contains(.dolbyVision)
     }
 
-    private func makeItem(for info: PlaybackInfo) throws -> AVPlayerItem {
+    // MARK: The screen and its transport
+
+    /// Puts the player screen up (if it isn't already) with a transport for `info`, and attaches the session.
+    private func present(_ info: PlaybackInfo) throws {
+        stop(reportingTo: nil)
+        let screen: PlayerViewController
+        if let current = self.screen {
+            screen = current
+        } else {
+            screen = PlayerViewController()
+            screen.delegate = self
+            self.screen = screen
+            guard let presenter = Self.topViewController() else { throw FlexarrClientError.invalidResponse }
+            presenter.present(screen, animated: true)
+        }
+        try attach(info, to: screen)
+    }
+
+    /// Makes the transport for `info` and wires the session: the engine for a file it can play, else Apple's player.
+    private func attach(_ info: PlaybackInfo, to screen: PlayerViewController) throws {
+        // The session id is the stream URLs' only credential, so keep it out of shareable logs.
+        log.info("Session \(info.sessionId, privacy: .private) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
+        self.info = info
+        hasPlayed = false
+        lastPosition = info.startPositionSeconds
+        prompt = .none
+        preferences = info.preferences ?? .standard
+        autoSkipped = []
+        nextCancelled = false
+        endFinishing()
+        lastReport = Date()
+
+        let transport = try makeTransport(for: info)
+        self.transport = transport
+        screen.transport = transport
+        screen.setTitle(info.item.displayTitle, subtitle: info.item.episodeSubtitle)
+        screen.markers = info.markers
+        screen.setDetail(Self.detail(for: info))
+        screen.previews = client.flatMap { info.isOffline ? nil : TrickplayPreviews(client: $0, sessionId: info.sessionId) }
+        screen.setSubtitleOptions(delay: info.isOffline || info.subtitleBurnedIn || transport is EngineTransportMarker ? nil : (info.subtitleDelaySeconds ?? 0),
+                                  size: preferences.subtitleSize ?? .standard)
+        updateEpisodeNavigation()
+        loadArtwork(for: info, into: screen)
+    }
+
+    private func makeTransport(for info: PlaybackInfo) throws -> PlayerTransport {
         let local = info.isOffline ? URL(string: info.url) : nil
         guard let url = local ?? client?.url(for: info.url) else { throw FlexarrClientError.invalidResponse }
-        let item = AVPlayerItem(url: url)
-        item.externalMetadata = Self.metadata(for: info, artwork: nil, overview: nil)
-        Self.applySubtitleSize(info.preferences?.subtitleSize, to: item)
-        return item
-    }
-
-    #if DEBUG
-    /// What the player received for sound (codec and channels) and where it's going: for checking passthrough.
-    private static func logAudioFormat(of item: AVPlayerItem) {
-        Task {
-            for track in item.tracks {
-                guard let assetTrack = track.assetTrack, assetTrack.mediaType == .audio,
-                      let formats = try? await assetTrack.load(.formatDescriptions) else { continue }
-                for format in formats {
-                    let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee
-                    let id = asbd.map { String(format: "%c%c%c%c", ($0.mFormatID >> 24) & 255, ($0.mFormatID >> 16) & 255, ($0.mFormatID >> 8) & 255, $0.mFormatID & 255) } ?? "?"
-                    log.info("Audio: \(id, privacy: .public) \(asbd?.mChannelsPerFrame ?? 0) ch")
-                }
-            }
-            let route = AVAudioSession.sharedInstance().currentRoute.outputs.map { "\($0.portType.rawValue) \($0.portName)" }
-            log.info("Audio route: \(route.joined(separator: ", "), privacy: .public)")
+        #if canImport(AetherEngine)
+        if Self.usesEngine, !info.isOffline, info.method == .directPlay, let client, engineSuppressedItem != info.item.id {
+            let engine = try EngineTransport(info: info, client: client)
+            var matchContent = false
+            #if os(tvOS)
+            matchContent = screen?.view.window?.avDisplayManager.isDisplayCriteriaMatchingEnabled ?? false
+            #endif
+            engine.start(at: info.startPositionSeconds, audioIndex: info.selectedAudioIndex, subtitleKey: viewerSubtitleKey, matchContent: matchContent)
+            return engine
         }
-    }
-    #endif
-
-    // MARK: Subtitle timing and size
-
-    /// The timings offered in the player: a pick restarts the stream (about two seconds) with the subtitles moved.
-    private static let delayChoices: [Double] = [-2, -1, -0.5, 0, 0.5, 1, 2]
-
-    /// Draws subtitles at the profile's size, as a percentage of the player's own.
-    private static func applySubtitleSize(_ size: SubtitleSize?, to item: AVPlayerItem) {
-        let percent = (size ?? .standard).percent
-        item.textStyleRules = percent == 100 ? nil
-            : AVTextStyleRule(textMarkupAttributes: [kCMTextMarkupAttribute_RelativeFontSize as String: percent]).map { [$0] }
+        #endif
+        return AVPlayerTransport(url: url, info: info, startAt: info.startPositionSeconds, subtitleKey: viewerSubtitleKey)
     }
 
-    /// "In time", "0.5s later", "1s earlier".
-    static func delayLabel(_ seconds: Double) -> String {
-        guard seconds != 0 else { return "In time" }
-        let amount = abs(seconds).formatted(.number.precision(.fractionLength(0...2)))
-        return "\(amount)s \(seconds > 0 ? "later" : "earlier")"
+    /// The engine couldn't play this title: ask the server for its stream instead, from the same place.
+    private func fallBackFromEngine(_ info: PlaybackInfo, reason: String) {
+        log.info("Engine fell back to the server for \(info.item.title, privacy: .public): \(reason, privacy: .public)")
+        engineSuppressedItem = info.item.id
+        transport?.stop()
+        transport = nil
+        guard let client else { return }
+        let position = lastPosition > 0 ? lastPosition : info.startPositionSeconds
+        Task { try? await client.stopPlayback(sessionId: info.sessionId) }
+        var request = request(for: info.item.id, startAt: position)
+        request.subtitleKey = (viewerSubtitleKey ?? info.selectedSubtitleKey) ?? "off"
+        self.info = nil
+        start(request)
     }
+
+    private func updateEpisodeNavigation() {
+        guard let info else { return }
+        let hasPrevious = !trail.isEmpty || info.previous != nil || (info.isOffline && false)
+        let hasNext = info.next != nil || (info.isOffline && offlineLibrary?.nextInfo(after: info) != nil)
+        screen?.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
+    }
+
+    // MARK: Subtitles and audio
 
     /// Shows this title's subtitles later (or earlier): remembered on the server, which shifts them, and the stream
     /// opened again where it was so the player fetches them anew.
@@ -283,11 +304,24 @@ final class PlaybackController: NSObject {
                 return
             }
             guard self.info?.sessionId == current.sessionId else { return }
-            let request = PlaybackRequest(
-                itemId: current.item.id, profile: Self.deviceProfile, fileId: current.fileId,
-                audioStreamIndex: current.selectedAudioIndex, subtitleKey: (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off",
-                startPositionSeconds: position, replacesSessionId: current.sessionId, shuffle: shuffling ? true : nil)
-            isRecovering = true
+            reopen(reopenRequest(current), replacing: current)
+        }
+    }
+
+    /// The profile's subtitle size, changed while watching: drawn at once, and saved for every device.
+    func setSubtitleSize(_ size: SubtitleSize) {
+        preferences.subtitleSize = size
+        if let client {
+            let saved = preferences
+            Task { try? await client.setPlaybackPreferences(saved) }
+        }
+    }
+
+    /// Opens the current title again with `request` (another audio track, moved subtitles) in the same screen.
+    private func reopen(_ request: PlaybackRequest, replacing current: PlaybackInfo) {
+        guard let client, let screen else { return }
+        isRecovering = true
+        Task {
             defer { isRecovering = false }
             do {
                 let info = try await client.startPlayback(request)
@@ -295,335 +329,87 @@ final class PlaybackController: NSObject {
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
                 }
-                let item = try makeItem(for: info)
-                player?.replaceCurrentItem(with: item)
-                attach(info)
+                transport?.stop()
+                try attach(info, to: screen)
             } catch {
                 dismissPlayer { self.show(error, retry: request) }
             }
         }
     }
 
-    /// The profile's subtitle size, changed while watching: drawn at once, and saved for every device.
-    func setSubtitleSize(_ size: SubtitleSize) {
-        preferences.subtitleSize = size
-        if let item = player?.currentItem { Self.applySubtitleSize(size, to: item) }
-        updateSubtitleMenu()
-        if let client {
-            let saved = preferences
-            Task { try? await client.setPlaybackPreferences(saved) }
-        }
+    // MARK: Progress
+
+    private var position: Double {
+        let seconds = transport?.currentTime ?? 0
+        return seconds.isFinite ? seconds : 0
     }
 
-    /// On Apple TV, a Subtitles menu in the player's bar for timing and size (when there are subtitles to adjust).
-    private func updateSubtitleMenu() {
-        #if os(tvOS)
-        guard let viewController, let info else { return }
-        var menus: [UIMenuElement] = []
-        #if canImport(AetherEngine)
-        if let engine {
-            // Through the engine: the file's audio tracks, and its picture subtitles, which Apple's panel can't list.
-            if engine.audioTracks.count > 1 {
-                // Apple's own audio and subtitle buttons stay beside these (they list the file's text subtitles), so
-                // these look different and say what they hold.
-                menus.append(UIMenu(title: "Audio language", image: UIImage(systemName: "globe"), children: engine.audioTracks.map { track in
-                    UIAction(title: Self.trackLabel(track), state: track.id == engine.activeAudioTrack ? .on : .off) { [weak engine] _ in
-                        MainActor.assumeIsolated { engine?.selectAudioTrack(track.id) }
-                    }
-                }))
-            }
-            if !engine.pictureSubtitleTracks.isEmpty {
-                let off = UIAction(title: "Off", state: engine.activePictureSubtitle == nil ? .on : .off) { [weak engine] _ in
-                    MainActor.assumeIsolated { engine?.selectPictureSubtitle(nil) }
-                }
-                menus.append(UIMenu(title: "Picture subtitles", image: UIImage(systemName: "photo.on.rectangle.angled"), children: [off] + engine.pictureSubtitleTracks.map { track in
-                    UIAction(title: Self.trackLabel(track), state: track.id == engine.activePictureSubtitle ? .on : .off) { [weak engine] _ in
-                        MainActor.assumeIsolated { engine?.selectPictureSubtitle(track.id) }
-                    }
-                }))
-            }
-            viewController.transportBarCustomMenuItems = menus
+    private func tick(_ seconds: Double) {
+        guard let info, seconds.isFinite, hasPlayed else { return }
+        lastPosition = seconds
+        let next = info.prompt(at: seconds)
+        // Skip intros and recaps by themselves when the profile asks, once each.
+        if case .skip(let type, let end) = next, type == .intro ? preferences.skipIntros : preferences.skipRecaps,
+           autoSkipped.insert("\(type.rawValue)@\(end)").inserted {
+            log.info("Skipping the \(type.rawValue, privacy: .public) by itself")
+            skip(to: end)
             return
         }
-        #endif
-        guard !info.isOffline, !info.subtitleBurnedIn, info.subtitles.contains(where: \.isText) else {
-            viewController.transportBarCustomMenuItems = []
-            return
+        // Skip credits: the episode is over as soon as they start.
+        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing,
+           let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
+            transport?.pause()
+            report(paused: true, ended: true)
+            beginFinishing()
         }
-        let current = info.subtitleDelaySeconds ?? 0
-        let choices = Set(Self.delayChoices + [current]).sorted()
-        let timing = UIMenu(title: "Timing", options: .displayInline, children: choices.map { seconds in
-            UIAction(title: Self.delayLabel(seconds), state: seconds == current ? .on : .off) { [weak self] _ in
-                MainActor.assumeIsolated { if seconds != current { self?.setSubtitleDelay(seconds) } }
-            }
-        })
-        let size = UIMenu(title: "Size", options: .displayInline, children: SubtitleSize.allCases.map { size in
-            UIAction(title: size.label, state: size == (preferences.subtitleSize ?? .standard) ? .on : .off) { [weak self] _ in
-                MainActor.assumeIsolated { self?.setSubtitleSize(size) }
-            }
-        })
-        viewController.transportBarCustomMenuItems = [
-            UIMenu(title: "Subtitle timing and size", image: UIImage(systemName: "captions.bubble"), children: [timing, size]),
-        ]
-        #endif
-    }
-
-    private func present(_ info: PlaybackInfo) throws {
-        stop(reportingTo: nil)
-        var throughEngine = false
-        #if canImport(AetherEngine)
-        throughEngine = Self.usesEngine && !info.isOffline && info.method == .directPlay
-        #endif
-        // Through the engine, the controller opens empty and gets the engine's own player once the file is open.
-        let player = throughEngine ? AVPlayer() : AVPlayer(playerItem: try makeItem(for: info))
-        // Subtitles are chosen here (`applySubtitles`), from the server's choice or the viewer's. Left to itself AVPlayer
-        // re-chooses by the device's language, turning subtitles back on after the viewer turned them off.
-        player.appliesMediaSelectionCriteriaAutomatically = false
-
-        #if os(tvOS)
-        let controller = AVPlayerViewController()
-        // The engine sets the display's mode (HDR, Dolby Vision) itself; AVKit does so from the server's playlists.
-        controller.appliesPreferredDisplayCriteriaAutomatically = !throughEngine
-        #else
-        let controller = PlayerViewController()
-        controller.modalPresentationStyle = .fullScreen
-        controller.allowsPictureInPicturePlayback = true
-        controller.onDismissed = { [weak self, weak controller] in
-            // Put away for Picture in Picture, the session carries on there.
-            guard let self, let controller, controller === viewController, !isInPictureInPicture else { return }
-            viewController = nil
-            stop()
+        if next != prompt {
+            log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
+            prompt = next
+            updatePrompt()
+            // The credits started: get the next episode ready. Back out of them: let it go.
+            if next == .nextEpisode { prepareNext() } else if !isFinishing { dropPrepared() }
         }
-        // Sound on with the ring switch off, and playing on in Picture in Picture or with the screen locked.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-        try? AVAudioSession.sharedInstance().setActive(true)
-        (promptButton, cancelButton) = makePromptButtons(in: controller)
-        #endif
-        controller.player = player
-        controller.delegate = self
-
-        self.player = player
-        self.viewController = controller
-        if !throughEngine {
-            attach(info)
-        }
-
-        guard let presenter = Self.topViewController() else { return }
-        presenter.present(controller, animated: true)
-        #if canImport(AetherEngine)
-        if throughEngine {
-            startEngine(info, in: controller)
-        }
-        #endif
-    }
-
-    #if canImport(AetherEngine)
-    /// Opens the file itself through AetherEngine and hands its AVPlayer to the controller already on screen. If the
-    /// engine can't play it (software decoding isn't hosted yet, or it fails), the server's stream takes over.
-    private func startEngine(_ info: PlaybackInfo, in controller: AVPlayerViewController) {
-        guard let client else { return }
-        let engine: EnginePlayback
-        do {
-            engine = try EnginePlayback(info: info, client: client, controller: controller)
-        } catch {
-            return fallBackFromEngine(info, reason: error.localizedDescription)
-        }
-
-        self.engine = engine
-        engine.onReady = { [weak self, weak engine] player in
-            guard let self, let engine, self.engine === engine, viewController === controller else { return }
-            player.appliesMediaSelectionCriteriaAutomatically = false
-            controller.player = player
-            self.player = player
-            attach(info)
-            pendingSeek = 0 // the engine opened the file where playback starts, on the file's own timeline
-            updateSubtitleMenu()
-        }
-        engine.onFailure = { [weak self, weak engine] reason in
-            guard let self, let engine, self.engine === engine else { return }
-            fallBackFromEngine(info, reason: reason)
-        }
-        engine.onTracksChanged = { [weak self] in self?.updateSubtitleMenu() }
-        engine.start(at: info.startPositionSeconds, audioIndex: info.selectedAudioIndex)
-    }
-
-    /// The engine couldn't play this title: ask the server for its stream instead, from the same place.
-    private func fallBackFromEngine(_ info: PlaybackInfo, reason: String) {
-        log.info("Engine fell back to the server for \(info.item.title, privacy: .public): \(reason, privacy: .public)")
-        engine?.stop()
-        engine = nil
-        engineSuppressedItem = info.item.id
-        guard let client else { return }
-        let position = info.startPositionSeconds
-        Task { try? await client.stopPlayback(sessionId: info.sessionId) }
-        var request = request(for: info.item.id, startAt: position)
-        request.subtitleKey = (viewerSubtitleKey ?? info.selectedSubtitleKey) ?? "off"
-        start(request)
-    }
-    #endif
-
-    /// Wires observers for the session in `info` onto the current player item.
-    private func attach(_ info: PlaybackInfo) {
-        guard let player, let item = player.currentItem else { return }
-        // The session id is the stream URLs' only credential, so keep it out of shareable logs.
-        log.info("Session \(info.sessionId, privacy: .private) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
-        self.info = info
-        hasPlayed = false
-        lastPosition = info.startPositionSeconds
-        prompt = .none
-        preferences = info.preferences ?? .standard
-        autoSkipped = []
-        nextCancelled = false
-        endFinishing()
-        lastReport = Date()
-        pendingSeek = info.startPositionSeconds
-        updateContextualActions()
-        updateSubtitleMenu()
-        loadRichMetadata(for: info, into: item)
-
-        observations = [
-            item.observe(\.status, options: [.new]) { [weak self] item, _ in
-                let status = item.status
-                let message = item.error?.localizedDescription
-                Task { @MainActor in self?.itemStatusChanged(status, message: message) }
-            },
-            player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
-                let status = player.timeControlStatus
-                Task { @MainActor in self?.timeControlChanged(status) }
-            },
-        ]
-
-        if timeObserver == nil {
-            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self] time in
-                MainActor.assumeIsolated { self?.tick(time.seconds) }
-            }
-        }
-
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: item, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.itemEnded() }
-        }
-
-        legibleGroup = nil
-        selectedSubtitleName = nil
-        lastTick = nil
-        subtitleGuardUntil = .distantPast
-        if let jumpObserver { NotificationCenter.default.removeObserver(jumpObserver) }
-        jumpObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.timeJumpedNotification, object: item, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.seeked() }
-        }
-        if let selectionObserver { NotificationCenter.default.removeObserver(selectionObserver) }
-        selectionObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: item, queue: .main) { [weak self, weak item] _ in
-            MainActor.assumeIsolated {
-                if let item { self?.subtitleSelectionChanged(item) }
-            }
+        if Date().timeIntervalSince(lastReport) >= Self.reportInterval, transport?.phase == .playing {
+            report(paused: false)
         }
     }
 
-    // MARK: Subtitles
-
-    /// Selects the viewer's subtitle choice for this title if they've made one, else the server's (its language
-    /// preferences, or forced subtitles), else none.
-    private func applySubtitles(to item: AVPlayerItem) {
-        Task {
-            guard let group = try? await item.asset.loadMediaSelectionGroup(for: .legible),
-                  let info, item === player?.currentItem else { return }
-            let wanted = viewerSubtitleKey ?? info.selectedSubtitleKey
-            let index = SubtitleMatch.option(for: wanted, in: info, among: group.options.map(Self.subtitleOption))
-            let option = index.map { group.options[$0] }
-            legibleGroup = group
-            selectedSubtitleName = .some(option?.displayName)
-            item.select(option, in: group)
-            log.info("Subtitles at start: \(option?.displayName ?? "off", privacy: .public)")
-        }
-    }
-
-    /// The viewer picked subtitles (or Off) in the player's menu: remember it for this title. A change just after a
-    /// seek is the player's own (subtitles when muted), so what was showing before is put back.
-    private func subtitleSelectionChanged(_ item: AVPlayerItem) {
-        guard item === player?.currentItem, let group = legibleGroup, let info else { return }
-        let selected = item.currentMediaSelection.selectedMediaOption(in: group)
-        guard selectedSubtitleName != .some(selected?.displayName) else { return } // our own selection
-        if Date() < subtitleGuardUntil, case .some(let previous) = selectedSubtitleName {
-            log.info("Keeping subtitles \(previous ?? "off", privacy: .public) after a seek (the player chose \(selected?.displayName ?? "off", privacy: .public))")
-            item.select(previous.flatMap { name in group.options.first { $0.displayName == name } }, in: group)
-            return
-        }
-        selectedSubtitleName = .some(selected?.displayName)
-        #if canImport(AetherEngine)
-        engine?.nativeSubtitleChanged()
-        #endif
-        if let selected {
-            guard let key = SubtitleMatch.key(for: Self.subtitleOption(selected), in: info) else { return }
-            viewerSubtitleKey = .some(key)
-        } else {
-            viewerSubtitleKey = .some(nil)
-        }
-        log.info("Subtitles chosen in the player: \(selected?.displayName ?? "off", privacy: .public)")
-    }
-
-    #if canImport(AetherEngine)
-    /// "English · E-AC-3 5.1", "Commentary · AAC stereo".
-    private static func trackLabel(_ track: TrackInfo) -> String {
-        let language = Locale.current.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
-        let name = track.name.isEmpty || track.name == track.language ? language : track.name
-        let channels = switch track.channels {
-        case 8: "7.1"
-        case 6: "5.1"
-        case 2: "stereo"
-        case 1: "mono"
-        case 0: ""
-        default: "\(track.channels)-channel"
-        }
-        let detail = [track.codec.uppercased().replacingOccurrences(of: "EAC3", with: "E-AC-3").replacingOccurrences(of: "AC3", with: "AC-3"), channels]
-            .filter { !$0.isEmpty }.joined(separator: " ")
-        return [name, detail].filter { !$0.isEmpty }.joined(separator: " · ")
-    }
-    #endif
-
-    private static func subtitleOption(_ option: AVMediaSelectionOption) -> SubtitleOption {
-        SubtitleOption(name: option.displayName, language: option.extendedLanguageTag ?? option.locale?.identifier,
-                       isForced: option.hasMediaCharacteristic(.containsOnlyForcedSubtitles))
-    }
-
-    private func itemStatusChanged(_ status: AVPlayerItem.Status, message: String?) {
-        switch status {
-        case .readyToPlay:
-            guard let player else { return }
+    private func phaseChanged(_ phase: TransportPhase) {
+        guard let info else { return }
+        switch phase {
+        case .playing:
             hasPlayed = true
-            #if DEBUG
-            if let item = player.currentItem { Self.logAudioFormat(of: item) }
+        case .paused:
+            if hasPlayed { report(paused: true) }
+        case .ended:
+            itemEnded()
+        case .failed(let reason):
+            #if canImport(AetherEngine)
+            if transport is EngineTransport, !hasPlayed {
+                fallBackFromEngine(info, reason: reason)
+                return
+            }
             #endif
-            if let item = player.currentItem { applySubtitles(to: item) }
-            // A stream that says where to open (EXT-X-START) is there already: no second trip to the server.
-            let opened = player.currentTime().seconds
-            if pendingSeek > 1, !(opened.isFinite && abs(opened - pendingSeek) < 2) {
-                let target = CMTime(seconds: pendingSeek, preferredTimescale: 600)
-                pendingSeek = 0
-                player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak player] _ in
-                    Task { @MainActor in player?.play() }
-                }
-            } else {
-                pendingSeek = 0
-                player.play()
-            }
-        case .failed:
-            let reason = message ?? "The stream couldn't be opened."
-            log.error("Item failed: \(reason, privacy: .public)")
-            // AVFoundation's own account of what went wrong with the playlists (the error alone says little).
-            for event in player?.currentItem?.errorLog()?.events.prefix(5) ?? [] {
-                log.error("Item failed, detail: \(event.errorStatusCode) \(event.errorComment ?? "", privacy: .public) \(event.uri ?? "", privacy: .private)")
-            }
             if hasPlayed {
                 recover(reason: reason)
             } else {
-                dismissPlayer {
-                    self.show(.other, message: reason, retry: nil)
-                }
+                dismissPlayer { self.show(.other, message: reason, retry: nil) }
             }
         default:
             break
         }
+    }
+
+    private func report(paused: Bool, ended: Bool = false) {
+        if let info, info.isOffline {
+            lastReport = Date()
+            if recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: ended || isPastCredits(info)) }
+            return
+        }
+        guard recordsHistory, let client, let sessionId = info?.sessionId else { return }
+        lastReport = Date()
+        let position = self.position
+        Task { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
     }
 
     /// A stream that was playing stopped: the server restarted, say, or forgot a transcode. Ask for a fresh session
@@ -634,13 +420,9 @@ final class PlaybackController: NSObject {
         if info?.isOffline == true {
             return dismissPlayer { self.show(.other, message: reason, retry: nil) }
         }
-        guard !isRecovering, let client, let current = info else { return }
-        let position = self.position > 0 ? self.position : lastPosition
+        guard !isRecovering, let client, let current = info, let screen else { return }
         let failed = current.sessionId
-        let retry = PlaybackRequest(
-            itemId: current.item.id, profile: Self.deviceProfile, fileId: current.fileId,
-            audioStreamIndex: current.selectedAudioIndex, subtitleKey: (viewerSubtitleKey ?? current.selectedSubtitleKey) ?? "off",
-            startPositionSeconds: position, replacesSessionId: failed, shuffle: shuffling ? true : nil)
+        let retry = reopenRequest(current)
         guard Date().timeIntervalSince(lastRecovery) > 60 else {
             // A stream ended to make way for another screen says so, even inside the once-a-minute limit.
             Task {
@@ -657,7 +439,7 @@ final class PlaybackController: NSObject {
             }
             return
         }
-        log.info("Recovering playback at \(position)")
+        log.info("Recovering playback at \(retry.startPositionSeconds ?? 0)")
         isRecovering = true
         lastRecovery = Date()
         Task {
@@ -673,9 +455,8 @@ final class PlaybackController: NSObject {
                         try? await client.stopPlayback(sessionId: info.sessionId)
                         return
                     }
-                    let item = try makeItem(for: info)
-                    player?.replaceCurrentItem(with: item)
-                    attach(info)
+                    transport?.stop()
+                    try attach(info, to: screen)
                     return
                 } catch {
                     lastError = error
@@ -706,76 +487,6 @@ final class PlaybackController: NSObject {
         return (try? JSONDecoder().decode(Problem.self, from: data))?.detail ?? takenOverMessage
     }
 
-    // MARK: Progress
-
-    private var position: Double {
-        let seconds = player?.currentTime().seconds ?? 0
-        return seconds.isFinite ? seconds : 0
-    }
-
-    /// A seek began (or landed): guard the subtitles until playback has settled again.
-    private func seeked() {
-        subtitleGuardUntil = max(subtitleGuardUntil, Date().addingTimeInterval(20))
-    }
-
-    private func tick(_ seconds: Double) {
-        guard let info, seconds.isFinite, pendingSeek == 0 else { return }
-        // The clock moving further than playing would take it is a seek, reported as it starts.
-        let now = Date()
-        if let lastTick, abs(seconds - lastTick.position - now.timeIntervalSince(lastTick.at) * Double(player?.rate ?? 0)) > 3 {
-            seeked()
-        }
-        lastTick = (seconds, now)
-        lastPosition = seconds
-        let next = info.prompt(at: seconds)
-        // Skip intros and recaps by themselves when the profile asks, once each.
-        if case .skip(let type, let end) = next, type == .intro ? preferences.skipIntros : preferences.skipRecaps,
-           autoSkipped.insert("\(type.rawValue)@\(end)").inserted {
-            log.info("Skipping the \(type.rawValue, privacy: .public) by itself")
-            skip(to: end)
-            return
-        }
-        // Skip credits: the episode is over as soon as they start.
-        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing,
-           let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
-            player?.pause()
-            report(paused: true, ended: true)
-            beginFinishing()
-        }
-        if next != prompt {
-            log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
-            prompt = next
-            updateContextualActions()
-            // The credits started: get the next episode ready. Back out of them: let it go.
-            if next == .nextEpisode { prepareNext() } else if !isFinishing { dropPrepared() }
-        }
-        if Date().timeIntervalSince(lastReport) >= Self.reportInterval, player?.timeControlStatus == .playing {
-            report(paused: false)
-        }
-    }
-
-    private func timeControlChanged(_ status: AVPlayer.TimeControlStatus) {
-        // Playing again after a seek: the player has made its choice by now, give or take a moment.
-        if status == .playing, subtitleGuardUntil > Date() {
-            subtitleGuardUntil = min(subtitleGuardUntil, Date().addingTimeInterval(4))
-        }
-        if status == .paused, pendingSeek == 0, info != nil {
-            report(paused: true)
-        }
-    }
-
-    private func report(paused: Bool, ended: Bool = false) {
-        if let info, info.isOffline {
-            lastReport = Date()
-            if recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: ended || isPastCredits(info)) }
-            return
-        }
-        guard recordsHistory, let client, let sessionId = info?.sessionId else { return }
-        lastReport = Date()
-        let position = self.position
-        Task { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
-    }
-
     // MARK: Markers and next episode
 
     /// The request for the episode after `current`. Subtitles turned off carry on to it; a chosen track is the
@@ -789,17 +500,17 @@ final class PlaybackController: NSObject {
         return request
     }
 
-    /// Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
-    /// server says no, and then it starts the usual way.
     /// Into the credits, or nearly at the end: as good as watched.
     private func isPastCredits(_ info: PlaybackInfo) -> Bool {
         let credits = info.markers.first(where: { $0.type == .credits })?.start
         return position >= (credits ?? info.durationSeconds * 0.92) && position > 0
     }
 
+    /// Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
+    /// server says no, and then it starts the usual way.
     private func prepareNext() {
         #if canImport(AetherEngine)
-        if engine != nil { return } // the next file opens in a moment through the engine; nothing to get ready
+        if transport is EngineTransport { return } // the next file opens in a moment through the engine; nothing to get ready
         #endif
         guard let client, let current = info, !current.isOffline, let next = current.next, !nextCancelled,
               prepared?.info.item.id != next.id, preparing == nil else { return }
@@ -837,18 +548,18 @@ final class PlaybackController: NSObject {
         if preferences.autoPlayNext {
             countdown = Self.countdownSeconds
             countdownTask = Task { [weak self] in
-                while let self, let left = countdown, left > 0 {
-                    guard (try? await Task.sleep(for: .seconds(1))) != nil, isFinishing else { return }
-                    countdown = left - 1
-                    updateContextualActions()
+                while let self, let left = self.countdown, left > 0 {
+                    guard (try? await Task.sleep(for: .seconds(1))) != nil, self.isFinishing else { return }
+                    self.countdown = left - 1
+                    self.updatePrompt()
                 }
-                guard let self, isFinishing, countdown == 0 else { return }
-                advance()
+                guard let self, self.isFinishing, self.countdown == 0 else { return }
+                self.advance()
             }
         } else {
             countdown = nil
         }
-        updateContextualActions()
+        updatePrompt()
     }
 
     private func endFinishing() {
@@ -856,16 +567,16 @@ final class PlaybackController: NSObject {
         countdown = nil
         countdownTask?.cancel()
         countdownTask = nil
-        updateContextualActions()
+        updatePrompt()
     }
 
     /// Not now: stop counting, and if the credits were skipped, let them play.
     private func cancelNext() {
         nextCancelled = true
         dropPrepared()
-        let ended = player.map { $0.currentTime() >= ($0.currentItem?.duration ?? .positiveInfinity) } ?? true
+        let ended = transport?.phase == .ended
         endFinishing()
-        if !ended { player?.play() }
+        if !ended { transport?.play() }
     }
 
     /// "Next Episode in 4" (on shuffle too: the next one just happens to be random).
@@ -873,40 +584,7 @@ final class PlaybackController: NSObject {
         countdown.map { "Next Episode in \($0)" } ?? "Next Episode"
     }
 
-    private func updateContextualActions() {
-        #if os(tvOS)
-        guard let viewController else { return }
-        if isFinishing {
-            var actions = [UIAction(title: nextTitle, image: UIImage(systemName: "forward.fill")) { [weak self] _ in
-                MainActor.assumeIsolated { self?.advance() }
-            }]
-            if countdown != nil {
-                actions.append(UIAction(title: "Cancel", image: UIImage(systemName: "xmark")) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.cancelNext() }
-                })
-            }
-            viewController.contextualActions = actions
-            return
-        }
-        switch prompt {
-        case .none:
-            viewController.contextualActions = []
-        case .skip(let type, let end):
-            let title = type == .recap ? "Skip Recap" : "Skip Intro"
-            viewController.contextualActions = [
-                UIAction(title: title, image: UIImage(systemName: "forward.end.fill")) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.skip(to: end) }
-                },
-            ]
-        case .nextEpisode:
-            viewController.contextualActions = [
-                UIAction(title: nextTitle, image: UIImage(systemName: "forward.fill")) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.advance() }
-                },
-            ]
-        }
-        #else
-        guard let promptButton, let cancelButton else { return }
+    private func updatePrompt() {
         let title: String? = if isFinishing {
             nextTitle
         } else {
@@ -916,67 +594,7 @@ final class PlaybackController: NSObject {
             case .nextEpisode: nextTitle
             }
         }
-        if let title {
-            // Updated every second while counting: no animation, so the text doesn't flicker.
-            UIView.performWithoutAnimation {
-                promptButton.configuration?.title = title
-                promptButton.configuration?.image = UIImage(systemName: isFinishing || prompt == .nextEpisode ? "forward.fill" : "forward.end.fill")
-                promptButton.layoutIfNeeded()
-            }
-        }
-        let cancelShown = isFinishing && countdown != nil
-        UIView.animate(withDuration: 0.2) {
-            promptButton.alpha = title == nil ? 0 : 1
-            cancelButton.alpha = cancelShown ? 1 : 0
-        }
-        promptButton.isUserInteractionEnabled = title != nil
-        cancelButton.isUserInteractionEnabled = cancelShown
-        #endif
-    }
-
-    #if os(iOS)
-    /// A pill in the corner above the scrubber, like the TV's contextual action, and Cancel to its left for the
-    /// countdown to the next episode.
-    private func makePromptButtons(in controller: AVPlayerViewController) -> (UIButton, UIButton) {
-        var configuration = UIButton.Configuration.filled()
-        configuration.baseBackgroundColor = UIColor(Color.screen).withAlphaComponent(0.95)
-        configuration.baseForegroundColor = UIColor(Color.room)
-        configuration.cornerStyle = .capsule
-        configuration.imagePadding = 8
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 20)
-        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
-            var attributes = attributes
-            attributes.font = .systemFont(ofSize: 16, weight: .semibold)
-            return attributes
-        }
-        let button = UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in
-            MainActor.assumeIsolated { self?.promptTapped() }
-        })
-        button.alpha = 0
-        button.isUserInteractionEnabled = false
-        button.translatesAutoresizingMaskIntoConstraints = false
-        controller.view.addSubview(button)
-        var cancelConfiguration = UIButton.Configuration.filled()
-        cancelConfiguration.baseBackgroundColor = UIColor.black.withAlphaComponent(0.55)
-        cancelConfiguration.baseForegroundColor = .white
-        cancelConfiguration.cornerStyle = .capsule
-        cancelConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 18, bottom: 12, trailing: 18)
-        cancelConfiguration.title = "Cancel"
-        cancelConfiguration.titleTextAttributesTransformer = configuration.titleTextAttributesTransformer
-        let cancel = UIButton(configuration: cancelConfiguration, primaryAction: UIAction { [weak self] _ in
-            MainActor.assumeIsolated { self?.cancelNext() }
-        })
-        cancel.alpha = 0
-        cancel.isUserInteractionEnabled = false
-        cancel.translatesAutoresizingMaskIntoConstraints = false
-        controller.view.addSubview(cancel)
-        NSLayoutConstraint.activate([
-            button.trailingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
-            button.bottomAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.bottomAnchor, constant: -84),
-            cancel.trailingAnchor.constraint(equalTo: button.leadingAnchor, constant: -10),
-            cancel.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-        ])
-        return (button, cancel)
+        screen?.setPrompt(title, countingDown: isFinishing && countdown != nil)
     }
 
     private func promptTapped() {
@@ -987,12 +605,11 @@ final class PlaybackController: NSObject {
         case .nextEpisode: advance()
         }
     }
-    #endif
 
     private func skip(to end: Double) {
-        player?.seek(to: CMTime(seconds: end, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        transport?.seek(to: end)
         prompt = .none
-        updateContextualActions()
+        updatePrompt()
     }
 
     /// At the end: the countdown to the next episode (or the button, with auto-play off); the player closes when
@@ -1006,53 +623,74 @@ final class PlaybackController: NSObject {
         }
     }
 
-    /// Ends this session and plays `info.next` in the same player.
+    /// Ends this session and plays `info.next` in the same screen.
     private func advance() {
-        // A downloaded episode moves on to the next downloaded one, in the same player.
-        if let current = info, current.isOffline {
+        guard let current = info else { return }
+        // A downloaded episode moves on to the next downloaded one.
+        if current.isOffline {
             report(paused: false, ended: true)
             endFinishing()
-            guard let nextInfo = offlineLibrary?.nextInfo(after: current), let item = try? makeItem(for: nextInfo) else {
-                return dismissPlayer()
-            }
-            player?.replaceCurrentItem(with: item)
-            attach(nextInfo)
+            guard let nextInfo = offlineLibrary?.nextInfo(after: current), let screen else { return dismissPlayer() }
+            trail.append(current.item)
+            transport?.stop()
+            try? attach(nextInfo, to: screen)
             return
         }
-        guard !isAdvancing, let client, let current = info, let next = current.next else { return }
-        log.info("Advancing to \(next.title, privacy: .public)")
+        guard let next = current.next else { return }
+        move(to: next, from: current, leavingTrail: true)
+    }
+
+    /// Back to the episode before this one: the one played before it in this sitting, else the one before it in order.
+    private func previous() {
+        guard let current = info else { return }
+        if let last = trail.popLast() {
+            if current.isOffline, let screen, let previousInfo = offlineLibrary?.nextInfo(after: current).flatMap({ _ in nil as PlaybackInfo? }) {
+                transport?.stop()
+                try? attach(previousInfo, to: screen)
+                return
+            }
+            move(to: last, from: current, leavingTrail: false)
+        } else if let before = current.previous {
+            move(to: before, from: current, leavingTrail: false)
+        }
+    }
+
+    /// Ends this session and plays `target` in the same screen. Got ready during the credits (with the same
+    /// subtitles), the next episode opens straight away.
+    private func move(to target: ItemSummary, from current: PlaybackInfo, leavingTrail: Bool) {
+        guard !isAdvancing, let client else { return }
+        log.info("Moving on to \(target.title, privacy: .public)")
         isAdvancing = true
         endFinishing()
-        report(paused: false, ended: true)
+        report(paused: false, ended: leavingTrail && isPastCredits(current))
         let finished = current.sessionId
         Task {
             defer { isAdvancing = false }
             try? await client.stopPlayback(sessionId: finished)
             do {
-                let nextRequest = nextRequest(next, after: current)
-                viewerSubtitleKey = nextRequest.subtitleKey == "off" ? .some(nil) : nil
-                // Got ready during the credits (with the same subtitles): it opens straight away.
+                let request = nextRequest(target, after: current)
+                viewerSubtitleKey = request.subtitleKey == "off" ? .some(nil) : nil
                 let info: PlaybackInfo
-                if let ready = prepared, ready.info.item.id == next.id, ready.request.subtitleKey == nextRequest.subtitleKey {
+                if let ready = prepared, ready.info.item.id == target.id, ready.request.subtitleKey == request.subtitleKey {
                     prepared = nil
                     log.info("Using the next episode got ready during the credits")
                     info = ready.info
                 } else {
                     dropPrepared()
-                    info = try await client.startPlayback(nextRequest)
+                    info = try await client.startPlayback(request)
                 }
-                guard self.info?.sessionId == finished else { // Closed meanwhile.
+                guard self.info?.sessionId == finished, let screen else { // Closed meanwhile.
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
                 }
-                let item = try makeItem(for: info)
-                player?.replaceCurrentItem(with: item)
-                attach(info)
+                if leavingTrail { trail.append(current.item) }
+                transport?.stop()
+                try attach(info, to: screen)
                 onSessionEnded?()
             } catch {
                 self.info = nil
                 dismissPlayer {
-                    self.show(error, retry: self.request(for: next.id, startAt: nil))
+                    self.show(error, retry: self.request(for: target.id, startAt: nil))
                 }
             }
         }
@@ -1060,7 +698,7 @@ final class PlaybackController: NSObject {
 
     // MARK: Stop
 
-    /// Stops the current session (reporting the final position) and tears down observers.
+    /// Stops the current session (reporting the final position) and tears down the transport.
     func stop() {
         stop(reportingTo: client, recording: true)
     }
@@ -1081,24 +719,10 @@ final class PlaybackController: NSObject {
                 try? await client.stopPlayback(sessionId: sessionId)
             }
         }
-        player?.pause()
-        #if canImport(AetherEngine)
-        engine?.stop()
-        engine = nil
+        transport?.stop()
+        transport = nil
         if info?.item.id != engineSuppressedItem { engineSuppressedItem = nil }
-        #endif
-        if let timeObserver { player?.removeTimeObserver(timeObserver) }
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        if let selectionObserver { NotificationCenter.default.removeObserver(selectionObserver) }
-        if let jumpObserver { NotificationCenter.default.removeObserver(jumpObserver) }
-        timeObserver = nil
-        endObserver = nil
-        selectionObserver = nil
-        jumpObserver = nil
-        legibleGroup = nil
-        observations = []
         info = nil
-        player = nil
         prompt = .none
         isFinishing = false
         countdown = nil
@@ -1110,60 +734,42 @@ final class PlaybackController: NSObject {
 
     private func dismissPlayer(then completion: (() -> Void)? = nil) {
         stop()
-        guard let controller = viewController else { completion?(); return }
-        viewController = nil
-        // In Picture in Picture the player isn't on screen, and dismissing it would never call back.
-        guard controller.presentingViewController != nil else { completion?(); return }
-        controller.dismiss(animated: true) { completion?() }
+        guard let screen else { completion?(); return }
+        self.screen = nil
+        screen.finish(completion: completion)
     }
 
-    // MARK: Metadata
+    // MARK: Artwork and detail
 
-    /// Fetches the overview and artwork and refreshes the info panel once they arrive.
-    private func loadRichMetadata(for info: PlaybackInfo, into item: AVPlayerItem) {
+    /// "1080p · E-AC-3 5.1 · Original", or the server's account of a converted stream.
+    private static func detail(for info: PlaybackInfo) -> String? {
+        if let summary = info.transcodeSummary, !summary.isEmpty { return summary }
+        let audio = info.audioTracks.first { $0.index == info.selectedAudioIndex } ?? info.audioTracks.first
+        let sound = audio.map { track -> String in
+            let codec = track.codec.uppercased().replacingOccurrences(of: "EAC3", with: "E-AC-3").replacingOccurrences(of: "AC3", with: "AC-3")
+            let channels: String = switch track.channels {
+            case 8: "7.1"
+            case 6: "5.1"
+            case 2: "stereo"
+            default: ""
+            }
+            return [codec, channels].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        let parts = [info.item.resolution, sound, info.isOffline ? "Downloaded" : info.method == .directPlay ? "Original" : nil].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The poster for the lock screen and Now Playing.
+    private func loadArtwork(for info: PlaybackInfo, into screen: PlayerViewController) {
         guard let client, !info.isOffline else { return }
         let summary = info.item
-        let artworkPath = summary.kind == .episode
-            ? (summary.artwork.thumb ?? info.ancestors.first?.artwork.poster)
-            : summary.artwork.poster
+        let path = summary.kind == .episode ? (summary.artwork.thumb ?? info.ancestors.first?.artwork.poster) : summary.artwork.poster
+        guard let url = client.imageURL(path, width: 600) else { return }
         Task {
-            async let detail = try? client.item(summary.id)
-            async let artwork: Data? = {
-                guard let url = client.imageURL(artworkPath, width: 600) else { return nil }
-                return await ImageLoader.shared.data(url)
-            }()
-            let (overview, data) = await (detail?.overview, artwork)
+            let image = await ImageLoader.shared.load(url)
             guard self.info?.sessionId == info.sessionId else { return }
-            item.externalMetadata = Self.metadata(for: info, artwork: data, overview: overview)
+            screen.setArtwork(image)
         }
-    }
-
-    private static func metadata(for info: PlaybackInfo, artwork: Data?, overview: String?) -> [AVMetadataItem] {
-        let item = info.item
-        var items: [AVMetadataItem] = [
-            metadataItem(.commonIdentifierTitle, item.displayTitle as NSString),
-        ]
-        if let subtitle = item.episodeSubtitle ?? item.releaseYear.map({ String($0) }) {
-            items.append(metadataItem(.iTunesMetadataTrackSubTitle, subtitle as NSString))
-        }
-        if let overview, !overview.isEmpty {
-            items.append(metadataItem(.commonIdentifierDescription, overview as NSString))
-        }
-        if let rating = item.contentRating ?? info.ancestors.first?.contentRating {
-            items.append(metadataItem(.iTunesMetadataContentRating, rating as NSString))
-        }
-        if let artwork {
-            items.append(metadataItem(.commonIdentifierArtwork, artwork as NSData))
-        }
-        return items
-    }
-
-    private static func metadataItem(_ identifier: AVMetadataIdentifier, _ value: NSCopying & NSObjectProtocol) -> AVMetadataItem {
-        let item = AVMutableMetadataItem()
-        item.identifier = identifier
-        item.value = value
-        item.extendedLanguageTag = "und"
-        return item.copy() as! AVMetadataItem
     }
 
     private static func topViewController() -> UIViewController? {
@@ -1174,62 +780,68 @@ final class PlaybackController: NSObject {
     }
 }
 
-extension PlaybackController: AVPlayerViewControllerDelegate {
-    #if os(tvOS)
-    nonisolated func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
-        MainActor.assumeIsolated {
-            guard playerViewController === viewController else { return }
-            viewController = nil
-            stop()
-        }
-    }
-    #else
-    nonisolated func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
-        MainActor.assumeIsolated { isInPictureInPicture = true }
-    }
-
-    nonisolated func playerViewController(_ playerViewController: AVPlayerViewController,
-                                          failedToStartPictureInPictureWithError error: any Error) {
-        MainActor.assumeIsolated { isInPictureInPicture = false }
-    }
-
-    /// Back to the full player from Picture in Picture.
-    nonisolated func playerViewController(_ playerViewController: AVPlayerViewController,
-                                          restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
-        // AVKit asks, and takes the answer, on the main thread; the handler just isn't marked Sendable.
-        nonisolated(unsafe) let completionHandler = completionHandler
-        MainActor.assumeIsolated {
-            guard playerViewController === viewController, let presenter = Self.topViewController() else {
-                completionHandler(false)
-                return
-            }
-            isRestoringFromPictureInPicture = true
-            presenter.present(playerViewController, animated: true) { completionHandler(true) }
-        }
-    }
-
-    /// Picture in Picture closed without coming back to the player: that's the end of watching.
-    nonisolated func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
-        MainActor.assumeIsolated {
-            isInPictureInPicture = false
-            defer { isRestoringFromPictureInPicture = false }
-            guard !isRestoringFromPictureInPicture, playerViewController === viewController,
-                  playerViewController.presentingViewController == nil else { return }
-            viewController = nil
-            stop()
-        }
-    }
-    #endif
-}
-
-#if os(iOS)
-/// The player, saying when it's been closed (its X, or a swipe down). On Apple TV the delegate says so.
-final class PlayerViewController: AVPlayerViewController {
-    var onDismissed: (() -> Void)?
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        if isBeingDismissed { onDismissed?() }
-    }
-}
+/// Marks the engine's transport without naming its type where the engine isn't compiled in.
+protocol EngineTransportMarker {}
+#if canImport(AetherEngine)
+extension EngineTransport: EngineTransportMarker {}
 #endif
+
+extension PlaybackController: PlayerScreenDelegate {
+    func playerScreen(_ screen: PlayerViewController, phaseChanged phase: TransportPhase) {
+        phaseChanged(phase)
+    }
+
+    func playerScreen(_ screen: PlayerViewController, tick seconds: Double) {
+        tick(seconds)
+    }
+
+    func playerScreenTracksChanged(_ screen: PlayerViewController) {}
+
+    func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {
+        lastPosition = seconds
+        if isFinishing, seconds < (info?.durationSeconds ?? 0) - 1 {
+            // Scrubbed back out of the end: not finishing after all.
+            nextCancelled = false
+            endFinishing()
+        }
+    }
+
+    func playerScreenDidClose(_ screen: PlayerViewController) {
+        guard screen === self.screen else { return }
+        dismissPlayer()
+    }
+
+    func playerScreenPrevious(_ screen: PlayerViewController) {
+        previous()
+    }
+
+    func playerScreenNext(_ screen: PlayerViewController) {
+        advance()
+    }
+
+    func playerScreenPromptTapped(_ screen: PlayerViewController) {
+        promptTapped()
+    }
+
+    func playerScreenCancelNext(_ screen: PlayerViewController) {
+        cancelNext()
+    }
+
+    func playerScreen(_ screen: PlayerViewController, selectAudio id: String) {
+        guard let current = info, !current.isOffline, !isRecovering, let index = Int(id) else { return }
+        reopen(reopenRequest(current, audioIndex: index), replacing: current)
+    }
+
+    func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??) {
+        viewerSubtitleKey = key
+        log.info("Subtitles chosen in the player: \(key.flatMap { $0 } ?? "off", privacy: .public)")
+    }
+
+    func playerScreen(_ screen: PlayerViewController, subtitleDelay seconds: Double) {
+        setSubtitleDelay(seconds)
+    }
+
+    func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize) {
+        setSubtitleSize(size)
+    }
+}

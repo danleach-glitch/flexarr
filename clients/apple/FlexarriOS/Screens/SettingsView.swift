@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var confirmDeleteDownloads = false
     @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
     @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
+    @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var confirmSignOut = false
@@ -32,6 +33,14 @@ struct SettingsView: View {
             }
 
             Section {
+                Picker("Skip back and forward", selection: $skipSeconds) {
+                    ForEach([10.0, 15.0, 30.0], id: \.self) { seconds in
+                        Text("\(Int(seconds)) seconds").tag(seconds)
+                    }
+                }
+                .tint(.silver)
+                .listRowBackground(Color.seat)
+                .onChange(of: skipSeconds) { _, seconds in UserDefaults.standard.set(seconds, forKey: "FlexarrSkipSeconds") }
                 Toggle("Play files directly", isOn: $playsFilesDirectly)
                     .tint(.silver)
                     .listRowBackground(Color.seat)
@@ -46,8 +55,8 @@ struct SettingsView: View {
                 Text("Playback")
             } footer: {
                 Text(playsFilesDirectly
-                    ? "Experimental. Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar over AirPlay or HDMI; off, they go as Dolby Digital Plus."
-                    : "Experimental. Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are, instead of a stream from the server. Downloads and remote viewing are unaffected.")
+                    ? "Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar over AirPlay or HDMI; off, they go as Dolby Digital Plus."
+                    : "Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are, instead of a stream from the server. Downloads and remote viewing are unaffected.")
             }
 
             if let preferences {

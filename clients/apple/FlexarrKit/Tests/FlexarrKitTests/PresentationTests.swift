@@ -156,3 +156,17 @@ struct SubtitleMatchTests {
         #expect(SubtitleMatch.key(for: options[2], in: info) == nil)
     }
 }
+
+struct TrickplayManifestTests {
+    @Test func thumbnailsAreFoundBySheetAndCell() {
+        let manifest = TrickplayManifest(interval: 10, width: 320, height: 180, columns: 10, rows: 10, count: 250, sheets: 3)
+        #expect(manifest.thumbnail(at: 0)?.sheet == 0)
+        #expect(manifest.thumbnail(at: 0)?.x == 0)
+        #expect(manifest.thumbnail(at: 119)?.x == 320) // thumbnail 11: row 1, column 1
+        #expect(manifest.thumbnail(at: 119)?.y == 180)
+        #expect(manifest.thumbnail(at: 1000)?.sheet == 1)
+        #expect(manifest.thumbnail(at: 1000)?.x == 0)
+        #expect(manifest.thumbnail(at: 99_999)?.sheet == 2) // past the end: the last one
+        #expect(TrickplayManifest(interval: 0, width: 1, height: 1, columns: 1, rows: 1, count: 0, sheets: 0).thumbnail(at: 5) == nil)
+    }
+}

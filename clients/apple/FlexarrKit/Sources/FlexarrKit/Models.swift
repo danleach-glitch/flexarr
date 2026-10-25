@@ -449,6 +449,38 @@ public struct PlaybackInfo: Codable, Sendable {
     public let preferences: PlaybackPreferences?
     /// This title's subtitles are shown this many seconds later (earlier when negative). The server shifts them.
     public var subtitleDelaySeconds: Double? = nil
+    /// The episode before this one, in order: nil on shuffle, for the first episode, and from servers before it existed.
+    public var previous: ItemSummary? = nil
+}
+
+/// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.
+public struct TrickplayManifest: Codable, Sendable, Hashable {
+    public let interval: Int
+    public let width: Int
+    public let height: Int
+    public let columns: Int
+    public let rows: Int
+    public let count: Int
+    public let sheets: Int
+
+    public init(interval: Int, width: Int, height: Int, columns: Int, rows: Int, count: Int, sheets: Int) {
+        self.interval = interval
+        self.width = width
+        self.height = height
+        self.columns = columns
+        self.rows = rows
+        self.count = count
+        self.sheets = sheets
+    }
+
+    /// Which sheet holds the thumbnail for `seconds`, and its top-left corner on it (in pixels; each is `width` × `height`).
+    public func thumbnail(at seconds: Double) -> (sheet: Int, x: Int, y: Int)? {
+        guard interval > 0, columns > 0, rows > 0, count > 0, seconds.isFinite else { return nil }
+        let index = min(count - 1, max(0, Int(seconds) / interval))
+        let perSheet = columns * rows
+        let cell = index % perSheet
+        return (index / perSheet, (cell % columns) * width, (cell / columns) * height)
+    }
 }
 
 /// How a profile likes to watch: auto-play the next episode, and what to skip without asking.

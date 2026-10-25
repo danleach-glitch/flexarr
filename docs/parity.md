@@ -8,7 +8,7 @@ server's work; here both halves are ours.
 
 | | Feature | Flexarr today | To reach parity |
 |:-:|---|---|---|
-| 🟡 | Direct play | H.264 and HEVC decode in hardware through the engine (Settings › Play files directly, off by default). Files the GPU can't decode (AV1, VP9, MPEG-2, VC-1, MPEG-4 Part 2) fall back to the server, which converts them. | Host the engine's software route: an `AetherPlayerView` in our own player screen with our transport bar, markers, countdown and progress reporting, since AVPlayerViewController can't show it. Medium. |
+| ✅ | Direct play | Every file plays on the device through the engine (Settings › Play files directly, off by default): H.264 and HEVC in hardware, AV1, VP9, MPEG-2, VC-1 and MPEG-4 Part 2 in software, in Flexarr's own player (0.20.0). | Nothing needed. |
 | 🟡 | HDR and Dolby Vision | With the engine on: HDR10, HLG, Dolby Vision profiles 5 and 8.1 play as the file is. Profile 7 is converted. Engine off: SDR and profile 5 play as they are; the rest is converted to SDR because tvOS refuses our `hvc1` + PQ masters (see transcode notes). | Profile 7 as its HDR10 base layer: tell the engine to strip the enhancement layer (it has a `StripDolbyVision`-style option) or have the server repackage it as plain HEVC HDR10 once the HDR10 refusal is solved. Small once that's understood. Making HDR work without the engine means solving the refusal; unknown effort. |
 | 🟡 | Audio and HomePod | AAC, AC-3 and E-AC-3 with Atmos pass through; DTS, DTS-HD and TrueHD are bridged to Dolby Digital Plus, or to multichannel PCM with Lossless surround on; FLAC and ALAC through the server. HomePod as the Apple TV's output is tvOS's own feature. | Now Playing control from other Apple devices: `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` with the title, artwork and position, which AVPlayerViewController only partly fills on tvOS; the engine path needs it done by hand. Small. TrueHD Atmos with height channels: the engine's `TrueHDObjectAudio` trait, opt-in; evaluate on a receiver. |
 | ❌ | Live TV | None. | A source model (M3U + XMLTV first, then HDHomeRun), a channel guide, an ffmpeg-fed HLS session per viewer with a timeshift buffer, an Apple TV What's On screen. Large: the biggest item on this list. Roadmap's "Later". |
@@ -28,5 +28,4 @@ server's work; here both halves are ours.
 3. Insights while playing
 4. Music: lyrics, playlists, Apple apps
 5. Content filtering
-6. Software-route engine host
-7. Live TV, then recording and multiview
+6. Live TV, then recording and multiview

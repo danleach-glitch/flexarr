@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
     @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
+    @State private var skipSeconds = PlayerViewController.skipSeconds
 
     var body: some View {
         HStack(alignment: .top, spacing: 100) {
@@ -48,13 +49,21 @@ struct SettingsView: View {
                         .font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(Color.usher)
                     Button {
+                        // Clicking the remote's edges, and the player's buttons, skip this far.
+                        skipSeconds = [30.0: 10.0, 10.0: 15.0][skipSeconds] ?? 30
+                        UserDefaults.standard.set(skipSeconds, forKey: "FlexarrSkipSeconds")
+                    } label: {
+                        Label("Skip back and forward: \(Int(skipSeconds)) seconds", systemImage: "goforward")
+                    }
+                    .buttonStyle(ActionButtonStyle())
+                    Button {
                         playsFilesDirectly.toggle()
                         UserDefaults.standard.set(playsFilesDirectly, forKey: "FlexarrEngine")
                     } label: {
                         Label(playsFilesDirectly ? "Play files directly: on" : "Play files directly: off", systemImage: "cpu")
                     }
                     .buttonStyle(ActionButtonStyle())
-                    Text("Experimental. Plays the file itself on this Apple TV, every format with HDR and Dolby Vision as they are, instead of a stream from the server.")
+                    Text("Plays the file itself on this Apple TV, every format with HDR and Dolby Vision as they are, instead of a stream from the server.")
                         .font(.system(size: 24))
                         .foregroundStyle(Color.usher)
                         .frame(maxWidth: 900, alignment: .leading)
