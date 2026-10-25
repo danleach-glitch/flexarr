@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// Podcasts: the shows followed in a row, then what's part-heard and the newest unplayed episodes, with Browse for
-/// finding more. Without a Podcasts library on the server, it says how to get one.
+/// finding more. A profile the Podcasts library is hidden from is told so.
 struct PodcastsView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -13,9 +13,7 @@ struct PodcastsView: View {
     var body: some View {
         Group {
             if let status = model.podcastStatus, !status.available {
-                StatusView(state: .empty(status.needsLibrary
-                    ? "There’s no Podcasts library yet. The main profile can add one in Settings › Libraries on the web, with a folder for episodes on their way to phones."
-                    : "Podcasts aren’t available on this profile. The main profile can change which libraries it sees on the web."))
+                StatusView(state: .empty("Podcasts aren’t available on this profile."))
             } else if let error = home.error {
                 StatusView(state: .failed(error) { Task { await load() } })
             } else if home.loadedAt == nil {

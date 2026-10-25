@@ -6,7 +6,6 @@ struct PodcastTests {
     @Test func status() throws {
         let status = try Fixture.decode(PodcastStatus.self, "podcast-status")
         #expect(status.available)
-        #expect(!status.needsLibrary)
         #expect(status.country == "gb")
     }
 

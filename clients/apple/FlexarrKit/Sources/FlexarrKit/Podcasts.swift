@@ -2,11 +2,10 @@ import Foundation
 
 // MARK: - Models
 
-/// Whether this profile has podcasts: there's a Podcasts library it can see, or there's none at all yet (the main
-/// profile adds one in Settings on the web). `country` is whose charts Browse shows.
+/// Whether this profile has podcasts. Every server has one Podcasts library, so `available` is false only when it's
+/// hidden from this profile. `country` is whose charts Browse shows.
 public struct PodcastStatus: Codable, Sendable, Hashable {
     public let available: Bool
-    public let needsLibrary: Bool
     public let country: String
 }
 
