@@ -1,14 +1,15 @@
 import FlexarrKit
 import SwiftUI
 
+/// Settings: the page title and what's installed on the left; on the right a card for the server, a card for
+/// playback choices and Sign out on its own at the end, so focus walks straight down from the first control to the last.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var confirmSignOut = false
-    @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
+    @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
-    @State private var skipSeconds = PlayerViewController.skipSeconds
 
     var body: some View {
         HStack(alignment: .top, spacing: 100) {
@@ -16,77 +17,67 @@ struct SettingsView: View {
                 Text("Settings")
                     .font(.marquee(76, weight: .heavy))
                     .foregroundStyle(Color.screen)
-                Text("Flexarr for Apple TV \(Bundle.main.shortVersion)")
-                    .font(.system(size: 26))
-                    .foregroundStyle(Color.usher)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Flexarr for Apple TV")
+                    Text("Version \(Bundle.main.shortVersion)")
+                }
+                .font(.system(size: 26))
+                .foregroundStyle(Color.usher)
             }
             .frame(width: 520, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 40) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Server")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(Color.usher)
-                        .padding(.bottom, 16)
-                    row("Address", model.credentials?.address.absoluteString ?? "")
-                    if let status {
-                        row("Version", ServerVersion.short(status.version))
-                        row("Running on", status.osDescription)
-                        row("Runtime", status.runtimeVersion)
-                        row("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
-                    } else if let error {
-                        row("Status", error)
-                    } else {
-                        row("Status", "Checking")
-                    }
-                    row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
-                }
-                .padding(36)
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.seat))
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Playback")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(Color.usher)
-                    Button {
-                        // Clicking the remote's edges, and the player's buttons, skip this far.
-                        skipSeconds = [30.0: 10.0, 10.0: 15.0][skipSeconds] ?? 30
-                        UserDefaults.standard.set(skipSeconds, forKey: "FlexarrSkipSeconds")
-                    } label: {
-                        Label("Skip back and forward: \(Int(skipSeconds)) seconds", systemImage: "goforward")
-                    }
-                    .buttonStyle(ActionButtonStyle())
-                    Button {
-                        playsFilesDirectly.toggle()
-                        UserDefaults.standard.set(playsFilesDirectly, forKey: "FlexarrEngine")
-                    } label: {
-                        Label(playsFilesDirectly ? "Play files directly: on" : "Play files directly: off", systemImage: "cpu")
-                    }
-                    .buttonStyle(ActionButtonStyle())
-                    Text("Plays the file itself on this Apple TV, every format with HDR and Dolby Vision as they are, instead of a stream from the server.")
-                        .font(.system(size: 24))
-                        .foregroundStyle(Color.usher)
-                        .frame(maxWidth: 900, alignment: .leading)
-                    if playsFilesDirectly {
-                        Button {
-                            losslessAudio.toggle()
-                            UserDefaults.standard.set(losslessAudio, forKey: "FlexarrEngineLossless")
-                        } label: {
-                            Label(losslessAudio ? "Lossless surround: on" : "Lossless surround: off", systemImage: "hifispeaker.2")
+            // The cards outgrow the screen once Lossless surround shows, so the column scrolls; the focused
+            // button's lift and glow must not be cut off at the column's edges.
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 40) {
+                    card("Server") {
+                        row("Address", model.credentials?.address.absoluteString ?? "")
+                        if let status {
+                            row("Version", ServerVersion.short(status.version))
+                            row("Running on", status.osDescription)
+                            row("Runtime", status.runtimeVersion)
+                            row("Up since", status.startTime.formatted(date: .abbreviated, time: .shortened))
+                        } else if let error {
+                            row("Status", error)
+                        } else {
+                            row("Status", "Checking")
                         }
-                        .buttonStyle(ActionButtonStyle())
-                        Text("TrueHD, DTS-HD and FLAC soundtracks as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they're sent as Dolby Digital Plus, which anything plays.")
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.usher)
-                            .frame(maxWidth: 900, alignment: .leading)
+                        row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
                     }
-                }
 
-                Button(role: .destructive) { confirmSignOut = true } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    card("Playback") {
+                        VStack(alignment: .leading, spacing: 32) {
+                            setting("Files play on this Apple TV as they are, every format with HDR and Dolby Vision. Off, the server sends a stream instead.") {
+                                Button {
+                                    playsFilesDirectly.toggle()
+                                    PlaybackController.usesEngine = playsFilesDirectly
+                                } label: {
+                                    Label(playsFilesDirectly ? "Play files directly: on" : "Play files directly: off", systemImage: "cpu")
+                                }
+                            }
+                            if playsFilesDirectly {
+                                setting("TrueHD, DTS-HD and FLAC as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they go as Dolby Digital Plus, which anything plays.") {
+                                    Button {
+                                        losslessAudio.toggle()
+                                        UserDefaults.standard.set(losslessAudio, forKey: "FlexarrEngineLossless")
+                                    } label: {
+                                        Label(losslessAudio ? "Lossless surround: on" : "Lossless surround: off", systemImage: "hifispeaker.2")
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+
+                    Button(role: .destructive) { confirmSignOut = true } label: {
+                        Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                    .buttonStyle(ActionButtonStyle())
+                    .padding(.top, 8)
                 }
-                .buttonStyle(ActionButtonStyle())
+                .padding(.bottom, 60)
             }
+            .scrollClipDisabled()
             .frame(maxWidth: 1000, alignment: .leading)
         }
         .padding(.horizontal, Layout.edge)
@@ -103,6 +94,32 @@ struct SettingsView: View {
         }
     }
 
+    /// A titled card on a seat: the Server and Playback groups share its padding and background.
+    private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color.usher)
+                .padding(.bottom, 16)
+            content()
+        }
+        .padding(36)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.seat))
+    }
+
+    /// A control with its explanation directly beneath it, so what a button does is read where it's pressed.
+    private func setting<Control: View>(_ explanation: String, @ViewBuilder control: () -> Control) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            control()
+                .buttonStyle(ActionButtonStyle())
+            Text(explanation)
+                .font(.system(size: 24))
+                .foregroundStyle(Color.usher)
+                .frame(maxWidth: 860, alignment: .leading)
+        }
+    }
+
     private func row(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
@@ -113,7 +130,7 @@ struct SettingsView: View {
                 .lineLimit(2)
         }
         .font(.system(size: 27))
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
     }
 
     private func load() async {
@@ -125,4 +142,3 @@ struct SettingsView: View {
         }
     }
 }
-

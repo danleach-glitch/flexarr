@@ -56,9 +56,18 @@ final class PlaybackController: NSObject {
     /// Where downloaded files' watching goes, and their next episodes come from (set by the iOS app).
     @ObservationIgnored weak var offlineLibrary: OfflineLibrary?
 
-    /// The file played as it is on the device (AetherEngine demuxes it, the device decodes it). On when Settings says
-    /// so, or `-FlexarrEngine YES`.
-    static var usesEngine: Bool { UserDefaults.standard.bool(forKey: "FlexarrEngine") }
+    /// The file played as it is on the device (AetherEngine demuxes it, the device decodes it): the normal way files
+    /// play. Off (Settings, or the launch argument `-FlexarrEngine NO`), the server sends a stream instead. Both
+    /// Settings screens read and write this, so the default lives in one place.
+    static var usesEngine: Bool {
+        get {
+            // The key only exists once someone has chosen, so a user who turned it off before the default changed stays off.
+            let defaults = UserDefaults.standard
+            return defaults.object(forKey: engineKey) == nil || defaults.bool(forKey: engineKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: engineKey) }
+    }
+    private static let engineKey = "FlexarrEngine"
     /// A title the engine couldn't play: its server stream instead, until the next title.
     @ObservationIgnored private var engineSuppressedItem: String?
     /// Playing a show on shuffle: each next episode is a random one.
