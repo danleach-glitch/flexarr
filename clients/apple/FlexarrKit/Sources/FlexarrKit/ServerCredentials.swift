@@ -1,25 +1,30 @@
 import Foundation
 import Security
 
-/// A saved server connection: the address and chosen profile live in UserDefaults, the API key in the Keychain.
+/// A saved server connection: the addresses and chosen profile live in UserDefaults, the API key in the Keychain.
 public struct ServerCredentials: Sendable, Equatable {
+    /// The address this device was connected with, usually on the home network.
     public var address: URL
     public var apiKey: String
     /// Who's watching on this device; nil until someone chooses (the server then acts as the main profile).
     public var profileToken: String?
+    /// The server's address for away from home (its Tailscale address), learnt from the server; nil until it has one.
+    public var remoteAddress: URL?
 
-    public init(address: URL, apiKey: String, profileToken: String? = nil) {
+    public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil) {
         self.address = address
         self.apiKey = apiKey
         self.profileToken = profileToken
+        self.remoteAddress = remoteAddress == address ? nil : remoteAddress
     }
 
     public var client: FlexarrClient { client() }
 
-    /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets.
+    /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets. Clients for the same sign-in share
+    /// which address is answering (see `ServerAddresses`).
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
-        FlexarrClient(baseURL: address, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken,
-                      onUnauthorized: onUnauthorized)
+        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress),
+                      apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
     }
 }
 
@@ -41,7 +46,8 @@ public struct CredentialStore: Sendable {
     public func load() -> ServerCredentials? {
         guard let text = defaults.string(forKey: addressKey), let url = URL(string: text) else { return nil }
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
-                                 profileToken: defaults.string(forKey: "\(addressKey).profile"))
+                                 profileToken: defaults.string(forKey: "\(addressKey).profile"),
+                                 remoteAddress: defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:)))
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -55,6 +61,12 @@ public struct CredentialStore: Sendable {
         defaults.set(account, forKey: addressKey)
         defaults.set(account, forKey: "\(addressKey).last")
         saveProfile(credentials.profileToken)
+        saveRemoteAddress(credentials.remoteAddress)
+    }
+
+    /// Remembers the server's address for away from home (nil forgets it).
+    public func saveRemoteAddress(_ url: URL?) {
+        defaults.set(url?.absoluteString, forKey: "\(addressKey).remote")
     }
 
     /// Remembers who's watching. The token only works alongside the API key, so it needn't be in the Keychain.
@@ -66,6 +78,7 @@ public struct CredentialStore: Sendable {
         if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
+        defaults.removeObject(forKey: "\(addressKey).remote")
     }
 
     // MARK: Keychain

@@ -14,6 +14,8 @@ export interface SystemStatus {
   osDescription: string
   runtimeVersion: string
   startTime: string
+  /** The server's address for away from home (over Tailscale), once remote access is on. */
+  remoteUrl: string | null
 }
 
 export interface ScanStatus {

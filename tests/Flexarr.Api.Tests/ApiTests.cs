@@ -30,6 +30,8 @@ public class ApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         var status = await client.GetFromJsonAsync<Dictionary<string, object>>(new Uri("/api/v1/system/status", UriKind.Relative));
 
         Assert.Equal("Flexarr", status!["appName"].ToString());
+        // The address for away from home is always there for the apps to read, null until remote access is turned on.
+        Assert.True(status.ContainsKey("remoteUrl"));
     }
 
     [Fact]

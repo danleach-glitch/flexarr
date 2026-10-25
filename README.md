@@ -85,7 +85,7 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 - Each browser and device gets a sign-in of its own, which you can sign out from Settings; an Apple TV connects by scanning a QR code
 - **Siri**: "Play the next episode of Curb Your Enthusiasm in Flexarr" plays the episode you're up to, on your iPhone or on the Apple TV you choose; "Continue watching in Flexarr", "Pause Flexarr"
 - **An assistant's way in**: Flexarr is an MCP server, so Claude (or any MCP client) can search your library, see what's playing on every screen and play something on the TV
-- **Away from home over Tailscale**, with no ports opened on your router
+- **Away from home over Tailscale**, with no ports opened on your router; the iPhone, iPad and Apple TV apps switch to it by themselves when they can't reach the server at home
 
 ### Music
 

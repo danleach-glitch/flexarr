@@ -103,7 +103,8 @@ final class AppModel {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         var credentials = ServerCredentials(address: url, apiKey: key)
         do {
-            _ = try await credentials.client.systemStatus()
+            // The server's address for away from home comes with its status; it's kept beside this one.
+            credentials.remoteAddress = try await credentials.client.systemStatus().remoteUrl
         } catch {
             throw ConnectionError(error)
         }
@@ -117,6 +118,7 @@ final class AppModel {
             throw error
         }
         upgradeChecked = true
+        remoteChecked = true
         libraries = []
         resetProfiles()
         signedOutNotice = nil
@@ -166,6 +168,22 @@ final class AppModel {
 
     /// Set once this launch has checked whether the saved key should be swapped for a token of its own.
     private var upgradeChecked = false
+    /// Set once this launch has asked the server for its address for away from home.
+    private var remoteChecked = false
+
+    /// Keeps the saved address for away from home in step with the server's (remote access turned on or off since,
+    /// or a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
+    private func refreshRemoteAddress() async {
+        guard !remoteChecked, let credentials else { return }
+        remoteChecked = true
+        guard let status = try? await credentials.client.systemStatus() else { return }
+        let remote = status.remoteUrl == credentials.address ? nil : status.remoteUrl
+        guard remote != credentials.remoteAddress, self.credentials == credentials else { return }
+        var updated = credentials
+        updated.remoteAddress = remote
+        store.saveRemoteAddress(remote)
+        phase = .signedIn(updated)
+    }
 
     /// The same sign-in with this device's own token in place of the server's API key, if it holds the key
     /// (as Apple TVs set up by earlier versions do). Unchanged if it doesn't, or the server is too old to offer one.
@@ -210,6 +228,7 @@ final class AppModel {
         #endif
         // Siri learns the library's titles from the signed-in server, so "play the next <show>" is understood.
         if !needsProfileChoice { FlexarrShortcuts.updateAppShortcutParameters() }
+        Task { await refreshRemoteAddress() }
     }
 
     #if os(iOS)

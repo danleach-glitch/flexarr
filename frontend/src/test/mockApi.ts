@@ -29,6 +29,7 @@ export const status = {
   osDescription: 'macOS',
   runtimeVersion: '.NET 10',
   startTime: new Date().toISOString(),
+  remoteUrl: null,
 }
 
 export const movies = {

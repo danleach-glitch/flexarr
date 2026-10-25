@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.21.1 · 25 October 2026
+
+### Fixed: the iPhone and iPad apps away from home
+- Connected at home, the app only ever knew the server's home address, so away from home it tried that and sat on its spinner, Tailscale or not. The server now tells the apps its Tailscale address (once remote access is on in Settings › Remote access), and the app keeps it beside the home one: when the home address can't be reached, requests go over Tailscale, and while away the home address is tried again every few minutes so the app comes back to it. Nothing to set up on the device beyond having Tailscale connected; Settings › Server shows both addresses and which one is in use. Apps already connected pick the address up on their next launch.
+
 ## 0.21.0 · 25 October 2026
 
 ### Music on the web: a queue, playlists, lyrics and discovery
