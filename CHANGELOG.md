@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.15.0 · 25 October 2026
+
+### Downloads on iPhone and iPad
+- Download films and episodes to watch with no connection: tap **Download** on a title's page and choose a size, **Original**, **High (1080p)**, **Medium (720p)** or **Small (480p)**, each with about how much space it takes.
+- Your server gets each download ready first, quietly, and never while someone's watching. Downloads carry on with the app closed and pick up where they left off.
+- A new **Downloads** tab plays them anywhere, with Skip Intro and the countdown to the next episode. What you watch offline is sent to your server when you're back online.
+- Once an episode's downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them. Turn this off in Settings › Downloads.
+- Signing out deletes this device's downloads.
+
 ## 0.14.1 · 25 October 2026
 
 ### Fixed: Settings stuck on "Loading…"

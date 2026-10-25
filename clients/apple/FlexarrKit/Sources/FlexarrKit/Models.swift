@@ -508,3 +508,78 @@ public struct ProfileSelection: Decodable, Sendable, Equatable {
 struct SelectProfileRequest: Codable, Sendable {
     let pin: String?
 }
+
+// MARK: - Downloads
+
+public enum DownloadQuality: String, Codable, Sendable, CaseIterable, Identifiable {
+    case original = "Original", high = "High", medium = "Medium", small = "Small"
+
+    public var id: String { rawValue }
+
+    /// "Original", "High (1080p)".
+    public var label: String {
+        switch self {
+        case .original: "Original"
+        case .high: "High (1080p)"
+        case .medium: "Medium (720p)"
+        case .small: "Small (480p)"
+        }
+    }
+}
+
+public enum DownloadStatus: String, ForwardCompatibleEnum {
+    case queued = "Queued", preparing = "Preparing", ready = "Ready", received = "Received", failed = "Failed", expired = "Expired", unknown
+}
+
+/// A size a title can be downloaded at, about how big it'll be, and whether it can be (an Original the phone
+/// can't play can't).
+public struct DownloadOption: Codable, Sendable, Hashable, Identifiable {
+    public let quality: DownloadQuality
+    public let estimatedBytes: Int64
+    public let available: Bool
+
+    public var id: DownloadQuality { quality }
+}
+
+/// A download on the server: being got ready, ready to fetch, or fetched; with what's needed to show and play the
+/// title offline.
+public struct OfflineDownload: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let itemId: String
+    public let quality: DownloadQuality
+    public let status: DownloadStatus
+    public let progress: Double
+    public let sizeBytes: Int64?
+    public let error: String?
+    public let item: ItemSummary
+    public let markers: [Marker]
+    public let durationSeconds: Double
+    public let nextId: String?
+}
+
+struct DownloadRequestBody: Codable, Sendable {
+    let itemId: String
+    let quality: DownloadQuality
+}
+
+struct OfflineProgressBody: Codable, Sendable {
+    let positionSeconds: Double
+    let finished: Bool
+    /// ISO 8601, as the server reads it.
+    let playedAt: String
+}
+
+extension PlaybackInfo {
+    /// A downloaded file played with no server session: its own markers for Skip Intro, and the next episode if
+    /// that's downloaded too.
+    public static func offline(file: URL, item: ItemSummary, markers: [Marker], durationSeconds: Double, startPositionSeconds: Double,
+                               next: ItemSummary?, preferences: PlaybackPreferences?) -> PlaybackInfo {
+        PlaybackInfo(sessionId: "offline-\(item.id)", method: .directPlay, url: file.absoluteString, reasons: [], durationSeconds: durationSeconds,
+                     startPositionSeconds: startPositionSeconds, fileId: item.id, audioTracks: [], selectedAudioIndex: nil, subtitles: [],
+                     selectedSubtitleKey: nil, subtitleBurnedIn: false, markers: markers, item: item, ancestors: [], next: next,
+                     transcodeSummary: nil, shuffle: nil, preferences: preferences)
+    }
+
+    /// Played from a downloaded file rather than streamed.
+    public var isOffline: Bool { sessionId.hasPrefix("offline-") }
+}

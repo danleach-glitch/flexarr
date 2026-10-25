@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Downloads;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
 using Flexarr.Api.Playback;
@@ -114,6 +115,8 @@ builder.Services.AddSingleton<TrickplayQueue>();
 builder.Services.AddSingleton<SubtitleCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
+builder.Services.AddSingleton<DownloadPreparer>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DownloadPreparer>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
 builder.Services.AddSingleton<TailscaleService>();
@@ -201,6 +204,7 @@ app.MapGroup("/api/v1")
     .MapFilesystemEndpoints()
     .MapPeopleEndpoints()
     .MapPlaybackEndpoints()
+    .MapDownloadEndpoints()
     .MapDiscoveryEndpoints()
     .MapSettingsEndpoints()
     .MapImportEndpoints()

@@ -8,6 +8,14 @@ import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "playback")
 
+/// Where a downloaded file's watching is recorded (to be sent to the server once there's a connection), and which
+/// downloaded episode comes after it.
+@MainActor
+protocol OfflineLibrary: AnyObject {
+    func record(itemId: String, position: Double, finished: Bool)
+    func nextInfo(after info: PlaybackInfo) -> PlaybackInfo?
+}
+
 /// Owns one playback session at a time: starts it on the server, presents
 /// AVPlayerViewController, reports progress, offers Skip Intro / Next Episode (contextual actions on
 /// Apple TV, a floating button on iPhone and iPad), auto-advances, and stops the session on exit.
@@ -61,6 +69,8 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var subtitleGuardUntil = Date.distantPast
     /// The last position the clock reported, and when, for telling a seek from playing on.
     @ObservationIgnored private var lastTick: (position: Double, at: Date)?
+    /// Where downloaded files' watching goes, and their next episodes come from (set by the iOS app).
+    @ObservationIgnored weak var offlineLibrary: OfflineLibrary?
     /// Playing a show on shuffle: each next episode is a random one.
     @ObservationIgnored private var shuffling = false
     /// The profile's auto-play and skip choices, from the session.
@@ -102,6 +112,18 @@ final class PlaybackController: NSObject {
         shuffling = shuffle
         viewerSubtitleKey = nil
         start(request(for: itemId, startAt: startAt))
+    }
+
+    /// Plays a downloaded file: no server, no connection needed.
+    func playOffline(_ info: PlaybackInfo) {
+        guard !isStarting else { return }
+        shuffling = false
+        viewerSubtitleKey = nil
+        do {
+            try present(info)
+        } catch {
+            show(.other, message: "This download couldn't be played. Delete it and download it again.", retry: nil)
+        }
     }
 
     /// The error's main button, Watch here instead or Try again: asks for the stream that stopped again.
@@ -157,7 +179,8 @@ final class PlaybackController: NSObject {
     }
 
     private func makeItem(for info: PlaybackInfo) throws -> AVPlayerItem {
-        guard let client, let url = client.url(for: info.url) else { throw FlexarrClientError.invalidResponse }
+        let local = info.isOffline ? URL(string: info.url) : nil
+        guard let url = local ?? client?.url(for: info.url) else { throw FlexarrClientError.invalidResponse }
         let item = AVPlayerItem(url: url)
         item.externalMetadata = Self.metadata(for: info, artwork: nil, overview: nil)
         return item
@@ -336,6 +359,10 @@ final class PlaybackController: NSObject {
     /// from where we were (retrying while the server comes back) before giving up, at most once a minute: a stream
     /// that keeps stopping is a real problem worth showing.
     private func recover(reason: String) {
+        // A downloaded file that stops won't be any better from the server; say so instead.
+        if info?.isOffline == true {
+            return dismissPlayer { self.show(.other, message: reason, retry: nil) }
+        }
         guard !isRecovering, let client, let current = info else { return }
         let position = self.position > 0 ? self.position : lastPosition
         let failed = current.sessionId
@@ -467,6 +494,11 @@ final class PlaybackController: NSObject {
     }
 
     private func report(paused: Bool, ended: Bool = false) {
+        if let info, info.isOffline {
+            lastReport = Date()
+            if recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: ended || isPastCredits(info)) }
+            return
+        }
         guard recordsHistory, let client, let sessionId = info?.sessionId else { return }
         lastReport = Date()
         let position = self.position
@@ -488,8 +520,14 @@ final class PlaybackController: NSObject {
 
     /// Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
     /// server says no, and then it starts the usual way.
+    /// Into the credits, or nearly at the end: as good as watched.
+    private func isPastCredits(_ info: PlaybackInfo) -> Bool {
+        let credits = info.markers.first(where: { $0.type == .credits })?.start
+        return position >= (credits ?? info.durationSeconds * 0.92) && position > 0
+    }
+
     private func prepareNext() {
-        guard let client, let current = info, let next = current.next, !nextCancelled,
+        guard let client, let current = info, !current.isOffline, let next = current.next, !nextCancelled,
               prepared?.info.item.id != next.id, preparing == nil else { return }
         var request = nextRequest(next, after: current)
         request.prepare = true
@@ -696,6 +734,17 @@ final class PlaybackController: NSObject {
 
     /// Ends this session and plays `info.next` in the same player.
     private func advance() {
+        // A downloaded episode moves on to the next downloaded one, in the same player.
+        if let current = info, current.isOffline {
+            report(paused: false, ended: true)
+            endFinishing()
+            guard let nextInfo = offlineLibrary?.nextInfo(after: current), let item = try? makeItem(for: nextInfo) else {
+                return dismissPlayer()
+            }
+            player?.replaceCurrentItem(with: item)
+            attach(nextInfo)
+            return
+        }
         guard !isAdvancing, let client, let current = info, let next = current.next else { return }
         log.info("Advancing to \(next.title, privacy: .public)")
         isAdvancing = true
@@ -739,11 +788,14 @@ final class PlaybackController: NSObject {
 
     /// Stops the current session (reporting the final position) and tears down observers.
     func stop() {
-        stop(reportingTo: client)
+        stop(reportingTo: client, recording: true)
     }
 
-    private func stop(reportingTo client: FlexarrClient?) {
-        if let info, let client {
+    /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
+    private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
+        if let info, info.isOffline {
+            if recording, recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: isPastCredits(info)) }
+        } else if let info, let client {
             log.info("Stopping session \(info.sessionId, privacy: .private)")
             let position = self.position
             let sessionId = info.sessionId
@@ -790,7 +842,7 @@ final class PlaybackController: NSObject {
 
     /// Fetches the overview and artwork and refreshes the info panel once they arrive.
     private func loadRichMetadata(for info: PlaybackInfo, into item: AVPlayerItem) {
-        guard let client else { return }
+        guard let client, !info.isOffline else { return }
         let summary = info.item
         let artworkPath = summary.kind == .episode
             ? (summary.artwork.thumb ?? info.ancestors.first?.artwork.poster)

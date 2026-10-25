@@ -129,6 +129,47 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "playback/\(sessionId)")
     }
 
+    // MARK: Downloads
+
+    /// The sizes this title can be downloaded at, with about how big each would be.
+    public func downloadOptions(_ itemId: String) async throws -> [DownloadOption] {
+        try await get("items/\(itemId)/download-options")
+    }
+
+    /// Asks the server to get a title ready for downloading (or finds the one already asked for).
+    public func requestDownload(_ itemId: String, quality: DownloadQuality) async throws -> OfflineDownload {
+        let data = try await send("POST", "offline", body: DownloadRequestBody(itemId: itemId, quality: quality))
+        return try decode(OfflineDownload.self, from: data)
+    }
+
+    public func download(_ id: String) async throws -> OfflineDownload {
+        try await get("offline/\(id)")
+    }
+
+    /// The device has the file: the server can delete its copy.
+    public func markDownloadReceived(_ id: String) async throws {
+        _ = try await send("POST", "offline/\(id)/received")
+    }
+
+    public func deleteDownload(_ id: String) async throws {
+        _ = try await send("DELETE", "offline/\(id)")
+    }
+
+    /// Watching done with no connection, recorded unless something newer was since.
+    public func reportOfflineProgress(itemId: String, positionSeconds: Double, finished: Bool, playedAt: Date) async throws {
+        let when = playedAt.formatted(.iso8601)
+        _ = try await send("POST", "items/\(itemId)/offline-progress",
+                           body: OfflineProgressBody(positionSeconds: max(0, positionSeconds), finished: finished, playedAt: when))
+    }
+
+    /// The request for a download's file, signed in, for a background download session (which can't use this client).
+    public func downloadFileRequest(_ id: String) -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: "api/v1/offline/\(id)/file"))
+        if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
+        if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
+        return request
+    }
+
     /// The signed-in profile's auto-play and skip preferences.
     public func playbackPreferences() async throws -> PlaybackPreferences {
         try await get("me/playback-preferences")

@@ -73,6 +73,100 @@ public static class FfmpegCommand
         return args;
     }
 
+    /// <summary>
+    /// Arguments to make one MP4 of <paramref name="input"/> for keeping on a phone: converted by <paramref name="plan"/>,
+    /// or with no plan the video and <paramref name="copyAudioIndex"/> copied as they are (an Original download that
+    /// needs repackaging). Text subtitles go in as tracks of their own; progress is written to stdout for the caller.
+    /// </summary>
+    public static IReadOnlyList<string> Mp4(string input, TranscodePlan? plan, int videoIndex, int? copyAudioIndex, string? videoCodec,
+        IReadOnlyList<SubtitleTrack> textSubtitles, string output, TranscodeSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(textSubtitles);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var hw = plan is null || plan.VideoStreamIndex < 0 ? HardwareAcceleration.None : settings.Resolved;
+        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats" };
+        switch (hw)
+        {
+            case HardwareAcceleration.VideoToolbox:
+                args.AddRange(["-hwaccel", "videotoolbox", "-hwaccel_output_format", "videotoolbox_vld"]);
+                break;
+            case HardwareAcceleration.Vaapi:
+                args.AddRange(["-hwaccel", "vaapi", "-hwaccel_device", settings.VaapiDevice, "-hwaccel_output_format", "vaapi"]);
+                break;
+            case HardwareAcceleration.Qsv:
+                args.AddRange(["-hwaccel", "qsv"]);
+                break;
+            case HardwareAcceleration.Nvenc:
+                args.AddRange(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
+                break;
+        }
+
+        args.AddRange(["-i", input]);
+        var sidecars = textSubtitles.Where(t => t.ExternalPath is not null).ToList();
+        foreach (var sidecar in sidecars)
+        {
+            args.AddRange(["-i", sidecar.ExternalPath!]);
+        }
+
+        if (plan is not null)
+        {
+            if (plan.VideoStreamIndex >= 0)
+            {
+                AddVideo(args, plan, null, hw, settings);
+            }
+
+            if (plan.AudioStreamIndex is { } audioIndex)
+            {
+                args.AddRange(["-map", $"0:{audioIndex}"]);
+                args.AddRange(plan.CopyAudio
+                    ? ["-c:a", "copy"]
+                    : ["-c:a", "aac", "-ac", plan.AudioChannels.ToString(CultureInfo.InvariantCulture), "-b:a", plan.AudioChannels > 2 ? "384k" : "160k"]);
+            }
+        }
+        else
+        {
+            args.AddRange(["-map", $"0:{videoIndex}", "-c:v", "copy"]);
+            // Apple's players only open HEVC in an MP4 tagged hvc1.
+            if (videoCodec == "hevc")
+            {
+                args.AddRange(["-tag:v", "hvc1"]);
+            }
+
+            if (copyAudioIndex is { } audioIndex)
+            {
+                args.AddRange(["-map", $"0:{audioIndex}", "-c:a", "copy"]);
+            }
+        }
+
+        // ---- Subtitles: each text track as a track of the MP4, with its language, for the player's menu.
+        var n = 0;
+        foreach (var track in textSubtitles)
+        {
+            var source = track.ExternalPath is null ? $"0:{track.StreamIndex}" : $"{sidecars.IndexOf(track) + 1}:0";
+            args.AddRange(["-map", source]);
+            if (track.Language is { Length: > 0 } language)
+            {
+                args.AddRange([$"-metadata:s:s:{n}", $"language={language}"]);
+            }
+
+            if (track.IsForced)
+            {
+                args.AddRange([$"-disposition:s:{n}", "forced"]);
+            }
+
+            n++;
+        }
+
+        if (n > 0)
+        {
+            args.AddRange(["-c:s", "mov_text"]);
+        }
+
+        args.AddRange(["-dn", "-map_metadata", "-1", "-map_chapters", "-1", "-max_muxing_queue_size", "2048", "-movflags", "+faststart", "-f", "mp4", output]);
+        return args;
+    }
+
     private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings)
     {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);

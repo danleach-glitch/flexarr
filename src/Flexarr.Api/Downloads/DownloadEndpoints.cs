@@ -1,0 +1,157 @@
+using Flexarr.Api.Configuration;
+using Flexarr.Api.Endpoints;
+using Flexarr.Api.Playback;
+using Flexarr.Api.Profiles;
+using Flexarr.Core.Data;
+using Flexarr.Core.Media;
+using Flexarr.Streaming;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace Flexarr.Api.Downloads;
+
+/// <summary>
+/// A download, with what the device needs to show and play it with no connection: the title, its markers (for Skip
+/// Intro) and the next episode (to fetch that one too).
+/// </summary>
+public sealed record DownloadDto(
+    Guid Id,
+    Guid ItemId,
+    DownloadQuality Quality,
+    DownloadStatus Status,
+    double Progress,
+    long? SizeBytes,
+    string? Error,
+    ItemSummaryDto Item,
+    IReadOnlyList<MarkerDto> Markers,
+    double DurationSeconds,
+    Guid? NextId,
+    DateTime CreatedAt);
+
+/// <param name="Available">False for an Original the phone couldn't play: another size will do.</param>
+public sealed record DownloadOptionDto(DownloadQuality Quality, long EstimatedBytes, bool Available);
+
+public sealed record DownloadRequest(Guid ItemId, DownloadQuality Quality);
+
+public static class DownloadEndpoints
+{
+    /// <summary>Downloads for offline watching, each profile's own.</summary>
+    public static RouteGroupBuilder MapDownloadEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapGet("/items/{id:guid}/download-options", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var file = await BestFileAsync(db, id, ct);
+            return file is null
+                ? Results.NotFound()
+                : Results.Ok(Enum.GetValues<DownloadQuality>().Select(q => new DownloadOptionDto(q, DownloadPlanner.EstimateBytes(file, q),
+                    q != DownloadQuality.Original || DownloadPlanner.CanKeepOriginal(file))).ToList());
+        }).WithTags("Downloads");
+
+        // "/downloads" is Coming soon's (what Sonarr and Radarr are fetching).
+        var group = api.MapGroup("/offline").WithTags("Downloads");
+
+        group.MapGet("/", async (FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var ids = await db.Downloads.Where(d => d.ProfileId == profile.Id).OrderBy(d => d.CreatedAt).Select(d => d.Id).ToListAsync(ct);
+            var list = new List<DownloadDto>();
+            foreach (var id in ids)
+            {
+                if (await ToDtoAsync(db, playback, profile, id, ct) is { } dto)
+                {
+                    list.Add(dto);
+                }
+            }
+
+            return list;
+        });
+
+        group.MapPost("/", async (DownloadRequest request, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
+            if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode) || await BestFileAsync(db, item.Id, ct) is null)
+            {
+                return Results.NotFound();
+            }
+
+            // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out.
+            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == request.Quality
+                && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired, ct);
+            if (existing is null)
+            {
+                existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = request.Quality, Status = DownloadStatus.Queued };
+                db.Downloads.Add(existing);
+                await db.SaveChangesAsync(ct);
+            }
+
+            return Results.Ok(await ToDtoAsync(db, playback, profile, existing.Id, ct));
+        });
+
+        group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
+            await ToDtoAsync(db, playback, profile, id, ct) is { } dto ? Results.Ok(dto) : Results.NotFound());
+
+        // The file itself, resumable (ranges), once it's ready.
+        group.MapGet("/{id:guid}/file", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var download = await db.Downloads.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct);
+            return download is { Status: DownloadStatus.Ready, FilePath: { } path } && File.Exists(path)
+                ? Results.File(path, "video/mp4", $"{id:N}.mp4", enableRangeProcessing: true)
+                : Results.NotFound();
+        });
+
+        // The device has it: the server's copy can go.
+        group.MapPost("/{id:guid}/received", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (await db.Downloads.FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct) is not { } download)
+            {
+                return Results.NotFound();
+            }
+
+            DownloadPreparer.DeleteFile(download);
+            download.Status = DownloadStatus.Received;
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (await db.Downloads.FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct) is { } download)
+            {
+                DownloadPreparer.DeleteFile(download);
+                db.Downloads.Remove(download);
+                await db.SaveChangesAsync(ct);
+            }
+
+            return Results.NoContent();
+        });
+
+        // Watched with no connection: recorded when the device is back online, unless something newer was since.
+        api.MapPost("/items/{id:guid}/offline-progress", async (Guid id, OfflineProgressRequest progress, PlaybackService playback, CancellationToken ct) =>
+            await playback.ReportOfflineAsync(id, progress, ct) ? Results.NoContent() : Results.NotFound()).WithTags("Downloads");
+
+        return api;
+    }
+
+    private static Task<MediaFile?> BestFileAsync(FlexarrDbContext db, Guid itemId, CancellationToken ct) =>
+        db.MediaFiles.AsNoTracking().Include(f => f.Streams)
+            .Where(f => f.MediaItemId == itemId && f.ProbeError == null && f.MissingSince == null)
+            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
+
+    private static async Task<DownloadDto?> ToDtoAsync(FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, Guid id, CancellationToken ct)
+    {
+        var download = await db.Downloads.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct);
+        var item = download is null ? null : await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == download.MediaItemId, ct);
+        if (download is null || item is null)
+        {
+            return null; // gone, or in a library this profile can't see
+        }
+
+        var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
+        var file = await db.MediaFiles.AsNoTracking().Include(f => f.Markers)
+            .Where(f => f.MediaItemId == item.Id && f.ProbeError == null && f.MissingSince == null)
+            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
+        var next = await playback.NextEpisodeAsync(item, ct);
+        return new DownloadDto(download.Id, item.Id, download.Quality, download.Status, download.Progress, download.SizeBytes, download.Error, summary,
+            file?.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList() ?? [],
+            file?.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60, next?.Id, download.CreatedAt);
+    }
+}

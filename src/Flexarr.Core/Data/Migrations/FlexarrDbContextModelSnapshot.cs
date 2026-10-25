@@ -198,6 +198,63 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("Credits");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.Download", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilePath")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsLibraryFile")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("Progress")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Quality")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReadyAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ProfileId", "MediaItemId");
+
+                    b.ToTable("Downloads");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.Genre", b =>
                 {
                     b.Property<int>("Id")
@@ -755,6 +812,23 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("MediaItem");
 
                     b.Navigation("Person");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.Download", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaFile", b =>

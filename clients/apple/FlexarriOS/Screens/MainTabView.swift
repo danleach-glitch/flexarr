@@ -4,13 +4,15 @@ import SwiftUI
 enum TabID: Hashable {
     case home
     case libraries
+    case downloads
     case search
     case settings
 }
 
-/// Home, Libraries, Search and Settings along the bottom (a sidebar on iPad).
+/// Home, Libraries, Downloads, Search and Settings along the bottom (a sidebar on iPad).
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var downloads
     @State private var selection: TabID = .home
 
     var body: some View {
@@ -24,6 +26,9 @@ struct MainTabView: View {
             Tab("Libraries", systemImage: "square.grid.2x2.fill", value: TabID.libraries) {
                 TabStack { LibrariesView() }
             }
+            Tab("Downloads", systemImage: "arrow.down.circle.fill", value: TabID.downloads) {
+                TabStack { DownloadsView() }
+            }
             Tab("Search", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
                 TabStack { SearchView() }
             }
@@ -32,7 +37,11 @@ struct MainTabView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
-        .task { await model.loadLibraries() }
+        .task {
+            await model.loadLibraries()
+            // Opened with no connection: straight to what can be watched.
+            if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { selection = .downloads }
+        }
         .onChange(of: model.pendingRoute) { _, route in
             if route != nil { selection = .home }
         }

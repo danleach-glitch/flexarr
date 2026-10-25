@@ -151,6 +151,10 @@ struct DetailView: View {
                 }
             }
 
+            if item.kind == .movie || item.kind == .episode {
+                DownloadButton(item: item)
+            }
+
             if item.kind == .series, item.childCount > 0 {
                 Button { model.shuffle(item) } label: {
                     Label("Shuffle", systemImage: "shuffle")

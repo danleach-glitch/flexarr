@@ -1,7 +1,18 @@
 import SwiftUI
 
+/// Owns the downloads, so the system can hand back ones that finished while the app was closed.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    let downloads = DownloadStore()
+
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        if identifier == DownloadStore.sessionIdentifier { downloads.backgroundCompletion = completionHandler }
+    }
+}
+
 @main
 struct FlexarriOSApp: App {
+    @UIApplicationDelegateAdaptor private var delegate: AppDelegate
     @State private var model: AppModel
 
     init() {
@@ -15,6 +26,7 @@ struct FlexarriOSApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
+                .environment(delegate.downloads)
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }
@@ -24,6 +36,7 @@ struct FlexarriOSApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var downloads
 
     var body: some View {
         ZStack {
@@ -49,6 +62,14 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.3), value: model.phase)
         .animation(.easeInOut(duration: 0.3), value: model.needsProfileChoice)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
+        // Downloads follow the server and profile signed in; signing out deletes them.
+        .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")") {
+            model.player.offlineLibrary = downloads
+            downloads.attach(client: model.client, profileId: model.currentProfile?.id)
+        }
+        .onChange(of: model.phase) { old, new in
+            if case .signedIn = old, new == .signedOut { downloads.deleteAll() }
+        }
         .overlay {
             if model.player.isStarting {
                 ZStack {

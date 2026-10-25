@@ -214,6 +214,52 @@ public sealed class PlaybackService(
         }
     }
 
+    /// <summary>
+    /// Records watching done offline, if it's newer than what's recorded (watching elsewhere since wins). False if
+    /// there's no such title.
+    /// </summary>
+    public async Task<bool> ReportOfflineAsync(Guid itemId, OfflineProgressRequest progress, CancellationToken ct)
+    {
+        var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == itemId, ct);
+        if (item is null)
+        {
+            return false;
+        }
+
+        var playedAt = progress.PlayedAt.ToUniversalTime();
+        var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == itemId, ct);
+        if (state is not null && state.LastPlayedAt >= playedAt)
+        {
+            return true;
+        }
+
+        if (state is null)
+        {
+            state = new PlaybackState { UserId = profile.Id, MediaItemId = itemId };
+            db.PlaybackStates.Add(state);
+        }
+
+        state.LastPlayedAt = playedAt;
+        if (progress.Finished)
+        {
+            if (!state.Watched)
+            {
+                state.PlayCount++;
+            }
+
+            state.Watched = true;
+            state.PositionSeconds = 0;
+        }
+        else if (progress.PositionSeconds > MinResumeSeconds)
+        {
+            state.PositionSeconds = progress.PositionSeconds;
+            state.Watched = false;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
     /// <summary>Applies a progress report to the state; true when it counted a new play.</summary>
     private static bool ApplyProgress(PlaybackState state, PlaybackSession session, ProgressRequest progress)
     {

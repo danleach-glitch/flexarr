@@ -20,6 +20,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<WatchTombstone> WatchTombstones => Set<WatchTombstone>();
+    public DbSet<Download> Downloads => Set<Download>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -96,6 +97,17 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(c => c.OwnerProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(c => c.Items).WithOne().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(c => c.TmdbCollectionId);
+        });
+
+        modelBuilder.Entity<Download>(e =>
+        {
+            e.Property(d => d.ProfileId).HasMaxLength(64);
+            e.Property(d => d.Error).HasMaxLength(500);
+            // A profile's downloads go with it, and so do a title's when it leaves the library.
+            e.HasOne<Profile>().WithMany().HasForeignKey(d => d.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(d => d.MediaItem).WithMany().HasForeignKey(d => d.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => new { d.ProfileId, d.MediaItemId });
+            e.HasIndex(d => d.Status);
         });
 
         modelBuilder.Entity<CollectionItem>(e =>

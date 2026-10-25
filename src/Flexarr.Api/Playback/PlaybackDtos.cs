@@ -54,4 +54,7 @@ public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, 
 
 public sealed record ProgressRequest(double PositionSeconds, bool Paused = false, bool Ended = false);
 
+/// <summary>Watched with no connection: where it got to, whether it was finished, and when.</summary>
+public sealed record OfflineProgressRequest(double PositionSeconds, bool Finished, DateTime PlayedAt);
+
 public sealed record WatchedRequest(bool Watched);

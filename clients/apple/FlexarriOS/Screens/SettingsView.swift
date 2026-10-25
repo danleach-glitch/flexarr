@@ -3,6 +3,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var downloads
+    @State private var confirmDeleteDownloads = false
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var confirmSignOut = false
@@ -40,6 +42,23 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
+                    .tint(.silver)
+                    .listRowBackground(Color.seat)
+                LabeledContent("Space used", value: ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
+                    .listRowBackground(Color.seat)
+                if !downloads.all.isEmpty {
+                    Button("Delete all downloads", role: .destructive) { confirmDeleteDownloads = true }
+                        .foregroundStyle(Color.danger)
+                        .listRowBackground(Color.seat)
+                }
+            } header: {
+                Text("Downloads")
+            } footer: {
+                Text("Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them.")
+            }
+
             Section("Server") {
                 row("Address", model.credentials?.address.absoluteString ?? "")
                 if let status {
@@ -69,11 +88,15 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .task { await load() }
         .refreshable { await load() }
+        .confirmationDialog("Delete all downloads?", isPresented: $confirmDeleteDownloads, titleVisibility: .visible) {
+            Button("Delete all", role: .destructive) { downloads.deleteAll() }
+            Button("Cancel", role: .cancel) {}
+        }
         .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { model.signOut() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This \(ThisDevice.name) will need to connect again to use the server.")
+            Text("This \(ThisDevice.name) will need to connect again to use the server, and its downloads will be deleted.")
         }
         .sheet(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
