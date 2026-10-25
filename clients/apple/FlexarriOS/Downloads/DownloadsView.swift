@@ -1,18 +1,19 @@
 import FlexarrKit
 import SwiftUI
 
-/// Everything downloaded (or on its way), playable with no connection: films, then shows with their episodes.
+/// Everything downloaded (or on its way), playable with no connection: films, shows with their episodes, then albums
+/// and playlists.
 struct DownloadsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var store
 
     var body: some View {
         Group {
-            if store.downloads.isEmpty {
-                StatusView(state: .empty("Download films and episodes to watch them with no connection. Look for the download button on a title’s page."))
+            if store.videoDownloads.isEmpty, store.musicCollections.isEmpty {
+                StatusView(state: .empty("Download films, episodes, albums and playlists to watch and listen with no connection. Look for the download button on a title’s page."))
             } else {
                 List {
-                    let films = store.downloads.filter { $0.item.kind != .episode }
+                    let films = store.videoDownloads.filter { $0.item.kind != .episode }
                     if !films.isEmpty {
                         Section("Films") {
                             ForEach(films) { DownloadRow(download: $0) }
@@ -23,6 +24,13 @@ struct DownloadsView: View {
                         Section(show.title) {
                             ForEach(show.episodes) { DownloadRow(download: $0) }
                                 .onDelete { remove(show.episodes, at: $0) }
+                        }
+                    }
+                    let music = store.musicCollections
+                    if !music.isEmpty {
+                        Section("Music") {
+                            ForEach(music) { CollectionRow(collection: $0) }
+                                .onDelete { offsets in for index in offsets { store.remove(collectionId: music[index].id) } }
                         }
                     }
                     Section {
@@ -41,7 +49,7 @@ struct DownloadsView: View {
 
     /// Episodes grouped by show, in episode order.
     private var shows: [(title: String, episodes: [LocalDownload])] {
-        let episodes = store.downloads.filter { $0.item.kind == .episode }
+        let episodes = store.videoDownloads.filter { $0.item.kind == .episode }
         return Dictionary(grouping: episodes) { $0.item.seriesTitle ?? "Episodes" }
             .map { ($0.key, $0.value.sorted { ($0.item.seasonNumber ?? 0, $0.item.episodeNumber ?? 0) < ($1.item.seasonNumber ?? 0, $1.item.episodeNumber ?? 0) }) }
             .sorted { $0.title < $1.title }

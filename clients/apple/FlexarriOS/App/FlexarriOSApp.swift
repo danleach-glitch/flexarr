@@ -70,6 +70,7 @@ struct RootView: View {
         // Downloads follow the server and profile signed in; signing out deletes them.
         .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")") {
             model.player.offlineLibrary = downloads
+            model.music.offlineLibrary = downloads
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
         }
         .onChange(of: model.phase) { old, new in

@@ -69,10 +69,15 @@ struct NowPlayingView: View {
                 .foregroundStyle(Color.screen)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-            Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.usher)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
+                    .lineLimit(1)
+                if music.isPlayingOffline {
+                    DownloadedMark()
+                }
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.usher)
         }
     }
 

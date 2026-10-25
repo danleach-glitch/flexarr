@@ -1,11 +1,12 @@
 import FlexarrKit
 import SwiftUI
 
-/// An album: cover, title, artist and year, Play and Shuffle, and the tracklist (split by disc when there's more
-/// than one) with the playing track marked.
+/// An album: cover, title, artist and year, Play, Shuffle and Download, and the tracklist (split by disc when
+/// there's more than one) with the playing track marked and downloaded ones ticked.
 struct AlbumView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(DownloadStore.self) private var downloads
     @State private var page: MusicPageModel
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -76,6 +77,7 @@ struct AlbumView: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
                 .disabled(tracks.count < 2)
+                MusicDownloadButton(source: .album(item, tracks: tracks))
             }
             .disabled(tracks.isEmpty)
         }
@@ -114,7 +116,8 @@ struct AlbumView: View {
                     }
                     ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { offset, track in
                         TrackRow(track: track, number: track.trackNumber ?? offset + 1,
-                                 isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying) {
+                                 isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
+                                 isDownloaded: downloads.isDownloaded(trackId: track.id)) {
                             if model.music.current?.id == track.id {
                                 model.music.togglePlayPause()
                             } else if let index = tracks.firstIndex(of: track) {

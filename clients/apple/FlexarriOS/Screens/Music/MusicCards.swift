@@ -33,9 +33,10 @@ struct SquareArtwork: View {
     }
 }
 
-/// An album: square cover with its title and year (or artist) beneath; tapping opens it.
+/// An album: square cover with its title and year (or artist) beneath, marked when it's downloaded; tapping opens it.
 struct AlbumCard: View {
     @Environment(Router.self) private var router
+    @Environment(DownloadStore.self) private var downloads
     let item: ItemSummary
     var width: CGFloat?
     /// The artist under the title, where the albums are from several; the year on an artist's own page.
@@ -45,6 +46,14 @@ struct AlbumCard: View {
         Button { router.push(.item(item)) } label: {
             VStack(alignment: .leading, spacing: 6) {
                 SquareArtwork(item: item)
+                    .overlay(alignment: .bottomTrailing) {
+                        if downloads.isDownloaded(collectionId: item.id) {
+                            DownloadedMark()
+                                .padding(4)
+                                .background(Circle().fill(Color.room.opacity(0.85)))
+                                .padding(5)
+                        }
+                    }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
                         .font(.footnote.weight(.semibold))
@@ -138,12 +147,15 @@ struct ArtistCard: View {
     }
 }
 
-/// One line of an album's tracklist: number (or a speaker while it plays), title and length.
+/// One line of an album's tracklist: number (or a speaker while it plays), title, a mark if it's downloaded, and length.
 struct TrackRow: View {
     let track: ItemSummary
     let number: Int
     let isCurrent: Bool
     let isPlaying: Bool
+    var isDownloaded = false
+    /// Not playable here (a track of a download that hasn't arrived).
+    var isDimmed = false
     let action: () -> Void
 
     var body: some View {
@@ -167,6 +179,9 @@ struct TrackRow: View {
                     .foregroundStyle(Color.screen)
                     .lineLimit(1)
                 Spacer(minLength: 12)
+                if isDownloaded {
+                    DownloadedMark()
+                }
                 if let duration = track.durationSeconds, duration > 0 {
                     Text(Format.timestamp(duration))
                         .font(.subheadline)
@@ -181,6 +196,7 @@ struct TrackRow: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.screen.opacity(0.1))
                 }
             }
+            .opacity(isDimmed ? 0.45 : 1)
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())

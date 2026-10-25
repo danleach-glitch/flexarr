@@ -64,9 +64,11 @@ struct PlaylistCard: View {
     }
 }
 
-/// A playlist: its picture, name and length, Play and Shuffle, and its tracks in order with the playing one marked.
+/// A playlist: its picture, name and length, Play, Shuffle and Download, and its tracks in order with the playing
+/// one marked and downloaded ones ticked.
 struct PlaylistView: View {
     @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var downloads
     @Environment(\.horizontalSizeClass) private var sizeClass
     let playlist: PlaylistSummary
     @State private var detail: PlaylistDetail?
@@ -91,7 +93,8 @@ struct PlaylistView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                                 TrackRow(track: track, number: index + 1,
-                                         isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying) {
+                                         isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
+                                         isDownloaded: downloads.isDownloaded(trackId: track.id)) {
                                     if model.music.current?.id == track.id {
                                         model.music.togglePlayPause()
                                     } else {
@@ -138,6 +141,7 @@ struct PlaylistView: View {
                 }
                 .buttonStyle(ActionButtonStyle())
                 .disabled(tracks.count < 2)
+                MusicDownloadButton(source: .playlist(summary, tracks: tracks))
             }
             .disabled(tracks.isEmpty)
             .fixedSize()
