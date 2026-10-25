@@ -3,10 +3,11 @@ import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
 import { episodeCode, episodeHeading, progressOf, year } from '../lib/format'
 import { itemLink } from '../lib/links'
+import { getTracks } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
-import { Check, More } from './icons'
+import { Check, More, Play } from './icons'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
 import { WatchedToggle } from './WatchedToggle'
 
@@ -63,7 +64,7 @@ function subtitle(item: ItemSummary): string | null {
  * `playLabel` is for artwork that plays rather than opens; when the artwork opens the same page as the title link,
  * it's left out of the tab order and hidden from screen readers so each card has one link to its page.
  */
-function CardShell({ item, to, className, art, playLabel, onOpen, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; onOpen?: () => void; children?: ReactNode }) {
+function CardShell({ item, to, className, art, playLabel, onOpen, overlay, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; onOpen?: () => void; overlay?: ReactNode; children?: ReactNode }) {
   const [menuAt, setMenuAt] = useState<MenuPoint | null>(null)
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
   const menu = hasMenu(item)
@@ -80,21 +81,26 @@ function CardShell({ item, to, className, art, playLabel, onOpen, children }: { 
           : undefined
       }
     >
-      <Link
-        to={to}
-        className="card-art"
-        onClick={
-          onOpen
-            ? (e) => {
-                e.preventDefault()
-                onOpen()
-              }
-            : undefined
-        }
-        {...(playLabel ? { 'aria-label': playLabel } : children ? { 'aria-hidden': true, tabIndex: -1 } : { 'aria-label': cardLabel(item) })}
-      >
-        {art}
-      </Link>
+      {/* A control over the artwork (an album's play button) sits beside the link, not inside it: the link is hidden
+          from assistive technology when the text beneath links to the same page, and a button inside it would be too. */}
+      <div className="card-art-wrap">
+        <Link
+          to={to}
+          className="card-art"
+          onClick={
+            onOpen
+              ? (e) => {
+                  e.preventDefault()
+                  onOpen()
+                }
+              : undefined
+          }
+          {...(playLabel ? { 'aria-label': playLabel } : children ? { 'aria-hidden': true, tabIndex: -1 } : { 'aria-label': cardLabel(item) })}
+        >
+          {art}
+        </Link>
+        {overlay}
+      </div>
       {children}
       {toggles(item) && !className.includes('top10') && <WatchedToggle key={`${item.id}-${item.userData.watched}`} item={item} />}
       {menu && (
@@ -138,7 +144,9 @@ function EpisodeText({ item }: { item: ItemSummary }) {
  */
 export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = false }: { item: ItemSummary; playLoneEpisode?: boolean }) {
   const play = usePlay()
+  const player = useAudioPlayer()
   const lone = playLoneEpisode && item.kind === 'Series' && item.userData.unwatchedCount === 1
+  const music = item.kind === 'Artist' || item.kind === 'Album'
   return (
     <CardShell
       item={item}
@@ -146,6 +154,23 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
       onOpen={lone ? () => play(item) : undefined}
       playLabel={lone ? `Play the new episode of ${item.title}` : undefined}
       className="poster-card"
+      overlay={
+        music ? (
+          // Hovering the artwork shows a play button, as on Spotify; the artwork itself still opens the page.
+          <button
+            type="button"
+            className="card-play"
+            aria-label={`Play ${item.title}`}
+            onClick={() => {
+              void getTracks(item.id).then((tracks) => {
+                if (tracks.length > 0) player.play(tracks, 0)
+              })
+            }}
+          >
+            <Play />
+          </button>
+        ) : undefined
+      }
       art={
         <div className="card-frame">
           <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape={item.kind === 'Artist' || item.kind === 'Album' ? 'square' : 'poster'} />

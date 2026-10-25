@@ -2057,6 +2057,55 @@ a.download-attention {
   height: 18px;
 }
 
+.card-art-wrap {
+  position: relative;
+}
+
+/* The play button on an artist's or album's artwork, shown on hover or focus, bottom right like Spotify's. */
+.card-play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--screen);
+  color: var(--room);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.card-play svg {
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+}
+
+.card-shell:hover .card-play,
+.card-shell:focus-within .card-play {
+  opacity: 1;
+  transform: none;
+}
+
+.card-play:hover {
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-play {
+    transition: none;
+    transform: none;
+  }
+}
+
 .card-shell:hover .card-menu-button,
 .card-shell:focus-within .card-menu-button,
 .card-menu-button[aria-expanded='true'] {
