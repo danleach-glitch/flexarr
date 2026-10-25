@@ -5,7 +5,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @State private var confirmDeleteDownloads = false
-    @State private var playsFilesDirectly = UserDefaults.standard.bool(forKey: "FlexarrEngine")
+    @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
     @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var status: SystemStatus?
@@ -44,7 +44,7 @@ struct SettingsView: View {
                 Toggle("Play files directly", isOn: $playsFilesDirectly)
                     .tint(.silver)
                     .listRowBackground(Color.seat)
-                    .onChange(of: playsFilesDirectly) { _, on in UserDefaults.standard.set(on, forKey: "FlexarrEngine") }
+                    .onChange(of: playsFilesDirectly) { _, on in PlaybackController.usesEngine = on }
                 if playsFilesDirectly {
                     Toggle("Lossless surround", isOn: $losslessAudio)
                         .tint(.silver)
@@ -55,8 +55,8 @@ struct SettingsView: View {
                 Text("Playback")
             } footer: {
                 Text(playsFilesDirectly
-                    ? "Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar over AirPlay or HDMI; off, they go as Dolby Digital Plus."
-                    : "Plays the file itself on this \(ThisDevice.name), every format with HDR and Dolby Vision as they are, instead of a stream from the server. Downloads and remote viewing are unaffected.")
+                    ? "Files play on this \(ThisDevice.name) as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar over AirPlay or HDMI; off, they go as Dolby Digital Plus."
+                    : "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.")
             }
 
             if let preferences {
