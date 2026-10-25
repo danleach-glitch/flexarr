@@ -14,7 +14,10 @@ struct ProfileAvatar: View {
                 .font(.marquee(size * 0.46, weight: .heavy))
                 .foregroundStyle(Color.room)
             if let url = model.client?.imageURL(profile.image, width: Int(size * 2)) {
+                // Sized before clipping, so a picture that isn't square fills the circle rather than
+                // growing past it (the initial stays underneath for a picture that doesn't arrive).
                 RemoteImage(url: url) { Color.clear }
+                    .frame(width: size, height: size)
                     .clipShape(Circle())
             }
         }
@@ -27,6 +30,7 @@ struct ProfileAvatar: View {
 /// corner afterwards. With two profiles that opens focused on the other one, so switching is a single press.
 struct ProfilePickerView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     /// Opened from the avatar: the profile watching now is marked and the other one gets focus.
     var marksCurrent = false
 
@@ -67,9 +71,10 @@ struct ProfilePickerView: View {
                     }
                     .buttonStyle(ProfileButtonStyle())
                     .focused($focused, equals: profile.id)
-                    // Whoever's watching can't be chosen again, so focus starts on someone else:
-                    // with two profiles, one press switches.
-                    .disabled(switching != nil || (marksCurrent && profile.isCurrent))
+                    // Whoever's watching stays a stop for the remote (disabling it left a two-profile
+                    // household with nowhere to move); choosing them again just closes the picker.
+                    // Focus starts on someone else, so with two profiles one press switches.
+                    .disabled(switching != nil)
                 }
             }
             .defaultFocus($focused, defaultFocus)
@@ -96,7 +101,11 @@ struct ProfilePickerView: View {
 
     private func press(_ profile: Profile) async {
         error = nil
-        if marksCurrent && profile.isCurrent { return }
+        if marksCurrent && profile.isCurrent {
+            // Already watching: nothing to switch, so this is the same as backing out.
+            dismiss()
+            return
+        }
         if profile.hasPin {
             asking = profile
             return
