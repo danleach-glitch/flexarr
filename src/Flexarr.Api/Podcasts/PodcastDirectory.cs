@@ -31,16 +31,23 @@ public sealed partial class PodcastDirectory(HttpClient http, IMemoryCache cache
     public async Task<IReadOnlyList<DirectoryPodcast>> SearchAsync(string term, string country, CancellationToken ct)
     {
         var url = $"https://itunes.apple.com/search?media=podcast&entity=podcast&limit=40&country={Uri.EscapeDataString(country)}&term={Uri.EscapeDataString(term)}";
-        return await CachedAsync($"podcast-search:{country}:{term.ToLowerInvariant()}", TimeSpan.FromMinutes(30), () => LookupResultsAsync(url, ct)).ConfigureAwait(false);
+        return await CachedAsync($"podcast-search:{country}:{term.ToLowerInvariant()}", TimeSpan.FromMinutes(30), false, () => LookupResultsAsync(url, ct)).ConfigureAwait(false);
     }
 
     /// <summary>One show, by its id in Apple's directory; null when Apple doesn't know it.</summary>
     public async Task<DirectoryPodcast?> LookupAsync(long id, string country, CancellationToken ct) =>
         await LookupManyAsync([id], country, ct).ConfigureAwait(false) is [var found, ..] ? found : null;
 
+    /// <summary>How long a chart is kept. <see cref="PodcastChartWarmer"/> fetches each again before then, so nobody waits.</summary>
+    public static readonly TimeSpan ChartsKeptFor = TimeSpan.FromHours(8);
+
     /// <summary>The top shows in a country, overall or in one category, with their feeds.</summary>
-    public Task<IReadOnlyList<DirectoryPodcast>> TopAsync(string country, int? genre, CancellationToken ct) =>
-        CachedAsync($"podcast-top:{country}:{genre}", TimeSpan.FromHours(6), async () =>
+    /// <param name="country">The country's two-letter code.</param>
+    /// <param name="genre">A category from <see cref="Genres"/>, or null for every category.</param>
+    /// <param name="fresh">Fetch it from Apple even when it's kept (to replace it before it runs out).</param>
+    /// <param name="ct">Stops it.</param>
+    public Task<IReadOnlyList<DirectoryPodcast>> TopAsync(string country, int? genre, CancellationToken ct, bool fresh = false) =>
+        CachedAsync($"podcast-top:{country}:{genre}", ChartsKeptFor, fresh, async () =>
         {
             var url = genre is { } g
                 ? $"https://itunes.apple.com/{Uri.EscapeDataString(country)}/rss/toppodcasts/limit=50/genre={g.ToString(CultureInfo.InvariantCulture)}/json"
@@ -101,9 +108,9 @@ public sealed partial class PodcastDirectory(HttpClient http, IMemoryCache cache
         return await JsonDocument.ParseAsync(body, cancellationToken: ct).ConfigureAwait(false);
     }
 
-    private async Task<IReadOnlyList<DirectoryPodcast>> CachedAsync(string key, TimeSpan keep, Func<Task<IReadOnlyList<DirectoryPodcast>>> fetch)
+    private async Task<IReadOnlyList<DirectoryPodcast>> CachedAsync(string key, TimeSpan keep, bool fresh, Func<Task<IReadOnlyList<DirectoryPodcast>>> fetch)
     {
-        if (cache.TryGetValue(key, out IReadOnlyList<DirectoryPodcast>? hit) && hit is not null)
+        if (!fresh && cache.TryGetValue(key, out IReadOnlyList<DirectoryPodcast>? hit) && hit is not null)
         {
             return hit;
         }

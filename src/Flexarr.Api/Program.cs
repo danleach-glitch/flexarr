@@ -97,6 +97,7 @@ builder.Services.AddHttpClient<PodcastDirectory>(c => c.Timeout = TimeSpan.FromS
 builder.Services.AddScoped<PodcastLibrary>();
 builder.Services.AddSingleton<PodcastRefreshQueue>();
 builder.Services.AddHostedService<PodcastRefreshWorker>();
+builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
