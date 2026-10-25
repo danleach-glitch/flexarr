@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.15.1 · 25 October 2026
+
+### Fixed: resuming on Apple TV took ages
+- Picking up where you left off on Apple TV could sit on the loading spinner for half a minute or more, because the stream was got ready from the beginning first, then again from where you'd got to. It now starts from where you left off straight away (a couple of seconds). iPhone and iPad resume faster too.
+
 ## 0.15.0 · 25 October 2026
 
 ### Downloads on iPhone and iPad

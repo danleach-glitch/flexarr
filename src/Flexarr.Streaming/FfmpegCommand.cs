@@ -231,14 +231,23 @@ public static class FfmpegCommand
         ]);
     }
 
-    /// <summary>A full VOD playlist of fixed-length segments, so players can seek anywhere immediately.</summary>
-    public static string MediaPlaylist(double durationSeconds)
+    /// <summary>
+    /// A full VOD playlist of fixed-length segments, so players can seek anywhere immediately. With
+    /// <paramref name="startSeconds"/>, it says where to open (EXT-X-START), so a player resuming partway fetches from
+    /// there rather than from the beginning first.
+    /// </summary>
+    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0)
     {
         var count = SegmentCount(durationSeconds);
         var builder = new System.Text.StringBuilder();
         builder.Append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:")
             .Append(SegmentSeconds + 1)
             .Append("\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+        if (startSeconds > 0 && startSeconds < durationSeconds)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-START:TIME-OFFSET={startSeconds:F3},PRECISE=YES\n");
+        }
+
         for (var i = 0; i < count; i++)
         {
             var length = Math.Min(SegmentSeconds, durationSeconds - (i * SegmentSeconds));

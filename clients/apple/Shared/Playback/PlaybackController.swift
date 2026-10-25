@@ -330,7 +330,9 @@ final class PlaybackController: NSObject {
             guard let player else { return }
             hasPlayed = true
             if let item = player.currentItem { applySubtitles(to: item) }
-            if pendingSeek > 1 {
+            // A stream that says where to open (EXT-X-START) is there already: no second trip to the server.
+            let opened = player.currentTime().seconds
+            if pendingSeek > 1, !(opened.isFinite && abs(opened - pendingSeek) < 2) {
                 let target = CMTime(seconds: pendingSeek, preferredTimescale: 600)
                 pendingSeek = 0
                 player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak player] _ in

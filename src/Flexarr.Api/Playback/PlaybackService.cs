@@ -131,6 +131,11 @@ public sealed class PlaybackService(
         var start = request.StartPositionSeconds
             ?? (state is { Watched: false, PositionSeconds: > MinResumeSeconds } && state.PositionSeconds < duration * WatchedThreshold ? state.PositionSeconds : 0);
 
+        if (transcode is not null)
+        {
+            transcode.StartSeconds = Math.Max(0, start);
+        }
+
         if (request.Prepare && transcode is { } warming)
         {
             // ffmpeg starts with the first segment asked for: ask now for the one playback opens at, so it's ready

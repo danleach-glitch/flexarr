@@ -73,7 +73,10 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// <summary>Counts towards the server's transcode limit: ffmpeg is running, or is about to.</summary>
     public bool IsActive => IsRunning || DateTime.UtcNow - StartedAt < StartingWindow;
 
-    public string MediaPlaylist() => FfmpegCommand.MediaPlaylist(DurationSeconds);
+    /// <summary>Where playback opens (a resume point), written into the playlist.</summary>
+    public double StartSeconds { get; set; }
+
+    public string MediaPlaylist() => FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds);
 
     /// <summary>Returns the path of segment <paramref name="index"/> once it is complete, transcoding it if needed.</summary>
     /// <exception cref="TranscodeLimitException">ffmpeg had stopped, and starting it again would go over the server's limit.</exception>

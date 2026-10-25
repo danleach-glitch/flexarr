@@ -65,6 +65,14 @@ public class FfmpegCommandTests
         Assert.EndsWith("#EXT-X-ENDLIST\n", playlist, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MediaPlaylist_SaysWhereToOpen_OnlyWhenResuming()
+    {
+        Assert.Contains("#EXT-X-START:TIME-OFFSET=395.000,PRECISE=YES\n", FfmpegCommand.MediaPlaylist(2600, 395), StringComparison.Ordinal);
+        Assert.DoesNotContain("EXT-X-START", FfmpegCommand.MediaPlaylist(2600), StringComparison.Ordinal);
+        Assert.DoesNotContain("EXT-X-START", FfmpegCommand.MediaPlaylist(2600, 2700), StringComparison.Ordinal);
+    }
+
     private static TranscodeSettings Settings(HardwareAcceleration hw) => new() { CacheDirectory = "/cache", HardwareAcceleration = hw };
 }
 

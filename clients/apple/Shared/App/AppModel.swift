@@ -55,6 +55,15 @@ final class AppModel {
         #endif
         phase = store.load().map(Phase.signedIn) ?? .signedOut
         player.onSessionEnded = { [weak self] in self?.invalidate() }
+        #if DEBUG
+        // `-FlexarrPlay <id>` plays a title once the app's up (as flexarr://play/<id>, without tvOS asking first).
+        if let id = defaults.string(forKey: "FlexarrPlay") {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                if let url = URL(string: "flexarr://play/\(id)") { open(url: url) }
+            }
+        }
+        #endif
     }
 
     /// The signed-in client. A 401 from it checks whether this device has been signed out on the server.
