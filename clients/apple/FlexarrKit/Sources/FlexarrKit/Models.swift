@@ -773,14 +773,28 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     /// Who asked ("Dan's iPhone"), when known.
     public let sentBy: String?
     public let sentAt: Date
+    /// With `play` and a show as the item: its episodes in a random order.
+    public let shuffle: Bool
 
-    public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date) {
+    public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false) {
         self.id = id
         self.kind = kind
         self.itemId = itemId
         self.fromBeginning = fromBeginning
         self.sentBy = sentBy
         self.sentAt = sentAt
+        self.shuffle = shuffle
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decode(DeviceCommandKind.self, forKey: .kind)
+        itemId = try container.decodeIfPresent(String.self, forKey: .itemId)
+        fromBeginning = try container.decodeIfPresent(Bool.self, forKey: .fromBeginning) ?? false
+        sentBy = try container.decodeIfPresent(String.self, forKey: .sentBy)
+        sentAt = try container.decode(Date.self, forKey: .sentAt)
+        shuffle = try container.decodeIfPresent(Bool.self, forKey: .shuffle) ?? false // servers before 0.23 don't send it
     }
 }
 
@@ -801,6 +815,7 @@ public enum DeviceControl: String, Sendable {
 struct DevicePlayBody: Codable, Sendable {
     let itemId: String
     let fromBeginning: Bool
+    let shuffle: Bool
 }
 
 // MARK: - Subtitles

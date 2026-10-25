@@ -4,10 +4,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Added
+- Siri: "Shuffle Family Guy in Flexarr" plays a show's episodes in a random order, here or on the Apple TV ("… on the living room TV"); also in the Shortcuts app, and for assistants through the play tool's `shuffle` flag.
+
 ### Changed
 - Apple TV: Settings has left the tab bar. The profile picture in the corner now opens a small menu with Switch profile and Settings, so the bar stays short as libraries and Now Playing come and go.
 
 ### Fixed
+- Shows named with a year by TheTVDB and Sonarr ("Archer (2009)") now carry the year in their year field instead of their title, so Siri, search and the shelves say "Archer". Existing titles are put right by a scan with metadata refresh.
 - Apple TV: Now Playing's Up next lists the whole queue in a list that scrolls, instead of six rows with the last cut off at the bottom of the screen.
 
 ## 0.22.0 · 25 October 2026

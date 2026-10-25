@@ -16,10 +16,11 @@ public enum DeviceCommandKind
 /// Something for a device (an Apple TV, an iPhone) to do, asked for from another device, the web app or an assistant:
 /// "play this on the living room TV".
 /// </summary>
-/// <param name="ItemId">With <see cref="DeviceCommandKind.Play"/>, the film, episode or track to start (already resolved: never a show).</param>
+/// <param name="ItemId">With <see cref="DeviceCommandKind.Play"/>, the film, episode or track to start (already resolved: never a show), or with <paramref name="Shuffle"/> the show itself.</param>
 /// <param name="FromBeginning">Start over rather than carry on from where it was left.</param>
 /// <param name="SentBy">Who asked ("Dan's iPhone"), for the device to show.</param>
-public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt)
+/// <param name="Shuffle">The show's episodes in a random order, one after another.</param>
+public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false)
 {
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 }

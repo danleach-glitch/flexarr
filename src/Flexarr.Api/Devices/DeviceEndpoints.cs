@@ -23,7 +23,8 @@ public sealed record DeviceDto(string Id, string Name, bool Online, DateTime Las
 
 /// <param name="ItemId">A film, episode or track to play, or a show, season or album: the next episode (or the first track) is worked out for the device's profile.</param>
 /// <param name="FromBeginning">Start over rather than resume.</param>
-public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false);
+/// <param name="Shuffle">For a show: its episodes in a random order, one after another.</param>
+public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false, bool Shuffle = false);
 
 /// <param name="Delivered">The device took the command. False: Flexarr isn't open on it; the command waits a couple of minutes for it to be.</param>
 /// <param name="Item">For play: what will play (the episode, when a show was asked for).</param>
@@ -152,8 +153,11 @@ public static class DeviceEndpoints
             return new PlayOutcome(null, false, $"\"{item.Title}\" has nothing that can be played.", 409);
         }
 
-        var summary = await db.MediaItems.Where(i => i.Id == target.Id).Summaries(profileId).FirstAsync(ct);
-        var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, target.Id, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow);
+        // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.
+        var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
+        var playing = shuffle ? item.Id : target.Id;
+        var summary = await db.MediaItems.Where(i => i.Id == playing).Summaries(profileId).FirstAsync(ct);
+        var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle);
         var delivered = commands.Send(device.Id, command);
         return new PlayOutcome(new DeviceCommandResultDto(delivered, device.Name, summary), delivered, null, 0);
     }

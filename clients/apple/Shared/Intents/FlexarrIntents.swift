@@ -157,11 +157,12 @@ enum Play {
 
     /// Plays `item` (a film, episode or track, or a show or season for its next episode) on `device`. Here, the app is
     /// opened on `flexarr://play/<id>`; elsewhere, the server is told. Returns what to say.
-    static func start(_ item: ItemSummary, on device: DeviceEntity, fromBeginning: Bool = false, model: AppModel) async throws -> Result {
+    static func start(_ item: ItemSummary, on device: DeviceEntity, fromBeginning: Bool = false, shuffle: Bool = false, model: AppModel) async throws -> Result {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        let shuffling = shuffle && (item.kind == .series || item.kind == .season) // a film just plays
         if device.isHere {
             var playing = item
-            if item.kind == .series || item.kind == .season {
+            if !shuffling, item.kind == .series || item.kind == .season {
                 guard let next = try await client.nextUp(item.id) else { throw FlexarrIntentError.nothingToPlay(item.title) }
                 playing = next
             }
@@ -169,22 +170,26 @@ enum Play {
             components.scheme = "flexarr"
             components.host = "play"
             components.path = "/\(playing.id)"
-            if fromBeginning { components.queryItems = [URLQueryItem(name: "t", value: "0")] }
+            if shuffling {
+                components.queryItems = [URLQueryItem(name: "shuffle", value: "1")]
+            } else if fromBeginning {
+                components.queryItems = [URLQueryItem(name: "t", value: "0")]
+            }
             guard let url = components.url else { throw FlexarrIntentError.nothingToPlay(item.title) }
-            let opened: Result = .result(opensIntent: OpenURLIntent(url), dialog: "Playing \(describe(playing)).")
+            let opened: Result = .result(opensIntent: OpenURLIntent(url), dialog: shuffling ? "Shuffling \(item.title)." : "Playing \(describe(playing)).")
             return opened
         }
         let result: DeviceCommandResult
         do {
-            result = try await client.play(on: device.id, itemId: item.id, fromBeginning: fromBeginning)
+            result = try await client.play(on: device.id, itemId: item.id, fromBeginning: fromBeginning, shuffle: shuffling)
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(device.name)
         } catch FlexarrClientError.http(status: 409, _) {
             throw FlexarrIntentError.nothingToPlay(item.title)
         }
-        let what = result.item.map(describe) ?? item.title
+        let what = shuffling ? item.title : result.item.map(describe) ?? item.title
         return Result.result(dialog: result.delivered
-            ? "Playing \(what) on \(result.deviceName)."
+            ? "\(shuffling ? "Shuffling" : "Playing") \(what) on \(result.deviceName)."
             : "Flexarr isn't open on \(result.deviceName). \(what) will play when you open it in the next two minutes.")
     }
 
@@ -226,6 +231,32 @@ struct PlayTitleIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         let item = try await client.item(title.id).item
         return try await Play.start(item, on: Play.target(device), fromBeginning: fromBeginning, model: model)
+    }
+}
+
+/// "Shuffle Family Guy in Flexarr": a show's episodes in a random order, one after another.
+struct ShuffleTitleIntent: AppIntent {
+    static let title: LocalizedStringResource = "Shuffle a show"
+    static let description = IntentDescription("Plays a show's episodes in a random order: here, or on another device signed in to your Flexarr server.",
+                                               categoryName: "Playback")
+
+    @Parameter(title: "Show", requestValueDialog: "Which show?")
+    var title: TitleEntity
+
+    @Parameter(title: "On")
+    var device: DeviceEntity?
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Shuffle \(\.$title) on \(\.$device)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        let item = try await client.item(title.id).item
+        return try await Play.start(item, on: Play.target(device), shuffle: true, model: model)
     }
 }
 
@@ -372,6 +403,17 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Play a film or show",
             systemImageName: "play.fill"
+        )
+        AppShortcut(
+            intent: ShuffleTitleIntent(),
+            phrases: [
+                "Shuffle \(\.$title) in \(.applicationName)",
+                "Shuffle \(\.$title) with \(.applicationName)",
+                "Shuffle episodes of \(\.$title) in \(.applicationName)",
+                "Play \(\.$title) on shuffle in \(.applicationName)",
+            ],
+            shortTitle: "Shuffle a show",
+            systemImageName: "shuffle"
         )
         AppShortcut(
             intent: ContinueWatchingIntent(),

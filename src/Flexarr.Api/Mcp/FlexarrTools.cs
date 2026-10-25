@@ -98,7 +98,8 @@ public static class FlexarrTools
     [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's or track's id to play that; a show's or season's id plays the episode that device's profile is up to; an album's plays its first track. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
     public static async Task<McpCommandResult> PlayOnDeviceAsync([Description("The device's id, from list_devices")] string deviceId, [Description("The title's id, from search_library or continue_watching")] Guid itemId,
         [Description("Start from the beginning rather than carry on from where it was left")] bool fromBeginning,
-        SignIns signIns, DeviceCommands commands, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct)
+        SignIns signIns, DeviceCommands commands, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct,
+        [Description("For a show: play its episodes in a random order")] bool shuffle = false)
     {
         ArgumentNullException.ThrowIfNull(profile);
         if (!profile.IsTrusted)
@@ -106,7 +107,7 @@ public static class FlexarrTools
             throw new InvalidOperationException("This sign-in may not play on other devices.");
         }
 
-        var outcome = await DeviceEndpoints.PlayAsync(deviceId, new DevicePlayRequest(itemId, fromBeginning), signIns, commands, db, playback, profile, ct);
+        var outcome = await DeviceEndpoints.PlayAsync(deviceId, new DevicePlayRequest(itemId, fromBeginning, shuffle), signIns, commands, db, playback, profile, ct);
         if (outcome.Result is not { } result)
         {
             throw new InvalidOperationException(outcome.Error ?? "Couldn't play that.");

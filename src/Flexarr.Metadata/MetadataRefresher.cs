@@ -2,6 +2,7 @@ using System.Globalization;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Parsing;
 using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
@@ -651,9 +652,12 @@ public sealed partial class MetadataRefresher(
 
     private async Task ApplySeriesAsync(MediaItem item, SonarrSeries series, ArrInstance? instance, CancellationToken ct)
     {
-        item.Title = series.Title;
-        item.SortTitle = SortTitle.For(series.Title);
-        item.Year = series.Year > 0 ? series.Year : item.Year;
+        // TheTVDB tells shows apart with a year in the title ("Archer (2009)"); that's not what anyone says or
+        // searches for, so it goes in the year field.
+        var (title, taggedYear) = TvNameParser.SplitTrailingYear(series.Title);
+        item.Title = title;
+        item.SortTitle = SortTitle.For(title);
+        item.Year = series.Year > 0 ? series.Year : taggedYear ?? item.Year;
         item.Overview = NullIfEmpty(series.Overview);
         item.ContentRating = NullIfEmpty(series.Certification);
         item.Studio = NullIfEmpty(series.Network);

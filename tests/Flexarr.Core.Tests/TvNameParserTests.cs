@@ -141,6 +141,16 @@ public class TvNameParserTests
     public void ParseSeasonFolder_ReadsSeasonFolders(string folder, int? season) =>
         Assert.Equal(season, TvNameParser.ParseSeasonFolder(folder));
 
+    [Fact]
+    public void SplitTrailingYear_TakesTheDisambiguatingYearOffAShowsName()
+    {
+        Assert.Equal(("Archer", 2009), TvNameParser.SplitTrailingYear("Archer (2009)"));
+        Assert.Equal(("Dark Matter", 2024), TvNameParser.SplitTrailingYear("Dark Matter (2024) "));
+        Assert.Equal(("Archer", (int?)null), TvNameParser.SplitTrailingYear("Archer"));
+        Assert.Equal(("1899", (int?)null), TvNameParser.SplitTrailingYear("1899"));
+        Assert.Equal(("Catch-22 (miniseries)", (int?)null), TvNameParser.SplitTrailingYear("Catch-22 (miniseries)"));
+    }
+
     [Theory]
     [InlineData("The Show (2019)", "The Show", 2019)]
     [InlineData("The Show {tvdb-123}", "The Show", null)]

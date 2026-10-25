@@ -361,7 +361,7 @@ final class AppModel {
         switch command.kind {
         case .play:
             guard let client, let id = command.itemId else { return }
-            player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client)
+            player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client, shuffle: command.shuffle)
         case .pause: player.pause()
         case .resume: player.resume()
         case .stop: player.closePlayer()
@@ -391,7 +391,8 @@ final class AppModel {
             let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let start = query.first(where: { $0.name == "t" })?.value.flatMap(Double.init)
             let subtitles = query.first(where: { $0.name == "s" })?.value
-            player.play(itemId: id, preview: nil, startAt: start, client: client, subtitleKey: subtitles)
+            let shuffle = query.first(where: { $0.name == "shuffle" })?.value == "1" // a show's episodes in a random order
+            player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
         default: break
         }
     }

@@ -21,6 +21,20 @@ public static partial class TvNameParser
             : new ParsedSeriesName(name, null, ids);
     }
 
+    /// <summary>
+    /// A title with a year tacked on to tell shows apart, as TheTVDB and Sonarr do ("Archer (2009)"), split into
+    /// the title people say and the year. A title that is only a year ("1899") is left alone.
+    /// </summary>
+    public static (string Title, int? Year) SplitTrailingYear(string title)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+
+        var match = TrailingYear().Match(title.Trim());
+        return match.Success && match.Groups["title"].Value.Trim().Length > 0
+            ? (match.Groups["title"].Value.Trim(), int.Parse(match.Groups["year"].Value, CultureInfo.InvariantCulture))
+            : (title.Trim(), null);
+    }
+
     /// <summary>Season number implied by a folder name: "Season 02" → 2, "Specials" → 0.</summary>
     public static int? ParseSeasonFolder(string folderName)
     {
