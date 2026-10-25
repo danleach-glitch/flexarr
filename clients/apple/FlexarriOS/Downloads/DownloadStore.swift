@@ -119,8 +119,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     private(set) var all: [LocalDownload] = []
     private(set) var collections: [LocalCollection] = []
-    /// Collections whose tracks are still being asked of the server.
-    @ObservationIgnored private var queueing: Set<String> = []
+    /// Collections whose tracks are still being asked of the server (observed, so a collection whose requests were
+    /// cut short shows as failed as soon as they stop).
+    private var queueing: Set<String> = []
     /// The profile watching: whose downloads show. Remembered, so they show with no connection too.
     private(set) var profileId: String? = UserDefaults.standard.string(forKey: "downloads.profile")
     /// The size downloads are made at: Medium unless changed in Settings.
@@ -341,7 +342,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         defer { queueing.remove(collection.id) }
         log.info("Downloading \(collection.title, privacy: .public): \(tracks.count) tracks")
 
-        if let name = collection.imageFileName, !FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path()) {
+        if let name = collection.imageFileName, !FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path(percentEncoded: false)) {
             await fetchImage(at: coverPath, named: name)
         }
         if collection.kind == .album, collection.estimatedBytes == nil,
@@ -416,7 +417,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     private func fetchImage(for item: ItemSummary, id: String) async -> String? {
         if item.kind == .track {
             let name = Self.coverName(forAlbum: item.parentId ?? item.id)
-            if FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path()) { return name }
+            if FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path(percentEncoded: false)) { return name }
             return await fetchImage(at: item.artwork.poster, named: name, width: 600)
         }
         let path = item.kind == .episode ? (item.artwork.thumb ?? item.artwork.backdrop) : (item.artwork.backdrop ?? item.artwork.poster)
@@ -522,7 +523,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// A saved picture, by the name a download or collection holds.
     func image(named name: String?) -> UIImage? {
         guard let name else { return nil }
-        return UIImage(contentsOfFile: Self.folder.appending(path: name).path())
+        return UIImage(contentsOfFile: Self.folder.appending(path: name).path(percentEncoded: false))
     }
 
     // MARK: Saving

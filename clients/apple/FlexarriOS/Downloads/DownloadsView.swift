@@ -72,7 +72,7 @@ private struct DownloadRow: View {
                 Color.seat
                     .frame(width: 112, height: 63)
                     .overlay {
-                        if let name = download.imageFileName, let image = UIImage(contentsOfFile: DownloadStore.folder.appending(path: name).path()) {
+                        if let name = download.imageFileName, let image = UIImage(contentsOfFile: DownloadStore.folder.appending(path: name).path(percentEncoded: false)) {
                             Image(uiImage: image).resizable().scaledToFill()
                         } else {
                             Image(systemName: "film").foregroundStyle(Color.usher)
