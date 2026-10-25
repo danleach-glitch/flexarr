@@ -10,6 +10,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Lyrics: a Lyrics panel under an album's tracklist for the track playing, from .lrc or .txt sidecars or the file's own tags; timed lyrics highlight the line being sung and clicking a line seeks there.
 - Discovery: Recently played, Most played and More from artists you play rows on Home (movable or off in Settings, like any row) and in a music library's Browse view, with New albums; Artist radio, a station of about fifty tracks seeded from an artist and the artists sharing their genres; search finds albums and tracks, with a play button on each track.
 - A play button appears on an artist's or album's artwork on hover, playing their tracks.
+- Near-gapless playback: the next track is loaded into a second player before the current one ends, so the switch takes a few milliseconds; an optional crossfade (2 to 12 seconds) in Settings › Playback.
+- Normalise volume (on by default in Settings › Playback): ReplayGain and Opus R128 tags in the files level the loudness between tracks and albums.
 
 ### Siri: "Play the next episode of Curb Your Enthusiasm in Flexarr"
 - On iPhone and iPad, Siri plays a film or the next episode of a show by name ("play the next *Traitors* in Flexarr", "watch *Heat* in Flexarr"), picks up Continue Watching ("continue watching in Flexarr"), pauses, resumes and stops ("pause Flexarr"), and searches ("search for *Fargo* in Flexarr"). The app's name has to be in the phrase. Siri learns your library's titles when the app signs in.
