@@ -24,7 +24,7 @@ struct NowPlayingView: View {
                         controls
                         upNext
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 .padding(.horizontal, Layout.edge + 40)
                 .padding(.top, 130)
@@ -111,9 +111,11 @@ struct NowPlayingView: View {
         .focusSection()
     }
 
+    /// The whole queue, in a list that scrolls within what's left of the screen: an album or a playlist runs well
+    /// past the bottom, and moving down brings the next row into view.
     @ViewBuilder
     private var upNext: some View {
-        let next = Array(music.upNext.prefix(6))
+        let next = music.upNext
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Up next")
@@ -121,13 +123,20 @@ struct NowPlayingView: View {
                     .foregroundStyle(Color.screen)
                     .padding(.leading, 30)
                     .padding(.bottom, 6)
-                ForEach(Array(next.enumerated()), id: \.element.id) { offset, track in
-                    TrackRow(track: track, number: offset + 1, isCurrent: false, isPlaying: false) {
-                        music.skip(to: music.index + 1 + offset)
+                ScrollView(.vertical) {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(next.enumerated()), id: \.offset) { offset, track in
+                            TrackRow(track: track, number: offset + 1, isCurrent: false, isPlaying: false) {
+                                music.skip(to: music.index + 1 + offset)
+                            }
+                        }
                     }
+                    .padding(.horizontal, 20) // room for the focused row's lift, which would otherwise be clipped
+                    .padding(.bottom, 60)
                 }
+                .padding(.horizontal, -20)
             }
-            .frame(maxWidth: 900)
+            .frame(maxWidth: 900, maxHeight: .infinity, alignment: .topLeading)
             .focusSection()
         }
     }

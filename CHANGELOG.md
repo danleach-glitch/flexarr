@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Fixed
+- Apple TV: Now Playing's Up next lists the whole queue in a list that scrolls, instead of six rows with the last cut off at the bottom of the screen.
+
 ## 0.22.0 · 25 October 2026
 
 ### Music on Apple TV, iPhone and iPad
