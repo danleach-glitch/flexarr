@@ -49,7 +49,9 @@ jobs:
 
   apple:
     name: Apple clients
-    runs-on: macos-latest
+    # The Apple apps (and AetherEngine, which they build) need Xcode 27: GitHub's xcode-27 image, not macos-latest
+    # (Xcode 26.6, whose Swift rejects the engine's sources).
+    runs-on: xcode-27
     defaults:
       run:
         working-directory: clients/apple
