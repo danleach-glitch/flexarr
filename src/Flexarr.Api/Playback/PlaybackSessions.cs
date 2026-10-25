@@ -11,6 +11,9 @@ public sealed class PlaybackSession
 
     /// <summary>Whose history progress is recorded against (stream requests carry no profile of their own).</summary>
     public required string ProfileId { get; init; }
+
+    /// <summary>The browser or device sign-in that started it, so "what's playing on the living room TV" can be answered.</summary>
+    public string? SignInId { get; init; }
     public required Guid FileId { get; init; }
     public required string FilePath { get; init; }
     public required string? Container { get; init; }

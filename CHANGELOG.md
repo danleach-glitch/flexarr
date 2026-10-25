@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Play on another device, and an assistant's way in (MCP)
+- An Apple TV, iPhone or iPad with Flexarr open can be told what to play from elsewhere: the server lists the devices signed in (`GET /api/v1/devices`, with whether each is listening and what it's playing) and takes `POST /api/v1/devices/{id}/play` with a title's id (a show's plays the episode that device's profile is up to), and `pause`, `resume` and `stop`. A command to a device that isn't listening waits two minutes for Flexarr to be opened on it.
+- Flexarr is an MCP server at `/api/v1/mcp` (sign in with the API key as `X-Api-Key`, or `?apikey=`): an assistant such as Claude can search the library, see Continue Watching and what's playing on every screen, play a title on a device, pause, resume and stop it, and mark things watched.
+
 ## 0.20.1 · 25 October 2026
 
 ### HDR10, HLG and Dolby Vision 7 and 8 play as they are on Apple TV

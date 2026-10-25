@@ -1,0 +1,171 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Flexarr.Api.Tests;
+
+/// <summary>Playing on another device: the list of devices, commands to them, and the stream a device listens on.</summary>
+public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
+{
+    private static Uri Api(string path) => new($"/api/v1{path}", UriKind.Relative);
+
+    private HttpClient Admin()
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        return client;
+    }
+
+    private async Task<(string Id, HttpClient Client)> DeviceAsync(string name)
+    {
+        var response = await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = name });
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", body.GetProperty("token").GetString()!);
+        return (body.GetProperty("id").GetString()!, client);
+    }
+
+    /// <summary>Opens the device's command stream and reads events off it as they come.</summary>
+    private static async Task<(HttpResponseMessage Response, StreamReader Reader)> ListenAsync(HttpClient device)
+    {
+        var response = await device.GetAsync(Api("/devices/commands"), HttpCompletionOption.ResponseHeadersRead);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
+        var reader = new StreamReader(await response.Content.ReadAsStreamAsync());
+        // The first thing sent is a comment saying the stream is open.
+        Assert.Equal(": connected", await reader.ReadLineAsync());
+        return (response, reader);
+    }
+
+    /// <summary>The next "event: command" on the stream, as JSON.</summary>
+    private static async Task<JsonElement> NextCommandAsync(StreamReader reader)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (true)
+        {
+            var line = await reader.ReadLineAsync(timeout.Token) ?? throw new InvalidOperationException("The stream ended.");
+            if (line == "event: command")
+            {
+                var data = await reader.ReadLineAsync(timeout.Token);
+                Assert.StartsWith("data: ", data, StringComparison.Ordinal);
+                return JsonDocument.Parse(data!["data: ".Length..]).RootElement;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ADevice_IsListedOffline_UntilItListens()
+    {
+        var (id, tv) = await DeviceAsync("Living room");
+
+        var before = await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"));
+        var listed = before.EnumerateArray().Single(d => d.GetProperty("id").GetString() == id);
+        Assert.Equal("Living room", listed.GetProperty("name").GetString());
+        Assert.False(listed.GetProperty("online").GetBoolean());
+
+        var (response, _) = await ListenAsync(tv);
+        var during = await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"));
+        Assert.True(during.EnumerateArray().Single(d => d.GetProperty("id").GetString() == id).GetProperty("online").GetBoolean());
+
+        // The device asking sees itself marked.
+        var mine = await tv.GetFromJsonAsync<JsonElement>(Api("/devices"));
+        Assert.True(mine.EnumerateArray().Single(d => d.GetProperty("id").GetString() == id).GetProperty("isThisOne").GetBoolean());
+        response.Dispose();
+    }
+
+    [Fact]
+    public async Task PlayingAShowOnADevice_SendsTheEpisodeItsProfileIsUpTo()
+    {
+        var show = await SeedAsync("Traitors", ("S01E01", 1, 1), ("S01E02", 1, 2), ("S02E01", 2, 1));
+        await WatchAsync(show.Episodes["S01E01"]);
+        var (id, tv) = await DeviceAsync("Bedroom");
+        var (response, reader) = await ListenAsync(tv);
+
+        var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        var result = await sent.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(result.GetProperty("delivered").GetBoolean());
+        Assert.Equal("Bedroom", result.GetProperty("deviceName").GetString());
+        Assert.Equal("S01E02", result.GetProperty("item").GetProperty("title").GetString());
+
+        var command = await NextCommandAsync(reader);
+        Assert.Equal("Play", command.GetProperty("kind").GetString());
+        Assert.Equal(show.Episodes["S01E02"], command.GetProperty("itemId").GetGuid());
+        Assert.False(command.GetProperty("fromBeginning").GetBoolean());
+
+        var paused = await Admin().PostAsJsonAsync(Api($"/devices/{id}/pause"), new { });
+        Assert.Equal(HttpStatusCode.OK, paused.StatusCode);
+        Assert.Equal("Pause", (await NextCommandAsync(reader)).GetProperty("kind").GetString());
+        response.Dispose();
+    }
+
+    [Fact]
+    public async Task ACommandToADeviceThatIsntListening_WaitsForIt()
+    {
+        var show = await SeedAsync("Curb", ("S01E01", 1, 1));
+        var (id, tv) = await DeviceAsync("Kitchen");
+
+        var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], fromBeginning = true });
+        Assert.Equal(HttpStatusCode.Accepted, sent.StatusCode);
+        Assert.False((await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("delivered").GetBoolean());
+
+        // Flexarr is opened on it: the waiting command arrives at once.
+        var (response, reader) = await ListenAsync(tv);
+        var command = await NextCommandAsync(reader);
+        Assert.Equal(show.Episodes["S01E01"], command.GetProperty("itemId").GetGuid());
+        Assert.True(command.GetProperty("fromBeginning").GetBoolean());
+        response.Dispose();
+    }
+
+    [Fact]
+    public async Task OnlyADevice_CanListen_AndUnknownDevicesArentFound()
+    {
+        var listen = await Admin().GetAsync(Api("/devices/commands"));
+        Assert.Equal(HttpStatusCode.Forbidden, listen.StatusCode);
+
+        var play = await Admin().PostAsJsonAsync(Api("/devices/nosuchdevice/play"), new { itemId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.NotFound, play.StatusCode);
+
+        var (id, _) = await DeviceAsync("Study");
+        var missing = await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    private async Task WatchAsync(Guid episode)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = episode, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow.AddDays(-1) });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<(Guid Series, Dictionary<string, Guid> Episodes)> SeedAsync(string title, params (string Title, int Season, int Number)[] episodes)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+        var series = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = title, SortTitle = title.ToUpperInvariant() };
+        db.AddRange(library, series);
+        var seasons = new Dictionary<int, MediaItem>();
+        var ids = new Dictionary<string, Guid>();
+        foreach (var (name, number, episode) in episodes)
+        {
+            if (!seasons.TryGetValue(number, out var season))
+            {
+                season = seasons[number] = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = $"Season {number}", SortTitle = $"{number:D4}", SeasonNumber = number, Parent = series };
+                db.Add(season);
+            }
+
+            var item = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Episode, Title = name, Parent = season, SeasonNumber = number, EpisodeNumber = episode, SortTitle = $"{episode:D4}" };
+            db.Add(item);
+            ids[name] = item.Id;
+        }
+
+        await db.SaveChangesAsync();
+        return (series.Id, ids);
+    }
+}

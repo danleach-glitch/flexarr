@@ -2,9 +2,11 @@ using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Devices;
 using Flexarr.Api.Downloads;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
+using Flexarr.Api.Mcp;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Playlists;
 using Flexarr.Api.Profiles;
@@ -90,6 +92,27 @@ builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
+builder.Services.AddSingleton<DeviceCommands>();
+// An AI assistant's way in (Claude and the like): the same sign-in as a script, at /api/v1/mcp.
+builder.Services.AddMcpServer(o =>
+{
+    o.ServerInfo = new ModelContextProtocol.Protocol.Implementation
+    {
+        Name = "flexarr",
+        Title = "Flexarr",
+        Version = typeof(Program).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "0.0.0",
+    };
+    o.ServerInstructions = "Flexarr is this household's media server (films, TV, music). Find a title with search_library, then play it on an Apple TV, "
+        + "iPhone or iPad from list_devices with play_on_device; a show's id plays the episode that device's profile is up to. Devices only take "
+        + "commands while Flexarr is open on them.";
+})
+    .WithHttpTransport(o => o.Stateless = true)
+    .WithTools([typeof(FlexarrTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
+        Converters = { new JsonStringEnumConverter() },
+    });
 builder.Services.AddHostedService<BonjourAdvertiser>();
 builder.Services.AddSingleton<FranchiseSync>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FranchiseSync>());
@@ -226,7 +249,10 @@ app.MapGroup("/api/v1")
     .MapRequestEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()
+    .MapDeviceEndpoints()
     .MapSessionEndpoints();
+
+app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
 app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints();

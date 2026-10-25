@@ -128,6 +128,7 @@ public sealed class PlaybackService(
             Id = id,
             ItemId = item.Id,
             ProfileId = profile.Id,
+            SignInId = profile.SignInId,
             FileId = file.Id,
             FilePath = file.Path,
             Container = file.Container,
@@ -367,10 +368,13 @@ public sealed class PlaybackService(
     /// What "Play" on a series should start: an episode in progress, else the one after the last watched,
     /// else the first unwatched (specials last), else the very first.
     /// </summary>
-    public async Task<MediaItem?> NextUpAsync(Guid seriesId, CancellationToken ct)
+    public Task<MediaItem?> NextUpAsync(Guid seriesId, CancellationToken ct) => NextUpAsync(seriesId, profile.Id, ct);
+
+    /// <summary>As <see cref="NextUpAsync(Guid, CancellationToken)"/>, for another profile: what a device would play, when telling it to.</summary>
+    public async Task<MediaItem?> NextUpAsync(Guid seriesId, string profileId, CancellationToken ct)
     {
         var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == seriesId);
-        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profile.Id && p.MediaItem!.Parent!.ParentId == seriesId);
+        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId == seriesId);
 
         var inProgress = await mine.Where(p => !p.Watched && p.PositionSeconds > 0).OrderByDescending(p => p.LastPlayedAt)
             .Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
@@ -379,13 +383,13 @@ public sealed class PlaybackService(
             return inProgress;
         }
 
-        if (UpNext(await EpisodesAsync(db, profile.Id, [seriesId], ct)) is { } next)
+        if (UpNext(await EpisodesAsync(db, profileId, [seriesId], ct)) is { } next)
         {
             return await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct);
         }
 
         var ordered = episodes.OrderBy(e => e.SeasonNumber == 0).ThenBy(e => e.SeasonNumber).ThenBy(e => e.SortTitle);
-        return await ordered.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched), ct)
+        return await ordered.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched), ct)
             ?? await ordered.FirstOrDefaultAsync(ct);
     }
 
