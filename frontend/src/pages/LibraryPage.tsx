@@ -30,19 +30,18 @@ export function LibraryPage() {
   const library = libraries.find((l) => l.id === id)
   if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
 
-  const all = library.type === 'Music' || params.get('view') === 'all' || params.has('sort') || params.has('genre')
+  const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   return all ? <LibraryAll key={id} /> : <LibraryBrowse key={id} library={library} />
 }
 
 function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
-  if (library.type === 'Music') return null
   return (
     <nav className="view-switch" aria-label={`${library.name} views`}>
       <Link to={`/library/${library.id}`} aria-current={all ? undefined : 'page'}>
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={all ? 'page' : undefined}>
-        {library.type === 'Movies' ? 'All films' : 'All shows'}
+        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists' }[library.type]}
       </Link>
     </nav>
   )
@@ -148,6 +147,22 @@ function LibraryBrowse({ library }: { library: Library }) {
         </header>
         <p className="page-message muted">{library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}</p>
       </div>
+    )
+  }
+
+  // A music library has no hero (covers are square); its heading stands on its own above the rows.
+  if (data.featured.length === 0) {
+    return (
+      <>
+        <div className="library-page">
+          <header className="library-header">
+            <div className="library-heading">{heading}</div>
+          </header>
+        </div>
+        <div className="rows no-hero" {...focusReturn}>
+          <HomeRows rows={data.rows} />
+        </div>
+      </>
     )
   }
 

@@ -26,12 +26,13 @@ public static class LayoutEndpoints
 
         group.MapGet("/", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
-            var libraries = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type != LibraryType.Music).OrderBy(l => l.Name).ToListAsync(ct);
+            var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
+            var libraries = all.Where(l => l.Type != LibraryType.Music).ToList();
             var me = profile.Id;
             var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
                 .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
             var layout = options.CurrentValue.Layout;
-            return new LayoutDto(Merge([.. HomeRows(libraries), .. collections], layout.Home), Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows));
+            return new LayoutDto(Merge([.. HomeRows(libraries, all.Any(l => l.Type == LibraryType.Music)), .. collections], layout.Home), Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows));
         });
 
         group.MapPut("/", (LayoutUpdate update, IOptionsMonitor<FlexarrOptions> options) =>
@@ -64,16 +65,25 @@ public static class LayoutEndpoints
 
     private static string Key(string rowId) => rowId.StartsWith("genre-", StringComparison.Ordinal) ? "genres" : rowId;
 
-    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries) =>
+    /// <param name="music">Whether there's a music library: its rows are only offered when there's one to fill them.</param>
+    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool music) =>
     [
         new("continue", "Continue watching", true),
         .. libraries.Select(l => new RowChoiceDto($"recent-{l.Id}", $"Latest unwatched in {l.Name}", true)),
         new("top-movies", "Top 10 films", true),
         new("top-shows", "Top 10 shows", true),
+        .. music ? MusicRows : Array.Empty<RowChoiceDto>(),
         new("because", "Because you watched…", true),
         new("genres", "Genre rows (three, changing daily)", true),
         new("gems", "Highly rated films, not yet watched", true),
         new("upcoming", "Coming soon", true),
+    ];
+
+    private static readonly RowChoiceDto[] MusicRows =
+    [
+        new("music-recent", "Recently played (music)", true),
+        new("music-top", "Most played (music)", true),
+        new("music-artists", "More from artists you play", true),
     ];
 
     private static List<RowChoiceDto> BrowseRows(bool movies) =>

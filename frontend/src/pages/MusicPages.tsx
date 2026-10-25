@@ -1,9 +1,9 @@
 import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
-import { getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
+import { getRadio, getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
-import { Play } from '../components/icons'
+import { Play, Radio } from '../components/icons'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
@@ -77,7 +77,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
   )
 }
 
-/** An artist and their albums, newest first. Play and Shuffle take every track they have. */
+/** An artist and their albums, newest first. Play and Shuffle take every track they have; Radio mixes in artists like them. */
 export function ArtistPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
   const { item, children: albums } = detail
@@ -90,6 +90,17 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
     try {
       const tracks = await getTracks(item.id)
       if (tracks.length > 0) player.play(shuffle ? shuffled(tracks) : tracks, 0)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // A station the server picks: this artist and others sharing their genres, leaning towards what you play.
+  const startRadio = async () => {
+    setLoading(true)
+    try {
+      const tracks = await getRadio(item.id)
+      if (tracks.length > 0) player.play(tracks, 0)
     } finally {
       setLoading(false)
     }
@@ -115,6 +126,9 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
             </button>
             <button className="button quiet" onClick={() => void playAll(true)} disabled={albums.length === 0 || loading}>
               Shuffle
+            </button>
+            <button className="button quiet" onClick={() => void startRadio()} disabled={albums.length === 0 || loading}>
+              <Radio /> Radio
             </button>
           </div>
         </div>

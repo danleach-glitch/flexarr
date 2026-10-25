@@ -15,7 +15,17 @@ public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDi
 
 public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
 
-public sealed record SearchResultsDto(IReadOnlyList<ItemSummaryDto> Titles, IReadOnlyList<ItemSummaryDto> Episodes, IReadOnlyList<SearchPersonDto> People, IReadOnlyList<string> Genres);
+/// <summary>A track that matched a search, with the name of the album it's on (its summary only names the artist).</summary>
+public sealed record SearchTrackDto(ItemSummaryDto Item, string? Album);
+
+/// <summary>Titles are films, shows and artists (everything top-level); albums and tracks come grouped on their own.</summary>
+public sealed record SearchResultsDto(
+    IReadOnlyList<ItemSummaryDto> Titles,
+    IReadOnlyList<ItemSummaryDto> Episodes,
+    IReadOnlyList<SearchPersonDto> People,
+    IReadOnlyList<string> Genres,
+    IReadOnlyList<ItemSummaryDto> Albums,
+    IReadOnlyList<SearchTrackDto> Tracks);
 
 public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
 
@@ -58,6 +68,12 @@ public static partial class DiscoveryEndpoints
                 await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
             rows.Add(new HomeRowDto("top-shows", "Top 10 shows in your library", "top10",
                 await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
+
+            // Music this profile has been playing, when it can see a music library at all.
+            if (libraries.Any(l => l.Type == LibraryType.Music))
+            {
+                rows.AddRange(await MusicDiscovery.RowsAsync(db, me, null, RowSize, ct));
+            }
 
             // "Because you watched": share genres and cast with the latest thing finished.
             var lastWatched = await states.Where(p => p.Watched).OrderByDescending(p => p.LastPlayedAt)
@@ -130,9 +146,20 @@ public static partial class DiscoveryEndpoints
             }
 
             var me = profile.Id;
+            var all = $"/library/{id}?view=all";
+            if (library.Type == LibraryType.Music)
+            {
+                // A music library's home: what you've been playing, then the newest albums. No hero: album covers are
+                // square, and the rows are the point.
+                var musicRows = await MusicDiscovery.RowsAsync(db, me, id, RowSize, ct);
+                musicRows.Add(new HomeRowDto("recent", "New albums", "poster",
+                    await db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album).OrderByDescending(i => i.AddedAt).Take(RowSize).Summaries(me).ToListAsync(ct),
+                    $"{all}&sort=added"));
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), musicRows.Where(r => r.Items.Count > 0).ToList(), [], 0));
+            }
+
             var movies = library.Type == LibraryType.Movies;
             var noun = movies ? "films" : "shows";
-            var all = $"/library/{id}?view=all";
             var topLevel = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
             var unwatched = topLevel.Where(i => !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
             var rows = new List<HomeRowDto>();
@@ -180,12 +207,33 @@ public static partial class DiscoveryEndpoints
         api.MapGet("/items/{id:guid}/similar", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await SimilarAsync(db, id, profile.Id, ct)).WithTags("Discovery");
 
+        // Artist radio: a station of about fifty tracks seeded from an artist (or an album's artist). The same `seed`
+        // gives the same station, so a client can offer "play it again"; without one, every station is new.
+        api.MapGet("/items/{id:guid}/radio", async (Guid id, int? seed, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var item = await db.MediaItems.Where(i => i.Id == id).Select(i => new { i.Kind, i.ParentId }).FirstOrDefaultAsync(ct);
+            var artistId = item switch
+            {
+                { Kind: MediaKind.Artist } => id,
+                { Kind: MediaKind.Album, ParentId: { } artist } => artist,
+                _ => (Guid?)null,
+            };
+            if (artistId is null)
+            {
+                return Results.NotFound();
+            }
+
+            var candidates = await MusicDiscovery.RadioCandidatesAsync(db, artistId.Value, profile.Id, ct);
+            var picks = MusicDiscovery.PickRadio(artistId.Value, candidates, seed ?? Random.Shared.Next());
+            return Results.Ok(await MusicDiscovery.InOrderAsync(db, picks, profile.Id, ct));
+        }).WithTags("Discovery");
+
         api.MapGet("/search", async (string q, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             var term = q.Trim();
             if (term.Length == 0)
             {
-                return new SearchResultsDto([], [], [], []);
+                return new SearchResultsDto([], [], [], [], [], []);
             }
 
             var limit = Math.Clamp(take ?? 12, 1, 50);
@@ -206,7 +254,16 @@ public static partial class DiscoveryEndpoints
                 .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count))
                 .ToListAsync(ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
-            return new SearchResultsDto(titles, episodes, people, genres);
+
+            // Albums and tracks by name; their summaries carry the artist and borrow the album's cover.
+            var albums = await db.MediaItems.Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).Take(8).Summaries(profile.Id).ToListAsync(ct);
+            var trackIds = await db.MediaItems.Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).Take(8)
+                .Select(i => new { i.Id, Album = i.Parent!.Title }).ToListAsync(ct);
+            var trackItems = await MusicDiscovery.InOrderAsync(db, trackIds.Select(t => t.Id), profile.Id, ct);
+            var tracks = trackItems.Select(t => new SearchTrackDto(t, trackIds.First(x => x.Id == t.Id).Album)).ToList();
+            return new SearchResultsDto(titles, episodes, people, genres, albums, tracks);
         }).WithTags("Discovery");
 
         api.MapGet("/genres", async (FlexarrDbContext db, CancellationToken ct) =>

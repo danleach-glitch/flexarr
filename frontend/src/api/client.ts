@@ -370,6 +370,8 @@ export const getItemPage = (id: string, season: string | null, signal?: AbortSig
 export const getSimilar = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/similar`, signal)
 /** Every track of an artist (or album): albums oldest first, then disc and track order. */
 export const getTracks = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary[]>(`/items/${id}/tracks`, signal)
+/** Artist radio: about fifty tracks seeded from the artist. Not cached, so every press is a new station. */
+export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/radio`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
 const deleted = new Set<string>()
