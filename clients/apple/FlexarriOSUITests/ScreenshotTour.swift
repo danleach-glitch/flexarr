@@ -80,12 +80,13 @@ final class ScreenshotTour: XCTestCase {
         // Search last: on iOS 26 it turns the tab bar into its search field.
         tab("Search")
         pause(2)
+        shot("10-search-empty")
         let field = app.searchFields.firstMatch
         if field.waitForExistence(timeout: 3) {
             field.tap()
             field.typeText("the")
             pause(3)
-            shot("10-search")
+            shot("11-search")
         }
     }
 

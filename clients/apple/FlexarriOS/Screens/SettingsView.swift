@@ -52,7 +52,7 @@ struct SettingsView: View {
                 Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
                     .tint(.silver)
                     .listRowBackground(Color.seat)
-                LabeledContent("Space used", value: ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
+                LabeledContent("Space used", value: downloads.bytesUsed == 0 ? "None" : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
                     .listRowBackground(Color.seat)
                 if !downloads.all.isEmpty {
                     Button("Delete all downloads", role: .destructive) { confirmDeleteDownloads = true }

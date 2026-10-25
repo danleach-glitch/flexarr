@@ -51,7 +51,8 @@ struct SearchView: View {
         .scrollDismissesKeyboard(.immediately)
         .background(RoomBackground(ambient: nil))
         .navigationTitle("Search")
-        .searchable(text: $query, prompt: "Movies, shows, episodes and people")
+        // Always showing: left to itself, iOS tucks the field away until the page is pulled down.
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, shows, episodes and people")
         .task(id: query) {
             // Debounce typing so each keystroke doesn't hit the server.
             try? await Task.sleep(for: .milliseconds(300))

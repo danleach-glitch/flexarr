@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.15.3 · 25 October 2026
+
+### Fixed on iPhone and iPad
+- Search shows its search field straight away, without pulling the page down first.
+
 ## 0.15.2 · 25 October 2026
 
 ### Changed on iPhone and iPad
