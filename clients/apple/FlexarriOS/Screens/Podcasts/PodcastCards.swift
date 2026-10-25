@@ -1,0 +1,337 @@
+import FlexarrKit
+import SwiftUI
+
+/// A show's square artwork, from the server's image cache, with its name on a gradient until it arrives.
+struct PodcastArtwork: View {
+    @Environment(AppModel.self) private var model
+    let path: String?
+    var title = ""
+    var accent: String?
+    var imageWidth = 500
+    var cornerRadius: CGFloat = 8
+
+    var body: some View {
+        Color.seat
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                RemoteImage(url: model.client?.imageURL(path, width: imageWidth)) {
+                    ZStack {
+                        LinearGradient(colors: [podcastGlow(accent).opacity(0.4), Color.seat], startPoint: .top, endPoint: .bottom)
+                        Text(title)
+                            .font(.marquee(15, weight: .bold))
+                            .foregroundStyle(Color.screen.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(8)
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+/// A show's ambient colour, lifted to read as a glow on the room background.
+func podcastGlow(_ accent: String?) -> Color {
+    Color(rgb: (RGB(hex: accent) ?? .silver).glow)
+}
+
+/// A followed show: its artwork, name and how many episodes wait; tapping opens it.
+struct PodcastCard: View {
+    @Environment(Router.self) private var router
+    let podcast: Podcast
+
+    var body: some View {
+        Button { router.push(.item(podcast.summary)) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                PodcastArtwork(path: podcast.artwork.poster, title: podcast.title, accent: podcast.accentColor)
+                    .overlay(alignment: .topTrailing) {
+                        if podcast.unplayedCount > 0, podcast.isSubscribed {
+                            Text(podcast.unplayedCount > 99 ? "99+" : String(podcast.unplayedCount))
+                                .font(.caption2.weight(.bold))
+                                .monospacedDigit()
+                                .foregroundStyle(Color.room)
+                                .padding(.horizontal, 6)
+                                .frame(minWidth: 22, minHeight: 22)
+                                .background(Capsule().fill(Color.screen))
+                                .padding(6)
+                        }
+                    }
+                Text(podcast.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CardButtonStyle())
+        .accessibilityLabel("\(podcast.title), \(podcast.countLine)")
+    }
+}
+
+/// A show from Apple's directory: artwork, name and who makes it; tapping adds it to the library and opens it.
+struct DirectoryCard: View {
+    let show: DirectoryPodcast
+    var isAdding = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                PodcastArtwork(path: show.artwork, title: show.title)
+                    .overlay {
+                        if isAdding {
+                            ZStack {
+                                Color.black.opacity(0.45)
+                                ProgressView().tint(Color.screen)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if show.subscribed {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.title3)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(Color.room, Color.screen)
+                                .padding(6)
+                                .accessibilityLabel("Following")
+                        }
+                    }
+                Text(show.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if let author = show.author {
+                    Text(author)
+                        .font(.caption)
+                        .foregroundStyle(Color.usher)
+                        .lineLimit(1)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CardButtonStyle())
+        .disabled(!show.hasFeed)
+        .opacity(show.hasFeed ? 1 : 0.5)
+    }
+}
+
+/// An episode in a list: when it came out, its title and the start of its notes, then Play (with how far it's got),
+/// how long is left, and its download. Tapping the row opens the whole notes.
+struct PodcastEpisodeRow: View {
+    @Environment(AppModel.self) private var model
+    let episode: PodcastEpisode
+    /// Lists of several shows' episodes name the show and show its artwork.
+    var showsPodcast = false
+    @State private var showingNotes = false
+
+    private var isCurrent: Bool { model.music.current?.id == episode.id }
+
+    var body: some View {
+        Button { showingNotes = true } label: {
+            HStack(alignment: .top, spacing: 12) {
+                if showsPodcast {
+                    PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
+                                   imageWidth: 185, cornerRadius: 6)
+                        .frame(width: 56, height: 56)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text([showsPodcast ? episode.podcastTitle : nil, episode.dateLine].compactMap { $0 }.joined(separator: "  "))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.usher)
+                        .lineLimit(1)
+                    Text(episode.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(episode.isPlayed ? Color.usher : Color.screen)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    if let overview = episode.overview {
+                        Text(overview)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.usher)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    HStack(spacing: 12) {
+                        EpisodePlayButton(episode: episode)
+                        if let time = episode.timeLine {
+                            Text(time)
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(Color.usher)
+                        }
+                        Spacer(minLength: 0)
+                        EpisodeDownloadButton(episode: episode)
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingNotes) {
+            EpisodeSheet(episode: episode)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Color.room)
+        }
+    }
+}
+
+/// Play (or pause, for the one playing), ringed with how far the episode has got.
+struct EpisodePlayButton: View {
+    @Environment(AppModel.self) private var model
+    let episode: PodcastEpisode
+
+    var body: some View {
+        let current = model.music.current?.id == episode.id
+        let playing = current && model.music.isPlaying
+        let fraction = current && model.music.duration > 0 ? model.music.position / model.music.duration : episode.progress ?? 0
+        Button {
+            if current { model.music.togglePlayPause() } else { model.playEpisode(episode.summary) }
+        } label: {
+            ZStack {
+                Circle().stroke(Color.screen.opacity(0.25), lineWidth: 2)
+                if fraction > 0 {
+                    Circle().trim(from: 0, to: fraction).stroke(Color.screen, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                Image(systemName: playing ? "pause.fill" : "play.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.screen)
+            }
+            .frame(width: 30, height: 30)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(playing ? "Pause" : "Play \(episode.title)")
+    }
+}
+
+/// An episode's download: an arrow, a ring while it comes, a tick once it's here. Tapping a tick offers to remove it.
+/// Downloads asked for here use mobile data too; the ones the phone fetches by itself wait for Wi-Fi.
+struct EpisodeDownloadButton: View {
+    @Environment(DownloadStore.self) private var store
+    let episode: PodcastEpisode
+    @State private var removing = false
+    @State private var error: String?
+
+    var body: some View {
+        let download = store.entry(for: episode.id)
+        Button {
+            switch download?.state {
+            case nil, .failed: Task { await start() }
+            default: removing = true
+            }
+        } label: {
+            ZStack {
+                switch download?.state {
+                case .downloading(let fraction):
+                    Circle().stroke(Color.screen.opacity(0.25), lineWidth: 2)
+                    Circle().trim(from: 0, to: max(0.02, fraction)).stroke(Color.screen, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: "stop.fill").font(.system(size: 8, weight: .bold))
+                case .preparing:
+                    ProgressView().controlSize(.mini).tint(Color.screen)
+                case .downloaded:
+                    Image(systemName: "arrow.down.circle.fill").font(.title3)
+                case .failed:
+                    Image(systemName: "exclamationmark.arrow.circlepath").font(.body.weight(.semibold))
+                case nil:
+                    Image(systemName: "arrow.down.circle").font(.title3)
+                }
+            }
+            .foregroundStyle(download?.isDownloaded == true ? Color.silver : Color.screen)
+            .frame(width: 30, height: 30)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(download?.isDownloaded == true ? "Downloaded" : download == nil ? "Download" : "Downloading")
+        .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
+            Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
+                if let download { store.remove(download.id) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(error ?? "")
+        }
+    }
+
+    private func start() async {
+        do {
+            try await store.download(itemId: episode.id, quality: .original)
+        } catch {
+            self.error = ConnectionError(error).message
+        }
+    }
+}
+
+/// An episode's whole notes, with Play, its download and Mark as played.
+struct EpisodeSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let episode: PodcastEpisode
+    @State private var full: PodcastEpisode?
+    @State private var played: Bool?
+
+    private var shown: PodcastEpisode { full ?? episode }
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 14) {
+                    PodcastArtwork(path: shown.artwork.thumb ?? shown.artwork.poster, title: shown.podcastTitle, accent: shown.accentColor, imageWidth: 342)
+                        .frame(width: 88, height: 88)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(shown.podcastTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.usher)
+                        Text(shown.title)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Color.screen)
+                        FactsLine(facts: [shown.dateLine, shown.timeLine, shown.explicit ? "Explicit" : nil].compactMap { $0 })
+                            .font(.caption)
+                    }
+                }
+                HStack(spacing: 12) {
+                    Button {
+                        model.playEpisode(shown.summary)
+                        dismiss()
+                    } label: {
+                        Label(shown.progress != nil ? "Resume" : "Play", systemImage: "play.fill")
+                    }
+                    .buttonStyle(ActionButtonStyle(ambient: podcastGlow(shown.accentColor), prominent: true))
+                    let isPlayed = played ?? shown.isPlayed
+                    Button {
+                        Task {
+                            await model.setWatched(shown.summary, !isPlayed)
+                            played = !isPlayed
+                        }
+                    } label: {
+                        Label(isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: isPlayed ? "circle" : "checkmark.circle")
+                    }
+                    .buttonStyle(RoundActionStyle())
+                    EpisodeDownloadButton(episode: shown)
+                        .frame(width: 48, height: 48)
+                        .background(Circle().fill(Color.screen.opacity(0.14)))
+                }
+                if let notes = shown.overview {
+                    Text(notes)
+                        .font(.body)
+                        .foregroundStyle(Color.screen.opacity(0.9))
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(Layout.edge)
+            .padding(.top, 12)
+        }
+        .task {
+            guard let client = model.client else { return }
+            full = try? await client.podcastEpisode(episode.id)
+        }
+    }
+}

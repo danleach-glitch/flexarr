@@ -1,8 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
-/// The music that's playing, in a bar above the tab bar while there is any: cover, track, artist, a play/pause button
-/// and a thin progress line. Tapping it opens Now Playing.
+/// The music (or podcast) that's playing, in a bar above the tab bar while there is any: cover, track, artist, a
+/// play/pause button, next (a podcast's forward 30) and a thin progress line. Tapping it opens Now Playing.
 struct NowPlayingBar: View {
     @Environment(AppModel.self) private var model
     @State private var showingNowPlaying = false
@@ -48,13 +48,21 @@ struct NowPlayingBar: View {
                     .buttonStyle(RoundActionStyle())
                     .frame(width: 40, height: 40)
                 }
-                Button { music.next() } label: {
-                    Label("Next", systemImage: "forward.fill")
+                if music.isPodcast {
+                    Button { music.skip(by: 30) } label: {
+                        Label("Forward 30 seconds", systemImage: "goforward.30")
+                    }
+                    .buttonStyle(RoundActionStyle())
+                    .frame(width: 40, height: 40)
+                } else {
+                    Button { music.next() } label: {
+                        Label("Next", systemImage: "forward.fill")
+                    }
+                    .buttonStyle(RoundActionStyle())
+                    .frame(width: 40, height: 40)
+                    .disabled(!music.hasNext)
+                    .opacity(music.hasNext ? 1 : 0.4)
                 }
-                .buttonStyle(RoundActionStyle())
-                .frame(width: 40, height: 40)
-                .disabled(!music.hasNext)
-                .opacity(music.hasNext ? 1 : 0.4)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

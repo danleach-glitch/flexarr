@@ -15,6 +15,10 @@ final class AppModel {
     private(set) var phase: Phase
     private(set) var libraries: [Library] = []
     private(set) var librariesError: String?
+    /// Whether this profile has podcasts; nil for servers before them.
+    private(set) var podcastStatus: PodcastStatus?
+    /// The speed each followed show plays at, when it has its own (by podcast id), as last loaded.
+    var podcastSpeeds: [String: Double] = [:]
     private(set) var profiles: [Profile] = []
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
@@ -282,6 +286,7 @@ final class AppModel {
         } catch {
             librariesError = ConnectionError(error).message
         }
+        podcastStatus = try? await client.podcastStatus()
     }
 
     func invalidate() {
@@ -317,9 +322,26 @@ final class AppModel {
             }
         case .track:
             playTracks([item])
+        case .podcastEpisode:
+            playEpisode(item)
+        case .podcast:
+            router.push(.item(item))
         default:
             play(item)
         }
+    }
+
+    // MARK: Podcasts
+
+    /// Plays a podcast episode from where it was left, at its show's speed (or the last one chosen).
+    func playEpisode(_ episode: ItemSummary, speed: Double? = nil) {
+        guard let client else { return }
+        music.playPodcast(episode, speed: speed ?? episode.seriesId.flatMap { podcastSpeeds[$0] }, client: client)
+    }
+
+    /// Remembers the shows' own speeds from a list of them.
+    func noteSpeeds(of podcasts: [Podcast]) {
+        for podcast in podcasts { podcastSpeeds[podcast.id] = podcast.subscription?.playbackSpeed }
     }
 
     // MARK: Music
@@ -456,6 +478,8 @@ enum Route: Hashable {
     case person(id: String, name: String)
     case library(Library, LibrarySort)
     case playlist(PlaylistSummary)
+    /// The shows followed and their newest episodes (iPhone and iPad).
+    case podcasts
 }
 
 /// One navigation stack per tab.

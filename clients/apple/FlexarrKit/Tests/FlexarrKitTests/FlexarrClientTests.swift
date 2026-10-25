@@ -59,7 +59,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
-private func stubbedClient(_ stub: StubProtocol.Stub, apiKey: String? = "secret") -> (FlexarrClient, String) {
+func stubbedClient(_ stub: StubProtocol.Stub, apiKey: String? = "secret") -> (FlexarrClient, String) {
     let host = "test-\(UUID().uuidString.lowercased()).local"
     StubProtocol.register(host: host, stub)
     let configuration = URLSessionConfiguration.ephemeral

@@ -106,8 +106,10 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
-        # Playing on in Picture in Picture and with the screen locked.
-        UIBackgroundModes: [audio]
+        # Playing on in Picture in Picture and with the screen locked; fetch is the podcast refresh, which keeps
+        # the newest episodes of followed shows on the phone.
+        UIBackgroundModes: [audio, fetch]
+        BGTaskSchedulerPermittedIdentifiers: [io.github.flexarr.podcasts]
         UIUserInterfaceStyle: Dark
         # Self-hosted servers are usually plain HTTP on the LAN.
         NSAppTransportSecurity:

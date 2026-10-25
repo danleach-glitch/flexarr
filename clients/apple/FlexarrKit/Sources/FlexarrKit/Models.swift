@@ -20,12 +20,13 @@ extension ForwardCompatibleEnum {
 }
 
 public enum LibraryType: String, ForwardCompatibleEnum {
-    case movies = "Movies", tvShows = "TvShows", music = "Music", unknown
+    case movies = "Movies", tvShows = "TvShows", music = "Music", podcasts = "Podcasts", unknown
 }
 
 public enum MediaKind: String, ForwardCompatibleEnum {
     case movie = "Movie", series = "Series", season = "Season", episode = "Episode"
-    case artist = "Artist", album = "Album", track = "Track", unknown
+    case artist = "Artist", album = "Album", track = "Track"
+    case podcast = "Podcast", podcastEpisode = "PodcastEpisode", unknown
 
     /// An artist, album or track: listened to, not watched, so the music screens and player take it.
     public var isMusic: Bool {
@@ -34,6 +35,9 @@ public enum MediaKind: String, ForwardCompatibleEnum {
         default: false
         }
     }
+
+    /// A podcast or one of its episodes: these have screens and a player of their own (see `Podcast`).
+    public var isPodcast: Bool { self == .podcast || self == .podcastEpisode }
 }
 
 public enum VideoRange: String, ForwardCompatibleEnum {

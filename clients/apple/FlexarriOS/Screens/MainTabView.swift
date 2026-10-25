@@ -84,6 +84,8 @@ struct TabStack<Content: View>: View {
         switch route {
         case .item(let item) where item.kind.isMusic:
             MusicDestination(item: item)
+        case .item(let item) where item.kind == .podcast:
+            PodcastView(id: item.id, preview: item)
         case .item(let item):
             DetailView(id: item.id, preview: item)
         case .itemID(let id):
@@ -92,15 +94,19 @@ struct TabStack<Content: View>: View {
             PersonView(id: id, name: name)
         case .library(let library, _) where library.type == .music:
             MusicLibraryView(library: library)
+        case .library(let library, _) where library.type == .podcasts:
+            PodcastsView()
         case .library(let library, let sort):
             LibraryView(library: library, initialSort: sort)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
+        case .podcasts:
+            PodcastsView()
         }
     }
 }
 
-/// The libraries this profile can see, each opening its poster grid.
+/// The libraries this profile can see, each opening its poster grid, and Podcasts.
 struct LibrariesView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -114,25 +120,16 @@ struct LibrariesView: View {
                     StatusView(state: .loading)
                 }
             } else {
-                List(model.libraries) { library in
-                    Button { router.push(.library(library, .title)) } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : "film")
-                                .font(.title3)
-                                .foregroundStyle(Color.silver)
-                                .frame(width: 32)
-                            Text(library.name)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(Color.screen)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(Color.usher)
+                List {
+                    ForEach(model.libraries.filter { $0.type != .podcasts }) { library in
+                        row(library.name, icon: library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : "film") {
+                            router.push(.library(library, .title))
                         }
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
                     }
-                    .listRowBackground(Color.seat)
+                    // Podcasts are one place however many libraries hold them, and say how to set them up when none does.
+                    if model.podcastStatus != nil {
+                        row("Podcasts", icon: "mic.fill") { router.push(.podcasts) }
+                    }
                 }
                 .scrollContentBackground(.hidden)
                 .refreshable { await model.loadLibraries() }
@@ -140,5 +137,26 @@ struct LibrariesView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle("Libraries")
+    }
+
+    private func row(_ name: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(Color.silver)
+                    .frame(width: 32)
+                Text(name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .listRowBackground(Color.seat)
     }
 }

@@ -3,7 +3,8 @@ import SwiftUI
 
 /// The music that's playing, as a sheet: the cover, the track's name, a scrubber, the transport controls, AirPlay,
 /// and what comes next. A Lyrics button, there when the track has any, swaps the cover and queue for the words,
-/// which follow the song.
+/// which follow the song. A podcast episode gets a podcast's controls instead: back 15 seconds and forward 30, its
+/// speed and a sleep timer.
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -44,7 +45,7 @@ struct NowPlayingView: View {
                 StatusView(state: .empty("Nothing is playing."))
             }
         }
-        .task(id: music.current?.id) { await lyrics.load(music.current, client: model.client) }
+        .task(id: music.current?.id) { await lyrics.load(music.isPodcast ? nil : music.current, client: model.client) }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
     }
 
@@ -151,7 +152,37 @@ struct NowPlayingView: View {
         }
     }
 
+    @ViewBuilder
     private var controls: some View {
+        if music.isPodcast { podcastControls } else { musicControls }
+    }
+
+    private var podcastControls: some View {
+        HStack(spacing: 0) {
+            Spacer()
+            Button { music.skip(by: -15) } label: { Label("Back 15 seconds", systemImage: "gobackward.15") }
+                .buttonStyle(TransportStyle(size: 56))
+            Spacer()
+            playButton
+            Spacer()
+            Button { music.skip(by: 30) } label: { Label("Forward 30 seconds", systemImage: "goforward.30") }
+                .buttonStyle(TransportStyle(size: 56))
+            Spacer()
+        }
+    }
+
+    private var playButton: some View {
+        Button { music.togglePlayPause() } label: {
+            if music.isLoading {
+                ProgressView().tint(Color.screen)
+            } else {
+                Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
+            }
+        }
+        .buttonStyle(TransportStyle(size: 76, filled: true))
+    }
+
+    private var musicControls: some View {
         HStack(spacing: 0) {
             Button { music.toggleShuffle() } label: { Label("Shuffle", systemImage: "shuffle") }
                 .buttonStyle(TransportStyle(size: 44, active: music.isShuffled))
@@ -159,14 +190,7 @@ struct NowPlayingView: View {
             Button { music.previous() } label: { Label("Previous", systemImage: "backward.fill") }
                 .buttonStyle(TransportStyle(size: 56))
             Spacer()
-            Button { music.togglePlayPause() } label: {
-                if music.isLoading {
-                    ProgressView().tint(Color.screen)
-                } else {
-                    Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
-                }
-            }
-            .buttonStyle(TransportStyle(size: 76, filled: true))
+            playButton
             Spacer()
             Button { music.next() } label: { Label("Next", systemImage: "forward.fill") }
                 .buttonStyle(TransportStyle(size: 56))
@@ -179,17 +203,60 @@ struct NowPlayingView: View {
         }
     }
 
-    /// AirPlay, and Lyrics when the track has some.
+    /// AirPlay, and Lyrics when the track has some; a podcast's speed and sleep timer.
     private var extras: some View {
         HStack(spacing: 36) {
             Spacer()
+            if music.isPodcast { speedMenu }
             RoutePicker().frame(width: 44, height: 44)
+            if music.isPodcast { sleepMenu }
             if lyrics.lyrics != nil {
                 Button { showingLyrics.toggle() } label: { Label("Lyrics", systemImage: "quote.bubble") }
                     .buttonStyle(TransportStyle(size: 44, active: showingLyrics))
             }
             Spacer()
         }
+    }
+
+    private var speedMenu: some View {
+        Menu {
+            Picker("Speed", selection: Binding(get: { music.speed }, set: { music.setSpeed($0) })) {
+                ForEach(MusicPlayer.speeds, id: \.self) { Text(speedLabel($0)).tag($0) }
+            }
+        } label: {
+            Text(speedLabel(music.speed))
+                .font(.subheadline.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(music.speed == 1 ? Color.screen : Color.silver)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel("Speed, \(speedLabel(music.speed))")
+    }
+
+    private var sleepMenu: some View {
+        Menu {
+            Picker("Sleep timer", selection: Binding(get: { music.sleepTimer }, set: { music.setSleepTimer($0) })) {
+                Text("Off").tag(MusicPlayer.SleepTimer?.none)
+                ForEach([15, 30, 45, 60], id: \.self) { Text("\($0) minutes").tag(MusicPlayer.SleepTimer?.some(.minutes($0))) }
+                Text("End of episode").tag(MusicPlayer.SleepTimer?.some(.endOfEpisode))
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: music.sleepTimer == nil ? "moon.zzz" : "moon.zzz.fill")
+                if let end = music.sleepEndsAt {
+                    // Minutes left, counting down.
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(Format.timestamp(max(0, end.timeIntervalSince(context.date))))
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(music.sleepTimer == nil ? Color.screen : Color.silver)
+            .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel(music.sleepTimer == nil ? "Sleep timer" : "Sleep timer on")
     }
 
     @ViewBuilder

@@ -25,7 +25,8 @@ struct MainTabView: View {
             } label: {
                 Text("Home")
             }
-            ForEach(model.libraries) { library in
+            // Podcasts are on iPhone, iPad and the web, not here.
+            ForEach(model.libraries.filter { $0.type != .podcasts }) { library in
                 Tab(value: TabID.library(library.id)) {
                     TabStack {
                         if library.type == .music {
@@ -261,6 +262,9 @@ struct TabStack<Content: View>: View {
             LibraryView(library: library, initialSort: sort)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
+        case .podcasts:
+            // Podcasts are on iPhone, iPad and the web; nothing on the Apple TV goes here.
+            EmptyView()
         }
     }
 }

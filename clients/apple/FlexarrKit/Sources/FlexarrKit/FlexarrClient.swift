@@ -395,11 +395,11 @@ public struct FlexarrClient: Sendable {
         return try decode(T.self, from: data)
     }
 
-    private func send<Body: Encodable>(_ method: String, _ path: String, body: Body) async throws -> Data {
+    func send<Body: Encodable>(_ method: String, _ path: String, body: Body) async throws -> Data {
         try await send(method, path, bodyData: JSONEncoder().encode(body))
     }
 
-    private func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil) async throws -> Data {
+    func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil) async throws -> Data {
         let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData)
 
         switch http.statusCode {
@@ -549,7 +549,7 @@ public struct FlexarrClient: Sendable {
         }
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
             return try Self.decoder.decode(T.self, from: data)
         } catch {

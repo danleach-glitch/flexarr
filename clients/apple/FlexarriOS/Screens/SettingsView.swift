@@ -102,6 +102,9 @@ struct SettingsView: View {
                 Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
                     .tint(.silver)
                     .listRowBackground(Color.seat)
+                Toggle("Auto-download new episodes", isOn: Binding(get: { downloads.autoDownloadsPodcasts }, set: { downloads.autoDownloadsPodcasts = $0 }))
+                    .tint(.silver)
+                    .listRowBackground(Color.seat)
                 LabeledContent("Space used", value: downloads.bytesUsed == 0 ? "None" : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
                     .listRowBackground(Color.seat)
                 if !downloads.all.isEmpty {
@@ -112,7 +115,7 @@ struct SettingsView: View {
             } header: {
                 Text("Downloads")
             } footer: {
-                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them. Albums and playlists always come as their files are.")
+                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Auto-download keeps the newest episodes of podcasts you follow, on Wi-Fi; each show can turn it off or keep more. Episodes are deleted a day after you finish them. Albums, playlists and podcasts always come as their files are.")
             }
 
             Section {

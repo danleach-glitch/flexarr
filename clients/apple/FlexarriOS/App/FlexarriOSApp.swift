@@ -1,13 +1,51 @@
 import AppIntents
+import BackgroundTasks
+import FlexarrKit
 import SwiftUI
 
-/// Owns the downloads, so the system can hand back ones that finished while the app was closed.
+/// Owns the downloads, so the system can hand back ones that finished while the app was closed, and wakes now and
+/// then to fetch new episodes of the podcasts this phone keeps.
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    static let podcastRefresh = "io.github.flexarr.podcasts"
+
     let downloads = DownloadStore()
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.podcastRefresh, using: .main) { [weak self] task in
+            MainActor.assumeIsolated { self?.refreshPodcasts(Refresh(task: task)) }
+        }
+        return true
+    }
 
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
         if identifier == DownloadStore.sessionIdentifier { downloads.backgroundCompletion = completionHandler }
+    }
+
+    /// Asks to be woken in an hour or so (the system decides when, by how the phone is used).
+    static func schedulePodcastRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: podcastRefresh)
+        request.earliestBeginDate = Date().addingTimeInterval(60 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    /// The system's task, carried to the main actor (it's only touched there).
+    private struct Refresh: @unchecked Sendable {
+        let task: BGTask
+    }
+
+    @MainActor
+    private func refreshPodcasts(_ refresh: Refresh) {
+        Self.schedulePodcastRefresh()
+        let work = Task { @MainActor in
+            // Woken with no screen yet: sign in from the saved credentials, as the app would.
+            if !downloads.isAttached, let credentials = CredentialStore().load() {
+                downloads.attach(client: credentials.client(), profileId: nil)
+            }
+            await downloads.catchUp()
+            refresh.task.setTaskCompleted(success: !Task.isCancelled)
+        }
+        refresh.task.expirationHandler = { work.cancel() }
     }
 }
 
@@ -75,6 +113,11 @@ struct RootView: View {
         }
         .onChange(of: model.phase) { old, new in
             if case .signedIn = old, new == .signedOut { downloads.deleteAll() }
+        }
+        // Back in front: new podcast episodes, and anything else that's due. Leaving: a wake-up for later.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, model.credentials != nil { Task { await downloads.catchUp() } }
+            if phase == .background, model.credentials != nil { AppDelegate.schedulePodcastRefresh() }
         }
         // While in front and signed in, another device (or Siri on one) can play here.
         .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {
