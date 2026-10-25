@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { askForProfile, selectProfile, signOut } from '../api/client'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
 import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Search, Stack } from './icons'
@@ -44,6 +45,9 @@ export function Layout() {
   const location = useLocation()
   // Settings has its own sidebar, so the main one makes way and the bar carries the wordmark home instead.
   const bare = location.pathname.startsWith('/settings')
+  // The page keeps clear of the now-playing bar while it's showing.
+  const music = useAudioPlayer()
+  const nowPlaying = music.current !== undefined || music.onMusicPage
 
   // The profile menu closes on a click anywhere outside it, or Escape.
   const profileAnchor = useRef<HTMLDivElement>(null)
@@ -108,7 +112,7 @@ export function Layout() {
   }, [location.pathname])
 
   return (
-    <div className={['shell', rail && 'rail', bare && 'bare'].filter(Boolean).join(' ')}>
+    <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing'].filter(Boolean).join(' ')}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>

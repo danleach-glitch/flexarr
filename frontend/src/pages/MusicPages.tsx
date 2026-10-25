@@ -1,10 +1,11 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link } from 'react-router'
 import { getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
-import { Play } from '../components/icons'
-import { useAudioPlayer } from '../hooks/audioPlayerContext'
+import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
+import { More, Play } from '../components/icons'
+import { useAudioPlayer, useMusicPage, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
 /** A fair shuffle (Fisher–Yates); sorting by a random comparator isn't one. */
@@ -17,13 +18,52 @@ export function shuffled(tracks: ItemSummary[]): ItemSummary[] {
   return out
 }
 
+/** The queue actions for a set of tracks, as a menu offers them. */
+function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSummary[]> | ItemSummary[]): MenuAction[] {
+  return [
+    { label: 'Play next', run: async () => player.playNext(await tracks()) },
+    { label: 'Add to queue', run: async () => player.enqueue(await tracks()) },
+  ]
+}
+
+/** The ⋯ beside Play and Shuffle, with the queue actions for the whole album or artist. */
+function MoreButton({ label, actions, disabled }: { label: string; actions: MenuAction[]; disabled?: boolean }) {
+  const [at, setAt] = useState<MenuPoint | null>(null)
+  return (
+    <>
+      <button
+        className="button quiet more-button"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={at !== null}
+        disabled={disabled}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect()
+          setAt(at ? null : { x: r.left, y: r.bottom + 6 })
+        }}
+      >
+        <More />
+      </button>
+      {at && <Menu label={label} at={at} actions={actions} onClose={() => setAt(null)} />}
+    </>
+  )
+}
+
 /** An album: cover, facts and its tracklist. Discs are separated when there's more than one. */
 export function AlbumPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
+  useMusicPage()
   const { item, children: tracks } = detail
   const artist = detail.ancestors[0]
   const total = tracks.reduce((sum, t) => sum + (t.durationSeconds ?? 0), 0)
   const discs = new Set(tracks.map((t) => t.discNumber ?? 1)).size
+  // One track's menu at a time: which, and where it opened.
+  const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
+
+  const openMenu = (index: number, at: MenuPoint) => (e: MouseEvent) => {
+    e.preventDefault()
+    setTrackMenu(trackMenu?.index === index ? null : { index, at })
+  }
 
   return (
     <article className="music-page" style={item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined}>
@@ -53,6 +93,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0)} disabled={tracks.length < 2}>
               Shuffle
             </button>
+            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => tracks)} disabled={tracks.length === 0} />
           </div>
         </div>
       </header>
@@ -64,15 +105,37 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
           return (
             <li key={track.id}>
               {newDisc && <h2 className="tracklist-disc">Disc {track.discNumber ?? 1}</h2>}
-              <button className={isCurrent ? 'track current' : 'track'} onClick={() => player.play(tracks, i)} aria-current={isCurrent || undefined}>
-                <span className="track-number">{isCurrent && player.playing ? <Play /> : (track.trackNumber ?? i + 1)}</span>
-                <span className="track-title">{track.title}</span>
-                <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
-              </button>
+              <div className="track-row" onContextMenu={(e) => openMenu(i, { x: e.clientX, y: e.clientY })(e)}>
+                <button className={isCurrent ? 'track current' : 'track'} onClick={() => player.play(tracks, i)} aria-current={isCurrent || undefined}>
+                  <span className="track-number">{isCurrent && player.playing ? <Play /> : (track.trackNumber ?? i + 1)}</span>
+                  <span className="track-title">{track.title}</span>
+                  <span className="track-time">{track.durationSeconds ? formatClock(track.durationSeconds) : ''}</span>
+                </button>
+                <button
+                  className="icon-button track-menu-button"
+                  aria-label={`More for ${track.title}`}
+                  aria-haspopup="menu"
+                  aria-expanded={trackMenu?.index === i}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    openMenu(i, { x: r.right - 220, y: r.bottom + 6 })(e)
+                  }}
+                >
+                  <More />
+                </button>
+              </div>
             </li>
           )
         })}
       </ol>
+      {trackMenu && tracks[trackMenu.index] && (
+        <Menu
+          label={`More for ${tracks[trackMenu.index].title}`}
+          at={trackMenu.at}
+          actions={[{ label: 'Play', run: () => player.play(tracks, trackMenu.index) }, ...queueActions(player, () => [tracks[trackMenu.index]])]}
+          onClose={() => setTrackMenu(null)}
+        />
+      )}
     </article>
   )
 }
@@ -80,6 +143,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
 /** An artist and their albums, newest first. Play and Shuffle take every track they have. */
 export function ArtistPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
+  useMusicPage()
   const { item, children: albums } = detail
   const [loading, setLoading] = useState(false)
 
@@ -116,6 +180,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
             <button className="button quiet" onClick={() => void playAll(true)} disabled={albums.length === 0 || loading}>
               Shuffle
             </button>
+            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id))} disabled={albums.length === 0} />
           </div>
         </div>
       </header>
