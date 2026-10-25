@@ -4,7 +4,8 @@ import { getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/c
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Play } from '../components/icons'
-import { useAudioPlayer } from '../hooks/audioPlayerContext'
+import { LyricsPanel } from '../components/LyricsPanel'
+import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
 /** A fair shuffle (Fisher–Yates); sorting by a random comparator isn't one. */
@@ -73,8 +74,21 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
           )
         })}
       </ol>
+      <PlayingLyrics tracks={tracks} />
     </article>
   )
+}
+
+/**
+ * Lyrics for the track playing from this album, under its tracklist. A component of its own because the time ticks
+ * every second, and only this part of the page needs to follow it.
+ */
+function PlayingLyrics({ tracks }: { tracks: ItemSummary[] }) {
+  const player = useAudioPlayer()
+  const time = useAudioTime()
+  const current = player.current && tracks.some((t) => t.id === player.current?.id) ? player.current : undefined
+  if (!current) return null
+  return <LyricsPanel trackId={current.id} currentTime={time} title={current.title} onSeek={player.seek} />
 }
 
 /** An artist and their albums, newest first. Play and Shuffle take every track they have. */

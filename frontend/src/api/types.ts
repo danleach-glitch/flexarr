@@ -394,3 +394,15 @@ export interface PlaybackPreferences {
 }
 
 export type SubtitleSize = 'Small' | 'Standard' | 'Large' | 'ExtraLarge'
+
+export interface LyricLine {
+  /** Where in the track the line is sung, in seconds; null in unsynced lyrics. */
+  time: number | null
+  text: string
+}
+
+/** A track's lyrics: synced when every line has a time, otherwise plain text. */
+export interface Lyrics {
+  synced: boolean
+  lines: LyricLine[]
+}
