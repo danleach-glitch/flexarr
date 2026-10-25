@@ -49,7 +49,8 @@ final class ProfilePickerTour: XCTestCase {
         XCTAssertEqual(startFocused, afterLeft, "left should move focus back")
     }
 
-    /// Choose the first profile, reach the profile button at the end of the tab bar, open the picker from it.
+    /// Choose the first profile, reach the profile button at the end of the tab bar, open its menu, and the picker
+    /// from Switch profile.
     func testCornerButtonAndSwitchPicker() async throws {
         press(.select, wait: 6)
         shot("20-home")
@@ -61,7 +62,12 @@ final class ProfilePickerTour: XCTestCase {
         logFocus("corner")
 
         press(.select, wait: 3)
-        shot("23-switch-picker")
+        shot("23-profile-menu")
+        logFocus("profile menu")
+        XCTAssertTrue(app.buttons["profile-menu-person.2"].waitForExistence(timeout: 3), "the menu should offer Switch profile")
+        XCTAssertTrue(app.buttons["profile-menu-gearshape"].exists, "the menu should offer Settings")
+        press(.select, wait: 3) // Switch profile has focus first
+        shot("23b-switch-picker")
         logFocus("switch picker start")
         let startFocused = focusedLabel()
         XCTAssertNotNil(startFocused)

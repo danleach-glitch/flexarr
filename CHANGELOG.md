@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Changed
+- Apple TV: Settings has left the tab bar. The profile picture in the corner now opens a small menu with Switch profile and Settings, so the bar stays short as libraries and Now Playing come and go.
+
 ### Fixed
 - Apple TV: Now Playing's Up next lists the whole queue in a list that scrolls, instead of six rows with the last cut off at the bottom of the screen.
 
