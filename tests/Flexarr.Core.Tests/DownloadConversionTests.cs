@@ -57,6 +57,34 @@ public sealed class DownloadConversionTests : IDisposable
         Assert.Contains(streams, s => s is ("subtitle", "mov_text", _, "fre"));
     }
 
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_ATrackThePhoneCantPlay_BecomesAnM4aOfStereoAac()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // 5.1 PCM in a Matroska file: neither the container nor the channels suit a phone.
+        var clip = Path.Combine(_dir, "track.mka");
+        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "2", "-ac", "6", "-c:a", "pcm_s16le", clip);
+        var file = new MediaFile
+        {
+            Path = clip, Container = "matroska,webm", AudioCodec = "pcm_s16le", AudioChannels = 6, DurationSeconds = 2, Bitrate = 4_600_000,
+            Streams = [new MediaStream { Index = 0, Type = StreamType.Audio, Codec = "pcm_s16le", Channels = 6, IsDefault = true }],
+        };
+
+        var plan = DownloadPlanner.Plan(file, DownloadQuality.Original, [])!;
+        Assert.True(plan.IsAudioOnly);
+        Assert.False(plan.SendAsIs);
+        var output = Path.Combine(_dir, "track.m4a");
+        await RunAsync("ffmpeg", [.. FfmpegCommand.M4a(clip, plan.AudioIndex!.Value, plan.Convert!.AudioChannels, output)]);
+
+        var streams = await StreamsAsync(output);
+        var audio = Assert.Single(streams);
+        Assert.Equal(("audio", "aac", 2), (audio.Type, audio.Codec, audio.Channels));
+    }
+
     private static async Task<bool> HasFfmpegAsync()
     {
         try

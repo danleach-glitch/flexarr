@@ -22,6 +22,18 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void ATrack_BecomesStereoAacInAnM4a_WithNoPicture()
+    {
+        var args = string.Join(' ', FfmpegCommand.M4a("/in.ogg", 1, 6, "/out/x.part.m4a"));
+
+        Assert.Contains("-progress pipe:1", args, StringComparison.Ordinal);
+        Assert.Contains("-i /in.ogg -map 0:1 -vn", args, StringComparison.Ordinal);
+        Assert.Contains("-c:a aac -ac 2 -b:a 256k", args, StringComparison.Ordinal);
+        Assert.EndsWith("-f ipod /out/x.part.m4a", args, StringComparison.Ordinal);
+        Assert.DoesNotContain("-c:v", args, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Software_UsesLibx264()
     {
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.None)));

@@ -265,7 +265,8 @@ public sealed class PlaybackService(
         state.LastPlayedAt = playedAt;
         if (progress.Finished)
         {
-            if (!state.Watched)
+            // A film finished again isn't another play, but a track heard through is, as it would be streaming.
+            if (!state.Watched || item.Kind == MediaKind.Track)
             {
                 state.PlayCount++;
             }
