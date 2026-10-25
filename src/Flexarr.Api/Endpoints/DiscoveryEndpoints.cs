@@ -9,11 +9,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Flexarr.Api.Endpoints;
 
 /// <param name="Playlists">For the "playlists" style: the profile's playlists, which aren't items (Items is empty then).</param>
-public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null, IReadOnlyList<Playlists.PlaylistSummaryDto>? Playlists = null)
+/// <param name="Mixes">For the "mixes" style: the profile's daily mixes, which aren't items either.</param>
+public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null,
+    IReadOnlyList<Playlists.PlaylistSummaryDto>? Playlists = null, IReadOnlyList<MixSummaryDto>? Mixes = null)
 {
-    /// <summary>Whether there's anything to show: a row of items, or of playlists.</summary>
+    /// <summary>Whether there's anything to show: a row of items, of playlists or of mixes.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool HasContent => Items.Count > 0 || Playlists is { Count: > 0 };
+    public bool HasContent => Items.Count > 0 || Playlists is { Count: > 0 } || Mixes is { Count: > 0 };
 }
 
 /// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
@@ -75,10 +77,14 @@ public static partial class DiscoveryEndpoints
             rows.Add(new HomeRowDto("top-shows", "Top 10 shows in your library", "top10",
                 await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
 
-            // Music this profile has been playing, when it can see a music library at all.
-            if (libraries.Any(l => l.Type == LibraryType.Music))
+            // Music this profile has been playing, and the newest albums, when it can see a music library at all.
+            var musicLibraries = libraries.Where(l => l.Type == LibraryType.Music).ToList();
+            if (musicLibraries.Count > 0)
             {
-                rows.AddRange(await MusicDiscovery.RowsAsync(db, me, null, RowSize, ct));
+                rows.AddRange(await MusicDiscovery.RowsAsync(db, cache, me, null, RowSize, ct));
+                // The row opens the library when there's only one to open.
+                var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=all&sort=added" : null;
+                rows.Add(new HomeRowDto("music-new", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, null, RowSize, ct), link));
             }
 
             // "Because you watched": share genres and cast with the latest thing finished.
@@ -144,7 +150,7 @@ public static partial class DiscoveryEndpoints
 
         // A library's own home page: what you're watching in it, what's new, the best of it, and its main genres.
         api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile,
-            Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, CancellationToken ct) =>
+            Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             if (await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct) is not { } library)
             {
@@ -157,10 +163,8 @@ public static partial class DiscoveryEndpoints
             {
                 // A music library's home: what you've been playing, then the newest albums. No hero: album covers are
                 // square, and the rows are the point.
-                var musicRows = await MusicDiscovery.RowsAsync(db, me, id, RowSize, ct);
-                musicRows.Add(new HomeRowDto("recent", "New albums", "poster",
-                    await db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album).OrderByDescending(i => i.AddedAt).Take(RowSize).Summaries(me).ToListAsync(ct),
-                    $"{all}&sort=added"));
+                var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct);
+                musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
                 return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), musicRows.Where(r => r.HasContent).ToList(), [], 0));
             }
 

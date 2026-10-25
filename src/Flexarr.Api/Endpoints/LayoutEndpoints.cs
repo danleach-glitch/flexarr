@@ -82,9 +82,11 @@ public static class LayoutEndpoints
     private static readonly RowChoiceDto[] MusicRows =
     [
         new(Playlists.PlaylistEndpoints.HomeRowId, "Your playlists", true),
+        new(MusicMixes.HomeRowId, "Made for you (music mixes)", true),
         new("music-recent", "Recently played (music)", true),
         new("music-top", "Most played (music)", true),
         new("music-artists", "More from artists you play", true),
+        new("music-new", "New albums", true),
     ];
 
     private static List<RowChoiceDto> BrowseRows(bool movies) =>
