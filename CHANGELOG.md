@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.20.0 · 25 October 2026
 
 ### Our own player on Apple TV, iPhone and iPad
 - Flexarr draws its own player now instead of Apple's: previous and next episode buttons (shuffle included), skip back and forward by a chosen amount (30 seconds unless Settings says 10 or 15), play/pause, a timeline with the intro and credits shaded and preview thumbnails while scrubbing, and menus for audio, subtitles (with timing and size inside) and playback speed. The title, episode and what's playing (resolution, sound, original or converted) sit in the corners; the controls sit on clear glass and fade after a few seconds of playing.
