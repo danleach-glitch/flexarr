@@ -35,7 +35,11 @@ public sealed record LidarrAlbum
     public string? ForeignAlbumId { get; init; }
     public string? Disambiguation { get; init; }
     public string? Overview { get; init; }
+    /// <summary>MusicBrainz's primary type: Album, EP, Single, Broadcast or Other.</summary>
     public string? AlbumType { get; init; }
+
+    /// <summary>MusicBrainz's secondary types, such as Live, Compilation, Soundtrack, Remix or Demo; usually none.</summary>
+    public IReadOnlyList<string> SecondaryTypes { get; init; } = [];
     public bool Monitored { get; init; }
     public DateTime? ReleaseDate { get; init; }
 

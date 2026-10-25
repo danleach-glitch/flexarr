@@ -56,5 +56,6 @@ public static class ItemQueries
                 x.SeriesTitle,
                 x.Item.DiscNumber,
                 x.Item.TrackNumber,
-                x.SeriesId));
+                x.SeriesId,
+                x.Item.AlbumType));
 }

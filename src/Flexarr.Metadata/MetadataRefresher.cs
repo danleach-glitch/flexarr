@@ -443,6 +443,7 @@ public sealed partial class MetadataRefresher(
         album.Year = lidarrAlbum.ReleaseDate?.Year ?? album.Year;
         album.ReleaseDate = DateOnlyOf(lidarrAlbum.ReleaseDate);
         album.MusicBrainzId = NullIfEmpty(lidarrAlbum.ForeignAlbumId) ?? album.MusicBrainzId;
+        album.AlbumType = AlbumKind.From(lidarrAlbum.AlbumType, lidarrAlbum.SecondaryTypes);
         album.Overview = NullIfEmpty(lidarrAlbum.Overview);
         album.RuntimeMinutes = lidarrAlbum.Duration > 0 ? (int)Math.Max(1, Math.Round(lidarrAlbum.Duration / 60_000.0)) : null;
         album.CommunityRating = lidarrAlbum.Ratings?.Value is > 0 ? lidarrAlbum.Ratings.Value : null;

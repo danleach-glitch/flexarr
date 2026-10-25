@@ -94,6 +94,23 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheKindOfRelease_ComesFromLidarrsTypes()
+    {
+        // A live album in a folder Lidarr has no files for, so it's matched by its MusicBrainz id.
+        var live = Album("Brothers in Arms (Live)", 2005, "Brothers in Arms (2005)", null);
+        live.MusicBrainzId = "e0e0e0e0-0000-4000-8000-000000000007";
+        _db.MediaItems.Add(live);
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(_library, force: false, default);
+
+        var albums = await _db.MediaItems.Where(i => i.Kind == MediaKind.Album).OrderBy(i => i.Year).ToListAsync();
+        Assert.Equal(["Communiqué", "Making Movies", "Love Over Gold", "Alchemy", "Brothers in Arms"], albums.Select(a => a.Title));
+        // Alchemy isn't in Lidarr: nobody says what it is, and the page takes it for an album.
+        Assert.Equal([AlbumKind.Album, AlbumKind.Album, AlbumKind.Album, null, AlbumKind.Live], albums.Select(a => a.AlbumType));
+    }
+
+    [Fact]
     public async Task TheArtwork_IsFetchedFromLidarrWithItsKey_AndNeverHandedOut()
     {
         await Refresher().RefreshLibraryAsync(_library, force: false, default);

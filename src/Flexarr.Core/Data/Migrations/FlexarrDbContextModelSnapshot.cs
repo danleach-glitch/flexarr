@@ -355,6 +355,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateOnly?>("AirDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AlbumType")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("ArrId")
                         .HasColumnType("INTEGER");
 
