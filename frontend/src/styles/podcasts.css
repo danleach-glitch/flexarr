@@ -417,3 +417,34 @@
 .podcast-overview-toggle {
   margin-top: 4px;
 }
+
+/* An episode's play button sits in the middle of its artwork, letting it show through. */
+.podcast-card .card-play {
+  inset: 50% auto auto 50%;
+  width: 56px;
+  height: 56px;
+  background: color-mix(in srgb, var(--screen) 78%, transparent);
+  backdrop-filter: blur(6px);
+  transform: translate(-50%, calc(-50% + 6px));
+}
+
+.podcast-card.card-shell:hover .card-play,
+.podcast-card.card-shell:focus-within .card-play {
+  transform: translate(-50%, -50%);
+}
+
+.podcast-card .card-play:hover {
+  background: var(--screen);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.podcast-card .card-play svg {
+  width: 24px;
+  height: 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podcast-card .card-play {
+    transform: translate(-50%, -50%);
+  }
+}
