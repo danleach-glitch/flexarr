@@ -5,6 +5,7 @@ import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
+import { useMusicPage } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
@@ -28,6 +29,8 @@ export function LibraryPage() {
   const [params] = useSearchParams()
   const { libraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
+  // A music library keeps the now-playing bar on screen, ready for a pick.
+  useMusicPage(library?.type === 'Music')
   if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
 
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')

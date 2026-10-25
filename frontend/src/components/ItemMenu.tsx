@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { setWatched, type ItemSummary } from '../api/client'
+import { getTracks, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
@@ -12,8 +13,8 @@ export interface MenuPoint {
   y: number
 }
 
-/** Films and TV get menus; music has its own pages. */
-export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series'].includes(item.kind)
+/** Films, TV and albums get menus; artists and tracks have their own pages. */
+export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series', 'Album'].includes(item.kind)
 
 export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
 
@@ -21,7 +22,8 @@ export type MenuAction = { label: string; run: () => void | Promise<void>; dange
 export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoint; onClose: () => void }) {
   const navigate = useNavigate()
   const play = usePlay()
-  const mark = (target: Pick<ItemSummary, 'id' | 'parentId' | 'seriesId'>, watched: boolean) => async () => {
+  const music = useAudioPlayer()
+  const mark =(target: Pick<ItemSummary, 'id' | 'parentId' | 'seriesId'>, watched: boolean) => async () => {
     await setWatched(target.id, watched)
     announceWatched(target)
   }
@@ -53,6 +55,14 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
       actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
       actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      break
+    case 'Album':
+      // The album's tracks are fetched when asked for (the card only has the album).
+      actions.push(
+        { label: 'Play', run: async () => music.play(await getTracks(item.id), 0) },
+        { label: 'Play next', run: async () => music.playNext(await getTracks(item.id)) },
+        { label: 'Add to queue', run: async () => music.enqueue(await getTracks(item.id)) },
+      )
       break
   }
 
