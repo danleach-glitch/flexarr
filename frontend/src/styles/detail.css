@@ -492,6 +492,61 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Lyrics for the track playing from this album, under its tracklist. The list scrolls within itself to follow the
+   song, so the page never moves under the reader. */
+.lyrics {
+  max-width: 900px;
+  margin-top: 40px;
+}
+
+.lyrics-heading {
+  margin: 0 0 12px;
+  font-size: var(--step-2);
+}
+
+.lyrics-lines {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  border-radius: var(--radius-panel);
+  background: var(--seat);
+  font-size: var(--step-1);
+  line-height: 1.5;
+}
+
+.lyrics-lines li {
+  padding: 4px 12px;
+}
+
+.lyrics-lines.synced li {
+  color: var(--usher);
+  transition: color 0.3s ease;
+}
+
+.lyrics-lines.synced li.active {
+  color: var(--screen);
+  font-weight: 600;
+}
+
+.lyrics-lines button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lyrics-lines button:hover {
+  color: var(--ambient);
+}
+
 .now-playing {
   position: fixed;
   left: calc(var(--sidebar-width, 0px) + 16px);
