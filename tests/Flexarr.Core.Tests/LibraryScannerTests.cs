@@ -582,6 +582,37 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal("Some Album", (await _db.MediaItems.SingleAsync(i => i.Id == untagged.ParentId)).Title);
     }
 
+    [Fact]
+    public async Task Music_AnAlbumFolderIsOneAlbum_UnderTheNameLidarrGaveIt()
+    {
+        var root = Touch("music/Dire Straits/Making Movies (1980)/01 - Tunnel of Love.flac");
+        _probe.Tags["01 - Tunnel of Love.flac"] = new() { ["artist"] = "Dire straits", ["album"] = "Making movies", ["title"] = "Tunnel of Love", ["track"] = "1", ["date"] = "1996" };
+        _probe.Tags["02 - Romeo and Juliet.flac"] = new() { ["artist"] = "Dire straits", ["album"] = "Making movies", ["title"] = "Romeo and Juliet", ["track"] = "2", ["date"] = "1996" };
+        _probe.Tags["03 - Skateaway.flac"] = new() { ["artist"] = "Mark Knopfler", ["album"] = "Making Movies (Remaster)", ["title"] = "Skateaway", ["track"] = "3" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+
+        // The metadata refresh gives them Lidarr's names, keeping the tags' as the original title.
+        var artist = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Artist);
+        var album = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Album);
+        (artist.OriginalTitle, artist.Title) = (artist.Title, "Dire Straits");
+        (album.OriginalTitle, album.Title, album.Year) = (album.Title, "Making Movies", 1980);
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        // Another track lands in the folder, and one tagged differently: the same album and artist, not new ones.
+        Touch("music/Dire Straits/Making Movies (1980)/02 - Romeo and Juliet.flac", "music/Dire Straits/Making Movies (1980)/03 - Skateaway.flac");
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(2, result.Added);
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Artist));
+        var albums = await _db.MediaItems.Include(i => i.Children).Where(i => i.Kind == MediaKind.Album).ToListAsync();
+        Assert.Single(albums);
+        Assert.Equal("Making Movies", albums[0].Title);
+        Assert.Equal(1980, albums[0].Year);
+        Assert.Equal(["Tunnel of Love", "Romeo and Juliet", "Skateaway"], albums[0].Children.OrderBy(t => t.SortTitle).Select(t => t.Title));
+    }
+
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
 
     private async Task<Library> AddLibrary(LibraryType type, string folder)

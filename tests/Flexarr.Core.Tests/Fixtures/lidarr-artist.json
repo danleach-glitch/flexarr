@@ -1,0 +1,71 @@
+[
+  {
+    "status": "ended",
+    "ended": true,
+    "artistName": "Dire Straits",
+    "foreignArtistId": "614e3804-7d34-41ba-857f-811bad7c2b7a",
+    "mbId": null,
+    "artistType": "Group",
+    "disambiguation": "",
+    "overview": "",
+    "images": [
+      { "url": "/MediaCover/1/banner.jpg?lastWrite=639285234250000000", "coverType": "banner", "extension": ".jpg", "remoteUrl": "/config/MediaCover/1/banner.jpg" },
+      { "url": "/MediaCover/1/poster.jpg?lastWrite=639285234250000000", "coverType": "poster", "extension": ".jpg", "remoteUrl": "/config/MediaCover/1/poster.jpg" },
+      { "url": "/MediaCover/1/fanart.jpg?lastWrite=639285234250000000", "coverType": "fanart", "extension": ".jpg", "remoteUrl": "/config/MediaCover/1/fanart.jpg" },
+      { "url": "/MediaCover/1/clearlogo.png?lastWrite=639285234240000000", "coverType": "clearlogo", "extension": ".png", "remoteUrl": "/config/MediaCover/1/clearlogo.png" }
+    ],
+    "path": "/data/music/Dire Straits",
+    "qualityProfileId": 1,
+    "metadataProfileId": 1,
+    "monitored": true,
+    "rootFolderPath": "/data/music",
+    "genres": ["Rock", "Soft Rock", "Classic Rock"],
+    "cleanName": "direstraits",
+    "sortName": "dire straits",
+    "tags": [],
+    "added": "2026-10-25T11:10:19Z",
+    "ratings": { "votes": 21, "value": 9.4 },
+    "statistics": { "albumCount": 6, "trackFileCount": 33, "trackCount": 78, "totalTrackCount": 78, "sizeOnDisk": 1090232555, "percentOfTracks": 42.3 },
+    "id": 1
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Dire Wolves",
+    "foreignArtistId": "0b9fa1b3-5b4e-4a2e-9a2f-3a6b8d0a1c11",
+    "artistType": "Group",
+    "disambiguation": "",
+    "overview": "",
+    "images": [
+      { "url": "/MediaCover/2/poster.jpg?lastWrite=639285234250000000", "coverType": "poster", "extension": ".jpg", "remoteUrl": "/config/MediaCover/2/poster.jpg" }
+    ],
+    "path": "/data/music/Dire Wolves",
+    "monitored": true,
+    "rootFolderPath": "/data/music",
+    "genres": [],
+    "sortName": "dire wolves",
+    "tags": [],
+    "added": "2026-10-25T11:10:19Z",
+    "ratings": { "votes": 0, "value": 0 },
+    "id": 2
+  },
+  {
+    "status": "ended",
+    "ended": true,
+    "artistName": "Mark Knopfler",
+    "foreignArtistId": "6c4fb5a6-cc8a-4dd3-9a0a-1a9e7a1f2c33",
+    "artistType": "Person",
+    "disambiguation": "",
+    "overview": "",
+    "images": [],
+    "path": "/data/music/Mark Knopfler",
+    "monitored": true,
+    "rootFolderPath": "/data/music",
+    "genres": [],
+    "sortName": "knopfler, mark",
+    "tags": [],
+    "added": "2026-10-25T11:10:19Z",
+    "ratings": { "votes": 0, "value": 0 },
+    "id": 3
+  }
+]

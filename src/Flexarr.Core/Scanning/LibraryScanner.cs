@@ -619,8 +619,16 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var info = MusicTags.Read(probe?.Tags ?? new Dictionary<string, string>(), root, filePath);
             var albumDirectory = Path.GetDirectoryName(filePath)!;
 
+            // An album folder is one album whatever its tags say, so a title Lidarr corrected (or a stray tag on one
+            // track) doesn't split it in two; and the album's artist is its artist, under whichever name.
+            MediaItem? artist = null;
+            if (_byPath.TryGetValue(PathComparison.Key(albumDirectory), out var album) && album.ParentId is { } artistId)
+            {
+                _artistsById.TryGetValue(artistId, out artist);
+            }
+
             var artistKey = $"artist:{Fold(info.Artist)}";
-            if (!_byKey.TryGetValue(artistKey, out var artist))
+            if (artist is null && !_byKey.TryGetValue(artistKey, out artist))
             {
                 // Artist/Album/Track layout: the artist folder may hold an artist photo.
                 var artistDirectory = Path.GetDirectoryName(albumDirectory);
@@ -639,7 +647,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             var albumKey = $"album:{artist.Id}:{Fold(info.Album)}";
-            if (!_byKey.TryGetValue(albumKey, out var album))
+            if (album is null && !_byKey.TryGetValue(albumKey, out album))
             {
                 var cover = CoverFiles.Select(f => Path.Combine(albumDirectory, f)).FirstOrDefault(File.Exists);
                 album = Add(new MediaItem
@@ -679,6 +687,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         private static string Fold(string value) => value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
 
         private readonly Dictionary<string, MediaItem> _byKey = new(StringComparer.Ordinal);
+        private readonly Dictionary<Guid, MediaItem> _artistsById = [];
 
         private DateTime _addedAt = DateTime.UtcNow;
 
@@ -796,11 +805,29 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 case MediaKind.Episode when item.ParentId is { } p && EpisodeKey(item.EpisodeNumber, item.AirDate) is { } key:
                     _byNumber[(p, key)] = item;
                     break;
+                // Under the tags' name too (kept as the original title when Lidarr renamed it), since the files still
+                // carry the tags.
                 case MediaKind.Artist:
+                    _artistsById[item.Id] = item;
                     _byKey[$"artist:{Fold(item.Title)}"] = item;
+                    if (item.OriginalTitle is { } taggedArtist)
+                    {
+                        _byKey.TryAdd($"artist:{Fold(taggedArtist)}", item);
+                    }
+
                     break;
                 case MediaKind.Album when item.ParentId is { } artistId:
                     _byKey[$"album:{artistId}:{Fold(item.Title)}"] = item;
+                    if (item.OriginalTitle is { } taggedAlbum)
+                    {
+                        _byKey.TryAdd($"album:{artistId}:{Fold(taggedAlbum)}", item);
+                    }
+
+                    if (item.Path is not null)
+                    {
+                        _byPath[PathComparison.Key(item.Path)] = item;
+                    }
+
                     break;
             }
         }

@@ -104,7 +104,19 @@ public sealed class ArrClient(HttpClient httpClient)
             addOptions = new { monitor = "none", searchForMovie = false },
         }, ct);
 
-    // Both
+    // Lidarr
+    public Task<IReadOnlyList<LidarrArtist>> GetArtistsAsync(ArrInstance lidarr, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, "artist", ct);
+
+    /// <summary>Every release group Lidarr lists for an artist, owned or not.</summary>
+    public Task<IReadOnlyList<LidarrAlbum>> GetArtistAlbumsAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?artistId={artistId}", ct);
+
+    /// <summary>The music files Lidarr has for an artist: how its albums are matched to folders on disk.</summary>
+    public Task<IReadOnlyList<LidarrTrackFile>> GetTrackFilesAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrTrackFile>>(lidarr, $"trackfile?artistId={artistId}", ct);
+
+    // All
     public Task<IReadOnlyList<ArrQualityProfile>> GetQualityProfilesAsync(ArrInstance instance, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ArrQualityProfile>>(instance, "qualityprofile", ct);
 
@@ -186,8 +198,18 @@ public sealed class ArrClient(HttpClient httpClient)
         }
     }
 
-    private static HttpRequestMessage Request(ArrInstance instance, HttpMethod method, string path)
+    private static HttpRequestMessage Request(ArrInstance instance, HttpMethod method, string path) => CreateRequest(instance, method, path);
+
+    /// <summary>
+    /// A request to an instance's API, with its key, for callers that send it themselves rather than read JSON (the
+    /// image cache, fetching Lidarr's artwork).
+    /// </summary>
+    /// <param name="instance">The *arr to ask.</param>
+    /// <param name="method">The HTTP method.</param>
+    /// <param name="path">The path under /api/{version}/, query string included.</param>
+    public static HttpRequestMessage CreateRequest(ArrInstance instance, HttpMethod method, string path)
     {
+        ArgumentNullException.ThrowIfNull(instance);
         // Keep any URL base (http://host/radarr) — Uri's relative resolution would drop its last segment.
         var request = new HttpRequestMessage(method, new Uri($"{instance.BaseUrl.ToString().TrimEnd('/')}/api/{instance.ApiVersion}/{path}"));
         request.Headers.Add("X-Api-Key", instance.ApiKey);

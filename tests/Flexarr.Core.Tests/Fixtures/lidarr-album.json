@@ -1,0 +1,183 @@
+[
+  {
+    "title": "On Every Street",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "b286b831-931e-3680-97f1-aa18541f5cc2",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 3617625,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": { "votes": 11, "value": 7.5 },
+    "releaseDate": "1991-09-09T00:00:00Z",
+    "releases": [
+      { "id": 1, "albumId": 1, "foreignReleaseId": "64546119-416a-4d9c-9983-9d9cb0857c72", "title": "On Every Street", "status": "Official", "duration": 3630000, "trackCount": 12, "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "CD" }], "mediumCount": 1, "disambiguation": "", "country": ["United Kingdom"], "label": ["Vertigo"], "format": "CD", "monitored": true }
+    ],
+    "genres": ["Rock", "Blues Rock"],
+    "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }],
+    "images": [
+      { "url": "/MediaCover/Albums/1/cover.jpg?lastWrite=639285234190000000", "coverType": "cover", "extension": ".jpg", "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/6c512c31-f274-414e-81f6-a200618d3170/29173475242-1200.jpg" },
+      { "url": "/MediaCover/Albums/1/disc.jpg", "coverType": "disc", "extension": ".jpg", "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/6c512c31-f274-414e-81f6-a200618d3170/29173475262-1200.jpg" }
+    ],
+    "links": [],
+    "statistics": { "trackFileCount": 12, "trackCount": 12, "totalTrackCount": 12, "sizeOnDisk": 361285810, "percentOfTracks": 100 },
+    "id": 1
+  },
+  {
+    "title": "Communiqué",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "7e1ada24-6fb0-3b23-a671-9cdaf865c515",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 2563997,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": { "votes": 9, "value": 7.9 },
+    "releaseDate": "1979-04-01T00:00:00Z",
+    "releases": [
+      { "id": 2, "albumId": 2, "foreignReleaseId": "71d8361b-f8d7-43bc-86d9-cc13294ae35f", "title": "Communiqué", "status": "Official", "duration": 2563997, "trackCount": 9, "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }], "mediumCount": 1, "disambiguation": "", "country": ["United Kingdom"], "label": ["Vertigo"], "format": "12\" Vinyl", "monitored": true },
+      { "id": 3, "albumId": 2, "foreignReleaseId": "3a40201d-e7ba-3121-98cb-e2d57fa71736", "title": "Communiqué", "status": "Official", "duration": 2563997, "trackCount": 9, "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "CD" }], "mediumCount": 1, "disambiguation": "", "country": ["Germany", "Portugal"], "label": ["Vertigo"], "format": "CD", "monitored": false }
+    ],
+    "genres": ["Rock"],
+    "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }],
+    "images": [
+      { "url": "/MediaCover/Albums/2/cover.jpg?lastWrite=639285234210000000", "coverType": "cover", "extension": ".jpg", "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/71d8361b-f8d7-43bc-86d9-cc13294ae35f/front-1200.jpg" }
+    ],
+    "links": [],
+    "statistics": { "trackFileCount": 9, "trackCount": 9, "totalTrackCount": 9, "sizeOnDisk": 244775611, "percentOfTracks": 100 },
+    "id": 2
+  },
+  {
+    "title": "Making Movies",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "5b0a15ce-8aa9-323b-8fb6-02b657756ba9",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 2254000,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": { "votes": 14, "value": 8.1 },
+    "releaseDate": "1980-10-17T00:00:00Z",
+    "releases": [
+      { "id": 4, "albumId": 3, "foreignReleaseId": "9d2a0f8e-0c1b-4b7a-8e2e-5f1c6d7a8b90", "title": "Making Movies", "status": "Official", "duration": 2254000, "trackCount": 7, "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }], "mediumCount": 1, "disambiguation": "", "country": ["United Kingdom"], "label": ["Vertigo"], "format": "12\" Vinyl", "monitored": true }
+    ],
+    "genres": ["Rock"],
+    "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }],
+    "images": [
+      { "url": "/MediaCover/Albums/3/cover.jpg?lastWrite=639285234200000000", "coverType": "cover", "extension": ".jpg", "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/9d2a0f8e-0c1b-4b7a-8e2e-5f1c6d7a8b90/front-1200.jpg" }
+    ],
+    "links": [],
+    "statistics": { "trackFileCount": 7, "trackCount": 7, "totalTrackCount": 7, "sizeOnDisk": 254165817, "percentOfTracks": 100 },
+    "id": 3
+  },
+  {
+    "title": "Love Over Gold",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "935dde7e-8390-39fa-8e0d-1350db96bc3f",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 2492000,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": { "votes": 12, "value": 8.4 },
+    "releaseDate": "1982-09-20T00:00:00Z",
+    "releases": [
+      { "id": 5, "albumId": 4, "foreignReleaseId": "c1d2e3f4-0000-4000-8000-000000000001", "title": "Love Over Gold", "status": "Official", "duration": 2492000, "trackCount": 5, "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }], "mediumCount": 1, "disambiguation": "", "country": ["United Kingdom"], "label": ["Vertigo"], "format": "12\" Vinyl", "monitored": true }
+    ],
+    "genres": ["Rock", "Progressive Rock"],
+    "media": [{ "mediumNumber": 1, "mediumName": "", "mediumFormat": "12\" Vinyl" }],
+    "images": [
+      { "url": "/MediaCover/Albums/4/cover.jpg?lastWrite=639285234220000000", "coverType": "cover", "extension": ".jpg", "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/c1d2e3f4-0000-4000-8000-000000000001/front-1200.jpg" }
+    ],
+    "links": [],
+    "statistics": { "trackFileCount": 5, "trackCount": 5, "totalTrackCount": 5, "sizeOnDisk": 230005317, "percentOfTracks": 100 },
+    "id": 4
+  },
+  {
+    "title": "Dire Straits",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "0c9bc273-a9e9-3290-b423-c61b9f8d20bc",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 2483000,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": { "votes": 15, "value": 8.3 },
+    "releaseDate": "1978-06-02T00:00:00Z",
+    "releases": [],
+    "genres": ["Rock"],
+    "media": [],
+    "images": [],
+    "links": [],
+    "statistics": { "trackFileCount": 0, "trackCount": 18, "totalTrackCount": 18, "sizeOnDisk": 0, "percentOfTracks": 0 },
+    "id": 5
+  },
+  {
+    "title": "Brothers in Arms",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "b02f651e-32a1-30ae-bc23-070b59170278",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 3312000,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": { "votes": 30, "value": 8.6 },
+    "releaseDate": "1985-05-15T00:00:00Z",
+    "releases": [],
+    "genres": ["Rock"],
+    "media": [],
+    "images": [
+      { "url": "/MediaCover/Albums/6/cover.jpg?lastWrite=639285234230000000", "coverType": "cover", "extension": ".jpg", "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/0a0a0a0a-0000-4000-8000-000000000006/front-1200.jpg" }
+    ],
+    "links": [],
+    "statistics": { "trackFileCount": 0, "trackCount": 27, "totalTrackCount": 27, "sizeOnDisk": 0, "percentOfTracks": 0 },
+    "id": 6
+  },
+  {
+    "title": "Brothers in Arms",
+    "disambiguation": "live",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "e0e0e0e0-0000-4000-8000-000000000007",
+    "monitored": false,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 3900000,
+    "albumType": "Album",
+    "secondaryTypes": ["Live"],
+    "mediumCount": 1,
+    "ratings": { "votes": 0, "value": 0 },
+    "releaseDate": "2005-09-12T00:00:00Z",
+    "releases": [],
+    "genres": [],
+    "media": [],
+    "images": [],
+    "links": [],
+    "statistics": { "trackFileCount": 0, "trackCount": 12, "totalTrackCount": 12, "sizeOnDisk": 0, "percentOfTracks": 0 },
+    "id": 7
+  }
+]

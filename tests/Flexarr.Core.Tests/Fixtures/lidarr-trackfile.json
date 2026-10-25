@@ -1,0 +1,73 @@
+[
+  {
+    "artistId": 1,
+    "albumId": 2,
+    "path": "/data/music/Dire Straits/Communiqué (1979)/Dire Straits - Communiqué - 01 - Once Upon a Time in the West.flac",
+    "size": 32398012,
+    "dateAdded": "2026-10-25T11:22:01Z",
+    "quality": { "quality": { "id": 6, "name": "FLAC" }, "revision": { "version": 1, "real": 0, "isRepack": false } },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": { "audioChannels": 2, "audioBitRate": "794 kbps", "audioCodec": "FLAC", "audioBits": "16bit", "audioSampleRate": "44.1kHz" },
+    "qualityCutoffNotMet": false,
+    "id": 1
+  },
+  {
+    "artistId": 1,
+    "albumId": 2,
+    "path": "/data/music/Dire Straits/Communiqué (1979)/Dire Straits - Communiqué - 02 - News.flac",
+    "size": 24000000,
+    "dateAdded": "2026-10-25T11:22:01Z",
+    "quality": { "quality": { "id": 6, "name": "FLAC" }, "revision": { "version": 1, "real": 0, "isRepack": false } },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "qualityCutoffNotMet": false,
+    "id": 2
+  },
+  {
+    "artistId": 1,
+    "albumId": 3,
+    "path": "/data/music/Dire Straits/Making Movies (1980)/Dire Straits - Making Movies - 01 - Tunnel of Love.flac",
+    "size": 50000000,
+    "dateAdded": "2026-10-25T11:22:01Z",
+    "quality": { "quality": { "id": 6, "name": "FLAC" }, "revision": { "version": 1, "real": 0, "isRepack": false } },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "qualityCutoffNotMet": false,
+    "id": 3
+  },
+  {
+    "artistId": 1,
+    "albumId": 4,
+    "path": "/data/music/Dire Straits/Love Over Gold (1982)/Dire Straits - Love Over Gold - 01 - Telegraph Road.flac",
+    "size": 90000000,
+    "dateAdded": "2026-10-25T11:22:01Z",
+    "quality": { "quality": { "id": 6, "name": "FLAC" }, "revision": { "version": 1, "real": 0, "isRepack": false } },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "qualityCutoffNotMet": false,
+    "id": 4
+  },
+  {
+    "artistId": 1,
+    "albumId": 1,
+    "path": "/data/music/Dire Straits/On Every Street (1991)/CD1/Dire Straits - On Every Street - 01 - Calling Elvis.flac",
+    "size": 40000000,
+    "dateAdded": "2026-10-25T11:22:01Z",
+    "quality": { "quality": { "id": 6, "name": "FLAC" }, "revision": { "version": 1, "real": 0, "isRepack": false } },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "qualityCutoffNotMet": false,
+    "id": 5
+  }
+]
