@@ -90,6 +90,9 @@ private struct ProfileCornerButton: UIViewRepresentable {
             super.init(frame: frame)
             avatar.view.backgroundColor = .clear
             avatar.view.isUserInteractionEnabled = false
+            // The control sits inside the screen's top safe area; left to SwiftUI, the hosted picture would be
+            // laid out below that inset and hang beneath the ring, which is drawn on the control's bounds.
+            avatar.safeAreaRegions = []
             addSubview(avatar.view)
             ring.fillColor = nil
             ring.strokeColor = UIColor(Color.screen).cgColor
