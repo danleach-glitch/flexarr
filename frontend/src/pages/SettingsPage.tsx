@@ -423,7 +423,20 @@ function useSettings() {
       setSaveError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : String(e))
     }
   }
-  return { settings: data, error, save, saved, saveError }
+  // Until the settings arrive: loading, or why they didn't, with a way to ask again (rather than "Loading…" forever).
+  const waiting = error ? (
+    <div className="panel">
+      <p className="error" role="alert">
+        Couldn’t load the settings: {error.message}
+      </p>
+      <button className="button quiet small" onClick={reload}>
+        Try again
+      </button>
+    </div>
+  ) : (
+    <p className="muted">Loading…</p>
+  )
+  return { settings: data, error, save, saved, saveError, waiting }
 }
 
 /** The profile's own: auto-play and what to skip, saved as soon as they change (and followed by every device). */
@@ -480,10 +493,10 @@ function WhileWatching() {
 }
 
 function PlaybackSection() {
-  const { settings, save, saved, saveError } = useSettings()
+  const { settings, save, saved, saveError, waiting } = useSettings()
   const [draft, setDraft] = useState<Settings['transcoding']>()
   useEffect(() => settings && setDraft(settings.transcoding), [settings])
-  if (!settings || !draft) return <p className="muted">Loading…</p>
+  if (!settings || !draft) return waiting
 
   return (
     <section>
@@ -578,7 +591,7 @@ interface DraftConnection {
 }
 
 function ConnectionsSection() {
-  const { settings, save, saved, saveError } = useSettings()
+  const { settings, save, saved, saveError, waiting } = useSettings()
   // Asked once the settings are in (and again after a save), not also while they load.
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
@@ -594,7 +607,7 @@ function ConnectionsSection() {
     setSeerr({ baseUrl: settings.seerr?.baseUrl ?? '', apiKey: '', hasApiKey: settings.seerr?.hasApiKey ?? false })
   }, [settings])
 
-  if (!settings) return <p className="muted">Loading…</p>
+  if (!settings) return waiting
 
   const update = (i: number, change: Partial<DraftConnection>) => setConnections((c) => c.map((x, j) => (j === i ? { ...x, ...change } : x)))
 
@@ -826,7 +839,7 @@ function ActivitySection() {
 // ---------------------------------------------------------------- Server
 
 function ServerSection() {
-  const { settings, save, saved, saveError } = useSettings()
+  const { settings, save, saved, saveError, waiting } = useSettings()
   const [key, setKey] = useState<string>()
   const [keyError, setKeyError] = useState<string>()
   // After a new key: how many browsers and TVs were signed out with it.
@@ -917,7 +930,7 @@ function ServerSection() {
     }
   }
 
-  if (!settings) return <p className="muted">Loading…</p>
+  if (!settings) return waiting
   const secret = webhookSecret ?? settings.webhookSecret
   return (
     <section>

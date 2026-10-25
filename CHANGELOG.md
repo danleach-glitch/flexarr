@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.14.1 · 25 October 2026
+
+### Fixed: Settings stuck on "Loading…"
+- When the server couldn't be reached (while it restarts, say), Settings › Playback, Connections and Server sat on "Loading…" for good. They now say what went wrong, with **Try again**.
+
 ## 0.14.0 · 25 October 2026
 
 ### The next episode starts straight away
