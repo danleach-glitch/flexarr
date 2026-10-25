@@ -132,13 +132,6 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     var downloadsNext: Bool = UserDefaults.standard.object(forKey: "downloads.next") as? Bool ?? true {
         didSet { UserDefaults.standard.set(downloadsNext, forKey: "downloads.next") }
     }
-    /// Keep the newest episodes of followed podcasts (those whose own setting allows it), on Wi-Fi.
-    var autoDownloadsPodcasts: Bool = UserDefaults.standard.object(forKey: "downloads.podcasts") as? Bool ?? true {
-        didSet {
-            UserDefaults.standard.set(autoDownloadsPodcasts, forKey: "downloads.podcasts")
-            if autoDownloadsPodcasts { Task { await reconcilePodcasts() } }
-        }
-    }
     private(set) var isOnline = true
     private(set) var isOnWiFi = false
 
@@ -293,8 +286,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     // MARK: Podcasts
 
     /// Makes the phone hold what the server says it should: the newest unplayed episodes of each podcast that
-    /// auto-downloads. Missing ones are fetched (on Wi-Fi, and only while auto-download is on here); ones fetched by
-    /// themselves that are no longer wanted (played, or pushed out by newer ones) go, unless they're part-heard.
+    /// auto-downloads (none when the profile's Auto-download is off). Missing ones are fetched, on Wi-Fi; ones fetched
+    /// by themselves that are no longer wanted (played, pushed out by newer ones) go, unless they're part-heard.
     func reconcilePodcasts() async {
         guard let client, isOnline, !isReconciling else { return }
         isReconciling = true
@@ -310,7 +303,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for download in downloads where download.item.kind == .podcastEpisode && download.automatic && !wantedIds.contains(download.item.id) {
             if download.unsent == nil, download.finishedAt != nil || download.position == 0 { delete(download.id) }
         }
-        guard autoDownloadsPodcasts, isOnWiFi else { return }
+        guard isOnWiFi else { return }
         for episode in wanted where entry(for: episode.episodeId) == nil && !declined.contains(episode.episodeId) {
             try? await download(itemId: episode.episodeId, quality: .original, automatic: true)
         }
@@ -584,6 +577,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     func resumePosition(for trackId: String) -> Double {
         guard let download = entry(for: trackId), download.finishedAt == nil else { return 0 }
         return download.position
+    }
+
+    func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary? {
+        podcastDownloads
+            .filter { $0.isDownloaded && $0.finishedAt == nil && $0.item.id != episode.id && $0.item.seriesId == episode.seriesId && $0.item.addedAt > episode.addedAt }
+            .min { $0.item.addedAt < $1.item.addedAt }?.item
     }
 
     func localArtwork(for trackId: String) -> UIImage? {

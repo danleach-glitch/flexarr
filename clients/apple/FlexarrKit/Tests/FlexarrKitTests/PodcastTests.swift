@@ -82,14 +82,32 @@ struct PodcastClientTests {
         #expect(query == ["limit=25", "offset=50", "sort=oldest", "unplayed=true"])
     }
 
-    @Test func subscribesWithASetting() async throws {
+    @Test func subscribes() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("podcast")))
 
-        _ = try await client.subscribe(to: "p1", .init(keepEpisodes: 5))
+        _ = try await client.subscribe(to: "p1")
 
         let request = try #require(StubProtocol.recorded(host: host).first)
         #expect(request.httpMethod == "PUT")
         #expect(request.url?.path == "/api/v1/podcasts/p1/subscription")
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == "{}")
+    }
+
+    @Test func nothingLeftToPlayIsNil() async throws {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+
+        #expect(try await client.nextEpisode(after: "e1") == nil)
+        #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/podcasts/episodes/e1/next")
+    }
+
+    @Test func savesPreferences() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(#"{"autoDownload":false,"keepEpisodes":5,"speed":1.5}"#.utf8)))
+
+        let saved = try await client.setPodcastPreferences(.init(speed: 1.5))
+
+        #expect(saved == PodcastPreferences(autoDownload: false, keepEpisodes: 5, speed: 1.5))
+        let body = try #require(StubProtocol.recorded(host: host).first?.httpBody)
+        #expect(String(data: body, encoding: .utf8) == #"{"speed":1.5}"#)
     }
 
     @Test func aServerWithoutPodcastsHasNone() async throws {

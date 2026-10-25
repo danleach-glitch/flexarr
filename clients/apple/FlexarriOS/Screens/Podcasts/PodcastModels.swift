@@ -21,10 +21,8 @@ final class PodcastsHomeModel {
         defer { isLoading = false }
         do {
             async let continuing = client.continueListening()
-            async let fresh = client.newPodcastEpisodes(take: 30)
-            let followed = try await client.podcasts()
-            podcasts = followed
-            model.noteSpeeds(of: followed)
+            async let fresh = client.newPodcastEpisodes(unplayed: true, take: 30)
+            podcasts = try await client.podcasts()
             listening = (try? await continuing) ?? []
             newEpisodes = (try? await fresh) ?? []
             error = nil
@@ -35,7 +33,7 @@ final class PodcastsHomeModel {
     }
 }
 
-/// A show's page: the show, how it's followed, and its episodes (paged, newest first, or only the unplayed ones).
+/// A show's page: the show, whether it's followed, and its episodes, newest first: the unplayed ones, or all.
 @MainActor
 @Observable
 final class PodcastPageModel {
@@ -47,7 +45,7 @@ final class PodcastPageModel {
     private(set) var isLoadingMore = false
     /// Following or unfollowing, or saving a setting.
     private(set) var isSaving = false
-    var unplayedOnly = false
+    var unplayedOnly = true
     @ObservationIgnored private var generation = 0
 
     private static let pageSize = 40
@@ -66,7 +64,6 @@ final class PodcastPageModel {
             let first = try await page
             guard mine == generation else { return }
             podcast = loaded
-            model.noteSpeeds(of: [loaded])
             episodes = first.items
             total = first.total
             error = nil
@@ -108,14 +105,11 @@ final class PodcastPageModel {
         }
     }
 
-    func update(_ change: PodcastSubscriptionUpdate, model: AppModel) async {
-        guard let client = model.client else { return }
-        isSaving = true
-        defer { isSaving = false }
-        if let saved = try? await client.subscribe(to: id, change) {
-            podcast = saved
-            model.noteSpeeds(of: [saved])
-        }
+    /// Every episode played: for catching up on a show by starting from now.
+    func markAllPlayed(model: AppModel) async {
+        guard let podcast else { return }
+        await model.setWatched(podcast.summary, true)
+        await load(model: model)
     }
 }
 

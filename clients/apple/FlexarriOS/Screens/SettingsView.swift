@@ -92,6 +92,37 @@ struct SettingsView: View {
                 }
             }
 
+            if model.podcastStatus?.available == true, let podcasts = model.podcastPreferences {
+                Section {
+                    Toggle("Auto-download new episodes", isOn: Binding(get: { podcasts.autoDownload }, set: { value in
+                        Task {
+                            await model.updatePodcastPreferences(.init(autoDownload: value))
+                            await downloads.reconcilePodcasts()
+                        }
+                    }))
+                    .tint(.silver)
+                    .listRowBackground(Color.seat)
+                    Stepper("Keep the newest \(podcasts.keepEpisodes)", value: Binding(get: { podcasts.keepEpisodes }, set: { value in
+                        Task {
+                            await model.updatePodcastPreferences(.init(keepEpisodes: value))
+                            await downloads.reconcilePodcasts()
+                        }
+                    }), in: 1...50)
+                    .disabled(!podcasts.autoDownload)
+                    .listRowBackground(Color.seat)
+                    Picker("Speed", selection: Binding(get: { podcasts.speed }, set: { value in
+                        Task { await model.updatePodcastPreferences(.init(speed: value)) }
+                    })) {
+                        ForEach(MusicPlayer.speeds, id: \.self) { Text(speedLabel($0)).tag($0) }
+                    }
+                    .listRowBackground(Color.seat)
+                } header: {
+                    Text("Podcasts")
+                } footer: {
+                    Text("Auto-download keeps the newest unplayed episodes of every show you follow on this \(ThisDevice.name), on Wi-Fi only, and deletes them once they’re played. These settings are your profile’s, on every device; the speed also changes when you pick one in the player.")
+                }
+            }
+
             Section {
                 Picker("Size", selection: Binding(get: { downloads.quality }, set: { downloads.quality = $0 })) {
                     Text("Automatic (720p)").tag(DownloadQuality.medium)
@@ -100,9 +131,6 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.seat)
                 Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
-                    .tint(.silver)
-                    .listRowBackground(Color.seat)
-                Toggle("Auto-download new episodes", isOn: Binding(get: { downloads.autoDownloadsPodcasts }, set: { downloads.autoDownloadsPodcasts = $0 }))
                     .tint(.silver)
                     .listRowBackground(Color.seat)
                 LabeledContent("Space used", value: downloads.bytesUsed == 0 ? "None" : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
@@ -115,7 +143,7 @@ struct SettingsView: View {
             } header: {
                 Text("Downloads")
             } footer: {
-                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Auto-download keeps the newest episodes of podcasts you follow, on Wi-Fi; each show can turn it off or keep more. Episodes are deleted a day after you finish them. Albums, playlists and podcasts always come as their files are.")
+                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them. Albums, playlists and podcasts always come as their files are.")
             }
 
             Section {

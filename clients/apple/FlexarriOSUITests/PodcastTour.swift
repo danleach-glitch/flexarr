@@ -3,7 +3,8 @@ import XCTest
 
 /// Walks the podcast screens against a live server with a Podcasts library, saving a screenshot at each stop: Podcasts,
 /// Browse, a show from the charts (added to the library and followed, which a test server doesn't mind), an episode
-/// playing, Now Playing with a podcast's controls, and Downloads once the phone has fetched the show's newest episodes.
+/// playing, Now Playing with a podcast's controls, Downloads once the phone has fetched the show's newest episodes, and
+/// the Podcasts settings.
 /// Same environment as `ScreenshotTour`; plays with `-FlexarrNoHistory`.
 @MainActor
 final class PodcastTour: XCTestCase {
@@ -80,6 +81,13 @@ final class PodcastTour: XCTestCase {
         app.tabBars.buttons["Downloads"].firstMatch.tap()
         pause(25)
         shot("46-downloads")
+
+        // The Podcasts settings, on the server for the profile.
+        app.tabBars.buttons["Settings"].firstMatch.tap()
+        pause(2)
+        app.swipeUp()
+        pause(1)
+        shot("47-settings-podcasts")
     }
 
     private func pause(_ seconds: TimeInterval) {

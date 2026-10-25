@@ -17,8 +17,8 @@ final class AppModel {
     private(set) var librariesError: String?
     /// Whether this profile has podcasts; nil for servers before them.
     private(set) var podcastStatus: PodcastStatus?
-    /// The speed each followed show plays at, when it has its own (by podcast id), as last loaded.
-    var podcastSpeeds: [String: Double] = [:]
+    /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
+    private(set) var podcastPreferences: PodcastPreferences?
     private(set) var profiles: [Profile] = []
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
@@ -69,6 +69,11 @@ final class AppModel {
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
+        // A speed picked in the player is the profile's speed from then on, everywhere.
+        music.onSpeedChange = { [weak self] speed in
+            guard let self else { return }
+            Task { await self.updatePodcastPreferences(.init(speed: speed)) }
+        }
         #if DEBUG
         // `-FlexarrPlay <id>` plays a title once the app's up (as flexarr://play/<id>, without tvOS asking first).
         if let play = defaults.string(forKey: "FlexarrPlay") {
@@ -287,6 +292,7 @@ final class AppModel {
             librariesError = ConnectionError(error).message
         }
         podcastStatus = try? await client.podcastStatus()
+        if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
     }
 
     func invalidate() {
@@ -333,15 +339,26 @@ final class AppModel {
 
     // MARK: Podcasts
 
-    /// Plays a podcast episode from where it was left, at its show's speed (or the last one chosen).
-    func playEpisode(_ episode: ItemSummary, speed: Double? = nil) {
+    /// Plays a podcast episode from where it was left, at the profile's speed.
+    func playEpisode(_ episode: ItemSummary) {
         guard let client else { return }
-        music.playPodcast(episode, speed: speed ?? episode.seriesId.flatMap { podcastSpeeds[$0] }, client: client)
+        music.playPodcast(episode, speed: podcastPreferences?.speed, client: client)
     }
 
-    /// Remembers the shows' own speeds from a list of them.
-    func noteSpeeds(of podcasts: [Podcast]) {
-        for podcast in podcasts { podcastSpeeds[podcast.id] = podcast.subscription?.playbackSpeed }
+    /// Changes how this profile listens to podcasts, on every device; nil when it couldn't be saved.
+    @discardableResult
+    func updatePodcastPreferences(_ update: PodcastPreferencesUpdate) async -> PodcastPreferences? {
+        guard let client else { return nil }
+        if var known = podcastPreferences {
+            // Shown at once; the server's answer follows.
+            if let value = update.autoDownload { known.autoDownload = value }
+            if let value = update.keepEpisodes { known.keepEpisodes = value }
+            if let value = update.speed { known.speed = value }
+            podcastPreferences = known
+        }
+        guard let saved = try? await client.setPodcastPreferences(update) else { return nil }
+        podcastPreferences = saved
+        return saved
     }
 
     // MARK: Music

@@ -1,18 +1,13 @@
 import FlexarrKit
 import SwiftUI
 
-/// Podcasts: what's part-heard, the newest episodes of the shows followed, and the shows themselves, with Browse
-/// for finding more. Without a Podcasts library on the server, it says how to get one.
+/// Podcasts: the shows followed in a row, then what's part-heard and the newest unplayed episodes, with Browse for
+/// finding more. Without a Podcasts library on the server, it says how to get one.
 struct PodcastsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var home = PodcastsHomeModel()
-
-    private var columns: [GridItem] {
-        let minimum: CGFloat = sizeClass == .regular ? 150 : 104
-        return [GridItem(.adaptive(minimum: minimum, maximum: minimum * 1.45), spacing: 14, alignment: .top)]
-    }
 
     var body: some View {
         Group {
@@ -60,21 +55,25 @@ struct PodcastsView: View {
                     .padding(.horizontal, Layout.edge)
                     .padding(.top, 60)
                 }
+                if !home.podcasts.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionHeading(title: "Your podcasts")
+                        ScrollView(.horizontal) {
+                            LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                                ForEach(home.podcasts) { PodcastCard(podcast: $0).frame(width: Layout.posterWidth(sizeClass)) }
+                            }
+                            .padding(.horizontal, Layout.edge)
+                        }
+                        .scrollIndicators(.hidden)
+                    }
+                }
                 if !home.listening.isEmpty {
                     episodes("Continue listening", home.listening)
                 }
-                let unplayed = home.newEpisodes.filter { !$0.isPlayed && !home.listening.map(\.id).contains($0.id) }
+                let listening = Set(home.listening.map(\.id))
+                let unplayed = home.newEpisodes.filter { !$0.isPlayed && !listening.contains($0.id) }
                 if !unplayed.isEmpty {
-                    episodes("New episodes", Array(unplayed.prefix(12)))
-                }
-                if !home.podcasts.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionHeading(title: "Your podcasts")
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                            ForEach(home.podcasts) { PodcastCard(podcast: $0) }
-                        }
-                        .padding(.horizontal, Layout.edge)
-                    }
+                    episodes("New episodes", Array(unplayed.prefix(15)))
                 }
             }
             .padding(.top, 8)

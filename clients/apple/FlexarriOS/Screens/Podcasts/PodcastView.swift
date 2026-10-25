@@ -1,15 +1,15 @@
 import FlexarrKit
 import SwiftUI
 
-/// A show: its artwork, who makes it and what it's about, Follow (and how it's followed), then its episodes newest
-/// first, or only the unplayed ones.
+/// A show: its artwork, who makes it and what it's about, Follow, then its episodes newest first: the unplayed ones,
+/// or all, with Mark all as played.
 struct PodcastView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var page: PodcastPageModel
-    @State private var showingSettings = false
+    @State private var markingAllPlayed = false
     @State private var expanded = false
     @State private var unfollowing = false
     /// What the page showed before it loaded (the card that was tapped).
@@ -40,22 +40,16 @@ struct PodcastView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
-            if page.podcast?.isSubscribed == true {
-                Button { showingSettings = true } label: { Label("Settings for this show", systemImage: "slider.horizontal.3") }
-            }
-        }
-        .sheet(isPresented: $showingSettings) {
-            if let podcast = page.podcast, let subscription = podcast.subscription {
-                PodcastSettingsSheet(podcast: podcast, subscription: subscription) { change in
-                    Task {
-                        await page.update(change, model: model)
-                        await downloads.reconcilePodcasts()
-                    }
+        .confirmationDialog("Mark every episode as played?", isPresented: $markingAllPlayed, titleVisibility: .visible) {
+            Button("Mark all as played") {
+                Task {
+                    await page.markAllPlayed(model: model)
+                    await downloads.reconcilePodcasts()
                 }
-                .presentationDetents([.medium])
-                .presentationBackground(Color.room)
             }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("New episodes from now on show as unplayed. Downloads of played episodes are deleted.")
         }
         .confirmationDialog("Stop following this show?", isPresented: $unfollowing, titleVisibility: .visible) {
             Button("Stop following", role: .destructive) {
@@ -114,7 +108,7 @@ struct PodcastView: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: !podcast.isSubscribed))
                 if let latest = page.episodes.first(where: { !$0.isPlayed }) {
-                    Button { model.playEpisode(latest.summary, speed: podcast.subscription?.playbackSpeed) } label: {
+                    Button { model.playEpisode(latest.summary) } label: {
                         Label(latest.progress != nil ? "Resume" : "Latest episode", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: podcast.isSubscribed))
@@ -153,11 +147,19 @@ struct PodcastView: View {
                 Spacer()
                 @Bindable var page = page
                 Picker("Show", selection: $page.unplayedOnly) {
-                    Text("All").tag(false)
                     Text("Unplayed").tag(true)
+                    Text("All").tag(false)
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
+            }
+            if let podcast = page.podcast, podcast.unplayedCount > 0 {
+                Button { markingAllPlayed = true } label: {
+                    Label("Mark all as played", systemImage: "checkmark.circle")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(Color.silver)
+                .padding(.vertical, 4)
             }
             if page.episodes.isEmpty {
                 StatusView(state: .empty(page.unplayedOnly ? "You’re up to date." : "No episodes yet."))
@@ -187,60 +189,5 @@ struct PodcastView: View {
     private func refresh() async {
         if let client = model.client { _ = try? await client.refreshPodcast(page.id) }
         await load()
-    }
-}
-
-/// How a followed show behaves on this profile: whether phones keep its newest episodes, how many, and its speed.
-struct PodcastSettingsSheet: View {
-    @Environment(DownloadStore.self) private var downloads
-    let podcast: Podcast
-    let subscription: PodcastSubscription
-    let save: (PodcastSubscriptionUpdate) -> Void
-    @State private var autoDownload: Bool
-    @State private var keep: Int
-    /// 0 for the usual speed.
-    @State private var speed: Double
-
-    init(podcast: Podcast, subscription: PodcastSubscription, save: @escaping (PodcastSubscriptionUpdate) -> Void) {
-        self.podcast = podcast
-        self.subscription = subscription
-        self.save = save
-        _autoDownload = State(initialValue: subscription.autoDownload)
-        _keep = State(initialValue: subscription.keepEpisodes)
-        _speed = State(initialValue: subscription.playbackSpeed ?? 0)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Toggle("Download new episodes", isOn: $autoDownload)
-                        .tint(.silver)
-                        .listRowBackground(Color.seat)
-                    Stepper("Keep the newest \(keep)", value: $keep, in: 1...20)
-                        .disabled(!autoDownload)
-                        .listRowBackground(Color.seat)
-                } footer: {
-                    Text(downloads.autoDownloadsPodcasts
-                         ? "On Wi-Fi only. Played episodes are deleted as newer ones arrive."
-                         : "Downloading new episodes is turned off on this \(ThisDevice.name), in Settings.")
-                }
-                Section {
-                    Picker("Speed", selection: $speed) {
-                        Text("Usual").tag(0.0)
-                        ForEach(MusicPlayer.speeds, id: \.self) { Text(speedLabel($0)).tag($0) }
-                    }
-                    .listRowBackground(Color.seat)
-                } footer: {
-                    Text("Usual is the speed you last chose in the player.")
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .navigationTitle(podcast.title)
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .onChange(of: autoDownload) { _, value in save(.init(autoDownload: value)) }
-        .onChange(of: keep) { _, value in save(.init(keepEpisodes: value)) }
-        .onChange(of: speed) { _, value in save(.init(playbackSpeed: value)) }
     }
 }

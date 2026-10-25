@@ -17,6 +17,8 @@ protocol OfflineMusicLibrary: AnyObject {
     func localArtwork(for trackId: String) -> UIImage?
     /// Where listening to a downloaded podcast episode got to on this device.
     func resumePosition(for trackId: String) -> Double
+    /// With no connection, what plays after a podcast episode: the next downloaded, unplayed one of its show.
+    func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary?
     func record(itemId: String, position: Double, finished: Bool)
 }
 
@@ -25,7 +27,7 @@ protocol OfflineMusicLibrary: AnyObject {
 /// see video. A downloaded track plays from its file instead, with no session. Lives for the app's lifetime so music
 /// carries on while the viewer browses, and tells the lock screen, Control Center and the Siri Remote what's playing.
 /// Podcast episodes play here too, with what podcasts need: they resume, play faster or slower, skip back 15 seconds
-/// and forward 30, and can stop at a sleep timer.
+/// and forward 30, can stop at a sleep timer, and go on by themselves to the next episode the server suggests.
 @MainActor
 @Observable
 final class MusicPlayer {
@@ -74,6 +76,8 @@ final class MusicPlayer {
     @ObservationIgnored var recordsHistory = true
     /// Where downloaded tracks come from (set by the iOS app; the Apple TV has none).
     @ObservationIgnored weak var offlineLibrary: OfflineMusicLibrary?
+    /// The listener chose a podcast speed in the player (it's saved to their preferences).
+    @ObservationIgnored var onSpeedChange: ((Double) -> Void)?
 
     @ObservationIgnored private var client: FlexarrClient?
     /// The queue as it was given, for turning shuffle back off.
@@ -138,7 +142,7 @@ final class MusicPlayer {
     /// The rate the player runs at while playing.
     private var playRate: Float { isPodcast ? Float(speed) : 1 }
 
-    /// The speed podcasts play at unless their show has its own: the last one chosen.
+    /// The speed podcasts play at when the profile's preferences aren't known: the last one chosen here.
     static var podcastSpeed: Double {
         get { UserDefaults.standard.object(forKey: "podcasts.speed") as? Double ?? 1 }
         set { UserDefaults.standard.set(newValue, forKey: "podcasts.speed") }
@@ -169,8 +173,8 @@ final class MusicPlayer {
         startCurrent()
     }
 
-    /// Plays a podcast episode from where it was left, at the show's own speed when it has one.
-    func playPodcast(_ episode: ItemSummary, speed showSpeed: Double?, client: FlexarrClient) {
+    /// Plays a podcast episode from where it was left, at the profile's speed (or the last one chosen here).
+    func playPodcast(_ episode: ItemSummary, speed preferred: Double?, client: FlexarrClient) {
         self.client = client
         original = [episode]
         queue = [episode]
@@ -178,15 +182,16 @@ final class MusicPlayer {
         index = 0
         isShuffled = false
         repeatMode = .off
-        speed = showSpeed ?? Self.podcastSpeed
+        speed = preferred ?? Self.podcastSpeed
         startCurrent()
     }
 
-    /// A podcast's speed, remembered as the one to use from now on (unless a show has its own).
+    /// A podcast's speed, remembered as the one to use from now on.
     func setSpeed(_ speed: Double) {
         guard isPodcast else { return }
         self.speed = speed
         Self.podcastSpeed = speed
+        onSpeedChange?(speed)
         player.defaultRate = playRate
         if isPlaying { player.rate = playRate }
         pushNowPlaying()
@@ -461,6 +466,10 @@ final class MusicPlayer {
             pushNowPlaying()
             return
         }
+        if isPodcast, index + 1 >= queue.count, let episode = current {
+            playNextEpisode(after: episode)
+            return
+        }
         if repeatMode == .one {
             startCurrent()
         } else if index + 1 < queue.count {
@@ -476,6 +485,36 @@ final class MusicPlayer {
             position = 0
             isPlaying = false
             pushNowPlaying()
+        }
+    }
+
+    /// The end of a podcast episode with nothing queued after it: on to the episode the server suggests (the next of
+    /// the show, else the newest of the shows followed), or with no connection the show's next downloaded one.
+    private func playNextEpisode(after episode: ItemSummary) {
+        endSession()
+        clearItem()
+        position = 0
+        isPlaying = false
+        generation += 1
+        let mine = generation
+        isLoading = true
+        Task {
+            var next: ItemSummary?
+            do {
+                next = try await client?.nextEpisode(after: episode.id)?.summary
+            } catch {
+                next = offlineLibrary?.nextDownloadedEpisode(after: episode)
+            }
+            guard mine == generation else { return }
+            isLoading = false
+            guard let next else {
+                pushNowPlaying() // nothing left: stay on this one, ready to play again
+                return
+            }
+            queue = [next]
+            original = [next]
+            index = 0
+            startCurrent()
         }
     }
 

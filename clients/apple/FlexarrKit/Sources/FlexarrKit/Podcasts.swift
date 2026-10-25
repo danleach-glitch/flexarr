@@ -10,13 +10,36 @@ public struct PodcastStatus: Codable, Sendable, Hashable {
     public let country: String
 }
 
-/// How this profile follows a show: its phone keeps the newest `keepEpisodes` unplayed episodes when `autoDownload` is
-/// on, and it plays at `playbackSpeed` when that's set.
+/// This profile follows the show (since when).
 public struct PodcastSubscription: Codable, Sendable, Hashable {
     public let subscribedAt: Date
-    public let autoDownload: Bool
-    public let keepEpisodes: Int
-    public let playbackSpeed: Double?
+}
+
+/// How a profile listens to podcasts, on every device: whether phones keep the newest `keepEpisodes` unplayed
+/// episodes of each show followed (on Wi-Fi), and the speed episodes play at.
+public struct PodcastPreferences: Codable, Sendable, Hashable {
+    public var autoDownload: Bool
+    public var keepEpisodes: Int
+    public var speed: Double
+
+    public init(autoDownload: Bool = true, keepEpisodes: Int = 3, speed: Double = 1) {
+        self.autoDownload = autoDownload
+        self.keepEpisodes = keepEpisodes
+        self.speed = speed
+    }
+}
+
+/// Changes to the podcast preferences; nil leaves one as it is.
+public struct PodcastPreferencesUpdate: Codable, Sendable, Hashable {
+    public var autoDownload: Bool?
+    public var keepEpisodes: Int?
+    public var speed: Double?
+
+    public init(autoDownload: Bool? = nil, keepEpisodes: Int? = nil, speed: Double? = nil) {
+        self.autoDownload = autoDownload
+        self.keepEpisodes = keepEpisodes
+        self.speed = speed
+    }
 }
 
 public struct Podcast: Codable, Sendable, Hashable, Identifiable {
@@ -127,22 +150,11 @@ public struct PodcastAutoDownload: Codable, Sendable, Hashable {
     public let podcastId: String
 }
 
-/// Changes to how a show is followed; nil leaves a setting as it is. A speed of 0 goes back to the usual one.
-public struct PodcastSubscriptionUpdate: Codable, Sendable, Hashable {
-    public var autoDownload: Bool?
-    public var keepEpisodes: Int?
-    public var playbackSpeed: Double?
-
-    public init(autoDownload: Bool? = nil, keepEpisodes: Int? = nil, playbackSpeed: Double? = nil) {
-        self.autoDownload = autoDownload
-        self.keepEpisodes = keepEpisodes
-        self.playbackSpeed = playbackSpeed
-    }
-}
-
 public enum PodcastEpisodeSort: String, Sendable {
     case newest, oldest
 }
+
+struct EmptyBody: Codable, Sendable {}
 
 struct AddPodcastBody: Codable, Sendable {
     let feedUrl: String?
@@ -202,10 +214,30 @@ extension FlexarrClient {
         try await get("podcasts/continue", query: [.init(name: "limit", value: String(take))])
     }
 
-    /// Follows a show, or changes how. Returns the show with its new subscription.
-    public func subscribe(to podcastId: String, _ update: PodcastSubscriptionUpdate = .init()) async throws -> Podcast {
-        let data = try await send("PUT", "podcasts/\(podcastId)/subscription", body: update)
+    /// Follows a show. Returns the show with its subscription.
+    public func subscribe(to podcastId: String) async throws -> Podcast {
+        let data = try await send("PUT", "podcasts/\(podcastId)/subscription", body: EmptyBody())
         return try decode(Podcast.self, from: data)
+    }
+
+    /// What to play when this episode ends: the next unplayed one of its show, else the newest unplayed one of the
+    /// shows followed. Nil when there's nothing left (or the server is from before auto-play).
+    public func nextEpisode(after id: String) async throws -> PodcastEpisode? {
+        do {
+            let data = try await send("GET", "podcasts/episodes/\(id)/next")
+            return data.isEmpty ? nil : try decode(PodcastEpisode.self, from: data)
+        } catch FlexarrClientError.http(status: 404, _) {
+            return nil
+        }
+    }
+
+    public func podcastPreferences() async throws -> PodcastPreferences {
+        try await get("podcasts/preferences")
+    }
+
+    public func setPodcastPreferences(_ update: PodcastPreferencesUpdate) async throws -> PodcastPreferences {
+        let data = try await send("PUT", "podcasts/preferences", body: update)
+        return try decode(PodcastPreferences.self, from: data)
     }
 
     public func unsubscribe(from podcastId: String) async throws {
