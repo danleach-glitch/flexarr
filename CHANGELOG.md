@@ -4,6 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## 0.21.0 · 25 October 2026
 
+### Music on the web: a queue, playlists, lyrics and discovery
+- A Spotify-style queue: Play next and Add to queue on tracks and albums, a queue panel above the now-playing bar with drag or arrow reordering, remove, clear and skip-to; the bar stays with you on music pages, links its cover, title and artist to their pages, and the queue, track and position survive a reload (coming back paused).
+- Playlists, per profile: a Playlists page and a page for each playlist with Play, Shuffle, drag-to-reorder, rename and delete, a cover, Add to playlist in track, album and artist menus, and a Your playlists row on Home.
+- Lyrics: a Lyrics panel under an album's tracklist for the track playing, from .lrc or .txt sidecars or the file's own tags; timed lyrics highlight the line being sung and clicking a line seeks there.
+- Discovery: Recently played, Most played and More from artists you play rows on Home (movable or off in Settings, like any row) and in a music library's Browse view, with New albums; Artist radio, a station of about fifty tracks seeded from an artist and the artists sharing their genres; search finds albums and tracks, with a play button on each track.
+- A play button appears on an artist's or album's artwork on hover, playing their tracks.
+
 ### Siri: "Play the next episode of Curb Your Enthusiasm in Flexarr"
 - On iPhone and iPad, Siri plays a film or the next episode of a show by name ("play the next *Traitors* in Flexarr", "watch *Heat* in Flexarr"), picks up Continue Watching ("continue watching in Flexarr"), pauses, resumes and stops ("pause Flexarr"), and searches ("search for *Fargo* in Flexarr"). The app's name has to be in the phrase. Siri learns your library's titles when the app signs in.
 - Settings › Siri on iPhone and iPad chooses where Siri plays: this device, or an Apple TV with Flexarr open; or name a device as you ask ("… on the living room TV"). An Apple TV that isn't listening gets the command when Flexarr is opened on it within two minutes.
