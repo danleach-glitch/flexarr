@@ -239,8 +239,6 @@ function EpisodeRow({ episode, showPodcast, onChanged }: { episode: PodcastEpiso
   const actions: MenuAction[] = [
     { label: 'Play next', run: () => player.playNext(track()) },
     { label: 'Add to queue', run: () => player.enqueue(track()) },
-    'divider',
-    played ? { label: 'Mark as unplayed', run: () => mark(false) } : { label: 'Mark as played', run: () => mark(true) },
     ...(showPodcast ? [{ label: `Go to ${episode.podcastTitle}`, run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
   ]
 
