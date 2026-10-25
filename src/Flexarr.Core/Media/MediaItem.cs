@@ -43,6 +43,12 @@ public sealed class MediaItem
     public int? DiscNumber { get; set; }
     public int? TrackNumber { get; set; }
 
+    /// <summary>
+    /// A track's own artist when it isn't the album's (a compilation's tracks, a featured artist); null when they're
+    /// the same. Tracks only.
+    /// </summary>
+    public string? TrackArtist { get; set; }
+
     /// <summary>MusicBrainz release id for albums, artist id for artists.</summary>
     public string? MusicBrainzId { get; set; }
 

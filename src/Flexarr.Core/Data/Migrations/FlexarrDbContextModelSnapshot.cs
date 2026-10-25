@@ -462,6 +462,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("TmdbId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TrackArtist")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("TrackNumber")
                         .HasColumnType("INTEGER");
 

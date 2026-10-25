@@ -28,6 +28,9 @@ public class ArtistTracksTests(FlexarrApiFactory factory) : IClassFixture<Flexar
             tracks.Select(t => t.Title));
         Assert.All(tracks, t => Assert.Equal(MediaKind.Track, t.Kind));
         Assert.Equal("Dire Straits", tracks[0].SeriesTitle);
+        // The album's artist is every track's unless the track names its own.
+        Assert.Null(tracks[0].TrackArtist);
+        Assert.Equal("Mark Knopfler", tracks.Single(t => t.Title == "Early Demo").TrackArtist);
 
         // One album's tracks alone, too.
         var oneAlbum = await Client().GetFromJsonAsync<List<ItemSummaryDto>>(new Uri($"/api/v1/items/{albums["On Every Street"]}/tracks", UriKind.Relative), Json);
@@ -83,6 +86,8 @@ public class ArtistTracksTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Album("Making Movies", 1980, (1, 2, "Romeo and Juliet"), (1, 1, "Tunnel of Love"));
         Album("Unreleased", null, (1, 1, "Early Demo"));
         Album("Communiqué", 1979, (1, 2, "News"), (1, 1, "Once Upon a Time in the West"));
+        // The demo is credited to Knopfler alone.
+        db.ChangeTracker.Entries<MediaItem>().Single(e => e.Entity.Title == "Early Demo").Entity.TrackArtist = "Mark Knopfler";
         await db.SaveChangesAsync();
         return (artist.Id, albums);
     }

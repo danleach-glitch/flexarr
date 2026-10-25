@@ -680,9 +680,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 Year = info.Year,
                 DiscNumber = info.Disc,
                 TrackNumber = info.Track,
+                // The track's own artist only when it isn't the album's, under either of the artist's names (the
+                // tags' or Lidarr's): a compilation's tracks, a featured artist.
+                TrackArtist = info.TrackArtist is { } tagged && !IsNamed(artist, tagged) ? tagged : null,
                 Path = filePath,
             });
         }
+
+        private static bool IsNamed(MediaItem artist, string name) =>
+            MusicTags.SameArtist(artist.Title, name) || (artist.OriginalTitle is { } original && MusicTags.SameArtist(original, name));
 
         private static string Fold(string value) => value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
 

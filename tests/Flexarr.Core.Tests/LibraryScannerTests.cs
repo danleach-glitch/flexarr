@@ -580,6 +580,25 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         var untagged = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Track && i.Title == "Song Name");
         Assert.Equal(7, untagged.TrackNumber);
         Assert.Equal("Some Album", (await _db.MediaItems.SingleAsync(i => i.Id == untagged.ParentId)).Title);
+
+        // A compilation's track keeps its own artist; a track by the album's artist doesn't repeat it.
+        Assert.Equal("Kavinsky", (await _db.MediaItems.SingleAsync(i => i.Title == "Nightcall")).TrackArtist);
+        Assert.Null((await _db.MediaItems.SingleAsync(i => i.Title == "Airbag")).TrackArtist);
+    }
+
+    [Fact]
+    public async Task Music_ACompilationFlaggedWithoutAnAlbumArtist_IsOneAlbumUnderVariousArtists()
+    {
+        var root = Touch("music/Compilations/Now That's What I Call Music/01 - Blue Monday.mp3", "music/Compilations/Now That's What I Call Music/02 - Relax.mp3");
+        _probe.Tags["01 - Blue Monday.mp3"] = new() { ["artist"] = "New Order", ["album"] = "Now That's What I Call Music", ["title"] = "Blue Monday", ["track"] = "1", ["compilation"] = "1" };
+        _probe.Tags["02 - Relax.mp3"] = new() { ["artist"] = "Frankie Goes to Hollywood", ["album"] = "Now That's What I Call Music", ["title"] = "Relax", ["track"] = "2", ["compilation"] = "1" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+
+        await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(["Various Artists"], await _db.MediaItems.Where(i => i.Kind == MediaKind.Artist).Select(i => i.Title).ToListAsync());
+        var album = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Kind == MediaKind.Album);
+        Assert.Equal(["New Order", "Frankie Goes to Hollywood"], album.Children.OrderBy(t => t.SortTitle).Select(t => t.TrackArtist));
     }
 
     [Fact]
@@ -611,6 +630,11 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal("Making Movies", albums[0].Title);
         Assert.Equal(1980, albums[0].Year);
         Assert.Equal(["Tunnel of Love", "Romeo and Juliet", "Skateaway"], albums[0].Children.OrderBy(t => t.SortTitle).Select(t => t.Title));
+
+        // "Dire straits" is the artist under the tags' spelling, so it isn't a track artist; Knopfler alone is.
+        var trackArtists = albums[0].Children.ToDictionary(t => t.Title, t => t.TrackArtist);
+        Assert.Null(trackArtists["Romeo and Juliet"]);
+        Assert.Equal("Mark Knopfler", trackArtists["Skateaway"]);
     }
 
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
