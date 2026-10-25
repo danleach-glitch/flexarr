@@ -32,6 +32,9 @@ public sealed partial class MetadataRefresher(
     /// <summary>The source of a film's or show's details when they came from searching for its folder's name.</summary>
     public const string RadarrLookup = "Radarr lookup", SonarrLookup = "Sonarr lookup";
 
+    /// <summary>The source of an artist's or album's details when nothing but its files' tags supplied them.</summary>
+    public const string Tags = "Tags";
+
     private Dictionary<string, Genre>? _genres;
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
@@ -59,7 +62,7 @@ public sealed partial class MetadataRefresher(
         {
             LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, tmdbId, ct).ConfigureAwait(false),
             LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, tvdbId, ct).ConfigureAwait(false),
-            LibraryType.Music => await RefreshMusicAsync(library.Id, force, ct).ConfigureAwait(false),
+            LibraryType.Music => await RefreshMusicAsync(library.Id, force, within, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
     }
@@ -271,8 +274,95 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ Music
 
-    /// <summary>Music metadata comes from tags and local artwork at scan time; this adds ambient colours.</summary>
-    private async Task<MetadataRefreshResult> RefreshMusicAsync(Guid libraryId, bool force, CancellationToken ct)
+    /// <summary>
+    /// The scanner builds artists and albums from tags and whatever artwork sits in their folders. Lidarr, when
+    /// connected, knows better: the canonical names and years, and artwork for every artist and album. Without it, the
+    /// tags stand and this only adds ambient colours.
+    /// </summary>
+    private async Task<MetadataRefreshResult> RefreshMusicAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
+        var lidarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Lidarr).ToList();
+        if (lidarrs.Count == 0)
+        {
+            return await RefreshMusicFromTagsAsync(libraryId, force, ct).ConfigureAwait(false);
+        }
+
+        // Albums in the folders just scanned (a Lidarr import) make their artist due, so new albums get their cover
+        // straight away.
+        var albumsWithin = await WithinAsync(libraryId, MediaKind.Album, within, ct).ConfigureAwait(false);
+        var also = albumsWithin.Count == 0 ? []
+            : await db.MediaItems.Where(i => albumsWithin.Contains(i.Id) && i.ParentId != null).Select(i => i.ParentId!.Value).Distinct().ToListAsync(ct).ConfigureAwait(false);
+        var artists = await Stale(libraryId, MediaKind.Artist, force, also).Include(i => i.Genres).ToListAsync(ct).ConfigureAwait(false);
+        if (artists.Count == 0)
+        {
+            return new MetadataRefreshResult(0, 0, 0);
+        }
+
+        // Lidarr's whole artist list once (it's a few KB an artist, and there are rarely thousands), rather than a
+        // search per artist; albums and files are asked for per matched artist.
+        var known = new List<(ArrInstance Instance, LidarrArtist Artist)>();
+        var answered = false;
+        foreach (var lidarr in lidarrs)
+        {
+            try
+            {
+                known.AddRange((await arr.GetArtistsAsync(lidarr, ct).ConfigureAwait(false)).Select(a => (lidarr, a)));
+                answered = true;
+            }
+            catch (Exception ex) when (IsNetworkFailure(ex, ct))
+            {
+                LogArrUnavailable(lidarr.Name, ex.Message);
+            }
+        }
+
+        int fromArr = 0, fromTags = 0, unmatched = 0;
+        foreach (var artist in artists)
+        {
+            var albums = await db.MediaItems.Where(i => i.ParentId == artist.Id && i.Kind == MediaKind.Album).Include(i => i.Genres).ToListAsync(ct).ConfigureAwait(false);
+            try
+            {
+                var hit = lidarrs
+                    .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
+                    .FirstOrDefault(h => h.Artist is not null);
+                if (hit.Artist is { } lidarrArtist)
+                {
+                    await ApplyArtistAsync(artist, albums, lidarrArtist, hit.Instance, ct).ConfigureAwait(false);
+                    fromArr++;
+                }
+                else
+                {
+                    await ApplyTagsAsync(artist, albums, ct).ConfigureAwait(false);
+                    if (answered)
+                    {
+                        unmatched++;
+                    }
+                    else
+                    {
+                        fromTags++; // Lidarr couldn't be asked: not this artist's fault, and it's retried as stale anyway.
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
+            {
+                LogItemFailed(ex, artist.Title);
+                unmatched++;
+            }
+
+            artist.MetadataUpdatedAt = DateTime.UtcNow;
+            foreach (var album in albums)
+            {
+                album.MetadataUpdatedAt = DateTime.UtcNow;
+            }
+
+            await SaveEveryAsync(fromArr + fromTags + unmatched, ct).ConfigureAwait(false);
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return new MetadataRefreshResult(fromArr, fromTags, unmatched);
+    }
+
+    /// <summary>No Lidarr: the tags stand, and the artwork the scanner found gets its ambient colour.</summary>
+    private async Task<MetadataRefreshResult> RefreshMusicFromTagsAsync(Guid libraryId, bool force, CancellationToken ct)
     {
         var items = await db.MediaItems
             .Where(i => i.LibraryId == libraryId && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Artist) && i.PosterUrl != null && (force || i.AccentColor == null))
@@ -281,11 +371,183 @@ public sealed partial class MetadataRefresher(
         {
             item.AccentColor = await images.AccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
             item.MetadataUpdatedAt = DateTime.UtcNow;
-            item.MetadataSource = "Tags";
+            item.MetadataSource = Tags;
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
         return new MetadataRefreshResult(0, items.Count, 0);
+    }
+
+    private async Task ApplyArtistAsync(MediaItem artist, List<MediaItem> albums, LidarrArtist lidarrArtist, ArrInstance lidarr, CancellationToken ct)
+    {
+        IReadOnlyList<LidarrAlbum>? lidarrAlbums = null;
+        IReadOnlyList<LidarrTrackFile> files = [];
+        try
+        {
+            lidarrAlbums = await arr.GetArtistAlbumsAsync(lidarr, lidarrArtist.Id, ct).ConfigureAwait(false);
+            files = await arr.GetTrackFilesAsync(lidarr, lidarrArtist.Id, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
+        {
+            // The artist is still worth naming; its albums are left as they are (not handed back to their tags, which
+            // would strip covers over a hiccup) and wait for the next refresh.
+            LogArrUnavailable(lidarr.Name, ex.Message);
+        }
+
+        Rename(artist, lidarrArtist.ArtistName);
+        artist.MusicBrainzId = NullIfEmpty(lidarrArtist.ForeignArtistId) ?? artist.MusicBrainzId;
+        artist.Overview = NullIfEmpty(lidarrArtist.Overview);
+        artist.Status = NullIfEmpty(lidarrArtist.Status);
+        artist.CommunityRating = lidarrArtist.Ratings?.Value is > 0 ? lidarrArtist.Ratings.Value : null;
+        artist.ArrId = lidarrArtist.Id;
+        artist.MetadataSource = lidarr.Name;
+        await SetGenresAsync(artist, lidarrArtist.Genres, ct).ConfigureAwait(false);
+
+        // Lidarr's artwork over whatever the scanner found: a real artist photo rather than an album's cover, a cover
+        // for albums whose files have none embedded. What the scanner found stays as the fallback.
+        var poster = ArrImage(lidarr, lidarrArtist.Images, "poster", $"mediacover/artist/{lidarrArtist.Id}/");
+        var backdrop = ArrImage(lidarr, lidarrArtist.Images, "fanart", $"mediacover/artist/{lidarrArtist.Id}/");
+        var changed = poster is not null && poster != artist.PosterUrl;
+        artist.PosterUrl = poster ?? (ArtworkUrl.IsArr(artist.PosterUrl) ? null : artist.PosterUrl);
+        artist.BackdropUrl = backdrop;
+        artist.LogoUrl = ArrImage(lidarr, lidarrArtist.Images, "clearlogo", $"mediacover/artist/{lidarrArtist.Id}/");
+
+        foreach (var album in albums)
+        {
+            if (lidarrAlbums is not null)
+            {
+                if (LidarrMatcher.MatchAlbum(album, lidarrAlbums, files, settings.PathMappings) is { } lidarrAlbum)
+                {
+                    await ApplyAlbumAsync(album, lidarrAlbum, lidarr, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await ApplyTagsAsync(album, ct).ConfigureAwait(false);
+                }
+            }
+
+            album.BackdropUrl ??= artist.BackdropUrl;
+        }
+
+        // The artist's cover is their first album's when they have no photo of their own, as the scanner does.
+        artist.PosterUrl ??= albums.OrderBy(a => a.Year ?? int.MaxValue).ThenBy(a => a.SortTitle).Select(a => a.PosterUrl).FirstOrDefault(p => p is not null);
+        if ((changed || artist.AccentColor is null) && artist.PosterUrl is { } source)
+        {
+            artist.AccentColor = await images.AccentColorAsync(source, ct).ConfigureAwait(false) ?? artist.AccentColor;
+        }
+    }
+
+    private async Task ApplyAlbumAsync(MediaItem album, LidarrAlbum lidarrAlbum, ArrInstance lidarr, CancellationToken ct)
+    {
+        Rename(album, lidarrAlbum.Title);
+        album.Year = lidarrAlbum.ReleaseDate?.Year ?? album.Year;
+        album.ReleaseDate = DateOnlyOf(lidarrAlbum.ReleaseDate);
+        album.MusicBrainzId = NullIfEmpty(lidarrAlbum.ForeignAlbumId) ?? album.MusicBrainzId;
+        album.Overview = NullIfEmpty(lidarrAlbum.Overview);
+        album.RuntimeMinutes = lidarrAlbum.Duration > 0 ? (int)Math.Max(1, Math.Round(lidarrAlbum.Duration / 60_000.0)) : null;
+        album.CommunityRating = lidarrAlbum.Ratings?.Value is > 0 ? lidarrAlbum.Ratings.Value : null;
+        album.ArrId = lidarrAlbum.Id;
+        album.MetadataSource = lidarr.Name;
+        await SetGenresAsync(album, lidarrAlbum.Genres, ct).ConfigureAwait(false);
+
+        var cover = ArrImage(lidarr, lidarrAlbum.Images, "cover", $"mediacover/album/{lidarrAlbum.Id}/");
+        var changed = cover is not null && cover != album.PosterUrl;
+        album.PosterUrl = cover ?? (ArtworkUrl.IsArr(album.PosterUrl) ? null : album.PosterUrl);
+        if ((changed || album.AccentColor is null) && album.PosterUrl is { } source)
+        {
+            album.AccentColor = await images.AccentColorAsync(source, ct).ConfigureAwait(false) ?? album.AccentColor;
+        }
+    }
+
+    /// <summary>An artist Lidarr doesn't have, and its albums: the tags stand; the scanner's artwork gets its colour.</summary>
+    private async Task ApplyTagsAsync(MediaItem artist, List<MediaItem> albums, CancellationToken ct)
+    {
+        foreach (var album in albums)
+        {
+            await ApplyTagsAsync(album, ct).ConfigureAwait(false);
+        }
+
+        await ApplyTagsAsync(artist, ct).ConfigureAwait(false);
+    }
+
+    private async Task ApplyTagsAsync(MediaItem item, CancellationToken ct)
+    {
+        // Artwork from a Lidarr that no longer has the item (or is no longer configured) can't be fetched any more.
+        if (ArtworkUrl.IsArr(item.PosterUrl))
+        {
+            item.PosterUrl = null;
+            item.AccentColor = null;
+        }
+
+        if (ArtworkUrl.IsArr(item.BackdropUrl))
+        {
+            item.BackdropUrl = null;
+        }
+
+        if (ArtworkUrl.IsArr(item.LogoUrl))
+        {
+            item.LogoUrl = null;
+        }
+
+        if (item.MetadataSource != Tags)
+        {
+            // Back to the tags' name: the one Lidarr gave is only right while Lidarr vouches for it.
+            if (item.OriginalTitle is { } tagged)
+            {
+                item.Title = tagged;
+                item.SortTitle = SortTitle.For(tagged);
+                item.OriginalTitle = null;
+            }
+
+            item.ArrId = null;
+            item.MetadataSource = Tags;
+        }
+
+        if (item.AccentColor is null && item.PosterUrl is { } poster)
+        {
+            item.AccentColor = await images.AccentColorAsync(poster, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Gives an artist or album Lidarr's name, keeping the tags' spelling as the original title so the scanner still
+    /// recognises its files (it groups them by the tags) and a later refresh can hand the name back.
+    /// </summary>
+    private static void Rename(MediaItem item, string title)
+    {
+        var name = NullIfEmpty(title);
+        if (name is null || name == item.Title)
+        {
+            return;
+        }
+
+        item.OriginalTitle ??= item.Title;
+        if (item.OriginalTitle == name)
+        {
+            item.OriginalTitle = null;
+        }
+
+        item.Title = name;
+        item.SortTitle = SortTitle.For(name);
+    }
+
+    /// <summary>
+    /// An arr:// link to one of Lidarr's images (see <see cref="ArtworkUrl.Arr"/>). Lidarr's <c>url</c> is a UI path
+    /// (<c>/MediaCover/Albums/1/cover.jpg?lastWrite=…</c>) that needs a signed-in browser; the same file is served to
+    /// the API under <paramref name="apiFolder"/>. The lastWrite stamp stays on, so a replaced image is fetched anew.
+    /// </summary>
+    private static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
+    {
+        var image = lidarrImages.FirstOrDefault(i => string.Equals(i.CoverType, coverType, StringComparison.OrdinalIgnoreCase));
+        if (image?.Url is not { Length: > 0 } url)
+        {
+            return null;
+        }
+
+        var query = url.IndexOf('?', StringComparison.Ordinal);
+        var path = query < 0 ? url : url[..query];
+        var file = path[(path.LastIndexOf('/') + 1)..];
+        return file.Length == 0 ? null : ArtworkUrl.Arr(lidarr.Name, apiFolder + file + (query < 0 ? string.Empty : url[query..]));
     }
 
     // ------------------------------------------------------------------ TV
@@ -589,11 +851,12 @@ public sealed partial class MetadataRefresher(
         var now = DateTime.UtcNow;
         var cutoff = now - StaleAfter;
         var retryCutoff = now - RetryUnmatchedAfter;
-        // Items that didn't match last time, or were only found by a title search, are retried daily (a rename or new
-        // *arr entry may fix them). A new *arr entry also arrives as a webhook, whose folder is refreshed straight away.
+        // Items that didn't match last time, or were only found by a title search (or, for music, only have their tags),
+        // are retried daily (a rename or new *arr entry may fix them). A new *arr entry also arrives as a webhook, whose
+        // folder is refreshed straight away.
         return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
             && (force || also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff
-                || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup) && !i.MatchLocked))
+                || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup || i.MetadataSource == Tags) && !i.MatchLocked))
                     && i.MetadataUpdatedAt < retryCutoff)));
     }
 

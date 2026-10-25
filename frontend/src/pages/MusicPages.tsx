@@ -1,11 +1,21 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
-import { imageUrl, type ItemDetail } from '../api/client'
+import { getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Play } from '../components/icons'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
+
+/** A fair shuffle (Fisher–Yates); sorting by a random comparator isn't one. */
+export function shuffled(tracks: ItemSummary[]): ItemSummary[] {
+  const out = [...tracks]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
 
 /** An album: cover, facts and its tracklist. Discs are separated when there's more than one. */
 export function AlbumPage({ detail }: { detail: ItemDetail }) {
@@ -40,7 +50,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             <button className="button" onClick={() => player.play(tracks, 0)} disabled={tracks.length === 0}>
               <Play /> Play
             </button>
-            <button className="button quiet" onClick={() => player.play([...tracks].sort(() => Math.random() - 0.5), 0)} disabled={tracks.length < 2}>
+            <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0)} disabled={tracks.length < 2}>
               Shuffle
             </button>
           </div>
@@ -67,9 +77,24 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
   )
 }
 
-/** An artist and their albums, newest first. */
+/** An artist and their albums, newest first. Play and Shuffle take every track they have. */
 export function ArtistPage({ detail }: { detail: ItemDetail }) {
+  const player = useAudioPlayer()
   const { item, children: albums } = detail
+  const [loading, setLoading] = useState(false)
+
+  // The tracks are fetched when asked for, not with the page: an artist with a hundred albums shouldn't make every
+  // visit load them all.
+  const playAll = async (shuffle: boolean) => {
+    setLoading(true)
+    try {
+      const tracks = await getTracks(item.id)
+      if (tracks.length > 0) player.play(shuffle ? shuffled(tracks) : tracks, 0)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <article className="music-page" style={item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined}>
       <div className="music-glow" aria-hidden="true">
@@ -84,6 +109,14 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
           <p className="facts">
             <span>{albums.length === 1 ? '1 album' : `${albums.length} albums`}</span>
           </p>
+          <div className="detail-actions">
+            <button className="button" onClick={() => void playAll(false)} disabled={albums.length === 0 || loading}>
+              <Play /> Play
+            </button>
+            <button className="button quiet" onClick={() => void playAll(true)} disabled={albums.length === 0 || loading}>
+              Shuffle
+            </button>
+          </div>
         </div>
       </header>
       <div className="poster-grid music-albums">

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using Flexarr.Integrations.Arr;
 using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Metadata;
@@ -75,7 +76,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     internal TimeSpan UnavailableFor { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Returns the path of a cached copy at least <paramref name="width"/> wide, or null if it can't be fetched.</summary>
-    /// <param name="remoteUrl">An https URL, or (from the library scanner only) a file:// or embedded:// one.</param>
+    /// <param name="remoteUrl">An https URL, an arr:// one (see <see cref="ArtworkUrl.Arr"/>), or (from the library scanner only) a file:// or embedded:// one.</param>
     /// <param name="width">The width wanted; snapped up to one of <see cref="ArtworkUrl.Widths"/>.</param>
     /// <param name="ct">
     /// Stops waiting. The download and resize carry on (on their own timeout) for <see cref="AbandonAfter"/>, for
@@ -281,7 +282,21 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             return await ResizeAsync(local, format, embedded, snapped, target, ct).ConfigureAwait(false) ? Written(target) : null;
         }
 
-        if (!Uri.TryCreate(ArtworkUrl.ForWidth(remoteUrl, snapped), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        // Artwork a configured *arr holds (Lidarr's): fetched from it with its API key. An instance that's been removed
+        // from the settings is remembered as gone for a while, like a host that doesn't answer.
+        ArrInstance? arr = null;
+        if (ArtworkUrl.TryParseArr(remoteUrl, out var instanceName, out var apiPath))
+        {
+            arr = settings.ArrInstances.FirstOrDefault(a => string.Equals(a.Name, instanceName, StringComparison.OrdinalIgnoreCase));
+            if (arr is null)
+            {
+                job.RetryAfter = GoneFor;
+                return null;
+            }
+        }
+
+        Uri? uri = null;
+        if (arr is null && (!Uri.TryCreate(ArtworkUrl.ForWidth(remoteUrl, snapped), UriKind.Absolute, out uri) || uri.Scheme != Uri.UriSchemeHttps))
         {
             return null;
         }
@@ -292,7 +307,10 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             await DownloadSlots.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                if (!await DownloadAsync(uri, remoteUrl, source, job, ct).ConfigureAwait(false))
+                var saved = arr is not null
+                    ? await DownloadArrAsync(arr, apiPath, remoteUrl, source, job, ct).ConfigureAwait(false)
+                    : await DownloadAsync(uri!, remoteUrl, source, job, ct).ConfigureAwait(false);
+                if (!saved)
                 {
                     return null;
                 }
@@ -409,32 +427,51 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
                 continue;
             }
 
-            if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxDownloadBytes)
+            return await SaveAsync(response, remoteUrl, path, job, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Fetches artwork from a configured *arr's API with its key. No redirects: the instance answers the API itself, and
+    /// a bounce (to a sign-in page, say) means the key wasn't accepted.
+    /// </summary>
+    private async Task<bool> DownloadArrAsync(ArrInstance instance, string apiPath, string remoteUrl, string path, Job job, CancellationToken cancel)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        timeout.CancelAfter(DownloadTimeout);
+        using var request = ArrClient.CreateRequest(instance, HttpMethod.Get, apiPath);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+        return await SaveAsync(response, remoteUrl, path, job, timeout.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>Writes a successful answer's body to <paramref name="path"/>, up to <see cref="MaxDownloadBytes"/>.</summary>
+    private async Task<bool> SaveAsync(HttpResponseMessage response, string remoteUrl, string path, Job job, CancellationToken ct)
+    {
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxDownloadBytes)
+        {
+            LogDownloadFailed(remoteUrl, (int)response.StatusCode);
+            job.RetryAfter = response.IsSuccessStatusCode ? GoneFor : RetryAfterStatus((int)response.StatusCode);
+            return false;
+        }
+
+        await using var file = File.Create(path);
+        await using var body = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var buffer = new byte[81920];
+        long total = 0;
+        for (int read; (read = await body.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0;)
+        {
+            total += read;
+            if (total > MaxDownloadBytes)
             {
                 LogDownloadFailed(remoteUrl, (int)response.StatusCode);
-                job.RetryAfter = response.IsSuccessStatusCode ? GoneFor : RetryAfterStatus((int)response.StatusCode);
+                job.RetryAfter = GoneFor;
                 return false;
             }
 
-            await using var file = File.Create(path);
-            await using var body = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            var buffer = new byte[81920];
-            long total = 0;
-            for (int read; (read = await body.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0;)
-            {
-                total += read;
-                if (total > MaxDownloadBytes)
-                {
-                    LogDownloadFailed(remoteUrl, (int)response.StatusCode);
-                    job.RetryAfter = GoneFor;
-                    return false;
-                }
-
-                await file.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-            }
-
-            return true;
+            await file.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
         }
+
+        return true;
     }
 
     internal static bool SameSite(Uri from, Uri to) =>

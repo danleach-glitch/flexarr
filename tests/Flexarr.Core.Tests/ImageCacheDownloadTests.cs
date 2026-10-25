@@ -186,11 +186,37 @@ public sealed class ImageCacheDownloadTests : IDisposable
         Assert.Equal(2, host.Requests);
     }
 
-    private ImageCache Cache(HttpMessageHandler handler) => new(new HttpClient(handler), new Settings(_dir), NullLogger<ImageCache>.Instance);
+    [Fact]
+    public async Task ArrArtwork_IsFetchedFromTheInstance_WithItsKey()
+    {
+        HttpRequestMessage? seen = null;
+        var host = new ScriptedArtwork(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Jpeg) }) { OnRequest = r => seen = r };
+        var cache = Cache(host, new ArrInstance { Name = "My Lidarr", Kind = ArrKind.Lidarr, BaseUrl = new Uri("http://lidarr.test:8686/lidarr/"), ApiKey = "secret" });
+
+        var path = await cache.GetAsync(ArtworkUrl.Arr("My Lidarr", "mediacover/album/2/cover.jpg?lastWrite=1"), 342, default).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.NotNull(path);
+        Assert.Equal("http://lidarr.test:8686/lidarr/api/v1/mediacover/album/2/cover.jpg?lastWrite=1", seen!.RequestUri!.ToString());
+        Assert.Equal("secret", seen.Headers.GetValues("X-Api-Key").Single());
+    }
+
+    [Fact]
+    public async Task ArrArtwork_OfAnInstanceNoLongerConfigured_IsNotFetchedAnywhere()
+    {
+        var host = new ScriptedArtwork(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Jpeg) });
+        var cache = Cache(host);
+
+        Assert.Null(await cache.GetAsync(ArtworkUrl.Arr("Lidarr", "mediacover/artist/1/poster.jpg"), 342, default));
+        Assert.Null(await cache.GetAsync("arr://Lidarr/../../etc/passwd", 342, default));
+        Assert.Equal(0, host.Requests);
+    }
+
+    private ImageCache Cache(HttpMessageHandler handler, params ArrInstance[] instances) =>
+        new(new HttpClient(handler), new Settings(_dir) { ArrInstances = instances }, NullLogger<ImageCache>.Instance);
 
     private sealed class Settings(string cache) : IMetadataSettings
     {
-        public IReadOnlyList<ArrInstance> ArrInstances { get; } = [];
+        public IReadOnlyList<ArrInstance> ArrInstances { get; init; } = [];
         public IReadOnlyList<PathMapping> PathMappings { get; } = [];
         public string CacheDirectory => cache;
         public string FfmpegPath => "false"; // resizing fails, so the download itself is kept
@@ -227,10 +253,12 @@ public sealed class ImageCacheDownloadTests : IDisposable
     private sealed class ScriptedArtwork(Func<HttpResponseMessage> answer) : HttpMessageHandler
     {
         public int Requests;
+        public Action<HttpRequestMessage>? OnRequest { get; init; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref Requests);
+            OnRequest?.Invoke(request);
             return Task.FromResult(answer());
         }
     }

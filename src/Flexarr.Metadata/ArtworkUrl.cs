@@ -50,6 +50,44 @@ public static partial class ArtworkUrl
     public static bool IsLocal(string? url) =>
         url is not null && (url.StartsWith("file://", StringComparison.Ordinal) || url.StartsWith("embedded://", StringComparison.Ordinal));
 
+    private const string ArrScheme = "arr://";
+
+    /// <summary>
+    /// Artwork held by a configured *arr (Lidarr's artist and album images, which have no public URL):
+    /// <c>arr://{instance name}/{path under /api/v1/}</c>. The image cache fetches it with the instance's API key, which
+    /// never leaves the server: clients only ever see /api/v1/images/items/… links.
+    /// </summary>
+    public static string Arr(string instanceName, string apiPath)
+    {
+        ArgumentNullException.ThrowIfNull(instanceName);
+        ArgumentNullException.ThrowIfNull(apiPath);
+        return $"{ArrScheme}{Uri.EscapeDataString(instanceName)}/{apiPath.TrimStart('/')}";
+    }
+
+    public static bool IsArr(string? url) => url is not null && url.StartsWith(ArrScheme, StringComparison.Ordinal);
+
+    /// <summary>Splits an <see cref="Arr"/> URL into the instance's name and the API path (query string included).</summary>
+    public static bool TryParseArr(string? url, out string instanceName, out string apiPath)
+    {
+        instanceName = apiPath = string.Empty;
+        if (!IsArr(url))
+        {
+            return false;
+        }
+
+        var rest = url![ArrScheme.Length..];
+        var slash = rest.IndexOf('/', StringComparison.Ordinal);
+        if (slash <= 0 || slash == rest.Length - 1)
+        {
+            return false;
+        }
+
+        instanceName = Uri.UnescapeDataString(rest[..slash]);
+        apiPath = rest[(slash + 1)..];
+        // Only a path under the API: nothing that could climb out of it or carry a second scheme.
+        return !apiPath.Contains("..", StringComparison.Ordinal) && !apiPath.Contains("://", StringComparison.Ordinal);
+    }
+
     [GeneratedRegex(@"^/[A-Za-z0-9_\-./]+\.(?:jpe?g|png|webp)$", RegexOptions.IgnoreCase)]
     private static partial Regex ImagePath();
 

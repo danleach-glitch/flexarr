@@ -85,6 +85,23 @@ public static class ItemEndpoints
             return Results.Ok(detail);
         }).WithTags("Items");
 
+        // Everything an artist (or one album) has, in the order a record collection plays: albums oldest first, then
+        // disc and track. One request, so the web's Play and Shuffle buttons don't fetch each album in turn.
+        api.MapGet("/items/{id:guid}/tracks", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var kind = await db.MediaItems.Where(i => i.Id == id).Select(i => (MediaKind?)i.Kind).FirstOrDefaultAsync(ct);
+            if (kind is not (MediaKind.Artist or MediaKind.Album))
+            {
+                return Results.NotFound();
+            }
+
+            var tracks = db.MediaItems.Where(i => i.Kind == MediaKind.Track && (i.ParentId == id || i.Parent!.ParentId == id));
+            return Results.Ok(await tracks
+                .OrderBy(t => t.Parent!.Year == null).ThenBy(t => t.Parent!.Year).ThenBy(t => t.Parent!.SortTitle)
+                .ThenBy(t => t.SortTitle)
+                .Summaries(profile.Id).ToListAsync(ct));
+        }).WithTags("Items");
+
         return api;
     }
 
