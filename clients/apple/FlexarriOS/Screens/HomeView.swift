@@ -78,7 +78,8 @@ struct HomeView: View {
             }
             .padding(.bottom, 32)
         }
-        .ignoresSafeArea(edges: .top)
+        // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
+        .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
         .refreshable { await load() }
     }
 
@@ -86,7 +87,8 @@ struct HomeView: View {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
-            async let episodes = model.podcastStatus?.available == true ? client.newPodcastEpisodes(unplayed: true, take: 20) : []
+            // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
+            async let episodes = client.newPodcastEpisodes(unplayed: true, take: 20)
             let loaded = try await client.home()
             home = loaded
             newEpisodes = (try? await episodes) ?? []
