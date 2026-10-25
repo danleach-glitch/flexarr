@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { askForProfile, selectProfile, signOut } from '../api/client'
+import { askForProfile, clearApiCache, getPodcastPreferences, selectProfile, signOut } from '../api/client'
+import { PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Music, Search, Stack } from './icons'
+import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Microphone, Music, Search, Stack } from './icons'
 import { libraryIcons } from './libraryIcons'
 import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
@@ -31,6 +32,27 @@ export function Layout() {
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
   const [rail, setRail] = useState(initialRail)
+  // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Podcasts).
+  const [podcastsInSidebar, setPodcastsInSidebar] = useState(true)
+  const hasPodcasts = libraries.some((l) => l.type === 'Podcasts')
+  useEffect(() => {
+    if (!hasPodcasts) return
+    const controller = new AbortController()
+    const load = () => getPodcastPreferences(controller.signal).then((p) => setPodcastsInSidebar(p.showInSidebar), () => undefined)
+    const changed = () => {
+      clearApiCache((path) => path.startsWith('/podcasts/preferences'))
+      void load()
+    }
+    void load()
+    window.addEventListener(PODCAST_PREFERENCES_CHANGED, changed)
+    return () => {
+      controller.abort()
+      window.removeEventListener(PODCAST_PREFERENCES_CHANGED, changed)
+    }
+  }, [hasPodcasts])
+  // Podcasts aren't a library as such, but they're listed with them (last), unless the profile left them out.
+  const shownLibraries = libraries.filter((l) => l.type !== 'Podcasts')
+  const podcastsLink = hasPodcasts && podcastsInSidebar
   // Phones: whether the sidebar has been slid in over the page.
   const [drawer, setDrawer] = useState(false)
   const sidebar = useRef<HTMLElement>(null)
@@ -211,12 +233,12 @@ export function Layout() {
               <Home />
               <span className="sidebar-label">Home</span>
             </NavLink>
-            {libraries.length > 0 && (
+            {(shownLibraries.length > 0 || podcastsLink) && (
               <>
                 <h2 className="sidebar-heading">
                   <span className="sidebar-label">Libraries</span>
                 </h2>
-                {libraries.map((library) => {
+                {shownLibraries.map((library) => {
                   const Icon = libraryIcons[library.type] ?? Film
                   return (
                     <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
@@ -226,6 +248,12 @@ export function Layout() {
                     </NavLink>
                   )
                 })}
+                {podcastsLink && (
+                  <NavLink to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
+                    <Microphone />
+                    <span className="sidebar-label">Podcasts</span>
+                  </NavLink>
+                )}
               </>
             )}
             <h2 className="sidebar-heading">

@@ -1,0 +1,26 @@
+[
+ {
+  "iTunesId": 1537788786,
+  "title": "The Rest Is History",
+  "author": "Goalhanger",
+  "artwork": "/api/v1/images/remote?url=https%3A%2F%2Fis1-ssl.mzstatic.com%2Fimage%2Fthumb%2FPodcasts211%2Fv4%2F12%2Fe4%2F4e%2F12e44e6e-f250-0621-75c4-668fda6c48a3%2Fmza_9347628783012573828.jpg%2F600x600bb.jpg&s=9fa3b27948766908d978b93a257cf04b",
+  "genre": "History",
+  "explicit": false,
+  "episodeCount": 1005,
+  "hasFeed": true,
+  "podcastId": "01a173d0-7041-7f3e-9031-54ddc6348595",
+  "subscribed": false
+ },
+ {
+  "iTunesId": 1511649959,
+  "title": "And The Rest is History",
+  "author": "Jordan Nox",
+  "artwork": "/api/v1/images/remote?url=https%3A%2F%2Fis1-ssl.mzstatic.com%2Fimage%2Fthumb%2FPodcasts125%2Fv4%2Fce%2F45%2F7b%2Fce457bcd-0634-6380-285a-8b1c98126b2b%2Fmza_16614232387322649850.jpg%2F600x600bb.jpg&s=b61b9df2045e5093367459eea56d7621",
+  "genre": "History",
+  "explicit": false,
+  "episodeCount": 3,
+  "hasFeed": true,
+  "podcastId": null,
+  "subscribed": false
+ }
+]

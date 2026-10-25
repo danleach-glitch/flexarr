@@ -9,6 +9,7 @@ using Flexarr.Api.Import;
 using Flexarr.Api.Mcp;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Playlists;
+using Flexarr.Api.Podcasts;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
 using Flexarr.Api.Security;
@@ -88,6 +89,15 @@ builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAg
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddHttpClient<PlexAvatars>(c => c.Timeout = TimeSpan.FromSeconds(30));
+// Podcast feeds and episodes come from anywhere on the internet, and only from the internet (see PodcastFetcher).
+// No overall timeout: a relayed episode streams for as long as it's listened to.
+builder.Services.AddHttpClient<PodcastFetcher>(c => c.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(PodcastFetcher.CreateHandler);
+builder.Services.AddHttpClient<PodcastDirectory>(c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<PodcastLibrary>();
+builder.Services.AddSingleton<PodcastRefreshQueue>();
+builder.Services.AddHostedService<PodcastRefreshWorker>();
+builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -182,6 +192,7 @@ using (var scope = app.Services.CreateScope())
     // Readers (the web app, players) don't wait on a scan's writes, or the other way round. Stored in the file, but
     // a database created or restored elsewhere may not have it.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    await PodcastLibrary.EnsureLibraryAsync(db, app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value, CancellationToken.None);
 }
 
 app.Use((http, next) =>
@@ -248,6 +259,7 @@ app.MapGroup("/api/v1")
     .MapPairingApprovalEndpoints()
     .MapCollectionEndpoints()
     .MapPlaylistEndpoints()
+    .MapPodcastEndpoints()
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()

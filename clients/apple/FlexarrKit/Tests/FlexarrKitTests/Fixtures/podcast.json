@@ -1,0 +1,26 @@
+{
+ "id": "01a173d0-7041-7f3e-9031-54ddc6348595",
+ "title": "The Rest Is History",
+ "author": "Goalhanger",
+ "overview": "Take a deep dive into History’s biggest moments with Tom Holland & Dominic Sandbrook.\n\nExplore the stories of History’s most brutal rulers, deadly battles, and world-changing events. From the rise and",
+ "artwork": {
+  "poster": "/api/v1/images/items/01a173d0-7041-7f3e-9031-54ddc6348595/poster?v=63928541202",
+  "backdrop": null,
+  "logo": null,
+  "thumb": null
+ },
+ "accentColor": null,
+ "link": "http://therestishistory.com/",
+ "categories": [
+  "History"
+ ],
+ "explicit": false,
+ "episodeCount": 734,
+ "unplayedCount": 734,
+ "latestEpisodeAt": "2026-10-21T23:05:00",
+ "iTunesId": 1537788786,
+ "feedUrl": "https://feeds.megaphone.fm/GLT4787413333",
+ "checkedAt": "2026-10-25T16:06:42.497838",
+ "error": null,
+ "subscription": null
+}

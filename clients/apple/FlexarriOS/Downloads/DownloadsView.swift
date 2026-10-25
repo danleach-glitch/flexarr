@@ -1,16 +1,16 @@
 import FlexarrKit
 import SwiftUI
 
-/// Everything downloaded (or on its way), playable with no connection: films, shows with their episodes, then albums
-/// and playlists.
+/// Everything downloaded (or on its way), playable with no connection: films, shows with their episodes, albums and
+/// playlists, then podcast episodes.
 struct DownloadsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var store
 
     var body: some View {
         Group {
-            if store.videoDownloads.isEmpty, store.musicCollections.isEmpty {
-                StatusView(state: .empty("Download films, episodes, albums and playlists to watch and listen with no connection. Look for the download button on a title’s page."))
+            if store.videoDownloads.isEmpty, store.musicCollections.isEmpty, store.podcastDownloads.isEmpty {
+                StatusView(state: .empty("Download films, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
             } else {
                 List {
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
@@ -31,6 +31,13 @@ struct DownloadsView: View {
                         Section("Music") {
                             ForEach(music) { CollectionRow(collection: $0) }
                                 .onDelete { offsets in for index in offsets { store.remove(collectionId: music[index].id) } }
+                        }
+                    }
+                    let podcasts = store.podcastDownloads
+                    if !podcasts.isEmpty {
+                        Section("Podcasts") {
+                            ForEach(podcasts) { PodcastDownloadRow(download: $0) }
+                                .onDelete { offsets in for index in offsets { store.remove(podcasts[index].id) } }
                         }
                     }
                     Section {
@@ -128,6 +135,74 @@ private struct DownloadRow: View {
     private func play() {
         guard let info = store.playbackInfo(for: download, preferences: nil) else { return }
         model.player.playOffline(info)
+    }
+}
+
+/// A podcast episode on the phone: its artwork, title and show, and what it's doing (tap to play once it's here).
+private struct PodcastDownloadRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(DownloadStore.self) private var store
+    let download: LocalDownload
+
+    var body: some View {
+        Button { model.playEpisode(download.item) } label: {
+            HStack(spacing: 12) {
+                Color.seat
+                    .frame(width: 63, height: 63)
+                    .overlay {
+                        if let image = store.image(named: download.imageFileName) {
+                            Image(uiImage: image).resizable().scaledToFill()
+                        } else {
+                            Image(systemName: "mic.fill").foregroundStyle(Color.usher)
+                        }
+                    }
+                    .overlay(alignment: .bottom) {
+                        if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 0 {
+                            ProgressBar(value: min(1, download.position / download.durationSeconds)).padding(5)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(download.item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .lineLimit(2)
+                    if let show = download.item.seriesTitle {
+                        Text(show).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
+                    }
+                    status
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!download.isDownloaded)
+        .listRowBackground(Color.seat)
+        .swipeActions {
+            Button(role: .destructive) { store.remove(download.id) } label: { Label("Delete", systemImage: "trash") }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        switch download.state {
+        case .preparing:
+            caption(download.automatic ? "Waiting for the server (downloads on Wi-Fi)" : "Waiting for the server")
+        case .downloading(let progress):
+            VStack(alignment: .leading, spacing: 4) {
+                caption("Downloading, \(Int(progress * 100))%")
+                ProgressView(value: progress).tint(.silver)
+            }
+        case .downloaded:
+            caption([download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
+                     download.finishedAt != nil ? "Played" : nil, download.automatic ? "Downloaded by itself" : nil].compactMap { $0 }.joined(separator: "  "))
+        case .failed(let message):
+            Text(message).font(.caption).foregroundStyle(Color.danger)
+        }
+    }
+
+    private func caption(_ text: String) -> some View {
+        Text(text).font(.caption).foregroundStyle(Color.usher).monospacedDigit()
     }
 }
 

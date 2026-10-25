@@ -1,5 +1,5 @@
 import type { LibraryType } from '../api/types'
-import { Film, Music, Tv } from './icons'
+import { Film, Microphone, Music, Tv } from './icons'
 
 /** The icon for each kind of library, in the sidebar and in Settings. */
-export const libraryIcons: Record<LibraryType, typeof Film> = { Movies: Film, TvShows: Tv, Music }
+export const libraryIcons: Record<LibraryType, typeof Film> = { Movies: Film, TvShows: Tv, Music, Podcasts: Microphone }

@@ -11,6 +11,7 @@ final class NowPlaying {
     var onSeek: ((Double) -> Void)?
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
+    var onRate: ((Double) -> Void)?
 
     private var info: [String: Any] = [:]
     private var targets: [(MPRemoteCommand, Any)] = []
@@ -42,6 +43,7 @@ final class NowPlaying {
         on(center.previousTrackCommand) { [weak self] _ in self?.onPrevious?() }
         center.nextTrackCommand.isEnabled = false
         center.previousTrackCommand.isEnabled = false
+        center.changePlaybackRateCommand.isEnabled = false
     }
 
     /// For music: previous and next track in place of the skip buttons.
@@ -52,6 +54,23 @@ final class NowPlaying {
         center.skipBackwardCommand.isEnabled = false
         center.nextTrackCommand.isEnabled = true
         center.previousTrackCommand.isEnabled = true
+    }
+
+    /// For podcasts: skip back 15 seconds and forward 30, as podcast apps do, and the speed the lock screen can change.
+    func activateForPodcast(back: Double = 15, forward: Double = 30) {
+        activate(skipSeconds: forward)
+        let center = MPRemoteCommandCenter.shared()
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: back)]
+        center.nextTrackCommand.isEnabled = false
+        center.previousTrackCommand.isEnabled = false
+        center.changePlaybackRateCommand.supportedPlaybackRates = MusicPlayer.speeds.map { NSNumber(value: $0) }
+        center.changePlaybackRateCommand.isEnabled = true
+        targets.append((center.changePlaybackRateCommand, center.changePlaybackRateCommand.addTarget { [weak self] event in
+            if let rate = (event as? MPChangePlaybackRateCommandEvent)?.playbackRate {
+                MainActor.assumeIsolated { self?.onRate?(Double(rate)) }
+            }
+            return .success
+        }))
     }
 
     func deactivate() {
@@ -89,10 +108,12 @@ final class NowPlaying {
         MPRemoteCommandCenter.shared().previousTrackCommand.isEnabled = hasPrevious
     }
 
-    func setTime(position: Double, duration: Double, rate: Float) {
+    /// `rate` is 0 while paused, else the speed playing; `defaultRate` is the speed it plays at (a podcast's 1.5×).
+    func setTime(position: Double, duration: Double, rate: Float, defaultRate: Float = 1) {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position
         info[MPMediaItemPropertyPlaybackDuration] = duration
         info[MPNowPlayingInfoPropertyPlaybackRate] = Double(rate)
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = Double(defaultRate)
         push()
     }
 

@@ -15,6 +15,10 @@ protocol OfflineMusicLibrary: AnyObject {
     func localFile(for trackId: String) -> URL?
     /// The cover saved with it.
     func localArtwork(for trackId: String) -> UIImage?
+    /// Where listening to a downloaded podcast episode got to on this device.
+    func resumePosition(for trackId: String) -> Double
+    /// With no connection, what plays after a podcast episode: the next downloaded, unplayed one of its show.
+    func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary?
     func record(itemId: String, position: Double, finished: Bool)
 }
 
@@ -22,9 +26,20 @@ protocol OfflineMusicLibrary: AnyObject {
 /// reported on as it plays, ended as it finishes), so the server's history and stream limits see music the way they
 /// see video. A downloaded track plays from its file instead, with no session. Lives for the app's lifetime so music
 /// carries on while the viewer browses, and tells the lock screen, Control Center and the Siri Remote what's playing.
+/// Podcast episodes play here too, with what podcasts need: they resume, play faster or slower, skip back 15 seconds
+/// and forward 30, can stop at a sleep timer, and go on by themselves to the next episode the server suggests.
 @MainActor
 @Observable
 final class MusicPlayer {
+    /// When a podcast should stop by itself: after so many minutes, or at the end of the episode.
+    enum SleepTimer: Hashable {
+        case minutes(Int)
+        case endOfEpisode
+    }
+
+    /// The speeds a podcast can play at.
+    static let speeds: [Double] = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
+
     enum RepeatMode {
         case off, all, one
 
@@ -52,10 +67,17 @@ final class MusicPlayer {
     /// The current track is playing from its downloaded file rather than the server.
     private(set) var isPlayingOffline = false
     var errorMessage: String?
+    /// How fast the podcast episode plays (music always plays at 1×).
+    private(set) var speed: Double = 1
+    private(set) var sleepTimer: SleepTimer?
+    /// When a timer of minutes runs out.
+    private(set) var sleepEndsAt: Date?
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
     /// Where downloaded tracks come from (set by the iOS app; the Apple TV has none).
     @ObservationIgnored weak var offlineLibrary: OfflineMusicLibrary?
+    /// The listener chose a podcast speed in the player (it's saved to their preferences).
+    @ObservationIgnored var onSpeedChange: ((Double) -> Void)?
 
     @ObservationIgnored private var client: FlexarrClient?
     /// The queue as it was given, for turning shuffle back off.
@@ -76,6 +98,10 @@ final class MusicPlayer {
     @ObservationIgnored private var generation = 0
     /// Paused because a video started; Now Playing is handed back when it ends.
     @ObservationIgnored private var yieldedToVideo = false
+    /// Which remote commands the lock screen has: music's previous and next, or a podcast's skips and speed.
+    @ObservationIgnored private var nowPlayingIsPodcast: Bool?
+    @ObservationIgnored private var sleepTask: Task<Void, Never>?
+    @ObservationIgnored private var lastOfflineRecord = Date.distantPast
 
     private static let reportInterval: TimeInterval = 10
 
@@ -102,6 +128,8 @@ final class MusicPlayer {
         nowPlaying.onNext = { [weak self] in self?.next() }
         nowPlaying.onPrevious = { [weak self] in self?.previous() }
         nowPlaying.onSeek = { [weak self] seconds in self?.seek(to: seconds) }
+        nowPlaying.onSkip = { [weak self] seconds in self?.skip(by: seconds) }
+        nowPlaying.onRate = { [weak self] rate in self?.setSpeed(rate) }
     }
 
     var current: ItemSummary? { queue.indices.contains(index) ? queue[index] : nil }
@@ -109,6 +137,16 @@ final class MusicPlayer {
     var upNext: [ItemSummary] { Array(queue.dropFirst(index + 1)) }
     var hasNext: Bool { index + 1 < queue.count || (repeatMode == .all && !queue.isEmpty) }
     var hasPrevious: Bool { index > 0 || repeatMode == .all }
+    /// A podcast episode is what's playing (or paused).
+    var isPodcast: Bool { current?.kind == .podcastEpisode }
+    /// The rate the player runs at while playing.
+    private var playRate: Float { isPodcast ? Float(speed) : 1 }
+
+    /// The speed podcasts play at when the profile's preferences aren't known: the last one chosen here.
+    static var podcastSpeed: Double {
+        get { UserDefaults.standard.object(forKey: "podcasts.speed") as? Double ?? 1 }
+        set { UserDefaults.standard.set(newValue, forKey: "podcasts.speed") }
+    }
 
     /// The name of the album a queued track is from, when the screen that queued it said.
     func albumTitle(of track: ItemSummary) -> String? {
@@ -133,6 +171,51 @@ final class MusicPlayer {
             index = min(max(0, start), tracks.count - 1)
         }
         startCurrent()
+    }
+
+    /// Plays a podcast episode from where it was left, at the profile's speed (or the last one chosen here).
+    func playPodcast(_ episode: ItemSummary, speed preferred: Double?, client: FlexarrClient) {
+        self.client = client
+        original = [episode]
+        queue = [episode]
+        albumTitles = [:]
+        index = 0
+        isShuffled = false
+        repeatMode = .off
+        speed = preferred ?? Self.podcastSpeed
+        startCurrent()
+    }
+
+    /// A podcast's speed, remembered as the one to use from now on.
+    func setSpeed(_ speed: Double) {
+        guard isPodcast else { return }
+        self.speed = speed
+        Self.podcastSpeed = speed
+        onSpeedChange?(speed)
+        player.defaultRate = playRate
+        if isPlaying { player.rate = playRate }
+        pushNowPlaying()
+    }
+
+    /// Back or forward a few seconds (a podcast's 15 and 30).
+    func skip(by seconds: Double) {
+        seek(to: position + seconds)
+    }
+
+    func setSleepTimer(_ timer: SleepTimer?) {
+        sleepTask?.cancel()
+        sleepTask = nil
+        sleepTimer = timer
+        sleepEndsAt = nil
+        guard case .minutes(let minutes) = timer else { return }
+        sleepEndsAt = Date().addingTimeInterval(Double(minutes * 60))
+        sleepTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(minutes * 60))
+            guard !Task.isCancelled, let self else { return }
+            pause()
+            sleepTimer = nil
+            sleepEndsAt = nil
+        }
     }
 
     func togglePlayPause() {
@@ -197,7 +280,7 @@ final class MusicPlayer {
         let target = max(0, min(seconds, duration > 0 ? duration : seconds))
         position = target
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-        nowPlaying.setTime(position: target, duration: duration, rate: isPlaying ? 1 : 0)
+        nowPlaying.setTime(position: target, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
     }
 
     /// Shuffles what's left to play (the current track keeps playing), or restores the given order.
@@ -234,7 +317,9 @@ final class MusicPlayer {
         artwork = nil
         isPlayingOffline = false
         isLoading = false
+        setSleepTimer(nil)
         nowPlaying.deactivate()
+        nowPlayingIsPodcast = nil
     }
 
     // MARK: Giving way to video
@@ -245,6 +330,7 @@ final class MusicPlayer {
         pause()
         yieldedToVideo = true
         nowPlaying.deactivate()
+        nowPlayingIsPodcast = nil
     }
 
     /// The video has finished: the lock screen shows the paused music again, and play resumes it.
@@ -268,6 +354,7 @@ final class MusicPlayer {
         isLoading = true
         errorMessage = nil
         yieldedToVideo = false
+        player.defaultRate = playRate
         activateAudioSession()
         pushNowPlaying()
 
@@ -275,7 +362,8 @@ final class MusicPlayer {
         if let file = offlineLibrary?.localFile(for: track.id) {
             isPlayingOffline = true
             artwork = offlineLibrary?.localArtwork(for: track.id)
-            attach(AVPlayerItem(url: file))
+            attach(item(url: file))
+            if isPodcast, let resume = offlineLibrary?.resumePosition(for: track.id), resume > 0 { seek(to: resume) }
             player.play()
             isLoading = false
             pushNowPlaying()
@@ -291,8 +379,9 @@ final class MusicPlayer {
         }
         Task {
             do {
-                // Tracks always start over: a half-heard song isn't resumed the way a film is.
-                let request = PlaybackRequest(itemId: track.id, profile: Self.profile, startPositionSeconds: 0)
+                // Tracks always start over: a half-heard song isn't resumed the way a film is. Podcasts are.
+                let podcast = track.kind == .podcastEpisode
+                let request = PlaybackRequest(itemId: track.id, profile: Self.profile, startPositionSeconds: podcast ? nil : 0)
                 let info = try await client.startPlayback(request)
                 guard mine == generation else {
                     try? await client.stopPlayback(sessionId: info.sessionId) // Skipped past before it arrived.
@@ -302,7 +391,8 @@ final class MusicPlayer {
                 sessionId = info.sessionId
                 if info.durationSeconds > 0 { duration = info.durationSeconds }
                 lastReport = Date()
-                attach(AVPlayerItem(url: url))
+                attach(item(url: url))
+                if podcast, info.startPositionSeconds > 0 { seek(to: info.startPositionSeconds) }
                 player.play()
                 isLoading = false
                 pushNowPlaying()
@@ -313,6 +403,13 @@ final class MusicPlayer {
                 errorMessage = ConnectionError(error).message
             }
         }
+    }
+
+    /// An item for a track's file or stream; speech keeps its pitch at other speeds.
+    private func item(url: URL) -> AVPlayerItem {
+        let item = AVPlayerItem(url: url)
+        if isPodcast { item.audioTimePitchAlgorithm = .timeDomain }
+        return item
     }
 
     private func attach(_ item: AVPlayerItem) {
@@ -360,6 +457,19 @@ final class MusicPlayer {
             offlineLibrary?.record(itemId: track.id, position: 0, finished: true)
         }
         report(paused: true, ended: true)
+        if sleepTimer == .endOfEpisode {
+            setSleepTimer(nil)
+            endSession()
+            clearItem()
+            position = 0
+            isPlaying = false
+            pushNowPlaying()
+            return
+        }
+        if isPodcast, index + 1 >= queue.count, let episode = current {
+            playNextEpisode(after: episode)
+            return
+        }
         if repeatMode == .one {
             startCurrent()
         } else if index + 1 < queue.count {
@@ -375,6 +485,36 @@ final class MusicPlayer {
             position = 0
             isPlaying = false
             pushNowPlaying()
+        }
+    }
+
+    /// The end of a podcast episode with nothing queued after it: on to the episode the server suggests (the next of
+    /// the show, else the newest of the shows followed), or with no connection the show's next downloaded one.
+    private func playNextEpisode(after episode: ItemSummary) {
+        endSession()
+        clearItem()
+        position = 0
+        isPlaying = false
+        generation += 1
+        let mine = generation
+        isLoading = true
+        Task {
+            var next: ItemSummary?
+            do {
+                next = try await client?.nextEpisode(after: episode.id)?.summary
+            } catch {
+                next = offlineLibrary?.nextDownloadedEpisode(after: episode)
+            }
+            guard mine == generation else { return }
+            isLoading = false
+            guard let next else {
+                pushNowPlaying() // nothing left: stay on this one, ready to play again
+                return
+            }
+            queue = [next]
+            original = [next]
+            index = 0
+            startCurrent()
         }
     }
 
@@ -394,7 +534,8 @@ final class MusicPlayer {
         guard playing != isPlaying else { return }
         isPlaying = playing
         if !playing, sessionId != nil, player.currentItem != nil { report(paused: true) }
-        nowPlaying.setTime(position: position, duration: duration, rate: playing ? 1 : 0)
+        if !playing, isPlayingOffline, isPodcast, player.currentItem != nil { recordOffline() }
+        nowPlaying.setTime(position: position, duration: duration, rate: playing ? playRate : 0, defaultRate: playRate)
     }
 
     private func tick(_ seconds: Double) {
@@ -405,9 +546,17 @@ final class MusicPlayer {
         }
         if Date().timeIntervalSince(lastNowPlayingTime) > 1 {
             lastNowPlayingTime = Date()
-            nowPlaying.setTime(position: seconds, duration: duration, rate: isPlaying ? 1 : 0)
+            nowPlaying.setTime(position: seconds, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
         }
         if isPlaying, Date().timeIntervalSince(lastReport) >= Self.reportInterval { report(paused: false) }
+        if isPlaying, isPlayingOffline, isPodcast, Date().timeIntervalSince(lastOfflineRecord) >= 30 { recordOffline() }
+    }
+
+    /// Where a downloaded podcast episode got to, kept on the device and told to the server once there's a connection.
+    private func recordOffline() {
+        guard recordsHistory, let track = current, position > 0 else { return }
+        lastOfflineRecord = Date()
+        offlineLibrary?.record(itemId: track.id, position: position, finished: false)
     }
 
     /// A call or Siri: the system pauses the music, and it comes back after if the system says it may.
@@ -428,10 +577,14 @@ final class MusicPlayer {
 
     private func pushNowPlaying() {
         guard let track = current else { return }
-        if nowPlayingIsIdle { nowPlaying.activateForMusic() }
-        nowPlaying.setTrack(title: track.title, artist: track.artistName, album: albumTitle(of: track), artwork: artwork)
-        nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious || position > 3, hasNext: hasNext)
-        nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? 1 : 0)
+        let podcast = isPodcast
+        if nowPlayingIsIdle || nowPlayingIsPodcast != podcast {
+            if podcast { nowPlaying.activateForPodcast() } else { nowPlaying.activateForMusic() }
+            nowPlayingIsPodcast = podcast
+        }
+        nowPlaying.setTrack(title: track.title, artist: track.artistName, album: podcast ? nil : albumTitle(of: track), artwork: artwork)
+        if !podcast { nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious || position > 3, hasNext: hasNext) }
+        nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
     }
 
     private func loadArtwork(for track: ItemSummary, generation mine: Int) {

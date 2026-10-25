@@ -31,7 +31,11 @@ public sealed record SettingsDto(
     string DataDirectory,
     string FfmpegPath,
     string FfprobePath,
-    string? WebhookSecret = null);
+    string? WebhookSecret = null,
+    PodcastSettingsDto? Podcasts = null);
+
+/// <param name="Country">The chosen country, or null for the server's region (<paramref name="ResolvedCountry"/>).</param>
+public sealed record PodcastSettingsDto(string? Country, string ResolvedCountry);
 
 public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey);
 
@@ -42,7 +46,11 @@ public sealed record SettingsUpdate(
     AuthenticationRequired? AuthenticationRequired,
     IReadOnlyList<PathMapping>? PathMappings,
     IReadOnlyList<ArrConnectionUpdate>? Arr,
-    SeerrConnectionUpdate? Seerr = null);
+    SeerrConnectionUpdate? Seerr = null,
+    PodcastSettingsUpdate? Podcasts = null);
+
+/// <param name="Country">A two-letter country code; empty for the server's region.</param>
+public sealed record PodcastSettingsUpdate(string? Country);
 
 /// <param name="Pin">The main profile's PIN, when it has one.</param>
 /// <param name="Confirm">The person said yes, when the main profile has no PIN.</param>
@@ -85,8 +93,18 @@ public static class SettingsEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
             }
 
+            if (update.Podcasts is { Country: { Length: > 0 } country } && Podcasts.PodcastCountries.Known(country) is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["podcasts"] = [$"Apple has no podcast charts for “{country}”."] });
+            }
+
             ServerConfigStore.Update(current.DataDirectory, config =>
             {
+                if (update.Podcasts is { } podcasts)
+                {
+                    config["podcasts"] = new JsonObject { ["country"] = Podcasts.PodcastCountries.Known(podcasts.Country) };
+                }
+
                 if (update.Transcoding is { } transcoding)
                 {
                     config["transcoding"] = JsonSerializer.SerializeToNode(transcoding, Json);
@@ -236,7 +254,8 @@ public static class SettingsEndpoints
         Path.GetFullPath(o.DataDirectory),
         o.FfmpegPath,
         o.FfprobePath,
-        o.WebhookSecret);
+        o.WebhookSecret,
+        new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry));
 
     /// <summary>
     /// Showing or replacing the API key asks again, so a script that found its way into the page can't just take it:

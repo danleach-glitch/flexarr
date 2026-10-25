@@ -42,6 +42,18 @@ public sealed class Profile
     /// <summary>How big subtitles are drawn, on every device.</summary>
     public SubtitleSize SubtitleSize { get; set; } = SubtitleSize.Standard;
 
+    /// <summary>Phones keep the newest episodes of the podcasts this profile follows without being asked (on Wi-Fi).</summary>
+    public bool PodcastAutoDownload { get; set; } = true;
+
+    /// <summary>How many of each followed podcast's newest unplayed episodes phones keep.</summary>
+    public int PodcastKeepEpisodes { get; set; } = 3;
+
+    /// <summary>The speed podcasts play at.</summary>
+    public double PodcastSpeed { get; set; } = 1;
+
+    /// <summary>Podcasts has a place in the web app's sidebar, among the libraries.</summary>
+    public bool PodcastsInSidebar { get; set; } = true;
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));

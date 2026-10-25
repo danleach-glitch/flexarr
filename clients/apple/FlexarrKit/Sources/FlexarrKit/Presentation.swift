@@ -101,8 +101,9 @@ extension ItemSummary {
 
 extension ItemSummary {
     /// Who to name as the artist of a track or album: the track's own artist when it has one (a compilation's tracks,
-    /// a featured artist), otherwise the album's, as the server sends it alongside the title.
-    public var artistName: String? { kind.isMusic ? trackArtist ?? seriesTitle : nil }
+    /// a featured artist), otherwise the album's, as the server sends it alongside the title. A podcast episode's is
+    /// its show.
+    public var artistName: String? { kind.isMusic ? trackArtist ?? seriesTitle : kind == .podcastEpisode ? seriesTitle : nil }
 
     /// "46m" for an album's tracks played end to end, or nil when none has a length.
     public static func totalRuntime(of tracks: [ItemSummary]) -> String? {

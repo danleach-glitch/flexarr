@@ -2,6 +2,7 @@ import type {
   Activity,
   ArrStatus,
   DirectoryListing,
+  DirectoryPodcast,
   Download,
   Genre,
   Home,
@@ -13,6 +14,7 @@ import type {
   Lyrics,
   MixDetail,
   MixSummary,
+  OpmlImport,
   Paged,
   Person,
   PlaybackInfo,
@@ -20,6 +22,12 @@ import type {
   PlaybackRequest,
   PlaylistDetail,
   PlaylistSummary,
+  Podcast,
+  PodcastCountry,
+  PodcastEpisode,
+  PodcastGenre,
+  PodcastPreferences,
+  PodcastStatus,
   SearchResults,
   Settings,
   SettingsUpdate,
@@ -521,6 +529,49 @@ export const getMix = (id: string, signal?: AbortSignal) => cachedGet<MixDetail>
 
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
+
+// ---------- Podcasts
+
+export const getPodcastStatus = (signal?: AbortSignal) => cachedGet<PodcastStatus>('/podcasts/status', signal)
+/** The shows this profile follows, the most recently updated first. */
+export const getPodcasts = (signal?: AbortSignal) => cachedGet<Podcast[]>('/podcasts', signal)
+export const getPodcast = (id: string, signal?: AbortSignal) => cachedGet<Podcast>(`/podcasts/${id}`, signal)
+/** Adds a show to the library (nobody follows it by that): from Apple's directory, or by its feed's address. */
+export const addPodcast = (show: { iTunesId: number } | { feedUrl: string }) => request<Podcast>('POST', '/podcasts', show)
+export const deletePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}`)
+export const refreshPodcast = (id: string) => request<Podcast>('POST', `/podcasts/${id}/refresh`)
+export const subscribePodcast = (id: string) => request<Podcast>('PUT', `/podcasts/${id}/subscription`, {})
+export const unsubscribePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}/subscription`)
+
+export function getPodcastEpisodes(
+  id: string,
+  options: { offset?: number; limit?: number; sort?: 'newest' | 'oldest'; unplayed?: boolean; q?: string },
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams()
+  if (options.offset) query.set('offset', String(options.offset))
+  if (options.limit) query.set('limit', String(options.limit))
+  if (options.sort === 'oldest') query.set('sort', 'oldest')
+  if (options.unplayed) query.set('unplayed', 'true')
+  if (options.q) query.set('q', options.q)
+  return cachedGet<Paged<PodcastEpisode>>(`/podcasts/${id}/episodes?${query}`, signal)
+}
+
+export const getPodcastEpisode = (id: string, signal?: AbortSignal) => cachedGet<PodcastEpisode>(`/podcasts/episodes/${id}`, signal)
+/** What auto-play goes on to after an episode: the show's next, else the newest unplayed of the shows followed. */
+export const getNextEpisode = (id: string) => apiGet<PodcastEpisode | undefined>(`/podcasts/episodes/${id}/next`)
+export const getPodcastPreferences = (signal?: AbortSignal) => cachedGet<PodcastPreferences>('/podcasts/preferences', signal)
+export const savePodcastPreferences = (changes: Partial<PodcastPreferences>) => request<PodcastPreferences>('PUT', '/podcasts/preferences', changes)
+export const getNewEpisodes = (signal?: AbortSignal, unplayed = false) =>
+  cachedGet<PodcastEpisode[]>(`/podcasts/new${unplayed ? '?unplayed=true' : ''}`, signal)
+export const getContinueListening = (signal?: AbortSignal) => cachedGet<PodcastEpisode[]>('/podcasts/continue', signal)
+export const searchPodcasts = (q: string, signal?: AbortSignal) => cachedGet<DirectoryPodcast[]>(`/podcasts/search?q=${encodeURIComponent(q)}`, signal)
+export const getTopPodcasts = (genre: number | null, signal?: AbortSignal) =>
+  cachedGet<DirectoryPodcast[]>(`/podcasts/top${genre ? `?genre=${genre}` : ''}`, signal, 10 * 60_000)
+export const getPodcastGenres = (signal?: AbortSignal) => cachedGet<PodcastGenre[]>('/podcasts/genres', signal, 60 * 60_000)
+export const getPodcastCountries = (signal?: AbortSignal) => cachedGet<PodcastCountry[]>('/podcasts/countries', signal, 60 * 60_000)
+export const importOpml = (file: Blob) => request<OpmlImport>('POST', '/podcasts/opml', file.type ? file : new Blob([file], { type: 'text/x-opml' }))
+export const opmlUrl = '/api/v1/podcasts/opml'
 
 export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)

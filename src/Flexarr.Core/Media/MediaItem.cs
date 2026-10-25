@@ -9,11 +9,14 @@ public enum MediaKind
     Artist,
     Album,
     Track,
+    Podcast,
+    PodcastEpisode,
 }
 
 /// <summary>
-/// A browsable thing: a movie, or a node in the series → season → episode or artist → album → track tree.
-/// Playable items (movies, episodes, tracks) own one or more <see cref="MediaFile"/>s.
+/// A browsable thing: a movie, or a node in the series → season → episode, artist → album → track or
+/// podcast → podcast episode tree. Playable items (movies, episodes, tracks) own one or more <see cref="MediaFile"/>s;
+/// a podcast episode is played from its feed (see <see cref="Podcasts.PodcastEpisode"/>).
 /// </summary>
 public sealed class MediaItem
 {
@@ -127,4 +130,10 @@ public sealed class MediaItem
     public List<Genre> Genres { get; set; } = [];
     public List<Credit> Credits { get; set; } = [];
     public List<PlaybackState> PlaybackStates { get; set; } = [];
+
+    /// <summary>A podcast's feed, for <see cref="MediaKind.Podcast"/>.</summary>
+    public Podcasts.PodcastFeed? Feed { get; set; }
+
+    /// <summary>Where a <see cref="MediaKind.PodcastEpisode"/>'s sound is, and what its feed says about it.</summary>
+    public Podcasts.PodcastEpisode? Enclosure { get; set; }
 }

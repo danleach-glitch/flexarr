@@ -37,7 +37,7 @@ public sealed class PlaybackService(
             request = request with { StartPositionSeconds = request.StartPositionSeconds ?? 0 };
         }
 
-        if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track))
+        if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode))
         {
             return null;
         }
@@ -48,7 +48,7 @@ public sealed class PlaybackService(
             ?? files.OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefault();
         if (file is null)
         {
-            return null;
+            return item.Kind == MediaKind.PodcastEpisode ? await StartPodcastAsync(item, request, ct) : null;
         }
 
         if (file.Streams.Any(s => s.Type == StreamType.Video)
@@ -212,6 +212,53 @@ public sealed class PlaybackService(
             before is null ? null : await db.MediaItems.Where(i => i.Id == before.Id).Summaries(profile.Id).FirstAsync(ct));
     }
 
+    /// <summary>
+    /// A podcast episode, played from its feed's host through the server (<see cref="PlaybackSession.RemoteUrl"/>):
+    /// as it is, since podcasts are MP3 or AAC, which every player takes.
+    /// </summary>
+    private async Task<PlaybackInfoDto?> StartPodcastAsync(MediaItem item, PlaybackRequest request, CancellationToken ct)
+    {
+        var enclosure = await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == item.Id, ct);
+        if (enclosure is null)
+        {
+            return null;
+        }
+
+        if (request.ReplacesSessionId is { } replaces && sessions.Get(replaces) is { } previous && previous.ProfileId == profile.Id)
+        {
+            await sessions.RemoveAsync(previous.Id);
+        }
+
+        var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
+        var duration = enclosure.DurationSeconds ?? state?.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60;
+        var id = TranscodeManager.NewId();
+        sessions.Add(new PlaybackSession
+        {
+            Id = id,
+            ItemId = item.Id,
+            ProfileId = profile.Id,
+            SignInId = profile.SignInId,
+            FileId = Guid.Empty,
+            FilePath = "",
+            RemoteUrl = enclosure.AudioUrl,
+            Container = enclosure.MimeType,
+            DurationSeconds = duration,
+            Method = PlaybackMethod.DirectPlay,
+            Subtitles = [],
+            CreditsStart = null,
+        });
+
+        // A podcast resumes from wherever it was left, however near the start: they're long, and listened to in bits.
+        var start = request.StartPositionSeconds
+            ?? (state is { Watched: false, PositionSeconds: > 0 } && (duration <= 0 || state.PositionSeconds < duration * WatchedThreshold) ? state.PositionSeconds : 0);
+        var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
+        var ancestors = item.ParentId is { } podcastId ? await db.MediaItems.Where(i => i.Id == podcastId).Summaries(profile.Id).ToListAsync(ct) : [];
+        var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct);
+        return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, $"/api/v1/playback/{id}/stream", [], duration, Math.Max(0, start), Guid.Empty,
+            [], null, [], null, false, [], summary, ancestors, null, null, false, watching);
+    }
+
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
     {
         for (var attempt = 0; ; attempt++)
@@ -268,7 +315,7 @@ public sealed class PlaybackService(
         if (progress.Finished)
         {
             // A film finished again isn't another play, but a track heard through is, as it would be streaming.
-            if (!state.Watched || item.Kind == MediaKind.Track)
+            if (!state.Watched || item.Kind is MediaKind.Track or MediaKind.PodcastEpisode)
             {
                 state.PlayCount++;
             }
@@ -291,8 +338,10 @@ public sealed class PlaybackService(
     {
 
         var duration = session.DurationSeconds > 0 ? session.DurationSeconds : (double?)null;
+        // A podcast's last minutes are often still the conversation, so it counts as played only at the very end.
+        var threshold = session.RemoteUrl is null ? WatchedThreshold : 0.98;
         var finished = progress.Ended
-            || (duration is { } d && progress.PositionSeconds >= d * WatchedThreshold)
+            || (duration is { } d && progress.PositionSeconds >= d * threshold)
             || (session.CreditsStart is { } credits && progress.PositionSeconds >= credits);
 
         state.DurationSeconds = duration;
@@ -310,7 +359,7 @@ public sealed class PlaybackService(
                 return true;
             }
         }
-        else if (progress.PositionSeconds > MinResumeSeconds)
+        else if (progress.PositionSeconds > MinResumeSeconds || (session.RemoteUrl is not null && progress.PositionSeconds > 0))
         {
             state.PositionSeconds = progress.PositionSeconds;
             state.Watched = false;
@@ -331,7 +380,7 @@ public sealed class PlaybackService(
         var targets = item.Kind switch
         {
             MediaKind.Series => await db.MediaItems.Where(e => e.Parent!.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Season => await db.MediaItems.Where(e => e.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
+            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.Where(e => e.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
             _ => [itemId],
         };
 

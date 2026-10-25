@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import { Link, useNavigationType, useParams, useSearchParams } from 'react-router'
+import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
@@ -32,6 +32,8 @@ export function LibraryPage() {
   // A music library keeps the now-playing bar on screen, ready for a pick.
   useMusicPage(library?.type === 'Music')
   if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
+  // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
+  if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
 
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   return all ? <LibraryAll key={id} /> : <LibraryBrowse key={id} library={library} />
@@ -44,7 +46,7 @@ function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={all ? 'page' : undefined}>
-        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists' }[library.type]}
+        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts' }[library.type]}
       </Link>
       {library.type === 'Music' && <Link to="/playlists">Playlists</Link>}
     </nav>
@@ -470,7 +472,7 @@ function LibraryAll() {
             <ViewSwitch library={library} all />
           </div>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists' }[library.type]}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts' }[library.type]}
           </p>
         </div>
         <div className="library-tools">

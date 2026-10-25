@@ -5,6 +5,9 @@ public enum LibraryType
     Movies,
     TvShows,
     Music,
+
+    /// <summary>Shows people subscribe to by feed. Its folder only holds episodes on their way to a phone.</summary>
+    Podcasts,
 }
 
 /// <summary>A named collection of root folders that share a media type, e.g. "Movies" at /data/movies.</summary>

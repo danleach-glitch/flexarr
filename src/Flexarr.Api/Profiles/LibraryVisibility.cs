@@ -45,6 +45,7 @@ public static class LibraryVisibility
     {
         MediaKind.Movie => types.Contains(LibraryType.Movies),
         MediaKind.Series or MediaKind.Season or MediaKind.Episode => types.Contains(LibraryType.TvShows),
+        MediaKind.Podcast or MediaKind.PodcastEpisode => types.Contains(LibraryType.Podcasts),
         _ => types.Contains(LibraryType.Music),
     };
 }

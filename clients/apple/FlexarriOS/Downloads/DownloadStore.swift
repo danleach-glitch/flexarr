@@ -7,7 +7,7 @@ import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "downloads")
 
-/// A film, episode or track kept on this device for watching or listening with no connection.
+/// A film, episode, track or podcast episode kept on this device for watching or listening with no connection.
 struct LocalDownload: Codable, Identifiable, Hashable {
     enum State: Codable, Hashable {
         /// The server is converting it (0 to 1).
@@ -40,7 +40,7 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     var finishedAt: Date?
     /// Watched offline and not yet told to the server.
     var unsent: UnsentProgress?
-    /// Fetched by itself, as the next episode.
+    /// Fetched by itself: as the next episode, or a podcast's newest (see `reconcilePodcasts`).
     var automatic = false
     var createdAt = Date()
 
@@ -110,8 +110,8 @@ struct LocalCollection: Codable, Identifiable, Hashable {
 
 /// Downloads on this device: asking the server to get them ready, fetching them in the background (even with the
 /// app closed), playing them offline, sending what was watched once there's a connection, fetching the next
-/// episode by itself (on Wi-Fi), and deleting episodes a day after they're finished. Albums and playlists come as
-/// collections of track downloads.
+/// episode by itself (on Wi-Fi), keeping the newest episodes of podcasts that auto-download (on Wi-Fi), and deleting
+/// episodes a day after they're finished. Albums and playlists come as collections of track downloads.
 @MainActor
 @Observable
 final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
@@ -143,6 +143,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private var polling: Task<Void, Never>?
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var lastSaved = Date.distantPast
+    @ObservationIgnored private var isReconciling = false
+    /// Podcast episodes downloaded by themselves that were deleted by hand: not fetched again while still wanted.
+    @ObservationIgnored private var declined: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.podcasts.declined") ?? []) {
+        didSet { UserDefaults.standard.set(Array(declined), forKey: "downloads.podcasts.declined") }
+    }
 
     nonisolated static let folder: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -184,7 +189,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }
 
     /// This profile's films and episodes (tracks show under their albums and playlists).
-    var videoDownloads: [LocalDownload] { downloads.filter { $0.item.kind != .track } }
+    var videoDownloads: [LocalDownload] { downloads.filter { $0.item.kind != .track && $0.item.kind != .podcastEpisode } }
+
+    /// This profile's podcast episodes, newest first.
+    var podcastDownloads: [LocalDownload] {
+        downloads.filter { $0.item.kind == .podcastEpisode }.sorted { $0.item.addedAt > $1.item.addedAt }
+    }
 
     /// This profile's albums and playlists, newest first.
     var musicCollections: [LocalCollection] {
@@ -232,6 +242,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     // MARK: Connecting
 
+    /// Signed in to a server (it can be asked for downloads).
+    var isAttached: Bool { client != nil }
+
     /// The signed-in server and profile, as they change (nil when signed out or not known yet).
     func attach(client: FlexarrClient?, profileId: String?) {
         self.client = client
@@ -267,6 +280,41 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             fetchNext(after: download)
         }
         poll()
+        await reconcilePodcasts()
+    }
+
+    // MARK: Podcasts
+
+    /// Makes the phone hold what the server says it should: the newest unplayed episodes of each podcast that
+    /// auto-downloads (none when the profile's Auto-download is off). Missing ones are fetched, on Wi-Fi; ones fetched
+    /// by themselves that are no longer wanted (played, pushed out by newer ones) go, unless they're part-heard.
+    func reconcilePodcasts() async {
+        guard let client, isOnline, !isReconciling else { return }
+        isReconciling = true
+        defer { isReconciling = false }
+        let wanted: [PodcastAutoDownload]
+        do {
+            wanted = try await client.podcastAutoDownloads()
+        } catch {
+            return // a server before podcasts, or none to be had
+        }
+        let wantedIds = Set(wanted.map(\.episodeId))
+        declined.formIntersection(wantedIds)
+        for download in downloads where download.item.kind == .podcastEpisode && download.automatic && !wantedIds.contains(download.item.id) {
+            if download.unsent == nil, download.finishedAt != nil || download.position == 0 { delete(download.id) }
+        }
+        guard isOnWiFi else { return }
+        for episode in wanted where entry(for: episode.episodeId) == nil && !declined.contains(episode.episodeId) {
+            try? await download(itemId: episode.episodeId, quality: .original, automatic: true)
+        }
+    }
+
+    /// Deletes a download by hand: a podcast episode the phone fetched by itself isn't fetched again.
+    func remove(_ id: String) {
+        if let download = all.first(where: { $0.id == id }), download.automatic, download.item.kind == .podcastEpisode {
+            declined.insert(download.item.id)
+        }
+        delete(id)
     }
 
     // MARK: Downloading
@@ -400,7 +448,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 $0.markers = remote.markers
                 $0.remoteFileName = remote.fileName
             }
-            let task = session.downloadTask(with: client.downloadFileRequest(remote.id))
+            var request = client.downloadFileRequest(remote.id)
+            if local.automatic {
+                // Fetched by itself: only over Wi-Fi, never mobile data or Low Data Mode. The system waits for it.
+                request.allowsCellularAccess = false
+                request.allowsExpensiveNetworkAccess = false
+                request.allowsConstrainedNetworkAccess = false
+            }
+            let task = session.downloadTask(with: request)
             task.taskDescription = remote.id
             task.resume()
         case .received where !local.isDownloaded, .expired:
@@ -415,6 +470,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// Saves the picture a download shows: a film's backdrop, an episode's still, or a track's album cover (one file
     /// for the whole album, kept as long as anything uses it).
     private func fetchImage(for item: ItemSummary, id: String) async -> String? {
+        if item.kind == .podcastEpisode {
+            return await fetchImage(at: item.artwork.thumb ?? item.artwork.poster, named: "\(id).jpg", width: 600)
+        }
         if item.kind == .track {
             let name = Self.coverName(forAlbum: item.parentId ?? item.id)
             if FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path(percentEncoded: false)) { return name }
@@ -466,10 +524,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         UserDefaults.standard.removeObject(forKey: "downloads.profile")
     }
 
-    /// Episodes finished more than a day ago (films are kept until deleted).
+    /// Episodes and podcast episodes finished more than a day ago (films are kept until deleted).
     private func deleteFinished() {
         let dayAgo = Date().addingTimeInterval(-24 * 60 * 60)
-        for download in all where download.item.kind == .episode && download.unsent == nil {
+        for download in all where (download.item.kind == .episode || download.item.kind == .podcastEpisode) && download.unsent == nil {
             if let finished = download.finishedAt, finished < dayAgo { delete(download.id) }
         }
     }
@@ -514,6 +572,17 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     func localFile(for trackId: String) -> URL? {
         guard let download = entry(for: trackId), download.isDownloaded, let name = download.fileName else { return nil }
         return Self.folder.appending(path: name)
+    }
+
+    func resumePosition(for trackId: String) -> Double {
+        guard let download = entry(for: trackId), download.finishedAt == nil else { return 0 }
+        return download.position
+    }
+
+    func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary? {
+        podcastDownloads
+            .filter { $0.isDownloaded && $0.finishedAt == nil && $0.item.id != episode.id && $0.item.seriesId == episode.seriesId && $0.item.addedAt > episode.addedAt }
+            .min { $0.item.addedAt < $1.item.addedAt }?.item
     }
 
     func localArtwork(for trackId: String) -> UIImage? {

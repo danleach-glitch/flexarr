@@ -4,6 +4,8 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var home: Home?
+    /// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
+    @State private var newEpisodes: [PodcastEpisode] = []
     @State private var error: String?
     @State private var featuredIndex = 0
     @State private var choosingProfile = false
@@ -66,13 +68,18 @@ struct HomeView: View {
                     HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)
                 }
                 // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                ForEach(home.rows.filter(\.hasContent)) { row in
-                    HomeRowView(row: row)
+                let rows = home.rows.filter(\.hasContent)
+                let continuing = rows.first?.id == "continue" ? 1 : 0
+                ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
+                if !newEpisodes.isEmpty {
+                    NewEpisodesRow(episodes: newEpisodes)
                 }
+                ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
             }
             .padding(.bottom, 32)
         }
-        .ignoresSafeArea(edges: .top)
+        // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
+        .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
         .refreshable { await load() }
     }
 
@@ -80,13 +87,59 @@ struct HomeView: View {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
+            // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
+            async let episodes = client.newPodcastEpisodes(unplayed: true, take: 20)
             let loaded = try await client.home()
             home = loaded
+            newEpisodes = (try? await episodes) ?? []
             loadedToken = token
             loadedAt = Date()
             error = nil
         } catch {
             if home == nil { self.error = ConnectionError(error).message }
+        }
+    }
+}
+
+/// The newest unplayed episodes of the podcasts followed: square artwork, the episode and its show. Tapping plays it.
+struct NewEpisodesRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    let episodes: [PodcastEpisode]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeading(title: "New episodes")
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                    ForEach(episodes) { episode in
+                        Button { model.playEpisode(episode.summary) } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor, imageWidth: 342)
+                                    .overlay(alignment: .bottom) {
+                                        if let progress = episode.progress { ProgressBar(value: progress).padding(6) }
+                                    }
+                                Text(episode.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.screen)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Text(episode.podcastTitle)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.usher)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: Layout.posterWidth(sizeClass) * 1.15)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(CardButtonStyle())
+                        .accessibilityLabel("\(episode.title), \(episode.podcastTitle)")
+                        .accessibilityHint("Plays")
+                    }
+                }
+                .padding(.horizontal, Layout.edge)
+            }
+            .scrollIndicators(.hidden)
         }
     }
 }

@@ -60,7 +60,7 @@ struct TitleQuery: EntityStringQuery {
         guard let client = model.client else { return [] }
         var titles: [ItemSummary] = []
         let libraries = model.libraries.isEmpty ? ((try? await client.libraries()) ?? []) : model.libraries
-        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where library.type != .music {
+        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where library.type != .music && library.type != .podcasts {
             if let page = try? await client.libraryItems(library.id, sort: .added, take: 300) { titles.append(contentsOf: page.items) }
             if titles.count >= 600 { break }
         }

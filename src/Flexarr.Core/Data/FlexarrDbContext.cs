@@ -1,5 +1,6 @@
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Podcasts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Core.Data;
@@ -23,6 +24,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Download> Downloads => Set<Download>();
     public DbSet<Playlist> Playlists => Set<Playlist>();
     public DbSet<PlaylistItem> PlaylistItems => Set<PlaylistItem>();
+    public DbSet<PodcastFeed> PodcastFeeds => Set<PodcastFeed>();
+    public DbSet<PodcastEpisode> PodcastEpisodes => Set<PodcastEpisode>();
+    public DbSet<PodcastSubscription> PodcastSubscriptions => Set<PodcastSubscription>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -145,6 +149,38 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(t => t.TmdbId);
             e.HasIndex(t => t.TvdbId);
             e.HasIndex(t => t.ImdbId);
+        });
+
+        modelBuilder.Entity<PodcastFeed>(e =>
+        {
+            e.HasKey(f => f.MediaItemId);
+            // The podcast's item is the feed: removing one removes the other, episodes and subscriptions with it.
+            e.HasOne(f => f.MediaItem).WithOne(i => i.Feed).HasForeignKey<PodcastFeed>(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(f => f.Url).HasMaxLength(2048);
+            e.HasIndex(f => f.Url).IsUnique();
+            e.HasIndex(f => f.ITunesId);
+            e.HasIndex(f => f.NextCheckAt);
+            e.Property(f => f.Error).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<PodcastEpisode>(e =>
+        {
+            e.HasKey(p => p.MediaItemId);
+            e.HasOne(p => p.MediaItem).WithOne(i => i.Enclosure).HasForeignKey<PodcastEpisode>(p => p.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PodcastFeed>().WithMany().HasForeignKey(p => p.FeedId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(p => p.AudioUrl).HasMaxLength(2048);
+            e.HasIndex(p => new { p.FeedId, p.EpisodeGuid }).IsUnique();
+            e.HasIndex(p => new { p.FeedId, p.PublishedAt });
+        });
+
+        modelBuilder.Entity<PodcastSubscription>(e =>
+        {
+            e.HasKey(s => new { s.ProfileId, s.FeedId });
+            e.Property(s => s.ProfileId).HasMaxLength(64);
+            // A profile's subscriptions go with it, and everyone's with a podcast that's removed.
+            e.HasOne<Profile>().WithMany().HasForeignKey(s => s.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(s => s.Feed).WithMany().HasForeignKey(s => s.FeedId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(s => s.FeedId);
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

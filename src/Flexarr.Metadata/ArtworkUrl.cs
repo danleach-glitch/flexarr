@@ -12,6 +12,12 @@ public static partial class ArtworkUrl
         ["thetvdb.com"] = "/banners/",
         ["static.tvmaze.com"] = "/uploads/images/",
         ["assets.fanart.tv"] = "/fanart/",
+        // Apple's podcast directory (search and charts).
+        ["is1-ssl.mzstatic.com"] = "/image/thumb/",
+        ["is2-ssl.mzstatic.com"] = "/image/thumb/",
+        ["is3-ssl.mzstatic.com"] = "/image/thumb/",
+        ["is4-ssl.mzstatic.com"] = "/image/thumb/",
+        ["is5-ssl.mzstatic.com"] = "/image/thumb/",
     };
 
     /// <summary>

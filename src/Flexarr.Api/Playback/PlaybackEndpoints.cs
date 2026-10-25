@@ -162,10 +162,22 @@ public static class PlaybackEndpoints
             return Results.NoContent();
         }).WithTags("Playback");
 
-        group.MapGet("/stream", (string sid, PlaybackSessions sessions) =>
-            sessions.Get(sid) is { Method: PlaybackMethod.DirectPlay } session
-                ? Results.File(session.FilePath, ContentType(session.Container), enableRangeProcessing: true)
-                : Results.NotFound());
+        group.MapGet("/stream", async (string sid, PlaybackSessions sessions, Podcasts.PodcastFetcher podcasts, HttpContext http, CancellationToken ct) =>
+        {
+            if (sessions.Get(sid) is not { Method: PlaybackMethod.DirectPlay } session)
+            {
+                return Results.NotFound();
+            }
+
+            if (session.RemoteUrl is { } remote)
+            {
+                session.LastSeen = DateTime.UtcNow;
+                session.ResolvedRemoteUrl = await Podcasts.PodcastRelay.RelayAsync(podcasts, remote, session.ResolvedRemoteUrl, session.Container, http, ct);
+                return Results.Empty;
+            }
+
+            return Results.File(session.FilePath, ContentType(session.Container), enableRangeProcessing: true);
+        });
 
         group.MapGet("/master.m3u8", (string sid, bool? subtitles, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
             sessions.Get(sid) is { Transcode: not null } session

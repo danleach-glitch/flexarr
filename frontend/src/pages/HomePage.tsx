@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
-import { getHome } from '../api/client'
+import { getHome, getNewEpisodes } from '../api/client'
+import { EpisodeCard } from '../components/EpisodeCard'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { Row } from '../components/Row'
@@ -12,11 +13,15 @@ export function HomePage() {
   const { libraries } = useLibraries()
   const { data, error, reload } = useApi(getHome, [])
   useWatchedChanges(reload)
+  // The newest episodes of the podcasts this profile follows that it hasn't heard, after Continue watching.
+  const podcasts = libraries.some((l) => l.type === 'Podcasts')
+  const episodes = useApi((signal) => (podcasts ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts])
 
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="hero hero-loading" aria-busy="true" />
 
-  if (libraries.length === 0) {
+  // Podcasts come built in, so they don't count as somewhere to start from.
+  if (libraries.every((l) => l.type === 'Podcasts')) {
     return (
       <section className="welcome">
         <h1>Your cinema is empty</h1>
@@ -28,12 +33,22 @@ export function HomePage() {
     )
   }
 
+  const newEpisodes = (episodes.data?.length ?? 0) > 0 && (
+    <Row key="podcasts-new" title="New podcast episodes" link="/podcasts" style="poster">
+      {episodes.data!.slice(0, 20).map((episode) => (
+        <EpisodeCard key={episode.id} episode={episode} />
+      ))}
+    </Row>
+  )
+  const afterContinue = data.rows.some((row) => row.id === 'continue')
+
   return (
     <>
       <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />
       <div className="rows">
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
-        {data.rows.map((row) =>
+        {!afterContinue && newEpisodes}
+        {data.rows.flatMap((row) => [
           row.style === 'upcoming' ? (
             data.upcoming.length > 0 && (
               <Row key={row.id} title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
@@ -45,7 +60,8 @@ export function HomePage() {
           ) : (
             <HomeRows key={row.id} rows={[row]} />
           ),
-        )}
+          row.id === 'continue' ? newEpisodes : null,
+        ])}
       </div>
     </>
   )

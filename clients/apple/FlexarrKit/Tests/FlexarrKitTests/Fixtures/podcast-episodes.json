@@ -1,0 +1,63 @@
+{
+    "total": 734,
+    "items": [
+        {
+            "id": "01a173d0-7069-7220-9a43-82e0c1d9fd29",
+            "podcastId": "01a173d0-7041-7f3e-9031-54ddc6348595",
+            "podcastTitle": "The Rest Is History",
+            "title": "716. King Arthur: The Truth Behind the Legend (Part 4)",
+            "overview": "Did King Arthur really exist or is he just a legend that has developed over the centuries? Could he have been a Roman general who fought against the Saxons? Or is he a Celtic warlord? What is the truth?\n\nJoin Tom and Dominic as they solve one of the greatest mysteries in British history and reveal w…",
+            "publishedAt": "2026-10-21T23:05:00",
+            "durationSeconds": 3974,
+            "season": null,
+            "episode": 716,
+            "episodeType": "Full",
+            "explicit": false,
+            "artwork": {
+                "poster": "/api/v1/images/items/01a173d0-7069-7220-9a43-82e0c1d9fd29/poster?v=63928541202",
+                "backdrop": null,
+                "logo": null,
+                "thumb": "/api/v1/images/items/01a173d0-7069-7220-9a43-82e0c1d9fd29/thumb?v=63928541202"
+            },
+            "accentColor": null,
+            "userData": {
+                "positionSeconds": 0,
+                "watched": false,
+                "playCount": 0,
+                "lastPlayedAt": null,
+                "unwatchedCount": null
+            },
+            "sizeBytes": null,
+            "hasTranscript": false
+        },
+        {
+            "id": "01a173d0-706e-7c57-b124-07559b5324eb",
+            "podcastId": "01a173d0-7041-7f3e-9031-54ddc6348595",
+            "podcastTitle": "The Rest Is History",
+            "title": "715. King Arthur: The Mysteries of Merlin (Part 3)",
+            "overview": "What are the origins of Merlin, the powerful wizard and King Arthur’s advisor? Who was Geoffrey of Monmouth, and what role did he play in evolving the tales of Arthur and the Round Table? And, was Merlin based on a real historical figure from the Saxon invasion of Britain in the 5th century, and the…",
+            "publishedAt": "2026-10-18T23:05:00",
+            "durationSeconds": 3881,
+            "season": null,
+            "episode": 715,
+            "episodeType": "Full",
+            "explicit": false,
+            "artwork": {
+                "poster": "/api/v1/images/items/01a173d0-706e-7c57-b124-07559b5324eb/poster?v=63928541202",
+                "backdrop": null,
+                "logo": null,
+                "thumb": "/api/v1/images/items/01a173d0-706e-7c57-b124-07559b5324eb/thumb?v=63928541202"
+            },
+            "accentColor": null,
+            "userData": {
+                "positionSeconds": 0,
+                "watched": false,
+                "playCount": 0,
+                "lastPlayedAt": null,
+                "unwatchedCount": null
+            },
+            "sizeBytes": null,
+            "hasTranscript": false
+        }
+    ]
+}

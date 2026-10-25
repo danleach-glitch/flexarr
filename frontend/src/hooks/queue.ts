@@ -122,7 +122,8 @@ export const queueStorageKey = 'flexarr.musicQueue'
 export function serializeQueue(state: QueueState, position: number): StoredQueue {
   return {
     ids: state.tracks.map((t) => t.id),
-    albums: [...new Set(state.tracks.map((t) => t.parentId).filter((id): id is string => id !== null))],
+    // A podcast's episodes are fetched one by one: the whole show would be hundreds.
+    albums: [...new Set(state.tracks.filter((t) => t.kind !== 'PodcastEpisode').map((t) => t.parentId).filter((id): id is string => id !== null))],
     index: state.index,
     position: Math.max(0, Math.floor(position)),
   }

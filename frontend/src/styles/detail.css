@@ -770,8 +770,24 @@
   gap: 2px;
 }
 
-.now-playing-queue {
+.now-playing-queue,
+.now-playing-sleep {
   position: relative;
+}
+
+.now-playing-speed {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  font-size: var(--step--1);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-playing-sleep.active,
+.now-playing-speed[aria-expanded='true'],
+.now-playing-sleep[aria-expanded='true'] {
+  color: var(--ambient);
 }
 
 .now-playing-queue[aria-expanded='true'] {

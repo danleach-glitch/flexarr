@@ -61,7 +61,7 @@ public static partial class DiscoveryEndpoints
             }
 
             var libraries = await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct);
-            foreach (var library in libraries.Where(l => l.Type != LibraryType.Music))
+            foreach (var library in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows))
             {
                 var movies = library.Type == LibraryType.Movies;
                 // "in {library}" only when there's more than one library of the kind to tell apart.
@@ -88,7 +88,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // "Because you watched": share genres and cast with the latest thing finished.
-            var lastWatched = await states.Where(p => p.Watched).OrderByDescending(p => p.LastPlayedAt)
+            var lastWatched = await states.Where(p => p.Watched && (p.MediaItem!.Kind == MediaKind.Movie || p.MediaItem.Kind == MediaKind.Episode)).OrderByDescending(p => p.LastPlayedAt)
                 .Select(p => p.MediaItem!.Kind == MediaKind.Episode ? p.MediaItem.Parent!.Parent! : p.MediaItem)
                 .FirstOrDefaultAsync(ct);
             if (lastWatched is not null)
@@ -159,6 +159,11 @@ public static partial class DiscoveryEndpoints
 
             var me = profile.Id;
             var all = $"/library/{id}?view=all";
+            if (library.Type == LibraryType.Podcasts)
+            {
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), [], [], 0)); // Podcasts has its own pages
+            }
+
             if (library.Type == LibraryType.Music)
             {
                 // A music library's home: what you've been playing, then the newest albums. No hero: album covers are
@@ -252,7 +257,9 @@ public static partial class DiscoveryEndpoints
 
             // Titles that start with the term rank above titles that merely contain it.
             var titles = await db.MediaItems
-                .Where(i => i.ParentId == null && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
+                // Podcasts have a search of their own (Apple's directory and the shows followed).
+                .Where(i => i.ParentId == null && i.Kind != MediaKind.Podcast
+                    && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
                 .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
                 .Take(limit).Summaries(profile.Id).ToListAsync(ct);

@@ -12,6 +12,12 @@ import type { QueueState } from './queue'
  */
 export const PRELOAD_SECONDS = 10
 
+/** How often a podcast episode's place is sent to the server while it plays, so it resumes there anywhere. */
+export const PODCAST_PROGRESS_SECONDS = 10
+
+/** A podcast episode rather than a track: it resumes, reports where it got to, and plays at the chosen speed. */
+export const isPodcast = (track: ItemSummary | undefined) => track?.kind === 'PodcastEpisode'
+
 /** One <audio> element and what's in it. Two take turns: one plays while the other gets the next track ready. */
 interface Slot {
   el: HTMLAudioElement
@@ -29,6 +35,8 @@ interface Slot {
   gain: number
   /** Fading out after a crossfade: still sounding, but no longer the current track, and not to be reused yet. */
   outgoing: boolean
+  /** When its place was last sent to the server (podcast episodes only), as a performance.now() time. */
+  reportedAt: number
 }
 
 /** What the engine needs from the provider: the live queue and settings, and somewhere to report what happened. */
@@ -43,6 +51,12 @@ export interface EngineHost {
   advanced(): void
   /** The current track ended with nothing ready to take over: the queue decides what happens. */
   ended(): void
+  /** How fast `track` plays: 1 for music, the chosen speed for podcasts. */
+  rate(track: ItemSummary): number
+  /** True when playback should stop once the current track ends (a sleep timer set to the end of the episode). */
+  stopAtEnd(): boolean
+  /** It stopped at the end, as `stopAtEnd` asked. */
+  stoppedAtEnd(): void
 }
 
 export interface AudioEngine {
@@ -61,6 +75,8 @@ export interface AudioEngine {
   queueChanged(): void
   /** The level settings changed: the current track takes the new level. */
   settingsChanged(): void
+  /** The speed changed: the current track takes it. */
+  rateChanged(): void
   /** Stops everything and forgets it. */
   stop(): void
 }
@@ -89,13 +105,24 @@ export function createEngine(host: EngineHost): AudioEngine {
     return length > 0 ? length - s.el.currentTime : Infinity
   }
 
-  /** Forgets what's in a slot and ends its session; `ended` also tells the server the track was played to the end. */
+  /** Sets the slot's element to play at its track's speed (setting a source resets it, so this follows each load). */
+  const applyRate = (s: Slot) => {
+    const rate = s.track ? host.rate(s.track) : 1
+    s.el.defaultPlaybackRate = rate
+    s.el.playbackRate = rate
+  }
+
+  /**
+   * Forgets what's in a slot and ends its session; `ended` also tells the server the track was played to the end. A
+   * podcast episode left part way through says where, so it picks up there next time.
+   */
   function release(s: Slot, ended = false) {
     if (s.track && !s.ready) loadCount += 1 // A load still in flight for it is discarded.
     s.hls?.destroy()
     s.hls = null
     if (s.session) {
       if (ended) void reportProgress(s.session, s.el.currentTime, true, true).catch(() => undefined)
+      else if (isPodcast(s.track) && s.el.currentTime > 1) void reportProgress(s.session, s.el.currentTime, true).catch(() => undefined)
       void stopPlayback(s.session)
     }
     s.session = undefined
@@ -114,10 +141,13 @@ export function createEngine(host: EngineHost): AudioEngine {
     s.outgoing = false
     s.duration = track.durationSeconds ?? 0
     s.gain = 1
+    s.reportedAt = performance.now()
 
+    // A podcast episode picks up where it was left (the server knows where) unless asked for a place; it has no levels.
+    const podcast = isPodcast(track)
     const [info, loudness] = await Promise.all([
-      startPlayback({ itemId: track.id, profile: detectProfile(), startPositionSeconds: startAt }),
-      getLoudness(track.id).catch(() => null),
+      startPlayback({ itemId: track.id, profile: detectProfile(), startPositionSeconds: podcast && startAt === 0 ? track.playFrom : startAt }),
+      podcast ? null : getLoudness(track.id).catch(() => null),
     ])
     if (mine !== loadCount) {
       void stopPlayback(info.sessionId)
@@ -126,6 +156,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     s.session = info.sessionId
     s.duration = info.durationSeconds
     s.gain = replayGainScale(loudness, heardAsAlbum(host.queue().tracks, index))
+    if (podcast && startAt === 0) startAt = info.startPositionSeconds
 
     if (info.method === 'Transcode' && !s.el.canPlayType('application/vnd.apple.mpegurl')) {
       const { default: HlsPlayer } = await import('hls.js/light')
@@ -146,6 +177,8 @@ export function createEngine(host: EngineHost): AudioEngine {
         )
       }
     }
+    applyRate(s)
+    if (startAt > 0 && s === current()) host.time(startAt)
     s.ready = true
     return true
   }
@@ -200,7 +233,8 @@ export function createEngine(host: EngineHost): AudioEngine {
     if (!next) return
     const left = remaining(s)
     const o = other()
-    const { crossfade } = host.settings()
+    // Talk doesn't crossfade: an episode ends and the next begins.
+    const crossfade = isPodcast(s.track) || isPodcast(next) ? 0 : host.settings().crossfade
     if (o.track !== next) {
       if (!o.outgoing && left <= Math.max(PRELOAD_SECONDS, crossfade + PRELOAD_SECONDS / 2)) void prepare(next, index + 1)
     } else if (o.ready && crossfade > 0 && left <= crossfade && !s.el.paused) {
@@ -212,13 +246,25 @@ export function createEngine(host: EngineHost): AudioEngine {
     timeupdate: () => {
       if (s !== current()) return
       host.time(s.el.currentTime)
+      if (isPodcast(s.track) && s.session && !s.el.paused && performance.now() - s.reportedAt > PODCAST_PROGRESS_SECONDS * 1000) {
+        s.reportedAt = performance.now()
+        void reportProgress(s.session, s.el.currentTime, false).catch(() => undefined)
+      }
       lookAhead(s)
     },
     play: () => {
-      if (s === current()) host.playing(true)
+      if (s !== current()) return
+      host.playing(true)
+      if (s.el.playbackRate !== host.rate(s.track!)) applyRate(s)
     },
     pause: () => {
-      if (s === current()) host.playing(false)
+      if (s !== current()) return
+      host.playing(false)
+      // Paused part way through an episode: the place is kept, for picking it up on another device.
+      if (isPodcast(s.track) && s.session && !s.el.ended) {
+        s.reportedAt = performance.now()
+        void reportProgress(s.session, s.el.currentTime, true).catch(() => undefined)
+      }
     },
     ended: () => {
       if (s !== current()) {
@@ -228,7 +274,12 @@ export function createEngine(host: EngineHost): AudioEngine {
       const { tracks, index } = host.queue()
       const next = tracks[index + 1]
       const o = other()
-      if (next && o.ready && o.track === next) switchTo(0, { advance: true, ended: true })
+      if (host.stopAtEnd()) {
+        // The sleep timer said to stop here: the episode counts as heard, and nothing else starts.
+        if (s.session) void reportProgress(s.session, s.el.currentTime, true, true).catch(() => undefined)
+        host.playing(false)
+        host.stoppedAtEnd()
+      } else if (next && o.ready && o.track === next) switchTo(0, { advance: true, ended: true })
       else {
         if (s.session) void reportProgress(s.session, s.el.currentTime, true, true).catch(() => undefined)
         host.ended()
@@ -238,7 +289,18 @@ export function createEngine(host: EngineHost): AudioEngine {
 
   return {
     attach(elements) {
-      slots = elements.map((el) => ({ el, channel: undefined, hls: null, session: undefined, track: undefined, ready: false, duration: 0, gain: 1, outgoing: false }))
+      slots = elements.map((el) => ({
+        el,
+        channel: undefined,
+        hls: null,
+        session: undefined,
+        track: undefined,
+        ready: false,
+        duration: 0,
+        gain: 1,
+        outgoing: false,
+        reportedAt: 0,
+      }))
       const detach = slots.map((s) => {
         const on = handlers(s)
         Object.entries(on).forEach(([event, handler]) => s.el.addEventListener(event, handler))
@@ -301,6 +363,10 @@ export function createEngine(host: EngineHost): AudioEngine {
       const c = current()
       // Not mid-crossfade: that ramp is on its way to the right level already.
       if (c?.session && !other().outgoing) channel(c).set(level(c))
+    },
+
+    rateChanged() {
+      slots.forEach((s) => s.track && applyRate(s))
     },
 
     stop() {
