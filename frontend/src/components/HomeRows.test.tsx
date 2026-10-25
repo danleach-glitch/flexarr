@@ -25,4 +25,20 @@ describe('HomeRows', () => {
     expect(screen.getByRole('link', { name: 'Parklife' })).toHaveAttribute('href', '/item/album')
     expect(screen.getAllByRole('link', { name: 'Blur' })[0]).toHaveAttribute('href', '/item/blur')
   })
+
+  it('shows a Made for you row as mix cards that open the mix', () => {
+    const mixes = [
+      { id: 'a1b2c3d4', name: 'Rock Mix', description: 'Dire Straits, Pink Floyd & more', covers: ['/api/v1/images/items/x/poster'], trackCount: 40 },
+      { id: 'e5f6', name: 'Miles Davis Mix', description: 'Made from the artists you play', covers: [], trackCount: 12 },
+    ]
+    render(
+      <MemoryRouter>
+        <HomeRows rows={[{ id: 'music-mixes', title: 'Made for you', style: 'mixes', items: [], link: null, mixes }]} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Made for you' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Rock Mix/ })).toHaveAttribute('href', '/mix/a1b2c3d4')
+    expect(screen.getByRole('link', { name: /Miles Davis Mix/ })).toHaveTextContent('Made from the artists you play')
+  })
 })

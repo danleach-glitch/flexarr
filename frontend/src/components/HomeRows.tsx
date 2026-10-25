@@ -1,5 +1,6 @@
 import type { HomeRow } from '../api/client'
 import { PosterCard, Top10Card, TrackCard, WideCard } from './Cards'
+import { MixCard } from './MixCard'
 import { PlaylistCard } from './PlaylistCover'
 import { Row } from './Row'
 
@@ -15,7 +16,9 @@ export function HomeRows({ rows }: { rows: HomeRow[] }) {
             ? row.items.map((item, i) => <TrackCard key={item.id} item={item} queue={row.items} index={i} />)
             : row.style === 'playlists'
               ? (row.playlists ?? []).map((p) => <PlaylistCard key={p.id} playlist={p} />)
-              : row.items.map((item) => <PosterCard key={item.id} item={item} playLoneEpisode={row.id.startsWith('recent')} />)}
+              : row.style === 'mixes'
+                ? (row.mixes ?? []).map((m) => <MixCard key={m.id} mix={m} />)
+                : row.items.map((item) => <PosterCard key={item.id} item={item} playLoneEpisode={row.id.startsWith('recent')} />)}
     </Row>
   ))
 }

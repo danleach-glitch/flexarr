@@ -1109,6 +1109,16 @@ button.queue-track:focus-visible {
   padding: 8px 12px 8px 4px;
 }
 
+/* A mix's tracks can't be reordered, so there's no grip column. */
+.mix-entry {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.mix-note {
+  margin-top: 10px;
+  font-size: var(--step--1);
+}
+
 .playlist-track-art {
   width: 44px;
   height: 44px;

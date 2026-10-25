@@ -11,6 +11,8 @@ import type {
   LibraryRequest,
   Loudness,
   Lyrics,
+  MixDetail,
+  MixSummary,
   Paged,
   Person,
   PlaybackInfo,
@@ -511,6 +513,11 @@ export const removeFromPlaylist = (id: string, entryId: number) => request<void>
 /** Moves an entry to `position` (from 0; past the end means last). */
 export const movePlaylistEntry = (id: string, entryId: number, position: number) =>
   request<void>('PUT', `/playlists/${id}/items/${entryId}/position`, { position })
+
+// ---------- Made for you (daily music mixes, each profile's own, computed by the server)
+
+export const getMixes = (signal?: AbortSignal) => cachedGet<MixSummary[]>('/music/mixes', signal)
+export const getMix = (id: string, signal?: AbortSignal) => cachedGet<MixDetail>(`/music/mixes/${encodeURIComponent(id)}`, signal)
 
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)

@@ -1,6 +1,7 @@
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -25,17 +26,23 @@ public static class MusicDiscovery
     private const double OwnShare = 0.4;
 
     /// <summary>
-    /// Your playlists, Recently played, Most played and More from artists you play, for one music library or (null)
-    /// all of them. Rows with nothing in them are left out, so a profile that hasn't played any music gets none.
+    /// Your playlists, Made for you, Recently played, Most played and More from artists you play, for one music library
+    /// or (null) all of them. Rows with nothing in them are left out, so a profile that hasn't played any music gets none.
     /// </summary>
-    public static async Task<List<HomeRowDto>> RowsAsync(FlexarrDbContext db, string profileId, Guid? libraryId, int size, CancellationToken ct)
+    public static async Task<List<HomeRowDto>> RowsAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, Guid? libraryId, int size, CancellationToken ct)
     {
         var rows = new List<HomeRowDto>();
-        // Playlists span libraries, so every music library's Browse offers them.
+        // Playlists and mixes span libraries, so every music library's Browse offers them.
         if (await Playlists.PlaylistEndpoints.HomeRowAsync(db, profileId, size, ct) is { } playlists)
         {
             rows.Add(playlists);
         }
+
+        if (await MusicMixes.HomeRowAsync(db, cache, profileId, ct) is { } mixes)
+        {
+            rows.Add(mixes);
+        }
+
         var played = db.PlaybackStates.Where(p => p.UserId == profileId && p.MediaItem!.Kind == MediaKind.Track && (libraryId == null || p.MediaItem.LibraryId == libraryId));
 
         // Albums, most recently played first: the album is what you'd put on again, rather than the one track.
@@ -141,10 +148,12 @@ public static class MusicDiscovery
     }
 
     /// <summary>Weighted draws without replacement: heavier candidates come out more often, but each at most once.</summary>
-    private static List<RadioCandidate> Draw(List<RadioCandidate> pool, int count, Random random, Func<RadioCandidate, double> weight)
+    /// <param name="perArtist">At most this many of any one artist's tracks; the rest of theirs drop out once it's reached.</param>
+    internal static List<RadioCandidate> Draw(List<RadioCandidate> pool, int count, Random random, Func<RadioCandidate, double> weight, int? perArtist = null)
     {
         var remaining = pool.Select(c => (Candidate: c, Weight: weight(c))).ToList();
         var drawn = new List<RadioCandidate>();
+        var taken = new Dictionary<Guid, int>();
         while (drawn.Count < count && remaining.Count > 0)
         {
             var roll = random.NextDouble() * remaining.Sum(r => r.Weight);
@@ -154,12 +163,22 @@ public static class MusicDiscovery
                 roll -= remaining[at].Weight;
             }
 
-            drawn.Add(remaining[at].Candidate);
+            var pick = remaining[at].Candidate;
+            drawn.Add(pick);
             remaining.RemoveAt(at);
+            if (perArtist is { } cap && (taken[pick.ArtistId] = taken.GetValueOrDefault(pick.ArtistId) + 1) >= cap)
+            {
+                remaining.RemoveAll(r => r.Candidate.ArtistId == pick.ArtistId);
+            }
         }
 
         return drawn;
     }
+
+    /// <summary>The newest albums by when they were added, in one music library or (null) all of them.</summary>
+    public static async Task<List<ItemSummaryDto>> NewAlbumsAsync(FlexarrDbContext db, string profileId, Guid? libraryId, int size, CancellationToken ct) =>
+        await db.MediaItems.Where(i => i.Kind == MediaKind.Album && (libraryId == null || i.LibraryId == libraryId))
+            .OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle).Take(size).Summaries(profileId).ToListAsync(ct);
 
     /// <summary>Summaries of these items, in this order (a query alone comes back in the database's order).</summary>
     public static async Task<List<ItemSummaryDto>> InOrderAsync(FlexarrDbContext db, IEnumerable<Guid> ids, string profileId, CancellationToken ct)

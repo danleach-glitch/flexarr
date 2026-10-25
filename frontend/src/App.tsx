@@ -23,6 +23,7 @@ import { ExternalTitlePage } from './pages/ExternalTitlePage'
 import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
+import { MixPage } from './pages/MixPage'
 import { PersonPage } from './pages/PersonPage'
 import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
 import { UpcomingPage } from './pages/UpcomingPage'
@@ -85,6 +86,7 @@ export function Shell() {
                 <Route path="collection/:id" element={<CollectionPage />} />
                 <Route path="playlists" element={<PlaylistsPage />} />
                 <Route path="playlist/:id" element={<PlaylistPage />} />
+                <Route path="mix/:id" element={<MixPage />} />
                 <Route path="discover" element={<DiscoverPage />} />
                 <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
                 <Route path="upcoming" element={<UpcomingPage />} />

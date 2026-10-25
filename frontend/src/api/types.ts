@@ -172,12 +172,32 @@ export interface HomeRow {
   title: string
   /**
    * 'upcoming' marks where Coming soon goes; its titles are in Home.upcoming. 'tracks' rows play rather than open.
-   * 'playlists' rows carry the profile's playlists in `playlists` (items is empty).
+   * 'playlists' rows carry the profile's playlists in `playlists`, and 'mixes' rows its daily mixes in `mixes` (items
+   * is empty for both).
    */
-  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks' | 'playlists'
+  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks' | 'playlists' | 'mixes'
   items: ItemSummary[]
   link: string | null
   playlists?: PlaylistSummary[] | null
+  mixes?: MixSummary[] | null
+}
+
+/** One of the profile's "Made for you" mixes for today: built from what they play, the same all day, new tomorrow. */
+export interface MixSummary {
+  /** Stable for the same mix from day to day; yesterday's mixes that didn't come back aren't found. */
+  id: string
+  /** "Rock Mix", or the artists it's made of when it has no genre. */
+  name: string
+  /** The artists in a genre mix; a word on where an artists mix came from. */
+  description: string
+  /** Up to four of its tracks' album covers, for a mosaic. */
+  covers: string[]
+  trackCount: number
+}
+
+export interface MixDetail {
+  summary: MixSummary
+  tracks: ItemSummary[]
 }
 
 /** One of the profile's music playlists, as a list shows it. */

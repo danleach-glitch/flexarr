@@ -63,7 +63,9 @@ public class MusicDiscoveryTests(FlexarrApiFactory factory) : IClassFixture<Flex
         Assert.Equal(["recent"], sam!.Rows.Select(r => r.Id));
         Assert.Contains(mainHome!.Rows, r => r.Id == "music-top" && r.Items.Any(i => i.Title == "Common People"));
         Assert.Contains(mainHome.Rows, r => r.Id == "music-recent" && r.Items.Any(i => i.Title == "Different Class"));
-        Assert.DoesNotContain(samHome!.Rows, r => r.Id.StartsWith("music-", StringComparison.Ordinal));
+        // New albums doesn't depend on listening, so it's the one music row Sam gets.
+        Assert.DoesNotContain(samHome!.Rows, r => r.Id.StartsWith("music-", StringComparison.Ordinal) && r.Id != "music-new");
+        Assert.Contains(samHome.Rows, r => r.Id == "music-new" && r.Items.Any(i => i.Title == "Different Class"));
         Assert.Contains(layout!.Home, r => r.Id == "music-top");
     }
 
