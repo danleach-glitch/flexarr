@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.37.0 · 26 October 2026
 
 ### Settings (Apple TV)
 - Settings is back in the tab bar, as a gear at its end. The profile picture in the corner opens Who's watching? straight away again, rather than a menu.
