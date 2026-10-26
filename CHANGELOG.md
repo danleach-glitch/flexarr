@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Fixed
+- A podcast episode deleted from a phone is never downloaded to it again by itself (downloading it by hand still works).
+
 ## 0.25.0 · 26 October 2026
 
 ### Podcasts
