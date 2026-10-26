@@ -113,6 +113,8 @@ private struct DownloadRow: View {
 
     @ViewBuilder private var status: some View {
         switch download.state {
+        case _ where store.isWaitingForWiFi(download):
+            caption("Waiting for Wi-Fi")
         case .preparing(let progress):
             caption(progress > 0 ? "Getting ready on the server, \(Int(progress * 100))%" : "Waiting for the server")
         case .downloading(let progress):
@@ -186,8 +188,10 @@ private struct PodcastDownloadRow: View {
 
     @ViewBuilder private var status: some View {
         switch download.state {
+        case _ where store.isWaitingForWiFi(download):
+            caption("Waiting for Wi-Fi")
         case .preparing:
-            caption(download.automatic ? "Waiting for the server (downloads on Wi-Fi)" : "Waiting for the server")
+            caption("Waiting for the server")
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
                 caption("Downloading, \(Int(progress * 100))%")

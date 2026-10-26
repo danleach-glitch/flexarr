@@ -332,6 +332,7 @@ struct EpisodeDownloadButton: View {
 
     var body: some View {
         let download = store.entry(for: episode.id)
+        let waitingForWiFi = download.map(store.isWaitingForWiFi) ?? false
         Button {
             switch download?.state {
             case nil, .failed: Task { await start() }
@@ -340,6 +341,9 @@ struct EpisodeDownloadButton: View {
         } label: {
             ZStack {
                 switch download?.state {
+                case _ where waitingForWiFi:
+                    // Downloaded by itself, on Wi-Fi only: nothing moves until there is some.
+                    Image(systemName: "wifi").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher)
                 case .downloading(let fraction):
                     Circle().stroke(Color.screen.opacity(0.25), lineWidth: 2)
                     Circle().trim(from: 0, to: max(0.02, fraction)).stroke(Color.screen, style: StrokeStyle(lineWidth: 2, lineCap: .round))
@@ -360,7 +364,7 @@ struct EpisodeDownloadButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel(download?.isDownloaded == true ? "Downloaded" : download == nil ? "Download" : "Downloading")
+        .accessibilityLabel(waitingForWiFi ? "Waiting for Wi-Fi" : download?.isDownloaded == true ? "Downloaded" : download == nil ? "Download" : "Downloading")
         .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.remove(download.id) }

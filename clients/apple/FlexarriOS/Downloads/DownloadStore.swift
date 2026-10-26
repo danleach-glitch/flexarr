@@ -3,6 +3,7 @@ import Foundation
 import Network
 import Observation
 import os
+import Security
 import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "downloads")
@@ -42,6 +43,9 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     var unsent: UnsentProgress?
     /// Fetched by itself: as the next episode, or a podcast's newest (see `reconcilePodcasts`).
     var automatic = false
+    /// Asked for by hand, for certain (set from this version on): only these may come over mobile data. Optional, so
+    /// lists saved before it still read.
+    var manual: Bool?
     var createdAt = Date()
 
     var isDownloaded: Bool { state == .downloaded && fileName != nil }
@@ -144,10 +148,18 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var lastSaved = Date.distantPast
     @ObservationIgnored private var isReconciling = false
-    /// Podcast episodes downloaded by themselves that were deleted by hand: not fetched again while still wanted.
-    @ObservationIgnored private var declined: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.podcasts.declined") ?? []) {
-        didSet { UserDefaults.standard.set(Array(declined), forKey: "downloads.podcasts.declined") }
+    /// Podcast episodes whose download was deleted by hand (by episode id): never fetched by themselves again. Kept in
+    /// the keychain too, which outlives reinstalling the app.
+    @ObservationIgnored private var declined: Set<String> = DeclinedEpisodes.load() {
+        didSet { DeclinedEpisodes.save(declined) }
     }
+    /// Downloads deleted here that the server hasn't heard about yet (it was out of reach): told on the next catch-up,
+    /// so it doesn't keep a copy, nor offer the episode again.
+    @ObservationIgnored private var unsentDeletes: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentDeletes") ?? []) {
+        didSet { UserDefaults.standard.set(Array(unsentDeletes), forKey: "downloads.unsentDeletes") }
+    }
+    /// Where transfers paused for want of Wi-Fi had got to, to carry on from there.
+    @ObservationIgnored private var resumeData: [String: Data] = [:]
 
     nonisolated static let folder: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -257,9 +269,48 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     private func connectivityChanged(online: Bool, wifi: Bool) {
         let cameBack = online && !isOnline
+        let wifiCameBack = wifi && !isOnWiFi
         isOnline = online
         isOnWiFi = wifi
-        if cameBack { Task { await catchUp() } }
+        if !wifi { pauseWiFiOnlyTransfers() }
+        if cameBack || wifiCameBack { Task { await catchUp() } }
+    }
+
+    // MARK: Wi-Fi only
+
+    /// Fetched by itself, or a podcast episode not known for certain to have been asked for by hand: these never come
+    /// over mobile data, an expensive network (a hotspot) or Low Data Mode.
+    func isWiFiOnly(_ download: LocalDownload) -> Bool {
+        download.automatic || (download.item.kind == .podcastEpisode && download.manual != true)
+    }
+
+    /// Held back until there's Wi-Fi.
+    func isWaitingForWiFi(_ download: LocalDownload) -> Bool {
+        guard isWiFiOnly(download), !isOnWiFi else { return false }
+        switch download.state {
+        case .preparing, .downloading: return true
+        case .downloaded, .failed: return false
+        }
+    }
+
+    /// Off Wi-Fi: transfers that mustn't use mobile data stop (where they'd got to is kept) and wait for Wi-Fi.
+    private func pauseWiFiOnlyTransfers() {
+        let held = Set(all.filter { isWiFiOnly($0) && !$0.isDownloaded }.map(\.id))
+        guard !held.isEmpty else { return }
+        session.getAllTasks { tasks in
+            for task in tasks {
+                guard let id = task.taskDescription, held.contains(id), let download = task as? URLSessionDownloadTask else { continue }
+                download.cancel { data in
+                    Task { @MainActor in self.held(id, resumeData: data) }
+                }
+            }
+        }
+    }
+
+    /// A transfer stopped for want of Wi-Fi: back to waiting (the server still has it ready), to carry on later.
+    private func held(_ id: String, resumeData data: Data?) {
+        if let data { resumeData[id] = data }
+        update(id) { if case .downloading = $0.state { $0.state = .preparing(1) } }
     }
 
     /// Sends what was watched offline, follows what the server is getting ready, deletes what's finished with, and
@@ -267,6 +318,16 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     func catchUp() async {
         deleteFinished()
         guard let client, isOnline else { return }
+        for id in unsentDeletes {
+            do {
+                try await client.deleteDownload(id)
+                unsentDeletes.remove(id)
+            } catch FlexarrClientError.http(status: 404, _) {
+                unsentDeletes.remove(id)
+            } catch {
+                break // still out of reach
+            }
+        }
         for download in all where download.profileId == profileId {
             guard let unsent = download.unsent else { continue }
             do {
@@ -306,7 +367,6 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             return // a server before podcasts, or none to be had
         }
         let wantedIds = Set(wanted.map(\.episodeId))
-        declined.formIntersection(wantedIds)
         for download in downloads where download.item.kind == .podcastEpisode && download.automatic && !wantedIds.contains(download.item.id) {
             if download.unsent == nil, download.finishedAt != nil || download.position == 0 { delete(download.id) }
         }
@@ -316,9 +376,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
-    /// Deletes a download by hand: a podcast episode the phone fetched by itself isn't fetched again.
+    /// Deletes a download by hand. A podcast episode's, however it came, is never fetched by itself again: the server
+    /// is told (it then leaves the episode out of what phones should keep), and this phone remembers it too.
     func remove(_ id: String) {
-        if let download = all.first(where: { $0.id == id }), download.automatic, download.item.kind == .podcastEpisode {
+        if let download = all.first(where: { $0.id == id }), download.item.kind == .podcastEpisode {
             declined.insert(download.item.id)
         }
         delete(id)
@@ -348,7 +409,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let remote = try await client.requestDownload(itemId, quality: quality)
         var local = LocalDownload(id: remote.id, profileId: profileId, quality: quality, item: remote.item, markers: remote.markers,
                                   durationSeconds: remote.durationSeconds, nextId: remote.nextId, state: .preparing(remote.progress),
-                                  sizeBytes: remote.sizeBytes, automatic: automatic)
+                                  sizeBytes: remote.sizeBytes, automatic: automatic, manual: automatic ? nil : true)
         all.removeAll { $0.id == remote.id }
         all.append(local)
         save()
@@ -429,7 +490,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         guard polling == nil else { return }
         polling = Task { [weak self] in
             while let self, !Task.isCancelled {
-                let waiting = all.filter { if case .preparing = $0.state { return true } else { return false } }
+                // Ones waiting for Wi-Fi needn't be asked after until there is some.
+                let waiting = all.filter {
+                    guard case .preparing = $0.state else { return false }
+                    return isOnWiFi || !isWiFiOnly($0)
+                }
                 guard !waiting.isEmpty, let client else { break }
                 for download in waiting {
                     if let remote = try? await client.download(download.id) { apply(remote) }
@@ -448,23 +513,33 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             update(remote.id) { $0.state = .preparing(remote.progress) }
         case .ready:
             guard case .preparing = local.state, let client else { return }
+            let wifiOnly = isWiFiOnly(local)
             update(remote.id) {
-                $0.state = .downloading(0)
                 $0.sizeBytes = remote.sizeBytes
                 $0.nextId = remote.nextId
                 $0.markers = remote.markers
                 $0.remoteFileName = remote.fileName
             }
+            // Ready, but this one waits for Wi-Fi: it starts when there is some (see connectivityChanged).
+            if wifiOnly, !isOnWiFi {
+                update(remote.id) { $0.state = .preparing(1) }
+                return
+            }
+            update(remote.id) { $0.state = .downloading(0) }
             var request = client.downloadFileRequest(remote.id)
-            if local.automatic {
-                // Fetched by itself: only over Wi-Fi, never mobile data or Low Data Mode. The system waits for it.
+            if wifiOnly {
+                // Never mobile data, a hotspot or Low Data Mode, should the network change mid-way: the system waits.
                 request.allowsCellularAccess = false
                 request.allowsExpensiveNetworkAccess = false
                 request.allowsConstrainedNetworkAccess = false
             }
-            let task = session.downloadTask(with: request)
+            let task = resumeData.removeValue(forKey: remote.id).map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
             task.taskDescription = remote.id
             task.resume()
+        case .removed where !local.isDownloaded:
+            // Deleted on another of this profile's phones: nothing to fetch.
+            all.removeAll { $0.id == remote.id }
+            save()
         case .received where !local.isDownloaded, .expired:
             update(remote.id) { $0.state = .failed("This download ran out on the server. Download it again.") }
         case .failed:
@@ -511,7 +586,19 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         all.removeAll { $0.id == id }
         save()
         removeImageIfUnused(download.imageFileName)
-        if let client { Task { try? await client.deleteDownload(id) } }
+        resumeData[id] = nil
+        // The server drops its copy (and, for a podcast episode, won't offer it again); out of reach, it's told later.
+        unsentDeletes.insert(id)
+        if let client {
+            Task {
+                do {
+                    try await client.deleteDownload(id)
+                    unsentDeletes.remove(id)
+                } catch FlexarrClientError.http(status: 404, _) {
+                    unsentDeletes.remove(id)
+                } catch {}
+            }
+        }
     }
 
     /// A picture goes once nothing shows it any more (an album's cover is shared by its tracks).
@@ -520,7 +607,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
     }
 
-    /// Signing out: every download goes, whoever's it was.
+    /// Signing out: every download goes, whoever's it was (the server keeps its record of what was declined).
     func deleteAll() {
         for id in all.map(\.id) { delete(id) }
         let pictures = collections.compactMap(\.imageFileName)
@@ -696,6 +783,41 @@ extension DownloadStore: URLSessionDownloadDelegate {
         MainActor.assumeIsolated {
             backgroundCompletion?()
             backgroundCompletion = nil
+        }
+    }
+}
+
+/// The podcast episodes this phone was told not to keep (their downloads deleted by hand), by episode id: in the app's
+/// settings and the keychain, which outlives reinstalling the app.
+private enum DeclinedEpisodes {
+    private static let key = "downloads.podcasts.declined"
+    private static var query: [String: Any] { [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: "io.github.flexarr.declined-episodes",
+        kSecAttrAccount as String: "episodes",
+    ] }
+
+    static func load() -> Set<String> {
+        var ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        var lookup = query
+        lookup[kSecReturnData as String] = true
+        var result: CFTypeRef?
+        if SecItemCopyMatching(lookup as CFDictionary, &result) == errSecSuccess, let data = result as? Data,
+           let saved = try? JSONDecoder().decode([String].self, from: data) {
+            ids.formUnion(saved)
+        }
+        return ids
+    }
+
+    static func save(_ ids: Set<String>) {
+        let list = Array(ids)
+        UserDefaults.standard.set(list, forKey: key)
+        guard let data = try? JSONEncoder().encode(list) else { return }
+        if SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecItemNotFound {
+            var item = query
+            item[kSecValueData as String] = data
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(item as CFDictionary, nil)
         }
     }
 }

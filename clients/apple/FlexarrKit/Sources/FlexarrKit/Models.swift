@@ -696,7 +696,10 @@ public enum DownloadQuality: String, Codable, Sendable, CaseIterable, Identifiab
 }
 
 public enum DownloadStatus: String, ForwardCompatibleEnum {
-    case queued = "Queued", preparing = "Preparing", ready = "Ready", received = "Received", failed = "Failed", expired = "Expired", unknown
+    case queued = "Queued", preparing = "Preparing", ready = "Ready", received = "Received", failed = "Failed", expired = "Expired"
+    /// Deleted from the phone: a podcast episode the server won't offer for auto-download again.
+    case removed = "Removed"
+    case unknown
 }
 
 /// A size a title can be downloaded at, about how big it'll be, and whether it can be (an Original the phone
