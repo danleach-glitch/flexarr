@@ -2,6 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Navigation (web, iPhone and iPad)
+- Live TV has a broadcast antenna for its icon, as on the Apple TV, so it's no longer mistaken for a TV Shows library.
+- Discover's icon is now sparkles instead of a compass.
+- Playlists have their own icon on the web, a list with a note, as on iPhone and iPad, instead of the Music library's note. Empty playlist covers use it too.
+
 ## 0.38.0 · 26 October 2026
 
 ### Libraries (Apple TV)

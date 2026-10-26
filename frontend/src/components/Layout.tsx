@@ -5,7 +5,7 @@ import { PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Microphone, Music, Search, Stack, Tv } from './icons'
+import { Antenna, Calendar, ChevronsLeft, Close, Film, Gear, Home, Menu as MenuIcon, Microphone, Playlist, Search, Sparkles, Stack } from './icons'
 import { libraryIcons } from './libraryIcons'
 import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
@@ -271,18 +271,18 @@ export function Layout() {
             </NavLink>
             {libraries.some((l) => l.type === 'Music') && (
               <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
-                <Music />
+                <Playlist />
                 <span className="sidebar-label">Playlists</span>
               </NavLink>
             )}
             {liveTv && (
               <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
-                <Tv />
+                <Antenna />
                 <span className="sidebar-label">Live TV</span>
               </NavLink>
             )}
             <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
-              <Compass />
+              <Sparkles />
               <span className="sidebar-label">Discover</span>
             </NavLink>
             <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>

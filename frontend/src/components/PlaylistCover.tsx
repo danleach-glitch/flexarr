@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import { imageUrl, type PlaylistSummary } from '../api/client'
 import { formatDuration } from '../lib/format'
-import { Music } from './icons'
+import { Playlist } from './icons'
 
 /**
  * A playlist's artwork: the cover chosen for it, else a mosaic of its first four tracks' album covers (one, when there
@@ -13,7 +13,7 @@ export function PlaylistCover({ playlist, width = 342 }: { playlist: Pick<Playli
   if (shown.length === 0) {
     return (
       <div className="collage square collage-empty playlist-cover-empty" aria-hidden="true">
-        <Music />
+        <Playlist />
       </div>
     )
   }

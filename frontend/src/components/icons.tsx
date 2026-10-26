@@ -180,16 +180,33 @@ export const Music = (p: IconProps) => (
     <circle cx="17.5" cy="16" r="2.5" />
   </svg>
 )
+/** A playlist: a list with a note, so it isn't mistaken for a music library. */
+export const Playlist = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M3 6h11M3 11h11M3 16h6" />
+    <path d="M19 17.5V4.5l3 1.5" />
+    <circle cx="16.5" cy="17.5" r="2.5" />
+  </svg>
+)
 export const Stack = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="3" y="9" width="18" height="11" rx="2" />
     <path d="M5.5 5.5h13M8 2.5h8" />
   </svg>
 )
-export const Compass = (p: IconProps) => (
+/** Live TV: a broadcast mast, so it isn't mistaken for a TV library. */
+export const Antenna = (p: IconProps) => (
   <svg {...base} {...p}>
-    <circle cx="12" cy="12" r="9" />
-    <path d="m15.5 8.5-2 5-5 2 2-5Z" />
+    <circle cx="12" cy="8" r="1.5" />
+    <path d="M12 9.5 8.5 21M12 9.5 15.5 21M10 16h4" />
+    <path d="M8.9 4.9a4.4 4.4 0 0 0 0 6.2M15.1 4.9a4.4 4.4 0 0 1 0 6.2M6 2a8.5 8.5 0 0 0 0 12M18 2a8.5 8.5 0 0 1 0 12" />
+  </svg>
+)
+/** Discover: something new to find. */
+export const Sparkles = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M10 3.5c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z" />
+    <path d="M18 14.5c.3 1.5 1 2.2 2.5 2.5-1.5.3-2.2 1-2.5 2.5-.3-1.5-1-2.2-2.5-2.5 1.5-.3 2.2-1 2.5-2.5Z" />
   </svg>
 )
 export const Calendar = (p: IconProps) => (
