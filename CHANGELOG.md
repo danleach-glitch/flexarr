@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Changed
+- Home's row of new podcast episodes is called New podcasts.
+
 ## 0.26.0 · 26 October 2026
 
 ### Downloads on iPhone and iPad
