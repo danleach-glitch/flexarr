@@ -262,6 +262,97 @@ public sealed class LiveTvTests : IDisposable
         Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsync(Api($"livetv/channels/{Guid.NewGuid()}/favourite"), null)).StatusCode);
     }
 
+    private static async Task<JsonElement> GuideProgrammeAsync(HttpClient client, string title)
+    {
+        var guide = await client.GetFromJsonAsync<JsonElement>(Api("livetv/guide?hours=3"));
+        return guide.GetProperty("channels").EnumerateArray().SelectMany(c => c.GetProperty("programmes").EnumerateArray())
+            .First(p => p.GetProperty("title").GetString() == title);
+    }
+
+    [Fact]
+    public async Task A_programme_can_be_set_to_record_and_taken_off_again()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+
+        var scheduled = await (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = doctorWho })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("scheduled", scheduled.GetProperty("state").GetString());
+        Assert.Equal("BBC One", scheduled.GetProperty("channelName").GetString());
+        Assert.False(scheduled.GetProperty("clashes").GetBoolean());
+        // The guide shows it, and asking twice doesn't add it twice.
+        Assert.Equal("scheduled", (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("recording").GetString());
+        var again = await (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = doctorWho })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(scheduled.GetProperty("id").GetString(), again.GetProperty("id").GetString());
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Single(list.GetProperty("upcoming").EnumerateArray());
+        Assert.Equal(1, list.GetProperty("streams").GetInt32());
+
+        (await client.DeleteAsync(Api($"livetv/recordings/{scheduled.GetProperty("id").GetString()}"))).EnsureSuccessStatusCode();
+        Assert.Empty((await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"))).GetProperty("upcoming").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("recording").ValueKind);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = 999999 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_series_schedules_its_showings()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var doctorWho = (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("id").GetInt64();
+
+        var rule = await (await client.PostAsJsonAsync(Api("livetv/recordings/series"), new { programmeId = doctorWho, newOnly = true })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Doctor Who", rule.GetProperty("title").GetString());
+        Assert.Equal("BBC One", rule.GetProperty("channelName").GetString());
+        Assert.True(rule.GetProperty("newOnly").GetBoolean());
+
+        // The scheduler (a background service, not run in tests) plans it.
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var scheduler = new DvrScheduler(services.GetRequiredService<IServiceScopeFactory>(), services.GetRequiredService<DvrService>(),
+                services.GetRequiredService<DvrSignal>(), services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>(),
+                TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DvrScheduler>.Instance);
+            await scheduler.RunOnceAsync(CancellationToken.None);
+        }
+
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        var upcoming = Assert.Single(list.GetProperty("upcoming").EnumerateArray());
+        Assert.Equal("Doctor Who", upcoming.GetProperty("title").GetString());
+        Assert.Equal("The Star Beast", upcoming.GetProperty("subtitle").GetString());
+        Assert.Equal(rule.GetProperty("id").GetString(), upcoming.GetProperty("ruleId").GetString());
+        var series = Assert.Single(list.GetProperty("series").EnumerateArray());
+        Assert.Equal(1, series.GetProperty("upcoming").GetInt32());
+        Assert.True((await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("series").GetBoolean());
+
+        // Stopping the series takes its scheduled showings off.
+        (await client.DeleteAsync(Api($"livetv/recordings/series/{rule.GetProperty("id").GetString()}"))).EnsureSuccessStatusCode();
+        list = await client.GetFromJsonAsync<JsonElement>(Api("livetv/recordings"));
+        Assert.Empty(list.GetProperty("upcoming").EnumerateArray());
+        Assert.Empty(list.GetProperty("series").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task The_dvr_settings_are_kept_with_the_connection()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, dvrFolder = "/tmp/flexarr-dvr-test", paddingAfterMinutes = 10, minFreeGigabytes = 20 } }))
+            .EnsureSuccessStatusCode();
+        var live = await LiveTvSettingsAsync(client, l => l.GetProperty("paddingAfterMinutes").GetInt32() == 10);
+
+        Assert.Equal("/tmp/flexarr-dvr-test", live.GetProperty("dvrFolder").GetString());
+        Assert.Equal(Path.GetFullPath("/tmp/flexarr-dvr-test"), live.GetProperty("dvrFolderInUse").GetString());
+        Assert.Equal(20, live.GetProperty("minFreeGigabytes").GetInt32());
+        // Saving only the rewind keeps the rest; an empty folder goes back to the default.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, rewindMinutes = 30, dvrFolder = "" } }))
+            .EnsureSuccessStatusCode();
+        live = await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 30);
+        Assert.Equal(10, live.GetProperty("paddingAfterMinutes").GetInt32());
+        Assert.Equal(JsonValueKind.Null, live.GetProperty("dvrFolder").ValueKind);
+    }
+
     [Fact]
     public async Task Homes_live_tv_row_starts_with_the_channel_watched_last()
     {

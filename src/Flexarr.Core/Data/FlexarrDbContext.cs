@@ -33,6 +33,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<LiveProgramme> LiveProgrammes => Set<LiveProgramme>();
     public DbSet<LiveFavourite> LiveFavourites => Set<LiveFavourite>();
     public DbSet<LiveLastChannel> LiveLastChannels => Set<LiveLastChannel>();
+    public DbSet<RecordingRule> RecordingRules => Set<RecordingRule>();
+    public DbSet<Recording> Recordings => Set<Recording>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -232,6 +234,45 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(f => f.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<LiveChannel>().WithMany().HasForeignKey(f => f.ChannelId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(f => f.ChannelId);
+        });
+
+        modelBuilder.Entity<RecordingRule>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Title).HasMaxLength(500);
+            e.Property(r => r.CreatedBy).HasMaxLength(64);
+            // A series for one channel goes with it; one for any channel stays.
+            e.HasOne<LiveChannel>().WithMany().HasForeignKey(r => r.ChannelId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(r => r.CreatedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        });
+
+        modelBuilder.Entity<Recording>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.ChannelName).HasMaxLength(200);
+            e.Property(r => r.Title).HasMaxLength(500);
+            e.Property(r => r.Subtitle).HasMaxLength(500);
+            e.Property(r => r.Description).HasMaxLength(4000);
+            e.Property(r => r.Category).HasMaxLength(100);
+            e.Property(r => r.Reason).HasMaxLength(500);
+            e.Property(r => r.FilePath).HasMaxLength(2048);
+            e.Property(r => r.CreatedBy).HasMaxLength(64);
+            e.Property(r => r.State).HasConversion<string>().HasMaxLength(20);
+            // Not tied to the channel or the series: a recording outlives both (the channel's name is kept).
+            e.HasIndex(r => new { r.State, r.Start });
+            e.HasIndex(r => new { r.ChannelId, r.Start });
+            e.HasIndex(r => r.RuleId);
+            foreach (var date in new[] { nameof(Recording.Start), nameof(Recording.End), nameof(Recording.CreatedAt) })
+            {
+                e.Property<DateTime>(date).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+            }
+
+            foreach (var date in new[] { nameof(Recording.StartedAt), nameof(Recording.FinishedAt) })
+            {
+                e.Property<DateTime?>(date).HasConversion(v => v, v => v == null ? null : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc));
+            }
+
+            e.Ignore(r => r.IsActive);
         });
 
         modelBuilder.Entity<LiveLastChannel>(e =>

@@ -36,11 +36,13 @@ public sealed record SettingsDto(
     LiveTvSettingsDto? LiveTv = null);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
-public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes);
+public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
+    string DvrFolderInUse = "", int? MaxStreams = null, int PaddingBeforeMinutes = 1, int PaddingAfterMinutes = 5, int MinFreeGigabytes = 100);
 
 /// <param name="BaseUrl">Empty to remove the source (its channels and guide go with it).</param>
 /// <param name="Password">Omitted to keep the saved one, which is only kept for the same server.</param>
-public sealed record LiveTvSettingsUpdate(string BaseUrl, string? Username, string? Password, int? RewindMinutes = null);
+public sealed record LiveTvSettingsUpdate(string BaseUrl, string? Username, string? Password, int? RewindMinutes = null, string? DvrFolder = null,
+    int? MaxStreams = null, int? PaddingBeforeMinutes = null, int? PaddingAfterMinutes = null, int? MinFreeGigabytes = null);
 
 public sealed record LiveTvTestDto(bool Ok, int? Channels, int? MaxConnections, DateTime? ExpiresAt, string? Error);
 
@@ -89,9 +91,11 @@ public static class SettingsEndpoints
     {
         var group = api.MapGroup("/settings").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) => ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct)));
+        group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, CancellationToken ct) =>
+            ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
 
-        group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, CancellationToken ct) =>
+        group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
+            CancellationToken ct) =>
         {
             var current = options.CurrentValue;
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
@@ -160,6 +164,13 @@ public static class SettingsEndpoints
                         ["username"] = live.Username?.Trim() ?? "",
                         ["password"] = string.IsNullOrEmpty(live.Password) ? savedPassword : live.Password,
                         ["rewindMinutes"] = Math.Clamp(live.RewindMinutes ?? current.LiveTv?.RewindMinutes ?? 60, 1, 240),
+                        // The DVR's settings: an omitted one keeps what's saved; an empty folder (or a limit of 0) goes
+                        // back to the default.
+                        ["dvrFolder"] = live.DvrFolder is null ? current.LiveTv?.DvrFolder : live.DvrFolder.Trim() is { Length: > 0 } folder ? folder : null,
+                        ["maxStreams"] = live.MaxStreams is null ? current.LiveTv?.MaxStreams : live.MaxStreams > 0 ? Math.Min(live.MaxStreams.Value, 20) : null,
+                        ["paddingBeforeMinutes"] = Math.Clamp(live.PaddingBeforeMinutes ?? current.LiveTv?.PaddingBeforeMinutes ?? 1, 0, 30),
+                        ["paddingAfterMinutes"] = Math.Clamp(live.PaddingAfterMinutes ?? current.LiveTv?.PaddingAfterMinutes ?? 5, 0, 60),
+                        ["minFreeGigabytes"] = Math.Clamp(live.MinFreeGigabytes ?? current.LiveTv?.MinFreeGigabytes ?? 100, 0, 10_000),
                     };
                 }
 
@@ -202,7 +213,7 @@ public static class SettingsEndpoints
                 liveTvRefresh.Request();
             }
 
-            return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct)));
+            return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
         });
 
         // Showing the key is a POST, so it needs the web app's own header (see RequestForgery) and can't be read by a
@@ -333,7 +344,7 @@ public static class SettingsEndpoints
         return api;
     }
 
-    private static SettingsDto ToDto(FlexarrOptions o, IReadOnlyList<HardwareAcceleration> available) => new(
+    private static SettingsDto ToDto(FlexarrOptions o, IReadOnlyList<HardwareAcceleration> available, string dvrFolder) => new(
         o.Transcoding,
         available,
         o.AuthenticationRequired,
@@ -345,7 +356,10 @@ public static class SettingsEndpoints
         o.FfprobePath,
         o.WebhookSecret,
         new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry),
-        o.LiveTv is { BaseUrl.Length: > 0 } l ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes) : null);
+        o.LiveTv is { BaseUrl.Length: > 0 } l
+            ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes, l.DvrFolder, dvrFolder, l.MaxStreams,
+                l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes)
+            : null);
 
     /// <summary>
     /// Showing or replacing the API key asks again, so a script that found its way into the page can't just take it:

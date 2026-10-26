@@ -14,7 +14,23 @@ public sealed class LiveTvViewers
 {
     private readonly ConcurrentDictionary<string, LiveViewer> _viewers = new(StringComparer.Ordinal);
 
+    /// <summary>Why a viewer's channel was stopped for them (a recording needed the stream), for their player to say.</summary>
+    private readonly ConcurrentDictionary<string, (string Reason, DateTime At)> _ended = new(StringComparer.Ordinal);
+
     public IReadOnlyCollection<LiveViewer> All => [.. _viewers.Values];
+
+    /// <summary>Takes the viewer off, keeping why for a few minutes.</summary>
+    public void End(string id, string reason)
+    {
+        _viewers.TryRemove(id, out _);
+        _ended[id] = (reason, DateTime.UtcNow);
+        foreach (var old in _ended.Where(e => DateTime.UtcNow - e.Value.At > TimeSpan.FromMinutes(10)).ToList())
+        {
+            _ended.TryRemove(old.Key, out _);
+        }
+    }
+
+    public string? EndedBecause(string id) => _ended.TryGetValue(id, out var ended) ? ended.Reason : null;
 
     public void Add(LiveViewer viewer)
     {

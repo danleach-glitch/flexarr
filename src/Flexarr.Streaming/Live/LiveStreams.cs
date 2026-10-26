@@ -94,6 +94,9 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
         }
     }
 
+    /// <summary>Stops a channel now, whoever's watching (a recording needs its stream).</summary>
+    public Task EndAsync(LiveSession session) => StopAsync(session ?? throw new ArgumentNullException(nameof(session)));
+
     /// <summary>Stops a channel and forgets it, noting when, as its connection takes the source a moment to free.</summary>
     private async Task StopAsync(LiveSession session)
     {

@@ -115,6 +115,9 @@ builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddHostedService<LiveTvSweeper>();
+builder.Services.AddSingleton<DvrSignal>();
+builder.Services.AddSingleton<DvrService>();
+builder.Services.AddHostedService<DvrScheduler>();
 builder.Services.AddSingleton<PodcastRefreshQueue>();
 builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
@@ -282,6 +285,7 @@ app.MapGroup("/api/v1")
     .MapPlaylistEndpoints()
     .MapPodcastEndpoints()
     .MapLiveTvEndpoints()
+    .MapDvrEndpoints()
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()

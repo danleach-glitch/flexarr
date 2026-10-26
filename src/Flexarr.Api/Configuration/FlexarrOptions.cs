@@ -104,6 +104,20 @@ public sealed class LiveTvOptions
     /// <summary>How far back a channel being watched can be rewound.</summary>
     public int RewindMinutes { get; set; } = 60;
 
+    /// <summary>Where recordings go; unset, a DVR folder on the drive the TV library is on (see <see cref="Flexarr.Api.LiveTv.DvrFolders"/>).</summary>
+    public string? DvrFolder { get; set; }
+
+    /// <summary>How many channels can be open at once; unset, what Dispatcharr says the login allows.</summary>
+    public int? MaxStreams { get; set; }
+
+    /// <summary>Recordings start this many minutes early and run this many on, as broadcasts drift.</summary>
+    public int PaddingBeforeMinutes { get; set; } = 1;
+
+    public int PaddingAfterMinutes { get; set; } = 5;
+
+    /// <summary>No new recording starts when the DVR folder's drive has less than this free.</summary>
+    public int MinFreeGigabytes { get; set; } = 100;
+
     public Flexarr.Api.LiveTv.XtreamAccount? Account =>
         Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" && Username.Length > 0 && Password.Length > 0
             ? new Flexarr.Api.LiveTv.XtreamAccount(url, Username, Password)

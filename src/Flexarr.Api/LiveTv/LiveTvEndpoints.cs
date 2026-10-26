@@ -18,8 +18,10 @@ namespace Flexarr.Api.LiveTv;
 
 public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes);
 
+/// <param name="Recording">"scheduled" or "recording" when it's on the DVR's list (the guide says); otherwise null.</param>
+/// <param name="Series">A series covers it (every showing of its title is recorded).</param>
 public sealed record LiveProgrammeDto(long Id, DateTime Start, DateTime End, string Title, string? Subtitle, string? Description, string? Category,
-    int? Season, int? Episode, bool IsNew);
+    int? Season, int? Episode, bool IsNew, string? Recording = null, bool Series = false);
 
 /// <param name="IsFavourite">Starred by the profile asking.</param>
 public sealed record LiveChannelDto(Guid Id, double Number, string Name, string? Group, string? LogoUrl, bool IsFavourite, LiveProgrammeDto? Now, LiveProgrammeDto? Next);
@@ -89,8 +91,10 @@ public static partial class LiveTvEndpoints
                     .Where(p => p.End > start && p.Start < until).OrderBy(p => p.Start).ToListAsync(ct))
                 .ToLookup(p => p.ChannelId);
             var favourites = await FavouritesAsync(db, profile.Id, ct);
+            var marks = await DvrEndpoints.Marks.LoadAsync(db, start, until, ct);
             return new GuideDto(start, until, [.. channels.Select(c =>
-                new GuideChannelDto(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourites.Contains(c.Id), [.. programmes[c.Id].Select(ToDto)]))]);
+                new GuideChannelDto(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourites.Contains(c.Id),
+                    [.. programmes[c.Id].Select(p => ToDto(p) with { Recording = marks.StateOf(p), Series = marks.InSeries(p) })]))]);
         });
 
         // Each profile's own favourites; starring twice, or unstarring what isn't starred, is fine.
@@ -117,7 +121,8 @@ public static partial class LiveTvEndpoints
         });
 
         group.MapPost("/channels/{id:guid}/watch", async (Guid id, [FromBody] WatchRequest? request, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
-            LiveStreams streams, LiveTvViewers viewers, CurrentProfile profile, IMemoryCache memory, TimeProvider clock, HttpContext http, CancellationToken ct) =>
+            LiveStreams streams, LiveTvViewers viewers, DvrService dvr, CurrentProfile profile, IMemoryCache memory, TimeProvider clock, HttpContext http,
+            CancellationToken ct) =>
         {
             var settings = options.CurrentValue;
             if (settings.LiveTv is not { Account: { } account } liveTv)
@@ -128,6 +133,22 @@ public static partial class LiveTvEndpoints
             if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct) is not { } channel)
             {
                 return Results.NotFound();
+            }
+
+            // Every stream is recording something else: recording wins. The player offers that channel, or stopping it.
+            if (await dvr.BlockingAsync(channel.Id, ct) is [var blocking, ..] all)
+            {
+                var names = string.Join(" and ", all.Select(a => $"{a.Title} on {a.ChannelName}"));
+                return Results.Problem(
+                    $"{names} {(all.Count == 1 ? "is" : "are")} recording, using every stream there is. Watch {blocking.ChannelName}, or stop the recording.",
+                    statusCode: StatusCodes.Status409Conflict, title: "Recording", extensions: new Dictionary<string, object?>
+                    {
+                        ["recordingId"] = blocking.Id,
+                        ["channelId"] = blocking.ChannelId,
+                        ["channelName"] = blocking.ChannelName,
+                        ["recordingTitle"] = blocking.Title,
+                        ["until"] = blocking.Until,
+                    });
             }
 
             // Changing channel: the old one is let go first, so its connection is free for this one.
@@ -241,7 +262,10 @@ public static partial class LiveTvEndpoints
         {
             if (viewers.Get(viewer) is not { } v)
             {
-                return Results.NotFound();
+                // Stopped for a recording: gone, with why.
+                return viewers.EndedBecause(viewer) is { } reason
+                    ? Results.Problem(reason, statusCode: StatusCodes.Status410Gone, title: "The channel was stopped")
+                    : Results.NotFound();
             }
 
             v.Session.Touch(viewer);
