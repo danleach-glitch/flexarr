@@ -99,6 +99,13 @@ builder.Services.AddScoped<PodcastLibrary>();
 // Live TV from Dispatcharr's Xtream Codes API. Every address it calls carries the password, so the client's request
 // logging is off; the guide can be tens of megabytes, hence the long timeout.
 builder.Services.AddHttpClient<XtreamClient>(c => c.Timeout = TimeSpan.FromMinutes(5)).RemoveAllLoggers();
+// Current channel logos from the community collection on GitHub (its file list, fetched weekly).
+builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)");
+});
+builder.Services.AddSingleton<CommunityLogoIndex>();
 builder.Services.AddSingleton<LiveTvStatus>();
 builder.Services.AddSingleton<LiveTvRefreshSignal>();
 builder.Services.AddSingleton<LiveTvViewers>();

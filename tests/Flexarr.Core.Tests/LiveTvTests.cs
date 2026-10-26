@@ -233,3 +233,59 @@ public sealed class LiveCommandTests
 
     private static string After(IReadOnlyList<string> args, string option) => args[args.ToList().IndexOf(option) + 1];
 }
+
+public sealed class CommunityLogosTests
+{
+    // A slice of the collection's real index (github.com/tv-logo/tv-logos), around the channels below.
+    private static readonly CommunityLogos Logos = new(File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "tv-logos-paths.txt")));
+
+    [Theory]
+    [InlineData("BBC 1 HD", "UK| GENERAL ᴴᴰ/ᴿᴬᵂ", "united-kingdom/bbc-one-uk.png")]
+    [InlineData("BBC 3 / CBBC HD", "UK| GENERAL", "united-kingdom/bbc-three-cbbc-uk.png")]
+    [InlineData("BBC ONE LONDON 4K", "UK| GENERAL", "united-kingdom/bbc-one-uk.png")]
+    [InlineData("ITV 1 HD", "UK| GENERAL", "united-kingdom/itv-1-uk.png")]
+    [InlineData("ITV 2+1", "UK| GENERAL", "united-kingdom/itv-2-plus-uk.png")]
+    [InlineData("CHANNEL 4", "UK| GENERAL", "united-kingdom/channel-4-uk.png")]
+    [InlineData("E4", "UK| GENERAL", "united-kingdom/e-4-uk.png")]
+    [InlineData("MORE4", "UK| GENERAL", "united-kingdom/4-more-uk.png")]
+    [InlineData("FILM 4 4K", "UK| GENERAL", "united-kingdom/film-4-uk.png")]
+    [InlineData("UK: DAVE ◉", null, "united-kingdom/dave-uk.png")]
+    [InlineData("BBC NEWS HEVC", "UK| NEWS", "united-kingdom/bbc-news-uk.png")]
+    [InlineData("AL JAZEERA EN HD", "UK| NEWS", "united-kingdom/aljazeera-uk.png")]
+    [InlineData("FRANCE 24", "UK| NEWS", "international/france-24-int.png")]
+    [InlineData("DW News", "UK| NEWS", "international/dw-int.png")]
+    [InlineData("ITVBe", "UK", "united-kingdom/itv-be-uk.png")]
+    [InlineData("5USA", "UK", "united-kingdom/5-usa-uk.png")]
+    [InlineData("Sky Sports F1", "UK| SPORT", "united-kingdom/sky-sports-f1-uk.png")]
+    [InlineData("Sky Sports+", "UK| SPORT", "united-kingdom/sky-sports-plus-hz-uk.png")]
+    [InlineData("MSNBC", "US| NEWS", "united-states/msnbc-hz-us.png")]
+    public void Finds_the_channels_current_logo(string name, string? group, string expected)
+    {
+        Assert.Equal(CommunityLogos.Root + "countries/" + expected, Logos.Find(name, group));
+    }
+
+    [Fact]
+    public void A_channel_that_names_no_country_is_looked_for_where_the_line_up_is()
+    {
+        // Groups like "Entertainment" say nothing; the rest of the line-up does ("UK"), so Comedy Central is the UK one.
+        var home = CommunityLogos.HomeCountry([("BBC One", "UK"), ("ITV1", "UK"), ("Comedy Central", "Entertainment"), ("CNN", "US| NEWS")]);
+        Assert.Equal("uk", home);
+        Assert.Equal(CommunityLogos.Root + "countries/united-kingdom/comedy-central-uk.png", Logos.Find("Comedy Central", "Entertainment", home));
+        Assert.Equal(CommunityLogos.Root + "countries/united-kingdom/comedy-central-uk.png", Logos.Find("Comedy Central", null, "gb"));
+    }
+
+    [Fact]
+    public void Leaves_a_channel_it_cannot_place_to_the_source()
+    {
+        Assert.Null(Logos.Find("Totally Unknown Channel", "UK| GENERAL"));
+        Assert.Null(Logos.Find("HD", null));
+    }
+
+    [Fact]
+    public void Only_the_collection_counts_as_community()
+    {
+        Assert.True(CommunityLogos.IsCommunity(new Uri(CommunityLogos.Root + "countries/united-kingdom/e-4-uk.png")));
+        Assert.False(CommunityLogos.IsCommunity(new Uri("https://raw.githubusercontent.com/someone/else/main/e4.png")));
+        Assert.False(CommunityLogos.IsCommunity(new Uri("http://raw.githubusercontent.com/tv-logo/tv-logos/main/x.png")));
+    }
+}

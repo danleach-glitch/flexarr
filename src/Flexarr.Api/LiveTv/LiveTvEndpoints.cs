@@ -303,7 +303,11 @@ public static partial class LiveTvEndpoints
     private static LiveProgrammeDto ToDto(LiveProgramme p) =>
         new(p.Id, p.Start, p.End, p.Title, p.Subtitle, p.Description, p.Category, p.Season, p.Episode, p.IsNew);
 
-    private static string? LogoUrl(LiveChannel c) => c.LogoUrl is null ? null : $"/api/v1/livetv/channels/{c.Id}/logo";
+    /// <summary>
+    /// The channel's logo through Flexarr. The version is the logo's own address, so a new logo (the community one, or
+    /// one changed in Dispatcharr) is a new address and browsers don't keep showing the old one for a day.
+    /// </summary>
+    private static string? LogoUrl(LiveChannel c) => c.LogoUrl is null ? null : $"/api/v1/livetv/channels/{c.Id}/logo?v={Hash(c.LogoUrl)[..10]}";
 
     private static string Hash(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..32];
 }

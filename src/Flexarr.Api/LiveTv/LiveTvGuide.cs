@@ -39,8 +39,8 @@ public sealed class LiveTvStatus
 }
 
 /// <summary>Brings the channel list and the guide up to date from the Live TV source.</summary>
-public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client, IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status,
-    TimeProvider clock, ILogger<LiveTvGuide> logger)
+public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client, CommunityLogoIndex communityLogos, IOptionsMonitor<FlexarrOptions> options,
+    LiveTvStatus status, TimeProvider clock, ILogger<LiveTvGuide> logger)
 {
     /// <summary>Programmes kept after they end, so the guide shows what's just been on.</summary>
     public static readonly TimeSpan KeptBehind = TimeSpan.FromHours(3);
@@ -53,7 +53,11 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
 
     private const int Batch = 5_000;
 
-    public async Task RefreshAsync(CancellationToken ct)
+    /// <param name="onlyIfChanged">
+    /// A quick check: the channel list is read, and the guide only fetched again when channels came, went or moved to
+    /// another guide entry.
+    /// </param>
+    public async Task RefreshAsync(CancellationToken ct, bool onlyIfChanged = false)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         if (options.CurrentValue.LiveTv?.Account is not { } account)
@@ -63,11 +67,25 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
             return;
         }
 
-        status.Started();
+        // Only a refresh that fetches the guide counts as one (for the next being due, and Settings); a quick check that
+        // finds nothing new leaves the status as it was.
+        var refreshing = !onlyIfChanged;
+        if (refreshing)
+        {
+            status.Started();
+        }
+
         string? error = null;
         try
         {
-            var channels = await SyncChannelsAsync(account, now, ct);
+            var (channels, changed) = await SyncChannelsAsync(account, now, stamp: refreshing, ct);
+            if (!refreshing && !changed)
+            {
+                return;
+            }
+
+            refreshing = true;
+            status.Started();
             var programmes = await ReplaceGuideAsync(account, channels, now, ct);
             LogRefreshed(channels.Count, programmes);
         }
@@ -83,36 +101,53 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
         finally
         {
-            status.Finished(now, error);
+            if (refreshing || error is not null)
+            {
+                status.Finished(now, error);
+            }
         }
     }
 
-    private async Task<List<LiveChannel>> SyncChannelsAsync(XtreamAccount account, DateTime now, CancellationToken ct)
+    /// <summary>Brings the channels in line with the source's list; says whether the guide needs fetching for them.</summary>
+    /// <param name="stamp">A full refresh: every channel is marked as refreshed now (which says when the next is due).</param>
+    private async Task<(List<LiveChannel> Channels, bool Changed)> SyncChannelsAsync(XtreamAccount account, DateTime now, bool stamp, CancellationToken ct)
     {
         var listed = await client.GetChannelsAsync(account, ct);
+        var logos = await communityLogos.GetAsync(ct);
+        // Channels that name no country are looked for where most of the line-up is, else this server's region.
+        var home = CommunityLogos.HomeCountry(listed.Select(c => (c.Name, c.Group))) ?? options.CurrentValue.Podcasts.ResolvedCountry;
         var existing = await db.LiveChannels.ToDictionaryAsync(c => c.SourceId, ct);
         var kept = new List<LiveChannel>();
+        var changed = false;
         foreach (var c in listed.DistinctBy(c => c.StreamId))
         {
             if (!existing.Remove(c.StreamId, out var channel))
             {
                 channel = new LiveChannel { SourceId = c.StreamId, Name = c.Name };
                 db.LiveChannels.Add(channel);
+                changed = true;
             }
 
+            changed |= channel.GuideId != c.GuideId;
             channel.Name = c.Name;
             channel.Number = c.Number;
             channel.Group = c.Group;
-            channel.LogoUrl = c.LogoUrl;
+            // The community collection's current logo by default, at its own proportions; the source's when it has none.
+            channel.LogoUrl = logos?.Find(c.Name, c.Group, home) ?? c.LogoUrl;
             channel.GuideId = c.GuideId;
-            channel.UpdatedAt = now;
+            if (stamp || db.Entry(channel).State == EntityState.Added)
+            {
+                channel.UpdatedAt = now;
+            }
+
             kept.Add(channel);
         }
 
-        // Channels the source no longer lists leave, their guide with them.
+        // Channels the source no longer lists leave, their guide and favourites with them.
+        changed |= existing.Count > 0;
         db.LiveChannels.RemoveRange(existing.Values);
         await db.SaveChangesAsync(ct);
-        return kept;
+        return (kept, changed);
     }
 
     private async Task<int> ReplaceGuideAsync(XtreamAccount account, List<LiveChannel> channels, DateTime now, CancellationToken ct)
@@ -215,7 +250,8 @@ public sealed partial class LiveTvGuideWorker(IServiceScopeFactory scopes, LiveT
     TimeProvider clock, ILogger<LiveTvGuideWorker> logger) : BackgroundService
 {
     public static readonly TimeSpan Every = TimeSpan.FromHours(6);
-    private static readonly TimeSpan Tick = TimeSpan.FromMinutes(15);
+    /// <summary>How often Dispatcharr's channel list is checked for channels added or removed.</summary>
+    private static readonly TimeSpan Tick = TimeSpan.FromMinutes(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -224,10 +260,13 @@ public sealed partial class LiveTvGuideWorker(IServiceScopeFactory scopes, LiveT
         {
             try
             {
-                if (asked || await DueAsync(stoppingToken))
+                if (options.CurrentValue.LiveTv?.Account is not null)
                 {
+                    // A full refresh every few hours (or when asked); in between, a quick look for channels added or
+                    // removed in Dispatcharr, which has no webhook for that.
+                    var full = asked || await DueAsync(stoppingToken);
                     await using var scope = scopes.CreateAsyncScope();
-                    await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().RefreshAsync(stoppingToken);
+                    await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().RefreshAsync(stoppingToken, onlyIfChanged: !full);
                 }
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

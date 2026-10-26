@@ -59,7 +59,9 @@ public sealed class FakeDispatcharr : HttpMessageHandler
             },
             "/xmltv.php" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Guide, Encoding.UTF8, "application/xml") },
             "/api/channels/logos/1/cache/" => Image(),
-            _ => url.Host == "elsewhere.example" ? Image() : new HttpResponseMessage(HttpStatusCode.NotFound),
+            // The community collection's file list (GitHub) and its logos.
+            "/repos/tv-logo/tv-logos/git/trees/main" => Json("""{"tree":[{"path":"countries/united-kingdom/bbc-one-uk.png","type":"blob"},{"path":"countries/united-kingdom/sky-news-uk.png","type":"blob"}]}"""),
+            _ => url.Host is "elsewhere.example" or "raw.githubusercontent.com" ? Image() : new HttpResponseMessage(HttpStatusCode.NotFound),
         });
     }
 
@@ -82,7 +84,11 @@ public sealed class LiveTvTests : IDisposable
     public LiveTvTests()
     {
         _server = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.AddHttpClient<XtreamClient>().ConfigurePrimaryHttpMessageHandler(() => _dispatcharr)));
+        {
+            services.AddHttpClient<XtreamClient>().ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
+            // GitHub too, so tests never reach the internet.
+            services.AddHttpClient(CommunityLogoIndex.ClientName).ConfigurePrimaryHttpMessageHandler(() => _dispatcharr);
+        }));
 
         // On BBC One: a programme now and the next; on Sky News, one that ended long ago (dropped).
         var now = DateTime.UtcNow;
@@ -125,11 +131,11 @@ public sealed class LiveTvTests : IDisposable
         await RefreshAsync();
     }
 
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(bool onlyIfChanged = false)
     {
         // Background workers don't run in tests; refresh as the guide worker would.
         await using var scope = _server.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().RefreshAsync(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().RefreshAsync(CancellationToken.None, onlyIfChanged);
     }
 
     private static async Task<JsonElement[]> ChannelsAsync(HttpClient client) => [.. (await client.GetFromJsonAsync<JsonElement>(Api("livetv/channels"))).EnumerateArray()];
@@ -256,6 +262,42 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task Channels_take_the_community_collections_logo_when_it_has_one()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var channels = await ChannelsAsync(client);
+        var bbc = channels.Single(c => c.GetProperty("name").GetString() == "BBC One");
+
+        // UK group, "BBC One" → countries/united-kingdom/bbc-one-uk.png, served through Flexarr like any logo.
+        var logo = await client.GetAsync(bbc.GetProperty("logoUrl").GetString());
+        Assert.Equal(HttpStatusCode.OK, logo.StatusCode);
+        Assert.Contains(_dispatcharr.Requests, u => u.AbsoluteUri == "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/united-kingdom/bbc-one-uk.png");
+        Assert.DoesNotContain(_dispatcharr.Requests, u => u.AbsolutePath == "/api/channels/logos/1/cache/");
+    }
+
+    [Fact]
+    public async Task A_quick_check_brings_in_channels_added_in_dispatcharr_and_otherwise_changes_nothing()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var refreshed = (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("refreshedAt").GetDateTime();
+        var guideFetches = _dispatcharr.Requests.Count(u => u.AbsolutePath == "/xmltv.php");
+
+        // Nothing changed: the guide isn't fetched again, and the last refresh stands.
+        await Task.Delay(20);
+        await RefreshAsync(onlyIfChanged: true);
+        Assert.Equal(guideFetches, _dispatcharr.Requests.Count(u => u.AbsolutePath == "/xmltv.php"));
+        Assert.Equal(refreshed, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("refreshedAt").GetDateTime());
+
+        // A channel added in Dispatcharr: in at the next check, with its guide.
+        _dispatcharr.Channels.Add((4, 202, "Sky News 2", "UK News", null));
+        await RefreshAsync(onlyIfChanged: true);
+        Assert.Contains("Sky News 2", (await ChannelsAsync(client)).Select(c => c.GetProperty("name").GetString()));
+        Assert.Equal(guideFetches + 1, _dispatcharr.Requests.Count(u => u.AbsolutePath == "/xmltv.php"));
+    }
+
+    [Fact]
     public async Task Logos_are_only_fetched_from_the_source_itself()
     {
         var client = Client();
@@ -270,7 +312,8 @@ public sealed class LiveTvTests : IDisposable
         var elsewhere = await client.GetAsync(channels[1].GetProperty("logoUrl").GetString());
         Assert.Equal(HttpStatusCode.NotFound, elsewhere.StatusCode);
         Assert.DoesNotContain(_dispatcharr.Requests, u => u.Host == "elsewhere.example");
-        Assert.Equal(JsonValueKind.Null, channels[2].GetProperty("logoUrl").ValueKind);
+        // Sky News has no logo in Dispatcharr but one in the community collection, which it takes.
+        Assert.Equal(JsonValueKind.String, channels[2].GetProperty("logoUrl").ValueKind);
     }
 
     [Fact]

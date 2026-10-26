@@ -106,12 +106,13 @@ public sealed class XtreamClient(HttpClient http)
         return await response.Content.ReadAsStreamAsync(ct);
     }
 
-    /// <summary>A channel logo from the source itself (never another server), as bytes and type; null when it isn't one.</summary>
+    /// <summary>A channel logo from the source itself or the community collection, as bytes and type; null when it isn't one.</summary>
     public async Task<(byte[] Bytes, string ContentType)?> GetLogoAsync(XtreamAccount account, Uri logo, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(logo);
-        if (!account.Serves(logo))
+        // The source's own logos, or the community collection's; never anywhere else a channel list might point.
+        if (!account.Serves(logo) && !Core.LiveTv.CommunityLogos.IsCommunity(logo))
         {
             return null;
         }

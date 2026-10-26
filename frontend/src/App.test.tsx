@@ -757,7 +757,7 @@ describe('Player', () => {
 
     // The dialog can open with the plain "stopped" message and take the server's reason a moment later (CI runners
     // are slow), so wait for the text rather than the dialog.
-    await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent(takenOver))
+    await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent(takenOver), { timeout: 5000 })
     expect(requests).toHaveLength(1)
   })
 

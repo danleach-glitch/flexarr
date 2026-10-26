@@ -10,6 +10,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Favourites: star the channels you watch most. Each profile has its own, and Live TV opens on them; the Guide can show just them, and the player lists them first.
 - The player rewinds live TV (by default up to an hour back, while anyone watches the channel), shows how far behind live you are with a Jump to live button, and changes channel with the arrow keys or the channel list.
 - Channels that are already H.264 play as they come; interlaced, MPEG-2 and HEVC channels are converted (deinterlaced to smooth 50 frames a second), and Dolby Digital and MP2 sound becomes AAC.
+- Channels take current logos from the community collection (tv-logo/tv-logos on GitHub) by default, at their own proportions, matched by name and country; channels it doesn't have keep Dispatcharr's.
+- Channels added or removed in Dispatcharr show up within five minutes (Dispatcharr can't tell Flexarr itself, so Flexarr looks); the guide still refreshes every six hours.
 - One channel is shared by everyone watching it, so a provider that allows one connection still serves the whole house. Changing channel lets the old one go first, and a channel that can't start says why ("No connection free", "isn't sending this channel at the moment").
 - Home has a Live TV row of your favourite channels and what's on them (on the web, Apple TV, iPhone and iPad); it can be moved or switched off in Customise display.
 
