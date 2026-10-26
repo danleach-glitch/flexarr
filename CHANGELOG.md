@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.24.0 · 26 October 2026
 
 ### Podcasts
 - Podcasts are built in: no library to add. Settings › Podcasts holds their settings, which country's charts to show, and the folder episodes wait in on their way to phones (deleted once the phone has them). Podcasts sit with the libraries in the sidebar, and a profile can leave them out.
