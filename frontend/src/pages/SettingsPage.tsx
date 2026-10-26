@@ -51,6 +51,9 @@ import {
   getPodcastCountries,
   getPodcastPreferences,
   getSettings,
+  getLiveTvStatus,
+  refreshLiveTv,
+  testLiveTv,
   importFromPlex,
   savePodcastPreferences,
   saveSettings,
@@ -60,6 +63,7 @@ import {
   testArr,
   type ArrKind,
   type ArrStatus,
+  type LiveTvTest,
   type HardwareAcceleration,
   type Library,
   type PodcastPreferences,
@@ -96,6 +100,7 @@ const sections = [
   { id: 'playback', label: 'Playback' },
   { id: 'layout', label: 'Customise display' },
   { id: 'podcasts', label: 'Podcasts' },
+  { id: 'livetv', label: 'Live TV' },
   { id: 'connections', label: 'Connections' },
   { id: 'remote', label: 'Remote access' },
   { id: 'activity', label: 'Activity' },
@@ -138,6 +143,7 @@ export function SettingsPage() {
         {section === 'playback' && <PlaybackSection />}
         {section === 'layout' && <LayoutSection />}
         {section === 'podcasts' && <PodcastsSection />}
+        {section === 'livetv' && <LiveTvSection />}
         {section === 'tv' && <ConnectTv />}
         {section === 'changelog' && <ChangelogSection />}
         {section === 'connections' && <ConnectionsSection />}
@@ -988,6 +994,150 @@ function ConnectionsSection() {
       </form>
     </section>
   )
+}
+
+// ---------------------------------------------------------------- Live TV
+
+function LiveTvSection() {
+  const { settings, save, saved, saveError, waiting } = useSettings()
+  const status = useApi(getLiveTvStatus, [settings])
+  const [draft, setDraft] = useState({ baseUrl: '', username: '', password: '', hasPassword: false, rewindMinutes: 60 })
+  const [test, setTest] = useState<LiveTvTest | 'testing'>()
+  // While a refresh runs (after saving, or Refresh), keep asking how it's going.
+  usePolling(status.reload, status.data?.refreshing ? 2000 : null)
+
+  useEffect(() => {
+    if (!settings) return
+    const live = settings.liveTv
+    setDraft({ baseUrl: live?.baseUrl ?? '', username: live?.username ?? '', password: '', hasPassword: live?.hasPassword ?? false, rewindMinutes: live?.rewindMinutes ?? 60 })
+  }, [settings])
+
+  if (!settings) return waiting
+
+  const s = status.data
+  const summary = !s?.configured
+    ? 'Not set up'
+    : s.refreshing
+      ? 'Bringing the channels and guide up to date…'
+      : s.error
+        ? s.error
+        : `${s.channels.toLocaleString()} channels${s.refreshedAt ? `, guide updated ${relativeTime(s.refreshedAt)}` : ''}`
+  const shownTest = test && test !== 'testing' ? test : undefined
+
+  return (
+    <section>
+      <header className="settings-header">
+        <h2>Live TV</h2>
+      </header>
+      <p className="settings-lede">
+        Watch TV channels and see what's on, from Dispatcharr. Flexarr signs in to Dispatcharr's Xtream Codes API with a user of its own: in Dispatcharr, add a
+        user (Streamer level is enough) and give it an XC password. The channels and guide are the ones Dispatcharr gives that user.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          void save({ liveTv: { baseUrl: draft.baseUrl.trim(), username: draft.username.trim(), password: draft.password || undefined, rewindMinutes: draft.rewindMinutes } })
+          setTest(undefined)
+        }}
+      >
+        <div className="panel connection">
+          <div className="connection-status">
+            <span className={!s?.configured ? 'status-dot' : s.error ? 'status-dot bad' : 'status-dot ok'} aria-hidden="true" />
+            <strong>Dispatcharr</strong>
+            <span className="muted">{test === 'testing' ? 'Testing…' : shownTest ? (shownTest.ok ? testSummary(shownTest) : shownTest.error) : summary}</span>
+          </div>
+          <div className="field-row">
+            <label className="grow">
+              Dispatcharr address
+              <input type="url" value={draft.baseUrl} placeholder="http://localhost:9191" onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })} />
+            </label>
+            <label>
+              User name
+              <input type="text" autoComplete="off" value={draft.username} placeholder="flexarr" onChange={(e) => setDraft({ ...draft, username: e.target.value })} />
+            </label>
+            <label>
+              XC password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={draft.password}
+                placeholder={draft.hasPassword ? 'Saved; type to replace' : 'The user’s XC password'}
+                onChange={(e) => setDraft({ ...draft, password: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="field-row">
+            <label>
+              Rewind live TV up to
+              <select value={draft.rewindMinutes} onChange={(e) => setDraft({ ...draft, rewindMinutes: Number(e.target.value) })}>
+                {[15, 30, 60, 120, 240].map((m) => (
+                  <option key={m} value={m}>
+                    {m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="button quiet small"
+              disabled={!draft.baseUrl || !draft.username}
+              onClick={async () => {
+                setTest('testing')
+                const result = await testLiveTv({ baseUrl: draft.baseUrl.trim(), username: draft.username.trim(), password: draft.password || undefined }).catch(
+                  (e: unknown): LiveTvTest => ({
+                    ok: false,
+                    channels: null,
+                    maxConnections: null,
+                    expiresAt: null,
+                    error: e instanceof ApiError && e.messages.length ? e.messages.join(' ') : String(e),
+                  }),
+                )
+                setTest(result)
+              }}
+            >
+              Test connection
+            </button>
+            {s?.configured && (
+              <button
+                type="button"
+                className="button quiet small"
+                disabled={s.refreshing}
+                onClick={async () => {
+                  await refreshLiveTv()
+                  setTimeout(status.reload, 500)
+                }}
+              >
+                Refresh channels and guide
+              </button>
+            )}
+            {settings.liveTv && (
+              <button
+                type="button"
+                className="button danger small"
+                onClick={() => void save({ liveTv: { baseUrl: '' } }, 'Live TV removed')}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="settings-lede muted">
+          Rewinding keeps the last stretch of a channel on this server while someone watches it, about 2 GB an hour for HD. A provider that allows one
+          connection at a time can show one channel at a time, to everyone in the house.
+        </p>
+        <SaveBar saved={saved} error={saveError} />
+      </form>
+    </section>
+  )
+}
+
+function testSummary(t: LiveTvTest) {
+  const parts = [`Connected: ${(t.channels ?? 0).toLocaleString()} channels`]
+  if (t.maxConnections) parts.push(`${t.maxConnections} ${t.maxConnections === 1 ? 'connection' : 'connections'} at a time`)
+  if (t.expiresAt) parts.push(`subscription ends ${new Date(t.expiresAt).toLocaleDateString()}`)
+  return parts.join(', ')
 }
 
 /** Opens the app in a new tab, at the address typed above it. */

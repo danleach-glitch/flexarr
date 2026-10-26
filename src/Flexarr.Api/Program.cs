@@ -6,6 +6,7 @@ using Flexarr.Api.Devices;
 using Flexarr.Api.Downloads;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
+using Flexarr.Api.LiveTv;
 using Flexarr.Api.Mcp;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Playlists;
@@ -95,6 +96,18 @@ builder.Services.AddHttpClient<PodcastFetcher>(c => c.Timeout = Timeout.Infinite
     .ConfigurePrimaryHttpMessageHandler(PodcastFetcher.CreateHandler);
 builder.Services.AddHttpClient<PodcastDirectory>(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<PodcastLibrary>();
+// Live TV from Dispatcharr's Xtream Codes API. Every address it calls carries the password, so the client's request
+// logging is off; the guide can be tens of megabytes, hence the long timeout.
+builder.Services.AddHttpClient<XtreamClient>(c => c.Timeout = TimeSpan.FromMinutes(5)).RemoveAllLoggers();
+builder.Services.AddSingleton<LiveTvStatus>();
+builder.Services.AddSingleton<LiveTvRefreshSignal>();
+builder.Services.AddSingleton<LiveTvViewers>();
+builder.Services.AddScoped<LiveTvGuide>();
+builder.Services.AddHostedService<LiveTvGuideWorker>();
+builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
+    () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
+    sp.GetRequiredService<ILoggerFactory>()));
+builder.Services.AddHostedService<LiveTvSweeper>();
 builder.Services.AddSingleton<PodcastRefreshQueue>();
 builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
@@ -261,6 +274,7 @@ app.MapGroup("/api/v1")
     .MapCollectionEndpoints()
     .MapPlaylistEndpoints()
     .MapPodcastEndpoints()
+    .MapLiveTvEndpoints()
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
     .MapProfileEndpoints()
@@ -271,7 +285,7 @@ app.MapGroup("/api/v1")
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();

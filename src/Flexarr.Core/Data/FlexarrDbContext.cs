@@ -1,4 +1,5 @@
 using Flexarr.Core.Libraries;
+using Flexarr.Core.LiveTv;
 using Flexarr.Core.Media;
 using Flexarr.Core.Podcasts;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<PodcastEpisode> PodcastEpisodes => Set<PodcastEpisode>();
     public DbSet<PodcastSubscription> PodcastSubscriptions => Set<PodcastSubscription>();
     public DbSet<PodcastQueueEntry> PodcastQueue => Set<PodcastQueueEntry>();
+    public DbSet<LiveChannel> LiveChannels => Set<LiveChannel>();
+    public DbSet<LiveProgramme> LiveProgrammes => Set<LiveProgramme>();
+    public DbSet<LiveFavourite> LiveFavourites => Set<LiveFavourite>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -192,6 +196,41 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(q => q.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(q => q.Episode).WithMany().HasForeignKey(q => q.EpisodeId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(q => new { q.ProfileId, q.Position });
+        });
+
+        modelBuilder.Entity<LiveChannel>(e =>
+        {
+            e.HasIndex(c => c.SourceId).IsUnique();
+            e.Property(c => c.Name).HasMaxLength(200);
+            e.Property(c => c.Group).HasMaxLength(200);
+            e.Property(c => c.LogoUrl).HasMaxLength(2048);
+            e.Property(c => c.GuideId).HasMaxLength(200);
+            e.Property(c => c.UpdatedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        });
+
+        modelBuilder.Entity<LiveProgramme>(e =>
+        {
+            // A channel's guide goes with it.
+            e.HasOne<LiveChannel>().WithMany().HasForeignKey(p => p.ChannelId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(p => new { p.ChannelId, p.Start });
+            e.HasIndex(p => p.End);
+            e.Property(p => p.Title).HasMaxLength(500);
+            e.Property(p => p.Subtitle).HasMaxLength(500);
+            e.Property(p => p.Category).HasMaxLength(100);
+            e.Property(p => p.ImageUrl).HasMaxLength(2048);
+            // Stored as UTC; SQLite hands them back without a kind, which would put the guide out by the time zone.
+            e.Property(p => p.Start).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+            e.Property(p => p.End).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        });
+
+        modelBuilder.Entity<LiveFavourite>(e =>
+        {
+            e.HasKey(f => new { f.ProfileId, f.ChannelId });
+            e.Property(f => f.ProfileId).HasMaxLength(64);
+            // A profile's favourites go with it, and everyone's with a channel the source drops.
+            e.HasOne<Profile>().WithMany().HasForeignKey(f => f.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<LiveChannel>().WithMany().HasForeignKey(f => f.ChannelId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(f => f.ChannelId);
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

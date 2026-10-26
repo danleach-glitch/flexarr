@@ -416,6 +416,8 @@ export interface Settings {
   webhookSecret?: string | null
   /** The podcast charts' country: the one chosen (null for the server's region), and the one in use. */
   podcasts?: { country: string | null; resolvedCountry: string }
+  /** The Live TV source (Dispatcharr); the password is never sent back. */
+  liveTv?: { baseUrl: string; username: string; hasPassword: boolean; rewindMinutes: number } | null
 }
 
 export interface SettingsUpdate {
@@ -426,6 +428,8 @@ export interface SettingsUpdate {
   seerr?: { baseUrl: string; apiKey?: string }
   /** An empty country goes back to the server's region. */
   podcasts?: { country: string }
+  /** An empty address removes the source; an omitted password keeps the saved one (for the same server). */
+  liveTv?: { baseUrl: string; username?: string; password?: string; rewindMinutes?: number }
 }
 
 export interface ArrStatus {
@@ -587,4 +591,64 @@ export interface OpmlImport {
   added: number
   alreadySubscribed: number
   failed: string[]
+}
+
+// ---------- Live TV
+
+export interface LiveTvStatus {
+  configured: boolean
+  channels: number
+  refreshing: boolean
+  refreshedAt: string | null
+  error: string | null
+  rewindMinutes: number
+}
+
+export interface LiveProgramme {
+  id: number
+  start: string
+  end: string
+  title: string
+  subtitle: string | null
+  description: string | null
+  category: string | null
+  season: number | null
+  episode: number | null
+  isNew: boolean
+}
+
+export interface LiveChannel {
+  id: string
+  number: number
+  name: string
+  group: string | null
+  logoUrl: string | null
+  /** Starred by this profile. */
+  isFavourite: boolean
+  now: LiveProgramme | null
+  next: LiveProgramme | null
+}
+
+export interface LiveGuide {
+  from: string
+  until: string
+  channels: (Omit<LiveChannel, 'now' | 'next'> & { programmes: LiveProgramme[] })[]
+}
+
+export interface LiveWatch {
+  /** The viewer's id: the capability in the playlist's address. */
+  viewer: string
+  playlist: string
+  channel: LiveChannel
+  /** How the channel reaches the player ("Original", "Converted to 720p, deinterlaced"). */
+  method: string
+  rewindSeconds: number
+}
+
+export interface LiveTvTest {
+  ok: boolean
+  channels: number | null
+  maxConnections: number | null
+  expiresAt: string | null
+  error: string | null
 }

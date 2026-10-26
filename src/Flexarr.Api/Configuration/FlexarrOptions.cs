@@ -90,6 +90,24 @@ public sealed class FlexarrOptions
     public LayoutOptions Layout { get; set; } = new();
 
     public PodcastOptions Podcasts { get; set; } = new();
+
+    /// <summary>Optional Live TV source: Dispatcharr (or another server with an Xtream Codes API).</summary>
+    public LiveTvOptions? LiveTv { get; set; }
+}
+
+public sealed class LiveTvOptions
+{
+    public string BaseUrl { get; set; } = "";
+    public string Username { get; set; } = "";
+    public string Password { get; set; } = "";
+
+    /// <summary>How far back a channel being watched can be rewound.</summary>
+    public int RewindMinutes { get; set; } = 60;
+
+    public Flexarr.Api.LiveTv.XtreamAccount? Account =>
+        Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" && Username.Length > 0 && Password.Length > 0
+            ? new Flexarr.Api.LiveTv.XtreamAccount(url, Username, Password)
+            : null;
 }
 
 public sealed class PodcastOptions

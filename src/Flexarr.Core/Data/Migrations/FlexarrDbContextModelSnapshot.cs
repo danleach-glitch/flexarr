@@ -89,6 +89,118 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("LibraryFolders");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveChannel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Group")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GuideId")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("Number")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceId")
+                        .IsUnique();
+
+                    b.ToTable("LiveChannels");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveFavourite", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ProfileId", "ChannelId");
+
+                    b.HasIndex("ChannelId");
+
+                    b.ToTable("LiveFavourites");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveProgramme", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("End")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Episode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsNew")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Season")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("Start")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("End");
+
+                    b.HasIndex("ChannelId", "Start");
+
+                    b.ToTable("LiveProgrammes");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.Collection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1019,6 +1131,30 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasOne("Flexarr.Core.Libraries.Library", null)
                         .WithMany("Folders")
                         .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveFavourite", b =>
+                {
+                    b.HasOne("Flexarr.Core.LiveTv.LiveChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveProgramme", b =>
+                {
+                    b.HasOne("Flexarr.Core.LiveTv.LiveChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

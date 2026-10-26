@@ -36,6 +36,7 @@ import './styles/detail.css'
 import './styles/player.css'
 import './styles/settings.css'
 import './styles/podcasts.css'
+import './styles/livetv.css'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
@@ -60,6 +61,8 @@ function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) 
 }
 
 const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
+const LiveTvPage = lazyPage(() => import('./pages/LiveTvPage'))
+const LivePlayerPage = lazyPage(() => import('./pages/LivePlayerPage'))
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 type ConnectionState =
@@ -79,6 +82,7 @@ export function Shell() {
           <Suspense fallback={null}>
             <Routes>
               <Route path="play/:id" element={<PlayerPage />} />
+              <Route path="live/:id" element={<LivePlayerPage />} />
               <Route element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="library/:id" element={<LibraryPage />} />
@@ -89,6 +93,7 @@ export function Shell() {
                 <Route path="playlists" element={<PlaylistsPage />} />
                 <Route path="playlist/:id" element={<PlaylistPage />} />
                 <Route path="mix/:id" element={<MixPage />} />
+                <Route path="livetv" element={<LiveTvPage />} />
                 <Route path="podcasts" element={<PodcastsPage />} />
                 <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
                 <Route path="podcasts/episode/:id" element={<PodcastEpisodePage />} />
