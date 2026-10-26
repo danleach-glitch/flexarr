@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.25.0 · 26 October 2026
 
 ### Podcasts
 - A show can be listed oldest first, for ones heard in order. A followed show remembers its order, on the web and the phone. Play then starts the oldest you haven't heard, and phones keep the next ones to hear rather than the newest.
