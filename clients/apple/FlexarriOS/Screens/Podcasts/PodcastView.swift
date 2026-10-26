@@ -183,7 +183,7 @@ struct PodcastView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    /// How many episodes, Mark all as played, and Unplayed or All.
+    /// How many episodes, and Unplayed or All.
     private func episodesHeading(_ podcast: Podcast) -> some View {
         HStack(spacing: 12) {
             Text(page.unplayedOnly ? "\(page.total.formatted()) unplayed" : page.total == 1 ? "1 episode" : "\(page.total.formatted()) episodes")
@@ -192,17 +192,6 @@ struct PodcastView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
-            if podcast.unplayedCount > 0 {
-                Button { markingAllPlayed = true } label: {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(Color.screen)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Mark all as played")
-            }
             @Bindable var page = page
             Picker("Show", selection: $page.unplayedOnly) {
                 Text("Unplayed").tag(true)
