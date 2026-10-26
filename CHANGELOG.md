@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.26.0 · 26 October 2026
 
 ### Downloads on iPhone and iPad
 - Downloaded things are marked with a green tick everywhere: podcast episodes, tracks, albums and playlists, films and episodes, and the Downloads tab.
