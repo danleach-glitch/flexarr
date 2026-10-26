@@ -139,6 +139,22 @@ final class PodcastTour: XCTestCase {
         XCTAssertTrue(app.staticTexts["Up Next"].exists, "Up Next shows on Podcasts")
     }
 
+    /// Turns on new-episode notifications in Settings, allowing them when the system asks.
+    func testNotificationsSwitch() async throws {
+        guard try await client.podcastStatus()?.available == true else { throw XCTSkip("no Podcasts library") }
+        app.tabBars.buttons["Settings"].firstMatch.tap()
+        pause(2)
+        let toggle = app.switches["Notify me of new episodes"].firstMatch
+        for _ in 0..<4 where !toggle.isHittable { app.swipeUp(); pause(1) }
+        XCTAssertTrue(toggle.exists, "Settings offers new-episode notifications")
+        if (toggle.value as? String) != "1" { toggle.switches.firstMatch.tap() }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Allow"]
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        pause(2)
+        shot("49-notifications-on")
+    }
+
     private func pause(_ seconds: TimeInterval) {
         Thread.sleep(forTimeInterval: seconds)
     }

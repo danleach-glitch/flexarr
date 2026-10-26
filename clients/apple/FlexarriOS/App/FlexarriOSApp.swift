@@ -2,15 +2,20 @@ import AppIntents
 import BackgroundTasks
 import FlexarrKit
 import SwiftUI
+import UserNotifications
 
 /// Owns the downloads, so the system can hand back ones that finished while the app was closed, and wakes now and
 /// then to fetch new episodes of the podcasts this phone keeps.
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let podcastRefresh = "io.github.flexarr.podcasts"
 
     let downloads = DownloadStore()
+    /// The app model, once the window's up: what a tapped notification plays or opens with.
+    weak var model: AppModel?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        MainActor.assumeIsolated { PodcastNotifier.registerCategory() }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.podcastRefresh, using: .main) { [weak self] task in
             MainActor.assumeIsolated { self?.refreshPodcasts(Refresh(task: task)) }
         }
@@ -20,6 +25,31 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
         if identifier == DownloadStore.sessionIdentifier { downloads.backgroundCompletion = completionHandler }
+    }
+
+    // MARK: Notifications
+
+    /// In front: new episodes still show, as a banner.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
+    /// A new-episode notification: Play plays it; a tap opens its show.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        let episodeId = info[PodcastNotifier.episodeKey] as? String
+        let podcastId = info[PodcastNotifier.podcastKey] as? String
+        let play = response.actionIdentifier == PodcastNotifier.playAction
+        await MainActor.run {
+            guard let model = self.model, let client = model.client else { return }
+            Task { @MainActor in
+                if play, let episodeId, let episode = try? await client.podcastEpisode(episodeId) {
+                    model.playEpisode(episode.summary)
+                } else if let podcastId, let podcast = try? await client.podcast(podcastId) {
+                    model.pendingRoute = .item(podcast.summary)
+                }
+            }
+        }
     }
 
     /// Asks to be woken in an hour or so (the system decides when, by how the phone is used).
@@ -39,10 +69,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         Self.schedulePodcastRefresh()
         let work = Task { @MainActor in
             // Woken with no screen yet: sign in from the saved credentials, as the app would.
-            if !downloads.isAttached, let credentials = CredentialStore().load() {
-                downloads.attach(client: credentials.client(), profileId: nil)
+            let client = model?.client ?? CredentialStore().load()?.client()
+            if !downloads.isAttached, let client {
+                downloads.attach(client: client, profileId: nil)
             }
             await downloads.catchUp()
+            if let client { await PodcastNotifier.check(client: client, profileId: downloads.profileId) }
             refresh.task.setTaskCompleted(success: !Task.isCancelled)
         }
         refresh.task.expirationHandler = { work.cancel() }
@@ -72,6 +104,7 @@ struct FlexarriOSApp: App {
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }
+                .onAppear { delegate.model = model }
         }
     }
 }
@@ -110,6 +143,7 @@ struct RootView: View {
             model.player.offlineLibrary = downloads
             model.music.offlineLibrary = downloads
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
+            if let client = model.client { await PodcastNotifier.check(client: client, profileId: model.currentProfile?.id) }
         }
         .onChange(of: model.phase) { old, new in
             if case .signedIn = old, new == .signedOut { downloads.deleteAll() }
@@ -119,6 +153,7 @@ struct RootView: View {
             if phase == .active, model.credentials != nil {
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
+                if let client = model.client { Task { await PodcastNotifier.check(client: client, profileId: model.currentProfile?.id) } }
             }
             if phase == .background, model.credentials != nil { AppDelegate.schedulePodcastRefresh() }
         }
