@@ -204,7 +204,7 @@ private struct PodcastDownloadRow: View {
             HStack(spacing: 6) {
                 DownloadedMark()
                 caption([download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
-                     download.finishedAt != nil ? "Played" : nil, download.automatic ? "Downloaded by itself" : nil].compactMap { $0 }.joined(separator: "  "))
+                     download.finishedAt != nil ? "Played" : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
