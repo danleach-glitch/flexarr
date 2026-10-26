@@ -355,6 +355,79 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task UpNext_IsKeptOnTheServer_InOrder_AndAutoPlayFollowsIt()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        var episodes = (await GetAsync(client, $"podcasts/{id}/episodes?unplayed=false")).GetProperty("items").EnumerateArray()
+            .ToDictionary(e => e.GetProperty("title").GetString()!, e => e.GetProperty("id").GetString()!);
+        async Task<List<string?>> QueueAsync() => (await GetAsync(client, "podcasts/queue")).EnumerateArray().Select(e => e.GetProperty("title").GetString()).ToList();
+
+        await client.PostAsJsonAsync(Api("podcasts/queue"), new { episodeId = episodes["Episode 1"] });
+        await client.PostAsJsonAsync(Api("podcasts/queue"), new { episodeId = episodes["Episode 2"] });
+        await client.PostAsJsonAsync(Api("podcasts/queue"), new { episodeId = episodes["Trailer"], next = true });
+        Assert.Equal(["Trailer", "Episode 1", "Episode 2"], await QueueAsync());
+
+        // After the newest episode comes what's up next, not the show's own next.
+        Assert.Equal("Trailer", (await GetAsync(client, $"podcasts/episodes/{episodes["Episode 3"]}/next")).GetProperty("title").GetString());
+
+        await client.PutAsJsonAsync(Api("podcasts/queue"), new { episodeIds = new[] { episodes["Episode 2"], episodes["Episode 1"] } });
+        Assert.Equal(["Episode 2", "Episode 1"], await QueueAsync());
+
+        // Starting one takes it out; a played one drops out; one can be removed.
+        await client.PostAsJsonAsync(Api("playback"), new { itemId = episodes["Episode 2"], profile = new { } });
+        Assert.Equal(["Episode 1"], await QueueAsync());
+        await client.PostAsJsonAsync(Api("podcasts/queue"), new { episodeId = episodes["Episode 3"] });
+        await client.PostAsJsonAsync(Api($"items/{episodes["Episode 1"]}/watched"), new { watched = true });
+        Assert.Equal(["Episode 3"], await QueueAsync());
+        (await client.DeleteAsync(Api($"podcasts/queue/{episodes["Episode 3"]}"))).EnsureSuccessStatusCode();
+        Assert.Empty(await QueueAsync());
+    }
+
+    [Fact]
+    public async Task Assistants_FindFollowedPodcasts_QueueThem_AndPlayTheNextToHearOnADevice()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { });
+        var device = await (await client.PostAsJsonAsync(new Uri("/api/v1/session/device", UriKind.Relative), new { deviceName = "Kitchen iPhone" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        var http = _server.CreateClient();
+        var transport = new ModelContextProtocol.Client.HttpClientTransportOptions
+        {
+            Endpoint = new Uri(http.BaseAddress!, "/api/v1/mcp"),
+            TransportMode = ModelContextProtocol.Client.HttpTransportMode.StreamableHttp,
+            AdditionalHeaders = new Dictionary<string, string> { ["X-Api-Key"] = FlexarrApiFactory.ApiKey },
+        };
+        await using var mcp = await ModelContextProtocol.Client.McpClient.CreateAsync(new ModelContextProtocol.Client.HttpClientTransport(transport, http, ownsHttpClient: true));
+        static JsonElement Result(ModelContextProtocol.Protocol.CallToolResult r) =>
+            r.StructuredContent is { } s ? (s.TryGetProperty("result", out var inner) ? inner : s)
+            : r.IsError == true ? throw new InvalidOperationException(Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(r.Content)).Text)
+            : JsonDocument.Parse(Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(r.Content)).Text).RootElement;
+
+        var shows = Result(await mcp.CallToolAsync("podcasts", new Dictionary<string, object?> { ["query"] = "history hour" }));
+        var show = Assert.Single(shows.EnumerateArray());
+        Assert.Equal(4, show.GetProperty("unplayedEpisodes").GetInt32());
+
+        var fresh = Result(await mcp.CallToolAsync("new_podcast_episodes", new Dictionary<string, object?>()));
+        Assert.Equal("Episode 3", fresh[0].GetProperty("title").GetString());
+
+        var queued = await mcp.CallToolAsync("add_to_up_next", new Dictionary<string, object?> { ["id"] = fresh[1].GetProperty("id").GetString(), ["next"] = true });
+        Assert.Contains("next in Up Next", Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(queued.Content)).Text, StringComparison.Ordinal);
+        Assert.Equal("Episode 2", Result(await mcp.CallToolAsync("podcast_up_next", new Dictionary<string, object?>()))[0].GetProperty("title").GetString());
+
+        var played = Result(await mcp.CallToolAsync("play_on_device", new Dictionary<string, object?>
+        {
+            ["deviceId"] = device.GetProperty("id").GetString(), ["itemId"] = id, ["fromBeginning"] = false,
+        }));
+        Assert.Equal("Episode 3", played.GetProperty("willPlay").GetProperty("title").GetString()); // the newest unplayed
+        Assert.Contains("The History Hour: \"Episode 3\"", played.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnEpisodeTakenOffThePhone_IsNeverHandedBackToDownloadByItself()
     {
         await AddLibraryAsync();

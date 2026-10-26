@@ -80,6 +80,12 @@ public sealed record AddPodcastRequest(string? FeedUrl = null, long? ITunesId = 
 /// <summary>An episode the phone should have without being asked, from a show it auto-downloads.</summary>
 public sealed record AutoDownloadDto(Guid EpisodeId, Guid PodcastId);
 
+/// <summary>Puts an episode in Up Next: first (Play next), or after the rest.</summary>
+public sealed record UpNextRequest(Guid EpisodeId, bool Next = false);
+
+/// <summary>Up Next in a new order: these episodes, in this order (any left out leave it).</summary>
+public sealed record UpNextOrderRequest(IReadOnlyList<Guid> EpisodeIds);
+
 public sealed record OpmlImportDto(int Added, int AlreadySubscribed, IReadOnlyList<string> Failed);
 
 public static class PodcastEndpoints
@@ -190,8 +196,9 @@ public static class PodcastEndpoints
                 ? Results.Ok(episode)
                 : Results.NotFound());
 
-        // What auto-play goes on to after an episode: the show's next episode (the one after it, unplayed), else the
-        // newest unplayed episode of the shows this profile follows. 204 when there's nothing left to hear.
+        // What auto-play goes on to after an episode: the first in Up Next, else the show's next episode (the one after
+        // it, unplayed), else the newest unplayed episode of the shows this profile follows. 204 when there's nothing
+        // left to hear.
         group.MapGet("/episodes/{id:guid}/next", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             var current = await db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.PodcastEpisode)
@@ -199,6 +206,11 @@ public static class PodcastEndpoints
             if (current is null)
             {
                 return Results.NotFound();
+            }
+
+            if (await Episodes(UpNext(db, profile.Id).Where(i => i.Id != id), profile.Id, ListOverview).FirstOrDefaultAsync(ct) is { } queued)
+            {
+                return Results.Ok(queued);
             }
 
             var unplayed = db.MediaItems.Where(i => i.Kind == MediaKind.PodcastEpisode && i.Id != id
@@ -334,6 +346,54 @@ public static class PodcastEndpoints
             return wanted;
         });
 
+        // Up Next: the episodes to hear after this one, the same on every device. Played ones drop out.
+        group.MapGet("/queue", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+            await Episodes(UpNext(db, profile.Id), profile.Id, ListOverview).ToListAsync(ct));
+
+        group.MapPost("/queue", async (UpNextRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (!await db.MediaItems.AnyAsync(i => i.Id == request.EpisodeId && i.Kind == MediaKind.PodcastEpisode, ct))
+            {
+                return Results.NotFound();
+            }
+
+            var queue = await db.PodcastQueue.Where(q => q.ProfileId == profile.Id).OrderBy(q => q.Position).ToListAsync(ct);
+            var entry = queue.FirstOrDefault(q => q.EpisodeId == request.EpisodeId);
+            if (entry is null)
+            {
+                entry = new PodcastQueueEntry { ProfileId = profile.Id, EpisodeId = request.EpisodeId };
+                db.PodcastQueue.Add(entry);
+            }
+            else
+            {
+                queue.Remove(entry);
+            }
+
+            queue.Insert(request.Next ? 0 : queue.Count, entry);
+            Renumber(queue);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(await Episodes(UpNext(db, profile.Id), profile.Id, ListOverview).ToListAsync(ct));
+        });
+
+        group.MapPut("/queue", async (UpNextOrderRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var queue = await db.PodcastQueue.Where(q => q.ProfileId == profile.Id).ToListAsync(ct);
+            var order = request.EpisodeIds.Distinct().ToList();
+            db.PodcastQueue.RemoveRange(queue.Where(q => !order.Contains(q.EpisodeId)));
+            var known = await db.MediaItems.Where(i => order.Contains(i.Id) && i.Kind == MediaKind.PodcastEpisode).Select(i => i.Id).ToListAsync(ct);
+            var kept = order.Where(known.Contains).Select(id => queue.FirstOrDefault(q => q.EpisodeId == id)
+                ?? db.PodcastQueue.Add(new PodcastQueueEntry { ProfileId = profile.Id, EpisodeId = id }).Entity).ToList();
+            Renumber(kept);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(await Episodes(UpNext(db, profile.Id), profile.Id, ListOverview).ToListAsync(ct));
+        });
+
+        group.MapDelete("/queue/{episodeId:guid}", async (Guid episodeId, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            await db.PodcastQueue.Where(q => q.ProfileId == profile.Id && q.EpisodeId == episodeId).ExecuteDeleteAsync(ct);
+            return Results.NoContent();
+        });
+
         group.MapGet("/search", async (string q, PodcastDirectory directory, FlexarrDbContext db, CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options,
             CancellationToken ct) =>
         {
@@ -429,6 +489,19 @@ public static class PodcastEndpoints
         }).Accepts<string>("text/x-opml", "application/xml", "text/xml");
 
         return api;
+    }
+
+    /// <summary>This profile's Up Next, in order, without the episodes it has played since they were added.</summary>
+    public static IQueryable<MediaItem> UpNext(FlexarrDbContext db, string profileId) =>
+        db.PodcastQueue.Where(q => q.ProfileId == profileId && !q.Episode!.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+            .OrderBy(q => q.Position).Select(q => q.Episode!);
+
+    private static void Renumber(List<PodcastQueueEntry> queue)
+    {
+        for (var i = 0; i < queue.Count; i++)
+        {
+            queue[i].Position = i;
+        }
     }
 
     private static async Task<PodcastDto?> PodcastAsync(FlexarrDbContext db, Guid id, string profileId, CancellationToken ct) =>

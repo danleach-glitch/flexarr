@@ -113,9 +113,10 @@ builder.Services.AddMcpServer(o =>
         Version = typeof(Program).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
             .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "0.0.0",
     };
-    o.ServerInstructions = "Flexarr is this household's media server (films, TV, music). Find a title with search_library, then play it on an Apple TV, "
-        + "iPhone or iPad from list_devices with play_on_device; a show's id plays the episode that device's profile is up to. Devices only take "
-        + "commands while Flexarr is open on them.";
+    o.ServerInstructions = "Flexarr is this household's media server (films, TV, music, podcasts). Find a title with search_library (podcasts with "
+        + "podcasts and new_podcast_episodes), then play it on an Apple TV, iPhone or iPad from list_devices with play_on_device; a show's id plays "
+        + "the episode that device's profile is up to, a podcast's the episode to hear next. add_to_up_next queues podcast episodes. Devices only "
+        + "take commands while Flexarr is open on them.";
 })
     .WithHttpTransport(o => o.Stateless = true)
     .WithTools([typeof(FlexarrTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)

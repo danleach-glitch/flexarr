@@ -229,6 +229,9 @@ public sealed class PlaybackService(
             await sessions.RemoveAsync(previous.Id);
         }
 
+        // Playing now, so no longer up next (on any of this profile's devices).
+        await db.PodcastQueue.Where(q => q.ProfileId == profile.Id && q.EpisodeId == item.Id).ExecuteDeleteAsync(ct);
+
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
         var duration = enclosure.DurationSeconds ?? state?.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60;
         var id = TranscodeManager.NewId();

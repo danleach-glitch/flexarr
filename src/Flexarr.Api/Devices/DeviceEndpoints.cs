@@ -184,15 +184,18 @@ public static class DeviceEndpoints
     }
 
     /// <summary>
-    /// The film, episode or track to start for <paramref name="item"/>: itself when it's one; for a show, the episode
-    /// <paramref name="profileId"/> is up to; for a season, its first unwatched episode; for an album, its first track.
+    /// The film, episode, track or podcast episode to start for <paramref name="item"/>: itself when it's one; for a
+    /// show, the episode <paramref name="profileId"/> is up to; for a season, its first unwatched episode; for an album,
+    /// its first track; for a podcast, the episode to hear next.
     /// </summary>
     private static async Task<MediaItem?> PlayableAsync(MediaItem item, string profileId, FlexarrDbContext db, PlaybackService playback, CancellationToken ct)
     {
         switch (item.Kind)
         {
-            case MediaKind.Movie or MediaKind.Episode or MediaKind.Track:
+            case MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode:
                 return item;
+            case MediaKind.Podcast:
+                return await Podcasts.PodcastLibrary.NextToHearAsync(db, item.Id, profileId, ct);
             case MediaKind.Series:
                 return await playback.NextUpAsync(item.Id, profileId, ct);
             case MediaKind.Season:
