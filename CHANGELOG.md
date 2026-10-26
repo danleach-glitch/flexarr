@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.36.0 · 26 October 2026
 
 ### Top Shelf (Apple TV)
 - The Top Shelf can show Continue Watching as wide artwork with each title's logo on it, instead of posters. Choose it in Settings › Home screen on the Apple TV. Titles without a logo show their artwork alone.
