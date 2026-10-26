@@ -2,6 +2,14 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.30.1 · 26 October 2026
+
+### Changed
+- Live TV: Favourites is always listed first (Apple TV, iPhone, iPad and the web), before All channels, saying how to add some while there are none. It's still where Live TV opens once you have favourites.
+
+### Fixed
+- Saving the Live TV source in Settings › Connections brings the channels in straight away; before, the first refresh could run before the new settings were in and find nothing.
+
 ## 0.30.0 · 26 October 2026
 
 ### Live TV (web)

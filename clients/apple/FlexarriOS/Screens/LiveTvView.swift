@@ -44,11 +44,9 @@ struct LiveTvView: View {
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
 
+    /// Favourites when there are any, otherwise All, until one is chosen (Favourites stays chosen even while empty).
     private var filter: Filter {
-        switch chosen ?? .favourites {
-        case .favourites: favourites.isEmpty ? .all : .favourites
-        case let other: other
-        }
+        chosen ?? (favourites.isEmpty ? .all : .favourites)
     }
 
     private var groups: [String] {
@@ -73,9 +71,7 @@ struct LiveTvView: View {
         List {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if !favourites.isEmpty {
-                        chip("Favourites", systemImage: "star.fill", .favourites)
-                    }
+                    chip("Favourites", systemImage: "star.fill", .favourites)
                     chip("All", systemImage: nil, .all)
                     if groups.count > 1 {
                         ForEach(groups, id: \.self) { chip($0, systemImage: nil, .group($0)) }

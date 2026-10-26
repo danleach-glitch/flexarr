@@ -54,12 +54,10 @@ struct LiveTvView: View {
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
 
-    /// Favourites unless chosen otherwise, while there are any.
+    /// Where the screen opens: Favourites when there are any, otherwise All channels. Moving onto Favourites shows it
+    /// even while it's empty, with how to add some.
     private var category: Category {
-        switch chosen ?? .favourites {
-        case .favourites: favourites.isEmpty ? .all : .favourites
-        case let other: other
-        }
+        chosen ?? (favourites.isEmpty ? .all : .favourites)
     }
 
     private var groups: [String] {
@@ -86,9 +84,7 @@ struct LiveTvView: View {
                 .font(.marquee(56, weight: .black))
                 .foregroundStyle(Color.screen)
                 .padding(.bottom, 24)
-            if !favourites.isEmpty {
-                categoryButton(.favourites, "Favourites", systemImage: "star.fill")
-            }
+            categoryButton(.favourites, "Favourites", systemImage: "star.fill")
             categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
             if groups.count > 1 {
                 ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
@@ -124,6 +120,18 @@ struct LiveTvView: View {
     private var list: some View {
         ScrollView(.vertical) {
             LazyVStack(spacing: 10) {
+                if category == .favourites, favourites.isEmpty {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("No favourites yet", systemImage: "star")
+                            .font(.system(size: 34, weight: .semibold))
+                            .foregroundStyle(Color.screen)
+                        Text("In All channels, press and hold a channel and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.")
+                            .font(.system(size: 26))
+                            .foregroundStyle(Color.usher)
+                    }
+                    .frame(maxWidth: 900, alignment: .leading)
+                    .padding(.top, 20)
+                }
                 ForEach(channels(in: category)) { channel in
                     Button {
                         model.watch(channel, among: order)

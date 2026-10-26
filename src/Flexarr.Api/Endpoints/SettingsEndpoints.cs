@@ -176,8 +176,16 @@ public static class SettingsEndpoints
 
             // The file watcher reloads options shortly after the write; wait briefly so the response reflects it.
             await Task.Delay(400, ct);
-            if (update.LiveTv is not null)
+            if (update.LiveTv is { } savedLive)
             {
+                // The refresh reads the options, so it waits until they hold the new source (or its removal): asked for
+                // before then, it found none and cleared the channels instead.
+                var wanted = savedLive.BaseUrl.Trim().TrimEnd('/');
+                for (var i = 0; i < 50 && (options.CurrentValue.LiveTv?.BaseUrl ?? "") != wanted; i++)
+                {
+                    await Task.Delay(100, ct);
+                }
+
                 liveTvRefresh.Request();
             }
 

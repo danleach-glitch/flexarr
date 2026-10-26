@@ -84,7 +84,7 @@ function OnNow() {
   const [chosen, setGroup] = useState<string>()
   const groups = useMemo(() => [...new Set((data ?? []).map((c) => c.group).filter((g): g is string => !!g))], [data])
   const favourites = (data ?? []).filter(isFavourite)
-  const group = (chosen ?? FAVOURITES) === FAVOURITES ? (favourites.length > 0 ? FAVOURITES : '') : chosen!
+  const group = chosen ?? (favourites.length > 0 ? FAVOURITES : '')
   const shown = (data ?? []).filter((c) => (group === FAVOURITES ? isFavourite(c) : !group || c.group === group))
   const row = (c: LiveChannel) => (
     <li key={c.id}>
@@ -98,23 +98,19 @@ function OnNow() {
 
   return (
     <>
-      {(groups.length > 1 || favourites.length > 0) && (
-        <div className="chips livetv-groups" role="toolbar" aria-label="Channel groups">
-          {favourites.length > 0 && (
-            <button className={group === FAVOURITES ? 'chip active' : 'chip'} onClick={() => setGroup(FAVOURITES)}>
-              <Star filled className="chip-star" /> Favourites
-            </button>
-          )}
-          <button className={!group ? 'chip active' : 'chip'} onClick={() => setGroup('')}>
-            All
+      <div className="chips livetv-groups" role="toolbar" aria-label="Channel groups">
+        <button className={group === FAVOURITES ? 'chip active' : 'chip'} onClick={() => setGroup(FAVOURITES)}>
+          <Star filled className="chip-star" /> Favourites
+        </button>
+        <button className={!group ? 'chip active' : 'chip'} onClick={() => setGroup('')}>
+          All
+        </button>
+        {groups.map((g) => (
+          <button key={g} className={group === g ? 'chip active' : 'chip'} onClick={() => setGroup(g)}>
+            {tidyGroup(g)}
           </button>
-          {groups.map((g) => (
-            <button key={g} className={group === g ? 'chip active' : 'chip'} onClick={() => setGroup(g)}>
-              {tidyGroup(g)}
-            </button>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
       <ul className="livetv-list">{shown.map(row)}</ul>
       {data.every((c) => !isFavourite(c)) && (
         <p className="muted livetv-hint">
@@ -193,20 +189,23 @@ function Guide() {
   if (failed) return <p className="error">Couldn’t load the guide: {failed}</p>
   if (!guide) return <p className="page-message muted">Loading the guide…</p>
   const anyFavourite = guide.channels.some((c) => c.isFavourite)
-  const favouritesOnly = anyFavourite && (favouritesChosen ?? true)
+  const favouritesOnly = favouritesChosen ?? anyFavourite
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
   return (
     <>
-      {anyFavourite && (
-        <div className="chips livetv-groups" role="toolbar" aria-label="Channels">
-          <button className={favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(true)}>
-            <Star filled className="chip-star" /> Favourites
-          </button>
-          <button className={!favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(false)}>
-            All channels
-          </button>
-        </div>
+      <div className="chips livetv-groups" role="toolbar" aria-label="Channels">
+        <button className={favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(true)}>
+          <Star filled className="chip-star" /> Favourites
+        </button>
+        <button className={!favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(false)}>
+          All channels
+        </button>
+      </div>
+      {favouritesOnly && rows.length === 0 && (
+        <p className="muted livetv-hint">
+          <Star /> No favourites yet: star channels in On now, and the guide can show just them.
+        </p>
       )}
       <div className="livetv-guide" ref={scroller}>
         <div className="livetv-guide-inner" style={{ width: width + 200 }}>
