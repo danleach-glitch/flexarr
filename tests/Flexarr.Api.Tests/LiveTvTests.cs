@@ -128,6 +128,12 @@ public sealed class LiveTvTests : IDisposable
     {
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, password = FakeDispatcharr.Password } }))
             .EnsureSuccessStatusCode();
+        // The config file reloads a moment after a save; refresh once the source is in.
+        for (var i = 0; i < 50 && !(await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("configured").GetBoolean(); i++)
+        {
+            await Task.Delay(100);
+        }
+
         await RefreshAsync();
     }
 
@@ -136,6 +142,24 @@ public sealed class LiveTvTests : IDisposable
         // Background workers don't run in tests; refresh as the guide worker would.
         await using var scope = _server.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().RefreshAsync(CancellationToken.None, onlyIfChanged);
+    }
+
+    /// <summary>The Live TV settings once <paramref name="saved"/> holds: the config file reloads a moment after a save.</summary>
+    private static async Task<JsonElement> LiveTvSettingsAsync(HttpClient client, Func<JsonElement, bool> saved)
+    {
+        var live = default(JsonElement);
+        for (var i = 0; i < 50; i++)
+        {
+            live = (await client.GetFromJsonAsync<JsonElement>(Api("settings"))).GetProperty("liveTv");
+            if (live.ValueKind == JsonValueKind.Object && saved(live))
+            {
+                break;
+            }
+
+            await Task.Delay(100);
+        }
+
+        return live;
     }
 
     private static async Task<JsonElement[]> ChannelsAsync(HttpClient client) => [.. (await client.GetFromJsonAsync<JsonElement>(Api("livetv/channels"))).EnumerateArray()];
@@ -154,13 +178,13 @@ public sealed class LiveTvTests : IDisposable
         // Saved again without a password: the saved one stays.
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, rewindMinutes = 30 } }))
             .EnsureSuccessStatusCode();
-        live = (await client.GetFromJsonAsync<JsonElement>(Api("settings"))).GetProperty("liveTv");
+        live = await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 30);
         Assert.True(live.GetProperty("hasPassword").GetBoolean());
         Assert.Equal(30, live.GetProperty("rewindMinutes").GetInt32());
 
         // Pointed somewhere else without one: it isn't sent there.
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = "http://another:9191", username = FakeDispatcharr.User } })).EnsureSuccessStatusCode();
-        live = (await client.GetFromJsonAsync<JsonElement>(Api("settings"))).GetProperty("liveTv");
+        live = await LiveTvSettingsAsync(client, l => l.GetProperty("baseUrl").GetString() == "http://another:9191");
         Assert.False(live.GetProperty("hasPassword").GetBoolean());
         Assert.False((await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("configured").GetBoolean());
     }
