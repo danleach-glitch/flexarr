@@ -183,15 +183,24 @@ final class PlayerViewController: UIViewController {
         rebuildMenus()
         #if os(iOS)
         pictureInPicture = nil
-        if AVPictureInPictureController.isPictureInPictureSupported(), let source = transport.pictureInPictureContentSource() {
+        preparePictureInPicture(transport)
+        #endif
+    }
+
+    #if os(iOS)
+    /// The engine has no picture to hand Picture in Picture until it has opened the file, so this is tried again as
+    /// the transport reports in, until there is one.
+    private func preparePictureInPicture(_ transport: PlayerTransport) {
+        guard pictureInPicture == nil, AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        if let source = transport.pictureInPictureContentSource() {
             let controller = AVPictureInPictureController(contentSource: source)
             controller.delegate = self
             controller.canStartPictureInPictureAutomaticallyFromInline = true
             pictureInPicture = controller
         }
         controls.pictureInPictureButton.isEnabled = pictureInPicture != nil
-        #endif
     }
+    #endif
 
     // MARK: What the controller tells the screen
 
@@ -701,6 +710,9 @@ final class PlayerViewController: UIViewController {
 
 extension PlayerViewController: PlayerTransportDelegate {
     func transport(_ transport: PlayerTransport, phaseChanged phase: TransportPhase) {
+        #if os(iOS)
+        if isViewLoaded { preparePictureInPicture(transport) }
+        #endif
         phaseChanged(phase)
         delegate?.playerScreen(self, phaseChanged: phase)
     }
@@ -726,6 +738,9 @@ extension PlayerViewController: PlayerTransportDelegate {
     }
 
     func transportTracksChanged(_ transport: PlayerTransport) {
+        #if os(iOS)
+        if isViewLoaded { preparePictureInPicture(transport) }
+        #endif
         rebuildMenus()
         delegate?.playerScreenTracksChanged(self)
     }
