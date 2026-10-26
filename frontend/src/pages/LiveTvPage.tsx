@@ -4,7 +4,7 @@ import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type 
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
-import { Play, RecordDot, SeriesDots, Star, Tv } from '../components/icons'
+import { Antenna, Play, RecordDot, SeriesDots, Star } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
@@ -35,7 +35,7 @@ export default function LiveTvPage() {
       <div className="livetv-page">
         <h1 className="livetv-title">Live TV</h1>
         <div className="panel livetv-empty">
-          <Tv />
+          <Antenna />
           <p>Live TV isn’t set up yet.</p>
           {me?.isAdmin ? (
             <Link className="button" to="/settings/connections">

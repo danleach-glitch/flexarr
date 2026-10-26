@@ -135,7 +135,7 @@ struct LibrariesView: View {
                         row("Podcasts", icon: "mic.fill") { router.push(.podcasts) }
                     }
                     if model.hasLiveTv {
-                        row("Live TV", icon: "tv.inset.filled") { router.push(.liveTv) }
+                        row("Live TV", icon: "antenna.radiowaves.left.and.right") { router.push(.liveTv) }
                     }
                 }
                 .scrollContentBackground(.hidden)
