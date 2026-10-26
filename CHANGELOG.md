@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.33.1 · 26 October 2026
 
 ### Playback (iPhone and iPad)
 - Picture in Picture works for films and TV shows again. The button was there but greyed out, because it was set up before the player had opened the file; it now turns on as soon as playback starts.
