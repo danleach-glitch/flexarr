@@ -50,24 +50,24 @@ public static class ImageEndpoints
 
         group.MapGet("/items/{id:guid}/{kind}", async (Guid id, string kind, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, HttpContext http, CancellationToken ct) =>
         {
+            // "wide": the backdrop with the title's logo on it (the Apple TV's Top Shelf), at the backdrop's ?v=.
+            if (kind == "wide")
+            {
+                if (await SourceAsync(db, memory, id, "backdrop", v, ct) is not { Url: { } backdrop })
+                {
+                    return Results.NotFound();
+                }
+
+                var logo = (await SourceAsync(db, memory, id, "logo", v, ct))?.Url;
+                return await ServeAsync(() => cache.GetWideAsync(backdrop, logo, w, ct), http);
+            }
+
             if (kind is not ("poster" or "backdrop" or "logo" or "thumb"))
             {
                 return Results.NotFound();
             }
 
-            // A page of posters asks for each one; remember where they come from rather than walking up to the series
-            // every time. A ?v= newer than what's remembered means the artwork changed, so it's looked up again.
-            var key = $"image-source:{id}:{kind}";
-            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || (v is not null && v != source.Version))
-            {
-                source = await ResolveAsync(db, id, kind, ct);
-                if (source is not null)
-                {
-                    memory.Set(key, source, SourceTtl); // only for items that exist, so made-up ids can't fill memory
-                }
-            }
-
-            return source?.Url is { } url ? await ServeAsync(cache, url, w, http, ct) : Results.NotFound();
+            return await SourceAsync(db, memory, id, kind, v, ct) is { Url: { } url } ? await ServeAsync(cache, url, w, http, ct) : Results.NotFound();
         });
 
         // Artwork for things not in the library yet (Coming soon, downloads). Only images on known artwork hosts, so
@@ -145,7 +145,31 @@ public static class ImageEndpoints
 
     private sealed record ImageSource(string? Url, string? Version);
 
-    private static async Task<IResult> ServeAsync(ImageCache cache, string url, int? width, HttpContext http, CancellationToken ct)
+    /// <summary>
+    /// Where an item's artwork comes from. A page of posters asks for each one; remember where they come from rather
+    /// than walking up to the series every time. A ?v= newer than what's remembered means the artwork changed, so it's
+    /// looked up again.
+    /// </summary>
+    private static async Task<ImageSource?> SourceAsync(FlexarrDbContext db, IMemoryCache memory, Guid id, string kind, string? v, CancellationToken ct)
+    {
+        var key = $"image-source:{id}:{kind}";
+        if (!memory.TryGetValue(key, out ImageSource? source) || source is null || (v is not null && v != source.Version))
+        {
+            source = await ResolveAsync(db, id, kind, ct);
+            if (source is not null)
+            {
+                memory.Set(key, source, SourceTtl); // only for items that exist, so made-up ids can't fill memory
+            }
+        }
+
+        return source;
+    }
+
+    private static Task<IResult> ServeAsync(ImageCache cache, string url, int? width, HttpContext http, CancellationToken ct) =>
+        ServeAsync(() => cache.GetAsync(url, width, ct), http);
+
+    /// <param name="fetch">The cached copy's path; asked for again (once) if a trim deletes it before it's opened.</param>
+    private static async Task<IResult> ServeAsync(Func<Task<string?>> fetch, HttpContext http)
     {
         // Opened here rather than when the response is written: a trim of the cache can delete the file in between,
         // and then it's fetched again, once. Once open, a trim can't take it away.
@@ -154,7 +178,7 @@ public static class ImageEndpoints
             string? path;
             try
             {
-                path = await cache.GetAsync(url, width, ct);
+                path = await fetch();
             }
             catch (ImageCacheBusyException)
             {

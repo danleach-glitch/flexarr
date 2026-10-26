@@ -18,11 +18,13 @@ struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: TabID = .home
     @State private var showingProfileMenu = false
+    /// Home's screens, here so Menu on the tab bar can go back through them (see below).
+    @State private var homeRouter = Router()
 
     var body: some View {
         TabView(selection: $selection) {
             Tab(value: TabID.home) {
-                TabStack(handlesDeepLinks: true) { HomeView() }
+                TabStack(router: homeRouter, handlesDeepLinks: true) { HomeView() }
             } label: {
                 Text("Home")
             }
@@ -61,6 +63,9 @@ struct MainTabView: View {
                 }
             }
         }
+        // Menu on the tab bar leaves the app. With a title opened on Home (from the Top Shelf, say), go back to Home
+        // first, or that title would be all Home ever shows again.
+        .onExitCommand(perform: selection == .home && !homeRouter.path.isEmpty ? { homeRouter.path.removeLast() } : nil)
         // The remote's play/pause button runs the music from any screen (the video player takes it over while it's up).
         .onPlayPauseCommand { if model.music.current != nil { model.music.togglePlayPause() } }
         .onChange(of: model.music.current == nil) { _, stopped in
@@ -229,9 +234,15 @@ private struct ProfileCornerButton: UIViewRepresentable {
 /// A navigation stack per tab with the shared destinations.
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
-    @State private var router = Router()
-    var handlesDeepLinks = false
+    @State private var router: Router
+    var handlesDeepLinks: Bool
     @ViewBuilder var content: () -> Content
+
+    init(router: Router = Router(), handlesDeepLinks: Bool = false, @ViewBuilder content: @escaping () -> Content) {
+        _router = State(initialValue: router)
+        self.handlesDeepLinks = handlesDeepLinks
+        self.content = content
+    }
 
     var body: some View {
         @Bindable var router = router
@@ -250,7 +261,8 @@ struct TabStack<Content: View>: View {
 
     private func consumeDeepLink() {
         guard handlesDeepLinks, let route = model.pendingRoute else { return }
-        router.push(route)
+        // In place of whatever was open, so Menu comes straight back to Home rather than through old links.
+        router.path = [route]
         model.pendingRoute = nil
     }
 

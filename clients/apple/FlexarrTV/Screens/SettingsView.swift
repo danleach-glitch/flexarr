@@ -1,8 +1,10 @@
 import FlexarrKit
 import SwiftUI
+import TVServices
 
-/// Settings: the page title and what's installed on the left; on the right a card for the server, a card for
-/// playback choices and Sign out on its own at the end, so focus walks straight down from the first control to the last.
+/// Settings: the page title and what's installed on the left; on the right a card for the server, cards for
+/// playback and the Home screen's Top Shelf, and Sign out on its own at the end, so focus walks straight down from
+/// the first control to the last.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var status: SystemStatus?
@@ -10,6 +12,7 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
+    @State private var topShelf = TopShelfStyle.current
 
     var body: some View {
         HStack(alignment: .top, spacing: 100) {
@@ -72,6 +75,19 @@ struct SettingsView: View {
                         .padding(.top, 8)
                     }
 
+                    card("Home screen") {
+                        setting("Continue Watching on the Apple TV's Top Shelf: wide artwork with each title's logo, or posters, which fit more in.") {
+                            Button {
+                                topShelf = topShelf == .wide ? .posters : .wide
+                                TopShelfStyle.current = topShelf
+                                TVTopShelfContentProvider.topShelfContentDidChange()
+                            } label: {
+                                Label(topShelf == .wide ? "Top Shelf: wide artwork" : "Top Shelf: posters", systemImage: "rectangle.topthird.inset.filled")
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+
                     Button(role: .destructive) { confirmSignOut = true } label: {
                         Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
@@ -97,7 +113,7 @@ struct SettingsView: View {
         }
     }
 
-    /// A titled card on a seat: the Server and Playback groups share its padding and background.
+    /// A titled card on a seat: the groups share its padding and background.
     private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)

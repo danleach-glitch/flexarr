@@ -398,6 +398,15 @@ public struct FlexarrClient: Sendable {
         return url(for: "\(relative)\(separator)w=\(width)")
     }
 
+    /// The title's backdrop cut to 16:9 with its logo on it, lower left (the backdrop alone if it has no logo); nil
+    /// without a backdrop. Drawn by the server, for the Top Shelf's wide cards.
+    public func wideArtworkURL(_ artwork: Artwork, width: Int) -> URL? {
+        guard let backdrop = artwork.backdrop, var parts = URLComponents(string: backdrop),
+              parts.path.hasSuffix("/backdrop") else { return nil }
+        parts.path = String(parts.path.dropLast("backdrop".count)) + "wide"
+        return imageURL(parts.string, width: width)
+    }
+
     // MARK: Transport
 
     func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {

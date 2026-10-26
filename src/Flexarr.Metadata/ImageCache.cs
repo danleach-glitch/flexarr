@@ -361,6 +361,74 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         }
     }
 
+    /// <summary>
+    /// The backdrop cut to 16:9 with the title's logo on it, lower left over a soft shade: the Apple TV's Top Shelf
+    /// shows these as wide cards. Without a logo (or if it can't be fetched) it's the backdrop alone.
+    /// </summary>
+    /// <returns>The cached image's path, or null if the backdrop can't be fetched.</returns>
+    /// <exception cref="ImageCacheBusyException">As <see cref="GetAsync"/>.</exception>
+    public async Task<string?> GetWideAsync(string backdropUrl, string? logoUrl, int? width, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(backdropUrl);
+
+        var snapped = ArtworkUrl.Snap(width);
+        var backdrop = await GetAsync(backdropUrl, snapped, ct).ConfigureAwait(false);
+        var logo = backdrop is null || logoUrl is null ? null : await GetAsync(logoUrl, 780, ct).ConfigureAwait(false);
+        if (backdrop is null || logo is null)
+        {
+            return backdrop;
+        }
+
+        var key = Hash($"{backdropUrl}\n{logoUrl}");
+        var target = Path.Combine(Directory, key[..2], $"{key}_wide{snapped}.jpg");
+        if (Cached(target) is { } hit)
+        {
+            Touch(hit);
+            return hit;
+        }
+
+        var backdropFormat = InputFormat(await HeaderAsync(backdrop, ct).ConfigureAwait(false));
+        var logoFormat = InputFormat(await HeaderAsync(logo, ct).ConfigureAwait(false));
+        if (backdropFormat is null || logoFormat is null)
+        {
+            return backdrop;
+        }
+
+        // Two requests for the same card at once both draw it; the second move just replaces the first.
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        var w = snapped;
+        var h = w * 9 / 16 / 2 * 2;
+        var partial = Path.Combine(Path.GetDirectoryName(target)!, $"{key}_wide{snapped}.{Guid.NewGuid():N}.tmp.jpg");
+        try
+        {
+            // The shade is drawn tiny and scaled up, which is quick and smooth: darkest in the lower left, where the
+            // logo goes, clear across the top and right. The logo fits a box 42% wide and 30% high, keeping its shape.
+            string[] args =
+            [
+                "-v", "error", "-y", "-protocol_whitelist", "file",
+                "-f", backdropFormat, "-i", backdrop, "-f", logoFormat, "-i", logo,
+                "-filter_complex",
+                $"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1[bg];"
+                + "color=black:s=64x36:d=1,format=rgba,geq=r=0:g=0:b=0:a='200*pow(clip((Y/H-0.25)/0.75\\,0\\,1)\\,1.4)*clip(1.2-X/W\\,0\\,1)'"
+                + $",scale={w}:{h}[shade];"
+                + $"[1:v]scale={w * 42 / 100}:{h * 30 / 100}:force_original_aspect_ratio=decrease[logo];"
+                + "[bg][shade]overlay[dim];[dim][logo]overlay=x=main_w*0.06:y=main_h-overlay_h-main_h*0.09:format=auto",
+                "-frames:v", "1", "-update", "1", "-q:v", "3", partial,
+            ];
+            if (await RunFfmpegAsync(args, captureOutput: false, ct).ConfigureAwait(false) is null || !File.Exists(partial))
+            {
+                return backdrop;
+            }
+
+            File.Move(partial, target, overwrite: true);
+            return Written(target);
+        }
+        finally
+        {
+            File.Delete(partial);
+        }
+    }
+
     /// <summary>Ambient colour for an image (see <see cref="AccentColor"/>), sampled from a tiny resize.</summary>
     public async Task<string?> AccentColorAsync(string remoteUrl, CancellationToken ct)
     {

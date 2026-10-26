@@ -20,27 +20,39 @@ public enum SharedSignIn {
 
     /// Saves (or, with nil, removes) the sign-in the extension uses.
     public static func save(_ value: Value?) {
-        SecItemDelete(query() as CFDictionary)
-        guard let value, let data = try? JSONEncoder().encode(value) else { return }
-        var add = query()
+        guard let value, let data = try? JSONEncoder().encode(value) else {
+            SecItemDelete(query() as CFDictionary)
+            return
+        }
+        write(data, account: "current")
+    }
+
+    public static func load() -> Value? {
+        read(account: "current").flatMap { try? JSONDecoder().decode(Value.self, from: $0) }
+    }
+
+    /// Also how the Top Shelf extension learns the app's other choices (see `TopShelfStyle`).
+    static func write(_ data: Data, account: String) {
+        SecItemDelete(query(account: account) as CFDictionary)
+        var add = query(account: account)
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         SecItemAdd(add as CFDictionary, nil)
     }
 
-    public static func load() -> Value? {
-        var read = query()
+    static func read(account: String) -> Data? {
+        var read = query(account: account)
         read[kSecReturnData as String] = true
         read[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
-        guard SecItemCopyMatching(read as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return try? JSONDecoder().decode(Value.self, from: data)
+        guard SecItemCopyMatching(read as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
     }
 
-    private static func query() -> [String: Any] {
+    private static func query(account: String = "current") -> [String: Any] {
         var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                     kSecAttrService as String: service,
-                                    kSecAttrAccount as String: "current"]
+                                    kSecAttrAccount as String: account]
         // "$(AppIdentifierPrefix)…" left unexpanded means an unsigned build: the app's own Keychain will do.
         if let group = Bundle.main.object(forInfoDictionaryKey: "FlexarrKeychainGroup") as? String, !group.contains("$(") {
             query[kSecAttrAccessGroup as String] = group

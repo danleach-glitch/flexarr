@@ -317,6 +317,9 @@ struct FlexarrClientTests {
         #expect(client.imageURL("/api/v1/images/people/p", width: 300)?.absoluteString
             == "http://mini.local:8383/api/v1/images/people/p?w=300")
         #expect(client.imageURL(nil, width: 300) == nil)
+        #expect(client.wideArtworkURL(Artwork(backdrop: "/api/v1/images/items/x/backdrop?v=7"), width: 1280)?.absoluteString
+            == "http://mini.local:8383/api/v1/images/items/x/wide?v=7&w=1280")
+        #expect(client.wideArtworkURL(Artwork(poster: "/api/v1/images/items/x/poster?v=7"), width: 1280) == nil)
     }
 
     @Test(arguments: [
