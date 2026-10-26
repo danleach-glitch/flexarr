@@ -248,6 +248,67 @@ public sealed class LiveCommandTests
     private static string After(IReadOnlyList<string> args, string option) => args[args.ToList().IndexOf(option) + 1];
 }
 
+public sealed class LiveScheduleTests
+{
+    private static readonly Guid Channel = Guid.NewGuid();
+    private static readonly DateTime Day = new(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
+
+    private static LiveProgramme At(string title, double start, double end, Guid? channel = null) => new()
+    {
+        ChannelId = channel ?? Channel,
+        Title = title,
+        Start = Day.AddHours(start),
+        End = Day.AddHours(end),
+    };
+
+    [Fact]
+    public void Keeps_the_later_of_two_schedules()
+    {
+        // The guide's ITV2 on 26 October 2026: its schedule twice, one copy an hour early. The later one is right
+        // (Open-EPG agrees: Potomac at 07:30).
+        var tidy = LiveSchedule.Tidy([
+            At("Dress to Impress", 5 + 25 / 60.0, 6.5),
+            At("Backyard Builds", 6, 6 + 25 / 60.0),
+            At("Dress to Impress", 6 + 25 / 60.0, 7.5),
+            At("Potomac", 6.5, 7 + 20 / 60.0),
+            At("Beverly Hills", 7 + 20 / 60.0, 8.25),
+            At("Potomac", 7.5, 8 + 20 / 60.0),
+            At("Beverly Hills", 8 + 20 / 60.0, 9.25),
+        ]);
+
+        Assert.Equal(["Backyard Builds", "Dress to Impress", "Potomac", "Beverly Hills"], tidy.Select(p => p.Title));
+        Assert.Equal(Day.AddHours(6), tidy[0].Start);
+        Assert.Equal(Day.AddHours(7.5), tidy[2].Start);
+        Assert.All(tidy.Zip(tidy.Skip(1)), pair => Assert.True(pair.Second.Start >= pair.First.End));
+    }
+
+    [Fact]
+    public void Keeps_hourly_bulletins()
+    {
+        // A news channel: the same title every hour, nothing clashing.
+        var tidy = LiveSchedule.Tidy([At("BBC News", 6, 7), At("BBC News", 7, 8), At("BBC News", 8, 9)]);
+
+        Assert.Equal(3, tidy.Count);
+    }
+
+    [Fact]
+    public void Trims_a_small_overlap()
+    {
+        var tidy = LiveSchedule.Tidy([At("News", 18, 18.5 + 2 / 60.0), At("Weather", 18.5, 19)]);
+
+        Assert.Equal(2, tidy.Count);
+        Assert.Equal(tidy[0].End, tidy[1].Start);
+    }
+
+    [Fact]
+    public void Keeps_channels_apart()
+    {
+        var other = Guid.NewGuid();
+
+        Assert.Equal(2, LiveSchedule.Tidy([At("One", 18, 19), At("Two", 18, 19, other)]).Count);
+    }
+}
+
 public sealed class CommunityLogosTests
 {
     // A slice of the collection's real index (github.com/tv-logo/tv-logos), around the channels below.

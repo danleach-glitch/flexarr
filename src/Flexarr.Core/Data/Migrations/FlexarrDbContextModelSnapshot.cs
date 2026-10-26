@@ -148,6 +148,25 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("LiveFavourites");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveLastChannel", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("WatchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ProfileId");
+
+                    b.HasIndex("ChannelId");
+
+                    b.ToTable("LiveLastChannels");
+                });
+
             modelBuilder.Entity("Flexarr.Core.LiveTv.LiveProgramme", b =>
                 {
                     b.Property<long>("Id")
@@ -1136,6 +1155,21 @@ namespace Flexarr.Core.Data.Migrations
                 });
 
             modelBuilder.Entity("Flexarr.Core.LiveTv.LiveFavourite", b =>
+                {
+                    b.HasOne("Flexarr.Core.LiveTv.LiveChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.LiveTv.LiveLastChannel", b =>
                 {
                     b.HasOne("Flexarr.Core.LiveTv.LiveChannel", null)
                         .WithMany()

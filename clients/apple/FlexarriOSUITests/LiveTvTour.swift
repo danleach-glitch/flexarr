@@ -42,6 +42,19 @@ final class LiveTvTour: XCTestCase {
         pause(4)
         shot("50-live-tv")
 
+        // The guide, then back to the list.
+        let guideButton = app.buttons["Guide"].firstMatch
+        if guideButton.waitForExistence(timeout: 3) {
+            guideButton.tap()
+            pause(4)
+            shot("50b-live-guide")
+            app.swipeLeft()
+            pause(1.5)
+            shot("50c-live-guide-later")
+            app.buttons["List"].firstMatch.tap()
+            pause(2)
+        }
+
         // A row reads as one element: the channel's number, name and what's on.
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", first.name)).firstMatch.tap()
         pause(9)
@@ -50,6 +63,15 @@ final class LiveTvTour: XCTestCase {
         if !next.isHittable { app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
         pause(1)
         shot("52-live-controls")
+        let list = app.buttons["Channels"].firstMatch
+        if list.waitForExistence(timeout: 3) {
+            list.tap()
+            pause(3)
+            shot("52b-live-channel-list")
+            app.buttons["Done"].firstMatch.tap()
+            pause(1.5)
+            if !next.isHittable { app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        }
         if next.waitForExistence(timeout: 3) {
             next.tap()
             pause(9)

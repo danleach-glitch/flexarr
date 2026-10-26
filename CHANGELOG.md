@@ -2,6 +2,17 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.32.0 · 26 October 2026
+
+### Live TV (Apple TV, iPhone and iPad)
+- Apple TV: Live TV is now a guide: categories down the left, and for the one chosen, channels down and three hours across. Move between programmes with the remote; past either edge it moves on an hour and a half. What's on now plays; anything later shows what it is, with a way to watch that channel now. Press and hold a programme to add its channel to Favourites or take it off; favourites carry a star.
+- Apple TV: the guide without leaving the channel. The player has a Guide button that opens the grid over the picture, which carries on behind it, starting on your channel at what's on now. Choose something else on now to change to it; Menu goes back to the channel.
+- The guide no longer shows two programmes at once on a channel, and BBC One and ITV2 are at the right times again. The IPTV guide had both channels twice, one copy an hour early from before the clocks went back; Flexarr now drops that copy, and programmes that run into the next by a minute or two end where it starts.
+- iPhone and iPad: a Guide button on Live TV turns the list into the guide, channels down the left and six hours across, for the category chosen. Tap what's on now to watch; tap anything later to see what it is; hold a programme to add its channel to Favourites. The List button goes back, and it remembers which you used.
+- Home's Live TV row starts with the channel you watched last, so it's one click to get back to it, then your favourites. Each profile has its own.
+- Apple TV: while the guide or the channel list is open over the picture, moving up and down in it no longer changes channel behind it.
+- The player has a Channels button: every channel over the picture in number order, each with what's on. At the top is Last watched, the channel you were on before, and the list opens on it, so flipping between two channels is one press. On Apple TV it's a panel down the right; on iPhone and iPad a sheet.
+
 ## 0.31.0 · 26 October 2026
 
 ### Live TV

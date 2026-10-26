@@ -89,6 +89,30 @@ public struct LiveWatch: Codable, Sendable, Hashable {
     public let rewindSeconds: Int
 }
 
+/// A channel in the guide, with its programmes in the window asked for.
+public struct GuideChannel: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let number: Double
+    public let name: String
+    public let group: String?
+    public let logoUrl: String?
+    public let isFavourite: Bool
+    public let programmes: [LiveProgramme]
+
+    /// The channel as the rest of Live TV knows it, with what's on at `now` and next.
+    public func channel(at now: Date = Date()) -> LiveChannel {
+        let on = programmes.first { $0.start <= now && $0.end > now }
+        let next = programmes.first { $0.start > now }
+        return LiveChannel(id: id, number: number, name: name, group: group, logoUrl: logoUrl, isFavourite: isFavourite, now: on, next: next)
+    }
+}
+
+public struct LiveGuide: Codable, Sendable, Hashable {
+    public let from: Date
+    public let until: Date
+    public let channels: [GuideChannel]
+}
+
 private struct WatchBody: Encodable {
     let replaces: String?
 }
@@ -103,6 +127,14 @@ extension FlexarrClient {
         } catch FlexarrClientError.http(status: 404, _) {
             return nil
         }
+    }
+
+    /// Every channel's programmes from `from` for `hours` (at most a day).
+    public func liveGuide(from: Date, hours: Int) async throws -> LiveGuide {
+        try await get("livetv/guide", query: [
+            .init(name: "from", value: ISO8601DateFormatter().string(from: from)),
+            .init(name: "hours", value: String(hours)),
+        ])
     }
 
     /// Every channel in number order, with what's on now and next.

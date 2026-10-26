@@ -23,4 +23,13 @@ struct LiveTvTests {
         #expect(programme.progress(at: start.addingTimeInterval(-60)) == 0)
         #expect(programme.displayTitle == "Doctor Who: The Star Beast")
     }
+
+    @Test func guide() throws {
+        let guide = try Fixture.decode(LiveGuide.self, "live-guide")
+        #expect(guide.until > guide.from)
+        let first = try #require(guide.channels.first)
+        #expect(!first.programmes.isEmpty)
+        let now = try #require(first.programmes.first).start.addingTimeInterval(60)
+        #expect(first.channel(at: now).now == first.programmes.first)
+    }
 }

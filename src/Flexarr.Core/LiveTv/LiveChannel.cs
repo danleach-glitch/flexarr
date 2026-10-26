@@ -59,3 +59,11 @@ public sealed class LiveFavourite
     public Guid ChannelId { get; set; }
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>The channel a profile watched last: first on Home's Live TV row, to get back to it.</summary>
+public sealed class LiveLastChannel
+{
+    public required string ProfileId { get; set; }
+    public Guid ChannelId { get; set; }
+    public DateTime WatchedAt { get; set; }
+}

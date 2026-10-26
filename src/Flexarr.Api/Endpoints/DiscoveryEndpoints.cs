@@ -62,10 +62,10 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
             }
 
-            // The profile's favourite channels and what's on them; nothing until some are starred.
+            // The channel watched last, then the profile's favourites, with what's on them; nothing until there's one.
             if (options.LiveTv?.Account is not null && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
             {
-                var channels = await LiveTv.LiveTvEndpoints.FavouritesOnNowAsync(db, me, DateTime.UtcNow, ct);
+                var channels = await LiveTv.LiveTvEndpoints.HomeChannelsAsync(db, me, DateTime.UtcNow, ct);
                 rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
             }
 

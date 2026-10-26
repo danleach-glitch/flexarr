@@ -61,6 +61,62 @@ final class LiveTvTour: XCTestCase {
         shot("55-live-back")
     }
 
+    /// The guide: the sidebar's Guide button, then around the grid, and a programme that's on now plays.
+    func testGuide() async throws {
+        guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
+        // The Live TV tab: up to the tab bar, all the way left, then across until it's focused.
+        press(.up, times: 3, wait: 0.8)
+        press(.left, times: 6, wait: 0.5)
+        for _ in 0..<6 where !focused("Live TV") { press(.right, wait: 0.8) }
+        pause(3)
+        // Into the screen (the sidebar), then across into the guide: what's on now on the first channel plays.
+        press(.down, wait: 2)
+        press(.left, times: 2, wait: 0.8)
+        logFocus("sidebar")
+        shot("60-guide")
+        press(.right, wait: 2)
+        shot("61-guide-focused")
+        press(.select, wait: 2)
+        // A channel can take a while to start (one connection); the player's Guide button means it's up.
+        _ = app.buttons["Guide"].waitForExistence(timeout: 40)
+        pause(2)
+        shot("64-guide-play")
+        logFocus("player start")
+        // The guide over the picture: the controls are up as it starts, on the timeline; up to the buttons (Channels), across to Guide.
+        press(.up, wait: 1)
+        logFocus("player down")
+        for _ in 0..<4 where !focused("Guide") { press(.right, wait: 0.6) }
+        logFocus("player menus")
+        press(.select, wait: 5)
+        shot("65-player-guide")
+        press(.down, times: 2, wait: 1)
+        shot("66-player-guide-moved")
+        press(.menu, wait: 2)
+        shot("67-player-after-guide")
+        press(.menu, wait: 1.5)
+        press(.menu, wait: 3)
+        // Around the grid: later, then back again (focus stays in the grid).
+        press(.right, times: 3, wait: 1)
+        press(.down, times: 2, wait: 1)
+        shot("62-guide-moved")
+        press(.right, times: 6, wait: 1)
+        pause(1.5)
+        shot("63-guide-later")
+        press(.left, times: 8, wait: 0.8)
+        logFocus("after going back")
+        shot("68-guide-back")
+    }
+
+    private func focused(_ label: String) -> Bool {
+        app.buttons.matching(NSPredicate(format: "label == %@ AND hasFocus == true", label)).count > 0
+    }
+
+    private func logFocus(_ stop: String) {
+        let element = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch
+        let what = element.exists ? "\(element.elementType.rawValue) '\(element.label)' '\(element.identifier)'" : "nothing"
+        print("FOCUS[\(stop)]: \(what)")
+    }
+
     private func press(_ button: XCUIRemote.Button, times: Int = 1, wait: TimeInterval) {
         for _ in 0..<times {
             remote.press(button)

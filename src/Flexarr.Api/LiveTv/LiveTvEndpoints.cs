@@ -166,6 +166,17 @@ public static partial class LiveTvEndpoints
 
             viewers.Add(new LiveViewer(viewerId, channel.Id, channel.Name, profile.Id, profile.SignInId, session));
             var now = clock.GetUtcNow().UtcDateTime;
+            // Remembered for Home, where the profile's last channel comes first.
+            if (await db.LiveLastChannels.FindAsync([profile.Id], ct) is { } last)
+            {
+                (last.ChannelId, last.WatchedAt) = (channel.Id, now);
+            }
+            else
+            {
+                db.LiveLastChannels.Add(new LiveLastChannel { ProfileId = profile.Id, ChannelId = channel.Id, WatchedAt = now });
+            }
+
+            await db.SaveChangesAsync(ct);
             var on = await db.LiveProgrammes.AsNoTracking().Where(p => p.ChannelId == channel.Id && p.End > now).OrderBy(p => p.Start).Take(2).ToListAsync(ct);
             var favourite = await db.LiveFavourites.AnyAsync(f => f.ProfileId == profile.Id && f.ChannelId == channel.Id, ct);
             return Results.Ok(new WatchDto(viewerId, $"/api/v1/livetv/watch/{viewerId}/{LiveSession.PlaylistName}",
@@ -283,22 +294,27 @@ public static partial class LiveTvEndpoints
     }
 
     /// <summary>The profile's favourite channels in number order, with what's on now and next (Home's Live TV row).</summary>
-    internal static async Task<List<LiveChannelDto>> FavouritesOnNowAsync(FlexarrDbContext db, string profileId, DateTime now, CancellationToken ct)
+    /// <summary>Home's Live TV row: the channel the profile watched last, then its favourites in number order.</summary>
+    internal static async Task<List<LiveChannelDto>> HomeChannelsAsync(FlexarrDbContext db, string profileId, DateTime now, CancellationToken ct)
     {
+        var favourites = await FavouritesAsync(db, profileId, ct);
+        var lastId = await db.LiveLastChannels.AsNoTracking().Where(l => l.ProfileId == profileId).Select(l => (Guid?)l.ChannelId).FirstOrDefaultAsync(ct);
         var channels = await db.LiveChannels.AsNoTracking()
-            .Where(c => db.LiveFavourites.Any(f => f.ProfileId == profileId && f.ChannelId == c.Id))
+            .Where(c => favourites.Contains(c.Id) || c.Id == lastId)
             .OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
         if (channels.Count == 0)
         {
             return [];
         }
 
+        channels = [.. channels.OrderByDescending(c => c.Id == lastId)];
+
         var ids = channels.Select(c => c.Id).ToList();
         var upcoming = (await db.LiveProgrammes.AsNoTracking()
                 .Where(p => ids.Contains(p.ChannelId) && p.End > now && p.Start < now.AddHours(12))
                 .OrderBy(p => p.Start).ToListAsync(ct))
             .ToLookup(p => p.ChannelId);
-        return [.. channels.Select(c => ToDto(c, true, upcoming[c.Id].FirstOrDefault(p => p.Start <= now), upcoming[c.Id].FirstOrDefault(p => p.Start > now)))];
+        return [.. channels.Select(c => ToDto(c, favourites.Contains(c.Id), upcoming[c.Id].FirstOrDefault(p => p.Start <= now), upcoming[c.Id].FirstOrDefault(p => p.Start > now)))];
     }
 
     /// <summary>Whether a viewer gets the reduced version: as asked, else when they're away from home.</summary>

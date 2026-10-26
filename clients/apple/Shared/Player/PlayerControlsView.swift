@@ -16,6 +16,14 @@ final class PlayerControlsView: UIView {
     var onPrompt: (() -> Void)?
     var onCancel: (() -> Void)?
     var onPictureInPicture: (() -> Void)?
+    /// Live TV's channel list (the button shows only when this is set).
+    var onChannels: (() -> Void)? {
+        didSet { channelsButton.isHidden = onChannels == nil }
+    }
+    /// Live TV's guide over the picture (Apple TV; the button shows only when this is set).
+    var onGuide: (() -> Void)? {
+        didSet { guideButton.isHidden = onGuide == nil }
+    }
 
     let scrubber = ScrubberView()
     let playButton: UIButton
@@ -26,6 +34,8 @@ final class PlayerControlsView: UIView {
     let audioButton: UIButton
     let subtitlesButton: UIButton
     let speedButton: UIButton
+    let channelsButton: UIButton
+    let guideButton: UIButton
     let promptButton: UIButton
     let cancelButton: UIButton
     #if os(iOS)
@@ -76,6 +86,8 @@ final class PlayerControlsView: UIView {
         audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
         subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
         speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
+        channelsButton = Self.button("list.bullet.rectangle", size: Self.symbolSize * 0.8)
+        guideButton = Self.button("calendar", size: Self.symbolSize * 0.8)
         promptButton = Self.pill(filled: true)
         cancelButton = Self.pill(filled: false)
         #if os(iOS)
@@ -108,7 +120,17 @@ final class PlayerControlsView: UIView {
 
     /// Live TV: the timeline is the rewind window, so the left label is the time of day at the playhead and the right
     /// one says LIVE, or how far behind live the picture is.
-    var isLive = false
+    var isLive = false {
+        didSet {
+            #if os(tvOS)
+            downToMenus.isEnabled = isLive
+            #endif
+        }
+    }
+    #if os(tvOS)
+    /// Live TV: down from the circles goes to the buttons bottom-right, not the timeline.
+    private let downToMenus = UIFocusGuide()
+    #endif
 
     private static let timeOfDay: DateFormatter = {
         let formatter = DateFormatter()
@@ -244,6 +266,12 @@ final class PlayerControlsView: UIView {
         nextButton.addAction(UIAction { [weak self] _ in self?.onNext?() }, for: .primaryActionTriggered)
         promptButton.addAction(UIAction { [weak self] _ in self?.onPrompt?() }, for: .primaryActionTriggered)
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)
+        channelsButton.addAction(UIAction { [weak self] _ in self?.onChannels?() }, for: .primaryActionTriggered)
+        channelsButton.accessibilityLabel = "Channels"
+        channelsButton.isHidden = true
+        guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
+        guideButton.accessibilityLabel = "Guide"
+        guideButton.isHidden = true
         for button in [audioButton, subtitlesButton, speedButton] {
             button.showsMenuAsPrimaryAction = true
             button.isHidden = true
@@ -252,7 +280,9 @@ final class PlayerControlsView: UIView {
         #if os(tvOS)
         scrubber.onSwipeUp = { [weak self] in
             guard let self else { return }
-            focusNext = playButton
+            // Live: up to the buttons just above the timeline (the first of them); otherwise up to play.
+            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton].first { !$0.isHidden }
+            focusNext = isLive ? menu ?? playButton : playButton
             setNeedsFocusUpdate()
             updateFocusIfNeeded()
         }
@@ -288,7 +318,7 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 36
-        let menus = UIStackView(arrangedSubviews: [audioButton, subtitlesButton, speedButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 8
@@ -330,6 +360,17 @@ final class PlayerControlsView: UIView {
             upFromMenus.bottomAnchor.constraint(equalTo: prompts.topAnchor),
             upFromMenus.heightAnchor.constraint(equalToConstant: 160),
         ])
+        // Down from the circles, when live: the menus are far to the right, outside the downward search, which
+        // would land on the timeline. A strip under the circles points the way (hidden buttons are passed over).
+        addLayoutGuide(downToMenus)
+        downToMenus.preferredFocusEnvironments = menus.arrangedSubviews
+        downToMenus.isEnabled = isLive
+        NSLayoutConstraint.activate([
+            downToMenus.leadingAnchor.constraint(equalTo: transport.leadingAnchor),
+            downToMenus.trailingAnchor.constraint(equalTo: transport.trailingAnchor),
+            downToMenus.topAnchor.constraint(equalTo: transport.bottomAnchor, constant: 30),
+            downToMenus.heightAnchor.constraint(equalToConstant: 40),
+        ])
         #else
         // Top: close, the title, AirPlay and Picture in Picture. Middle: the transport in glass circles. Bottom: the
         // pill (right), the menus in a glass capsule (right), then elapsed, the timeline and remaining on one line.
@@ -357,7 +398,7 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 18
-        let menus = UIStackView(arrangedSubviews: [audioButton, subtitlesButton, speedButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 0

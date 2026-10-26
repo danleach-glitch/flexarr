@@ -432,6 +432,12 @@ final class PlayerViewController: UIViewController {
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        // The guide or the channel list is open over the picture: the remote is theirs, not the player's (up and
+        // down there would otherwise change channel behind them).
+        if presentedViewController != nil {
+            super.pressesBegan(presses, with: event)
+            return
+        }
         for press in presses {
             switch press.type {
             case .playPause:
@@ -500,6 +506,12 @@ final class PlayerViewController: UIViewController {
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        // The guide or the channel list is open over the picture: the remote is theirs, not the player's (up and
+        // down there would otherwise change channel behind them).
+        if presentedViewController != nil {
+            super.pressesEnded(presses, with: event)
+            return
+        }
         for press in presses where press.type == .leftArrow || press.type == .rightArrow {
             // Let go before it became a hold: a click, which skips.
             if let holdTask {
@@ -514,6 +526,12 @@ final class PlayerViewController: UIViewController {
     }
 
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        // The guide or the channel list is open over the picture: the remote is theirs, not the player's (up and
+        // down there would otherwise change channel behind them).
+        if presentedViewController != nil {
+            super.pressesCancelled(presses, with: event)
+            return
+        }
         holdTask?.cancel()
         holdTask = nil
         super.pressesCancelled(presses, with: event)

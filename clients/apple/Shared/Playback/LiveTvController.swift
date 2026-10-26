@@ -1,5 +1,6 @@
 import FlexarrKit
 import os
+import SwiftUI
 import UIKit
 
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "livetv")
@@ -18,10 +19,17 @@ final class LiveTvController: NSObject {
     @ObservationIgnored var onWillStart: (() -> Void)?
     /// Called once watching ends (so paused music can be offered again).
     @ObservationIgnored var onEnded: (() -> Void)?
+    /// Makes the guide shown over the picture, given the client, the channels in order, the one being watched, what
+    /// to do when a channel is chosen and when it's closed. Set by the Apple TV app; nil elsewhere (no Guide button).
+    @ObservationIgnored var makeGuide: ((FlexarrClient, [LiveChannel], String?, @escaping (LiveChannel) -> Void, @escaping () -> Void) -> UIViewController)?
 
     @ObservationIgnored private var client: FlexarrClient?
     @ObservationIgnored private var channels: [LiveChannel] = []
     @ObservationIgnored private var watching: LiveWatch?
+    /// The channel on now (kept once the player closes), and the one before it: Last watched in the channel list,
+    /// to flip between two.
+    @ObservationIgnored private var lastChannel: LiveChannel?
+    @ObservationIgnored private var previousChannel: LiveChannel?
     @ObservationIgnored private var screen: PlayerViewController?
     @ObservationIgnored private var transport: LiveTransport?
     @ObservationIgnored private var heartbeat: Task<Void, Never>?
@@ -80,6 +88,8 @@ final class LiveTvController: NSObject {
         guard let client, let url = client.url(for: started.playlist) else { throw FlexarrClientError.invalidResponse }
         log.info("Watching \(started.channel.name, privacy: .public) (\(started.method, privacy: .public))")
         watching = started
+        if let lastChannel, lastChannel.id != started.channel.id { previousChannel = lastChannel }
+        lastChannel = started.channel
         promptShown = false
         let screen: PlayerViewController
         if let current = self.screen {
@@ -89,6 +99,10 @@ final class LiveTvController: NSObject {
             screen.delegate = self
             screen.zapsChannels = true
             screen.controls.isLive = true
+            screen.controls.onChannels = { [weak self] in self?.showChannels() }
+            if makeGuide != nil {
+                screen.controls.onGuide = { [weak self] in self?.showGuide() }
+            }
             self.screen = screen
             guard let presenter = Self.topViewController() else { throw FlexarrClientError.invalidResponse }
             presenter.present(screen, animated: true)
@@ -126,6 +140,42 @@ final class LiveTvController: NSObject {
                 }
             }
         }
+    }
+
+    /// The channel list over the picture: a panel down the right on Apple TV, a sheet on iPhone and iPad.
+    private func showChannels() {
+        guard let client, let screen, screen.presentedViewController == nil else { return }
+        let current = watching?.channel.id ?? startingChannel
+        var host: UIViewController?
+        let previous = previousChannel?.id == current ? nil : previousChannel
+        let picker = LiveChannelPicker(client: client, currentId: current, channels: channels, previous: previous, onPick: { [weak self] channel in
+            host?.dismiss(animated: true)
+            if channel.id != current { self?.start(channel) }
+        }, onClose: { host?.dismiss(animated: true) })
+        let controller = UIHostingController(rootView: picker)
+        #if os(tvOS)
+        controller.modalPresentationStyle = .overFullScreen
+        controller.view.backgroundColor = .clear
+        #else
+        controller.modalPresentationStyle = .pageSheet
+        controller.sheetPresentationController?.detents = [.medium(), .large()]
+        controller.sheetPresentationController?.prefersGrabberVisible = true
+        #endif
+        host = controller
+        screen.present(controller, animated: true)
+    }
+
+    /// The guide over the picture (Apple TV): the channel carries on behind it.
+    private func showGuide() {
+        guard let client, let screen, screen.presentedViewController == nil, let makeGuide else { return }
+        let current = watching?.channel.id ?? startingChannel
+        weak var host: UIViewController?
+        let controller = makeGuide(client, channels, current, { [weak self] channel in
+            host?.dismiss(animated: true)
+            if channel.id != current { self?.start(channel) }
+        }, { host?.dismiss(animated: true) })
+        host = controller
+        screen.present(controller, animated: true)
     }
 
     /// The next channel up or down, in the order the screen listed them.

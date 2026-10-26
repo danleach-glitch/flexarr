@@ -194,6 +194,8 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
             }
         }
 
+        fresh = LiveSchedule.Tidy(fresh);
+
         // Swapped in one go, so the guide is never half there.
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.LiveProgrammes.ExecuteDeleteAsync(ct);

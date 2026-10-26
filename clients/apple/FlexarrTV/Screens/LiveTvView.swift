@@ -1,16 +1,16 @@
 import FlexarrKit
 import SwiftUI
 
-/// Live TV: categories down the left (Favourites, All, the source's groups) and a dense list of channels on the
-/// right, one row each with what's on, how far through, and what's next, so hundreds of channels stay quick to move
-/// through with the remote. Moving onto a category shows it; selecting a channel plays it; holding one adds or removes
-/// a favourite. Favourites is where it opens when there are any.
+/// Live TV: categories down the left (Favourites, All, the source's groups) and the guide on the right, three hours
+/// across for the channels in the category. Moving onto a category shows it; choosing what's on now plays it; holding
+/// a programme adds its channel to Favourites or takes it off. Favourites is where it opens when there are any.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
     @State private var channels: [LiveChannel]?
     @State private var error: String?
     @State private var chosen: Category?
     @FocusState private var focusedCategory: Category?
+    @State private var guide: LiveGuide?
 
     enum Category: Hashable {
         case favourites
@@ -26,7 +26,13 @@ struct LiveTvView: View {
                 } else {
                     HStack(alignment: .top, spacing: 50) {
                         sidebar
-                        list
+                        if category == .favourites, favourites.isEmpty {
+                            noFavourites
+                        } else {
+                            LiveGuideGrid(client: model.client, channels: self.channels(in: category), guide: guide,
+                                          onWatch: { model.watch($0, among: order) },
+                                          onFavourite: { setFavourite($0, !$0.isFavourite) })
+                        }
                     }
                     .padding(.leading, Layout.edge)
                     .padding(.top, 30)
@@ -43,6 +49,13 @@ struct LiveTvView: View {
             while !Task.isCancelled {
                 await load()
                 try? await Task.sleep(for: .seconds(60))
+            }
+        }
+        // The guide: a day's worth, fetched again every five minutes.
+        .task {
+            while !Task.isCancelled {
+                await loadGuide()
+                try? await Task.sleep(for: .seconds(300))
             }
         }
         .onChange(of: focusedCategory) { _, category in
@@ -117,46 +130,25 @@ struct LiveTvView: View {
 
     // MARK: Channels
 
-    private var list: some View {
-        ScrollView(.vertical) {
-            LazyVStack(spacing: 10) {
-                if category == .favourites, favourites.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("No favourites yet", systemImage: "star")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(Color.screen)
-                        Text("In All channels, press and hold a channel and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.")
-                            .font(.system(size: 26))
-                            .foregroundStyle(Color.usher)
-                    }
-                    .frame(maxWidth: 900, alignment: .leading)
-                    .padding(.top, 20)
-                }
-                ForEach(channels(in: category)) { channel in
-                    Button {
-                        model.watch(channel, among: order)
-                    } label: {
-                        ChannelListRow(channel: channel, starting: model.liveTv.startingChannel == channel.id)
-                    }
-                    .buttonStyle(ChannelRowButtonStyle())
-                    .contextMenu {
-                        Button {
-                            setFavourite(channel, !channel.isFavourite)
-                        } label: {
-                            Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites", systemImage: channel.isFavourite ? "star.slash" : "star")
-                        }
-                    }
-                }
-            }
-            .padding(.trailing, Layout.edge)
-            .padding(.vertical, 20)
+    private var noFavourites: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("No favourites yet", systemImage: "star")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(Color.screen)
+            Text("In All channels, press and hold a programme and choose Add to Favourites. Favourites come first here, on Home, and when changing channel.")
+                .font(.system(size: 26))
+                .foregroundStyle(Color.usher)
         }
-        .scrollClipDisabled()
-        .focusSection()
-        .id(category)
+        .frame(maxWidth: 900, alignment: .leading)
+        .padding(.top, 60)
     }
 
     static let gold = Color(red: 0.95, green: 0.77, blue: 0.45)
+
+    private func loadGuide() async {
+        guard let client = model.client else { return }
+        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) { guide = loaded }
+    }
 
     private func load() async {
         guard let client = model.client else { return }
@@ -177,107 +169,6 @@ struct LiveTvView: View {
             } catch {
                 channels = channels?.map { $0.id == channel.id ? $0.with(favourite: !favourite) : $0 }
             }
-        }
-    }
-}
-
-/// One channel in the list: number, logo, what's on with how far through, and what's next.
-private struct ChannelListRow: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.isFocused) private var isFocused
-    let channel: LiveChannel
-    let starting: Bool
-
-    var body: some View {
-        HStack(spacing: 24) {
-            Text(channel.numberText)
-                .font(.system(size: 26, weight: .bold).monospacedDigit())
-                .foregroundStyle(Color.usher)
-                .frame(width: 80, alignment: .trailing)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.room.opacity(0.7))
-                RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
-                    Text(channel.name.prefix(4))
-                        .font(.marquee(24, weight: .bold))
-                        .foregroundStyle(Color.usher)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                if starting {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.5))
-                    ProgressView()
-                }
-            }
-            .frame(width: 140, height: 78)
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Text(channel.now?.displayTitle ?? "No listings")
-                        .font(.system(size: 29, weight: .semibold))
-                        .foregroundStyle(Color.screen)
-                        .lineLimit(1)
-                    if channel.isFavourite {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(LiveTvView.gold)
-                    }
-                }
-                HStack(spacing: 16) {
-                    Text(channel.name)
-                    if let now = channel.now {
-                        ProgressBar(value: now.progress(), tint: .silver)
-                            .frame(width: 120)
-                        Text(LiveTvController.timeRange(now)).monospacedDigit()
-                    }
-                }
-                .font(.system(size: 22))
-                .foregroundStyle(Color.usher)
-                .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let next = channel.next {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Next · \(LiveTvController.startTime(next))")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.usher)
-                    Text(next.title)
-                        .font(.system(size: 23))
-                        .foregroundStyle(Color.screen.opacity(0.8))
-                        .lineLimit(1)
-                }
-                .frame(width: 320, alignment: .leading)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-    }
-}
-
-/// A channel row: a quiet panel that brightens and lifts a little when focused.
-private struct ChannelRowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        RowBody(configuration: configuration)
-    }
-
-    private struct RowBody: View {
-        let configuration: Configuration
-        @Environment(\.isFocused) private var isFocused
-
-        var body: some View {
-            configuration.label
-                .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(isFocused ? Color.screen.opacity(0.16) : Color.seat.opacity(0.55))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.screen.opacity(isFocused ? 0.5 : 0), lineWidth: 2)
-                }
-                .scaleEffect(configuration.isPressed ? 0.99 : (isFocused ? 1.02 : 1))
-                .shadow(color: .black.opacity(isFocused ? 0.4 : 0), radius: 20, y: 10)
-                .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)
         }
     }
 }

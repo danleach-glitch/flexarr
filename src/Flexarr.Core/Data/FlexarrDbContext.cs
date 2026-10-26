@@ -32,6 +32,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<LiveChannel> LiveChannels => Set<LiveChannel>();
     public DbSet<LiveProgramme> LiveProgrammes => Set<LiveProgramme>();
     public DbSet<LiveFavourite> LiveFavourites => Set<LiveFavourite>();
+    public DbSet<LiveLastChannel> LiveLastChannels => Set<LiveLastChannel>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -231,6 +232,16 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(f => f.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<LiveChannel>().WithMany().HasForeignKey(f => f.ChannelId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(f => f.ChannelId);
+        });
+
+        modelBuilder.Entity<LiveLastChannel>(e =>
+        {
+            e.HasKey(l => l.ProfileId);
+            e.Property(l => l.ProfileId).HasMaxLength(64);
+            e.HasOne<Profile>().WithMany().HasForeignKey(l => l.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<LiveChannel>().WithMany().HasForeignKey(l => l.ChannelId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(l => l.ChannelId);
+            e.Property(l => l.WatchedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

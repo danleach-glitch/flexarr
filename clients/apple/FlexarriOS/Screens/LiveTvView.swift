@@ -1,14 +1,17 @@
 import FlexarrKit
 import SwiftUI
 
-/// Live TV on iPhone and iPad: the channels with what's on now (and how far through) and what's next. Favourites
-/// first, and shown on their own when there are any; tap to watch, swipe or hold to add or remove a favourite.
+/// Live TV on iPhone and iPad: the channels with what's on now (and how far through) and what's next, or the guide
+/// (six hours across). Favourites first, and shown on their own when there are any; tap to watch, swipe or hold to add
+/// or remove a favourite.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
     @State private var channels: [LiveChannel]?
     @State private var error: String?
     /// Unchosen, the view is Favourites when there are some, otherwise All.
     @State private var chosen: Filter?
+    /// The list or the guide, remembered on this device.
+    @AppStorage("FlexarrLiveTvGuide") private var showsGuide = false
 
     enum Filter: Hashable {
         case favourites
@@ -21,6 +24,11 @@ struct LiveTvView: View {
             if let channels {
                 if channels.isEmpty {
                     StatusView(state: .empty("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr's user."))
+                } else if showsGuide {
+                    VStack(spacing: 0) {
+                        chips.padding(.vertical, 6)
+                        LiveGuideView(channels: shown, order: order, onFavourite: { setFavourite($0, !$0.isFavourite) })
+                    }
                 } else {
                     list
                 }
@@ -32,6 +40,15 @@ struct LiveTvView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle("Live TV")
+        // The guide wants the height: the title small at the top.
+        .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
+        .toolbar {
+            if channels?.isEmpty == false {
+                Button { showsGuide.toggle() } label: {
+                    Label(showsGuide ? "List" : "Guide", systemImage: showsGuide ? "list.bullet" : "calendar")
+                }
+            }
+        }
         // What's on moves on: fetched again each minute while the screen is up.
         .task {
             while !Task.isCancelled {
@@ -69,16 +86,7 @@ struct LiveTvView: View {
 
     private var list: some View {
         List {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    chip("Favourites", systemImage: "star.fill", .favourites)
-                    chip("All", systemImage: nil, .all)
-                    if groups.count > 1 {
-                        ForEach(groups, id: \.self) { chip($0, systemImage: nil, .group($0)) }
-                    }
-                }
-                .padding(.horizontal, Layout.edge)
-            }
+            chips
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -118,6 +126,19 @@ struct LiveTvView: View {
     }
 
     static let gold = Color(red: 0.95, green: 0.77, blue: 0.45)
+
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip("Favourites", systemImage: "star.fill", .favourites)
+                chip("All", systemImage: nil, .all)
+                if groups.count > 1 {
+                    ForEach(groups, id: \.self) { chip($0, systemImage: nil, .group($0)) }
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+        }
+    }
 
     private func chip(_ title: String, systemImage: String?, _ value: Filter) -> some View {
         let selected = filter == value

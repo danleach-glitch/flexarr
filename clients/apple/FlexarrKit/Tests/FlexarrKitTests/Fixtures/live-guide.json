@@ -1,0 +1,120 @@
+{
+ "from": "2026-10-26T06:13:51.761856Z",
+ "until": "2026-10-26T08:13:51.761856Z",
+ "channels": [
+  {
+   "id": "01a17633-26dc-7bc2-b4f9-1f8dd37605ed",
+   "number": 101,
+   "name": "BBC One",
+   "group": "UK",
+   "logoUrl": "/api/v1/livetv/channels/01a17633-26dc-7bc2-b4f9-1f8dd37605ed/logo?v=2168de748f",
+   "isFavourite": true,
+   "programmes": [
+    {
+     "id": 14742,
+     "start": "2026-10-26T05:00:00Z",
+     "end": "2026-10-26T08:30:00Z",
+     "title": "Breakfast",
+     "subtitle": null,
+     "description": "The BBC's Breakfast programme features the latest news, sport, business, weather and other items on a daily basis.",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    },
+    {
+     "id": 14746,
+     "start": "2026-10-26T06:00:00Z",
+     "end": "2026-10-26T09:30:00Z",
+     "title": "Breakfast",
+     "subtitle": null,
+     "description": "The BBC's Breakfast programme features the latest news, sport, business, weather and other items on a daily basis.",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    }
+   ]
+  },
+  {
+   "id": "01a17633-26e2-7be9-abac-c0bff9382e56",
+   "number": 102,
+   "name": "BBC Two",
+   "group": "UK",
+   "logoUrl": "/api/v1/livetv/channels/01a17633-26e2-7be9-abac-c0bff9382e56/logo?v=ba16153bef",
+   "isFavourite": true,
+   "programmes": [
+    {
+     "id": 12568,
+     "start": "2026-10-26T06:10:00Z",
+     "end": "2026-10-26T06:55:00Z",
+     "title": "Bargain Hunt",
+     "subtitle": null,
+     "description": "Two parent-and-daughter duos dash with their cash around a bustling antiques fair in Kent, searching for collectibles to sell at auction.",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    },
+    {
+     "id": 12569,
+     "start": "2026-10-26T06:55:00Z",
+     "end": "2026-10-26T07:45:00Z",
+     "title": "The Great House Revival",
+     "subtitle": null,
+     "description": "Hugh meets designers Robin and Eoin on their journey to convert a Victorian schoolhouse into a chic family home.",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    },
+    {
+     "id": 12570,
+     "start": "2026-10-26T07:45:00Z",
+     "end": "2026-10-26T09:00:00Z",
+     "title": "Match of the Day",
+     "subtitle": null,
+     "description": "A busy Premier League Sunday, with five matches, including Liverpool against a Brighton side who've started the season strongly, and Manchester United at home to struggling Bournemouth.",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    }
+   ]
+  },
+  {
+   "id": "01a17633-26e2-7464-a4ab-322b6948e351",
+   "number": 103,
+   "name": "BBC Three",
+   "group": "UK",
+   "logoUrl": "/api/v1/livetv/channels/01a17633-26e2-7464-a4ab-322b6948e351/logo?v=1ede5cddaa",
+   "isFavourite": true,
+   "programmes": [
+    {
+     "id": 15307,
+     "start": "2026-10-26T04:00:00Z",
+     "end": "2026-10-26T08:00:00Z",
+     "title": "BBC Three",
+     "subtitle": null,
+     "description": "Early Bird Special - Coffee not included",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    },
+    {
+     "id": 15308,
+     "start": "2026-10-26T08:00:00Z",
+     "end": "2026-10-26T12:00:00Z",
+     "title": "BBC Three",
+     "subtitle": null,
+     "description": "Productivity Killer - BBC Three's daytime programming",
+     "category": null,
+     "season": null,
+     "episode": null,
+     "isNew": false
+    }
+   ]
+  }
+ ]
+}

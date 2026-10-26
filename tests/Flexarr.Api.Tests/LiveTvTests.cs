@@ -263,6 +263,32 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task Homes_live_tv_row_starts_with_the_channel_watched_last()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var channels = await ChannelsAsync(client);
+        string IdOf(string name) => channels.Single(c => c.GetProperty("name").GetString() == name).GetProperty("id").GetString()!;
+        (await client.PutAsync(Api($"livetv/channels/{IdOf("BBC One")}/favourite"), null)).EnsureSuccessStatusCode();
+        (await client.PutAsync(Api($"livetv/channels/{IdOf("BBC Two")}/favourite"), null)).EnsureSuccessStatusCode();
+
+        // Watching records the channel (a real stream isn't to be had here, so as the watch endpoint would).
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+            var profile = db.Profiles.Select(p => p.Id).First();
+            db.LiveLastChannels.Add(new Flexarr.Core.LiveTv.LiveLastChannel { ProfileId = profile, ChannelId = Guid.Parse(IdOf("Sky News")), WatchedAt = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var home = await client.GetFromJsonAsync<JsonElement>(Api("home"));
+        var row = home.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "live-tv").GetProperty("channels").EnumerateArray().ToList();
+        Assert.Equal(["Sky News", "BBC One", "BBC Two"], row.Select(c => c.GetProperty("name").GetString()));
+        Assert.False(row[0].GetProperty("isFavourite").GetBoolean());
+        Assert.True(row[1].GetProperty("isFavourite").GetBoolean());
+    }
+
+    [Fact]
     public async Task Home_has_a_live_tv_row_of_the_profiles_favourites()
     {
         var client = Client();
