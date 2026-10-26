@@ -470,7 +470,14 @@ final class AppModel {
             let start = query.first(where: { $0.name == "t" })?.value.flatMap(Double.init)
             let subtitles = query.first(where: { $0.name == "s" })?.value
             let shuffle = query.first(where: { $0.name == "shuffle" })?.value == "1" // a show's episodes in a random order
-            player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
+            // A podcast episode (Siri's "Play The Rest Is History") goes to the podcast player.
+            Task {
+                if let episode = try? await client.podcastEpisode(id) {
+                    playEpisode(episode.summary)
+                } else {
+                    player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
+                }
+            }
         default: break
         }
     }

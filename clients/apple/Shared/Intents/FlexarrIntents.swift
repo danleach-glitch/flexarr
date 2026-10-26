@@ -4,15 +4,18 @@ import Foundation
 
 // Siri and Shortcuts. "Play the next episode of Curb Your Enthusiasm in Flexarr" finds the show, works out the episode
 // this profile is up to and plays it: here, or on the Apple TV chosen in Settings (iPhone and iPad), or on a device
-// named in the request. The app model is handed to App Intents at launch (`AppDependencyManager`), so intents share
+// named in the request. Podcasts the profile follows are titles too ("Play The Rest Is History in Flexarr" plays the
+// episode to hear next), with intents of their own for the newest episode, what's new, and Up Next. The app model is handed to App Intents at launch (`AppDependencyManager`), so intents share
 // the sign-in and the player with the rest of the app.
 
 // MARK: - Entities
 
-/// A film or show in the library, as Siri and Shortcuts see it.
+/// A film, show or followed podcast in the library, as Siri and Shortcuts see it. A podcast's id is marked
+/// (`podcast:…`), so it's looked up as one: its page would carry every episode.
 struct TitleEntity: AppEntity {
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Film or show")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Film, show or podcast")
     static let defaultQuery = TitleQuery()
+    static let podcastPrefix = "podcast:"
 
     let id: String
     let title: String
@@ -26,8 +29,18 @@ struct TitleEntity: AppEntity {
         kind = item.kind
     }
 
+    init(_ podcast: Podcast) {
+        id = Self.podcastPrefix + podcast.id
+        title = podcast.title
+        year = nil
+        kind = .podcast
+    }
+
+    /// The podcast's own id, for one.
+    var podcastId: String? { id.hasPrefix(Self.podcastPrefix) ? String(id.dropFirst(Self.podcastPrefix.count)) : nil }
+
     var displayRepresentation: DisplayRepresentation {
-        let what = kind == .series ? "Show" : kind == .movie ? "Film" : nil
+        let what = kind == .series ? "Show" : kind == .movie ? "Film" : kind == .podcast ? "Podcast" : nil
         let subtitle = [year.map(String.init), what].compactMap { $0 }.joined(separator: " · ")
         return DisplayRepresentation(title: "\(title)", subtitle: subtitle.isEmpty ? nil : "\(subtitle)")
     }
@@ -42,7 +55,11 @@ struct TitleQuery: EntityStringQuery {
         guard let client = model.client else { return [] }
         var found: [TitleEntity] = []
         for id in identifiers {
-            if let detail = try? await client.item(id) { found.append(TitleEntity(detail.item)) }
+            if id.hasPrefix(TitleEntity.podcastPrefix) {
+                if let podcast = try? await client.podcast(String(id.dropFirst(TitleEntity.podcastPrefix.count))) { found.append(TitleEntity(podcast)) }
+            } else if let detail = try? await client.item(id) {
+                found.append(TitleEntity(detail.item))
+            }
         }
         return found
     }
@@ -50,7 +67,8 @@ struct TitleQuery: EntityStringQuery {
     @MainActor
     func entities(matching string: String) async throws -> [TitleEntity] {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        return try await client.search(string).titles.map(TitleEntity.init)
+        let titles = try await client.search(string).titles.map(TitleEntity.init)
+        return titles + Podcasts.matching(string, in: (try? await client.podcasts()) ?? []).map(TitleEntity.init)
     }
 
     /// The library's films and shows, so Siri recognises their names in a phrase. Shows first, since "play the
@@ -65,7 +83,78 @@ struct TitleQuery: EntityStringQuery {
             if titles.count >= 600 { break }
         }
         var seen: Set<String> = []
-        return titles.filter { seen.insert($0.id).inserted }.prefix(600).map(TitleEntity.init)
+        let library = titles.filter { seen.insert($0.id).inserted }.prefix(600).map(TitleEntity.init)
+        return ((try? await client.podcasts()) ?? []).map(TitleEntity.init) + library
+    }
+}
+
+/// A podcast this profile follows.
+struct PodcastEntity: AppEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Podcast")
+    static let defaultQuery = PodcastQuery()
+
+    let id: String
+    let title: String
+
+    init(_ podcast: Podcast) {
+        id = podcast.id
+        title = podcast.title
+    }
+
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
+}
+
+struct PodcastQuery: EntityStringQuery {
+    @Dependency private var model: AppModel
+
+    @MainActor
+    func entities(for identifiers: [String]) async throws -> [PodcastEntity] {
+        guard let client = model.client else { return [] }
+        var found: [PodcastEntity] = []
+        for id in identifiers {
+            if let podcast = try? await client.podcast(id) { found.append(PodcastEntity(podcast)) }
+        }
+        return found
+    }
+
+    @MainActor
+    func entities(matching string: String) async throws -> [PodcastEntity] {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        return Podcasts.matching(string, in: try await client.podcasts()).map(PodcastEntity.init)
+    }
+
+    @MainActor
+    func suggestedEntities() async throws -> [PodcastEntity] {
+        guard let client = model.client else { return [] }
+        return ((try? await client.podcasts()) ?? []).map(PodcastEntity.init)
+    }
+}
+
+/// What podcast intents share: finding a followed show by what was said, and which of its episodes to play.
+@MainActor
+enum Podcasts {
+    /// Followed shows whose names have the words said in them, closest first ("rest is history", "history").
+    static func matching(_ said: String, in podcasts: [Podcast]) -> [Podcast] {
+        let words = said.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        guard !words.isEmpty else { return [] }
+        return podcasts.filter { podcast in
+            let name = podcast.title.lowercased()
+            return words.allSatisfy { name.contains($0) }
+        }
+        .sorted { $0.title.count < $1.title.count }
+    }
+
+    /// The episode to hear next: one part-heard, else the first unplayed in the show's order (oldest first, if it's
+    /// listened to that way).
+    static func nextToHear(_ podcastId: String, client: FlexarrClient) async throws -> PodcastEpisode? {
+        if let started = try await client.continueListening(take: 50).first(where: { $0.podcastId == podcastId }) { return started }
+        let oldest = try await client.podcast(podcastId).subscription?.oldestFirst == true
+        return try await client.podcastEpisodes(podcastId, sort: oldest ? .oldest : .newest, unplayed: true, take: 1).items.first
+    }
+
+    /// The newest episode not heard yet.
+    static func latest(_ podcastId: String, client: FlexarrClient) async throws -> PodcastEpisode? {
+        try await client.podcastEpisodes(podcastId, sort: .newest, unplayed: true, take: 1).items.first
     }
 }
 
@@ -193,8 +282,9 @@ enum Play {
             : "Flexarr isn't open on \(result.deviceName). \(what) will play when you open it in the next two minutes.")
     }
 
-    /// "The Traitors Uncloaked, season 3 episode 4" or "Heat".
+    /// "The Traitors Uncloaked, season 3 episode 4", "717. The Suez Crisis, from The Rest Is History" or "Heat".
     static func describe(_ item: ItemSummary) -> String {
+        if item.kind == .podcastEpisode, let show = item.seriesTitle { return "\(item.title), from \(show)" }
         guard item.kind == .episode else { return item.title }
         let show = item.seriesTitle ?? item.title
         if let season = item.seasonNumber, let episode = item.episodeNumber { return "\(show), season \(season) episode \(episode)" }
@@ -229,8 +319,99 @@ struct PlayTitleIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        if let podcastId = title.podcastId {
+            guard let episode = try await Podcasts.nextToHear(podcastId, client: client) else { throw FlexarrIntentError.nothingToPlay(title.title) }
+            return try await Play.start(episode.summary, on: Play.target(device), model: model)
+        }
         let item = try await client.item(title.id).item
         return try await Play.start(item, on: Play.target(device), fromBeginning: fromBeginning, model: model)
+    }
+}
+
+/// "Play the latest The Rest Is History in Flexarr": the newest episode not heard yet.
+struct PlayLatestEpisodeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Play a podcast's latest episode"
+    static let description = IntentDescription("Plays the newest episode you haven't heard of a podcast you follow.", categoryName: "Podcasts")
+
+    @Parameter(title: "Podcast", requestValueDialog: "Which podcast?")
+    var podcast: PodcastEntity
+
+    @Parameter(title: "On")
+    var device: DeviceEntity?
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Play the latest \(\.$podcast) on \(\.$device)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        guard let episode = try await Podcasts.latest(podcast.id, client: client) else { throw FlexarrIntentError.nothingToPlay(podcast.title) }
+        return try await Play.start(episode.summary, on: Play.target(device), model: model)
+    }
+}
+
+/// "What's new in my podcasts in Flexarr": the newest episodes not heard yet, read out.
+struct NewPodcastEpisodesIntent: AppIntent {
+    static let title: LocalizedStringResource = "What's new in my podcasts"
+    static let description = IntentDescription("Says the newest episodes you haven't heard of the podcasts you follow.", categoryName: "Podcasts")
+
+    @Dependency private var model: AppModel
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        let fresh = try await client.newPodcastEpisodes(unplayed: true, take: 5)
+        guard !fresh.isEmpty else { return .result(dialog: "Nothing new. You're up to date.") }
+        let said = fresh.map { "\($0.title), from \($0.podcastTitle)" }.joined(separator: ". ")
+        return .result(dialog: "\(fresh.count == 1 ? "One new episode" : "\(fresh.count) new episodes"): \(said).")
+    }
+}
+
+/// "Add The Rest Is History to Up Next in Flexarr": its episode to hear next goes at the end of Up Next.
+struct AddToUpNextIntent: AppIntent {
+    static let title: LocalizedStringResource = "Add a podcast to Up Next"
+    static let description = IntentDescription("Puts the next episode of a podcast you follow at the end of Up Next.", categoryName: "Podcasts")
+
+    @Parameter(title: "Podcast", requestValueDialog: "Which podcast?")
+    var podcast: PodcastEntity
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add \(\.$podcast) to Up Next")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        guard let episode = try await Podcasts.nextToHear(podcast.id, client: client) else { throw FlexarrIntentError.nothingToPlay(podcast.title) }
+        await model.addToUpNext(episode.id, next: false)
+        return .result(dialog: "Added \(episode.title) to Up Next.")
+    }
+}
+
+/// "Play my Up Next in Flexarr": the first episode in Up Next (the rest follow by themselves).
+struct PlayUpNextIntent: AppIntent {
+    static let title: LocalizedStringResource = "Play Up Next"
+    static let description = IntentDescription("Plays the podcast episodes in your Up Next, from the first.", categoryName: "Podcasts")
+
+    @Parameter(title: "On")
+    var device: DeviceEntity?
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Play Up Next on \(\.$device)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        guard let first = try await client.upNext().first else { throw FlexarrIntentError.nothingToPlay("Up Next") }
+        return try await Play.start(first.summary, on: Play.target(device), model: model)
     }
 }
 
@@ -425,6 +606,44 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Continue watching",
             systemImageName: "play.circle"
+        )
+        AppShortcut(
+            intent: PlayLatestEpisodeIntent(),
+            phrases: [
+                "Play the latest \(\.$podcast) in \(.applicationName)",
+                "Play the latest episode of \(\.$podcast) in \(.applicationName)",
+                "Play the newest \(\.$podcast) in \(.applicationName)",
+            ],
+            shortTitle: "Play the latest episode",
+            systemImageName: "dot.radiowaves.left.and.right"
+        )
+        AppShortcut(
+            intent: NewPodcastEpisodesIntent(),
+            phrases: [
+                "What's new in my podcasts in \(.applicationName)",
+                "What's new in my \(.applicationName) podcasts",
+                "Any new podcasts in \(.applicationName)",
+            ],
+            shortTitle: "What's new in podcasts",
+            systemImageName: "sparkles"
+        )
+        AppShortcut(
+            intent: AddToUpNextIntent(),
+            phrases: [
+                "Add \(\.$podcast) to Up Next in \(.applicationName)",
+                "Add \(\.$podcast) to my Up Next in \(.applicationName)",
+            ],
+            shortTitle: "Add to Up Next",
+            systemImageName: "text.line.last.and.arrowtriangle.forward"
+        )
+        AppShortcut(
+            intent: PlayUpNextIntent(),
+            phrases: [
+                "Play my Up Next in \(.applicationName)",
+                "Play Up Next in \(.applicationName)",
+            ],
+            shortTitle: "Play Up Next",
+            systemImageName: "list.bullet"
         )
         AppShortcut(
             intent: ControlPlaybackIntent(),
