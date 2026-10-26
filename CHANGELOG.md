@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Changed
+- iPhone and iPad: Settings is a short list of pages (Playback, Downloads, Podcasts, Siri and Server), each showing how it's set now, such as the space downloads use or where Siri plays. Inside, each page says which settings are your profile's on every device and which are this device's own.
+
 ## 0.27.0 · 26 October 2026
 
 ### Podcasts

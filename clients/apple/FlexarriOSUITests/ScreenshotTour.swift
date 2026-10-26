@@ -77,6 +77,15 @@ final class ScreenshotTour: XCTestCase {
         tab("Settings")
         pause(3)
         shot("09-settings")
+        for (page, name) in [("Playback", "playback"), ("Downloads", "downloads"), ("Podcasts", "podcasts"), ("Siri", "siri"), ("Server", "server")] {
+            let row = app.collectionViews.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", page)).firstMatch
+            guard row.exists else { continue }
+            row.tap()
+            pause(2)
+            shot("09-settings-\(name)")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            pause(1)
+        }
         // Search last: on iOS 26 it turns the tab bar into its search field.
         tab("Search")
         pause(2)

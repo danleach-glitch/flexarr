@@ -123,9 +123,10 @@ final class PodcastTour: XCTestCase {
         // The Podcasts settings, on the server for the profile.
         app.tabBars.buttons["Settings"].firstMatch.tap()
         pause(2)
-        app.swipeUp()
+        app.collectionViews.buttons["Podcasts"].firstMatch.tap()
         pause(1)
         shot("47-settings-podcasts")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
 
         // Back on Podcasts, Up Next has the episode added from the menu.
         app.tabBars.buttons["Libraries"].firstMatch.tap()
@@ -144,8 +145,9 @@ final class PodcastTour: XCTestCase {
         guard try await client.podcastStatus()?.available == true else { throw XCTSkip("no Podcasts library") }
         app.tabBars.buttons["Settings"].firstMatch.tap()
         pause(2)
+        app.collectionViews.buttons["Podcasts"].firstMatch.tap()
+        pause(1)
         let toggle = app.switches["Notify me of new episodes"].firstMatch
-        for _ in 0..<4 where !toggle.isHittable { app.swipeUp(); pause(1) }
         XCTAssertTrue(toggle.exists, "Settings offers new-episode notifications")
         if (toggle.value as? String) != "1" { toggle.switches.firstMatch.tap() }
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
