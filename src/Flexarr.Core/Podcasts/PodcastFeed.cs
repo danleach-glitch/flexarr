@@ -104,4 +104,10 @@ public sealed class PodcastSubscription
     public PodcastFeed? Feed { get; set; }
 
     public DateTime SubscribedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// The show is heard in order (a serial): its episodes list oldest first, and Play and phones' downloads take the
+    /// oldest unplayed ones rather than the newest.
+    /// </summary>
+    public bool OldestFirst { get; set; }
 }

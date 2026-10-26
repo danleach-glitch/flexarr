@@ -338,6 +338,18 @@ public sealed class PodcastTests : IDisposable
         wanted = await GetAsync(client, "podcasts/auto-downloads");
         Assert.Equal(["Episode 2", "Episode 1"], wanted.EnumerateArray().Select(w => episodes.First(e => e.GetProperty("id").GetString() == w.GetProperty("episodeId").GetString()).GetProperty("title").GetString()));
 
+        // A show heard in order keeps the next ones to hear instead.
+        var serial = await (await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { oldestFirst = true })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(serial.GetProperty("subscription").GetProperty("oldestFirst").GetBoolean());
+        await client.PutAsJsonAsync(Api("podcasts/preferences"), new { keepEpisodes = 1 });
+        wanted = await GetAsync(client, "podcasts/auto-downloads");
+        Assert.Equal(episodes.First(e => e.GetProperty("title").GetString() == "Episode 1").GetProperty("id").GetString(),
+            Assert.Single(wanted.EnumerateArray()).GetProperty("episodeId").GetString());
+
+        // Following it again (an empty body) leaves the order as it was.
+        serial = await (await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(serial.GetProperty("subscription").GetProperty("oldestFirst").GetBoolean());
+
         await client.PutAsJsonAsync(Api("podcasts/preferences"), new { autoDownload = false });
         Assert.Empty((await GetAsync(client, "podcasts/auto-downloads")).EnumerateArray());
     }

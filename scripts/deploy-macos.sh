@@ -4,7 +4,8 @@
 #   scripts/deploy-macos.sh <ssh-host>      e.g. scripts/deploy-macos.sh mini
 #
 # Layout on the target (no admin rights needed):
-#   ~/.dotnet         ASP.NET Core runtime, brought up to its latest patch on every deploy
+#   ~/.dotnet         ASP.NET Core runtime, brought up to its latest patch on every deploy (the dotnet host itself is
+#                     kept: macOS's external-drive permission belongs to it)
 #   ~/.flexarr/app    binaries (replaced on every deploy)
 #   ~/.flexarr/data   config.json (API key, path mappings), database, caches — never touched by deploys
 #   ~/.flexarr/logs   flexarr.log
@@ -104,8 +105,12 @@ for dir in "$stage"/host/fxr/* "$stage"/shared/Microsoft.NETCore.App/* "$stage"/
   if [ -e "$dest" ]; then mv "$dest" "$stage/replaced-$(echo "$dest" | tr / _)"; fi
   mv "$dir" "$dest"
 done
-# rename(2) replaces these whole, so a running server keeps the copy it has open.
-for file in dotnet LICENSE.txt ThirdPartyNotices.txt; do
+# The dotnet host only goes in once. macOS grants the external-drive access Flexarr needs to that very binary: a
+# newer host (each runtime patch ships one) is a different app to it, and every folder Flexarr opens on the drive then
+# waits on a permission prompt nobody sees, stalling scans and downloads. An older host runs newer runtimes fine.
+if [ ! -e dotnet ] && [ -e "$stage/dotnet" ]; then mv "$stage/dotnet" dotnet; fi
+# rename(2) replaces these whole.
+for file in LICENSE.txt ThirdPartyNotices.txt; do
   if [ -e "$stage/$file" ]; then mv -f "$stage/$file" "$file"; fi
 done
 rm -rf "$stage"

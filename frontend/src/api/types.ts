@@ -498,6 +498,8 @@ export interface PodcastStatus {
 
 export interface PodcastSubscription {
   subscribedAt: string
+  /** Heard in order: listed oldest first, and phones keep the oldest unplayed episodes. */
+  oldestFirst: boolean
 }
 
 /** A profile's podcast settings, for every show it follows. */
