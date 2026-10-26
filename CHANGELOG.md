@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.38.1 · 27 October 2026
 
 ### Navigation (web, iPhone and iPad)
 - Live TV has a broadcast antenna for its icon, as on the Apple TV, so it's no longer mistaken for a TV Shows library.
