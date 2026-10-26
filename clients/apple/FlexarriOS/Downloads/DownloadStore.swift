@@ -136,6 +136,15 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     var downloadsNext: Bool = UserDefaults.standard.object(forKey: "downloads.next") as? Bool ?? true {
         didSet { UserDefaults.standard.set(downloadsNext, forKey: "downloads.next") }
     }
+    /// Downloads the phone fetches by itself wait for Wi-Fi (on unless turned off in Settings). Off, they use mobile
+    /// data too, though never in Low Data Mode.
+    var autoDownloadsOnWiFiOnly: Bool = UserDefaults.standard.object(forKey: "downloads.wifiOnly") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(autoDownloadsOnWiFiOnly, forKey: "downloads.wifiOnly")
+            if autoDownloadsOnWiFiOnly, !isOnWiFi { pauseWiFiOnlyTransfers() }
+            Task { await catchUp() }
+        }
+    }
     private(set) var isOnline = true
     private(set) var isOnWiFi = false
 
@@ -281,7 +290,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// Fetched by itself, or a podcast episode not known for certain to have been asked for by hand: these never come
     /// over mobile data, an expensive network (a hotspot) or Low Data Mode.
     func isWiFiOnly(_ download: LocalDownload) -> Bool {
-        download.automatic || (download.item.kind == .podcastEpisode && download.manual != true)
+        autoDownloadsOnWiFiOnly && (download.automatic || (download.item.kind == .podcastEpisode && download.manual != true))
     }
 
     /// Held back until there's Wi-Fi.
@@ -370,7 +379,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for download in downloads where download.item.kind == .podcastEpisode && download.automatic && !wantedIds.contains(download.item.id) {
             if download.unsent == nil, download.finishedAt != nil || download.position == 0 { delete(download.id) }
         }
-        guard isOnWiFi else { return }
+        guard isOnWiFi || (isOnline && !autoDownloadsOnWiFiOnly) else { return }
         for episode in wanted where entry(for: episode.episodeId) == nil && !declined.contains(episode.episodeId) {
             try? await download(itemId: episode.episodeId, quality: .original, automatic: true)
         }
@@ -532,6 +541,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 request.allowsCellularAccess = false
                 request.allowsExpensiveNetworkAccess = false
                 request.allowsConstrainedNetworkAccess = false
+            } else if local.automatic {
+                // Allowed on mobile data (Settings), but not in Low Data Mode.
+                request.allowsConstrainedNetworkAccess = false
             }
             let task = resumeData.removeValue(forKey: remote.id).map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
             task.taskDescription = remote.id
@@ -630,7 +642,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     /// Keeps one episode ahead: when one's downloaded or watched, fetch the next, on Wi-Fi, at the same size.
     private func fetchNext(after download: LocalDownload) {
-        guard downloadsNext, isOnWiFi, download.item.kind == .episode, let nextId = download.nextId, entry(for: nextId) == nil else { return }
+        guard downloadsNext, isOnWiFi || !autoDownloadsOnWiFiOnly, download.item.kind == .episode, let nextId = download.nextId, entry(for: nextId) == nil else { return }
         Task { try? await self.download(itemId: nextId, quality: download.quality, automatic: true) }
     }
 

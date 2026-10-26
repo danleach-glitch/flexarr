@@ -133,7 +133,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Podcasts")
                 } footer: {
-                    Text("Auto-download keeps the newest unplayed episodes of every show you follow on this \(ThisDevice.name), on Wi-Fi only, and deletes them once they’re played. These settings are your profile’s, on every device; the speed also changes when you pick one in the player. Notifications are this \(ThisDevice.name)’s own.")
+                    Text("Auto-download keeps the newest unplayed episodes of every show you follow on this \(ThisDevice.name) (on Wi-Fi only, unless that's off under Downloads), and deletes them once they’re played. These settings are your profile’s, on every device; the speed also changes when you pick one in the player. Notifications are this \(ThisDevice.name)’s own.")
                 }
             }
 
@@ -147,6 +147,9 @@ struct SettingsView: View {
                 Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
                     .tint(.silver)
                     .listRowBackground(Color.seat)
+                Toggle("Automatic downloads on Wi-Fi only", isOn: Binding(get: { downloads.autoDownloadsOnWiFiOnly }, set: { downloads.autoDownloadsOnWiFiOnly = $0 }))
+                    .tint(.silver)
+                    .listRowBackground(Color.seat)
                 LabeledContent("Space used", value: downloads.bytesUsed == 0 ? "None" : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file))
                     .listRowBackground(Color.seat)
                 if !downloads.all.isEmpty {
@@ -157,7 +160,7 @@ struct SettingsView: View {
             } header: {
                 Text("Downloads")
             } footer: {
-                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too, on Wi-Fi. Episodes are deleted a day after you finish them. Albums, playlists and podcasts always come as their files are.")
+                Text("Original keeps the full picture and sound but takes the most space. Once an episode is downloaded, the next one downloads too. Downloads this \(ThisDevice.name) makes by itself (the next episode, new podcast episodes) wait for Wi-Fi unless Wi-Fi only is off, and never use Low Data Mode; ones you start yourself use mobile data too. Episodes are deleted a day after you finish them. Albums, playlists and podcasts always come as their files are.")
             }
 
             Section {
