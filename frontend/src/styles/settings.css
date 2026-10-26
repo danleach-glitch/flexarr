@@ -676,30 +676,15 @@
   margin-top: 16px;
 }
 
-.profile-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-}
-
-.profile-row .library-row-actions {
-  align-self: center;
-}
-
-.profile-row p {
-  margin: 2px 0 0;
-  font-size: var(--step--1);
-}
-
 .swatches {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .swatch {
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   border: 2px solid transparent;
   border-radius: 50%;
   cursor: pointer;
@@ -765,50 +750,6 @@
   border-color: color-mix(in srgb, var(--silver) 40%, var(--aisle));
 }
 
-.profile-libraries {
-  margin: 20px 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.profile-pin {
-  margin: 18px 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.profile-pin .field-row label {
-  flex: 1 1 160px;
-}
-
-.profile-pin .field-row input {
-  max-width: none;
-}
-
-.profile-pin .field-help {
-  margin-top: 4px;
-}
-
-.profile-pin .checkbox {
-  margin-top: 8px;
-}
-
-.profile-libraries .checkbox {
-  margin-top: 8px;
-}
-
-.field.profile-picture {
-  flex-direction: row;
-  gap: 18px;
-  align-items: center;
-  margin-top: 16px;
-}
-
-.profile-picture .form-actions {
-  justify-content: flex-start;
-  margin-top: 8px;
-}
-
 /* A file input dressed as a button; the input itself stays focusable for keyboards. */
 .file-button {
   position: relative;
@@ -848,13 +789,9 @@
   border-top: 1px solid var(--aisle);
 }
 
-/* The row's name and its switch: clicking either turns it on or off. */
-.row-list-toggle {
+/* The row's name, which works its switch like a label. */
+.row-list-name {
   flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   min-width: 0;
   cursor: pointer;
 }
@@ -1660,4 +1597,188 @@
 
 .settings .meter > span:first-child {
   font-size: 0.94rem;
+}
+
+/* ---------- Home and Browse: rows dragged into order ---------- */
+
+.row-list li {
+  position: relative;
+  margin-inline: -20px;
+  padding-inline: 12px 20px;
+  gap: 10px;
+}
+
+.row-list li:hover {
+  background: color-mix(in srgb, var(--screen) 3%, transparent);
+}
+
+.row-list li.dragging {
+  opacity: 0.4;
+}
+
+/* Where the dragged row will land. */
+.row-list li.drop-above::before,
+.row-list li.drop-below::after {
+  content: '';
+  position: absolute;
+  inset-inline: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--silver);
+}
+
+.row-list li.drop-above::before {
+  top: -1px;
+}
+
+.row-list li.drop-below::after {
+  bottom: -1px;
+}
+
+.row-list-grip {
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--usher) 70%, transparent);
+  cursor: grab;
+}
+
+.row-list-grip svg {
+  width: 16px;
+  height: 16px;
+}
+
+.row-list li:hover .row-list-grip {
+  color: var(--screen);
+}
+
+/* The arrows are for the keyboard and touch screens; with a mouse, the grip does it, so they wait to be needed. */
+@media (hover: hover) {
+  .row-list-move {
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .row-list li:hover .row-list-move,
+  .row-list li:focus-within .row-list-move {
+    opacity: 1;
+  }
+}
+
+/* ---------- Profiles: one panel, a row each, the form opening in a row's place ---------- */
+
+.profile-list {
+  padding-block: 4px;
+}
+
+.profile-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.profile-list > * + * {
+  border-top: 1px solid var(--aisle);
+}
+
+.profile-row .library-row-actions {
+  align-self: center;
+}
+
+.profile-you {
+  margin-left: 8px;
+  font-size: 0.7rem;
+  vertical-align: 2px;
+}
+
+.profile-form {
+  display: grid;
+  padding: 20px 0 18px;
+}
+
+/* The picture, and beside it the name and colour: who the profile is, at a glance. */
+.profile-identity {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  padding-bottom: 18px;
+}
+
+.profile-picture {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: var(--step--1);
+}
+
+.profile-identity-fields {
+  flex: 1;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.profile-identity-fields .field + .field {
+  margin-top: 0;
+}
+
+/* PIN and libraries: a heading line each, under a divider, with their controls only when they're needed. */
+.profile-section {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--aisle);
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-pin .field-row {
+  margin: 0;
+}
+
+.profile-pin .field-row label {
+  flex: 1 1 160px;
+}
+
+.profile-library-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 240px));
+  gap: 4px 36px;
+}
+
+.profile-library {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.profile-form > .form-actions {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--aisle);
+}
+
+@media (max-width: 600px) {
+  .profile-identity {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-picture {
+    justify-items: start;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 14px;
+  }
 }

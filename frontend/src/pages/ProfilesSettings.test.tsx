@@ -50,7 +50,7 @@ describe('Profile form', () => {
     const form = await screen.findByRole('form', { name: 'Edit Kids' })
     expect(screen.queryByRole('form', { name: 'Edit Dan' })).not.toBeInTheDocument()
     expect(within(form).getByLabelText('Name')).toHaveValue('Kids')
-    expect(within(form).getByRole('checkbox', { name: 'Movies' })).not.toBeChecked()
+    expect(within(form).getByRole('switch', { name: 'Movies' })).not.toBeChecked()
     fireEvent.click(within(form).getByRole('button', { name: 'Save profile' }))
 
     await vi.waitFor(() => expect(sent).toBeDefined())
@@ -77,7 +77,10 @@ describe('Profile form', () => {
     expect(within(form).getByRole('radio', { name: 'Green' })).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Sam' } })
-    fireEvent.change(within(form).getByLabelText('PIN (optional)'), { target: { value: '2468' } })
+    // The PIN fields wait until one is being added.
+    expect(within(form).queryByLabelText('Confirm PIN')).not.toBeInTheDocument()
+    fireEvent.click(within(form).getByRole('button', { name: 'Add a PIN' }))
+    fireEvent.change(within(form).getByLabelText('PIN'), { target: { value: '2468' } })
     fireEvent.change(within(form).getByLabelText('Confirm PIN'), { target: { value: '2469' } })
     fireEvent.submit(form)
     expect(await within(form).findByRole('alert')).toHaveTextContent('The two PINs don’t match')

@@ -334,6 +334,31 @@ describe('Settings', () => {
     expect(screen.getByRole('link', { name: 'Manage the server' })).toBeInTheDocument()
   })
 
+  it('saves Home’s rows in the order they’re dragged into', async () => {
+    let saved: { home: { id: string }[] } | undefined
+    const row = (id: string) => ({ id, label: id, enabled: true })
+    mockApi({
+      '/libraries': [],
+      '/settings/layout': { home: [row('Continue'), row('Latest'), row('Genres')], movies: [], shows: [] },
+      'PUT /settings/layout': (init?: RequestInit) => {
+        saved = JSON.parse(String(init?.body))
+        return undefined
+      },
+    })
+
+    renderAt('/settings/layout')
+    const first = (await screen.findByText('Continue')).closest('li')!
+    const last = screen.getByText('Genres').closest('li')!
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' }
+    fireEvent.dragStart(first, { dataTransfer })
+    fireEvent.dragOver(last, { dataTransfer })
+    // Moving down, it lands under the row it's dropped on.
+    expect(last).toHaveClass('drop-below')
+    fireEvent.drop(last, { dataTransfer })
+
+    await vi.waitFor(() => expect(saved?.home.map((r) => r.id)).toEqual(['Latest', 'Genres', 'Continue']))
+  })
+
   it('sends old links to where their pages moved', async () => {
     mockApi({ '/libraries': [], '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null }, '/sign-ins': [] })
 
@@ -965,6 +990,7 @@ describe('Profiles', () => {
 
     renderAt('/settings/profiles')
     fireEvent.click(await screen.findByRole('button', { name: /Edit/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
     fireEvent.change(screen.getByPlaceholderText('4 to 8 digits'), { target: { value: '97531' } })
     fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '97531' } })
     fireEvent.change(screen.getByLabelText('Current PIN'), { target: { value: '1234' } })

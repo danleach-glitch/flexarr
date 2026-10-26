@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
 import { getLayout, saveLayout, type Layout, type RowChoice } from '../../api/client'
-import { ChevronDown, ChevronUp } from '../../components/icons'
+import { ChevronDown, ChevronUp, Grip } from '../../components/icons'
 import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
@@ -32,7 +32,7 @@ export function LayoutSection() {
 
   return (
     <section>
-      <SettingsHeader title="Home and Browse">Which rows Home and each library’s Browse show, and in what order, for every profile.</SettingsHeader>
+      <SettingsHeader title="Home and Browse">Which rows Home and each library’s Browse show, for every profile. Drag a row to move it.</SettingsHeader>
       <SaveStatus {...status} />
       <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)} />
       <RowList title="Film libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
@@ -41,28 +41,65 @@ export function LayoutSection() {
   )
 }
 
+/**
+ * A list of rows to turn on or off and put in order: dragged by the grip, or moved with the arrows (from the keyboard,
+ * or on a touch screen, where dragging doesn't work).
+ */
 function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; onChange: (rows: RowChoice[]) => void }) {
+  const listId = useId()
+  const [dragging, setDragging] = useState<number | null>(null)
+  const [over, setOver] = useState<number | null>(null)
   const move = (from: number, to: number) => {
     const next = [...rows]
     const [row] = next.splice(from, 1)
     next.splice(to, 0, row)
     onChange(next)
   }
+
+  const dragStart = (at: number, row: RowChoice) => (e: DragEvent) => {
+    setDragging(at)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', row.label)
+  }
+  const dragOver = (at: number) => (e: DragEvent) => {
+    if (dragging === null) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (over !== at) setOver(at)
+  }
+  const drop = (at: number) => (e: DragEvent) => {
+    e.preventDefault()
+    if (dragging !== null && dragging !== at) move(dragging, at)
+    setDragging(null)
+    setOver(null)
+  }
+  const dragEnd = () => {
+    setDragging(null)
+    setOver(null)
+  }
+  // The line shows where the row will land: under the one it's dropped on when moving down, over it when moving up.
+  const landing = (at: number) => (dragging === null || over !== at || dragging === at ? undefined : dragging < at ? 'drop-below' : 'drop-above')
+
   return (
     <fieldset className="settings-group row-list">
       <legend className="settings-subhead">{title}</legend>
       <ol className="panel">
         {rows.map((row, i) => (
-          <li key={row.id}>
-            <label className="row-list-toggle">
+          <li
+            key={row.id}
+            className={[dragging === i && 'dragging', landing(i)].filter(Boolean).join(' ') || undefined}
+            draggable
+            onDragStart={dragStart(i, row)}
+            onDragOver={dragOver(i)}
+            onDragLeave={() => over === i && setOver(null)}
+            onDrop={drop(i)}
+            onDragEnd={dragEnd}
+          >
+            <span className="row-list-grip" aria-hidden="true">
+              <Grip />
+            </span>
+            <label className="row-list-name" htmlFor={`${listId}-${row.id}`}>
               <span className={row.enabled ? undefined : 'muted'}>{row.label}</span>
-              <input
-                type="checkbox"
-                role="switch"
-                className="switch"
-                checked={row.enabled}
-                onChange={(e) => onChange(rows.map((r) => (r.id === row.id ? { ...r, enabled: e.target.checked } : r)))}
-              />
             </label>
             <span className="row-list-move">
               <button type="button" className="icon-button" aria-label={`Move ${row.label} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
@@ -72,6 +109,14 @@ function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; 
                 <ChevronDown />
               </button>
             </span>
+            <input
+              id={`${listId}-${row.id}`}
+              type="checkbox"
+              role="switch"
+              className="switch"
+              checked={row.enabled}
+              onChange={(e) => onChange(rows.map((r) => (r.id === row.id ? { ...r, enabled: e.target.checked } : r)))}
+            />
           </li>
         ))}
       </ol>

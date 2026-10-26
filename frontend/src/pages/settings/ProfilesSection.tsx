@@ -44,50 +44,53 @@ export function ProfilesSection() {
       >
         Everyone gets their own Continue Watching, history and Up Next. With more than one profile, Flexarr asks who’s watching; a PIN keeps one private.
       </SettingsHeader>
-      {editing === 'new' && (
-        <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
-      )}
-      {data?.map((p) =>
-        // The form takes the profile's place in the list, rather than showing it twice.
-        editing !== 'new' && editing?.id === p.id ? (
-          <ProfileForm
-            // A fresh form for each profile: one opened over another mustn't carry its settings across.
-            key={p.id}
-            profile={editing}
-            defaultColour={freeColour(data)}
-            libraries={libraries}
-            onDone={reload}
-            onCancel={() => setEditing(undefined)}
-          />
-        ) : (
-          <div key={p.id} className="panel profile-row">
-            <Avatar profile={p} size={48} />
-            <div>
-              <strong>{p.name}</strong>
-              <p className="muted">
-                {[p.isMain && 'Main profile', p.hasPin && 'PIN protected', hiddenSummary(p, libraries), p.isCurrent && 'You’re using this one'].filter(Boolean).join('. ')}
-              </p>
-            </div>
-            <div className="library-row-actions">
-              <button className="button quiet small" onClick={() => setEditing(p)}>
-                Edit
-              </button>
-              {!p.isMain && (
-                <button
-                  className="button danger small"
-                  onClick={async () => {
-                    if (!confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`)) return
-                    await deleteProfile(p.id)
-                    reload()
-                  }}
-                >
-                  Remove
+      <div className="panel profile-list">
+        {editing === 'new' && (
+          <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
+        )}
+        {data?.map((p) =>
+          // The form takes the profile's place in the list, rather than showing it twice.
+          editing !== 'new' && editing?.id === p.id ? (
+            <ProfileForm
+              // A fresh form for each profile: one opened over another mustn't carry its settings across.
+              key={p.id}
+              profile={editing}
+              defaultColour={freeColour(data)}
+              libraries={libraries}
+              onDone={reload}
+              onCancel={() => setEditing(undefined)}
+            />
+          ) : (
+            <div key={p.id} className="profile-row">
+              <Avatar profile={p} size={40} />
+              <span className="setting-text">
+                <strong>
+                  {p.name}
+                  {p.isCurrent && <span className="tag profile-you">You</span>}
+                </strong>
+                <span className="muted">{[p.isMain ? 'Main profile' : 'Profile', p.hasPin ? 'PIN' : 'No PIN', hiddenSummary(p, libraries)].filter(Boolean).join(' · ')}</span>
+              </span>
+              <span className="library-row-actions">
+                <button className="button quiet small" onClick={() => setEditing(p)}>
+                  Edit
                 </button>
-              )}
+                {!p.isMain && (
+                  <button
+                    className="text-button danger-text"
+                    onClick={async () => {
+                      if (!confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`)) return
+                      await deleteProfile(p.id)
+                      reload()
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </span>
             </div>
-          </div>
-        ),
-      )}
+          ),
+        )}
+      </div>
     </section>
   )
 }
@@ -132,10 +135,12 @@ function ProfileForm({
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [removePin, setRemovePin] = useState(false)
+  // The PIN fields wait until a PIN is being added or changed.
+  const [choosingPin, setChoosingPin] = useState(false)
   // Changing the main profile's PIN takes the one it has now (it guards the API key), or the key if it's forgotten.
   const [currentPin, setCurrentPin] = useState('')
   const [apiKey, setApiKey] = useState<string>()
-  const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (pin !== '' || removePin)
+  const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (choosingPin || removePin)
   const [errors, setErrors] = useState<string[]>([])
 
   async function submit(e: FormEvent) {
@@ -157,61 +162,134 @@ function ProfileForm({
     }
   }
 
+  const pinHelp = removePin
+    ? 'The PIN goes when you save.'
+    : profile?.hasPin
+      ? `Asked for when someone switches to ${profile.name}.`
+      : 'Anyone can switch to this profile. A PIN keeps it private.'
+
   return (
-    <form className="panel" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
-      <div className="field-row">
-        <label className="grow">
-          Name
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
-        </label>
-      </div>
-      <fieldset className="field profile-pin">
-        <legend className="visually-hidden">PIN</legend>
-        <div className="field-row">
-          <label>
-            {profile?.hasPin ? 'New PIN (optional)' : 'PIN (optional)'}
-            <input
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              value={pin}
-              disabled={removePin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="4 to 8 digits"
-            />
+    <form className="profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
+      <div className="profile-identity">
+        <div className="profile-picture">
+          <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
+          <label className="text-button file-button">
+            {shownImage ? 'Change' : 'Add picture'}
+            <input type="file" accept="image/*" onChange={(e) => setPicture(e.target.files?.[0])} />
           </label>
-          <label>
-            {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
-            <input
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              value={confirmPin}
-              disabled={removePin || pin === ''}
-              required={pin !== '' && !removePin}
-              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            />
-          </label>
-          {asksForCurrentPin && apiKey === undefined && (
-            <label>
-              Current PIN
-              <input
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                required
-                value={currentPin}
-                onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              />
-            </label>
-          )}
-          {asksForCurrentPin && apiKey !== undefined && (
-            <label>
-              API key
-              <input type="password" autoComplete="off" required value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-            </label>
+          {shownImage && (
+            <button type="button" className="text-button" onClick={() => setPicture(null)}>
+              Remove
+            </button>
           )}
         </div>
+        <div className="profile-identity-fields">
+          <label className="field">
+            <span className="field-label">Name</span>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
+          </label>
+          <div className="field">
+            <span className="field-label" id="profile-colour">
+              Colour
+            </span>
+            <div className="swatches" role="radiogroup" aria-labelledby="profile-colour">
+              {profileColours.map((c) => (
+                <button
+                  type="button"
+                  key={c.value}
+                  role="radio"
+                  aria-checked={c.value === color.toLowerCase()}
+                  aria-label={c.name}
+                  title={shownImage ? `${c.name}, shown behind the picture while it loads` : c.name}
+                  className="swatch"
+                  style={{ background: c.value }}
+                  onClick={() => setColor(c.value)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <fieldset className="profile-section profile-pin">
+        <legend className="visually-hidden">PIN</legend>
+        <div className="profile-section-head">
+          <span className="setting-text">
+            <strong>PIN</strong>
+            <span className="muted">{pinHelp}</span>
+            {profile?.isMain && <span className="muted">The main profile’s PIN also unlocks Settings away from home.</span>}
+          </span>
+          {!choosingPin && !removePin && (
+            <span className="library-row-actions">
+              <button type="button" className="button quiet small" onClick={() => setChoosingPin(true)}>
+                {profile?.hasPin ? 'Change' : 'Add a PIN'}
+              </button>
+              {profile?.hasPin && (
+                <button type="button" className="text-button danger-text" onClick={() => setRemovePin(true)}>
+                  Remove
+                </button>
+              )}
+            </span>
+          )}
+          {(choosingPin || removePin) && (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                setChoosingPin(false)
+                setRemovePin(false)
+                setPin('')
+                setConfirmPin('')
+              }}
+            >
+              {removePin ? 'Keep it' : 'Cancel'}
+            </button>
+          )}
+        </div>
+        {(choosingPin || asksForCurrentPin) && (
+          <div className="field-row">
+            {choosingPin && (
+              <>
+                <label>
+                  {profile?.hasPin ? 'New PIN' : 'PIN'}
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    value={pin}
+                    required
+                    autoFocus
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    placeholder="4 to 8 digits"
+                  />
+                </label>
+                <label>
+                  {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    value={confirmPin}
+                    required
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  />
+                </label>
+              </>
+            )}
+            {asksForCurrentPin && apiKey === undefined && (
+              <label>
+                Current PIN
+                <input type="password" inputMode="numeric" autoComplete="off" required value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
+              </label>
+            )}
+            {asksForCurrentPin && apiKey !== undefined && (
+              <label>
+                API key
+                <input type="password" autoComplete="off" required value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+              </label>
+            )}
+          </div>
+        )}
         {asksForCurrentPin && apiKey === undefined && (
           <span className="field-help">
             Changing it takes the current PIN. Forgotten it?{' '}
@@ -221,71 +299,29 @@ function ProfileForm({
             (it’s in config.json in the server’s data folder).
           </span>
         )}
-        {profile?.isMain && <span className="field-help">The main profile’s PIN also unlocks Settings away from home.</span>}
-        {profile?.hasPin && (
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={removePin}
-              onChange={(e) => {
-                setRemovePin(e.target.checked)
-                setPin('')
-                setConfirmPin('')
-              }}
-            />{' '}
-            Remove the PIN
-          </label>
-        )}
       </fieldset>
-      <div className="field profile-picture">
-        <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
-        <div>
-          <span className="field-label">Picture</span>
-          <div className="form-actions">
-            <label className="button quiet small file-button">
-              {shownImage ? 'Change picture' : 'Choose a picture'}
-              <input type="file" accept="image/*" onChange={(e) => setPicture(e.target.files?.[0])} />
-            </label>
-            {shownImage && (
-              <button type="button" className="button quiet small" onClick={() => setPicture(null)}>
-                Remove picture
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="field">
-        <span className="field-label">{shownImage ? 'Colour (shown behind the picture while it loads)' : 'Colour'}</span>
-        <div className="swatches" role="radiogroup" aria-label="Colour">
-          {profileColours.map((c) => (
-            <button
-              type="button"
-              key={c.value}
-              role="radio"
-              aria-checked={c.value === color.toLowerCase()}
-              aria-label={c.name}
-              title={c.name}
-              className="swatch"
-              style={{ background: c.value }}
-              onClick={() => setColor(c.value)}
-            />
-          ))}
-        </div>
-      </div>
+
       {libraries.length > 1 && (
-        <fieldset className="field profile-libraries">
-          <legend className="field-label">Libraries {profile ? `${profile.name} can` : 'this profile can'} see</legend>
-          <p className="muted">Unticked libraries are hidden everywhere on this profile: home, search, Discover, Coming soon and requests.</p>
-          {libraries.map((l) => (
-            <label key={l.id} className="checkbox">
-              <input
-                type="checkbox"
-                checked={!hidden.includes(l.id)}
-                onChange={(e) => setHidden(e.target.checked ? hidden.filter((id) => id !== l.id) : [...hidden, l.id])}
-              />{' '}
-              {l.name}
-            </label>
-          ))}
+        <fieldset className="profile-section profile-libraries">
+          <legend className="visually-hidden">Libraries</legend>
+          <span className="setting-text">
+            <strong>Libraries {profile ? `${profile.name} sees` : 'this profile sees'}</strong>
+            <span className="muted">The rest are hidden everywhere on this profile: Home, search, Discover, Coming soon and requests.</span>
+          </span>
+          <div className="profile-library-list">
+            {libraries.map((l) => (
+              <label key={l.id} className="profile-library">
+                <span>{l.name}</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="switch"
+                  checked={!hidden.includes(l.id)}
+                  onChange={(e) => setHidden(e.target.checked ? hidden.filter((id) => id !== l.id) : [...hidden, l.id])}
+                />
+              </label>
+            ))}
+          </div>
         </fieldset>
       )}
       {errors.length > 0 && (
