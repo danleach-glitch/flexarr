@@ -264,5 +264,19 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
 
         public override DateTimeOffset GetUtcNow() => Now;
+
+        /// <summary>The guard's pause after a wrong PIN passes at once rather than taking a real second.</summary>
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            ThreadPool.UnsafeQueueUserWorkItem(_ => callback(state), null);
+            return new Fired();
+        }
+
+        private sealed class Fired : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => false;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
     }
 }
