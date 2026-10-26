@@ -21,8 +21,10 @@ public sealed record LiveFormat(string? VideoCodec, int Width, int Height, bool 
 /// How a channel is turned into HLS for every viewer at once: one output that browsers and Apple's players can all
 /// play (H.264 and AAC), copied as it comes when it already is.
 /// </summary>
-public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight, long VideoBitrate, bool CopyAudio)
+public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight, long VideoBitrate, bool CopyAudio, bool Reduced = false)
 {
+    /// <summary>Highest picture for a viewer away from home (over Tailscale or the internet).</summary>
+    public const int ReducedMaxHeight = 720;
     /// <summary>Highest picture made when converting; a "4K" channel that isn't H.264 comes out at 1080p.</summary>
     public const int MaxHeight = 1080;
 
@@ -44,7 +46,19 @@ public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight
         return new LivePlan(copyVideo, format.Interlaced, height, bitrate, format.AudioCodec == "aac");
     }
 
-    public string Describe() => CopyVideo && CopyAudio ? "Original"
+    /// <summary>
+    /// For a viewer away from home: always converted, to at most 720p at a bitrate a hotel's Wi-Fi or a phone's data
+    /// keeps up with, with stereo sound.
+    /// </summary>
+    public static LivePlan ForAway(LiveFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(format);
+        var height = format.Height is > 0 and var h ? Math.Min(h, ReducedMaxHeight) : ReducedMaxHeight;
+        return new LivePlan(false, format.Interlaced, height, height >= 720 ? 2_500_000L : 1_500_000L, false, Reduced: true);
+    }
+
+    public string Describe() => Reduced ? $"Reduced for away from home ({TargetHeight}p)"
+        : CopyVideo && CopyAudio ? "Original"
         : CopyVideo ? "Original video, converted sound"
         : $"Converted to {TargetHeight}p" + (Deinterlace ? ", deinterlaced" : "");
 }

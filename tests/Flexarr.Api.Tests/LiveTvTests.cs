@@ -189,6 +189,17 @@ public sealed class LiveTvTests : IDisposable
         Assert.False((await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("configured").GetBoolean());
     }
 
+    [Theory]
+    [InlineData(null, Flexarr.Api.Security.NetworkZone.Local, false)]
+    [InlineData(null, Flexarr.Api.Security.NetworkZone.Tailnet, true)]
+    [InlineData(null, Flexarr.Api.Security.NetworkZone.Internet, true)]
+    [InlineData("original", Flexarr.Api.Security.NetworkZone.Tailnet, false)]
+    [InlineData("reduced", Flexarr.Api.Security.NetworkZone.Local, true)]
+    public void Away_from_home_gets_the_reduced_version_unless_asked_otherwise(string? quality, Flexarr.Api.Security.NetworkZone zone, bool reduced)
+    {
+        Assert.Equal(reduced, LiveTvEndpoints.Reduced(quality, zone));
+    }
+
     [Fact]
     public async Task Testing_says_whether_the_sign_in_works()
     {

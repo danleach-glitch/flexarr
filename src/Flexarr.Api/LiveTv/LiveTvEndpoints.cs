@@ -29,7 +29,11 @@ public sealed record GuideChannelDto(Guid Id, double Number, string Name, string
 public sealed record GuideDto(DateTime From, DateTime Until, IReadOnlyList<GuideChannelDto> Channels);
 
 /// <param name="Replaces">The viewer's previous channel, left first (with one connection, it has to go before this can start).</param>
-public sealed record WatchRequest(string? Replaces = null);
+/// <param name="Quality">
+/// "original" or "reduced" to choose; by default a viewer at home gets the channel as it comes, and one away from home
+/// (over Tailscale or the internet) a reduced version.
+/// </param>
+public sealed record WatchRequest(string? Replaces = null, string? Quality = null);
 
 /// <param name="Playlist">The live HLS playlist; its address is the viewer's capability, so it needs no sign-in.</param>
 /// <param name="Method">How the channel reaches the player ("Original", "Converted to 720p, deinterlaced").</param>
@@ -112,7 +116,7 @@ public static partial class LiveTvEndpoints
         });
 
         group.MapPost("/channels/{id:guid}/watch", async (Guid id, [FromBody] WatchRequest? request, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
-            LiveStreams streams, LiveTvViewers viewers, CurrentProfile profile, IMemoryCache memory, TimeProvider clock, CancellationToken ct) =>
+            LiveStreams streams, LiveTvViewers viewers, CurrentProfile profile, IMemoryCache memory, TimeProvider clock, HttpContext http, CancellationToken ct) =>
         {
             var settings = options.CurrentValue;
             if (settings.LiveTv is not { Account: { } account } liveTv)
@@ -135,10 +139,13 @@ public static partial class LiveTvEndpoints
             var source = account.StreamOf(channel.SourceId);
             var ffprobe = settings.FfprobePath;
             var viewerId = TranscodeManager.NewId();
+            // Away from home, a reduced version: a session of its own, beside the original one if someone at home is
+            // watching the same channel (both read the one connection Dispatcharr holds for it).
+            var reduced = Reduced(request?.Quality, NetworkZones.Of(http));
             LiveSession session;
             try
             {
-                session = await streams.JoinAsync(channel.Id.ToString("N"), source, async token =>
+                session = await streams.JoinAsync(channel.Id.ToString("N") + (reduced ? ":away" : ""), source, async token =>
                 {
                     var key = $"livetv-format:{channel.Id}";
                     if (!memory.TryGetValue(key, out LiveFormat? format) || format is null)
@@ -147,7 +154,7 @@ public static partial class LiveTvEndpoints
                         memory.Set(key, format, FormatKeptFor);
                     }
 
-                    return LivePlan.For(format);
+                    return reduced ? LivePlan.ForAway(format) : LivePlan.For(format);
                 }, TimeSpan.FromMinutes(Math.Clamp(liveTv.RewindMinutes, 1, 240)), viewerId, ct);
             }
             catch (LiveStreamException ex)
@@ -293,6 +300,14 @@ public static partial class LiveTvEndpoints
             .ToLookup(p => p.ChannelId);
         return [.. channels.Select(c => ToDto(c, true, upcoming[c.Id].FirstOrDefault(p => p.Start <= now), upcoming[c.Id].FirstOrDefault(p => p.Start > now)))];
     }
+
+    /// <summary>Whether a viewer gets the reduced version: as asked, else when they're away from home.</summary>
+    internal static bool Reduced(string? quality, NetworkZone zone) => quality?.ToLowerInvariant() switch
+    {
+        "original" => false,
+        "reduced" => true,
+        _ => zone != NetworkZone.Local,
+    };
 
     internal static LiveChannelDto ToDto(LiveChannel c, bool favourite, LiveProgramme? now, LiveProgramme? next) =>
         new(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourite, now is null ? null : ToDto(now), next is null ? null : ToDto(next));

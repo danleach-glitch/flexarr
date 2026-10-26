@@ -146,6 +146,20 @@ public sealed class LivePlanTests
     }
 
     [Fact]
+    public void Away_from_home_everything_is_converted_to_at_most_720p()
+    {
+        var hd = LivePlan.ForAway(new LiveFormat("h264", 1920, 1080, false, 25, "aac", 2));
+        Assert.False(hd.CopyVideo); // even a channel that copies at home
+        Assert.False(hd.CopyAudio);
+        Assert.Equal(720, hd.TargetHeight);
+        Assert.Equal(2_500_000, hd.VideoBitrate);
+        Assert.Equal("Reduced for away from home (720p)", hd.Describe());
+
+        var sd = LivePlan.ForAway(new LiveFormat("mpeg2video", 720, 576, true, 25, "mp2", 2));
+        Assert.Equal((576, 1_500_000L, true), (sd.TargetHeight, sd.VideoBitrate, sd.Deinterlace));
+    }
+
+    [Fact]
     public void Reads_the_first_video_and_audio_streams_skipping_cover_art()
     {
         const string json = """

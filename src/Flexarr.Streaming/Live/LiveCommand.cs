@@ -34,7 +34,7 @@ public static class LiveCommand
         args.AddRange(["-i", source.Url, "-map", "0:v:0", "-map", "0:a:0?"]);
         AddVideo(args, plan, hw, settings);
 
-        args.AddRange(plan.CopyAudio ? ["-c:a", "copy"] : ["-c:a", "aac", "-ac", "2", "-b:a", "192k"]);
+        args.AddRange(plan.CopyAudio ? ["-c:a", "copy"] : ["-c:a", "aac", "-ac", "2", "-b:a", plan.Reduced ? "128k" : "192k"]);
 
         var flags = "delete_segments+temp_file+independent_segments+program_date_time+omit_endlist" + (resume ? "+append_list+discont_start" : "");
         var listSize = Math.Max(3, (int)Math.Ceiling(rewind.TotalSeconds / SegmentSeconds));

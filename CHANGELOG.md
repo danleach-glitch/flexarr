@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.31.0 · 26 October 2026
+
+### Live TV
+- Away from home (over Tailscale or the internet), channels come in a reduced version: at most 720p at about 2.5 Mbps with stereo sound, so they keep playing on hotel Wi-Fi or a phone's data. At home they still play as they come. Someone at home and someone away can watch the same channel at once on one provider connection.
+
 ## 0.30.1 · 26 October 2026
 
 ### Changed
