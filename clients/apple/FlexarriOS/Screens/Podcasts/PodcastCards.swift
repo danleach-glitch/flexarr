@@ -34,10 +34,12 @@ func podcastGlow(_ accent: String?) -> Color {
     Color(rgb: (RGB(hex: accent) ?? .silver).glow)
 }
 
-/// A followed show: its artwork, name and how many episodes wait; tapping opens it.
+/// A followed show: its artwork (with its name beneath, unless the row is artwork alone) and how many episodes wait;
+/// tapping opens it.
 struct PodcastCard: View {
     @Environment(Router.self) private var router
     let podcast: Podcast
+    var showsTitle = true
 
     var body: some View {
         Button { router.push(.item(podcast.summary)) } label: {
@@ -55,11 +57,13 @@ struct PodcastCard: View {
                                 .padding(6)
                         }
                     }
-                Text(podcast.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.screen)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                if showsTitle {
+                    Text(podcast.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
             }
             .contentShape(Rectangle())
         }
@@ -126,6 +130,9 @@ struct PodcastEpisodeRow: View {
     let episode: PodcastEpisode
     /// Lists of several shows' episodes name the show and show its artwork.
     var showsPodcast = false
+    /// Marks it played or unplayed in the list's own way (the show page shows it at once); otherwise it's sent and
+    /// screens reload.
+    var setPlayed: ((Bool) -> Void)?
     @State private var showingNotes = false
 
     private var isCurrent: Bool { model.music.current?.id == episode.id }
@@ -194,13 +201,17 @@ struct PodcastEpisodeRow: View {
             }
         }
         .sheet(isPresented: $showingNotes) {
-            EpisodeSheet(episode: episode)
+            EpisodeSheet(episode: episode, setPlayed: setPlayed)
                 .presentationDetents([.medium, .large])
                 .presentationBackground(Color.room)
         }
     }
 
     private func togglePlayed() {
+        if let setPlayed {
+            setPlayed(!episode.isPlayed)
+            return
+        }
         Task {
             await model.setWatched(episode.summary, !episode.isPlayed)
             await downloads.reconcilePodcasts()
@@ -325,6 +336,7 @@ struct EpisodeSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let episode: PodcastEpisode
+    var setPlayed: ((Bool) -> Void)?
     @State private var full: PodcastEpisode?
     @State private var played: Bool?
 
@@ -357,9 +369,14 @@ struct EpisodeSheet: View {
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(shown.accentColor), prominent: true))
                     let isPlayed = played ?? shown.isPlayed
                     Button {
-                        Task {
-                            await model.setWatched(shown.summary, !isPlayed)
+                        if let setPlayed {
+                            setPlayed(!isPlayed)
                             played = !isPlayed
+                        } else {
+                            Task {
+                                await model.setWatched(shown.summary, !isPlayed)
+                                played = !isPlayed
+                            }
                         }
                     } label: {
                         Label(isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: isPlayed ? "circle" : "checkmark.circle")

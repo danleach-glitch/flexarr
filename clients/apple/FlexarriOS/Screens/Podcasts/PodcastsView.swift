@@ -60,7 +60,8 @@ struct PodcastsView: View {
                     SectionHeading(title: "Your podcasts")
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                            ForEach(home.podcasts) { PodcastCard(podcast: $0).frame(width: Layout.posterWidth(sizeClass)) }
+                            // Artwork alone, the most recently updated first (as the server lists them).
+                            ForEach(home.podcasts) { PodcastCard(podcast: $0, showsTitle: false).frame(width: Layout.posterWidth(sizeClass)) }
                         }
                         .padding(.horizontal, Layout.edge)
                     }

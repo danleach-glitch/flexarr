@@ -92,6 +92,24 @@ struct PodcastClientTests {
         #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == "{}")
     }
 
+    @Test func changesTheOrder() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("podcast")))
+
+        _ = try await client.subscribe(to: "p1", oldestFirst: true)
+
+        #expect(String(data: StubProtocol.recorded(host: host).first?.httpBody ?? Data(), encoding: .utf8) == #"{"oldestFirst":true}"#)
+    }
+
+    @Test func markingPlayedLocally() throws {
+        let page = try Fixture.decode(Paged<PodcastEpisode>.self, "podcast-episodes")
+        let episode = try #require(page.items.first)
+        #expect(episode.with(played: true).isPlayed)
+        #expect(!episode.with(played: true).with(played: false).isPlayed)
+        #expect(episode.with(played: true).progress == nil)
+        let subscription = try FlexarrClient.decoder.decode(PodcastSubscription.self, from: Data(#"{"subscribedAt":"2026-10-26T00:00:00Z","oldestFirst":true}"#.utf8))
+        #expect(subscription.oldestFirst == true)
+    }
+
     @Test func nothingLeftToPlayIsNil() async throws {
         let (client, host) = stubbedClient(.init(status: 204, body: Data()))
 
