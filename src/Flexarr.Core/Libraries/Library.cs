@@ -21,6 +21,21 @@ public sealed class Library
     public DateTime? LastScannedAt { get; set; }
 }
 
+/// <summary>
+/// The library the DVR keeps its recordings in, made when the first one's done. It's part of Live TV (Live TV ›
+/// Recordings), not a library of its own, so while Live TV is set up the library lists and Home leave it out.
+/// </summary>
+public static class RecordingsLibrary
+{
+    public const string Name = "Recordings";
+
+    public static bool Is(Library library)
+    {
+        ArgumentNullException.ThrowIfNull(library);
+        return library.Type == LibraryType.TvShows && library.Name == Name;
+    }
+}
+
 /// <summary>Why a scan kept a folder's files in the library rather than hide the ones it couldn't find.</summary>
 public enum FolderHold
 {

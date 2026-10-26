@@ -1,3 +1,4 @@
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
@@ -5,6 +6,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -14,8 +16,10 @@ public static class LibraryEndpoints
     {
         var group = api.MapGroup("/libraries").WithTags("Libraries");
 
-        // all=true (admins, for Settings) lists libraries hidden from the current profile too.
-        group.MapGet("/", async (bool? all, FlexarrDbContext db, CurrentProfile profile, ScanProgress progress, CancellationToken ct) =>
+        // all=true (admins, for Settings) lists libraries hidden from the current profile too. Neither lists the DVR's
+        // recordings while there's Live TV to find them in.
+        group.MapGet("/", async (bool? all, FlexarrDbContext db, CurrentProfile profile, ScanProgress progress, IOptionsMonitor<FlexarrOptions> options,
+            CancellationToken ct) =>
         {
             if (all == true && profile.IsAdmin)
             {
@@ -26,7 +30,8 @@ public static class LibraryEndpoints
                 .GroupBy(i => i.LibraryId).Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(g => g.Key, g => g.Count, ct);
             var libraries = await db.Libraries.Include(l => l.Folders).OrderBy(l => l.Name).ToListAsync(ct);
-            return libraries.Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
+            var liveTv = options.CurrentValue.LiveTv?.Account is not null;
+            return libraries.Where(l => !(liveTv && RecordingsLibrary.Is(l))).Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
         });
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CancellationToken ct) =>
@@ -146,6 +151,11 @@ public static class LibraryEndpoints
         if (string.IsNullOrWhiteSpace(request.Name))
         {
             errors["name"] = ["Name is required."];
+        }
+        else if (request.Type == LibraryType.TvShows && request.Name.Trim() == RecordingsLibrary.Name)
+        {
+            // It'd be taken for the DVR's, and left out of the lists.
+            errors["name"] = ["Recordings is the name of Live TV's recordings. Choose another."];
         }
 
         if (request.Folders is not { Count: > 0 })

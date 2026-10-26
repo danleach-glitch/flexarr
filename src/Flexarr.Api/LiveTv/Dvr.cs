@@ -315,10 +315,10 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
 
         // A DVR folder moved in Settings joins the Recordings library, so earlier recordings stay where they are.
         var library = await db.Libraries.Include(l => l.Folders)
-            .FirstOrDefaultAsync(l => l.Type == LibraryType.TvShows && l.Name == "Recordings");
+            .FirstOrDefaultAsync(l => l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name);
         if (library is null)
         {
-            db.Libraries.Add(new Library { Name = "Recordings", Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = full }] });
+            db.Libraries.Add(new Library { Name = RecordingsLibrary.Name, Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = full }] });
         }
         else
         {

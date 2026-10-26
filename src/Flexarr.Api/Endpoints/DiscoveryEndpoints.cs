@@ -69,7 +69,9 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
             }
 
-            var libraries = await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct);
+            // Recordings are in Live TV, not a library with a row of its own.
+            var libraries = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
+                .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
             foreach (var library in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows))
             {
                 var movies = library.Type == LibraryType.Movies;

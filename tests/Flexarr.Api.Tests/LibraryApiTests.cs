@@ -51,6 +51,17 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
     }
 
     [Fact]
+    public async Task CreateLibrary_RejectsTheRecordingsName()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "recordings-" + Guid.NewGuid())).FullName;
+
+        var response = await Client().PostAsJsonAsync(new Uri("/api/v1/libraries", UriKind.Relative),
+            new { name = "Recordings", type = "TvShows", folders = new[] { folder } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UnknownLibrary_Items_ReturnsEmptyPage()
     {
         var page = await Client().GetFromJsonAsync<PagedDto<ItemSummaryDto>>(new Uri($"/api/v1/libraries/{Guid.NewGuid()}/items", UriKind.Relative), Json);

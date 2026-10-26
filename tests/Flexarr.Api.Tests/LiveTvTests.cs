@@ -5,7 +5,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Flexarr.Api.Endpoints;
 using Flexarr.Api.LiveTv;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -163,6 +166,35 @@ public sealed class LiveTvTests : IDisposable
     }
 
     private static async Task<JsonElement[]> ChannelsAsync(HttpClient client) => [.. (await client.GetFromJsonAsync<JsonElement>(Api("livetv/channels"))).EnumerateArray()];
+
+    [Fact]
+    public async Task RecordingsLibrary_IsLeftOutOfTheListsAndHome_OnceThereIsLiveTv()
+    {
+        var recordings = new Library { Name = RecordingsLibrary.Name, Type = LibraryType.TvShows };
+        await using (var scope = _server.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(recordings);
+            await db.SaveChangesAsync();
+        }
+
+        var client = Client();
+        async Task<bool> ListedAsync(string path) =>
+            (await client.GetFromJsonAsync<JsonElement>(Api(path))).EnumerateArray().Any(l => l.GetProperty("id").GetGuid() == recordings.Id);
+        async Task<bool> RowAsync(string path) => (await client.GetStringAsync(Api(path))).Contains($"recent-{recordings.Id}", StringComparison.Ordinal);
+
+        // Without Live TV, there's nowhere else to find them.
+        Assert.True(await ListedAsync("libraries"));
+
+        await ConnectAsync(client);
+
+        Assert.False(await ListedAsync("libraries"));
+        Assert.False(await ListedAsync("libraries?all=true"));
+        Assert.False(await RowAsync("home"));
+        Assert.False(await RowAsync("settings/layout"));
+        // Still there to open, for a recording's own page.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Api($"libraries/{recordings.Id}"))).StatusCode);
+    }
 
     [Fact]
     public async Task The_password_is_kept_but_never_shown_and_only_for_the_same_server()
