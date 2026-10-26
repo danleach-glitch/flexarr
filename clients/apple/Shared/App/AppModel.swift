@@ -32,6 +32,8 @@ final class AppModel {
     private(set) var profilesLoaded = false
     /// The household has several profiles and nobody has chosen one on this device yet.
     private(set) var needsProfileChoice = false
+    /// This launch has already asked who's watching (see `asksWhoIsWatching`).
+    @ObservationIgnored private var askedWhoIsWatching = false
     /// Bumped whenever watch state changes (playback ended, marked watched) so screens reload.
     private(set) var refreshToken = 0
     /// Set by deep links (`flexarr://item/<id>`); the selected tab's stack pushes it.
@@ -246,7 +248,10 @@ final class AppModel {
             return await loadProfiles()
         }
         profiles = list
-        needsProfileChoice = list.count > 1 && credentials?.profileToken == nil
+        // Asked to, a shared Apple TV asks who's watching once each time the app starts, whoever watched last.
+        let asksNow = Self.asksWhoIsWatching && !askedWhoIsWatching
+        askedWhoIsWatching = true
+        needsProfileChoice = list.count > 1 && (credentials?.profileToken == nil || asksNow)
         #if DEBUG
         if skipsProfileChoice { needsProfileChoice = false }
         #endif
@@ -271,6 +276,12 @@ final class AppModel {
         set { UserDefaults.standard.set(newValue, forKey: "FlexarrSiriDeviceName") }
     }
     #endif
+
+    /// Settings on Apple TV: open on "Who's watching?" each time the app starts, rather than as whoever watched last.
+    static var asksWhoIsWatching: Bool {
+        get { UserDefaults.standard.bool(forKey: "FlexarrAsksWhoIsWatching") }
+        set { UserDefaults.standard.set(newValue, forKey: "FlexarrAsksWhoIsWatching") }
+    }
 
     /// Makes `profile` the one watching on this device (remembered across launches). A wrong
     /// PIN throws the server's message. Every screen reloads, since history and libraries differ.

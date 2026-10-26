@@ -7,17 +7,17 @@ enum TabID: Hashable {
     case library(String)
     case liveTv
     case search
+    case settings
     /// Only while music plays.
     case nowPlaying
 }
 
-/// tvOS top tabs: Home, one per library and Search, with who's watching in the top right; Settings and Switch
-/// profile hang off that picture, keeping the bar short
+/// tvOS top tabs: Home, one per library, Search and a gear for Settings, with who's watching in the top right
 /// corner when there are several profiles.
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: TabID = .home
-    @State private var showingProfileMenu = false
+    @State private var choosingProfile = false
     /// Home's screens, here so Menu on the tab bar can go back through them (see below).
     @State private var homeRouter = Router()
 
@@ -62,6 +62,13 @@ struct MainTabView: View {
                     Label("Now Playing", systemImage: "waveform")
                 }
             }
+            // A gear rather than a word, so the bar stays short.
+            Tab(value: TabID.settings) {
+                TabStack { SettingsView() }
+            } label: {
+                Image(systemName: "gearshape")
+                    .accessibilityLabel("Settings")
+            }
         }
         // Menu on the tab bar leaves the app. With a title opened on Home (from the Top Shelf, say), go back to Home
         // first, or that title would be all Home ever shows again.
@@ -72,21 +79,16 @@ struct MainTabView: View {
             if stopped, selection == .nowPlaying { selection = .home }
         }
         .overlay(alignment: .topTrailing) {
-            if let current = model.currentProfile {
-                ProfileCornerButton(profile: current) {
-                    // No slide-up for a drop-down: the panel fades in on its own.
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { showingProfileMenu = true }
-                }
+            if model.profiles.count > 1, let current = model.currentProfile {
+                ProfileCornerButton(profile: current) { choosingProfile = true }
                     .frame(width: ProfileCornerButton.size, height: ProfileCornerButton.size)
                     // Level with the tab bar, which sits 46pt from the top and is 68pt tall.
                     .padding(.top, 46 + (68 - ProfileCornerButton.size) / 2)
                     .ignoresSafeArea(edges: .top)
             }
         }
-        .fullScreenCover(isPresented: $showingProfileMenu) {
-            ProfileMenuView()
+        .fullScreenCover(isPresented: $choosingProfile) {
+            ProfilePickerView(marksCurrent: true)
         }
         .task { await model.loadLibraries() }
         .onChange(of: model.pendingRoute) { _, route in
@@ -99,7 +101,7 @@ struct MainTabView: View {
 }
 
 /// Who's watching, at the right end of the tab bar: press right from the last tab to reach it. Pressing it opens
-/// the profile menu (Switch profile, Settings).
+/// "Who's watching?" to switch profile.
 /// A UIKit control, because tvOS moves focus between it and the tab bar's UIKit buttons both ways,
 /// whereas a SwiftUI button keeps a press left and drops it. It shows and is focusable only while
 /// the tab bar is, so focus starts on the tabs and a press up from a screen goes to them.
@@ -123,7 +125,7 @@ private struct ProfileCornerButton: UIViewRepresentable {
         var action: (() -> Void)?
         private let ring = CAShapeLayer()
         private var tabBarFocused = false
-        /// Pressed, so the menu is up: stay focusable for focus to come back here when it closes.
+        /// Pressed, so the picker is up: stay focusable for focus to come back here when it closes.
         private var awaitingReturn = false
         private var observer: NSObjectProtocol?
 

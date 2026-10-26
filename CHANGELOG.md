@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Settings (Apple TV)
+- Settings is back in the tab bar, as a gear at its end. The profile picture in the corner opens Who's watching? straight away again, rather than a menu.
+- Settings on the Apple TV is a short list of pages, like the Apple TV's own Settings: Playback, Home screen, Profiles and Server. Each row says how it's set now, and what the row you're on does shows on the left.
+- Your profile's playback settings can be changed on the Apple TV: auto-play the next episode, skip intros, recaps and credits, and subtitle size. They're the same ones as on the web and iPhone, so a change follows you everywhere.
+- Choose how far a click on the left or right of the remote skips: 10, 15 or 30 seconds.
+- An Apple TV everyone shares can ask who's watching each time Flexarr opens, instead of opening as whoever watched last (Settings › Profiles).
+
 ## 0.36.0 · 26 October 2026
 
 ### Top Shelf (Apple TV)

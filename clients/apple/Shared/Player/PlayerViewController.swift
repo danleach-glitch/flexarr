@@ -60,8 +60,7 @@ final class PlayerViewController: UIViewController {
     private var isRestoringFromPictureInPicture = false
     #endif
 
-    /// How far the skip buttons (and the remote's edges on Apple TV) jump: 30 seconds, unless Settings on iPhone or
-    /// iPad says otherwise (Apple TV has no setting for it).
+    /// How far the skip buttons (and the remote's edges on Apple TV) jump: 30 seconds unless Settings says otherwise.
     static var skipSeconds: Double {
         let saved = UserDefaults.standard.double(forKey: "FlexarrSkipSeconds")
         return saved > 0 ? saved : 30
