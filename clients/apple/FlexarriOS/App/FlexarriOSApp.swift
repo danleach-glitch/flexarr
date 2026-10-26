@@ -141,6 +141,8 @@ struct RootView: View {
         // Downloads follow the server and profile signed in; signing out deletes them.
         .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")") {
             model.player.offlineLibrary = downloads
+            model.onPodcastsChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
+            model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.offlineLibrary = downloads
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if let client = model.client { await PodcastNotifier.check(client: client, profileId: model.currentProfile?.id) }
@@ -155,7 +157,10 @@ struct RootView: View {
                 Task { await model.loadUpNext() }
                 if let client = model.client { Task { await PodcastNotifier.check(client: client, profileId: model.currentProfile?.id) } }
             }
-            if phase == .background, model.credentials != nil { AppDelegate.schedulePodcastRefresh() }
+            if phase == .background, model.credentials != nil {
+                AppDelegate.schedulePodcastRefresh()
+                WidgetBridge.publish(model)
+            }
         }
         // While in front and signed in, another device (or Siri on one) can play here.
         .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {

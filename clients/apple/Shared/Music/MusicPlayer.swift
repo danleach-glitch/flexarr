@@ -80,6 +80,8 @@ final class MusicPlayer {
     @ObservationIgnored var onSpeedChange: ((Double) -> Void)?
     /// A podcast episode has started on the server (which takes it off Up Next).
     @ObservationIgnored var onPodcastStarted: (() -> Void)?
+    /// What's playing, or whether it is, changed (for the iPhone's widgets).
+    @ObservationIgnored var onChange: (() -> Void)?
 
     @ObservationIgnored private var client: FlexarrClient?
     /// The queue as it was given, for turning shuffle back off.
@@ -538,6 +540,7 @@ final class MusicPlayer {
         isPlaying = playing
         if !playing, sessionId != nil, player.currentItem != nil { report(paused: true) }
         if !playing, isPlayingOffline, isPodcast, player.currentItem != nil { recordOffline() }
+        onChange?()
         nowPlaying.setTime(position: position, duration: duration, rate: playing ? playRate : 0, defaultRate: playRate)
     }
 
@@ -588,6 +591,7 @@ final class MusicPlayer {
         nowPlaying.setTrack(title: track.title, artist: track.artistName, album: podcast ? nil : albumTitle(of: track), artwork: artwork)
         if !podcast { nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious || position > 3, hasNext: hasNext) }
         nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
+        onChange?()
     }
 
     private func loadArtwork(for track: ItemSummary, generation mine: Int) {

@@ -20,7 +20,11 @@ final class AppModel {
     /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
     private(set) var podcastPreferences: PodcastPreferences?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
-    private(set) var upNext: [PodcastEpisode] = []
+    private(set) var upNext: [PodcastEpisode] = [] {
+        didSet { if upNext != oldValue { onPodcastsChange?() } }
+    }
+    /// Up Next or what's playing changed (the iPhone's widgets follow).
+    @ObservationIgnored var onPodcastsChange: (() -> Void)?
     private(set) var profiles: [Profile] = []
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
