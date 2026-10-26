@@ -1,0 +1,28 @@
+{
+ "upcoming": [],
+ "recent": [
+  {
+   "id": "01a177e6-a32a-7d1f-96e9-31ebd464d4d5",
+   "ruleId": null,
+   "channelId": "01a17633-26e2-7016-823a-d9228bd49a39",
+   "channelName": "Channel 4",
+   "title": "F1 United States GP Highlights",
+   "subtitle": null,
+   "description": "Could this be the weekend when Antonelli becomes World Champion? To do it, he needs to win, with Russell finishing ninth or lower, and Hamilton fifth or lower. Will the stars align.",
+   "season": null,
+   "episode": null,
+   "isNew": false,
+   "start": "2026-10-26T09:40:00Z",
+   "end": "2026-10-26T11:10:00Z",
+   "state": "completed",
+   "reason": "Stopped early.",
+   "size": 42246866,
+   "clashes": false,
+   "itemId": "01a177e8-1834-7115-a84f-e60e5f64a36a"
+  }
+ ],
+ "series": [],
+ "streams": 1,
+ "folder": "/Volumes/Media/DVR",
+ "freeBytes": 599658725376
+}

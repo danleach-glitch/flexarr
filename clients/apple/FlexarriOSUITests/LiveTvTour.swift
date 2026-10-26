@@ -42,12 +42,30 @@ final class LiveTvTour: XCTestCase {
         pause(4)
         shot("50-live-tv")
 
-        // The guide, then back to the list.
+        // Recordings, then back.
+        let recordingsButton = app.buttons["Recordings"].firstMatch
+        if recordingsButton.waitForExistence(timeout: 3) {
+            recordingsButton.tap()
+            pause(3)
+            shot("50a-recordings")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            pause(2)
+        }
+
+        // The guide (holding a programme for its record options, not chosen), then back to the list.
         let guideButton = app.buttons["Guide"].firstMatch
         if guideButton.waitForExistence(timeout: 3) {
             guideButton.tap()
             pause(4)
             shot("50b-live-guide")
+            let later = app.buttons.matching(NSPredicate(format: "label CONTAINS ', ' AND NOT label CONTAINS 'Favourites'")).element(boundBy: 3)
+            if later.exists {
+                later.press(forDuration: 1.2)
+                pause(1.5)
+                shot("50d-record-menu")
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+                pause(1)
+            }
             app.swipeLeft()
             pause(1.5)
             shot("50c-live-guide-later")

@@ -14,6 +14,8 @@ struct LiveGuideGrid: View {
     let onWatch: (LiveChannel) -> Void
     /// Adds a channel to Favourites or takes it off, from holding one of its programmes (nil: no menu).
     var onFavourite: ((LiveChannel) -> Void)? = nil
+    /// A recording was set or taken off: the guide is fetched again for its marks.
+    var onRecordingsChanged: (() -> Void)? = nil
     /// Where focus starts: what's on now on this channel (the one being watched), scrolled into view.
     var focusChannel: String? = nil
 
@@ -23,6 +25,8 @@ struct LiveGuideGrid: View {
     @State private var details: LiveProgramme?
     @State private var detailsChannel: LiveChannel?
     @State private var now = Date()
+    /// Something to tell the viewer about a recording (it clashes, or couldn't be set).
+    @State private var notice: String?
 
     static let window: TimeInterval = 3 * 3600
     static let step: TimeInterval = 90 * 60
@@ -70,12 +74,21 @@ struct LiveGuideGrid: View {
         .alert(details?.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = detailsChannel {
                 Button("Watch \(channel.name) now") { onWatch(channel) }
+                if let details, details.end > now {
+                    Button(DvrActions.recordLabel(details)) { act { try await toggleRecording(details, on: channel) } }
+                    Button(DvrActions.seriesLabel(details)) { act { try await DvrActions.toggleSeries(details, on: channel.id, client: $0) } }
+                }
             }
             Button("Close", role: .cancel) {}
         } message: {
             if let details {
                 Text(describe(details))
             }
+        }
+        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(notice ?? "")
         }
     }
 
@@ -146,6 +159,14 @@ struct LiveGuideGrid: View {
                     .buttonStyle(GuideCellStyle(onNow: programme.start <= now && programme.end > now, past: programme.end <= now))
                     .focused($focusedProgramme, equals: programme.id)
                     .contextMenu {
+                        if programme.end > now {
+                            Button { act { try await toggleRecording(programme, on: channel) } } label: {
+                                Label(DvrActions.recordLabel(programme), systemImage: programme.isSetToRecord ? "record.circle.fill" : "record.circle")
+                            }
+                            Button { act { try await DvrActions.toggleSeries(programme, on: channel.id, client: $0) } } label: {
+                                Label(DvrActions.seriesLabel(programme), systemImage: "square.stack")
+                            }
+                        }
                         if let onFavourite {
                             Button { onFavourite(channel) } label: {
                                 Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites",
@@ -176,9 +197,18 @@ struct LiveGuideGrid: View {
 
     private func cell(_ programme: LiveProgramme) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(programme.displayTitle)
-                .font(.system(size: 23, weight: .semibold))
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                if programme.isSetToRecord {
+                    Circle().fill(Self.recordRed).frame(width: 14, height: 14)
+                        .accessibilityLabel(programme.isRecordingNow ? "Recording now" : "Set to record")
+                } else if programme.series == true {
+                    Image(systemName: "square.stack.fill").font(.system(size: 16)).foregroundStyle(Self.recordRed)
+                        .accessibilityLabel("Series")
+                }
+                Text(programme.displayTitle)
+                    .font(.system(size: 23, weight: .semibold))
+                    .lineLimit(1)
+            }
             Text("\(Self.clock.string(from: programme.start)) – \(Self.clock.string(from: programme.end))")
                 .font(.system(size: 18).monospacedDigit())
                 .opacity(0.7)
@@ -202,6 +232,30 @@ struct LiveGuideGrid: View {
     }
 
     // MARK: Behaviour
+
+    private static let recordRed = Color(red: 0.9, green: 0.28, blue: 0.3)
+
+    private func toggleRecording(_ programme: LiveProgramme, on channel: LiveChannel) async throws {
+        guard let client else { return }
+        notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: client)
+    }
+
+    /// Does a recording action, then has the guide fetched again; says why if it couldn't be done.
+    private func act(_ action: @escaping (FlexarrClient) async throws -> Void) {
+        guard let client else { return }
+        Task {
+            do {
+                try await action(client)
+            } catch {
+                notice = error.localizedDescription
+            }
+            onRecordingsChanged?()
+        }
+    }
+
+    private func act(_ action: @escaping () async throws -> Void) {
+        act { _ in try await action() }
+    }
 
     private func choose(_ programme: LiveProgramme, on channel: LiveChannel) {
         if programme.start <= now, programme.end > now {

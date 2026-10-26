@@ -75,6 +75,10 @@ final class LiveTvController: NSObject {
                 try present(started)
             } catch is CancellationError {
                 return
+            } catch FlexarrClientError.recordingInTheWay(let recording) {
+                if Task.isCancelled { return }
+                watching = nil
+                offer(instead: recording, of: channel)
             } catch {
                 if Task.isCancelled { return }
                 log.error("Couldn't start \(channel.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -132,7 +136,15 @@ final class LiveTvController: NSObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.heartbeatInterval)
                 guard let self, !Task.isCancelled, let client = self.client, self.watching?.viewer == viewer else { return }
-                try? await client.liveHeartbeat(viewer: viewer)
+                do {
+                    try await client.liveHeartbeat(viewer: viewer)
+                } catch FlexarrClientError.http(410, let message) {
+                    // A recording needed the stream: say so, rather than the picture just stopping.
+                    self.close(message: message ?? "A recording needed the stream.")
+                    return
+                } catch {
+                    // A missed beat; the next one will do.
+                }
                 beats += 1
                 if beats % 4 == 0, let fresh = try? await client.liveChannels(), let id = self.watching?.channel.id,
                    let channel = fresh.first(where: { $0.id == id }) {
@@ -209,6 +221,50 @@ final class LiveTvController: NSObject {
         guard let screen else { finish(); return }
         self.screen = nil
         screen.finish(completion: finish)
+    }
+
+    /// Every stream is recording: offers the channel being recorded, or stopping the recording and watching this one.
+    private func offer(instead recording: RecordingInTheWay, of wanted: LiveChannel) {
+        let present = { [weak self] in
+            guard let self, let top = Self.topViewController() else { return }
+            let alert = UIAlertController(title: "Recording", message: recording.message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Watch \(recording.channelName)", style: .default) { [weak self] _ in
+                self?.watchRecorded(recording)
+            })
+            alert.addAction(UIAlertAction(title: "Stop the recording", style: .destructive) { [weak self] _ in
+                guard let self, let client = self.client else { return }
+                Task {
+                    try? await client.removeRecording(recording.recordingId)
+                    // The recording takes a moment to let its stream go.
+                    try? await Task.sleep(for: .seconds(2.5))
+                    self.start(wanted)
+                }
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            top.present(alert, animated: true)
+        }
+        stop()
+        onEnded?()
+        if let screen {
+            self.screen = nil
+            screen.finish(completion: present)
+        } else {
+            present()
+        }
+    }
+
+    private func watchRecorded(_ recording: RecordingInTheWay) {
+        if let channel = channels.first(where: { $0.id == recording.channelId }) {
+            start(channel)
+            return
+        }
+        guard let client else { return }
+        Task {
+            if let channel = try? await client.liveChannels().first(where: { $0.id == recording.channelId }) {
+                channels.append(channel)
+                start(channel)
+            }
+        }
     }
 
     private static func message(for error: Error) -> String {

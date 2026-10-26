@@ -3,7 +3,8 @@ import SwiftUI
 
 /// Live TV: categories down the left (Favourites, All, the source's groups) and the guide on the right, three hours
 /// across for the channels in the category. Moving onto a category shows it; choosing what's on now plays it; holding
-/// a programme adds its channel to Favourites or takes it off. Favourites is where it opens when there are any.
+/// a programme adds its channel to Favourites or takes it off, or records it. Favourites is where it opens when there
+/// are any. Recordings, under the channels, lists what's set to record and the series.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
     @State private var channels: [LiveChannel]?
@@ -11,11 +12,14 @@ struct LiveTvView: View {
     @State private var chosen: Category?
     @FocusState private var focusedCategory: Category?
     @State private var guide: LiveGuide?
+    /// How many recordings are coming up, for the sidebar.
+    @State private var upcoming: Int?
 
     enum Category: Hashable {
         case favourites
         case all
         case group(String)
+        case recordings
     }
 
     var body: some View {
@@ -26,12 +30,15 @@ struct LiveTvView: View {
                 } else {
                     HStack(alignment: .top, spacing: 50) {
                         sidebar
-                        if category == .favourites, favourites.isEmpty {
+                        if category == .recordings {
+                            LiveRecordingsView(onChanged: { Task { await loadGuide() } }, upcoming: $upcoming)
+                        } else if category == .favourites, favourites.isEmpty {
                             noFavourites
                         } else {
                             LiveGuideGrid(client: model.client, channels: self.channels(in: category), guide: guide,
                                           onWatch: { model.watch($0, among: order) },
-                                          onFavourite: { setFavourite($0, !$0.isFavourite) })
+                                          onFavourite: { setFavourite($0, !$0.isFavourite) },
+                                          onRecordingsChanged: { Task { await loadGuide() } })
                         }
                     }
                     .padding(.leading, Layout.edge)
@@ -85,6 +92,7 @@ struct LiveTvView: View {
         case .favourites: favourites
         case .all: all
         case .group(let name): all.filter { $0.groupName == name }
+        case .recordings: []
         }
     }
 
@@ -99,6 +107,7 @@ struct LiveTvView: View {
                 .padding(.bottom, 24)
             categoryButton(.favourites, "Favourites", systemImage: "star.fill")
             categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
+            categoryButton(.recordings, "Recordings", systemImage: "record.circle")
             if groups.count > 1 {
                 ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
             }
@@ -119,9 +128,11 @@ struct LiveTvView: View {
                 }
                 Text(title).lineLimit(1)
                 Spacer(minLength: 8)
-                Text(channels(in: value).count, format: .number)
-                    .font(.system(size: 22, weight: .semibold).monospacedDigit())
-                    .opacity(0.6)
+                if let count = value == .recordings ? upcoming : channels(in: value).count {
+                    Text(count, format: .number)
+                        .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                        .opacity(0.6)
+                }
             }
         }
         .buttonStyle(CategoryButtonStyle(selected: category == value))
@@ -147,6 +158,7 @@ struct LiveTvView: View {
 
     private func loadGuide() async {
         guard let client = model.client else { return }
+        upcoming = try? await client.recordings().upcoming.count
         if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) { guide = loaded }
     }
 

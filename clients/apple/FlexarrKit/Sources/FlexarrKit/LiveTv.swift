@@ -27,6 +27,13 @@ public struct LiveProgramme: Codable, Sendable, Hashable, Identifiable {
     public let season: Int?
     public let episode: Int?
     public let isNew: Bool
+    /// "scheduled" or "recording" when it's on the DVR's list (in the guide).
+    public let recording: String?
+    /// A series covers it (in the guide).
+    public let series: Bool?
+
+    public var isSetToRecord: Bool { recording != nil }
+    public var isRecordingNow: Bool { recording == "recording" }
 
     /// How far through it is at `now`, 0 to 1.
     public func progress(at now: Date = Date()) -> Double {
@@ -113,6 +120,97 @@ public struct LiveGuide: Codable, Sendable, Hashable {
     public let channels: [GuideChannel]
 }
 
+// MARK: - Recordings (the DVR)
+
+/// A showing to record, being recorded, or recorded.
+public struct Recording: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let ruleId: String?
+    public let channelId: String
+    public let channelName: String
+    public let title: String
+    public let subtitle: String?
+    public let description: String?
+    public let season: Int?
+    public let episode: Int?
+    public let isNew: Bool
+    public let start: Date
+    public let end: Date
+    /// scheduled, recording, completed, failed, cancelled or skipped.
+    public let state: String
+    /// Why it failed or was skipped, or a note ("Stopped early.").
+    public let reason: String?
+    public let size: Int64?
+    /// Won't record as things stand: recordings scheduled before it want every stream.
+    public let clashes: Bool
+    /// In the library, to play.
+    public let itemId: String?
+
+    public var isRecordingNow: Bool { state == "recording" }
+}
+
+/// A series being recorded: every showing of a title.
+public struct RecordingSeries: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let title: String
+    /// Only on this channel; nil for any.
+    public let channelId: String?
+    public let channelName: String?
+    public let newOnly: Bool
+    /// 0 keeps them all.
+    public let keepLatest: Int
+    public let upcoming: Int
+    public let recorded: Int
+
+    public func covers(_ programme: LiveProgramme, on channelId: String) -> Bool {
+        title.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(programme.title.trimmingCharacters(in: .whitespaces)) == .orderedSame
+            && (self.channelId == nil || self.channelId == channelId)
+    }
+}
+
+public struct Recordings: Codable, Sendable, Hashable {
+    public let upcoming: [Recording]
+    public let recent: [Recording]
+    public let series: [RecordingSeries]
+    /// How many channels can be open at once, recordings and live viewing together.
+    public let streams: Int
+    public let folder: String
+    public let freeBytes: Int64?
+
+    /// The recording of this showing, if it's on the list.
+    public func recording(of programme: LiveProgramme, on channelId: String) -> Recording? {
+        upcoming.first { $0.channelId == channelId && abs($0.start.timeIntervalSince(programme.start)) < 1 }
+    }
+}
+
+/// Why a channel can't be watched: every stream is recording, this among them.
+public struct RecordingInTheWay: Sendable, Hashable {
+    public let recordingId: String
+    public let channelId: String
+    public let channelName: String
+    public let message: String
+
+    init?(problem data: Data) {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let recordingId = object["recordingId"] as? String, let channelId = object["channelId"] as? String
+        else { return nil }
+        self.recordingId = recordingId
+        self.channelId = channelId
+        channelName = object["channelName"] as? String ?? "that channel"
+        message = object["detail"] as? String ?? "Every stream is recording."
+    }
+}
+
+private struct RecordBody: Encodable {
+    let programmeId: Int64
+}
+
+private struct RecordSeriesBody: Encodable {
+    let programmeId: Int64
+    let anyChannel: Bool
+    let newOnly: Bool
+}
+
 private struct WatchBody: Encodable {
     let replaces: String?
     /// "surround": Apple's players take the channel's Dolby Digital 5.1 as it comes.
@@ -149,6 +247,33 @@ extension FlexarrClient {
     public func watchLiveChannel(_ id: String, replacing previous: String? = nil) async throws -> LiveWatch {
         let data = try await send("POST", "livetv/channels/\(id)/watch", body: WatchBody(replaces: previous, audio: "surround"))
         return try decode(LiveWatch.self, from: data)
+    }
+
+    // MARK: Recordings
+
+    public func recordings() async throws -> Recordings {
+        try await get("livetv/recordings")
+    }
+
+    @discardableResult
+    public func record(programme id: Int64) async throws -> Recording {
+        try decode(Recording.self, from: try await send("POST", "livetv/recordings", body: RecordBody(programmeId: id)))
+    }
+
+    @discardableResult
+    public func recordSeries(programme id: Int64, anyChannel: Bool = false, newOnly: Bool = false) async throws -> RecordingSeries {
+        try decode(RecordingSeries.self, from: try await send("POST", "livetv/recordings/series",
+                                                              body: RecordSeriesBody(programmeId: id, anyChannel: anyChannel, newOnly: newOnly)))
+    }
+
+    /// A scheduled one comes off the list; one recording now stops (keeping what it has); a finished one is deleted.
+    public func removeRecording(_ id: String) async throws {
+        _ = try await send("DELETE", "livetv/recordings/\(id)")
+    }
+
+    /// The series stops: its scheduled showings come off the list; what it recorded stays.
+    public func removeSeries(_ id: String) async throws {
+        _ = try await send("DELETE", "livetv/recordings/series/\(id)")
     }
 
     /// The player is still open, though paused (so not fetching anything).

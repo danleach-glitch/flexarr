@@ -8,6 +8,8 @@ struct LiveTvView: View {
     @Environment(AppModel.self) private var model
     @State private var channels: [LiveChannel]?
     @State private var error: String?
+    /// Something to say about a recording just set.
+    @State private var notice: String?
     /// Unchosen, the view is Favourites when there are some, otherwise All.
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
@@ -44,6 +46,9 @@ struct LiveTvView: View {
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
         .toolbar {
             if channels?.isEmpty == false {
+                NavigationLink { LiveRecordingsView() } label: {
+                    Label("Recordings", systemImage: "record.circle")
+                }
                 Button { showsGuide.toggle() } label: {
                     Label(showsGuide ? "List" : "Guide", systemImage: showsGuide ? "list.bullet" : "calendar")
                 }
@@ -57,6 +62,11 @@ struct LiveTvView: View {
             }
         }
         .refreshable { await load() }
+        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(notice ?? "")
+        }
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
@@ -107,6 +117,11 @@ struct LiveTvView: View {
                     }
                     .contextMenu {
                         Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
+                        ForEach([channel.now, channel.next].compactMap { $0 }) { programme in
+                            Button { record(programme) } label: {
+                                Label("Record \(programme.title)", systemImage: "record.circle")
+                            }
+                        }
                         Button { setFavourite(channel, !channel.isFavourite) } label: {
                             Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites", systemImage: channel.isFavourite ? "star.slash" : "star")
                         }
@@ -163,6 +178,21 @@ struct LiveTvView: View {
             error = nil
         } catch {
             if channels == nil { self.error = ConnectionError(error).message }
+        }
+    }
+
+    /// Sets a programme to record (asking again changes nothing), and says so; Recordings takes it off.
+    private func record(_ programme: LiveProgramme) {
+        guard let client = model.client else { return }
+        Task {
+            do {
+                let recording = try await client.record(programme: programme.id)
+                notice = recording.clashes
+                    ? "\(programme.title) clashes with recordings already on the list: every stream is wanted then, so it won't record unless one of them comes off."
+                    : "\(programme.title) will be recorded. Recordings, at the top, lists what's set."
+            } catch {
+                notice = error.localizedDescription
+            }
         }
     }
 

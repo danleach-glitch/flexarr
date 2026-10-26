@@ -107,6 +107,33 @@ final class LiveTvTour: XCTestCase {
         shot("68-guide-back")
     }
 
+    /// Recordings in the sidebar, then holding a later programme in the guide for its record options (not chosen).
+    func testRecordings() async throws {
+        guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
+        press(.up, times: 3, wait: 0.8)
+        press(.left, times: 6, wait: 0.5)
+        for _ in 0..<6 where !focused("Live TV") { press(.right, wait: 0.8) }
+        pause(3)
+        press(.down, wait: 2)
+        press(.left, times: 2, wait: 0.8)
+        for _ in 0..<6 where !app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Recordings' AND hasFocus == true")).firstMatch.exists {
+            press(.down, wait: 0.6)
+        }
+        logFocus("recordings")
+        pause(3)
+        shot("70-recordings")
+        // Back up to All channels, across into the guide, along to a later programme, and hold it.
+        press(.up, wait: 1)
+        pause(2)
+        press(.right, wait: 2)
+        press(.right, times: 3, wait: 1)
+        logFocus("later programme")
+        XCUIRemote.shared.press(.select, forDuration: 1.6)
+        pause(2)
+        shot("71-record-menu")
+        press(.menu, wait: 1.5)
+    }
+
     private func focused(_ label: String) -> Bool {
         app.buttons.matching(NSPredicate(format: "label == %@ AND hasFocus == true", label)).count > 0
     }

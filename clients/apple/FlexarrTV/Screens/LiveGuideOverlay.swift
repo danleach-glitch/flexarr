@@ -20,15 +20,18 @@ struct LiveGuideOverlay: View {
                 Text("Guide")
                     .font(.marquee(56, weight: .black))
                     .foregroundStyle(Color.screen)
-                LiveGuideGrid(client: client, channels: channels, guide: guide, onWatch: onWatch, focusChannel: currentId)
+                LiveGuideGrid(client: client, channels: channels, guide: guide, onWatch: onWatch,
+                              onRecordingsChanged: { Task { await load() } }, focusChannel: currentId)
             }
             .padding(.leading, Layout.edge)
             .padding(.top, 50)
         }
         .onExitCommand(perform: onClose)
-        .task {
-            guide = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24)
-        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) { guide = loaded }
     }
 
     /// The screen the player presents, over itself.

@@ -10,11 +10,15 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     case invalidAddress
     /// Neither the home address nor the one for away from home could be reached.
     case unreachable
+    /// A channel couldn't be watched: every stream is recording. Says what, so the player can offer it instead.
+    case recordingInTheWay(RecordingInTheWay)
 
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
             "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Server on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access."
+        case .recordingInTheWay(let recording):
+            recording.message
         case .http(let status, let message):
             message ?? "The server answered with an error (HTTP \(status))."
         case .unexpectedResponse:
@@ -415,6 +419,9 @@ public struct FlexarrClient: Sendable {
             onUnauthorized?()
             throw FlexarrClientError.unauthorized
         default:
+            if http.statusCode == 409, let recording = RecordingInTheWay(problem: data) {
+                throw FlexarrClientError.recordingInTheWay(recording)
+            }
             throw FlexarrClientError.http(status: http.statusCode, message: Self.problemMessage(data))
         }
     }

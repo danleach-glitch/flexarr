@@ -15,6 +15,7 @@ struct LiveGuideView: View {
     @State private var windowStart = LiveGuideView.halfHour(before: Date())
     @State private var details: (programme: LiveProgramme, channel: LiveChannel)?
     @State private var now = Date()
+    @State private var notice: String?
 
     private static let hours: Double = 6
     private static let clock: DateFormatter = {
@@ -58,21 +59,27 @@ struct LiveGuideView: View {
         }
         .task {
             while !Task.isCancelled {
-                if let client = model.client,
-                   let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2) {
-                    guide = loaded
-                }
+                await load()
                 now = Date()
                 try? await Task.sleep(for: .seconds(120))
             }
         }
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
-            if let channel = details?.channel {
+            if let channel = details?.channel, let programme = details?.programme {
                 Button("Watch \(channel.name) now") { model.watch(channel, among: order) }
+                if programme.end > now {
+                    Button(DvrActions.recordLabel(programme)) { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } }
+                    Button(DvrActions.seriesLabel(programme)) { act { try await DvrActions.toggleSeries(programme, on: channel.id, client: $0) } }
+                }
             }
             Button("Close", role: .cancel) {}
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
+        }
+        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(notice ?? "")
         }
     }
 
@@ -136,12 +143,21 @@ struct LiveGuideView: View {
                         if onNow {
                             Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
                         }
+                        if programme.end > now {
+                            Button { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } } label: {
+                                Label(DvrActions.recordLabel(programme), systemImage: programme.isSetToRecord ? "record.circle.fill" : "record.circle")
+                            }
+                            Button { act { try await DvrActions.toggleSeries(programme, on: channel.id, client: $0) } } label: {
+                                Label(DvrActions.seriesLabel(programme), systemImage: "square.stack")
+                            }
+                        }
                         Button { onFavourite(channel) } label: {
                             Label(channel.isFavourite ? "Remove from Favourites" : "Add to Favourites",
                                   systemImage: channel.isFavourite ? "star.slash" : "star")
                         }
                     }
-                    .accessibilityLabel("\(channel.name), \(programme.displayTitle), \(Self.clock.string(from: programme.start))")
+                    .accessibilityLabel("\(channel.name), \(programme.displayTitle), \(Self.clock.string(from: programme.start))"
+                                        + (programme.isSetToRecord ? ", set to record" : ""))
                     .accessibilityAddTraits(.isButton)
             }
         }
@@ -151,10 +167,17 @@ struct LiveGuideView: View {
     private func cell(_ programme: LiveProgramme, onNow: Bool, past: Bool, narrow: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if !narrow {
-                Text(programme.displayTitle)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.screen)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if programme.isSetToRecord {
+                        Circle().fill(Self.recordRed).frame(width: 8, height: 8)
+                    } else if programme.series == true {
+                        Image(systemName: "square.stack.fill").font(.system(size: 9)).foregroundStyle(Self.recordRed)
+                    }
+                    Text(programme.displayTitle)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .lineLimit(1)
+                }
                 Text("\(Self.clock.string(from: programme.start)) – \(Self.clock.string(from: programme.end))")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(Color.usher)
@@ -184,6 +207,28 @@ struct LiveGuideView: View {
                 .frame(maxHeight: .infinity)
                 .offset(x: offset)
                 .allowsHitTesting(false)
+        }
+    }
+
+    private static let recordRed = Color(red: 0.9, green: 0.28, blue: 0.3)
+
+    private func load() async {
+        if let client = model.client,
+           let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: Int(Self.hours) + 2) {
+            guide = loaded
+        }
+    }
+
+    /// Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done.
+    private func act(_ action: @escaping (FlexarrClient) async throws -> Void) {
+        guard let client = model.client else { return }
+        Task {
+            do {
+                try await action(client)
+            } catch {
+                notice = error.localizedDescription
+            }
+            await load()
         }
     }
 
