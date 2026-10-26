@@ -9,6 +9,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover's icon is now sparkles instead of a compass.
 - Playlists have their own icon on the web, a list with a note, as on iPhone and iPad, instead of the Music library's note. Empty playlist covers use it too.
 
+### Live TV
+- Recordings no longer appear as a library on the web, iPhone, iPad or Apple TV once Live TV is set up: not in the library list, Settings › Libraries or Settings › Profiles, and with no "Latest unwatched" row on Home. They're in Live TV › Recordings. Without Live TV, they stay a library so they can still be found.
+- A new TV library can't be called Recordings, which is the name Live TV's recordings library uses.
+
 ## 0.38.0 · 26 October 2026
 
 ### Libraries (Apple TV)
