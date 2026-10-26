@@ -134,7 +134,6 @@ struct LiveGuideView: View {
                 let onNow = programme.start <= now && programme.end > now
                 cell(programme, onNow: onNow, past: programme.end <= now, narrow: cellWidth < 56)
                     .frame(width: cellWidth, height: rowHeight)
-                    .offset(x: CGFloat(start.timeIntervalSince(windowStart) / 60) * perMinute)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         if onNow { model.watch(channel, among: order) } else { details = (programme, channel) }
@@ -159,6 +158,9 @@ struct LiveGuideView: View {
                     .accessibilityLabel("\(channel.name), \(programme.displayTitle), \(Self.clock.string(from: programme.start))"
                                         + (programme.isSetToRecord ? ", set to record" : ""))
                     .accessibilityAddTraits(.isButton)
+                    // Moved into its slot last, so where it's tapped moves with it (an offset before the tap area left
+                    // every programme's tap at the start of the row, where the last one won).
+                    .offset(x: CGFloat(start.timeIntervalSince(windowStart) / 60) * perMinute)
             }
         }
         .frame(width: width, height: rowHeight, alignment: .leading)

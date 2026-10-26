@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.34.2 · 26 October 2026
+
+### Live TV (iPhone and iPad)
+- Tapping a programme in the guide now opens that programme. Before, a tap could land on the last programme in the row, often one off the edge of the screen, so Record set the wrong one and nothing seemed to change.
+
 ## 0.34.1 · 26 October 2026
 
 ### Recording (DVR)

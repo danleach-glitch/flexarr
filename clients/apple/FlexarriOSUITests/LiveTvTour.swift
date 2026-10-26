@@ -30,6 +30,28 @@ final class LiveTvTour: XCTestCase {
         pause(6)
     }
 
+    /// Choosing Record on a later programme in the guide: the cell should show it straight away.
+    func testRecordFromGuide() async throws {
+        guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
+        app.tabBars.buttons["Libraries"].firstMatch.tap()
+        pause(2)
+        app.buttons["Live TV"].firstMatch.tap()
+        pause(3)
+        if app.buttons["Guide"].firstMatch.waitForExistence(timeout: 3) { app.buttons["Guide"].firstMatch.tap() }
+        pause(4)
+        // The next programme on the first row (what's on now would play).
+        let next = try await client.liveChannels().first { $0.name == "BBC One" }?.next?.title ?? ""
+        let later = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "BBC One, \(next)")).firstMatch
+        print("CELL[before]: \(later.label)")
+        later.tap()
+        pause(1.5)
+        shot("80-details")
+        app.alerts.buttons["Record"].firstMatch.tap()
+        pause(3)
+        shot("81-after-record")
+        print("CELL[after]: \(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BBC One, ' AND label CONTAINS 'set to record'")).count) marked")
+    }
+
     func testLiveTv() async throws {
         let channels = try await client.liveChannels()
         guard try await client.liveTvStatus()?.configured == true, let first = channels.first(where: \.isFavourite) ?? channels.first else {
