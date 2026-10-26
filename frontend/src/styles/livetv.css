@@ -278,17 +278,26 @@
   color: var(--usher);
 }
 
+/* A fixed box whatever the logo's shape: tall ones (Channel 4, 5) scale down into it rather than spill out. */
 .livetv-row-logo {
-  display: grid;
-  place-items: center;
+  position: relative;
   height: 52px;
   border-radius: 6px;
   background: var(--room);
+  overflow: hidden;
 }
 
 .livetv-row-logo .livetv-logo {
-  width: 80%;
-  height: 76%;
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 12px);
+}
+
+.livetv-row-logo .livetv-logo-text {
+  display: grid;
+  place-items: center;
 }
 
 .livetv-row-logo .livetv-logo-text {
