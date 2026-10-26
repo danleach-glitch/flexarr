@@ -276,6 +276,13 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 log.error("Couldn't send offline progress: \(error.localizedDescription, privacy: .public)")
             }
         }
+        // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
+        // "unknown" and would stay so, filed under Films: what the server says now puts it right.
+        for download in all where download.profileId == profileId && download.item.kind == .unknown {
+            if let remote = try? await client.download(download.id), remote.item.kind != .unknown {
+                update(download.id) { $0.item = remote.item }
+            }
+        }
         for download in downloads where download.isDownloaded && download.finishedAt == nil {
             fetchNext(after: download)
         }
