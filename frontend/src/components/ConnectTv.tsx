@@ -5,7 +5,7 @@ import { ApiError, approvePairing, askForProfile, declinePairing, getPairing, ty
  * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving gives the TV a
  * sign-in of its own, so only the main profile can.
  */
-export function ConnectTv({ initialCode = '' }: { initialCode?: string }) {
+export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: string; titled?: boolean }) {
   const [code, setCode] = useState(initialCode)
   const [details, setDetails] = useState<PairingDetails>()
   const [state, setState] = useState<'idle' | 'checking' | 'approving' | 'declining' | 'done' | 'declined'>('idle')
@@ -124,7 +124,7 @@ export function ConnectTv({ initialCode = '' }: { initialCode?: string }) {
             someone sent you this link, choose Don’t allow.
           </p>
         )}
-        <p className="field-help">The TV can sign in to Flexarr like any other device. You can sign it out later in Settings › Server.</p>
+        <p className="field-help">The TV can sign in to Flexarr like any other device. You can sign it out later in Settings › Access.</p>
         {errorLine}
         <div className="form-actions">
           <button className="button quiet" onClick={() => void decline()} disabled={state === 'approving' || state === 'declining'} autoFocus={!home}>
@@ -140,7 +140,7 @@ export function ConnectTv({ initialCode = '' }: { initialCode?: string }) {
 
   return (
     <form className="panel connect-tv" onSubmit={submit}>
-      <h2>Connect a TV</h2>
+      {titled && <h2>Connect a TV</h2>}
       {state === 'declined' && (
         <p className="key-note" role="status">
           Not connected. The TV will show a new code in a moment.

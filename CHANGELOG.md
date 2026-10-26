@@ -2,6 +2,16 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Settings on the web
+- Settings is in two groups: your profile's own (Playback and Podcasts) and the server's. Every profile can now open Settings and change its own playback and podcast settings; the server's pages stay with the main profile.
+- A new Overview page shows who's watching, what the server is working on, and how libraries, health, connections and remote access stand, each a click from its page.
+- Pages are regrouped: Library health, Bring over from Plex and the podcast folder and country live under Libraries; video conversion is its own Streaming page; remote access, the API key and signed-in browsers and TVs are together under Access (with Connect a TV); webhooks are under Connections; the version, storage and changelog are under About, showing the latest release with older ones a click away.
+- Sonarr, Radarr, Lidarr and Seerr each take one line saying how they are, opened with Edit to change them.
+- Settings save as you change them, Home and Browse rows included; forms like a connection's address keep a Save button.
+- A plainer, tighter look: titles in the text face, switches for every on/off setting, one panel per list, and Library health leaves out groups with nothing in them.
+
 ## 0.28.1 · 26 October 2026
 
 ### Fixed

@@ -16,7 +16,7 @@ public static class WebhookEndpoints
     /// <summary>
     /// Point a Sonarr/Radarr/Lidarr "Webhook" connection at
     /// <c>http://flexarr:8383/api/v1/webhooks/{sonarr|radarr|lidarr}?secret=...</c>, with the webhook secret from
-    /// Settings › Server. It can only queue scans, so the API key needn't sit in the *arr apps' settings. Webhooks set up
+    /// Settings › Connections. It can only queue scans, so the API key needn't sit in the *arr apps' settings. Webhooks set up
     /// with <c>?apikey=</c> keep working.
     /// </summary>
     public static RouteGroupBuilder MapWebhookEndpoints(this RouteGroupBuilder api)

@@ -19,7 +19,7 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
 {
     /// <summary>
     /// Podcasts are part of Flexarr rather than a library someone adds: there's always one Podcasts library, made on
-    /// first start with a folder in the data directory (Settings › Podcasts can move it, say beside the rest of the
+    /// first start with a folder in the data directory (Settings › Libraries can move it, say beside the rest of the
     /// media). It can't be removed, and no second one can be added.
     /// </summary>
     public static async Task EnsureLibraryAsync(FlexarrDbContext db, Configuration.FlexarrOptions options, CancellationToken ct)

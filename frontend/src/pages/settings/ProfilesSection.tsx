@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ApiError, createProfile, deleteProfile, getAllLibraries, removeProfileImage, uploadProfileImage, getProfiles, updateProfile, type Library, type Profile } from '../../api/client'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
+import { SettingsHeader } from './shared'
 
 const profileColours = [
   { value: '#a9c2ec', name: 'Blue' },
@@ -31,18 +32,18 @@ export function ProfilesSection() {
 
   return (
     <section>
-      <header className="settings-header">
-        <h2>Profiles</h2>
-        {editing === undefined && (
-          <button className="button small" onClick={() => setEditing('new')}>
-            Add a profile
-          </button>
-        )}
-      </header>
-      <p className="settings-lede">
-        Everyone in the house can have their own Continue Watching, watched history and Up Next. With more than one profile, Flexarr asks who’s watching when it opens. A
-        PIN keeps a profile private (handy for keeping kids out of yours).
-      </p>
+      <SettingsHeader
+        title="Profiles"
+        action={
+          editing === undefined && (
+            <button className="button small" onClick={() => setEditing('new')}>
+              Add a profile
+            </button>
+          )
+        }
+      >
+        Everyone gets their own Continue Watching, history and Up Next. With more than one profile, Flexarr asks who’s watching; a PIN keeps one private.
+      </SettingsHeader>
       {editing === 'new' && (
         <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
       )}

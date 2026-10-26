@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ApiError, getPlexSource, importPlexAvatars, type PlexAvatarResult, getProfiles, importFromPlex, type PlexImportResult } from '../../api/client'
 import { useApi } from '../../hooks/useApi'
+import { SettingsHeader } from './shared'
 
 export function ImportSection() {
   const profiles = useApi(getProfiles, [])
@@ -29,13 +30,10 @@ export function ImportSection() {
 
   return (
     <section>
-      <header className="settings-header">
-        <h2>Bring over from Plex</h2>
-      </header>
-      <p className="settings-lede">
-        Copy what you've watched, and where you stopped, from Plex Media Server. Flexarr matches by file, reads a copy of Plex's database and never changes
-        Plex itself. You can run this again at any time; anything you've watched more recently in Flexarr is kept.
-      </p>
+      <SettingsHeader title="Bring over from Plex" back={{ to: '/settings/libraries', label: 'Libraries' }}>
+        Copies what you’ve watched, and where you stopped, from Plex Media Server. Plex itself is never changed, and it’s safe to run again: anything watched
+        more recently in Flexarr is kept.
+      </SettingsHeader>
       <div className="panel">
         {source.loading && <p className="muted">Looking for Plex…</p>}
         {source.data && !source.data.found && (
@@ -58,7 +56,7 @@ export function ImportSection() {
         {source.data?.found && (
           <>
             <p className="muted">
-              Found Plex at <code>{source.data.path}</code>
+              Found Plex at <code className="folder">{source.data.path}</code>
             </p>
             {source.data.accounts.length === 0 ? (
               <p>That Plex server has no watch history to bring over.</p>
@@ -130,8 +128,8 @@ function PlexPictures({ path }: { path?: string }) {
 
   return (
     <div className="panel">
-      <h3>Profile pictures</h3>
-      <p className="muted">Use the pictures from your Plex Home users for the Flexarr profiles with the same names. It replaces any picture those profiles already have.</p>
+      <h3 className="panel-title">Profile pictures</h3>
+      <p className="muted">Uses your Plex Home users’ pictures for the Flexarr profiles with the same names, in place of any picture they have.</p>
       {result && (
         <p role="status" className="import-result">
           {result.matched.length > 0 ? `Updated ${result.matched.map((m) => m.profile).join(' and ')}.` : 'No profiles matched a Plex user’s name.'}
@@ -144,7 +142,7 @@ function PlexPictures({ path }: { path?: string }) {
         </p>
       )}
       <div className="form-actions">
-        <button className="button" disabled={busy} onClick={run}>
+        <button className="button quiet small" disabled={busy} onClick={run}>
           {busy ? 'Fetching pictures…' : 'Use Plex profile pictures'}
         </button>
       </div>

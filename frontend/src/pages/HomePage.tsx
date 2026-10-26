@@ -26,7 +26,7 @@ export function HomePage() {
       <section className="welcome">
         <h1>Your cinema is empty</h1>
         <p>Point Flexarr at the folders where your films and shows live, and they'll appear here with artwork.</p>
-        <Link className="button" to="/settings">
+        <Link className="button" to="/settings/libraries">
           Add a library
         </Link>
       </section>

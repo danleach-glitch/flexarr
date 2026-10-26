@@ -9,7 +9,7 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Shown in Settings › Changelog, so it always matches the version that's running. -->
+    <!-- Shown in Settings › About, so it always matches the version that's running. -->
     <EmbeddedResource Include="..\..\CHANGELOG.md" LogicalName="CHANGELOG.md" />
   </ItemGroup>
   <ItemGroup>

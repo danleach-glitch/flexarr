@@ -1,49 +1,42 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getLayout, saveLayout, type Layout, type RowChoice } from '../../api/client'
 import { ChevronDown, ChevronUp } from '../../components/icons'
 import { useApi } from '../../hooks/useApi'
+import { SaveStatus, SettingsHeader } from './shared'
+import { errorText } from './useSettings'
 
 export function LayoutSection() {
   const { data, error } = useApi(getLayout, [])
   const [draft, setDraft] = useState<Layout>()
-  const [saved, setSaved] = useState(false)
+  const [status, setStatus] = useState<{ saved?: string; error?: string }>({})
   const layout = draft ?? data
+  // Saved a moment after the last change, so a row moved several places up is one save, not several.
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   if (error) return <p className="error">{error.message}</p>
   if (!layout) return <p className="muted">Loading…</p>
 
   const change = (key: keyof Layout, rows: RowChoice[]) => {
-    setDraft({ ...layout, [key]: rows })
-    setSaved(false)
+    const next = { ...layout, [key]: rows }
+    setDraft(next)
+    setStatus({})
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      saveLayout(next).then(
+        () => setStatus({ saved: 'Saved. Home and Browse show it next time they load.' }),
+        (e: unknown) => setStatus({ error: errorText(e) }),
+      )
+    }, 600)
   }
 
   return (
     <section>
-      <header className="settings-header">
-        <h2>Customise display</h2>
-      </header>
-      <p className="settings-lede">Choose which rows appear on Home and on each library’s Browse view, and in what order. This applies to every profile.</p>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault()
-          await saveLayout(layout)
-          setSaved(true)
-        }}
-      >
-        <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)} />
-        <RowList title="Film libraries (Browse)" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
-        <RowList title="TV libraries (Browse)" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
-        <div className="form-actions">
-          {saved && (
-            <span className="muted" role="status">
-              Saved. Home and Browse show the new layout next time they load.
-            </span>
-          )}
-          <button type="submit" className="button" disabled={!draft}>
-            Save layout
-          </button>
-        </div>
-      </form>
+      <SettingsHeader title="Home and Browse">Which rows Home and each library’s Browse show, and in what order, for every profile.</SettingsHeader>
+      <SaveStatus {...status} />
+      <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)} />
+      <RowList title="Film libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
+      <RowList title="TV libraries" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
     </section>
   )
 }
@@ -56,14 +49,20 @@ function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; 
     onChange(next)
   }
   return (
-    <fieldset className="panel row-list">
+    <fieldset className="settings-group row-list">
       <legend className="settings-subhead">{title}</legend>
-      <ol>
+      <ol className="panel">
         {rows.map((row, i) => (
           <li key={row.id}>
-            <label className="checkbox">
-              <input type="checkbox" checked={row.enabled} onChange={(e) => onChange(rows.map((r) => (r.id === row.id ? { ...r, enabled: e.target.checked } : r)))} />{' '}
+            <label className="row-list-toggle">
               <span className={row.enabled ? undefined : 'muted'}>{row.label}</span>
+              <input
+                type="checkbox"
+                role="switch"
+                className="switch"
+                checked={row.enabled}
+                onChange={(e) => onChange(rows.map((r) => (r.id === row.id ? { ...r, enabled: e.target.checked } : r)))}
+              />
             </label>
             <span className="row-list-move">
               <button type="button" className="icon-button" aria-label={`Move ${row.label} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>

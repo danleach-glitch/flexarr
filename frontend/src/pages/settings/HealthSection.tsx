@@ -7,6 +7,7 @@ import { FixMatchDialog } from '../../components/FixMatchDialog'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatSize, relativeTime } from '../../lib/format'
+import { SettingsHeader } from './shared'
 
 function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
   const check = useApi(getHealthCheck, [])
@@ -40,7 +41,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
           </p>
         </div>
         <button
-          className="button"
+          className="button quiet small"
           disabled={running}
           onClick={async () => {
             await startHealthCheck()
@@ -155,11 +156,16 @@ export function HealthSection() {
     [score.missingArtwork, 'without artwork'],
   ] as const
 
+  // Groups with nothing in them drop out, so what's left is what needs a look; this line says what's fine.
+  const clear = [
+    data.duplicates.length === 0 && 'every title has a single copy',
+    data.unreadable.length === 0 && 'every file opened cleanly',
+    data.standardDefinitionTotal === 0 && 'every film has an HD copy',
+  ].filter((s): s is string => !!s)
+
   return (
     <section className="health">
-      <header className="settings-header">
-        <h2>Library health</h2>
-      </header>
+      <SettingsHeader title="Library health" back={{ to: '/settings/libraries', label: 'Libraries' }} />
 
       <div className="panel health-score" data-grade={score.score >= 95 ? 'good' : score.score >= 80 ? 'fair' : 'poor'}>
         <div className="health-score-number">
@@ -199,10 +205,13 @@ export function HealthSection() {
 
       {data.held.length > 0 && <HeldFolders folders={data.held} onConfirmed={reload} />}
 
+      {clear.length > 0 && <p className="muted health-clear">All clear: {clear.join(', ')}.</p>}
+
       <HealthGroup
         title="Spare copies"
         count={data.duplicates.length}
-        empty="Every title has a single copy."
+        // Stays while spares are removed, so the last of them going doesn't take the progress with it.
+        shown={removing !== null}
         lede={`More than one file for the same film or episode. Removing spares frees ${formatSize(data.reclaimableBytes)}; the best copy, and the one Sonarr or Radarr use, always stay.`}
         action={
           data.duplicates.length > 0 && (
@@ -276,7 +285,7 @@ export function HealthSection() {
         )}
       </HealthGroup>
 
-      <HealthGroup title="Files that can’t be read" count={data.unreadable.length} empty="Every file opened cleanly." lede="Usually a damaged or unfinished download. A new copy fixes playback.">
+      <HealthGroup title="Files that can’t be read" count={data.unreadable.length} lede="Usually a damaged or unfinished download. A new copy fixes playback.">
         {data.unreadable.map((u) => (
           <div key={u.fileId} className="health-row">
             <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${u.error.split(': ').at(-1)?.toLowerCase()}`} />
@@ -292,7 +301,7 @@ export function HealthSection() {
         ))}
       </HealthGroup>
 
-      <HealthGroup title="Only in standard definition" count={data.standardDefinitionTotal} empty="Every film has an HD copy." lede="Your best copy is below 720p. Radarr can look for a better one.">
+      <HealthGroup title="Only in standard definition" count={data.standardDefinitionTotal} lede="Your best copy is below 720p. Radarr can look for a better one.">
         {data.standardDefinition.map((item) => (
           <div key={item.id} className="health-row">
             <HealthRowMain item={item} detail="Best copy is SD" />
@@ -486,8 +495,9 @@ function DownloadingNote({ state }: { state: LibraryHealth['downloading'][string
   return <span className="tag health-downloading">{text}</span>
 }
 
-/** A titled group of problems with a count, a line on what it means, and an optional action for all of them. */
-function HealthGroup({ title, count, lede, empty, action, children }: { title: string; count: number; lede: string; empty?: string; action?: ReactNode; children: ReactNode }) {
+/** A titled group of problems with a count, a line on what it means, and an optional action for all of them. Nothing, when there are none. */
+function HealthGroup({ title, count, lede, action, shown, children }: { title: string; count: number; lede: string; action?: ReactNode; shown?: boolean; children: ReactNode }) {
+  if (count === 0 && !shown) return null
   return (
     <section className="health-group">
       <header>
@@ -495,11 +505,11 @@ function HealthGroup({ title, count, lede, empty, action, children }: { title: s
           <h3 className="settings-subhead">
             {title} <span className="health-count">{count.toLocaleString()}</span>
           </h3>
-          {count > 0 && <p className="muted">{lede}</p>}
+          <p className="muted">{lede}</p>
         </div>
         {action}
       </header>
-      {count === 0 ? <p className="muted">{empty}</p> : <div className="panel health-rows">{children}</div>}
+      <div className="panel health-rows">{children}</div>
     </section>
   )
 }

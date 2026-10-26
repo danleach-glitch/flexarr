@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
-import { getArrStatus, getRequestStatus, testArr, type ArrKind, type ArrStatus, type Settings } from '../../api/client'
+import { useState, type FormEvent, type ReactNode } from 'react'
+import { getArrStatus, getRequestStatus, rotateWebhookSecret, testArr, type ArrKind, type ArrStatus, type Settings } from '../../api/client'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
 import { appLogos } from '../../lib/apps'
-import { useSettings, SaveBar, OpenApp } from './shared'
+import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
+import { errorText, useSettings } from './useSettings'
 
 interface DraftConnection {
   name: string
@@ -12,180 +15,389 @@ interface DraftConnection {
   hasApiKey: boolean
 }
 
+type Save = ReturnType<typeof useSettings>['save']
+
+/**
+ * Sonarr, Radarr and Lidarr, then Seerr: a line each saying how it is, opened to change it. Below them, path mappings
+ * and the webhook addresses the apps call when something new arrives.
+ */
 export function ConnectionsSection() {
   const { settings, save, saved, saveError, waiting } = useSettings()
   // Asked once the settings are in (and again after a save), not also while they load.
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
-  const [connections, setConnections] = useState<DraftConnection[]>([])
-  const [mappings, setMappings] = useState<Settings['pathMappings']>([])
-  const [seerr, setSeerr] = useState({ baseUrl: '', apiKey: '', hasApiKey: false })
-  const [tests, setTests] = useState<Record<number, ArrStatus | 'testing'>>({})
-
-  useEffect(() => {
-    if (!settings) return
-    setConnections(settings.arr.map((a) => ({ ...a, apiKey: '' })))
-    setMappings(settings.pathMappings)
-    setSeerr({ baseUrl: settings.seerr?.baseUrl ?? '', apiKey: '', hasApiKey: settings.seerr?.hasApiKey ?? false })
-  }, [settings])
-
+  // Which one is open: an index into the list, 'new' for one being added, or 'seerr'.
+  const [open, setOpen] = useState<number | 'new' | 'seerr'>()
   if (!settings) return waiting
 
-  const update = (i: number, change: Partial<DraftConnection>) => setConnections((c) => c.map((x, j) => (j === i ? { ...x, ...change } : x)))
+  const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
+  /** The whole list goes to the server, with this one changed (or taken out); keys left blank stay as they were. */
+  async function saveArr(index: number | 'new', next: DraftConnection | null) {
+    const list = [...current]
+    const entry = next && { name: next.name, kind: next.kind, baseUrl: next.baseUrl, apiKey: next.apiKey || undefined }
+    if (index === 'new') list.push(entry!)
+    else if (entry) list[index] = entry
+    else list.splice(index, 1)
+    if (await save({ arr: list })) setOpen(undefined)
+  }
+
+  const nextKind: ArrKind = (['Sonarr', 'Radarr', 'Lidarr'] as const).find((k) => !settings.arr.some((a) => a.kind === k)) ?? 'Sonarr'
 
   return (
     <section>
-      <header className="settings-header">
-        <h2>Connections</h2>
-      </header>
-      <p className="settings-lede">
-        Flexarr reads artwork, descriptions, cast and trailers from your Sonarr and Radarr, so no other accounts or API keys are needed. Seerr adds
-        Discover and requests.
-      </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          void save({
-            arr: connections.map((c) => ({ name: c.name, kind: c.kind, baseUrl: c.baseUrl, apiKey: c.apiKey || undefined })),
-            pathMappings: mappings,
-            seerr: { baseUrl: seerr.baseUrl, apiKey: seerr.apiKey || undefined },
-          })
-        }}
-      >
-        {connections.map((c, i) => {
-          const live = status.data?.find((s) => s.name === c.name)
-          const test = tests[i]
-          const shown = test && test !== 'testing' ? test : live
-          return (
-            <div key={i} className="panel connection">
-              <div className="connection-status">
-                <span className={shown?.ok ? 'status-dot ok' : shown ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
-                <img className="app-logo" src={appLogos[c.kind]} alt="" />
-                <strong>{c.name || c.kind}</strong>
-                <span className="muted">{test === 'testing' ? 'Testing…' : shown?.ok ? `Connected, version ${shown.version}` : shown?.error}</span>
-                <OpenApp baseUrl={c.baseUrl} name={c.name || c.kind} />
-              </div>
-              <div className="field-row">
-                <label>
-                  Kind
-                  <select value={c.kind} onChange={(e) => update(i, { kind: e.target.value as ArrKind })}>
-                    <option>Sonarr</option>
-                    <option>Radarr</option>
-                    <option>Lidarr</option>
-                  </select>
-                </label>
-                <label>
-                  Name
-                  <input type="text" value={c.name} onChange={(e) => update(i, { name: e.target.value })} />
-                </label>
-                <label className="grow">
-                  Address
-                  <input type="url" value={c.baseUrl} placeholder="http://localhost:8989" onChange={(e) => update(i, { baseUrl: e.target.value })} />
-                </label>
-                <label className="grow">
-                  API key
-                  <input
-                    type="password"
-                    value={c.apiKey}
-                    placeholder={c.hasApiKey ? 'Saved; type to replace' : 'Settings › General in Sonarr or Radarr'}
-                    onChange={(e) => update(i, { apiKey: e.target.value })}
-                  />
-                </label>
-              </div>
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="button quiet small"
-                  onClick={async () => {
-                    setTests((t) => ({ ...t, [i]: 'testing' }))
-                    const result = await testArr({ name: c.name, kind: c.kind, baseUrl: c.baseUrl, apiKey: c.apiKey || undefined }).catch(
-                      (e: unknown): ArrStatus => ({ name: c.name, kind: c.kind, ok: false, version: null, error: e instanceof Error ? e.message : String(e) }),
-                    )
-                    setTests((t) => ({ ...t, [i]: result }))
-                  }}
-                >
-                  Test connection
-                </button>
-                <button type="button" className="button danger small" onClick={() => setConnections((all) => all.filter((_, j) => j !== i))}>
-                  Remove
-                </button>
-              </div>
-            </div>
-          )
-        })}
-        <div className="connections-add">
-          <button
-            type="button"
-            className="button quiet small"
-            onClick={() => setConnections((c) => [...c, { name: 'Sonarr', kind: 'Sonarr', baseUrl: 'http://localhost:8989', apiKey: '', hasApiKey: false }])}
-          >
-            Add a connection
-          </button>
-        </div>
+      <SettingsHeader title="Connections">
+        Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Seerr adds Discover and requests.
+      </SettingsHeader>
 
-        <h3 className="settings-subhead">Requests</h3>
-        <p className="settings-lede">
-          Connect Seerr (or Overseerr or Jellyseerr) to see what's trending that you don't have yet, and request it in one click. Requests follow your Seerr rules.
-        </p>
-        <div className="panel connection">
-          <div className="connection-status">
-            <span className={seerrStatus.data?.reachable ? 'status-dot ok' : seerrStatus.data?.configured ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
-            <img className="app-logo" src={appLogos.Seerr} alt="" />
-            <strong>Seerr</strong>
-            <span className="muted">
-              {seerrStatus.loading
-                ? 'Checking…'
-                : !seerrStatus.data?.configured
-                  ? 'Not set up'
-                  : seerrStatus.data.reachable
-                    ? 'Connected'
-                    : 'Flexarr can’t reach Seerr at this address, or the API key isn’t right'}
-            </span>
-            <OpenApp baseUrl={seerr.baseUrl} name="Seerr" />
+      <SettingsGroup
+        title="Apps"
+        note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}
+        action={
+          open !== 'new' && (
+            <button className="button quiet small" onClick={() => setOpen('new')}>
+              Add a connection
+            </button>
+          )
+        }
+      >
+        {settings.arr.map((a, i) => (
+          <ArrRow
+            key={`${a.name}-${i}`}
+            connection={{ ...a, apiKey: '' }}
+            live={status.data?.find((s) => s.name === a.name)}
+            open={open === i}
+            onOpen={() => setOpen(i)}
+            onClose={() => setOpen(undefined)}
+            onSave={(c) => saveArr(i, c)}
+            onRemove={() => saveArr(i, null)}
+          />
+        ))}
+        {open === 'new' && (
+          <ArrRow
+            connection={{ name: nextKind, kind: nextKind, baseUrl: '', apiKey: '', hasApiKey: false }}
+            isNew
+            open
+            onOpen={() => undefined}
+            onClose={() => setOpen(undefined)}
+            onSave={(c) => saveArr('new', c)}
+          />
+        )}
+        <SeerrRow
+          seerr={settings.seerr}
+          status={seerrStatus.loading ? 'Checking…' : !seerrStatus.data?.configured ? 'Not set up' : seerrStatus.data.reachable ? 'Connected' : 'Can’t be reached, or the API key isn’t right'}
+          ok={seerrStatus.data?.configured ? seerrStatus.data.reachable : undefined}
+          open={open === 'seerr'}
+          onOpen={() => setOpen('seerr')}
+          onClose={() => setOpen(undefined)}
+          onSave={async (seerr) => {
+            if (await save({ seerr })) setOpen(undefined)
+          }}
+        />
+      </SettingsGroup>
+
+      <PathMappings mappings={settings.pathMappings} save={save} />
+      <Webhooks secret={settings.webhookSecret} />
+    </section>
+  )
+}
+
+/** A connection's line: whether it's reachable, its version, a link to it, and Edit, which opens the form under it. */
+function ConnectionLine({ kind, name, ok, status, baseUrl, open, onOpen }: { kind: keyof typeof appLogos; name: string; ok?: boolean; status: ReactNode; baseUrl: string; open: boolean; onOpen: () => void }) {
+  return (
+    <div className="connection-line">
+      <span className={ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
+      <img className="app-logo" src={appLogos[kind]} alt="" />
+      <span className="setting-text">
+        <strong>{name}</strong>
+        <span className="muted">{status}</span>
+      </span>
+      <span className="connection-actions">
+        {baseUrl && <OpenApp baseUrl={baseUrl} name={name} />}
+        {!open && (
+          <button className="button quiet small" onClick={onOpen} aria-label={`Edit ${name}`}>
+            Edit
+          </button>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function ArrRow({
+  connection,
+  live,
+  isNew,
+  open,
+  onOpen,
+  onClose,
+  onSave,
+  onRemove,
+}: {
+  connection: DraftConnection
+  live?: ArrStatus
+  isNew?: boolean
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onSave: (c: DraftConnection) => Promise<void>
+  onRemove?: () => Promise<void>
+}) {
+  const [draft, setDraft] = useState(connection)
+  const [test, setTest] = useState<ArrStatus | 'testing'>()
+  const shown = test && test !== 'testing' ? test : live
+  const update = (change: Partial<DraftConnection>) => setDraft((d) => ({ ...d, ...change }))
+
+  async function runTest() {
+    setTest('testing')
+    const result = await testArr({ name: draft.name, kind: draft.kind, baseUrl: draft.baseUrl, apiKey: draft.apiKey || undefined }).catch(
+      (e: unknown): ArrStatus => ({ name: draft.name, kind: draft.kind, ok: false, version: null, error: errorText(e) }),
+    )
+    setTest(result)
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    void onSave(draft)
+  }
+
+  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · version ${shown.version}` : shown ? shown.error : isNew ? 'New connection' : 'Checking…'
+  return (
+    <div className="connection">
+      <ConnectionLine kind={draft.kind} name={draft.name || draft.kind} ok={shown?.ok} status={statusText} baseUrl={isNew ? '' : connection.baseUrl} open={open} onOpen={onOpen} />
+      {open && (
+        <form className="connection-form" onSubmit={submit} aria-label={isNew ? 'New connection' : `Edit ${connection.name}`}>
+          <div className="field-row">
+            {isNew && (
+              <label>
+                Kind
+                <select value={draft.kind} onChange={(e) => update({ kind: e.target.value as ArrKind, name: draft.name === draft.kind ? e.target.value : draft.name })}>
+                  <option>Sonarr</option>
+                  <option>Radarr</option>
+                  <option>Lidarr</option>
+                </select>
+              </label>
+            )}
+            <label>
+              Name
+              <input type="text" value={draft.name} required onChange={(e) => update({ name: e.target.value })} />
+            </label>
+            <label className="grow">
+              Address
+              <input type="url" value={draft.baseUrl} required placeholder={placeholderUrl[draft.kind]} onChange={(e) => update({ baseUrl: e.target.value })} />
+            </label>
           </div>
+          <label className="field">
+            <span className="field-label">API key</span>
+            <input
+              type="password"
+              value={draft.apiKey}
+              placeholder={connection.hasApiKey ? 'Saved; type to replace' : `In ${draft.kind}, under Settings › General`}
+              onChange={(e) => update({ apiKey: e.target.value })}
+            />
+          </label>
+          <div className="form-actions">
+            {onRemove && (
+              <button type="button" className="button danger small form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && void onRemove()}>
+                Remove
+              </button>
+            )}
+            <button type="button" className="button quiet small" onClick={() => void runTest()}>
+              Test
+            </button>
+            <button
+              type="button"
+              className="button quiet small"
+              onClick={() => {
+                setDraft(connection)
+                setTest(undefined)
+                onClose()
+              }}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="button small">
+              {isNew ? 'Add' : 'Save'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+const placeholderUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
+
+function SeerrRow({
+  seerr,
+  status,
+  ok,
+  open,
+  onOpen,
+  onClose,
+  onSave,
+}: {
+  seerr: Settings['seerr']
+  status: string
+  ok?: boolean
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onSave: (seerr: { baseUrl: string; apiKey?: string }) => Promise<void>
+}) {
+  const [baseUrl, setBaseUrl] = useState(seerr?.baseUrl ?? '')
+  const [apiKey, setApiKey] = useState('')
+  return (
+    <div className="connection">
+      <ConnectionLine kind="Seerr" name="Seerr" ok={ok} status={status} baseUrl={seerr?.baseUrl ?? ''} open={open} onOpen={onOpen} />
+      {open && (
+        <form
+          className="connection-form"
+          aria-label="Edit Seerr"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void onSave({ baseUrl, apiKey: apiKey || undefined })
+          }}
+        >
+          <p className="muted">Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules.</p>
           <div className="field-row">
             <label className="grow">
-              Seerr address
-              <input type="url" value={seerr.baseUrl} placeholder="http://localhost:5055" onChange={(e) => setSeerr({ ...seerr, baseUrl: e.target.value })} />
+              Address
+              <input type="url" value={baseUrl} placeholder="http://localhost:5055" onChange={(e) => setBaseUrl(e.target.value)} />
             </label>
             <label className="grow">
               API key
-              <input
-                type="password"
-                value={seerr.apiKey}
-                placeholder={seerr.hasApiKey ? 'Saved; type to replace' : 'Settings › General in Seerr'}
-                onChange={(e) => setSeerr({ ...seerr, apiKey: e.target.value })}
-              />
+              <input type="password" value={apiKey} placeholder={seerr?.hasApiKey ? 'Saved; type to replace' : 'In Seerr, under Settings › General'} onChange={(e) => setApiKey(e.target.value)} />
             </label>
           </div>
-        </div>
-
-        <h3 className="settings-subhead">Path mappings</h3>
-        <p className="settings-lede">
-          If Sonarr and Radarr run in Docker, they see your media under different paths. Map their paths to the ones on this server.
-        </p>
-        <div className="panel">
-          {mappings.map((m, i) => (
-            <div key={i} className="field-row mapping">
-              <label className="grow">
-                Path in Sonarr or Radarr
-                <input type="text" value={m.from} placeholder="/data" onChange={(e) => setMappings(mappings.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} />
-              </label>
-              <label className="grow">
-                Path on this server
-                <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => setMappings(mappings.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} />
-              </label>
-              <button type="button" className="text-button" onClick={() => setMappings(mappings.filter((_, j) => j !== i))}>
+          <div className="form-actions">
+            {seerr && (
+              <button type="button" className="button danger small form-actions-start" onClick={() => confirm('Remove Seerr? Discover and requests go with it.') && void onSave({ baseUrl: '' })}>
                 Remove
               </button>
-            </div>
-          ))}
-          <button type="button" className="button quiet small" onClick={() => setMappings([...mappings, { from: '', to: '' }])}>
-            Add a mapping
+            )}
+            <button type="button" className="button quiet small" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="button small">
+              Save
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+/** Where Docker'd apps see the media, against where this server does. Saved together, once changed. */
+function PathMappings({ mappings: saved, save }: { mappings: Settings['pathMappings']; save: Save }) {
+  const [mappings, setMappings] = useState(saved)
+  const changed = JSON.stringify(mappings) !== JSON.stringify(saved)
+  const set = (i: number, change: Partial<Settings['pathMappings'][number]>) => setMappings(mappings.map((x, j) => (j === i ? { ...x, ...change } : x)))
+
+  return (
+    <SettingsGroup title="Path mappings" note="Only needed when Sonarr, Radarr or Lidarr see your media under other paths, as they do in Docker.">
+      {mappings.map((m, i) => (
+        <div key={i} className="field-row mapping">
+          <label className="grow">
+            Path in the app
+            <input type="text" value={m.from} placeholder="/data" onChange={(e) => set(i, { from: e.target.value })} />
+          </label>
+          <label className="grow">
+            Path on this server
+            <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => set(i, { to: e.target.value })} />
+          </label>
+          <button type="button" className="text-button" onClick={() => setMappings(mappings.filter((_, j) => j !== i))}>
+            Remove
           </button>
         </div>
-        <SaveBar saved={saved} error={saveError} />
-      </form>
-    </section>
+      ))}
+      <div className="form-actions">
+        <button type="button" className="button quiet small form-actions-start" onClick={() => setMappings([...mappings, { from: '', to: '' }])}>
+          Add a mapping
+        </button>
+        {changed && (
+          <>
+            <button type="button" className="button quiet small" onClick={() => setMappings(saved)}>
+              Cancel
+            </button>
+            <button type="button" className="button small" onClick={() => void save({ pathMappings: mappings })}>
+              Save
+            </button>
+          </>
+        )}
+      </div>
+    </SettingsGroup>
+  )
+}
+
+/** The addresses Sonarr, Radarr and Lidarr call when something's downloaded, so it shows up straight away. */
+function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
+  const [secret, setSecret] = useState(savedSecret)
+  const [asking, setAsking] = useState(false)
+  const [state, setState] = useState<{ busy?: boolean; error?: string; done?: boolean }>({})
+  const origin = window.location.origin
+
+  async function rotate() {
+    setState({ busy: true })
+    try {
+      setSecret((await rotateWebhookSecret()).webhookSecret)
+      setAsking(false)
+      setState({ done: true })
+    } catch (e) {
+      setState({ error: errorText(e) })
+    }
+  }
+
+  return (
+    <SettingsGroup
+      title="Webhooks"
+      note={
+        <>
+          Add a Webhook connection in each app, under Settings › Connect, so new downloads show up straight away. In Docker on this computer, use{' '}
+          <code>host.docker.internal</code> in place of <code>{window.location.hostname}</code>.
+        </>
+      }
+      action={
+        <button className="button quiet small" onClick={() => setAsking(true)}>
+          Make a new secret
+        </button>
+      }
+    >
+      {state.done && (
+        <p className="key-note" role="status">
+          New secret made. Give Sonarr, Radarr and Lidarr these new addresses: until then they can’t start scans.
+        </p>
+      )}
+      <ul className="plain-list webhook-list">
+        {(['Sonarr', 'Radarr', 'Lidarr'] as const).map((app) => {
+          const address = `${origin}/api/v1/webhooks/${app.toLowerCase()}?secret=${secret ?? '…'}`
+          return (
+            <li key={app}>
+              <img className="app-logo" src={appLogos[app]} alt="" />
+              <span className="webhook-app">{app}</span>
+              <code className="secret-field webhook-address" title={address}>
+                {address}
+              </code>
+              {secret && <CopyButton text={address} what={`the ${app} address`} />}
+            </li>
+          )
+        })}
+      </ul>
+      {asking && (
+        <ConfirmDialog
+          title="Make a new webhook secret?"
+          confirmLabel={state.busy ? 'Making it…' : 'Make a new secret'}
+          busy={state.busy}
+          error={state.error}
+          onConfirm={() => void rotate()}
+          onClose={() => {
+            setAsking(false)
+            setState({})
+          }}
+        >
+          <p>Sonarr, Radarr and Lidarr stop starting scans until you give them the new addresses. The secret only lets them start scans.</p>
+        </ConfirmDialog>
+      )}
+    </SettingsGroup>
   )
 }

@@ -13,24 +13,57 @@
 }
 
 .settings-nav h1 {
-  font-size: var(--step-5);
-  font-weight: 800;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
+  padding: 0 14px;
+  font-family: var(--text);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .settings-nav nav {
   display: flex;
   flex-direction: column;
+  gap: 28px;
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
+/* "Dan's profile", "Server": a small, dim label with a rule running from it, so it reads as a heading over its pages
+   rather than one of them. */
+.settings-nav-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 0 14px;
+  font-family: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--usher) 65%, transparent);
+}
+
+.settings-nav-group h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--aisle);
+}
+
 .settings-nav a {
-  padding: 10px 14px;
+  padding: 7px 14px;
   /* One line each, so the row of sections on phones scrolls rather than wraps. */
   white-space: nowrap;
-  border-radius: var(--radius-control);
-  color: var(--usher);
-  font-weight: 600;
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--screen) 70%, var(--usher));
+  font-size: 0.94rem;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -41,8 +74,8 @@
 
 .settings-nav a.active {
   color: var(--screen);
-  background: var(--seat);
-  box-shadow: inset 3px 0 0 var(--silver);
+  background: var(--seat-raised);
+  font-weight: 600;
 }
 
 .settings-content {
@@ -54,23 +87,64 @@
 
 .settings-content section {
   display: grid;
-  gap: 16px;
+  gap: 32px;
 }
 
+/* A page's title (with an action beside it), what the page is for, and a way back for a page under another. */
 .settings-header {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 46px;
+  gap: 16px;
+  min-height: 40px;
 }
 
+/* Titles in the text face, plain and tight: Settings is a control panel, not a marquee. */
 .settings-header h2 {
-  font-size: var(--step-4);
+  font-family: var(--text);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
+.settings-header .settings-lede {
+  margin: 0;
+}
+
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-left: -4px;
+  color: var(--usher);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.settings-back:hover {
+  color: var(--screen);
+}
+
+.settings-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* A group's label: a small heading in sentence case, so the settings under it carry the page. */
 .settings-subhead {
-  margin-top: 20px;
-  font-size: var(--step-2);
+  margin: 0;
+  font-family: var(--text);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--screen);
 }
 
 .settings-lede {
@@ -78,19 +152,77 @@
   color: var(--usher);
 }
 
+/* A label, a panel of rows, and a short note under it. */
+.settings-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+}
+
+.settings-group > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.settings-note {
+  max-width: 44rem;
+  margin: 0;
+  padding: 0 4px;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
+.settings-note .settings-status {
+  font-size: inherit;
+}
+
+.settings-status {
+  margin: 0;
+  min-height: 1.5em;
+}
+
+.settings-status:empty {
+  display: none;
+}
+
 .panel + .panel {
   margin-top: 0;
+}
+
+/* Every library in one panel, a row each. */
+.library-list {
+  padding-block: 6px;
 }
 
 .library-row {
   display: flex;
   justify-content: space-between;
   gap: 20px;
+  padding: 16px 0;
+}
+
+.library-row + .library-row {
+  border-top: 1px solid var(--aisle);
 }
 
 .library-row h3 {
-  font-size: var(--step-2);
-  margin-bottom: 4px;
+  font-family: var(--text);
+  font-size: var(--step-0);
+  font-weight: 600;
+  margin-bottom: 2px;
 }
 
 .library-title {
@@ -100,8 +232,8 @@
 }
 
 .library-title svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex: none;
   color: var(--usher);
 }
@@ -229,16 +361,48 @@
   padding-left: 20px;
 }
 
-/* Inside the form, outside the settings grid's gap. */
-.connection + .connection {
-  margin-top: 16px;
+/* A connection's line, with its form opening under it. */
+.connection {
+  padding: 14px 0;
 }
 
-.connection-status {
+.connection + .connection {
+  border-top: 1px solid var(--aisle);
+}
+
+.connection-line {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.connection-line .setting-text {
+  flex: 1 1 auto;
+}
+
+.connection-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+}
+
+.connection-form {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--aisle);
+}
+
+.connection-form > p {
+  margin: 0 0 8px;
+}
+
+/* A destructive action kept apart from the rest, at the far start of the row. */
+.form-actions-start {
+  margin-right: auto;
 }
 
 .app-logo {
@@ -248,7 +412,6 @@
 }
 
 .open-app {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -268,6 +431,7 @@
 }
 
 .status-dot {
+  flex: none;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -284,24 +448,16 @@
 
 .mapping {
   align-items: flex-end;
-  margin-bottom: 12px;
+  margin-top: 12px;
 }
 
 .mapping .text-button {
   margin-bottom: 12px;
 }
 
-.stream {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-
 .meter {
   display: grid;
   gap: 8px;
-  margin-top: 18px;
 }
 
 /* A secret or long address in one line, like a read-only field: the API key (with its eye) and webhook addresses. */
@@ -458,9 +614,33 @@
     position: static;
   }
 
+  /* One row of pages that scrolls sideways, the groups' labels left out. */
   .settings-nav nav {
     flex-direction: row;
+    gap: 2px;
     overflow-x: auto;
+  }
+
+  .settings-nav-group {
+    flex-direction: row;
+  }
+
+  .settings-nav-group h2 {
+    display: none;
+  }
+
+  .settings-nav-group + .settings-nav-group {
+    padding-left: 10px;
+    margin-left: 8px;
+    border-left: 1px solid var(--aisle);
+  }
+
+  .connection-line {
+    flex-wrap: wrap;
+  }
+
+  .connection-actions {
+    margin-left: 22px;
   }
 
   .library-row {
@@ -651,35 +831,32 @@
   margin: 16px 0 40px;
 }
 
-.row-list {
-  margin: 0 0 20px;
-}
-
-.row-list legend {
-  padding: 0 6px;
-}
-
 .row-list ol {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding-block: 4px;
 }
 
 .row-list li {
   display: flex;
   align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.row-list li + li {
+  border-top: 1px solid var(--aisle);
+}
+
+/* The row's name and its switch: clicking either turns it on or off. */
+.row-list-toggle {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
-}
-
-.row-list li:last-child {
-  border-bottom: 0;
-}
-
-.row-list .checkbox {
-  margin-top: 0;
+  gap: 16px;
+  min-width: 0;
+  cursor: pointer;
 }
 
 .row-list-move {
@@ -694,7 +871,6 @@
 .health-check {
   display: grid;
   gap: 14px;
-  margin-bottom: 28px;
 }
 
 .health-check-head {
@@ -743,7 +919,23 @@
 }
 
 .changelog {
-  max-width: 46rem;
+  display: grid;
+  gap: 12px;
+}
+
+.changelog-version {
+  margin: 0 0 4px;
+  font-family: var(--text);
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+
+.changelog-release > p {
+  margin: 8px 0 0;
+}
+
+.changelog-more {
+  justify-self: start;
 }
 
 .changelog-entry {
@@ -751,7 +943,7 @@
   border-top: 1px solid color-mix(in srgb, var(--aisle) 60%, transparent);
 }
 
-.changelog-entry h4 {
+.changelog-entry h5 {
   margin: 0 0 6px;
   font-size: var(--step-0);
 }
@@ -773,7 +965,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 16px 32px;
-  margin-bottom: 16px;
 }
 
 .health-score-number {
@@ -783,10 +974,11 @@
 }
 
 .health-score-value {
-  font-family: var(--display);
-  font-size: var(--step-6);
-  font-weight: 800;
-  line-height: 0.9;
+  font-family: var(--text);
+  font-size: var(--step-5);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
   color: var(--silver);
 }
 
@@ -824,7 +1016,12 @@
 }
 
 .health-group {
-  margin-top: 36px;
+  display: grid;
+  gap: 10px;
+}
+
+.health-clear {
+  margin: 0;
 }
 
 .health-group > header {
@@ -833,7 +1030,6 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 10px 20px;
-  margin-bottom: 12px;
 }
 
 .health-group > header p {
@@ -1160,12 +1356,93 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 16px 0;
+  min-height: 60px;
+  padding: 12px 0;
   cursor: pointer;
 }
 
-.setting-row + .setting-row {
+.setting-row + .setting-row,
+.setting-row + .podcast-folder-picker,
+.podcast-folder-picker + .setting-row {
   border-top: 1px solid var(--aisle);
+}
+
+/* A row whose control is a button, or that's just there to read: not one big click target. */
+.setting-row.static {
+  cursor: default;
+}
+
+.setting-rows > .muted:only-child,
+.setting-rows > p {
+  margin: 12px 0;
+}
+
+/* A row that opens another page. */
+.setting-link {
+  margin-inline: -22px;
+  padding-inline: 22px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.setting-link:hover {
+  background: color-mix(in srgb, var(--screen) 4%, transparent);
+}
+
+.setting-link:first-child {
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  margin-top: -4px;
+}
+
+.setting-link:last-child {
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  margin-bottom: -4px;
+}
+
+.setting-link > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--usher);
+}
+
+/* A value to read, on the right: a version, a folder. */
+.setting-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+  color: var(--usher);
+}
+
+.setting-row .folder {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.setting-row.static .key-row {
+  width: 100%;
+}
+
+.setting-row.static:has(.key-row) {
+  display: grid;
+}
+
+.advice.inset {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--silver) 40%, var(--aisle));
+  border-radius: var(--radius-control);
+}
+
+.advice.inset p {
+  margin: 0;
+}
+
+.panel-title {
+  margin: 0 0 4px;
+  font-family: var(--text);
+  font-size: var(--step-0);
+  font-weight: 700;
 }
 
 .setting-text {
@@ -1175,6 +1452,10 @@
   min-width: 0;
 }
 
+.setting-text strong {
+  font-weight: 600;
+}
+
 .setting-text .muted {
   font-size: var(--step--1);
 }
@@ -1182,6 +1463,23 @@
 .setting-row select {
   flex: none;
   min-width: 120px;
+  max-width: 50%;
+}
+
+.setting-row input[type='text'] {
+  max-width: 50%;
+}
+
+/* Phones: a row's control goes under its words when they won't both fit. */
+@media (max-width: 600px) {
+  .setting-row {
+    flex-wrap: wrap;
+    gap: 10px 24px;
+  }
+
+  .setting-row select {
+    max-width: 100%;
+  }
 }
 
 /* A checkbox drawn as an on/off switch. */
@@ -1189,8 +1487,8 @@
   flex: none;
   appearance: none;
   position: relative;
-  width: 46px;
-  height: 28px;
+  width: 38px;
+  height: 22px;
   margin: 0;
   border-radius: 999px;
   background: var(--aisle);
@@ -1203,8 +1501,8 @@
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--screen);
   transition: transform 0.15s;
@@ -1215,7 +1513,7 @@
 }
 
 .switch:checked::after {
-  transform: translateX(18px);
+  transform: translateX(16px);
   background: var(--room);
 }
 
@@ -1224,4 +1522,142 @@
   .switch::after {
     transition: none;
   }
+}
+
+.remote-address {
+  margin-top: 2px;
+  font-size: var(--step-0);
+  color: var(--screen);
+  overflow-wrap: anywhere;
+}
+
+/* A destructive action as a quiet link, where buttons beside it would make a row heavy. */
+.text-button.danger-text:hover {
+  color: var(--danger);
+}
+
+.library-row-actions .text-button {
+  margin-left: 6px;
+  font-size: var(--step--1);
+}
+
+.open-app {
+  font-size: var(--step--1);
+}
+
+/* ---------- Settings' controls: smaller corners, hairline borders and tighter controls than the browsing pages ---------- */
+
+.settings .panel {
+  border-radius: 10px;
+  padding: 4px 20px;
+  border-color: color-mix(in srgb, var(--aisle) 85%, transparent);
+}
+
+/* Panels holding a form or a message rather than rows keep room around it. */
+.settings .panel:not(.setting-rows, .library-list, .health-rows) {
+  padding: 18px 20px;
+}
+
+.settings .row-list ol.panel {
+  padding: 4px 20px;
+}
+
+.settings .setting-link {
+  margin-inline: -20px;
+  padding-inline: 20px;
+}
+
+.settings .setting-link:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.settings .setting-link:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.settings .button {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.settings .button.small {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.settings input[type='text'],
+.settings input[type='search'],
+.settings input[type='password'],
+.settings input[type='url'],
+.settings input[type='number'],
+.settings select {
+  min-height: 36px;
+  padding-left: 12px;
+  border-radius: 8px;
+  font-size: 0.94rem;
+}
+
+.settings select:not([multiple]) {
+  padding-right: 36px;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+
+.settings .icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.settings .icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.settings .icon-button:hover:not(:disabled) {
+  background: var(--seat-raised);
+}
+
+.library-row p.muted {
+  margin: 0;
+  font-size: var(--step--1);
+}
+
+.library-row .folder {
+  margin-top: 4px;
+  font-size: var(--step--1);
+}
+
+.remote-address {
+  font-size: 0.9rem;
+}
+
+/* A status line among rows (Tailscale): the same height and divider as a row. */
+.setting-rows > .connection-line {
+  padding: 12px 0;
+}
+
+.setting-rows > .connection-line + .setting-row {
+  border-top: 1px solid var(--aisle);
+}
+
+.settings .advice {
+  font-size: 0.94rem;
+}
+
+@media (max-width: 600px) {
+  .setting-link {
+    flex-wrap: nowrap;
+  }
+}
+
+.settings .plain-list.webhook-list {
+  margin: 0;
+  padding-block: 14px;
+}
+
+.settings .meter > span:first-child {
+  font-size: 0.94rem;
 }

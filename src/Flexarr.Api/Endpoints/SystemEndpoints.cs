@@ -18,7 +18,7 @@ public static class SystemEndpoints
     {
         var group = api.MapGroup("/system").WithTags("System");
 
-        // What's changed, as Markdown (Settings › Changelog). Built into the server, so it matches the running version.
+        // What's changed, as Markdown (Settings › About). Built into the server, so it matches the running version.
         group.MapGet("/changelog", () =>
         {
             using var stream = typeof(SystemEndpoints).Assembly.GetManifestResourceStream("CHANGELOG.md");

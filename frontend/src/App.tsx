@@ -216,8 +216,8 @@ export default function App() {
             {tvCode ? (
               // Arrived from a TV's QR code: this device has never signed in, and only a signed-in main profile can let a TV in.
               <p className="muted">
-                To let your TV in, this device needs to sign in once with the API key (Settings › Server on a computer that’s signed in). Or skip it: on that
-                computer, open Flexarr, go to <strong>Settings › Connect a TV</strong> and enter <span className="connect-tv-code">{tvCode}</span>
+                To let your TV in, this device needs to sign in once with the API key (Settings › Access on a computer that’s signed in). Or skip it: on that
+                computer, open Flexarr, go to <strong>Settings › Access › Connect a TV</strong> and enter <span className="connect-tv-code">{tvCode}</span>
               </p>
             ) : (
               <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>

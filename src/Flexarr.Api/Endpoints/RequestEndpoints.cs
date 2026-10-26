@@ -178,7 +178,7 @@ public static class RequestEndpoints
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
-                return Results.Problem("Requests need a Seerr server. Add one under Settings › Sonarr and Radarr.", statusCode: 409);
+                return Results.Problem("Requests need a Seerr server. Add one under Settings › Connections.", statusCode: 409);
             }
 
             if (request.MediaType is not ("movie" or "tv"))

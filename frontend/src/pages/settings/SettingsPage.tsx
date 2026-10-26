@@ -1,82 +1,108 @@
-import { useState, type FormEvent } from 'react'
-import { NavLink, useParams } from 'react-router'
+import { useState, type FormEvent, type ReactNode } from 'react'
+import { Navigate, NavLink, useParams } from 'react-router'
 import { askForProfile, getMe, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
-import { ConnectTv } from '../../components/ConnectTv'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { LibrariesSection } from './LibrariesSection'
-import { PodcastsSection } from './PodcastsSection'
-import { PlaybackSection } from './PlaybackSection'
+import { AboutSection } from './AboutSection'
+import { AccessSection } from './AccessSection'
 import { ConnectionsSection } from './ConnectionsSection'
-import { ActivitySection } from './ActivitySection'
-import { ServerSection } from './ServerSection'
-import { ImportSection } from './ImportSection'
+import { ConnectTvSection } from './ConnectTvSection'
 import { HealthSection } from './HealthSection'
-import { ProfilesSection } from './ProfilesSection'
+import { ImportSection } from './ImportSection'
 import { LayoutSection } from './LayoutSection'
-import { ChangelogSection } from './ChangelogSection'
-import { RemoteAccessSection } from './RemoteAccessSection'
+import { LibrariesSection } from './LibrariesSection'
+import { OverviewSection } from './OverviewSection'
+import { PlaybackSection } from './PlaybackSection'
+import { PodcastsSection } from './PodcastsSection'
+import { ProfilesSection } from './ProfilesSection'
+import { StreamingSection } from './StreamingSection'
 
-const sections = [
-  { id: 'libraries', label: 'Libraries' },
-  { id: 'profiles', label: 'Profiles' },
-  { id: 'playback', label: 'Playback' },
-  { id: 'layout', label: 'Customise display' },
-  { id: 'podcasts', label: 'Podcasts' },
-  { id: 'connections', label: 'Connections' },
-  { id: 'remote', label: 'Remote access' },
-  { id: 'activity', label: 'Activity' },
-  { id: 'health', label: 'Library health' },
-  { id: 'import', label: 'Bring over from Plex' },
-  { id: 'tv', label: 'Connect a TV' },
-  { id: 'server', label: 'Server' },
-  { id: 'changelog', label: 'Changelog' },
-] as const
+interface Page {
+  id: string
+  label: string
+  render: () => ReactNode
+  /** A page reached from another one, which stays lit in the list while it's open. */
+  under?: string
+}
+
+/** Every profile's own: how it watches and listens, and this browser's music. */
+const profilePages: Page[] = [
+  { id: 'playback', label: 'Playback', render: () => <PlaybackSection /> },
+  { id: 'podcasts', label: 'Podcasts', render: () => <PodcastsSection /> },
+]
+
+/** The server's, for the main profile only. */
+const serverPages: Page[] = [
+  { id: 'overview', label: 'Overview', render: () => <OverviewSection /> },
+  { id: 'libraries', label: 'Libraries', render: () => <LibrariesSection /> },
+  { id: 'health', label: 'Library health', render: () => <HealthSection />, under: 'libraries' },
+  { id: 'import', label: 'Bring over from Plex', render: () => <ImportSection />, under: 'libraries' },
+  { id: 'profiles', label: 'Profiles', render: () => <ProfilesSection /> },
+  { id: 'layout', label: 'Home and Browse', render: () => <LayoutSection /> },
+  { id: 'streaming', label: 'Streaming', render: () => <StreamingSection /> },
+  { id: 'connections', label: 'Connections', render: () => <ConnectionsSection /> },
+  { id: 'access', label: 'Access', render: () => <AccessSection /> },
+  { id: 'tv', label: 'Connect a TV', render: () => <ConnectTvSection />, under: 'access' },
+  { id: 'about', label: 'About', render: () => <AboutSection /> },
+]
+
+/** Pages that moved, so old links and bookmarks still land somewhere sensible. */
+const moved: Record<string, string> = { activity: 'overview', server: 'access', remote: 'access', changelog: 'about' }
 
 export function SettingsPage() {
-  const { section = 'libraries' } = useParams()
+  const { section } = useParams()
   const me = useApi(getMe, [])
+  const { profiles } = useSession()
+  const name = profiles?.find((p) => p.isCurrent)?.name
+  // Settings for the server are the main profile's. Another profile chosen on this browser has its own pages, and a
+  // way back to the main one (with its PIN) for the rest. Older servers have no /me: everything, as before.
+  const isAdmin = me.data?.isAdmin ?? true
+  const ownerOverTailscale = me.data?.method === 'tailscale' && me.data.profileId === 'owner'
 
-  // Settings are the main profile's. Another profile chosen on this browser has given that up until the main
-  // profile is chosen again (with its PIN).
-  if (me.data && !me.data.isAdmin) {
-    return (
-      <div className="settings">
-        {me.data.method === 'tailscale' && me.data.profileId === 'owner' ? <TailscaleAdminNote /> : <MainProfileNote />}
-      </div>
-    )
-  }
+  // Which page to open first depends on whose profile this is, so it waits to know.
+  if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
+  if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
+
+  const profilePage = profilePages.find((p) => p.id === section)
+  const serverPage = serverPages.find((p) => p.id === section)
+  const lit = serverPage?.under ?? section
+
+  const link = (p: Page) => (
+    <NavLink key={p.id} to={`/settings/${p.id}`} className={() => (p.id === lit ? 'active' : undefined)}>
+      {p.label}
+    </NavLink>
+  )
 
   return (
     <div className="settings">
       <aside className="settings-nav">
         <h1>Settings</h1>
         <nav aria-label="Settings">
-          {sections.map((s) => (
-            <NavLink key={s.id} to={`/settings/${s.id}`} className={({ isActive }) => (isActive || (section === s.id) ? 'active' : undefined)}>
-              {s.label}
-            </NavLink>
-          ))}
+          <div className="settings-nav-group">
+            <h2>{name ? `${name}’s profile` : 'Your profile'}</h2>
+            {profilePages.map(link)}
+          </div>
+          <div className="settings-nav-group">
+            <h2>Server</h2>
+            {isAdmin ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: 'Manage the server', render: () => null })}
+          </div>
         </nav>
       </aside>
       <div className="settings-content">
-        {section === 'libraries' && <LibrariesSection />}
-        {section === 'profiles' && <ProfilesSection />}
-        {section === 'playback' && <PlaybackSection />}
-        {section === 'layout' && <LayoutSection />}
-        {section === 'podcasts' && <PodcastsSection />}
-        {section === 'tv' && <ConnectTv />}
-        {section === 'changelog' && <ChangelogSection />}
-        {section === 'connections' && <ConnectionsSection />}
-        {section === 'remote' && <RemoteAccessSection />}
-        {section === 'activity' && <ActivitySection />}
-        {section === 'server' && <ServerSection />}
-        {section === 'import' && <ImportSection />}
-        {section === 'health' && <HealthSection />}
+        {profilePage
+          ? profilePage.render()
+          : !isAdmin
+            ? ownerOverTailscale
+              ? <TailscaleAdminNote />
+              : <MainProfileNote />
+            : serverPage
+              ? serverPage.render()
+              : <p className="muted">There’s no such page in Settings.</p>}
       </div>
     </div>
   )
 }
+
 
 /** Asks for the main profile (its PIN, if it has one), then comes back to this page of Settings. */
 function switchToMainProfile(main: Profile | undefined) {
@@ -92,7 +118,7 @@ function MainProfileNote() {
 
   return (
     <div className="page-message">
-      <p className="muted">Settings are for the main profile.</p>
+      <p className="muted">The server’s settings are for the main profile.</p>
       {refused ? (
         <p className="muted">Ask whoever manages Flexarr to give the main profile a PIN.</p>
       ) : (

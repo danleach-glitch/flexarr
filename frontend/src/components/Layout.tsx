@@ -59,8 +59,6 @@ export function Layout() {
   const { me: access, profiles } = useSession()
   // Older servers have no /me; assume admin there, as before.
   const isAdmin = access?.isAdmin ?? true
-  // Over Tailscale the owner's account isn't admin until the main profile's PIN is given; Settings explains how.
-  const ownerOverTailscale = access?.method === 'tailscale' && access.profileId === 'owner'
   const me = profiles?.find((p) => p.isCurrent)
   const other = profiles?.length === 2 ? profiles.find((p) => !p.isCurrent) : undefined
   // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
@@ -155,11 +153,10 @@ export function Layout() {
             <span>Search</span>
             <kbd>⌘K</kbd>
           </button>
-          {(isAdmin || ownerOverTailscale) && (
-            <NavLink to="/settings" className="icon-button" aria-label="Settings">
-              <Gear />
-            </NavLink>
-          )}
+          {/* Every profile has settings of its own; the server's are the main profile's. */}
+          <NavLink to="/settings" className="icon-button" aria-label="Settings">
+            <Gear />
+          </NavLink>
           {me && profiles && (profiles.length > 1 || canSignOut) && (
             <div className="profile-menu-anchor" ref={profileAnchor}>
               <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>

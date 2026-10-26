@@ -1,39 +1,7 @@
-import { useState } from 'react'
-import { ApiError, getSettings, saveSettings } from '../../api/client'
-import { External } from '../../components/icons'
-import { useApi } from '../../hooks/useApi'
+import type { ReactNode } from 'react'
+import { Link } from 'react-router'
+import { ChevronLeft, ChevronRight, External } from '../../components/icons'
 import { appLink } from '../../lib/apps'
-
-export function useSettings() {
-  const { data, error, reload } = useApi(getSettings, [])
-  const [saved, setSaved] = useState<string>()
-  const [saveError, setSaveError] = useState<string>()
-  const save = async (update: Parameters<typeof saveSettings>[0], message = 'Saved') => {
-    setSaveError(undefined)
-    try {
-      await saveSettings(update)
-      setSaved(message)
-      reload()
-      setTimeout(() => setSaved(undefined), 3000)
-    } catch (e) {
-      setSaveError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : String(e))
-    }
-  }
-  // Until the settings arrive: loading, or why they didn't, with a way to ask again (rather than "Loading…" forever).
-  const waiting = error ? (
-    <div className="panel">
-      <p className="error" role="alert">
-        Couldn’t load the settings: {error.message}
-      </p>
-      <button className="button quiet small" onClick={reload}>
-        Try again
-      </button>
-    </div>
-  ) : (
-    <p className="muted">Loading…</p>
-  )
-  return { settings: data, error, save, saved, saveError, waiting }
-}
 
 export function SaveBar({ saved, error, label = 'Save changes' }: { saved?: string; error?: string; label?: string }) {
   return (
@@ -65,5 +33,94 @@ export function OpenApp({ baseUrl, name }: { baseUrl: string; name: string }) {
         <External />
       </a>
     )
+  )
+}
+
+/** A page's title, a line on what it's for, an action beside the title, and a way back for a page reached from another. */
+export function SettingsHeader({ title, back, action, children }: { title: string; back?: { to: string; label: string }; action?: ReactNode; children?: ReactNode }) {
+  return (
+    <header className="settings-header">
+      {back && (
+        <Link className="settings-back" to={back.to}>
+          <ChevronLeft />
+          {back.label}
+        </Link>
+      )}
+      <div className="settings-title">
+        <h2>{title}</h2>
+        {action}
+      </div>
+      {children && <p className="settings-lede">{children}</p>}
+    </header>
+  )
+}
+
+/** A titled panel of settings rows, with a short note under it (whose they are, or what they do). */
+export function SettingsGroup({ title, note, action, children }: { title?: string; note?: ReactNode; action?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="settings-group">
+      {(title || action) && (
+        <div className="settings-group-head">
+          {title && <h3 className="settings-subhead">{title}</h3>}
+          {action}
+        </div>
+      )}
+      <div className="panel setting-rows">{children}</div>
+      {note && <p className="settings-note">{note}</p>}
+    </div>
+  )
+}
+
+/**
+ * One setting: what it is (and a line of help) on the left, its control on the right. A label, so clicking the words
+ * works the control; a div when the control is a button.
+ */
+export function SettingRow({ label, help, children, as = 'label' }: { label: ReactNode; help?: ReactNode; children?: ReactNode; as?: 'label' | 'div' }) {
+  const Row = as
+  return (
+    <Row className={as === 'div' ? 'setting-row static' : 'setting-row'}>
+      <span className="setting-text">
+        <strong>{label}</strong>
+        {help && <span className="muted">{help}</span>}
+      </span>
+      {children}
+    </Row>
+  )
+}
+
+/** An on/off setting, drawn as a switch. */
+export function ToggleRow({ label, help, checked, disabled, onChange }: { label: ReactNode; help?: ReactNode; checked: boolean; disabled?: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <SettingRow label={label} help={help}>
+      <input type="checkbox" role="switch" className="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+    </SettingRow>
+  )
+}
+
+/** "Saved", or why it didn't, for settings that save as they change. */
+export function SaveStatus({ saved, error }: { saved?: string | null; error?: string | null }) {
+  if (error)
+    return (
+      <p className="error settings-status" role="alert">
+        {error}
+      </p>
+    )
+  return (
+    <p className="muted settings-status" role="status">
+      {saved}
+    </p>
+  )
+}
+
+/** A row that opens another page, with how things stand there now. */
+export function SettingLink({ to, label, help }: { to: string; label: ReactNode; help?: ReactNode }) {
+  return (
+    <Link className="setting-row setting-link" to={to}>
+      <span className="setting-text">
+        <strong>{label}</strong>
+        {help && <span className="muted">{help}</span>}
+      </span>
+      <ChevronRight />
+    </Link>
   )
 }

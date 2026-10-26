@@ -49,7 +49,7 @@ public static partial class MatchEndpoints
             var instances = config.Arr.Where(a => a.Kind == kind).ToList();
             if (instances.Count == 0)
             {
-                return Results.Problem($"Fixing a match needs {kind}. Add it under Settings › Sonarr and Radarr.", statusCode: 409);
+                return Results.Problem($"Fixing a match needs {kind}. Add it under Settings › Connections.", statusCode: 409);
             }
 
             var term = string.IsNullOrWhiteSpace(q) ? item.Title : q.Trim();
@@ -92,7 +92,7 @@ public static partial class MatchEndpoints
             var instances = config.Arr.Where(a => a.Kind == kind).ToList();
             if (instances.Count == 0)
             {
-                return Results.Problem($"Fixing a match needs {kind}. Add it under Settings › Sonarr and Radarr.", statusCode: 409);
+                return Results.Problem($"Fixing a match needs {kind}. Add it under Settings › Connections.", statusCode: 409);
             }
 
             ArrInstance instance;

@@ -314,7 +314,33 @@ describe('Settings', () => {
 
     renderAt('/settings/server')
 
-    expect(await screen.findByText(/Settings are for the main profile/)).toBeInTheDocument()
+    expect(await screen.findByText(/The server’s settings are for the main profile/)).toBeInTheDocument()
+  })
+
+  it('gives another profile its own pages, and nothing of the server’s', async () => {
+    mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null },
+      '/profiles': [{ id: 'c1', name: 'Claire', isMain: false, hasPin: false, isCurrent: true }],
+      '/me/playback-preferences': { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Standard' },
+    })
+
+    renderAt('/settings')
+
+    expect(await screen.findByRole('switch', { name: /Skip intros/ })).not.toBeChecked()
+    expect(screen.getByRole('heading', { name: 'Claire’s profile' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Playback' })).toHaveClass('active')
+    expect(screen.queryByRole('link', { name: 'Libraries' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Manage the server' })).toBeInTheDocument()
+  })
+
+  it('sends old links to where their pages moved', async () => {
+    mockApi({ '/libraries': [], '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null }, '/sign-ins': [] })
+
+    renderAt('/settings/server')
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Access' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Access' })).toHaveClass('active')
   })
 
   it('over Tailscale, explains how the owner gets to settings', async () => {
@@ -349,11 +375,10 @@ describe('Settings', () => {
       'DELETE /sign-ins/s1': undefined,
     })
 
-    renderAt('/settings/server')
+    renderAt('/settings/access')
 
-    expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
     // Hidden behind dots; with no PIN on the main profile, the eye shows it straight away.
-    expect(screen.getByLabelText('API key, hidden')).toBeInTheDocument()
+    expect(await screen.findByLabelText('API key, hidden')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show the API key' }))
     expect(await screen.findByText('the-key')).toBeInTheDocument()
     const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
@@ -369,17 +394,16 @@ describe('Settings', () => {
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sign-ins/s1') && init?.method === 'DELETE')).toBe(true))
   })
 
-  it('says how many were signed out with a new key, and asks before a new webhook secret in its own dialog', async () => {
+  it('says how many were signed out with a new key', async () => {
     const fetchMock = mockApi({
       '/libraries': [],
       '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'hook-secret' },
       '/profiles': [{ id: 'owner', name: 'Dan', isMain: true, hasPin: true, isCurrent: true }],
       'POST /settings/api-key/rotate': { apiKey: 'new-key', signedOut: 3 },
-      'POST /settings/webhook-secret/rotate': { webhookSecret: 'fresh' },
       '/sign-ins': [],
     })
 
-    renderAt('/settings/server')
+    renderAt('/settings/access')
 
     // With a PIN on the main profile, the eye asks for it before showing the key.
     fireEvent.click(await screen.findByRole('button', { name: 'Show the API key' }))
@@ -397,7 +421,20 @@ describe('Settings', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
     expect(screen.getByText('new-key')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
+  })
 
+  it('lists the webhook addresses, and asks before a new secret in its own dialog', async () => {
+    const fetchMock = mockApi({
+      '/libraries': [],
+      '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'hook-secret' },
+      '/arr/status': [],
+      '/requests/status': { configured: false, reachable: false },
+      'POST /settings/webhook-secret/rotate': { webhookSecret: 'fresh' },
+    })
+
+    renderAt('/settings/connections')
+
+    expect(await screen.findByText(/webhooks\/sonarr\?secret=hook-secret/)).toBeInTheDocument()
     const opener = screen.getByRole('button', { name: 'Make a new secret' })
     opener.focus()
     fireEvent.click(opener)
