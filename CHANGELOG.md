@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Podcasts
+- Up Next: queue episodes with Play next or Add to Up Next, and they play in that order on any device: the web and the phone share one queue. It's on the Podcasts page, where episodes can be moved or taken out; one that starts playing or is played leaves it.
+- Assistants (over MCP) can list the podcasts you follow and their new episodes, queue episodes in Up Next, and play a podcast on a device (the episode you'd hear next).
+
 ### Changed
 - Home's row of new podcast episodes is called New podcasts.
 

@@ -458,3 +458,37 @@
   color: var(--ambient);
   border-color: var(--ambient);
 }
+
+/* ---------- Up Next ---------- */
+
+.podcast-up-next {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 60rem;
+}
+
+.podcast-up-next-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.podcast-up-next-row + .podcast-up-next-row {
+  border-top: 1px solid var(--aisle);
+}
+
+.podcast-up-next-row > .podcast-episode-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.podcast-up-next-tools {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.podcast-up-next-tools .icon-button:disabled {
+  opacity: 0.3;
+}
