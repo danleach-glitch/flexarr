@@ -6,7 +6,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Live TV (web)
 - Watch TV channels from Dispatcharr: connect it in Settings › Live TV with a Dispatcharr user of Flexarr's own, test the connection, and the channels and guide come in (and are refreshed every six hours).
-- Live TV in the sidebar: On now shows every channel with what's on, how far through it is and what's next, filtered by group; the Guide shows the next six hours (or up to a day) as a grid, with details for anything later.
+- Live TV in the sidebar: On now is a compact list of every channel with what's on, how far through it is and what's next, filtered by group (so hundreds stay quick to scan); the Guide shows the next six hours (or up to a day) as a grid, with details for anything later.
 - Favourites: star the channels you watch most. Each profile has its own, and Live TV opens on them; the Guide can show just them, and the player lists them first.
 - The player rewinds live TV (by default up to an hour back, while anyone watches the channel), shows how far behind live you are with a Jump to live button, and changes channel with the arrow keys or the channel list.
 - Channels that are already H.264 play as they come; interlaced, MPEG-2 and HEVC channels are converted (deinterlaced to smooth 50 frames a second), and Dolby Digital and MP2 sound becomes AAC.

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
-import { ChannelCard, ChannelLogo } from '../components/LiveChannelCard'
+import { FavouriteButton } from '../components/FavouriteButton'
+import { ChannelLogo } from '../components/LiveChannelCard'
 import { Star, Tv } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
-import { clock, programmeTime, programmeTitle, tidyGroup } from '../lib/livetv'
+import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
 
 /** How wide the guide draws a minute. */
 const PX_PER_MINUTE = 6
@@ -85,9 +86,9 @@ function OnNow() {
   const favourites = (data ?? []).filter(isFavourite)
   const group = (chosen ?? FAVOURITES) === FAVOURITES ? (favourites.length > 0 ? FAVOURITES : '') : chosen!
   const shown = (data ?? []).filter((c) => (group === FAVOURITES ? isFavourite(c) : !group || c.group === group))
-  const card = (c: LiveChannel) => (
+  const row = (c: LiveChannel) => (
     <li key={c.id}>
-      <ChannelCard channel={c} favourite={isFavourite(c)} onToggle={() => toggle(c)} />
+      <ChannelRow channel={c} favourite={isFavourite(c)} onToggle={() => toggle(c)} />
     </li>
   )
 
@@ -114,13 +115,53 @@ function OnNow() {
           ))}
         </div>
       )}
-      <ul className="livetv-grid">{shown.map(card)}</ul>
+      <ul className="livetv-list">{shown.map(row)}</ul>
       {data.every((c) => !isFavourite(c)) && (
         <p className="muted livetv-hint">
           <Star /> Star the channels you watch most to keep them first.
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * A channel as a row: number, logo, what's on with how far through, and what's next, so hundreds of channels stay
+ * quick to scan (the cards are for Home's row of favourites).
+ */
+function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
+  return (
+    <div className="livetv-row">
+      <Link className="livetv-row-link" to={`/live/${c.id}`} aria-label={`${c.number} ${c.name}${c.now ? `, now ${c.now.title}` : ''}`}>
+        <span className="livetv-row-number">{c.number}</span>
+        <span className="livetv-row-logo">
+          <ChannelLogo channel={c} />
+        </span>
+        <span className="livetv-row-now">
+          <strong>{c.now ? programmeTitle(c.now) : 'No listings'}</strong>
+          <span className="muted livetv-row-meta">
+            <span className="livetv-row-name">{c.name}</span>
+            {c.now && (
+              <>
+                <span className="livetv-progress livetv-row-progress" aria-hidden="true">
+                  <span style={{ width: `${progress(c.now) * 100}%` }} />
+                </span>
+                <span className="livetv-row-time">{programmeTime(c.now)}</span>
+              </>
+            )}
+          </span>
+        </span>
+        <span className="livetv-row-next">
+          {c.next && (
+            <>
+              <span className="muted">Next · {clock.format(new Date(c.next.start))}</span>
+              <span>{c.next.title}</span>
+            </>
+          )}
+        </span>
+      </Link>
+      <FavouriteButton name={c.name} favourite={favourite} onToggle={onToggle} />
+    </div>
   )
 }
 
