@@ -5,9 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to a pull request replaces its run. On main every commit's run finishes: jobs are skipped when a commit
+# doesn't touch their part, so a cancelled run could leave a change that was never checked.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -17,8 +19,37 @@ env:
   DOTNET_NOLOGO: 1
 
 jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.diff.outputs.server }}
+      web: ${{ steps.diff.outputs.web }}
+      apple: ${{ steps.diff.outputs.apple }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Everything when there's nothing to compare with (a new branch, a force push) or this workflow changed.
+          if files=$(git diff --name-only "$BASE" "$GITHUB_SHA" 2>/dev/null) && ! grep -q '^\.github/workflows/ci\.yml$' <<<"$files"; then
+            has() { grep -qE "$1" <<<"$files" && echo true || echo false; }
+          else
+            has() { echo true; }
+          fi
+          # The server embeds the changelog, and its version test reads the web and Apple apps' versions.
+          echo "server=$(has '^(src/|tests/|Directory\.|global\.json|dotnet-tools\.json|Flexarr\.slnx|\.editorconfig|CHANGELOG\.md|frontend/package\.json|clients/apple/project\.yml)')" >>"$GITHUB_OUTPUT"
+          echo "web=$(has '^(frontend/|\.nvmrc)')" >>"$GITHUB_OUTPUT"
+          echo "apple=$(has '^clients/apple/')" >>"$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   server:
     name: Server (.NET)
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,10 +58,12 @@ jobs:
           global-json-file: global.json
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
-      - run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage"
+      - run: dotnet test --no-build -c Release
 
   web:
     name: Web client
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,25 +81,44 @@ jobs:
       - run: npm run build
 
   apple:
-    name: Apple clients
+    name: Apple (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
     # The Apple apps (and AetherEngine, which they build) need Xcode 27: GitHub's xcode-27 image, not macos-latest
     # (Xcode 26.6, whose Swift rejects the engine's sources).
     runs-on: xcode-27
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: FlexarrKit
+            scheme: ""
+          - name: tvOS
+            scheme: FlexarrTV
+          - name: iOS
+            scheme: FlexarriOS
     defaults:
       run:
         working-directory: clients/apple
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: brew install xcodegen
       - name: FlexarrKit tests
+        if: matrix.scheme == ''
         run: swift test
         working-directory: clients/apple/FlexarrKit
-      - name: Build tvOS app
+      # The last build's products and packages: AetherEngine and FFmpeg, most of the build, are compiled once, not
+      # every run. A new key when the packages or the project change; the newest older one is the starting point.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.scheme != ''
+        with:
+          path: clients/apple/build/DerivedData
+          key: apple-${{ matrix.scheme }}-${{ hashFiles('clients/apple/project.yml', 'clients/apple/FlexarrKit/Package.swift') }}
+          restore-keys: apple-${{ matrix.scheme }}-
+      - name: Build ${{ matrix.name }} app
+        if: matrix.scheme != ''
         run: |
+          brew install xcodegen
           xcodegen generate
-          xcodebuild -project Flexarr.xcodeproj -scheme FlexarrTV \
-            -destination 'generic/platform=tvOS' CODE_SIGNING_ALLOWED=NO build
-      - name: Build iOS app
-        run: |
-          xcodebuild -project Flexarr.xcodeproj -scheme FlexarriOS \
-            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -project Flexarr.xcodeproj -scheme ${{ matrix.scheme }} \
+            -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
