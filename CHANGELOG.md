@@ -4,8 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Downloads on iPhone and iPad
+- Downloaded things are marked with a green tick everywhere: podcast episodes, tracks, albums and playlists, films and episodes, and the Downloads tab.
+- Each stage looks its own: an hourglass while the server gets it ready ("Getting ready"), Wi-Fi while waiting for Wi-Fi, a filling ring only while it's really coming down, and an exclamation if it failed (tap for why, and Try again).
+
 ### Fixed
-- A podcast episode deleted from a phone is never downloaded to it again by itself (downloading it by hand still works).
+- Podcast episodes the phone fetches by itself wait for Wi-Fi, never mobile data or Low Data Mode, and say so; one you download by hand still comes over mobile data. A transfer that loses Wi-Fi stops and carries on later.
+- A podcast episode deleted from a phone is never downloaded to it again by itself (downloading it by hand still works), and the server's copy goes.
 
 ## 0.25.0 · 26 October 2026
 
