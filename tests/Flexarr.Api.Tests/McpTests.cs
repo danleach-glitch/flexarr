@@ -36,6 +36,10 @@ public class McpTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Contains(tools, t => t.Name == "search_library");
         Assert.Contains(tools, t => t.Name == "play_on_device");
         Assert.Contains(tools, t => t.Name == "list_devices");
+        Assert.Contains(tools, t => t.Name == "live_channels");
+        Assert.Contains(tools, t => t.Name == "watch_channel_on_device");
+        Assert.Contains(tools, t => t.Name == "record_programme");
+        Assert.Contains(tools, t => t.Name == "recordings");
 
         var found = await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["query"] = "traitors" });
         Assert.NotEqual(true, found.IsError);

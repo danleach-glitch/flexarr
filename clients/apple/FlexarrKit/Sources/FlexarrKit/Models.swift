@@ -804,7 +804,7 @@ public struct Device: Codable, Sendable, Hashable, Identifiable {
 }
 
 public enum DeviceCommandKind: String, ForwardCompatibleEnum {
-    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", unknown
+    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", watch = "Watch", unknown
 }
 
 /// Something another device, the web app or an assistant asked this device to do.
@@ -819,8 +819,11 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     public let sentAt: Date
     /// With `play` and a show as the item: its episodes in a random order.
     public let shuffle: Bool
+    /// With `watch`, the Live TV channel to put on.
+    public let channelId: String?
 
-    public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false) {
+    public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
+                channelId: String? = nil) {
         self.id = id
         self.kind = kind
         self.itemId = itemId
@@ -828,6 +831,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         self.sentBy = sentBy
         self.sentAt = sentAt
         self.shuffle = shuffle
+        self.channelId = channelId
     }
 
     public init(from decoder: Decoder) throws {
@@ -839,6 +843,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         sentBy = try container.decodeIfPresent(String.self, forKey: .sentBy)
         sentAt = try container.decode(Date.self, forKey: .sentAt)
         shuffle = try container.decodeIfPresent(Bool.self, forKey: .shuffle) ?? false // servers before 0.23 don't send it
+        channelId = try container.decodeIfPresent(String.self, forKey: .channelId)
     }
 }
 
@@ -849,11 +854,17 @@ public struct DeviceCommandResult: Codable, Sendable, Hashable {
     public let deviceName: String
     /// For play: what will play (the episode, when a show was asked for).
     public let item: ItemSummary?
+    /// For watch: the channel being put on.
+    public let channel: String?
 }
 
 /// Pause, resume or stop, for `FlexarrClient.control(device:_:)`.
 public enum DeviceControl: String, Sendable {
     case pause, resume, stop
+}
+
+struct DeviceWatchBody: Codable, Sendable {
+    let channelId: String
 }
 
 struct DevicePlayBody: Codable, Sendable {

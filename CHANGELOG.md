@@ -2,6 +2,17 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.35.0 · 26 October 2026
+
+### Live TV with Siri (iPhone, iPad and Apple TV)
+- "Put on BBC One in Flexarr" puts the channel on: here, or on the TV chosen in Settings › Siri plays on (iPhone and iPad). "Watch", "Switch to" and "Turn on" work too. Siri knows your channels by name, favourites first, and hears "BBC 1", "Channel four" or "Film four" as well.
+- "What's on BBC One in Flexarr" says what's on now and what's next, without opening anything.
+- Recording what's next on a channel is an action in the Shortcuts app, to give a phrase of your own (Siri's own phrases for Flexarr are all in use).
+- Other devices and assistants can put a channel on an Apple TV, iPhone or iPad with Flexarr open, as they can play a film or show.
+
+### Assistants (MCP)
+- An assistant connected to Flexarr can see what's on every channel, put a channel on a device, set a programme or a series to record, and see what's recording and what's been recorded.
+
 ## 0.34.2 · 26 October 2026
 
 ### Live TV (iPhone and iPad)

@@ -104,6 +104,30 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task PuttingAChannelOnADevice_SendsIt()
+    {
+        var channel = new Flexarr.Core.LiveTv.LiveChannel { Name = "BBC One", Number = 101, SourceId = 1 };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.LiveChannels.Add(channel);
+            await db.SaveChangesAsync();
+        }
+
+        var (id, tv) = await DeviceAsync("Lounge");
+        var (response, reader) = await ListenAsync(tv);
+
+        var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/watch"), new { channelId = channel.Id });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        Assert.Equal("BBC One", (await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("channel").GetString());
+        var command = await NextCommandAsync(reader);
+        Assert.Equal("Watch", command.GetProperty("kind").GetString());
+        Assert.Equal(channel.Id, command.GetProperty("channelId").GetGuid());
+        Assert.Equal(HttpStatusCode.NotFound, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/watch"), new { channelId = Guid.NewGuid() })).StatusCode);
+        response.Dispose();
+    }
+
+    [Fact]
     public async Task ACommandToADeviceThatIsntListening_WaitsForIt()
     {
         var show = await SeedAsync("Curb", ("S01E01", 1, 1));

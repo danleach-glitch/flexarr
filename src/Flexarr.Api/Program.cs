@@ -142,7 +142,7 @@ builder.Services.AddMcpServer(o =>
         + "take commands while Flexarr is open on them.";
 })
     .WithHttpTransport(o => o.Stateless = true)
-    .WithTools([typeof(FlexarrTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+    .WithTools([typeof(FlexarrTools), typeof(LiveTvTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
     {
         TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
         Converters = { new JsonStringEnumConverter() },

@@ -305,6 +305,12 @@ public struct FlexarrClient: Sendable {
         return try decode(DeviceCommandResult.self, from: data)
     }
 
+    /// Puts a Live TV channel on another device.
+    public func watch(on deviceId: String, channelId: String) async throws -> DeviceCommandResult {
+        let data = try await send("POST", "devices/\(deviceId)/watch", body: DeviceWatchBody(channelId: channelId))
+        return try decode(DeviceCommandResult.self, from: data)
+    }
+
     /// Pauses, resumes or stops what a device is playing.
     public func control(device deviceId: String, _ action: DeviceControl) async throws -> DeviceCommandResult {
         let data = try await send("POST", "devices/\(deviceId)/\(action.rawValue)")

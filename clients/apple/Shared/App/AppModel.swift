@@ -457,11 +457,21 @@ final class AppModel {
                     player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client, shuffle: command.shuffle)
                 }
             }
+        case .watch:
+            guard let id = command.channelId else { return }
+            Task { await watchChannel(id: id) }
         case .pause: player.pause()
         case .resume: player.resume()
         case .stop: player.closePlayer()
         case .unknown: break
         }
+    }
+
+    /// Puts a Live TV channel on here (Siri, or another device asked), with every channel to change through,
+    /// favourites first.
+    func watchChannel(id: String) async {
+        guard let client, let channels = try? await client.liveChannels(), let channel = channels.first(where: { $0.id == id }) else { return }
+        watch(channel, among: channels.filter(\.isFavourite) + channels.filter { !$0.isFavourite })
     }
 
     /// Plays a title here as an intent asked (Siri, Shortcuts): a show's next episode, a film as it is.
@@ -482,6 +492,8 @@ final class AppModel {
         guard !id.isEmpty else { return }
         switch host {
         case "item": pendingRoute = .itemID(id)
+        // flexarr://live/<channel id>: Siri's "Put on BBC One".
+        case "live": Task { await watchChannel(id: id) }
         case "play":
             // flexarr://play/<id>?t=<seconds>&s=<subtitle key> starts at a given time, with those subtitles.
             guard let client else { return }

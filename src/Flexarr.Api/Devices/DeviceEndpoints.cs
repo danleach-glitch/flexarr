@@ -28,7 +28,10 @@ public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false, 
 
 /// <param name="Delivered">The device took the command. False: Flexarr isn't open on it; the command waits a couple of minutes for it to be.</param>
 /// <param name="Item">For play: what will play (the episode, when a show was asked for).</param>
-public sealed record DeviceCommandResultDto(bool Delivered, string DeviceName, ItemSummaryDto? Item);
+/// <param name="Channel">For watch: the channel being put on.</param>
+public sealed record DeviceCommandResultDto(bool Delivered, string DeviceName, ItemSummaryDto? Item, string? Channel = null);
+
+public sealed record DeviceWatchRequest(Guid ChannelId);
 
 /// <summary>
 /// Devices as targets: list them, tell one to play something (or pause, resume, stop), and the stream a device keeps
@@ -59,6 +62,24 @@ public static class DeviceEndpoints
             }
 
             return await PlayAsync(id, request, signIns, commands, db, playback, current, ct) switch
+            {
+                { Result: { } result, Delivered: true } => Results.Ok(result),
+                { Result: { } result } => Results.Accepted(null as string, result),
+                { Error: { } error, Status: var status } => Results.Problem(error, statusCode: status),
+                _ => Results.NotFound(),
+            };
+        });
+
+        // "Put BBC One on the TV": a Live TV channel on another device.
+        group.MapPost("/{id}/watch", async (string id, DeviceWatchRequest request, SignIns signIns, DeviceCommands commands, FlexarrDbContext db,
+            CurrentProfile current, CancellationToken ct) =>
+        {
+            if (!current.IsTrusted)
+            {
+                return Forbidden();
+            }
+
+            return await WatchAsync(id, request.ChannelId, signIns, commands, db, current, ct) switch
             {
                 { Result: { } result, Delivered: true } => Results.Ok(result),
                 { Result: { } result } => Results.Accepted(null as string, result),
@@ -163,6 +184,30 @@ public static class DeviceEndpoints
     }
 
     /// <summary>Pause, resume or stop on a device; null when there's no such device.</summary>
+    /// <summary>Tells a device to put on a Live TV channel.</summary>
+    public static async Task<PlayOutcome> WatchAsync(string deviceId, Guid channelId, SignIns signIns, DeviceCommands commands, FlexarrDbContext db,
+        CurrentProfile current, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(signIns);
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(current);
+        if (Find(signIns, deviceId) is not { } device)
+        {
+            return new PlayOutcome(null, false, null, StatusCodes.Status404NotFound);
+        }
+
+        if (await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == channelId, ct) is not { } channel)
+        {
+            return new PlayOutcome(null, false, "There's no such channel.", StatusCodes.Status404NotFound);
+        }
+
+        var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Watch, null, false, SenderName(signIns, current), DateTime.UtcNow,
+            ChannelId: channel.Id);
+        var delivered = commands.Send(device.Id, command);
+        return new PlayOutcome(new DeviceCommandResultDto(delivered, device.Name, null, channel.Name), delivered, null, StatusCodes.Status200OK);
+    }
+
     public static DeviceCommandResultDto? Control(string deviceId, DeviceCommandKind kind, SignIns signIns, DeviceCommands commands, CurrentProfile current)
     {
         ArgumentNullException.ThrowIfNull(signIns);

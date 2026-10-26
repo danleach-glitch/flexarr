@@ -10,6 +10,9 @@ public enum DeviceCommandKind
     Pause,
     Resume,
     Stop,
+
+    /// <summary>Put on a Live TV channel (<see cref="DeviceCommand.ChannelId"/>).</summary>
+    Watch,
 }
 
 /// <summary>
@@ -20,7 +23,9 @@ public enum DeviceCommandKind
 /// <param name="FromBeginning">Start over rather than carry on from where it was left.</param>
 /// <param name="SentBy">Who asked ("Dan's iPhone"), for the device to show.</param>
 /// <param name="Shuffle">The show's episodes in a random order, one after another.</param>
-public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false)
+/// <param name="ChannelId">With <see cref="DeviceCommandKind.Watch"/>, the Live TV channel to put on.</param>
+public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
+    Guid? ChannelId = null)
 {
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 }
