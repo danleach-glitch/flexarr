@@ -185,6 +185,44 @@ final class LibraryTour: XCTestCase {
         shot("67-tab-bar-settings-end")
     }
 
+    /// Opening a library leaves focus in the tab bar, even after its switch has been used; down goes to the first
+    /// title, and up from there to the switch.
+    func test8FocusOnArrival() throws {
+        let name = env("FLEXARR_LIBRARY") ?? "Movies"
+        openTab(named: name)
+        let tab = app.buttons[name]
+        XCTAssertTrue(tab.hasFocus, "arriving on \(name) should leave focus on its tab")
+        press(.down, wait: 2)
+        shot("68-browse-down-from-tab-bar")
+        XCTAssertFalse(app.buttons["Browse"].hasFocus, "down from the tab bar shouldn't land on the switch")
+        press(.up, wait: 1.5)
+        XCTAssertTrue(app.buttons["Browse"].hasFocus, "up from the hero should reach the switch")
+
+        // Switch to All: focus stays on the switch, as the view changes under it.
+        let all = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'All '")).firstMatch
+        press(.right, wait: 0.8)
+        press(.select, wait: 4)
+        XCTAssertTrue(all.hasFocus, "focus should stay on All after switching")
+
+        // Away to Home and back: the tab keeps focus this time too.
+        press(.up, wait: 1.5)
+        let home = app.buttons["Home"]
+        for _ in 0..<6 where !home.hasFocus { press(.left, wait: 0.8) }
+        pause(2)
+        for _ in 0..<6 where !tab.hasFocus { press(.right, wait: 0.8) }
+        pause(4)
+        shot("69-back-on-library-tab")
+        XCTAssertTrue(tab.hasFocus, "coming back to \(name) should leave focus on its tab")
+        press(.down, wait: 2)
+        shot("70-all-down-from-tab-bar")
+        XCTAssertFalse(all.hasFocus, "down from the tab bar shouldn't land on the switch")
+        let focusedFrame = app.buttons.allElementsBoundByIndex.first(where: \.hasFocus)?.frame ?? .zero
+        XCTAssertLessThan(focusedFrame.minX, 200, "down from the tab bar should land on the first title, at the left")
+        press(.up, wait: 1.5)
+        shot("71-all-up-to-switch")
+        XCTAssertTrue(all.hasFocus || app.buttons["Browse"].hasFocus, "up from the first title should reach the switch")
+    }
+
     private func env(_ name: String) -> String? { ProcessInfo.processInfo.environment[name] }
 
     /// Up to the tab bar and along it to the library's tab, which opens as it's focused.

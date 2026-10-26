@@ -24,17 +24,22 @@ struct LibraryTab: View {
     @AppStorage(LibraryOpening.storageKey) private var opensOn = LibraryOpening.browse
     /// Picked with the switch; until then (and again after Settings changes), the setting.
     @State private var picked: LibraryOpening?
+    /// Just switched: the view taking over puts focus on its switch once, as the one pressed has gone. Coming back to
+    /// the tab later leaves focus in the tab bar.
+    @State private var switching = false
 
     var body: some View {
-        let view = Binding { picked ?? opensOn } set: { picked = $0 }
-        // Once the switch has been used, the view that replaces this one puts focus back on it.
+        let view = Binding { picked ?? opensOn } set: {
+            switching = $0 != (picked ?? opensOn)
+            picked = $0
+        }
         Group {
             switch view.wrappedValue {
             case .browse: LibraryBrowseView(library: library, view: view)
             case .all: LibraryView(library: library, viewSwitch: view)
             }
         }
-        .environment(\.focusesViewSwitch, picked != nil)
+        .environment(\.focusesViewSwitch, $switching)
         .onChange(of: opensOn) { picked = nil }
     }
 }
@@ -44,6 +49,8 @@ struct LibraryTab: View {
 struct LibraryViewSwitch: View {
     let library: Library
     @Binding var view: LibraryOpening
+    /// Told when focus comes to the switch and leaves it.
+    var focusChanged: (Bool) -> Void = { _ in }
     @Environment(\.focusesViewSwitch) private var takesFocus
     @FocusState private var focused: LibraryOpening?
 
@@ -59,9 +66,12 @@ struct LibraryViewSwitch: View {
         .padding(.leading, -22)
         // Coming into the switch lands on the view shown.
         .defaultFocus($focused, view)
+        .onChange(of: focused) { _, now in focusChanged(now != nil) }
         .onAppear {
             // The view chosen replaces the one whose switch had focus, which would otherwise go to the first word.
-            if takesFocus { focused = view }
+            guard takesFocus.wrappedValue else { return }
+            takesFocus.wrappedValue = false
+            focused = view
         }
     }
 
@@ -206,6 +216,6 @@ struct LibraryBrowseView: View {
 }
 
 extension EnvironmentValues {
-    /// The library view on screen came from its switch, so its switch takes focus as it appears.
-    @Entry var focusesViewSwitch = false
+    /// Set as the switch changes the view: the new view's switch takes focus as it appears, and clears it.
+    @Entry var focusesViewSwitch: Binding<Bool> = .constant(false)
 }

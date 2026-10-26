@@ -30,6 +30,12 @@ struct LibraryView: View {
     /// The letter being jumped to while the titles up to it load.
     @State private var jumping: String?
     @FocusState private var focusedItem: String?
+    /// The sort and genre buttons and the A–Z rail.
+    @FocusState private var focusedControl: String?
+    @State private var switchFocused = false
+    /// When focus last left something on this screen (or the screen appeared), to tell focus coming down from the
+    /// tab bar from focus moving within the screen or coming back to it.
+    @State private var lastFocusHereAt = Date.distantPast
     @Environment(\.scenePhase) private var scenePhase
 
     private static let pageSize = 60
@@ -53,7 +59,7 @@ struct LibraryView: View {
             grid
                 .overlay(alignment: .trailing) {
                     if showsLetters {
-                        LetterRail(letters: Self.letters, empty: emptyLetters, jumping: jumping) { letter in
+                        LetterRail(letters: Self.letters, empty: emptyLetters, jumping: jumping, focus: $focusedControl) { letter in
                             Task { await jump(to: letter, proxy: proxy) }
                         }
                         .padding(.trailing, Layout.edge)
@@ -111,7 +117,16 @@ struct LibraryView: View {
             await reload()
             genres = await genresTask ?? []
         }
-        .onAppear { isVisible = true }
+        .onAppear {
+            isVisible = true
+            // Back from a title, focus returns to the poster that was opened: leave it there.
+            lastFocusHereAt = .now
+        }
+        .onChange(of: focusedControl) { _, now in if now == nil { lastFocusHereAt = .now } }
+        .onChange(of: focusedItem) { old, new in
+            if old != nil, new == nil { lastFocusHereAt = .now }
+            focusFirstTitleFromTabBar(old: old, new: new)
+        }
         .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await refreshLoaded() } }
@@ -126,8 +141,11 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: viewSwitch == nil ? 4 : 16) {
                 if let viewSwitch {
                     // On a tab, which names the library: the Browse and All switch, where it sits over Browse's hero.
-                    LibraryViewSwitch(library: library, view: viewSwitch)
-                        .focusSection()
+                    LibraryViewSwitch(library: library, view: viewSwitch) { focused in
+                        if !focused { lastFocusHereAt = .now }
+                        switchFocused = focused
+                    }
+                    .focusSection()
                 } else {
                     Text(library.name)
                         .font(.marquee(76, weight: .heavy))
@@ -143,6 +161,7 @@ struct LibraryView: View {
                 ForEach(LibrarySort.allCases) { option in
                     Button(option.label) { sort = option }
                         .buttonStyle(PillButtonStyle(selected: sort == option))
+                        .focused($focusedControl, equals: "sort-\(option.rawValue)")
                 }
                 if !genres.isEmpty {
                     Menu {
@@ -153,6 +172,7 @@ struct LibraryView: View {
                     } label: {
                         Label(genre ?? "All genres", systemImage: "line.3.horizontal.decrease")
                     }
+                    .focused($focusedControl, equals: "genre")
                     .buttonStyle(PillButtonStyle(selected: genre != nil))
                 }
             }
@@ -228,6 +248,17 @@ struct LibraryView: View {
             loadedToken = token
             loadedAt = Date()
         }
+    }
+
+    /// Down from the tab bar, focus lands on whichever poster in the top row is under the tab it left; the first
+    /// title is where a page starts, so it goes there instead. Focus moving here from the switch, the sort buttons or
+    /// the rail, a letter jump, or coming back from a title, stays where it lands.
+    private func focusFirstTitleFromTabBar(old: String?, new: String?) {
+        guard old == nil, let new, jumping == nil, focusedControl == nil, !switchFocused,
+              Date.now.timeIntervalSince(lastFocusHereAt) > 1,
+              let index = items.firstIndex(where: { $0.id == new }), index > 0, index < 6,
+              let first = items.first else { return }
+        focusedItem = first.id
     }
 
     /// A title's letter on the A–Z rail, ignoring a leading "The", "A" or "An" as the server's sort does.
@@ -310,6 +341,7 @@ private struct LetterRail: View {
     let letters: [String]
     let empty: Set<String>
     let jumping: String?
+    var focus: FocusState<String?>.Binding
     let jump: (String) -> Void
 
     var body: some View {
@@ -320,6 +352,7 @@ private struct LetterRail: View {
                 }
                 .buttonStyle(LetterButtonStyle(jumping: jumping == letter))
                 .disabled(empty.contains(letter))
+                .focused(focus, equals: "letter-\(letter)")
                 .accessibilityLabel(letter == "#" ? "Numbers and symbols" : letter)
             }
         }
