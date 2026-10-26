@@ -130,6 +130,8 @@ struct PodcastEpisodeRow: View {
     let episode: PodcastEpisode
     /// Lists of several shows' episodes name the show and show its artwork.
     var showsPodcast = false
+    /// A short row (New episodes): no notes, and Play on the right beside the title, its length and download under it.
+    var compact = false
     /// Marks it played or unplayed in the list's own way (the show page shows it at once); otherwise it's sent and
     /// screens reload.
     var setPlayed: ((Bool) -> Void)?
@@ -138,6 +140,85 @@ struct PodcastEpisodeRow: View {
     private var isCurrent: Bool { model.music.current?.id == episode.id }
 
     var body: some View {
+        Group {
+            if compact { compactRow } else { fullRow }
+        }
+        .padding(.vertical, compact ? 10 : 12)
+        .contentShape(Rectangle())
+        // Not a Button: in a List, the row's own buttons (Play, download) then take their own taps.
+        .onTapGesture { showingNotes = true }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Show notes") { showingNotes = true }
+        .accessibilityAction(named: episode.isPlayed ? "Mark as unplayed" : "Mark as played") { togglePlayed() }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button { togglePlayed() } label: {
+                Label(episode.isPlayed ? "Unplayed" : "Played", systemImage: episode.isPlayed ? "arrow.uturn.backward.circle" : "checkmark.circle.fill")
+            }
+            .tint(episode.isPlayed ? Color.aisle : Color.played)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let download = downloads.entry(for: episode.id) {
+                Button(role: .destructive) { downloads.remove(download.id) } label: {
+                    Label(download.isDownloaded ? "Remove download" : "Stop download", systemImage: "trash")
+                }
+            } else {
+                Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
+                    Label("Download", systemImage: "arrow.down.circle")
+                }
+                .tint(Color.aisle)
+            }
+        }
+        .sheet(isPresented: $showingNotes) {
+            EpisodeSheet(episode: episode, setPlayed: setPlayed)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Color.room)
+        }
+    }
+
+    private var metaLine: some View {
+        Text([showsPodcast ? episode.podcastTitle : nil, episode.dateLine].compactMap { $0 }.joined(separator: "  "))
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.usher)
+            .lineLimit(1)
+    }
+
+    private var title: some View {
+        Text(episode.title)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(episode.isPlayed ? Color.usher : Color.screen)
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+    }
+
+    private var artwork: some View {
+        PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
+                       imageWidth: 185, cornerRadius: 6)
+            .frame(width: 56, height: 56)
+    }
+
+    /// Show and date, the title, then its length and download; Play on the right.
+    private var compactRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            if showsPodcast { artwork }
+            VStack(alignment: .leading, spacing: 3) {
+                metaLine
+                title
+                HStack(spacing: 8) {
+                    if let time = episode.timeLine {
+                        Text(time)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.usher)
+                    }
+                    EpisodeDownloadButton(episode: episode, size: 22)
+                }
+            }
+            Spacer(minLength: 0)
+            EpisodePlayButton(episode: episode)
+        }
+    }
+
+    private var fullRow: some View {
         HStack(alignment: .top, spacing: 12) {
             if showsPodcast {
                 PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
@@ -174,36 +255,6 @@ struct PodcastEpisodeRow: View {
                 }
                 .padding(.top, 4)
             }
-        }
-        .padding(.vertical, 12)
-        .contentShape(Rectangle())
-        // Not a Button: in a List, the row's own buttons (Play, download) then take their own taps.
-        .onTapGesture { showingNotes = true }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Show notes") { showingNotes = true }
-        .accessibilityAction(named: episode.isPlayed ? "Mark as unplayed" : "Mark as played") { togglePlayed() }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            Button { togglePlayed() } label: {
-                Label(episode.isPlayed ? "Unplayed" : "Played", systemImage: episode.isPlayed ? "arrow.uturn.backward.circle" : "checkmark.circle.fill")
-            }
-            .tint(episode.isPlayed ? Color.aisle : Color.played)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if let download = downloads.entry(for: episode.id) {
-                Button(role: .destructive) { downloads.remove(download.id) } label: {
-                    Label(download.isDownloaded ? "Remove download" : "Stop download", systemImage: "trash")
-                }
-            } else {
-                Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
-                    Label("Download", systemImage: "arrow.down.circle")
-                }
-                .tint(Color.aisle)
-            }
-        }
-        .sheet(isPresented: $showingNotes) {
-            EpisodeSheet(episode: episode, setPlayed: setPlayed)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(Color.room)
         }
     }
 
@@ -275,6 +326,7 @@ struct EpisodePlayButton: View {
 struct EpisodeDownloadButton: View {
     @Environment(DownloadStore.self) private var store
     let episode: PodcastEpisode
+    var size: CGFloat = 30
     @State private var removing = false
     @State private var error: String?
 
@@ -304,7 +356,7 @@ struct EpisodeDownloadButton: View {
                 }
             }
             .foregroundStyle(download?.isDownloaded == true ? Color.silver : Color.screen)
-            .frame(width: 30, height: 30)
+            .frame(width: size, height: size)
             .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
