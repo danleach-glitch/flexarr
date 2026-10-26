@@ -168,13 +168,21 @@ struct RootView: View {
             model.listenForCommands(scenePhase == .active)
         }
         .overlay {
-            if model.player.isStarting {
+            if model.player.isStarting || model.liveTv.isStarting {
                 ZStack {
                     Color.black.opacity(0.55).ignoresSafeArea()
                     ProgressView().controlSize(.large).tint(.screen)
                 }
                 .transition(.opacity)
             }
+        }
+        .alert("Couldn't play this channel", isPresented: Binding(
+            get: { model.liveTv.errorMessage != nil },
+            set: { if !$0 { model.liveTv.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.liveTv.errorMessage ?? "")
         }
         .alert(model.player.problem == .takenOver ? "Stopped for another screen" : "Couldn't play this", isPresented: Binding(
             get: { model.player.errorMessage != nil },

@@ -57,7 +57,8 @@ struct HomeView: View {
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
-        .ignoresSafeArea(edges: [.top, .horizontal])
+        // Under the hero; with none (only Live TV so far), the rows start below the tab bar.
+        .ignoresSafeArea(edges: home.featured.isEmpty ? [.horizontal] : [.top, .horizontal])
     }
 
     private func load() async {
@@ -251,6 +252,10 @@ struct HomeRowView: View {
                     // A playlists row carries playlists rather than items.
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist) { router.push(.playlist(playlist)) }
+                    }
+                    // A Live TV row carries the profile's favourite channels; channel up and down go through them.
+                    ForEach(row.channels ?? []) { channel in
+                        HomeChannelCard(channel: channel, order: row.channels ?? [])
                     }
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         switch row.style {

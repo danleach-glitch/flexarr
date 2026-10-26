@@ -1,0 +1,98 @@
+[
+ {
+  "id": "01a17633-26dc-7bc2-b4f9-1f8dd37605ed",
+  "number": 101,
+  "name": "BBC 1 HD",
+  "group": "UK| GENERAL ᴴᴰ/ᴿᴬᵂ",
+  "logoUrl": "/api/v1/livetv/channels/01a17633-26dc-7bc2-b4f9-1f8dd37605ed/logo",
+  "isFavourite": true,
+  "now": {
+   "id": 227,
+   "start": "2026-10-26T01:10:00Z",
+   "end": "2026-10-26T06:00:00Z",
+   "title": "BBC News",
+   "subtitle": null,
+   "description": "BBC One joins the BBC's rolling news channel for a night of news.",
+   "category": null,
+   "season": null,
+   "episode": null,
+   "isNew": false
+  },
+  "next": {
+   "id": 229,
+   "start": "2026-10-26T06:00:00Z",
+   "end": "2026-10-26T09:30:00Z",
+   "title": "Breakfast",
+   "subtitle": null,
+   "description": "The latest news, sport, business and weather from the BBC's Breakfast team.",
+   "category": null,
+   "season": null,
+   "episode": null,
+   "isNew": false
+  }
+ },
+ {
+  "id": "01a17633-26e2-7be9-abac-c0bff9382e56",
+  "number": 102,
+  "name": "BBC 2 HD",
+  "group": "UK| GENERAL ᴴᴰ/ᴿᴬᵂ",
+  "logoUrl": "/api/v1/livetv/channels/01a17633-26e2-7be9-abac-c0bff9382e56/logo",
+  "isFavourite": false,
+  "now": {
+   "id": 36,
+   "start": "2026-10-26T02:25:00Z",
+   "end": "2026-10-26T06:10:00Z",
+   "title": "This is BBC Two",
+   "subtitle": null,
+   "description": "Highlights of programmes on BBC Two.",
+   "category": null,
+   "season": null,
+   "episode": null,
+   "isNew": false
+  },
+  "next": {
+   "id": 37,
+   "start": "2026-10-26T06:10:00Z",
+   "end": "2026-10-26T06:55:00Z",
+   "title": "Bargain Hunt",
+   "subtitle": null,
+   "description": "Two parent-and-daughter duos dash with their cash around a bustling antiques fair in Kent, searching for collectibles to sell at auction.",
+   "category": null,
+   "season": null,
+   "episode": null,
+   "isNew": false
+  }
+ },
+ {
+  "id": "01a17633-26e2-7464-a4ab-322b6948e351",
+  "number": 103,
+  "name": "BBC 3 / CBBC HD",
+  "group": "UK| GENERAL ᴴᴰ/ᴿᴬᵂ",
+  "logoUrl": "/api/v1/livetv/channels/01a17633-26e2-7464-a4ab-322b6948e351/logo",
+  "isFavourite": false,
+  "now": {
+   "id": 690,
+   "start": "2026-10-26T03:00:00Z",
+   "end": "2026-10-26T07:00:00Z",
+   "title": "BBC 3 / CBBC HD",
+   "subtitle": null,
+   "description": "Late Night with BBC 3 / CBBC HD - Where insomniacs unite!",
+   "category": null,
+   "season": null,
+   "episode": null,
+   "isNew": false
+  },
+  "next": {
+   "id": 691,
+   "start": "2026-10-26T07:00:00Z",
+   "end": "2026-10-26T11:00:00Z",
+   "title": "BBC 3 / CBBC HD",
+   "subtitle": null,
+   "description": "Early Bird Special - Coffee not included",
+   "category": null,
+   "season": null,
+   "episode": null,
+   "isNew": false
+  }
+ }
+]

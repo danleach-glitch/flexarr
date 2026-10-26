@@ -66,6 +66,8 @@ public enum HomeRowStyle: String, ForwardCompatibleEnum {
     case tracks
     /// The profile's playlists; `items` is empty, the playlists come from `GET /playlists`.
     case playlists
+    /// The profile's favourite TV channels with what's on; `items` is empty, the channels are in `channels`.
+    case live
     case unknown
 }
 
@@ -291,9 +293,11 @@ public struct HomeRow: Codable, Sendable, Identifiable, Hashable {
     public let link: String?
     /// A `playlists` row's content (`items` is empty then). Absent from servers before playlists.
     public var playlists: [PlaylistSummary]? = nil
+    /// A `live` row's channels (`items` is empty then). Absent from servers before Live TV.
+    public var channels: [LiveChannel]? = nil
 
-    /// Whether there's anything to show: a row of items, or of playlists. A row of neither would be a bare heading.
-    public var hasContent: Bool { !items.isEmpty || !(playlists ?? []).isEmpty }
+    /// Whether there's anything to show: a row of items, of playlists or of channels. A row of none would be a bare heading.
+    public var hasContent: Bool { !items.isEmpty || !(playlists ?? []).isEmpty || !(channels ?? []).isEmpty }
 }
 
 // MARK: - Playlists

@@ -182,11 +182,13 @@ export interface HomeRow {
    * 'playlists' rows carry the profile's playlists in `playlists`, and 'mixes' rows its daily mixes in `mixes` (items
    * is empty for both).
    */
-  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks' | 'playlists' | 'mixes'
+  style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks' | 'playlists' | 'mixes' | 'live'
   items: ItemSummary[]
   link: string | null
   playlists?: PlaylistSummary[] | null
   mixes?: MixSummary[] | null
+  /** A 'live' row's favourite channels, with what's on (items is empty then). */
+  channels?: LiveChannel[] | null
 }
 
 /** One of the profile's "Made for you" mixes for today: built from what they play, the same all day, new tomorrow. */

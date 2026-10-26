@@ -231,6 +231,11 @@
   }
 }
 
+/* Home's Live TV row: the same cards, as wide as Continue watching's. */
+.row-live .row-track {
+  grid-auto-columns: clamp(220px, 20vw, 300px);
+}
+
 /* ---------- Guide ---------- */
 
 .live-player-star {

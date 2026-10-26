@@ -17,6 +17,8 @@ final class AppModel {
     private(set) var librariesError: String?
     /// Whether this profile has podcasts; nil for servers before them.
     private(set) var podcastStatus: PodcastStatus?
+    /// Whether the server has Live TV set up; nil for servers before it.
+    private(set) var liveTvStatus: LiveTvStatus?
     /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
     private(set) var podcastPreferences: PodcastPreferences?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
@@ -41,6 +43,7 @@ final class AppModel {
 
     let store = CredentialStore()
     let player = PlaybackController()
+    let liveTv = LiveTvController()
     private let commands = DeviceCommandListener()
     let music = MusicPlayer()
     #if DEBUG
@@ -75,6 +78,8 @@ final class AppModel {
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
+        liveTv.onWillStart = { [weak self] in self?.music.yieldToVideo() }
+        liveTv.onEnded = { [weak self] in self?.music.videoEnded() }
         // A speed picked in the player is the profile's speed from then on, everywhere.
         music.onPodcastStarted = { [weak self] in
             guard let self else { return }
@@ -303,6 +308,16 @@ final class AppModel {
         }
         podcastStatus = try? await client.podcastStatus()
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
+        liveTvStatus = try? await client.liveTvStatus()
+    }
+
+    /// Live TV has a place once the server has a source with channels.
+    var hasLiveTv: Bool { liveTvStatus.map { $0.configured && $0.channels > 0 } ?? false }
+
+    /// Plays a channel; Previous and Next go through `channels` in that order.
+    func watch(_ channel: LiveChannel, among channels: [LiveChannel]) {
+        guard let client else { return }
+        liveTv.watch(channel, among: channels, client: client)
     }
 
     func invalidate() {
@@ -549,6 +564,8 @@ enum Route: Hashable {
     case podcasts
     /// Finding podcasts in Apple's directory (iPhone and iPad).
     case podcastBrowse
+    /// The channels and what's on them (iPhone and iPad; the Apple TV has a tab).
+    case liveTv
 }
 
 /// One navigation stack per tab.

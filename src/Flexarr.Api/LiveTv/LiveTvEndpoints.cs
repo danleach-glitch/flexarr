@@ -275,6 +275,25 @@ public static partial class LiveTvEndpoints
         return api;
     }
 
+    /// <summary>The profile's favourite channels in number order, with what's on now and next (Home's Live TV row).</summary>
+    internal static async Task<List<LiveChannelDto>> FavouritesOnNowAsync(FlexarrDbContext db, string profileId, DateTime now, CancellationToken ct)
+    {
+        var channels = await db.LiveChannels.AsNoTracking()
+            .Where(c => db.LiveFavourites.Any(f => f.ProfileId == profileId && f.ChannelId == c.Id))
+            .OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
+        if (channels.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = channels.Select(c => c.Id).ToList();
+        var upcoming = (await db.LiveProgrammes.AsNoTracking()
+                .Where(p => ids.Contains(p.ChannelId) && p.End > now && p.Start < now.AddHours(12))
+                .OrderBy(p => p.Start).ToListAsync(ct))
+            .ToLookup(p => p.ChannelId);
+        return [.. channels.Select(c => ToDto(c, true, upcoming[c.Id].FirstOrDefault(p => p.Start <= now), upcoming[c.Id].FirstOrDefault(p => p.Start > now)))];
+    }
+
     internal static LiveChannelDto ToDto(LiveChannel c, bool favourite, LiveProgramme? now, LiveProgramme? next) =>
         new(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourite, now is null ? null : ToDto(now), next is null ? null : ToDto(next));
 

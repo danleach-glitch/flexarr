@@ -2674,3 +2674,9 @@ a.download-attention {
     font-size: var(--step-4);
   }
 }
+
+/* Home without a hero: the first row starts below the top bar. */
+.rows-unheaded {
+  margin-top: 0;
+  padding-top: calc(var(--nav-height) + 32px);
+}

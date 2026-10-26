@@ -5,6 +5,7 @@ import UIKit
 enum TabID: Hashable {
     case home
     case library(String)
+    case liveTv
     case search
     /// Only while music plays.
     case nowPlaying
@@ -37,6 +38,14 @@ struct MainTabView: View {
                     }
                 } label: {
                     Text(library.name)
+                }
+            }
+            // Once the server has Live TV set up (Settings › Live TV on the web).
+            if model.hasLiveTv {
+                Tab(value: TabID.liveTv) {
+                    TabStack { LiveTvView() }
+                } label: {
+                    Text("Live TV")
                 }
             }
             Tab(value: TabID.search, role: .search) {
@@ -262,6 +271,8 @@ struct TabStack<Content: View>: View {
             LibraryView(library: library, initialSort: sort)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
+        case .liveTv:
+            LiveTvView()
         case .podcasts, .podcastBrowse:
             // Podcasts are on iPhone, iPad and the web; nothing on the Apple TV goes here.
             EmptyView()

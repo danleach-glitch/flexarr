@@ -1,11 +1,14 @@
 import type { HomeRow } from '../api/client'
+import { useFavourites } from '../hooks/useFavourites'
 import { PosterCard, Top10Card, TrackCard, WideCard } from './Cards'
+import { ChannelCard } from './LiveChannelCard'
 import { MixCard } from './MixCard'
 import { PlaylistCard } from './PlaylistCover'
 import { Row } from './Row'
 
 /** Rows of titles as the server lays them out, for Home and each library's Browse view. */
 export function HomeRows({ rows }: { rows: HomeRow[] }) {
+  const { isFavourite, toggle } = useFavourites()
   return rows.map((row) => (
     <Row key={row.id} title={row.title} link={row.link} style={row.style}>
       {row.style === 'top10'
@@ -18,7 +21,9 @@ export function HomeRows({ rows }: { rows: HomeRow[] }) {
               ? (row.playlists ?? []).map((p) => <PlaylistCard key={p.id} playlist={p} />)
               : row.style === 'mixes'
                 ? (row.mixes ?? []).map((m) => <MixCard key={m.id} mix={m} />)
-                : row.items.map((item) => <PosterCard key={item.id} item={item} playLoneEpisode={row.id.startsWith('recent')} />)}
+                : row.style === 'live'
+                  ? (row.channels ?? []).map((c) => <ChannelCard key={c.id} channel={c} favourite={isFavourite(c)} onToggle={() => toggle(c)} />)
+                  : row.items.map((item) => <PosterCard key={item.id} item={item} playLoneEpisode={row.id.startsWith('recent')} />)}
     </Row>
   ))
 }

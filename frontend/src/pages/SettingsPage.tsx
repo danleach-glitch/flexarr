@@ -84,7 +84,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { SignIns } from '../components/SignIns'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { ChevronDown, ChevronUp, External, Eye, EyeOff, Film } from '../components/icons'
+import { ChevronDown, ChevronUp, External, Eye, EyeOff, Film, Tv } from '../components/icons'
 import { libraryIcons } from '../components/libraryIcons'
 import { useApi } from '../hooks/useApi'
 import { crossfadeChoices, useMusicSettings, writeMusicSettings } from '../lib/musicSettings'
@@ -823,6 +823,7 @@ function ConnectionsSection() {
   // Asked once the settings are in (and again after a save), not also while they load.
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
+  const liveStatus = useApi((signal) => (settings ? getLiveTvStatus(signal) : Promise.resolve(undefined)), [settings])
   const [connections, setConnections] = useState<DraftConnection[]>([])
   const [mappings, setMappings] = useState<Settings['pathMappings']>([])
   const [seerr, setSeerr] = useState({ baseUrl: '', apiKey: '', hasApiKey: false })
@@ -963,6 +964,35 @@ function ConnectionsSection() {
                 onChange={(e) => setSeerr({ ...seerr, apiKey: e.target.value })}
               />
             </label>
+          </div>
+        </div>
+
+        <h3 className="settings-subhead">Live TV</h3>
+        <p className="settings-lede">Dispatcharr brings in TV channels and their guide. It’s set up under Live TV, with how far back live TV can be rewound.</p>
+        <div className="panel connection">
+          <div className="connection-status">
+            <span
+              className={liveStatus.data?.configured ? (liveStatus.data.error ? 'status-dot bad' : 'status-dot ok') : 'status-dot'}
+              aria-hidden="true"
+            />
+            <Tv className="app-logo" />
+            <strong>Dispatcharr</strong>
+            <span className="muted">
+              {liveStatus.loading
+                ? 'Checking…'
+                : !liveStatus.data?.configured
+                  ? 'Not set up'
+                  : (liveStatus.data.error ?? `Connected: ${liveStatus.data.channels.toLocaleString()} channels`)}
+            </span>
+            {/* Dispatcharr is often reachable only on this server, so no Open link for a localhost address. */}
+            {settings.liveTv && !/^(localhost|127\.|\[::1\])/.test(new URL(settings.liveTv.baseUrl).host) && (
+              <OpenApp baseUrl={settings.liveTv.baseUrl} name="Dispatcharr" />
+            )}
+          </div>
+          <div className="form-actions">
+            <Link className="button quiet small" to="/settings/livetv">
+              {settings.liveTv ? 'Live TV settings' : 'Set up Live TV'}
+            </Link>
           </div>
         </div>
 

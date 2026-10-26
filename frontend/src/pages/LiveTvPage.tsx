@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
-import { FavouriteButton } from '../components/FavouriteButton'
+import { ChannelCard, ChannelLogo } from '../components/LiveChannelCard'
 import { Star, Tv } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
-import { clock, programmeTime, progress, tidyGroup } from '../lib/livetv'
+import { clock, programmeTime, programmeTitle, tidyGroup } from '../lib/livetv'
 
 /** How wide the guide draws a minute. */
 const PX_PER_MINUTE = 6
@@ -124,48 +124,6 @@ function OnNow() {
   )
 }
 
-function ChannelCard({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
-  return (
-    <div className="livetv-card">
-      <Link className="livetv-card-link" to={`/live/${c.id}`} aria-label={`${c.name}${c.now ? `, now ${c.now.title}` : ''}`}>
-      <div className="livetv-card-head">
-        <ChannelLogo channel={c} />
-        <span className="livetv-card-number">{c.number}</span>
-      </div>
-      <div className="livetv-card-body">
-        <span className="livetv-card-channel muted">{c.name}</span>
-        <strong className="livetv-card-title">{c.now ? programmeTitle(c.now) : 'No listings'}</strong>
-        {c.now && (
-          <>
-            <div className="livetv-progress" aria-hidden="true">
-              <span style={{ width: `${progress(c.now) * 100}%` }} />
-            </div>
-            <span className="muted livetv-card-time">{programmeTime(c.now)}</span>
-          </>
-        )}
-        {c.next && (
-          <span className="muted livetv-card-next">
-            Next: {clock.format(new Date(c.next.start))} {c.next.title}
-          </span>
-        )}
-      </div>
-      </Link>
-      <FavouriteButton name={c.name} favourite={favourite} onToggle={onToggle} />
-    </div>
-  )
-}
-
-function ChannelLogo({ channel }: { channel: Pick<LiveChannel, 'logoUrl' | 'name'> }) {
-  const [failed, setFailed] = useState(false)
-  return channel.logoUrl && !failed ? (
-    <img className="livetv-logo" src={channel.logoUrl} alt="" loading="lazy" onError={() => setFailed(true)} />
-  ) : (
-    <span className="livetv-logo livetv-logo-text" aria-hidden="true">
-      {channel.name.slice(0, 3)}
-    </span>
-  )
-}
-
 function Guide() {
   const navigate = useNavigate()
   const [from] = useState(() => guideStart())
@@ -279,7 +237,3 @@ function Guide() {
   )
 }
 
-/** A guide's title with the episode's own name, when there is one ("Doctor Who: The Star Beast"). */
-function programmeTitle(p: LiveProgramme) {
-  return p.subtitle && p.subtitle !== p.title && p.subtitle.length < 60 ? `${p.title}: ${p.subtitle}` : p.title
-}

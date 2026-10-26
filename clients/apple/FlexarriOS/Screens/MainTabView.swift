@@ -104,6 +104,8 @@ struct TabStack<Content: View>: View {
             PodcastsView()
         case .podcastBrowse:
             PodcastBrowseView()
+        case .liveTv:
+            LiveTvView()
         }
     }
 }
@@ -131,6 +133,9 @@ struct LibrariesView: View {
                     // Podcasts are one place however many libraries hold them, and say how to set them up when none does.
                     if model.podcastStatus != nil {
                         row("Podcasts", icon: "mic.fill") { router.push(.podcasts) }
+                    }
+                    if model.hasLiveTv {
+                        row("Live TV", icon: "tv.inset.filled") { router.push(.liveTv) }
                     }
                 }
                 .scrollContentBackground(.hidden)

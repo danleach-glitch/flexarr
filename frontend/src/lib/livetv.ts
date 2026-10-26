@@ -24,3 +24,8 @@ export function tidyGroup(group: string) {
       .trim() || group
   )
 }
+
+/** A guide's title with the episode's own name, when there is one ("Doctor Who: The Star Beast"). */
+export function programmeTitle(p: LiveProgramme) {
+  return p.subtitle && p.subtitle !== p.title && p.subtitle.length < 60 ? `${p.title}: ${p.subtitle}` : p.title
+}

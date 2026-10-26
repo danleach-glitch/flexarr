@@ -69,6 +69,7 @@ public static class LayoutEndpoints
     private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool music) =>
     [
         new("continue", "Continue watching", true),
+        new("live-tv", "Live TV (your favourite channels)", true),
         .. libraries.Select(l => new RowChoiceDto($"recent-{l.Id}", $"Latest unwatched in {l.Name}", true)),
         new("top-movies", "Top 10 films", true),
         new("top-shows", "Top 10 shows", true),

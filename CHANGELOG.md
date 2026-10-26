@@ -11,6 +11,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The player rewinds live TV (by default up to an hour back, while anyone watches the channel), shows how far behind live you are with a Jump to live button, and changes channel with the arrow keys or the channel list.
 - Channels that are already H.264 play as they come; interlaced, MPEG-2 and HEVC channels are converted (deinterlaced to smooth 50 frames a second), and Dolby Digital and MP2 sound becomes AAC.
 - One channel is shared by everyone watching it, so a provider that allows one connection still serves the whole house. Changing channel lets the old one go first, and a channel that can't start says why ("No connection free", "isn't sending this channel at the moment").
+- Home has a Live TV row of your favourite channels and what's on them (on the web, Apple TV, iPhone and iPad); it can be moved or switched off in Customise display.
+- Settings › Connections lists Dispatcharr beside Sonarr, Radarr and Seerr, with how it's doing.
+
+### Live TV (Apple TV, iPhone and iPad)
+- Apple TV: a Live TV tab with your categories down the left (Favourites, All channels and the source's groups) and a compact list of channels on the right, each with what's on, how far through, and what's next, so even hundreds stay quick to move through. Select to watch; press and hold to add or remove a favourite.
+- iPhone and iPad: Live TV under Libraries, a list of channels with Favourites first; swipe right (or press and hold) to add or remove a favourite.
+- The player's timeline is the rewind window: it shows the time of day, LIVE or how far behind you are, and Back to live once you've rewound. Previous and Next change channel, and on the Apple TV so does clicking the top or bottom of the remote's touch surface while the controls are hidden.
 
 ## 0.27.0 · 26 October 2026
 

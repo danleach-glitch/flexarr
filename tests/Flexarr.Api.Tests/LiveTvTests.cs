@@ -222,6 +222,40 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task Home_has_a_live_tv_row_of_the_profiles_favourites()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        static JsonElement? LiveRow(JsonElement home) =>
+            home.GetProperty("rows").EnumerateArray().Where(r => r.GetProperty("id").GetString() == "live-tv").Cast<JsonElement?>().FirstOrDefault();
+
+        // Nothing starred: no row.
+        Assert.Null(LiveRow(await client.GetFromJsonAsync<JsonElement>(Api("home"))));
+
+        var bbc = (await ChannelsAsync(client)).Single(c => c.GetProperty("name").GetString() == "BBC One").GetProperty("id").GetString();
+        (await client.PutAsync(Api($"livetv/channels/{bbc}/favourite"), null)).EnsureSuccessStatusCode();
+        var row = LiveRow(await client.GetFromJsonAsync<JsonElement>(Api("home")));
+        Assert.NotNull(row);
+        Assert.Equal("live", row.Value.GetProperty("style").GetString());
+        Assert.Equal(0, row.Value.GetProperty("items").GetArrayLength());
+        var channel = Assert.Single(row.Value.GetProperty("channels").EnumerateArray());
+        Assert.Equal("The News", channel.GetProperty("now").GetProperty("title").GetString());
+
+        // Switched off in Customise display: gone.
+        (await client.PutAsJsonAsync(Api("settings/layout"), new { home = new[] { new { id = "live-tv", enabled = false } }, movies = Array.Empty<object>(), shows = Array.Empty<object>() }))
+            .EnsureSuccessStatusCode();
+        // The saved layout is picked up when the config file reloads, a moment later.
+        JsonElement? after = row;
+        for (var i = 0; i < 20 && after is not null; i++)
+        {
+            await Task.Delay(100);
+            after = LiveRow(await client.GetFromJsonAsync<JsonElement>(Api("home")));
+        }
+
+        Assert.Null(after);
+    }
+
+    [Fact]
     public async Task Logos_are_only_fetched_from_the_source_itself()
     {
         var client = Client();

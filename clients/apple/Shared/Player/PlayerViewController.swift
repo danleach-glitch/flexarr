@@ -219,6 +219,15 @@ final class PlayerViewController: UIViewController {
         didSet { controls.scrubber.previews = previews }
     }
 
+    /// Live TV: with the controls hidden, clicking the top or bottom of the remote's touch surface changes channel
+    /// (Previous and Next).
+    var zapsChannels = false
+
+    /// The spinner while there's nothing to show yet (a channel being changed, before its picture).
+    func showLoading() {
+        phaseChanged(.loading)
+    }
+
     func setEpisodeNavigation(hasPrevious: Bool, hasNext: Bool) {
         controls.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
         nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
@@ -449,6 +458,15 @@ final class PlayerViewController: UIViewController {
                 }
                 close()
                 return
+            case .upArrow, .downArrow:
+                if zapsChannels, !controlsVisible, scan == nil {
+                    if press.type == .upArrow {
+                        delegate?.playerScreenPrevious(self)
+                    } else {
+                        delegate?.playerScreenNext(self)
+                    }
+                    return
+                }
             case .leftArrow, .rightArrow:
                 let direction: Double = press.type == .leftArrow ? -1 : 1
                 // Scanning already: the same edge doubles the speed, the other turns it round.
@@ -602,7 +620,8 @@ final class PlayerViewController: UIViewController {
         controls.subtitlesButton.menu = UIMenu(title: "Subtitles", children: items)
 
         let rates = Self.rateChoices.filter { $0 <= transport.maxRate }
-        controls.speedButton.isHidden = rates.count < 2
+        // Live TV has no speeds (it can't run ahead of the channel).
+        controls.speedButton.isHidden = rates.count < 2 || transport.maxRate <= 1
         controls.speedButton.menu = UIMenu(title: "Speed", children: rates.map { rate in
             UIAction(title: Self.rateLabel(rate), state: rate == transport.rate ? .on : .off) { [weak self] _ in
                 MainActor.assumeIsolated {
