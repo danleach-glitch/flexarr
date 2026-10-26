@@ -320,9 +320,11 @@ public static class PodcastEndpoints
             var wanted = new List<AutoDownloadDto>();
             foreach (var feed in feeds)
             {
+                // Never one taken off the phone: that was a choice, not a gap to fill.
                 var unplayed = db.MediaItems.Where(i => i.ParentId == feed.FeedId && i.Kind == MediaKind.PodcastEpisode
                     && i.Enclosure!.EpisodeType != PodcastEpisodeType.Trailer
-                    && !i.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched));
+                    && !i.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched)
+                    && !db.Downloads.Any(d => d.ProfileId == profile.Id && d.MediaItemId == i.Id && d.Status == DownloadStatus.Removed));
                 // A show heard in order keeps the next ones to hear, not the newest.
                 var episodes = await (feed.OldestFirst ? unplayed.OrderBy(i => i.SortTitle) : unplayed.OrderByDescending(i => i.SortTitle))
                     .Take(settings.PodcastKeepEpisodes).Select(i => i.Id).ToListAsync(ct);

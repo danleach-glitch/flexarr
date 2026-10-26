@@ -329,43 +329,40 @@ struct EpisodeDownloadButton: View {
     var size: CGFloat = 30
     @State private var removing = false
     @State private var error: String?
+    @State private var failure: String?
 
     var body: some View {
         let download = store.entry(for: episode.id)
+        let waiting = download.map(store.isWaitingForWiFi) ?? false
         Button {
             switch download?.state {
-            case nil, .failed: Task { await start() }
+            case nil: Task { await start() }
+            case .failed(let reason): failure = reason
             default: removing = true
             }
         } label: {
-            ZStack {
-                switch download?.state {
-                case .downloading(let fraction):
-                    Circle().stroke(Color.screen.opacity(0.25), lineWidth: 2)
-                    Circle().trim(from: 0, to: max(0.02, fraction)).stroke(Color.screen, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Image(systemName: "stop.fill").font(.system(size: 8, weight: .bold))
-                case .preparing:
-                    ProgressView().controlSize(.mini).tint(Color.screen)
-                case .downloaded:
-                    Image(systemName: "arrow.down.circle.fill").font(.title3)
-                case .failed:
-                    Image(systemName: "exclamationmark.arrow.circlepath").font(.body.weight(.semibold))
-                case nil:
-                    Image(systemName: "arrow.down.circle").font(.title3)
-                }
-            }
-            .foregroundStyle(download?.isDownloaded == true ? Color.silver : Color.screen)
-            .frame(width: size, height: size)
-            .contentShape(Rectangle())
+            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: size * 0.75)
+                .font(.title3)
+                .foregroundStyle(Color.screen)
+                .frame(width: size, height: size)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel(download?.isDownloaded == true ? "Downloaded" : download == nil ? "Download" : "Downloading")
+        .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
         .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.remove(download.id) }
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button("Try again") {
+                if let download { store.delete(download.id) }
+                Task { await start() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(failure ?? "")
         }
         .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}

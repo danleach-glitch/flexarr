@@ -355,6 +355,27 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task AnEpisodeTakenOffThePhone_IsNeverHandedBackToDownloadByItself()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { });
+        var newest = (await GetAsync(client, "podcasts/auto-downloads"))[0].GetProperty("episodeId").GetString();
+
+        var download = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = newest, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+        (await client.DeleteAsync(Api($"offline/{download.GetProperty("id").GetString()}"))).EnsureSuccessStatusCode();
+
+        Assert.DoesNotContain((await GetAsync(client, "podcasts/auto-downloads")).EnumerateArray(), w => w.GetProperty("episodeId").GetString() == newest);
+        Assert.Empty((await GetAsync(client, "offline")).EnumerateArray());
+
+        // Asked for by hand, it downloads again.
+        var again = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = newest, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.NotEqual(download.GetProperty("id").GetString(), again.GetProperty("id").GetString());
+        Assert.Equal("Queued", again.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task DownloadingAnEpisode_FetchesItIntoThePodcastsFolder_UntilThePhoneHasIt()
     {
         var folder = await AddLibraryAsync();

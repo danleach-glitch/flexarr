@@ -34,6 +34,12 @@ public enum DownloadStatus
 
     /// <summary>Not fetched in time, so the server's copy was deleted. Asking again prepares it afresh.</summary>
     Expired,
+
+    /// <summary>
+    /// A podcast episode taken off the phone: kept (without a file) so it's never fetched for it again by itself.
+    /// Downloading it by hand starts afresh.
+    /// </summary>
+    Removed,
 }
 
 /// <summary>

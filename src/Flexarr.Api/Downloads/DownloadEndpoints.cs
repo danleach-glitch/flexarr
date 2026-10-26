@@ -74,7 +74,7 @@ public static class DownloadEndpoints
 
         group.MapGet("/", async (FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
         {
-            var ids = await db.Downloads.Where(d => d.ProfileId == profile.Id).OrderBy(d => d.CreatedAt).Select(d => d.Id).ToListAsync(ct);
+            var ids = await db.Downloads.Where(d => d.ProfileId == profile.Id && d.Status != DownloadStatus.Removed).OrderBy(d => d.CreatedAt).Select(d => d.Id).ToListAsync(ct);
             var list = new List<DownloadDto>();
             foreach (var id in ids)
             {
@@ -103,7 +103,7 @@ public static class DownloadEndpoints
 
             // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out.
             var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == quality
-                && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired, ct);
+                && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired && d.Status != DownloadStatus.Removed, ct);
             if (existing is null)
             {
                 existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued };
@@ -140,12 +140,22 @@ public static class DownloadEndpoints
             return Results.NoContent();
         });
 
+        // Taken off the device. A podcast episode's is remembered as removed, so the phone isn't handed it again to
+        // download by itself (see /podcasts/auto-downloads); anything else is forgotten.
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            if (await db.Downloads.FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct) is { } download)
+            if (await db.Downloads.Include(d => d.MediaItem).FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct) is { } download)
             {
                 DownloadPreparer.DeleteFile(download);
-                db.Downloads.Remove(download);
+                if (download.MediaItem?.Kind == MediaKind.PodcastEpisode)
+                {
+                    download.Status = DownloadStatus.Removed;
+                }
+                else
+                {
+                    db.Downloads.Remove(download);
+                }
+
                 await db.SaveChangesAsync(ct);
             }
 

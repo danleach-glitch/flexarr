@@ -113,16 +113,21 @@ private struct DownloadRow: View {
 
     @ViewBuilder private var status: some View {
         switch download.state {
+        case _ where store.isWaitingForWiFi(download):
+            caption("Waiting for Wi-Fi")
         case .preparing(let progress):
-            caption(progress > 0 ? "Getting ready on the server, \(Int(progress * 100))%" : "Waiting for the server")
+            caption(progress > 0 && progress < 1 ? "Getting ready · \(Int(progress * 100))%" : "Getting ready")
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
                 caption("Downloading, \(Int(progress * 100))%")
                 ProgressView(value: progress).tint(.silver)
             }
         case .downloaded:
-            caption([download.quality.label, download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
-                     download.finishedAt != nil ? "Watched" : nil].compactMap { $0 }.joined(separator: "  "))
+            HStack(spacing: 6) {
+                DownloadedMark()
+                caption([download.quality.label, download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
+                         download.finishedAt != nil ? "Watched" : nil].compactMap { $0 }.joined(separator: "  "))
+            }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
         }
@@ -186,16 +191,21 @@ private struct PodcastDownloadRow: View {
 
     @ViewBuilder private var status: some View {
         switch download.state {
-        case .preparing:
-            caption(download.automatic ? "Waiting for the server (downloads on Wi-Fi)" : "Waiting for the server")
+        case _ where store.isWaitingForWiFi(download):
+            caption("Waiting for Wi-Fi")
+        case .preparing(let progress):
+            caption(progress > 0 && progress < 1 ? "Getting ready · \(Int(progress * 100))%" : "Getting ready")
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
                 caption("Downloading, \(Int(progress * 100))%")
                 ProgressView(value: progress).tint(.silver)
             }
         case .downloaded:
-            caption([download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
+            HStack(spacing: 6) {
+                DownloadedMark()
+                caption([download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
                      download.finishedAt != nil ? "Played" : nil, download.automatic ? "Downloaded by itself" : nil].compactMap { $0 }.joined(separator: "  "))
+            }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
         }
@@ -206,24 +216,42 @@ private struct PodcastDownloadRow: View {
     }
 }
 
-/// The download button on a title's page: downloads at once, at the size chosen in Settings. Once it's on its way
-/// or here, tapping offers to remove it.
+/// The download button on a title's page: downloads at once, at the size chosen in Settings. Each state looks its
+/// own: an hourglass while the server gets it ready, Wi-Fi while it waits for some, a ring only as it comes down, a
+/// green tick once here, an exclamation (tap for why) when it failed. Once it's on its way or here, tapping offers to
+/// remove it.
 struct DownloadButton: View {
     @Environment(DownloadStore.self) private var store
     let item: ItemSummary
     @State private var removing = false
     @State private var error: String?
+    @State private var failure: String?
 
     var body: some View {
         let download = store.entry(for: item.id)
+        let waiting = download.map(store.isWaitingForWiFi) ?? false
         Button {
-            if download == nil || isFailed(download) {
-                Task { await start() }
-            } else {
-                removing = true
+            switch download?.state {
+            case nil: Task { await start() }
+            case .failed(let reason): failure = reason
+            default: removing = true
             }
         } label: {
-            Label(label(download), systemImage: icon(download))
+            Label {
+                Text(waiting ? "Waiting for Wi-Fi" : label(download))
+            } icon: {
+                DownloadStateIcon(state: download?.state, waitingForWiFi: waiting)
+            }
+        }
+        .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
+        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button("Try again") {
+                if let download { store.delete(download.id) }
+                Task { await start() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(failure ?? "")
         }
         .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?",
                             isPresented: $removing, titleVisibility: .visible) {
@@ -247,26 +275,71 @@ struct DownloadButton: View {
         }
     }
 
-    private func isFailed(_ download: LocalDownload?) -> Bool {
-        if case .failed = download?.state { true } else { false }
-    }
-
     private func label(_ download: LocalDownload?) -> String {
         switch download?.state {
         case nil: "Download"
-        case .preparing: "Preparing"
+        case .preparing(let progress): progress > 0 && progress < 1 ? "Getting ready · \(Int(progress * 100))%" : "Getting ready"
         case .downloading(let progress): "\(Int(progress * 100))%"
         case .downloaded: "Downloaded"
-        case .failed: "Try again"
+        case .failed: "Couldn't download"
         }
     }
+}
 
-    private func icon(_ download: LocalDownload?) -> String {
-        switch download?.state {
-        case nil: "arrow.down"
-        case .failed: "exclamationmark.arrow.circlepath"
-        case .preparing, .downloading: "arrow.down.circle.dotted"
-        case .downloaded: "checkmark.circle.fill"
+/// What a download is doing, at a glance, the same everywhere: an arrow to download; an hourglass while the server
+/// gets it ready; Wi-Fi while it waits for some; a ring that fills only as the file comes down to the phone; a green
+/// tick once it's here; an exclamation when it failed.
+struct DownloadStateIcon: View {
+    let state: LocalDownload.State?
+    var waitingForWiFi = false
+    var size: CGFloat = 22
+
+    var body: some View {
+        ZStack {
+            switch state {
+            case _ where waitingForWiFi:
+                Image(systemName: "wifi").foregroundStyle(Color.usher)
+            case nil:
+                Image(systemName: "arrow.down.circle")
+            case .preparing:
+                Image(systemName: "hourglass").foregroundStyle(Color.usher)
+            case .downloading(let fraction):
+                DownloadRing(fraction: fraction)
+            case .downloaded:
+                Image(systemName: "checkmark.circle.fill")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Color.room, Color.downloaded)
+            case .failed:
+                Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
+            }
         }
+        .frame(width: size, height: size)
+    }
+
+    static func accessibilityLabel(_ state: LocalDownload.State?) -> String {
+        switch state {
+        case nil: "Download"
+        case .preparing: "Getting ready on the server"
+        case .downloading(let fraction): "Downloading, \(Int(fraction * 100))%"
+        case .downloaded: "Downloaded"
+        case .failed: "Couldn't download"
+        }
+    }
+}
+
+/// How much of a file has come down to the phone, as a ring that fills; a stop square in the middle.
+struct DownloadRing: View {
+    let fraction: Double
+    var lineWidth: CGFloat = 2
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.screen.opacity(0.25), lineWidth: lineWidth)
+            Circle().trim(from: 0, to: max(0.02, fraction)).stroke(Color.screen, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.3), value: fraction)
+            Image(systemName: "stop.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(Color.screen)
+        }
+        .padding(1)
     }
 }
