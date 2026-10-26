@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings save as you change them, Home and Browse rows included; forms like a connection's address keep a Save button.
 - Home and Browse rows can be dragged into order (the arrows still work from the keyboard and on touch screens).
 - Editing a profile is simpler: picture, name and colour together at the top, the PIN fields only once you add or change a PIN, and a switch for each library it sees. Profiles are listed in one panel.
+- The main profile, which manages the server, has a crown: beside its name in Settings › Profiles, and on its picture when choosing who's watching.
 - A plainer, tighter look: titles in the text face, switches for every on/off setting, one panel per list, and Library health leaves out groups with nothing in them.
 
 ## 0.28.1 · 26 October 2026

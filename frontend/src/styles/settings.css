@@ -1782,3 +1782,24 @@
     gap: 14px;
   }
 }
+
+/* The main profile's crown, beside its name. */
+.profile-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile-crown {
+  display: inline-grid;
+  color: #f2c879;
+}
+
+.profile-crown svg {
+  width: 15px;
+  height: 15px;
+}
+
+.profile-name .profile-you {
+  margin-left: 2px;
+}

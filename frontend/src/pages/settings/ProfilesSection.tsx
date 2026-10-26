@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ApiError, createProfile, deleteProfile, getAllLibraries, removeProfileImage, uploadProfileImage, getProfiles, updateProfile, type Library, type Profile } from '../../api/client'
+import { Crown } from '../../components/icons'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
@@ -64,11 +65,18 @@ export function ProfilesSection() {
             <div key={p.id} className="profile-row">
               <Avatar profile={p} size={40} />
               <span className="setting-text">
-                <strong>
+                <strong className="profile-name">
                   {p.name}
+                  {p.isMain && (
+                    <span className="profile-crown" title="Main profile: manages the server">
+                      <Crown />
+                    </span>
+                  )}
                   {p.isCurrent && <span className="tag profile-you">You</span>}
                 </strong>
-                <span className="muted">{[p.isMain ? 'Main profile' : 'Profile', p.hasPin ? 'PIN' : 'No PIN', hiddenSummary(p, libraries)].filter(Boolean).join(' · ')}</span>
+                <span className="muted">
+                  {[p.isMain ? 'Main profile, manages the server' : 'Profile', p.hasPin ? 'PIN' : 'No PIN'].join(' · ')}
+                </span>
               </span>
               <span className="library-row-actions">
                 <button className="button quiet small" onClick={() => setEditing(p)}>
@@ -105,12 +113,6 @@ function usePreviewUrl(file: File | null | undefined) {
     [url],
   )
   return url
-}
-
-/** "Can't see Movies", or nothing when the profile sees every library. */
-function hiddenSummary(profile: Profile, libraries: Library[]) {
-  const names = libraries.filter((l) => profile.hiddenLibraryIds.includes(l.id)).map((l) => l.name)
-  return names.length > 0 && `Can’t see ${names.join(', ')}`
 }
 
 function ProfileForm({

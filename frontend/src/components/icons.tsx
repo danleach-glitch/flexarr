@@ -232,6 +232,13 @@ export const Monitor = (p: IconProps) => (
     <path d="M8 20h8M12 16v4" />
   </svg>
 )
+/** The main profile's mark: the one that manages the server. */
+export const Crown = (p: IconProps) => (
+  <svg {...base} {...p} fill="currentColor" stroke="none">
+    <path d="M3.2 8.3a.8.8 0 0 1 1.3-.7l3.9 3.2 2.9-5.3a.8.8 0 0 1 1.4 0l2.9 5.3 3.9-3.2a.8.8 0 0 1 1.3.7l-1.4 9.1a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L3.2 8.3Z" />
+    <rect x="5.5" y="19.5" width="13" height="1.8" rx=".9" />
+  </svg>
+)
 export const Radio = (p: IconProps) => (
   <svg {...base} {...p}>
     <circle cx="12" cy="12" r="2" />

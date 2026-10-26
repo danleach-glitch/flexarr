@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError, clearApiCache, saveProfileToken, selectProfile, signIn, UnauthorizedError, type Profile } from '../api/client'
+import { Crown } from './icons'
 
 export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'> & { image?: string | null }; size?: number }) {
   return (
@@ -246,8 +247,18 @@ export function ProfilePicker({
             {profiles.map((p) => (
               <li key={p.id}>
                 <button onClick={() => void choose(p)} disabled={checking}>
-                  <Avatar profile={p} size={112} />
-                  <span>{p.name}</span>
+                  <span className="profile-choice-avatar">
+                    <Avatar profile={p} size={112} />
+                    {p.isMain && (
+                      <span className="profile-choice-crown" title="Main profile">
+                        <Crown />
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {p.name}
+                    {p.isMain && <span className="visually-hidden">, main profile</span>}
+                  </span>
                   {p.hasPin && <span className="muted profile-locked">Needs a PIN</span>}
                 </button>
               </li>

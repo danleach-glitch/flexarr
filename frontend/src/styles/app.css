@@ -2674,3 +2674,27 @@ a.download-attention {
     font-size: var(--step-4);
   }
 }
+
+/* The main profile's crown, on the corner of its picture. */
+.profile-choice-avatar {
+  position: relative;
+  display: inline-grid;
+}
+
+.profile-choice-crown {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--room);
+  color: #f2c879;
+}
+
+.profile-choices .profile-choice-crown svg {
+  width: 18px;
+  height: 18px;
+}
