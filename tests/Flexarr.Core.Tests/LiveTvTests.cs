@@ -179,6 +179,32 @@ public sealed class LivePlanTests
     {
         Assert.Throws<LiveStreamException>(() => LiveProbe.Parse("""{"streams":[{"codec_type":"data"}]}"""));
     }
+    [Fact]
+    public void Dolby_is_passed_through_for_a_player_that_takes_it()
+    {
+        var channel4 = new LiveFormat("h264", 1920, 1080, false, 25, "ac3", 6);
+
+        var apple = LivePlan.For(channel4, surround: true);
+        Assert.True(apple.CopyAudio);
+        Assert.True(apple.Surround);
+        Assert.Equal("Original, Dolby surround", apple.Describe());
+
+        // A browser can't play Dolby: stereo AAC, as before.
+        Assert.False(LivePlan.For(channel4).CopyAudio);
+        Assert.False(LivePlan.For(channel4).Surround);
+        // Away from home it's stereo either way.
+        Assert.False(LivePlan.ForAway(channel4).CopyAudio);
+    }
+
+    [Fact]
+    public void Surround_changes_nothing_on_a_channel_without_Dolby()
+    {
+        var bbc = new LiveFormat("h264", 1280, 720, false, 50, "aac", 2);
+
+        Assert.False(LivePlan.HasSurround(bbc));
+        Assert.Equal(LivePlan.For(bbc), LivePlan.For(bbc, surround: true));
+        Assert.True(LivePlan.HasSurround(new LiveFormat("hevc", 3840, 2160, false, 50, "eac3", 6)));
+    }
 }
 
 public sealed class LiveCommandTests

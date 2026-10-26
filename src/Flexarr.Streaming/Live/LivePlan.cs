@@ -19,7 +19,9 @@ public sealed record LiveFormat(string? VideoCodec, int Width, int Height, bool 
 
 /// <summary>
 /// How a channel is turned into HLS for every viewer at once: one output that browsers and Apple's players can all
-/// play (H.264 and AAC), copied as it comes when it already is.
+/// play (H.264 and AAC), copied as it comes when it already is. Apple's players also take Dolby Digital (AC-3) and
+/// Dolby Digital Plus (E-AC-3): for them a channel's 5.1 is copied as it comes (<see cref="Surround"/>), where a
+/// browser gets stereo AAC.
 /// </summary>
 public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight, long VideoBitrate, bool CopyAudio, bool Reduced = false)
 {
@@ -28,7 +30,15 @@ public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight
     /// <summary>Highest picture made when converting; a "4K" channel that isn't H.264 comes out at 1080p.</summary>
     public const int MaxHeight = 1080;
 
-    public static LivePlan For(LiveFormat format)
+    /// <summary>Whether the sound is the channel's own Dolby Digital, passed through (Apple's players only).</summary>
+    public bool Surround => CopyAudio && !Reduced && IsDolby;
+
+    private bool IsDolby { get; init; }
+
+    /// <summary>Whether a viewer who can take Dolby gets anything different from one who can't, on this channel.</summary>
+    public static bool HasSurround(LiveFormat format) => format?.AudioCodec is "ac3" or "eac3";
+
+    public static LivePlan For(LiveFormat format, bool surround = false)
     {
         ArgumentNullException.ThrowIfNull(format);
 
@@ -42,8 +52,10 @@ public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight
             _ => 2_500_000L,
         };
 
-        // ADTS AAC copies straight into the segments; LATM (DVB), MP2, AC-3 and the rest become stereo AAC.
-        return new LivePlan(copyVideo, format.Interlaced, height, bitrate, format.AudioCodec == "aac");
+        // ADTS AAC copies straight into the segments, and Dolby for a player that takes it; LATM (DVB), MP2 and the
+        // rest (and Dolby, for a browser) become stereo AAC.
+        var dolby = surround && HasSurround(format);
+        return new LivePlan(copyVideo, format.Interlaced, height, bitrate, format.AudioCodec == "aac" || dolby) { IsDolby = dolby };
     }
 
     /// <summary>
@@ -58,9 +70,10 @@ public sealed record LivePlan(bool CopyVideo, bool Deinterlace, int TargetHeight
     }
 
     public string Describe() => Reduced ? $"Reduced for away from home ({TargetHeight}p)"
-        : CopyVideo && CopyAudio ? "Original"
-        : CopyVideo ? "Original video, converted sound"
-        : $"Converted to {TargetHeight}p" + (Deinterlace ? ", deinterlaced" : "");
+        : (CopyVideo && CopyAudio ? "Original"
+            : CopyVideo ? "Original video, converted sound"
+            : $"Converted to {TargetHeight}p" + (Deinterlace ? ", deinterlaced" : ""))
+          + (Surround ? ", Dolby surround" : "");
 }
 
 /// <summary>Reads a channel's format with ffprobe, over the web protocols only.</summary>

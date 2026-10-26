@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.33.0 · 26 October 2026
+
+### Live TV
+- Surround sound on Apple TV, iPhone and iPad. Channels that broadcast Dolby Digital or Dolby Digital Plus (Channel 4, 5 and others, for films and big dramas) now come through as they are, so a soundbar or receiver gets the 5.1. Before, it was turned into stereo. The web player and watching away from home stay stereo.
+
 ## 0.32.0 · 26 October 2026
 
 ### Settings

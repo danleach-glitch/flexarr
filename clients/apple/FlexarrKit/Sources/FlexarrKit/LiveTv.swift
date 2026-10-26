@@ -115,6 +115,8 @@ public struct LiveGuide: Codable, Sendable, Hashable {
 
 private struct WatchBody: Encodable {
     let replaces: String?
+    /// "surround": Apple's players take the channel's Dolby Digital 5.1 as it comes.
+    let audio: String
 }
 
 // MARK: - Client
@@ -145,7 +147,7 @@ extension FlexarrClient {
     /// Starts watching a channel and returns once it can be played. `replaces` is the viewer's previous channel,
     /// let go first so its connection is free (providers often allow only one).
     public func watchLiveChannel(_ id: String, replacing previous: String? = nil) async throws -> LiveWatch {
-        let data = try await send("POST", "livetv/channels/\(id)/watch", body: WatchBody(replaces: previous))
+        let data = try await send("POST", "livetv/channels/\(id)/watch", body: WatchBody(replaces: previous, audio: "surround"))
         return try decode(LiveWatch.self, from: data)
     }
 

@@ -33,7 +33,8 @@ public sealed record GuideDto(DateTime From, DateTime Until, IReadOnlyList<Guide
 /// "original" or "reduced" to choose; by default a viewer at home gets the channel as it comes, and one away from home
 /// (over Tailscale or the internet) a reduced version.
 /// </param>
-public sealed record WatchRequest(string? Replaces = null, string? Quality = null);
+/// <param name="Audio">"surround" from a player that takes Dolby Digital (Apple's): a channel's 5.1 comes as it is.</param>
+public sealed record WatchRequest(string? Replaces = null, string? Quality = null, string? Audio = null);
 
 /// <param name="Playlist">The live HLS playlist; its address is the viewer's capability, so it needs no sign-in.</param>
 /// <param name="Method">How the channel reaches the player ("Original", "Converted to 720p, deinterlaced").</param>
@@ -142,19 +143,24 @@ public static partial class LiveTvEndpoints
             // Away from home, a reduced version: a session of its own, beside the original one if someone at home is
             // watching the same channel (both read the one connection Dispatcharr holds for it).
             var reduced = Reduced(request?.Quality, NetworkZones.Of(http));
+            // A player that takes Dolby (Apple's) gets the channel's 5.1 as it comes, in a session of its own beside
+            // the stereo one a browser needs; on a channel known not to be Dolby, the two would be the same, so it
+            // shares. Away from home it's stereo, for the bandwidth.
+            var formatKey = $"livetv-format:{channel.Id}";
+            var surround = !reduced && string.Equals(request?.Audio, "surround", StringComparison.OrdinalIgnoreCase)
+                && !(memory.TryGetValue(formatKey, out LiveFormat? known) && known is not null && !LivePlan.HasSurround(known));
             LiveSession session;
             try
             {
-                session = await streams.JoinAsync(channel.Id.ToString("N") + (reduced ? ":away" : ""), source, async token =>
+                session = await streams.JoinAsync(channel.Id.ToString("N") + (reduced ? ":away" : surround ? ":surround" : ""), source, async token =>
                 {
-                    var key = $"livetv-format:{channel.Id}";
-                    if (!memory.TryGetValue(key, out LiveFormat? format) || format is null)
+                    if (!memory.TryGetValue(formatKey, out LiveFormat? format) || format is null)
                     {
                         format = await LiveProbe.ProbeAsync(ffprobe, source, token);
-                        memory.Set(key, format, FormatKeptFor);
+                        memory.Set(formatKey, format, FormatKeptFor);
                     }
 
-                    return reduced ? LivePlan.ForAway(format) : LivePlan.For(format);
+                    return reduced ? LivePlan.ForAway(format) : LivePlan.For(format, surround);
                 }, TimeSpan.FromMinutes(Math.Clamp(liveTv.RewindMinutes, 1, 240)), viewerId, ct);
             }
             catch (LiveStreamException ex)
