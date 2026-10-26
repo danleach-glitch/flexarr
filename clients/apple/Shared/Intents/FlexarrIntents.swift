@@ -646,28 +646,6 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             systemImageName: "list.bullet"
         )
         AppShortcut(
-            intent: WatchChannelIntent(),
-            phrases: [
-                "Put on \(\.$channel) in \(.applicationName)",
-                "Watch \(\.$channel) in \(.applicationName)",
-                "Switch to \(\.$channel) in \(.applicationName)",
-                "Turn on \(\.$channel) in \(.applicationName)",
-                "Put \(\.$channel) on in \(.applicationName)",
-            ],
-            shortTitle: "Put on a channel",
-            systemImageName: "tv"
-        )
-        AppShortcut(
-            intent: WhatsOnIntent(),
-            phrases: [
-                "What's on \(\.$channel) in \(.applicationName)",
-                "What's on \(\.$channel) on \(.applicationName)",
-                "What's on \(\.$channel) now in \(.applicationName)",
-            ],
-            shortTitle: "What's on a channel",
-            systemImageName: "calendar"
-        )
-        AppShortcut(
             intent: ControlPlaybackIntent(),
             phrases: [
                 "\(\.$action) \(.applicationName)",

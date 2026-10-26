@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.35.1 · 26 October 2026
+
+### Siri
+- Siri is back to films, shows and podcasts. Its Live TV phrases from 0.35.0 ("Put on BBC One", "What's on BBC One") clashed with the film and show phrases and didn't find channels, so they're gone. Putting a channel on another device, and assistants' Live TV and recording tools, stay.
+
 ## 0.35.0 · 26 October 2026
 
 ### Live TV with Siri (iPhone, iPad and Apple TV)
