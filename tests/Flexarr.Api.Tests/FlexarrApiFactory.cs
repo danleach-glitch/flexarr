@@ -51,10 +51,18 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
-        // Both Dispose and DisposeAsync end up here; only the first call finds the directory.
-        if (Directory.Exists(DataDirectory))
+        // Both Dispose and DisposeAsync end up here; only the first call finds the directory. A transcode still
+        // tidying its own folder can take part of it away mid-delete, so a vanished part is tried again, not a failure.
+        for (var attempt = 0; attempt < 5 && Directory.Exists(DataDirectory); attempt++)
         {
-            Directory.Delete(DataDirectory, recursive: true);
+            try
+            {
+                Directory.Delete(DataDirectory, recursive: true);
+            }
+            catch (Exception ex) when (ex is DirectoryNotFoundException or IOException)
+            {
+                Thread.Sleep(100);
+            }
         }
     }
 }
