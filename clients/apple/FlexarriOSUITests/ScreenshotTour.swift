@@ -189,6 +189,16 @@ final class ScreenshotTour: XCTestCase {
         shot("podcasts")
     }
 
+    /// The music library as it opens, for the website: nothing played.
+    func test9Music() async throws {
+        guard let music = try await client.libraries().first(where: { $0.type == .music }) else { throw XCTSkip("no music library") }
+        tab("Libraries")
+        pause(2)
+        app.buttons[music.name].firstMatch.tap()
+        pause(10)
+        shot("music")
+    }
+
     // MARK: Helpers
 
     /// Tabs are found by their label: in the tab bar on iPhone, the bar along the top on iPad.
