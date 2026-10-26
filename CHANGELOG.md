@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.38.0 · 26 October 2026
 
 ### Libraries (Apple TV)
 - Movies and TV Shows open on Browse, as on the web: a hero of the library's own titles, then Continue watching, the latest, the best not yet watched and a row for each of its biggest genres. "All films" (or "All shows") at the top switches to every title.
