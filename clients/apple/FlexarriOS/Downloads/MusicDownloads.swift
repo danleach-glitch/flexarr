@@ -27,29 +27,30 @@ struct MusicDownloadButton: View {
     let source: MusicDownloadSource
     @State private var removing = false
     @State private var error: String?
+    @State private var failure: String?
 
     var body: some View {
         let collection = store.collection(for: source.id)
         let status = collection.map(store.status(of:))
         Button {
             switch status {
-            case nil, .failed:
-                Task { await start() }
-            default:
-                removing = true
+            case nil: Task { await start() }
+            case .failed(let reason): failure = reason
+            default: removing = true
             }
         } label: {
             ZStack {
-                if case .downloading(let fraction) = status {
-                    Circle().stroke(Color.screen.opacity(0.25), lineWidth: 3)
-                    Circle().trim(from: 0, to: max(0.02, fraction)).stroke(Color.screen, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeOut(duration: 0.3), value: fraction)
-                    Image(systemName: "stop.fill").font(.caption2.weight(.bold))
-                } else if case .preparing = status {
-                    ProgressView().tint(Color.screen).controlSize(.small)
-                } else {
-                    Image(systemName: icon(status))
+                switch status {
+                case .downloading(let fraction):
+                    DownloadRing(fraction: fraction, lineWidth: 3)
+                case .preparing:
+                    Image(systemName: "hourglass").foregroundStyle(Color.usher)
+                case .downloaded:
+                    Image(systemName: "checkmark").foregroundStyle(Color.downloaded)
+                case .failed:
+                    Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
+                case nil:
+                    Image(systemName: "arrow.down")
                 }
             }
             .frame(width: 22, height: 22)
@@ -64,6 +65,12 @@ struct MusicDownloadButton: View {
             if let collection, status == .downloaded {
                 Text("\(ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)) on this \(ThisDevice.name).")
             }
+        }
+        .alert("Couldn't download this", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button("Try again") { Task { await start() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(failure ?? "")
         }
         .alert("Couldn't download this", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
@@ -83,32 +90,24 @@ struct MusicDownloadButton: View {
         }
     }
 
-    private func icon(_ status: LocalCollection.Status?) -> String {
-        switch status {
-        case nil: "arrow.down"
-        case .failed: "exclamationmark.arrow.circlepath"
-        case .preparing, .downloading: "arrow.down.circle.dotted"
-        case .downloaded: "checkmark"
-        }
-    }
-
     private func label(_ status: LocalCollection.Status?) -> String {
         switch status {
         case nil: "Download"
-        case .preparing: "Preparing download"
+        case .preparing: "Getting ready on the server"
         case .downloading(let fraction): "Downloading, \(Int(fraction * 100))%"
         case .downloaded: "Downloaded"
-        case .failed: "Download again"
+        case .failed: "Couldn't download"
         }
     }
 }
 
-/// A small tick that marks a downloaded track or album.
+/// A small green tick that marks something downloaded (a track, an album, a film, an episode).
 struct DownloadedMark: View {
     var body: some View {
-        Image(systemName: "arrow.down.circle.fill")
+        Image(systemName: "checkmark.circle.fill")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(Color.usher)
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(Color.room, Color.downloaded)
             .accessibilityLabel("Downloaded")
     }
 }
@@ -184,15 +183,18 @@ struct CollectionRow: View {
         let here = tracks.filter(\.isDownloaded).count
         switch store.status(of: collection) {
         case .preparing:
-            caption(["Waiting for the server", estimate].compactMap { $0 }.joined(separator: "  "))
+            caption(["Getting ready", estimate].compactMap { $0 }.joined(separator: "  "))
         case .downloading(let fraction):
             VStack(alignment: .leading, spacing: 4) {
                 caption(["\(here) of \(collection.trackIds.count) tracks", estimate].compactMap { $0 }.joined(separator: "  "))
                 ProgressView(value: fraction).tint(.silver)
             }
         case .downloaded:
-            caption([collection.trackIds.count == 1 ? "1 track" : "\(collection.trackIds.count) tracks",
-                     ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)].joined(separator: "  "))
+            HStack(spacing: 6) {
+                DownloadedMark()
+                caption([collection.trackIds.count == 1 ? "1 track" : "\(collection.trackIds.count) tracks",
+                         ByteCountFormatter.string(fromByteCount: store.bytesUsed(by: collection), countStyle: .file)].joined(separator: "  "))
+            }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)
         }

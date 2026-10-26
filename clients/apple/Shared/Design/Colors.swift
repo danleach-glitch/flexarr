@@ -12,6 +12,8 @@ extension Color {
     static let silver = Color(rgb: .silver)
     /// Errors, as the web app's `--danger`: a soft coral that reads on the room without shouting.
     static let danger = Color(rgb: RGB(hex: "#F08A7E")!)
+    /// Downloaded, wherever it's shown: a calm green that reads on the room, with the room's own colour for a glyph on it.
+    static let downloaded = Color(rgb: RGB(hex: "#6FCF97")!)
 
     init(rgb: RGB) {
         self.init(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)
