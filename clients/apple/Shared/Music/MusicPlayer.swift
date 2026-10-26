@@ -368,6 +368,8 @@ final class MusicPlayer {
             artwork = offlineLibrary?.localArtwork(for: track.id)
             attach(item(url: file))
             if isPodcast, let resume = offlineLibrary?.resumePosition(for: track.id), resume > 0 { seek(to: resume) }
+            // Played from the phone, so the server isn't asked for it: tell it the episode has left Up Next (when it can).
+            if isPodcast, let client { Task { try? await client.removeFromUpNext(track.id) } }
             player.play()
             isLoading = false
             pushNowPlaying()
