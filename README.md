@@ -7,7 +7,7 @@
 <p align="center"><strong>Your entertainment. Every screen.</strong></p>
 
 <p align="center">
-  A free, open-source, self-hosted media server for your films, TV shows and music, built to sit alongside <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>.<br>
+  A free, open-source, self-hosted media server for your films, TV shows, music and podcasts, built to sit alongside <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>.<br>
   Stream your library to the web, Apple TV, iPhone and iPad. No account. No cloud.
 </p>
 
@@ -41,6 +41,7 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 | ⚡ **Plays files as they are** on the device (AV1, VC-1, XviD and all), with hardware transcoding on the server when needed | 🎵 **Music like a streaming app**: queue, playlists, lyrics, daily mixes, artist radio, gapless and crossfade |
 | 👨‍👩‍👧 **Profiles** with their own history, PINs and libraries, and a picker when Flexarr opens | 🗣️ **Siri**: "Play the next episode of *Curb Your Enthusiasm* in Flexarr", "Shuffle *Family Guy* in Flexarr" |
 | 📥 **Downloads** of films, episodes, albums and playlists on iPhone and iPad | 🌍 **Away from home over Tailscale**, no ports opened; the apps switch by themselves |
+| 🎙️ **Podcasts built in**: follow shows from Apple's directory or by feed address, Up Next shared across devices, speeds, sleep timer, OPML import | 🔔 **New episode alerts** and widgets for Continue listening and Up Next on iPhone and iPad |
 | 🔌 **Built on your \*arrs**: metadata from Sonarr, Radarr and Lidarr, requests through Seerr, no TMDB keys | 🤖 **An MCP server**, so Claude or any assistant can search, play and pause on your TV |
 
 ## 🍿 Watching
@@ -66,6 +67,20 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 - 💿 **Made for you** daily mixes, artist **radio**, recently and most played
 - 🎚️ Near-gapless playback, optional **crossfade**, and **volume normalisation** from ReplayGain tags
 
+## 🎙️ Podcasts
+
+Built in, with nothing to set up: Podcasts sits with your libraries, and each profile follows its own shows.
+
+- 🔭 **Browse** Apple's podcast directory by top charts and category, **search** it, or paste any feed's address
+- ➕ **Follow** a show and its new episodes land under Podcasts and in a **New podcasts** row on Home; Flexarr checks feeds by itself, more often for shows that publish often
+- 📋 **Up Next**: Play next and Add to Up Next on any episode, one reorderable queue shared by the web and your phone
+- ▶️ Resume from where you left off on any device, **15 back and 30 on**, speeds from 0.8× to 3×, a **sleep timer**, and the next episode plays by itself
+- 🗂️ Unplayed first, **newest or oldest first** per show (for ones heard in order), and **Mark all as played** to clear a back catalogue
+- 📲 **Offline on iPhone and iPad**: download any episode, or let the newest of the shows you follow download by themselves on Wi-Fi (or mobile data, if you allow it); played ones are cleared away
+- 🔔 **Notifications** for new episodes, with a Play button, and **widgets** for Continue listening and Up Next
+- 🔁 **Bring your shows over** from Pocket Casts, Overcast or most other apps with **OPML import**, and export them back
+- 🔒 Episodes play through your server, so they work over Tailscale and podcast hosts don't see each listener
+
 ## 🧰 Looking after your library
 
 - 📜 **Bring your history over from Plex**, matched by file, without touching Plex
@@ -74,10 +89,11 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 
 ## 📺 Apple TV, iPhone and iPad
 
-The Apple apps (in `clients/apple`) have Home, your libraries, search, title pages, profiles, music and Flexarr's own player, with every setting following the profile from device to device.
+The Apple apps (in `clients/apple`) have Home, your libraries, search, title pages, profiles, music, podcasts (iPhone and iPad) and Flexarr's own player, with every setting following the profile from device to device.
 
 - 📺 **Apple TV:** Top Shelf with Continue Watching, a Now Playing tab while music plays, Settings and Switch profile under your picture
-- 📱 **iPhone and iPad:** Picture in Picture, AirPlay, lock-screen and Control Center, and **Downloads** for offline
+- 📱 **iPhone and iPad:** Picture in Picture, AirPlay, lock-screen and Control Center, **Downloads** for offline, and **podcasts** with Up Next, widgets and new-episode notifications
+- 🚗 **CarPlay** for podcasts (Up Next, New episodes and your shows), switched on once Apple approves Flexarr for CarPlay
 - 🔐 Both find your server on the home network; approve the code the app shows in **Settings › Connect a TV** on any signed-in device, and each device gets a sign-in of its own
 
 **Getting them:** the iPhone and iPad app is on TestFlight and coming to the App Store. The Apple TV app installs from Xcode onto your own device:
@@ -95,12 +111,13 @@ Once the iPhone or iPad app has signed in, Siri understands, with no setting up:
 - "Play **the next episode of** *Curb Your Enthusiasm* in Flexarr": a show plays the episode you're up to, a film resumes
 - "**Shuffle** *Family Guy* in Flexarr": random episodes, one after another
 - "Continue watching in Flexarr", "Pause Flexarr", "Resume Flexarr", "Stop Flexarr"
+- 🎙️ "Play *The Rest Is History* in Flexarr" plays the episode you'd hear next; also "Play the latest …", "What's new in my podcasts", "Add … to Up Next" and "Play my Up Next"
 
 Playback lands on the iPhone unless **Settings › Siri** names an Apple TV, or you name one as you ask ("… on the living room TV"). The Apple TV takes commands while Flexarr is open on it. The same actions are in the Shortcuts app.
 
 ### 🤖 An assistant (MCP)
 
-Flexarr is an [MCP](https://modelcontextprotocol.io) server at `http://<server>:8383/api/v1/mcp`, signed in with the API key as an `X-Api-Key` header. An assistant can search the library, see Continue Watching and what's playing on every screen, and play, pause or stop on any device with Flexarr open. For Claude Code:
+Flexarr is an [MCP](https://modelcontextprotocol.io) server at `http://<server>:8383/api/v1/mcp`, signed in with the API key as an `X-Api-Key` header. An assistant can search the library, see Continue Watching and what's playing on every screen, play, pause or stop on any device with Flexarr open, and list your podcasts' new episodes, queue them in Up Next or play one. For Claude Code:
 
 ```bash
 claude mcp add --transport http flexarr http://mini.local:8383/api/v1/mcp --header "X-Api-Key: <your key>"
@@ -116,11 +133,11 @@ docker run -d --name flexarr \
   ghcr.io/danleach-glitch/flexarr:latest
 ```
 
-`latest` is the newest [release](https://github.com/danleach-glitch/flexarr/releases); pin a version such as `0.23` to upgrade when you choose.
+`latest` is the newest [release](https://github.com/danleach-glitch/flexarr/releases); pin a version such as `0.27` to upgrade when you choose.
 
 Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Server.
 
-Plain `http://` is fine on a home network you trust. From anywhere else, use Tailscale (Settings › Remote access) or an HTTPS reverse proxy, listed in `trustedProxies` if it runs on another machine. Mount your media at the **same path** Sonarr, Radarr and Lidarr use, or add `pathMappings` to `config.json`.
+Plain `http://` is fine on a home network you trust. From anywhere else, use Tailscale (Settings › Remote access) or an HTTPS reverse proxy, listed in `trustedProxies` if it runs on another machine. Mount your media at the **same path** Sonarr, Radarr and Lidarr use, or add `pathMappings` to `config.json`. For podcast downloads to phones, choose a folder in **Settings › Podcasts** where episodes wait on their way (each is deleted once the phone has it).
 
 🍎 **On a Mac**, run Flexarr natively for hardware transcoding: `make deploy DEPLOY_HOST=<ssh-host>`. See [docs/install-macos.md](docs/install-macos.md).
 
@@ -148,7 +165,7 @@ make apple     # build the tvOS and iOS apps
 
 | Path | What |
 | --- | --- |
-| `src/Flexarr.Api` | ASP.NET Core server: REST API, playback sessions, background workers |
+| `src/Flexarr.Api` | ASP.NET Core server: REST API, playback sessions, podcast feeds, background workers |
 | `src/Flexarr.Core` | Domain model, database, parsing, library scanning |
 | `src/Flexarr.Metadata` | Metadata from Sonarr, Radarr, Lidarr and TVmaze, image cache |
 | `src/Flexarr.Streaming` | Playback decisions, FFmpeg/HLS, subtitles, previews, intro/credits detection |
