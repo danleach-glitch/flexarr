@@ -46,6 +46,7 @@ struct NowPlayingView: View {
             }
         }
         .task(id: music.current?.id) { await lyrics.load(music.isPodcast ? nil : music.current, client: model.client) }
+        .task(id: music.current?.id) { if music.isPodcast { await model.loadUpNext() } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
     }
 
@@ -261,6 +262,49 @@ struct NowPlayingView: View {
 
     @ViewBuilder
     private var upNext: some View {
+        if music.isPodcast { podcastUpNext } else { musicUpNext }
+    }
+
+    /// A podcast's Up Next, as the server keeps it: tapping one plays it.
+    @ViewBuilder
+    private var podcastUpNext: some View {
+        let next = model.upNext.filter { $0.id != music.current?.id }
+        if !next.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Up Next")
+                    .font(.marquee(22, weight: .bold))
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                ForEach(next.prefix(20)) { episode in
+                    Button { model.playEpisode(episode.summary) } label: {
+                        HStack(spacing: 12) {
+                            PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle,
+                                           accent: episode.accentColor, imageWidth: 185, cornerRadius: 6)
+                                .frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(episode.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.screen)
+                                Text(episode.podcastTitle)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.usher)
+                            }
+                            .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var musicUpNext: some View {
         let next = Array(music.upNext.prefix(20))
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 4) {

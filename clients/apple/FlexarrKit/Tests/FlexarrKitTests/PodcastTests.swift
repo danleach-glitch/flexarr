@@ -110,6 +110,33 @@ struct PodcastClientTests {
         #expect(subscription.oldestFirst == true)
     }
 
+    @Test func upNext() async throws {
+        let page = try Fixture.data("podcast-episodes")
+        let items = try JSONSerialization.jsonObject(with: page) as? [String: Any]
+        let list = try JSONSerialization.data(withJSONObject: items?["items"] ?? [])
+        let (client, host) = stubbedClient(.init(status: 200, body: list))
+
+        let queue = try await client.addToUpNext("e1", next: true)
+
+        #expect(queue.count == 2)
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/v1/podcasts/queue")
+        let body = try #require(try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
+        #expect(body["episodeId"] as? String == "e1")
+        #expect(body["next"] as? Bool == true)
+    }
+
+    @Test func reordersUpNext() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: Data("[]".utf8)))
+
+        _ = try await client.setUpNext(["b", "a"])
+
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "PUT")
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"episodeIds":["b","a"]}"#)
+    }
+
     @Test func nothingLeftToPlayIsNil() async throws {
         let (client, host) = stubbedClient(.init(status: 204, body: Data()))
 

@@ -89,6 +89,14 @@ final class PodcastTour: XCTestCase {
         app.buttons["Newest first"].firstMatch.tap()
         pause(4)
 
+        // Up Next from an episode's menu.
+        let episodeRow = app.cells.containing(NSPredicate(format: "label BEGINSWITH 'Play '")).element(boundBy: 1)
+        episodeRow.press(forDuration: 1.2)
+        pause(1)
+        shot("43e-episode-menu")
+        app.buttons["Add to Up Next"].firstMatch.tap()
+        pause(2)
+
         let play = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Play '")).firstMatch
         XCTAssertTrue(play.waitForExistence(timeout: 10), "episodes should have a Play button")
         play.tap()
@@ -118,6 +126,17 @@ final class PodcastTour: XCTestCase {
         app.swipeUp()
         pause(1)
         shot("47-settings-podcasts")
+
+        // Back on Podcasts, Up Next has the episode added from the menu.
+        app.tabBars.buttons["Libraries"].firstMatch.tap()
+        pause(2)
+        // The show was opened from Browse: back twice.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        pause(2)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        pause(4)
+        shot("48-up-next")
+        XCTAssertTrue(app.staticTexts["Up Next"].exists, "Up Next shows on Podcasts")
     }
 
     private func pause(_ seconds: TimeInterval) {

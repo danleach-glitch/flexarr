@@ -78,6 +78,8 @@ final class MusicPlayer {
     @ObservationIgnored weak var offlineLibrary: OfflineMusicLibrary?
     /// The listener chose a podcast speed in the player (it's saved to their preferences).
     @ObservationIgnored var onSpeedChange: ((Double) -> Void)?
+    /// A podcast episode has started on the server (which takes it off Up Next).
+    @ObservationIgnored var onPodcastStarted: (() -> Void)?
 
     @ObservationIgnored private var client: FlexarrClient?
     /// The queue as it was given, for turning shuffle back off.
@@ -394,6 +396,7 @@ final class MusicPlayer {
                 attach(item(url: url))
                 if podcast, info.startPositionSeconds > 0 { seek(to: info.startPositionSeconds) }
                 player.play()
+                if podcast { onPodcastStarted?() }
                 isLoading = false
                 pushNowPlaying()
             } catch {

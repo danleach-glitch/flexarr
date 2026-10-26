@@ -135,6 +135,8 @@ struct PodcastEpisodeRow: View {
     /// Marks it played or unplayed in the list's own way (the show page shows it at once); otherwise it's sent and
     /// screens reload.
     var setPlayed: ((Bool) -> Void)?
+    /// In Up Next: swiping left takes it off, rather than downloading.
+    var removeFromUpNext: (() -> Void)?
     @State private var showingNotes = false
 
     private var isCurrent: Bool { model.music.current?.id == episode.id }
@@ -153,8 +155,48 @@ struct PodcastEpisodeRow: View {
                 Label(episode.isPlayed ? "Unplayed" : "Played", systemImage: episode.isPlayed ? "arrow.uturn.backward.circle" : "checkmark.circle.fill")
             }
             .tint(episode.isPlayed ? Color.aisle : Color.played)
+            if removeFromUpNext == nil {
+                Button { Task { await model.addToUpNext(episode.id, next: true) } } label: {
+                    Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
+                }
+                .tint(Color.upNext)
+            }
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: removeFromUpNext != nil) {
+            if let removeFromUpNext {
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up Next", systemImage: "minus.circle") }
+            } else {
+                Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
+                    Label("Add to Up Next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                }
+                .tint(Color.upNext)
+                downloadSwipe
+            }
+        }
+        .contextMenu {
+            Button { model.playEpisode(episode.summary) } label: { Label(episode.progress != nil ? "Resume" : "Play", systemImage: "play.fill") }
+            Button { Task { await model.addToUpNext(episode.id, next: true) } } label: {
+                Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+            Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
+                Label("Add to Up Next", systemImage: "text.line.last.and.arrowtriangle.forward")
+            }
+            if let removeFromUpNext {
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up Next", systemImage: "minus.circle") }
+            }
+            Button { togglePlayed() } label: {
+                Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? "circle" : "checkmark.circle")
+            }
+        }
+        .sheet(isPresented: $showingNotes) {
+            EpisodeSheet(episode: episode, setPlayed: setPlayed)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Color.room)
+        }
+    }
+
+    @ViewBuilder
+    private var downloadSwipe: some View {
             if let download = downloads.entry(for: episode.id) {
                 Button(role: .destructive) { downloads.remove(download.id) } label: {
                     Label(download.isDownloaded ? "Remove download" : "Stop download", systemImage: "trash")
@@ -165,12 +207,6 @@ struct PodcastEpisodeRow: View {
                 }
                 .tint(Color.aisle)
             }
-        }
-        .sheet(isPresented: $showingNotes) {
-            EpisodeSheet(episode: episode, setPlayed: setPlayed)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(Color.room)
-        }
     }
 
     private var metaLine: some View {
@@ -199,15 +235,14 @@ struct PodcastEpisodeRow: View {
     /// Show and date, the title, two lines of notes (unless compact), then its length and download; Play on the
     /// right, beside the title.
     private var row: some View {
+        // Play has a column of its own, centred on the title, so the text never runs under it.
         HStack(alignment: .center, spacing: 12) {
             if showsPodcast { artwork }
+            HStack(alignment: .titleLine, spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 metaLine
-                HStack(alignment: .center, spacing: 12) {
-                    title
-                    Spacer(minLength: 0)
-                    EpisodePlayButton(episode: episode)
-                }
+                title
+                    .alignmentGuide(.titleLine) { $0[VerticalAlignment.center] }
                 if !compact, let overview = episode.overview {
                     Text(overview)
                         .font(.subheadline)
@@ -226,6 +261,10 @@ struct PodcastEpisodeRow: View {
                 }
                 .padding(.top, compact ? 0 : 2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            EpisodePlayButton(episode: episode)
+                .alignmentGuide(.titleLine) { $0[VerticalAlignment.center] }
+            }
         }
     }
 
@@ -241,9 +280,20 @@ struct PodcastEpisodeRow: View {
     }
 }
 
+extension VerticalAlignment {
+    /// The middle of an episode row's title, which Play (and the artwork) line up with.
+    private enum TitleLine: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat { context[VerticalAlignment.center] }
+    }
+
+    static let titleLine = VerticalAlignment(TitleLine.self)
+}
+
 extension Color {
     /// A swipe's "played" tint, as podcast apps use.
     static let played = Color(rgb: RGB(hex: "#6B5BB5")!)
+    /// A swipe's "Up Next" tint.
+    static let upNext = Color(rgb: RGB(hex: "#4A6FA5")!)
 }
 
 extension View {

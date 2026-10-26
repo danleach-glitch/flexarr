@@ -116,7 +116,10 @@ struct RootView: View {
         }
         // Back in front: new podcast episodes, and anything else that's due. Leaving: a wake-up for later.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, model.credentials != nil { Task { await downloads.catchUp() } }
+            if phase == .active, model.credentials != nil {
+                Task { await downloads.catchUp() }
+                Task { await model.loadUpNext() }
+            }
             if phase == .background, model.credentials != nil { AppDelegate.schedulePodcastRefresh() }
         }
         // While in front and signed in, another device (or Siri on one) can play here.
