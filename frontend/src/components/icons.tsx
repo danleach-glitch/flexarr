@@ -266,3 +266,9 @@ export const Grip = (p: IconProps) => (
     <circle cx="15" cy="18" r="1.6" />
   </svg>
 )
+/** A favourite: outlined until chosen, then filled. */
+export const Star = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <svg {...base} {...p} fill={filled ? 'currentColor' : 'none'}>
+    <path d="m12 3.5 2.6 5.3 5.9.9-4.25 4.1 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.7l5.9-.9L12 3.5Z" />
+  </svg>
+)

@@ -2,6 +2,22 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Live TV (web)
+- Watch TV channels from Dispatcharr: connect it in Settings › Connections (beside Sonarr, Radarr and Seerr) with a Dispatcharr user of Flexarr's own, test the connection, and the channels and guide come in (and are refreshed every six hours). How far back live TV can be rewound is set there too.
+- Live TV in the sidebar: On now is a compact list of every channel with what's on, how far through it is and what's next, filtered by group (so hundreds stay quick to scan); the Guide shows the next six hours (or up to a day) as a grid, with details for anything later.
+- Favourites: star the channels you watch most. Each profile has its own, and Live TV opens on them; the Guide can show just them, and the player lists them first.
+- The player rewinds live TV (by default up to an hour back, while anyone watches the channel), shows how far behind live you are with a Jump to live button, and changes channel with the arrow keys or the channel list.
+- Channels that are already H.264 play as they come; interlaced, MPEG-2 and HEVC channels are converted (deinterlaced to smooth 50 frames a second), and Dolby Digital and MP2 sound becomes AAC.
+- One channel is shared by everyone watching it, so a provider that allows one connection still serves the whole house. Changing channel lets the old one go first, and a channel that can't start says why ("No connection free", "isn't sending this channel at the moment").
+- Home has a Live TV row of your favourite channels and what's on them (on the web, Apple TV, iPhone and iPad); it can be moved or switched off in Customise display.
+
+### Live TV (Apple TV, iPhone and iPad)
+- Apple TV: a Live TV tab with your categories down the left (Favourites, All channels and the source's groups) and a compact list of channels on the right, each with what's on, how far through, and what's next, so even hundreds stay quick to move through. Select to watch; press and hold to add or remove a favourite.
+- iPhone and iPad: Live TV under Libraries, a list of channels with Favourites first; swipe right (or press and hold) to add or remove a favourite.
+- The player's timeline is the rewind window: it shows the time of day, LIVE or how far behind you are, and Back to live once you've rewound. Previous and Next change channel, and on the Apple TV so does clicking the top or bottom of the remote's touch surface while the controls are hidden.
+
 ## 0.29.0 · 26 October 2026
 
 ### Settings on the web

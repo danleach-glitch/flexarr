@@ -106,11 +106,27 @@ final class PlayerControlsView: UIView {
         playButton.configuration?.image = UIImage(systemName: playing ? "pause.fill" : "play.fill")
     }
 
+    /// Live TV: the timeline is the rewind window, so the left label is the time of day at the playhead and the right
+    /// one says LIVE, or how far behind live the picture is.
+    var isLive = false
+
+    private static let timeOfDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     func setTime(position: Double, duration: Double, buffered: Double) {
         scrubber.duration = duration
         scrubber.position = position
         scrubber.buffered = buffered
         let shown = scrubber.isScrubbing ? scrubber.scrubPosition : position
+        if isLive {
+            let behind = max(0, duration - shown)
+            elapsedLabel.text = Self.timeOfDay.string(from: Date().addingTimeInterval(-behind))
+            remainingLabel.text = behind < LiveTransport.liveSlack ? "LIVE" : "−" + ScrubberView.clock(behind)
+            return
+        }
         elapsedLabel.text = ScrubberView.clock(shown)
         remainingLabel.text = duration > 0 ? "−" + ScrubberView.clock(max(0, duration - shown)) : ""
     }
@@ -136,7 +152,8 @@ final class PlayerControlsView: UIView {
         if let title {
             UIView.performWithoutAnimation {
                 promptButton.configuration?.title = title
-                promptButton.configuration?.image = UIImage(systemName: title.hasPrefix("Skip") ? "forward.end.fill" : "forward.fill")
+                let symbol = title.hasPrefix("Skip") ? "forward.end.fill" : title == "Back to live" ? "dot.radiowaves.left.and.right" : "forward.fill"
+                promptButton.configuration?.image = UIImage(systemName: symbol)
                 promptButton.layoutIfNeeded()
             }
         }

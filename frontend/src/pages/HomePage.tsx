@@ -20,8 +20,8 @@ export function HomePage() {
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="hero hero-loading" aria-busy="true" />
 
-  // Podcasts come built in, so they don't count as somewhere to start from.
-  if (libraries.every((l) => l.type === 'Podcasts')) {
+  // Podcasts come built in, so they don't count as somewhere to start from; favourite channels do.
+  if (libraries.every((l) => l.type === 'Podcasts') && !data.rows.some((r) => r.style === 'live')) {
     return (
       <section className="welcome">
         <h1>Your cinema is empty</h1>
@@ -45,7 +45,8 @@ export function HomePage() {
   return (
     <>
       <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />
-      <div className="rows">
+      {/* No hero (only Live TV so far): the rows start below the top bar. */}
+      <div className={data.featured.length > 0 ? 'rows' : 'rows rows-unheaded'}>
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
         {!afterContinue && newEpisodes}
         {data.rows.flatMap((row) => [

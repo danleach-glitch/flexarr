@@ -32,7 +32,17 @@ public sealed record SettingsDto(
     string FfmpegPath,
     string FfprobePath,
     string? WebhookSecret = null,
-    PodcastSettingsDto? Podcasts = null);
+    PodcastSettingsDto? Podcasts = null,
+    LiveTvSettingsDto? LiveTv = null);
+
+/// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
+public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes);
+
+/// <param name="BaseUrl">Empty to remove the source (its channels and guide go with it).</param>
+/// <param name="Password">Omitted to keep the saved one, which is only kept for the same server.</param>
+public sealed record LiveTvSettingsUpdate(string BaseUrl, string? Username, string? Password, int? RewindMinutes = null);
+
+public sealed record LiveTvTestDto(bool Ok, int? Channels, int? MaxConnections, DateTime? ExpiresAt, string? Error);
 
 /// <param name="Country">The chosen country, or null for the server's region (<paramref name="ResolvedCountry"/>).</param>
 public sealed record PodcastSettingsDto(string? Country, string ResolvedCountry);
@@ -47,7 +57,8 @@ public sealed record SettingsUpdate(
     IReadOnlyList<PathMapping>? PathMappings,
     IReadOnlyList<ArrConnectionUpdate>? Arr,
     SeerrConnectionUpdate? Seerr = null,
-    PodcastSettingsUpdate? Podcasts = null);
+    PodcastSettingsUpdate? Podcasts = null,
+    LiveTvSettingsUpdate? LiveTv = null);
 
 /// <param name="Country">A two-letter country code; empty for the server's region.</param>
 public sealed record PodcastSettingsUpdate(string? Country);
@@ -80,9 +91,14 @@ public static class SettingsEndpoints
 
         group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) => ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct)));
 
-        group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
+            if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's http or https address and a user name."] });
+            }
+
             if (update.Arr?.FirstOrDefault(a => WebAddress(a.BaseUrl) is null) is { } bad)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["arr"] = [$"{bad.Name}: “{bad.BaseUrl}” isn't a valid http or https address."] });
@@ -131,6 +147,18 @@ public static class SettingsEndpoints
                     };
                 }
 
+                if (update.LiveTv is { } live)
+                {
+                    var savedPassword = current.LiveTv is { } saved && SameServer(saved.BaseUrl, live.BaseUrl) ? saved.Password : "";
+                    config["liveTv"] = live.BaseUrl.Length == 0 ? null : new JsonObject
+                    {
+                        ["baseUrl"] = live.BaseUrl.Trim().TrimEnd('/'),
+                        ["username"] = live.Username?.Trim() ?? "",
+                        ["password"] = string.IsNullOrEmpty(live.Password) ? savedPassword : live.Password,
+                        ["rewindMinutes"] = Math.Clamp(live.RewindMinutes ?? current.LiveTv?.RewindMinutes ?? 60, 1, 240),
+                    };
+                }
+
                 if (update.Arr is { } arr)
                 {
                     // An omitted API key keeps the saved one, so the UI never needs to read keys back; but only for the
@@ -148,6 +176,11 @@ public static class SettingsEndpoints
 
             // The file watcher reloads options shortly after the write; wait briefly so the response reflects it.
             await Task.Delay(400, ct);
+            if (update.LiveTv is not null)
+            {
+                liveTvRefresh.Request();
+            }
+
             return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct)));
         });
 
@@ -209,6 +242,41 @@ public static class SettingsEndpoints
             return Results.Ok(await StatusAsync(client, new ArrInstance { Name = connection.Name, Kind = connection.Kind, BaseUrl = url, ApiKey = key }, ct));
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
+        api.MapPost("/settings/livetv/test", async (LiveTvSettingsUpdate connection, IOptionsMonitor<FlexarrOptions> options, LiveTv.XtreamClient client,
+            CancellationToken ct) =>
+        {
+            // The saved password is only tried against the server it was saved for.
+            var saved = options.CurrentValue.LiveTv;
+            var password = string.IsNullOrEmpty(connection.Password) ? saved is not null && SameServer(saved.BaseUrl, connection.BaseUrl) ? saved.Password : null : connection.Password;
+            if (WebAddress(connection.BaseUrl) is not { } url || string.IsNullOrWhiteSpace(connection.Username) || string.IsNullOrEmpty(password))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = ["Enter Dispatcharr's address, a user name and its password."] });
+            }
+
+            var account = new LiveTv.XtreamAccount(url, connection.Username.Trim(), password);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            try
+            {
+                var info = await client.CheckAsync(account, timeout.Token);
+                if (!info.SignedIn)
+                {
+                    return Results.Ok(new LiveTvTestDto(false, null, null, null, "The Live TV source refused the user name or password."));
+                }
+
+                var channels = await client.GetChannelsAsync(account, timeout.Token);
+                return Results.Ok(new LiveTvTestDto(true, channels.Count, info.MaxConnections, info.ExpiresAt, null));
+            }
+            catch (LiveTv.XtreamException ex)
+            {
+                return Results.Ok(new LiveTvTestDto(false, null, null, null, ex.Message));
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                return Results.Ok(new LiveTvTestDto(false, null, null, null, "The Live TV source didn't answer in time."));
+            }
+        }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
         api.MapGet("/system/activity", async (FlexarrDbContext db, ScanProgress progress, PlaybackSessions sessions, CancellationToken ct) =>
         {
             var episodes = db.MediaFiles.Where(f => f.MediaItem!.Kind == MediaKind.Episode && f.ProbeError == null);
@@ -255,7 +323,8 @@ public static class SettingsEndpoints
         o.FfmpegPath,
         o.FfprobePath,
         o.WebhookSecret,
-        new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry));
+        new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry),
+        o.LiveTv is { BaseUrl.Length: > 0 } l ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes) : null);
 
     /// <summary>
     /// Showing or replacing the API key asks again, so a script that found its way into the page can't just take it:

@@ -10,12 +10,14 @@ namespace Flexarr.Api.Endpoints;
 
 /// <param name="Playlists">For the "playlists" style: the profile's playlists, which aren't items (Items is empty then).</param>
 /// <param name="Mixes">For the "mixes" style: the profile's daily mixes, which aren't items either.</param>
+/// <param name="Channels">For the "live" style: the profile's favourite channels with what's on, which aren't items either.</param>
 public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnlyList<ItemSummaryDto> Items, string? Link = null,
-    IReadOnlyList<Playlists.PlaylistSummaryDto>? Playlists = null, IReadOnlyList<MixSummaryDto>? Mixes = null)
+    IReadOnlyList<Playlists.PlaylistSummaryDto>? Playlists = null, IReadOnlyList<MixSummaryDto>? Mixes = null,
+    IReadOnlyList<LiveTv.LiveChannelDto>? Channels = null)
 {
-    /// <summary>Whether there's anything to show: a row of items, of playlists or of mixes.</summary>
+    /// <summary>Whether there's anything to show: a row of items, of playlists, of mixes or of channels.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool HasContent => Items.Count > 0 || Playlists is { Count: > 0 } || Mixes is { Count: > 0 };
+    public bool HasContent => Items.Count > 0 || Playlists is { Count: > 0 } || Mixes is { Count: > 0 } || Channels is { Count: > 0 };
 }
 
 /// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
@@ -58,6 +60,13 @@ public static partial class DiscoveryEndpoints
             if (continueWatching.Count > 0)
             {
                 rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
+            }
+
+            // The profile's favourite channels and what's on them; nothing until some are starred.
+            if (options.LiveTv?.Account is not null && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
+            {
+                var channels = await LiveTv.LiveTvEndpoints.FavouritesOnNowAsync(db, me, DateTime.UtcNow, ct);
+                rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
             }
 
             var libraries = await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct);

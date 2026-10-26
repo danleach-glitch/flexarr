@@ -1,5 +1,10 @@
 import type {
   Activity,
+  LiveChannel,
+  LiveGuide,
+  LiveTvStatus,
+  LiveTvTest,
+  LiveWatch,
   ArrStatus,
   DirectoryListing,
   DirectoryPodcast,
@@ -529,6 +534,21 @@ export const getMix = (id: string, signal?: AbortSignal) => cachedGet<MixDetail>
 
 export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal) =>
   apiGet<Paged<ItemSummary>>(`/genres/${encodeURIComponent(name)}/items?take=120${kind ? `&kind=${kind}` : ''}`, signal)
+
+// ---------- Live TV
+
+export const getLiveTvStatus = (signal?: AbortSignal) => cachedGet<LiveTvStatus>('/livetv/status', signal)
+/** What's on now and next changes by the minute, so it's never served from the cache. */
+export const getLiveChannels = (signal?: AbortSignal) => apiGet<LiveChannel[]>('/livetv/channels', signal)
+export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal) =>
+  apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}`, signal)
+/** Starts watching a channel; `replaces` is the viewer's previous channel, let go first so its connection is free. */
+export const watchLiveChannel = (id: string, replaces?: string) => request<LiveWatch>('POST', `/livetv/channels/${id}/watch`, { replaces })
+export const liveHeartbeat = (viewer: string) => request<void>('POST', `/livetv/watch/${viewer}/heartbeat`)
+export const stopLiveChannel = (viewer: string) => request<void>('DELETE', `/livetv/watch/${viewer}/`)
+export const refreshLiveTv = () => request<void>('POST', '/livetv/refresh')
+export const setFavouriteChannel = (id: string, favourite: boolean) => request<void>(favourite ? 'PUT' : 'DELETE', `/livetv/channels/${id}/favourite`)
+export const testLiveTv = (source: { baseUrl: string; username: string; password?: string }) => request<LiveTvTest>('POST', '/settings/livetv/test', source)
 
 // ---------- Podcasts
 

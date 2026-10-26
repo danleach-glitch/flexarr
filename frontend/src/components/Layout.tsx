@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { askForProfile, clearApiCache, getPodcastPreferences, selectProfile, signOut } from '../api/client'
+import { askForProfile, clearApiCache, getLiveTvStatus, getPodcastPreferences, selectProfile, signOut } from '../api/client'
 import { PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Microphone, Music, Search, Stack } from './icons'
+import { Calendar, ChevronsLeft, Close, Compass, Film, Gear, Home, Menu as MenuIcon, Microphone, Music, Search, Stack, Tv } from './icons'
 import { libraryIcons } from './libraryIcons'
 import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
@@ -64,6 +64,15 @@ export function Layout() {
   // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
   const canSignOut = access?.method === 'session'
   const location = useLocation()
+  // Live TV has a place once a source is set up (Settings › Connections); asked again on leaving Settings.
+  const inSettings = location.pathname.startsWith('/settings')
+  const [liveTv, setLiveTv] = useState(false)
+  useEffect(() => {
+    if (inSettings) return
+    const controller = new AbortController()
+    getLiveTvStatus(controller.signal).then((s) => setLiveTv(s.configured), () => undefined)
+    return () => controller.abort()
+  }, [inSettings])
   // Settings has its own sidebar, so the main one makes way and the bar carries the wordmark home instead.
   const bare = location.pathname.startsWith('/settings')
   // The page keeps clear of the now-playing bar while it's showing.
@@ -264,6 +273,12 @@ export function Layout() {
               <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
                 <Music />
                 <span className="sidebar-label">Playlists</span>
+              </NavLink>
+            )}
+            {liveTv && (
+              <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
+                <Tv />
+                <span className="sidebar-label">Live TV</span>
               </NavLink>
             )}
             <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>

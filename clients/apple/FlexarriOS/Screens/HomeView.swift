@@ -229,12 +229,16 @@ struct HomeRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: row.title, action: linkedLibrary.map { library in { router.push(.library(library.0, library.1)) } })
+            SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) } : linkedLibrary.map { library in { router.push(.library(library.0, library.1)) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist, width: Layout.posterWidth(sizeClass))
+                    }
+                    // A Live TV row carries the profile's favourite channels; channel up and down go through them.
+                    ForEach(row.channels ?? []) { channel in
+                        HomeChannelCard(channel: channel, order: row.channels ?? [], width: Layout.wideWidth(sizeClass) * 0.8)
                     }
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         switch row.style {

@@ -1,8 +1,21 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { getArrStatus, getRequestStatus, rotateWebhookSecret, testArr, type ArrKind, type ArrStatus, type Settings } from '../../api/client'
+import {
+  getArrStatus,
+  getLiveTvStatus,
+  getRequestStatus,
+  refreshLiveTv,
+  rotateWebhookSecret,
+  testArr,
+  testLiveTv,
+  type ArrKind,
+  type ArrStatus,
+  type LiveTvTest,
+  type Settings,
+} from '../../api/client'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
+import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
@@ -18,7 +31,7 @@ interface DraftConnection {
 type Save = ReturnType<typeof useSettings>['save']
 
 /**
- * Sonarr, Radarr and Lidarr, then Seerr: a line each saying how it is, opened to change it. Below them, path mappings
+ * Sonarr, Radarr and Lidarr, then Seerr and Dispatcharr (Live TV): a line each saying how it is, opened to change it. Below them, path mappings
  * and the webhook addresses the apps call when something new arrives.
  */
 export function ConnectionsSection() {
@@ -26,8 +39,11 @@ export function ConnectionsSection() {
   // Asked once the settings are in (and again after a save), not also while they load.
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
-  // Which one is open: an index into the list, 'new' for one being added, or 'seerr'.
-  const [open, setOpen] = useState<number | 'new' | 'seerr'>()
+  const liveStatus = useApi((signal) => (settings ? getLiveTvStatus(signal) : Promise.resolve(undefined)), [settings])
+  // While the channels and guide come in (after a save, or Refresh), keep asking how it's going.
+  usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
+  // Which one is open: an index into the list, 'new' for one being added, 'seerr' or 'livetv'.
+  const [open, setOpen] = useState<number | 'new' | 'seerr' | 'livetv'>()
   if (!settings) return waiting
 
   const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
@@ -46,7 +62,8 @@ export function ConnectionsSection() {
   return (
     <section>
       <SettingsHeader title="Connections">
-        Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Seerr adds Discover and requests.
+        Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Seerr adds Discover and requests,
+        and Dispatcharr Live TV.
       </SettingsHeader>
 
       <SettingsGroup
@@ -91,6 +108,30 @@ export function ConnectionsSection() {
           onClose={() => setOpen(undefined)}
           onSave={async (seerr) => {
             if (await save({ seerr })) setOpen(undefined)
+          }}
+        />
+        <DispatcharrRow
+          liveTv={settings.liveTv ?? null}
+          status={
+            liveStatus.loading
+              ? 'Checking…'
+              : !liveStatus.data?.configured
+                ? 'Not set up'
+                : liveStatus.data.refreshing
+                  ? 'Bringing in the channels and guide…'
+                  : (liveStatus.data.error ?? `Live TV: ${liveStatus.data.channels.toLocaleString()} channels`)
+          }
+          ok={liveStatus.data?.configured ? !liveStatus.data.error : undefined}
+          refreshing={liveStatus.data?.refreshing ?? false}
+          open={open === 'livetv'}
+          onOpen={() => setOpen('livetv')}
+          onClose={() => setOpen(undefined)}
+          onSave={async (liveTv, message) => {
+            if (await save({ liveTv }, message)) setOpen(undefined)
+          }}
+          onRefresh={async () => {
+            await refreshLiveTv()
+            setTimeout(liveStatus.reload, 500)
           }}
         />
       </SettingsGroup>
@@ -286,6 +327,147 @@ function SeerrRow({
       )}
     </div>
   )
+}
+
+/**
+ * Dispatcharr, for Live TV: Flexarr signs in to its Xtream Codes API as a Dispatcharr user of its own, and the
+ * channels and guide are the ones Dispatcharr gives that user. It's often reachable only on this server, so a
+ * localhost address gets no Open link (a browser elsewhere couldn't follow it).
+ */
+function DispatcharrRow({
+  liveTv,
+  status,
+  ok,
+  refreshing,
+  open,
+  onOpen,
+  onClose,
+  onSave,
+  onRefresh,
+}: {
+  liveTv: Settings['liveTv'] | null
+  status: string
+  ok?: boolean
+  refreshing: boolean
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onSave: (liveTv: { baseUrl: string; username?: string; password?: string; rewindMinutes?: number }, message?: string) => Promise<void>
+  onRefresh: () => Promise<void>
+}) {
+  const [baseUrl, setBaseUrl] = useState(liveTv?.baseUrl ?? '')
+  const [username, setUsername] = useState(liveTv?.username ?? '')
+  const [password, setPassword] = useState('')
+  const [rewind, setRewind] = useState(liveTv?.rewindMinutes ?? 60)
+  const [test, setTest] = useState<LiveTvTest | 'testing'>()
+  const local = /^(localhost|127\.|\[::1\])/.test(hostOf(liveTv?.baseUrl))
+  const shown = test === 'testing' ? 'Testing…' : test ? (test.ok ? testSummary(test) : test.error) : status
+
+  return (
+    <div className="connection">
+      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={local ? '' : (liveTv?.baseUrl ?? '')} open={open} onOpen={onOpen} />
+      {open && (
+        <form
+          className="connection-form"
+          aria-label="Edit Dispatcharr"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setTest(undefined)
+            void onSave({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, rewindMinutes: rewind })
+          }}
+        >
+          <p className="muted">
+            TV channels and their guide. In Dispatcharr, add a user for Flexarr at Streamer level and give it a long random XC password: that works as
+            Flexarr’s key, which can only list and play channels (never sign in to Dispatcharr or change it). The channels are the ones Dispatcharr gives
+            that user.
+          </p>
+          <div className="field-row">
+            <label className="grow">
+              Address
+              <input type="url" value={baseUrl} required placeholder="http://localhost:9191" onChange={(e) => setBaseUrl(e.target.value)} />
+            </label>
+            <label>
+              User name
+              <input type="text" autoComplete="off" value={username} required placeholder="flexarr" onChange={(e) => setUsername(e.target.value)} />
+            </label>
+            <label>
+              Key (XC password)
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                placeholder={liveTv?.hasPassword ? 'Saved; type to replace' : 'The user’s XC password in Dispatcharr'}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+          </div>
+          <label className="field">
+            <span className="field-label">Rewind live TV up to</span>
+            <select value={rewind} onChange={(e) => setRewind(Number(e.target.value))}>
+              {[15, 30, 60, 120, 240].map((m) => (
+                <option key={m} value={m}>
+                  {m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`}
+                </option>
+              ))}
+            </select>
+            <span className="muted">Kept on this server while someone watches a channel, about 2 GB an hour for HD.</span>
+          </label>
+          <div className="form-actions">
+            {liveTv && (
+              <button
+                type="button"
+                className="button danger small form-actions-start"
+                onClick={() => confirm('Remove Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') && void onSave({ baseUrl: '' }, 'Live TV removed')}
+              >
+                Remove
+              </button>
+            )}
+            {liveTv && (
+              <button type="button" className="button quiet small" disabled={refreshing} onClick={() => void onRefresh()}>
+                Refresh channels
+              </button>
+            )}
+            <button
+              type="button"
+              className="button quiet small"
+              disabled={!baseUrl || !username}
+              onClick={async () => {
+                setTest('testing')
+                setTest(
+                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined }).catch(
+                    (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
+                  ),
+                )
+              }}
+            >
+              Test
+            </button>
+            <button type="button" className="button quiet small" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="button small">
+              Save
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+function hostOf(url: string | undefined) {
+  try {
+    return url ? new URL(url).host : ''
+  } catch {
+    return ''
+  }
+}
+
+function testSummary(t: LiveTvTest) {
+  const parts = [`Connected: ${(t.channels ?? 0).toLocaleString()} channels`]
+  if (t.maxConnections) parts.push(`${t.maxConnections} ${t.maxConnections === 1 ? 'connection' : 'connections'} at a time`)
+  if (t.expiresAt) parts.push(`subscription ends ${new Date(t.expiresAt).toLocaleDateString()}`)
+  return parts.join(' · ')
 }
 
 /** Where Docker'd apps see the media, against where this server does. Saved together, once changed. */
