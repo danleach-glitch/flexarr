@@ -107,6 +107,11 @@ public struct FlexarrClient: Sendable {
         try await get("home")
     }
 
+    /// A library's own home page: a hero and rows of just its titles (no hero for music).
+    public func libraryBrowse(_ libraryId: String) async throws -> Home {
+        try await get("libraries/\(libraryId)/browse")
+    }
+
     public func item(_ id: String) async throws -> ItemDetail {
         try await get("items/\(id)")
     }

@@ -112,6 +112,10 @@ enum SettingAccessory {
     case chevron
     /// The choice that's made, on a page of choices.
     case checkmark
+    /// Can be picked up and moved, in a list to put in order.
+    case handle
+    /// Picked up: up and down move it.
+    case moving
 }
 
 /// One row: its name on the left, how it's set now on the right. Every kind of setting is this row, so a switch, a
@@ -152,6 +156,13 @@ struct SettingsRow: View {
                         .opacity(0.55)
                 case .checkmark:
                     Image(systemName: "checkmark")
+                        .font(.system(size: 26, weight: .bold))
+                case .handle:
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 24, weight: .semibold))
+                        .opacity(0.55)
+                case .moving:
+                    Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 26, weight: .bold))
                 }
             }

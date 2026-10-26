@@ -84,6 +84,8 @@ struct HomeHero: View {
     let items: [ItemSummary]
     let overviews: [String: String?]
     @Binding var index: Int
+    /// Controls at the top-left, under the tab bar (a library's Browse and All switch); up from Play reaches them.
+    var top: AnyView?
     @FocusState private var focusedButton: HeroButton?
     @Namespace private var heroScope
 
@@ -148,6 +150,14 @@ struct HomeHero: View {
             // the focus engine looks for a section beneath it; one spanning the whole hero (tab bar included) isn't,
             // and the rows' second poster was winning.
             .focusSection()
+
+            if let top {
+                top
+                    .focusSection()
+                    .padding(.leading, Layout.edge)
+                    .padding(.top, LibraryViewSwitch.topInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
         .frame(height: 900)
         .frame(maxWidth: .infinity)
@@ -271,7 +281,7 @@ struct HomeRowView: View {
                         }
                     }
                     if let library = linkedLibrary {
-                        SeeAllCard(style: row.style) { router.push(.library(library.0, library.1)) }
+                        SeeAllCard(style: row.style) { router.push(.library(library.library, library.sort, genre: library.genre)) }
                     }
                 }
                 .padding(.horizontal, Layout.edge)
@@ -283,14 +293,15 @@ struct HomeRowView: View {
         }
     }
 
-    /// Rows link to "/library/{id}?sort=added"; map that to a library tab destination.
-    private var linkedLibrary: (Library, LibrarySort)? {
+    /// Rows link to "/library/{id}?view=all&sort=added" (or "&genre=Drama"); map that to a library destination.
+    private var linkedLibrary: (library: Library, sort: LibrarySort, genre: String?)? {
         guard let link = row.link, let components = URLComponents(string: link),
               components.path.hasPrefix("/library/") else { return nil }
         let id = String(components.path.dropFirst("/library/".count))
         guard let library = model.libraries.first(where: { $0.id == id }) else { return nil }
-        let sort = components.queryItems?.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
-        return (library, sort)
+        let query = components.queryItems ?? []
+        let sort = query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
+        return (library, sort, query.first(where: { $0.name == "genre" })?.value)
     }
 }
 

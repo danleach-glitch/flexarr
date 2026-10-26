@@ -586,7 +586,8 @@ enum Route: Hashable {
     case item(ItemSummary)
     case itemID(String)
     case person(id: String, name: String)
-    case library(Library, LibrarySort)
+    /// Every title in a library, sorted and optionally narrowed to one genre.
+    case library(Library, LibrarySort, genre: String? = nil)
     case playlist(PlaylistSummary)
     /// The shows followed and their newest episodes (iPhone and iPad).
     case podcasts

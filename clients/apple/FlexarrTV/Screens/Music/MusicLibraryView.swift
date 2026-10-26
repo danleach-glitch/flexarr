@@ -6,13 +6,16 @@ struct MusicLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @State private var browse: MusicBrowseModel
+    /// Off on the library's tab, whose lit name in the tab bar already says where you are.
+    private let showsTitle: Bool
     @State private var isVisible = false
     @Environment(\.scenePhase) private var scenePhase
 
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
-    init(library: Library) {
+    init(library: Library, showsTitle: Bool = true) {
         _browse = State(initialValue: MusicBrowseModel(library: library))
+        self.showsTitle = showsTitle
     }
 
     var body: some View {
@@ -98,9 +101,11 @@ struct MusicLibraryView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(browse.library.name)
-                .font(.marquee(76, weight: .heavy))
-                .foregroundStyle(Color.screen)
+            if showsTitle {
+                Text(browse.library.name)
+                    .font(.marquee(76, weight: .heavy))
+                    .foregroundStyle(Color.screen)
+            }
             Text(browse.total == 1 ? "1 artist" : "\(browse.total.formatted()) artists")
                 .font(.system(size: 24, weight: .medium))
                 .foregroundStyle(Color.usher)

@@ -26,37 +26,42 @@ struct MainTabView: View {
     /// Just after a link picks a tab: as the app starts, focus can land on the Home tab a moment later and, since the
     /// tab bar selects what it focuses, take the selection back to Home with the title hidden on the other tab.
     @State private var linkHold: (tab: TabID, until: Date)?
+    @AppStorage(TabBarEntry.storageKey) private var tabBarOrder = ""
 
     var body: some View {
         TabView(selection: $selection) {
             Tab(value: TabID.home) {
-                TabStack(router: homeRouter, opensLinks: linkTab == .home) { HomeView() }
+                TabStack(router: homeRouter, opensLinks: linkTab == .home) {
+                    HomeView().environment(\.opensTitlesOnLibraryTab, true)
+                }
             } label: {
                 Text("Home")
             }
-            ForEach(tabLibraries) { library in
-                Tab(value: TabID.library(library.id)) {
-                    TabStack(opensLinks: linkTab == .library(library.id)) {
-                        if library.type == .music {
-                            MusicLibraryView(library: library)
-                        } else {
-                            LibraryView(library: library)
+            // The libraries and Live TV, in the order chosen in Settings › Tab bar.
+            ForEach(TabBarEntry.ordered(model: model, stored: tabBarOrder)) { entry in
+                Tab(value: entry.tab) {
+                    switch entry {
+                    case .library(let library):
+                        TabStack(opensLinks: linkTab == entry.tab) {
+                            if library.type == .music {
+                                MusicLibraryView(library: library, showsTitle: false)
+                            } else {
+                                LibraryTab(library: library)
+                            }
                         }
+                    case .liveTv:
+                        TabStack { LiveTvView(showsTitle: false) }
                     }
                 } label: {
-                    Text(library.name)
+                    Text(entry.title)
                 }
             }
-            // Once the server has Live TV set up (Settings › Connections on the web).
-            if model.hasLiveTv {
-                Tab(value: TabID.liveTv) {
-                    TabStack { LiveTvView() }
-                } label: {
-                    Text("Live TV")
-                }
-            }
+            // An icon, like the gear, so the bar stays short.
             Tab(value: TabID.search, role: .search) {
                 TabStack { SearchView() }
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .accessibilityLabel("Search")
             }
             // Music that's playing gets a tab of its own, as the Music app does: the surest way to reach it with
             // the remote from anywhere.
@@ -110,8 +115,7 @@ struct MainTabView: View {
         }
     }
 
-    /// Podcasts are on iPhone, iPad and the web, not here.
-    private var tabLibraries: [Library] { model.libraries.filter { $0.type != .podcasts } }
+    private var tabLibraries: [Library] { TabBarEntry.libraries(model: model) }
 
     /// Picks the tab a link's title opens on and goes to it; that tab's stack then shows the title.
     private func routeLink() {
@@ -331,10 +335,10 @@ struct TabStack<Content: View>: View {
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
-        case .library(let library, _) where library.type == .music:
+        case .library(let library, _, _) where library.type == .music:
             MusicLibraryView(library: library)
-        case .library(let library, let sort):
-            LibraryView(library: library, initialSort: sort)
+        case .library(let library, let sort, let genre):
+            LibraryView(library: library, initialSort: sort, initialGenre: genre)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
         case .liveTv:
@@ -378,4 +382,10 @@ struct StatusView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
+extension EnvironmentValues {
+    /// On Home: a long-press's "Go to details" opens the title on its library's tab, as the Top Shelf does, so the
+    /// title (and what's played from it) doesn't take Home's place.
+    @Entry var opensTitlesOnLibraryTab = false
 }

@@ -2,6 +2,19 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Libraries (Apple TV)
+- Movies and TV Shows open on Browse, as on the web: a hero of the library's own titles, then Continue watching, the latest, the best not yet watched and a row for each of its biggest genres. "All films" (or "All shows") at the top switches to every title.
+- A row's See all opens every title already sorted or filtered to match, including a genre's row. Menu comes back to the rows.
+- Every title, sorted A to Z, has a letter rail down the right: press right from the posters, pick a letter, and the grid jumps to it.
+- Choose which view a library opens on in Settings › Libraries.
+- Put your libraries and Live TV in the order you like in the tab bar (Settings › Tab bar): select one, move it up or down, and select again. Home stays first, and Search and Settings last.
+- The Music and Live TV tabs no longer repeat their name at the top; the tab bar already shows where you are.
+- Search in the tab bar is a magnifying glass, like the Settings gear, so the bar stays short.
+- Recordings has no tab of its own once Live TV is set up: they're in Live TV › Recordings.
+- On Home, a long-press's Go to opens the title on its library's tab, so Home stays Home: what you play from it, and Menu afterwards, no longer leaves Home showing the title.
+
 ## 0.37.1 · 26 October 2026
 
 ### Top Shelf (Apple TV)
