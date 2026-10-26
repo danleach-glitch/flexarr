@@ -101,9 +101,11 @@ public static class DownloadEndpoints
             // A track or podcast episode has no sizes: it's always the original (or its AAC), whatever the device's setting for films.
             var quality = item.Kind is MediaKind.Track or MediaKind.PodcastEpisode ? DownloadQuality.Original : request.Quality;
 
-            // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out.
+            // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out, or a device already
+            // has it: its copy is gone then, and another device of the profile's (an iPad beside the phone) needs a new one.
             var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == quality
-                && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired && d.Status != DownloadStatus.Removed, ct);
+                && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired && d.Status != DownloadStatus.Removed
+                && d.Status != DownloadStatus.Received, ct);
             if (existing is null)
             {
                 existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued };

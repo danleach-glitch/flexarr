@@ -179,6 +179,16 @@ final class ScreenshotTour: XCTestCase {
         shot("item")
     }
 
+    /// The Podcasts screen as it is, for the website: nothing followed, played or downloaded.
+    func test8Podcasts() async throws {
+        guard try await client.podcastStatus()?.available == true else { throw XCTSkip("no Podcasts library") }
+        tab("Libraries")
+        pause(2)
+        app.buttons["Podcasts"].firstMatch.tap()
+        pause(8)
+        shot("podcasts")
+    }
+
     // MARK: Helpers
 
     /// Tabs are found by their label: in the tab bar on iPhone, the bar along the top on iPad.

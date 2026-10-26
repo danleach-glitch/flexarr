@@ -50,6 +50,26 @@ public sealed class DownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task ASecondDevice_AskingForWhatTheFirstReceived_GetsItsOwnCopy()
+    {
+        var (movie, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        var client = Client();
+        var body = new { itemId = movie, quality = "Original" };
+
+        var first = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), body))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        await WaitForAsync(client, first!, "Ready");
+        (await client.PostAsync(new Uri($"/api/v1/offline/{first}/received", UriKind.Relative), null)).EnsureSuccessStatusCode();
+
+        // The iPad asks for the same film: not the phone's, whose copy has gone, but one of its own to fetch.
+        var second = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), body))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        Assert.NotEqual(first, second);
+        await WaitForAsync(client, second!, "Ready");
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(new Uri($"/api/v1/offline/{second}/file", UriKind.Relative))).StatusCode);
+    }
+
+    [Fact]
     public async Task AnOriginalThePhoneCantPlay_IsNotOffered_AndFailsWithAReason()
     {
         var (movie, _) = await AddMovieAsync("matroska,webm", "hevc", "dts");

@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.28.1 · 26 October 2026
+
+### Fixed
+- With two devices on one profile (an iPhone and an iPad, say), whichever downloaded a podcast episode, film or album second was told it had "run out on the server". Each device now gets its own copy, and new episodes download by themselves on both.
+
 ## 0.28.0 · 26 October 2026
 
 ### Changed
