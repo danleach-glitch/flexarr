@@ -107,6 +107,15 @@ targets:
         FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # CarPlay's own scene (podcasts in the car). Without the CarPlay entitlement (see FLEXARR_IOS_ENTITLEMENTS) the
+        # car never asks for it; the phone's window is SwiftUI's as before.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         UILaunchScreen:
           UIColorName: LaunchBackground
         UIApplicationSupportsIndirectInputEvents: true
@@ -140,12 +149,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_IOS_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # The app group (shared with the widgets) needs a provisioning profile that includes it, which a device build
-        # only has once Xcode is signed in to the team's account; until then device builds go without it, and the
-        # widgets show nothing. The simulator always has it. Pass FLEXARR_IOS_ENTITLEMENTS=FlexarriOS/FlexarriOS.entitlements
-        # to sign a device build with it.
+        # The app group (shared with the widgets) and CarPlay need a provisioning profile that includes them: the app
+        # group once Xcode is signed in to the team's account, CarPlay once Apple grants the entitlement. Until then
+        # device builds go without both (the widgets show nothing, the car doesn't list the app); the simulator
+        # always has them. For a device build pass FLEXARR_IOS_ENTITLEMENTS=FlexarriOS/FlexarriOS.entitlements (the
+        # app group) or FlexarriOS/FlexarriOS-CarPlay.entitlements (the app group and CarPlay).
         FLEXARR_IOS_ENTITLEMENTS: ""
-        "FLEXARR_IOS_ENTITLEMENTS[sdk=iphonesimulator*]": FlexarriOS/FlexarriOS.entitlements
+        "FLEXARR_IOS_ENTITLEMENTS[sdk=iphonesimulator*]": FlexarriOS/FlexarriOS-CarPlay.entitlements
         CODE_SIGN_ENTITLEMENTS: $(FLEXARR_IOS_ENTITLEMENTS)
   # Podcast widgets for the Home Screen and Lock Screen: Continue listening and Up Next, from what the app saves.
   FlexarrWidgets:

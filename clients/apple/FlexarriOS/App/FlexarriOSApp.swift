@@ -92,8 +92,9 @@ struct FlexarriOSApp: App {
         URLCache.shared = URLCache(memoryCapacity: 48 * 1024 * 1024, diskCapacity: 384 * 1024 * 1024)
         let model = AppModel()
         _model = State(initialValue: model)
-        // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents).
+        // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents), and so does the car.
         AppDependencyManager.shared.add(dependency: model)
+        CarPlaySceneDelegate.model = model
     }
 
     var body: some Scene {
