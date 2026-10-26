@@ -42,6 +42,11 @@ final class PodcastTour: XCTestCase {
         podcasts.tap()
         pause(4)
         shot("40-podcasts")
+        app.swipeUp()
+        pause(2)
+        shot("40b-podcasts-new-episodes")
+        app.swipeDown()
+        pause(1)
 
         app.buttons["Browse"].firstMatch.tap()
         pause(6)

@@ -109,7 +109,7 @@ struct NewEpisodesRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: "New episodes")
+            SectionHeading(title: "New podcasts")
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(episodes) { episode in

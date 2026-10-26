@@ -121,8 +121,8 @@ struct DirectoryCard: View {
     }
 }
 
-/// An episode in a list: when it came out, its title and the start of its notes, then Play (with how far it's got),
-/// how long is left, and its download. Tapping the row opens the whole notes. In a `List`, swiping right marks it
+/// An episode in a list: when it came out, its title and the start of its notes, how long is left and its download,
+/// with Play (and how far it's got) on the right. Tapping the row opens the whole notes. In a `List`, swiping right marks it
 /// played (or unplayed again), and swiping left downloads it or removes the download.
 struct PodcastEpisodeRow: View {
     @Environment(AppModel.self) private var model
@@ -130,7 +130,7 @@ struct PodcastEpisodeRow: View {
     let episode: PodcastEpisode
     /// Lists of several shows' episodes name the show and show its artwork.
     var showsPodcast = false
-    /// A short row (New episodes): no notes, and Play on the right beside the title, its length and download under it.
+    /// A short row (New episodes): without the notes.
     var compact = false
     /// Marks it played or unplayed in the list's own way (the show page shows it at once); otherwise it's sent and
     /// screens reload.
@@ -140,9 +140,7 @@ struct PodcastEpisodeRow: View {
     private var isCurrent: Bool { model.music.current?.id == episode.id }
 
     var body: some View {
-        Group {
-            if compact { compactRow } else { fullRow }
-        }
+        row
         .padding(.vertical, compact ? 10 : 12)
         .contentShape(Rectangle())
         // Not a Button: in a List, the row's own buttons (Play, download) then take their own taps.
@@ -188,6 +186,8 @@ struct PodcastEpisodeRow: View {
             .foregroundStyle(episode.isPlayed ? Color.usher : Color.screen)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var artwork: some View {
@@ -196,13 +196,25 @@ struct PodcastEpisodeRow: View {
             .frame(width: 56, height: 56)
     }
 
-    /// Show and date, the title, then its length and download; Play on the right.
-    private var compactRow: some View {
+    /// Show and date, the title, two lines of notes (unless compact), then its length and download; Play on the
+    /// right, beside the title.
+    private var row: some View {
         HStack(alignment: .center, spacing: 12) {
             if showsPodcast { artwork }
             VStack(alignment: .leading, spacing: 3) {
                 metaLine
-                title
+                HStack(alignment: .center, spacing: 12) {
+                    title
+                    Spacer(minLength: 0)
+                    EpisodePlayButton(episode: episode)
+                }
+                if !compact, let overview = episode.overview {
+                    Text(overview)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.usher)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
                 HStack(spacing: 8) {
                     if let time = episode.timeLine {
                         Text(time)
@@ -210,50 +222,9 @@ struct PodcastEpisodeRow: View {
                             .monospacedDigit()
                             .foregroundStyle(Color.usher)
                     }
-                    EpisodeDownloadButton(episode: episode, size: 22)
+                    EpisodeDownloadButton(episode: episode, small: true)
                 }
-            }
-            Spacer(minLength: 0)
-            EpisodePlayButton(episode: episode)
-        }
-    }
-
-    private var fullRow: some View {
-        HStack(alignment: .top, spacing: 12) {
-            if showsPodcast {
-                PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
-                               imageWidth: 185, cornerRadius: 6)
-                    .frame(width: 56, height: 56)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text([showsPodcast ? episode.podcastTitle : nil, episode.dateLine].compactMap { $0 }.joined(separator: "  "))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.usher)
-                    .lineLimit(1)
-                Text(episode.title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(episode.isPlayed ? Color.usher : Color.screen)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                if let overview = episode.overview {
-                    Text(overview)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                HStack(spacing: 12) {
-                    EpisodePlayButton(episode: episode)
-                    if let time = episode.timeLine {
-                        Text(time)
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.usher)
-                    }
-                    Spacer(minLength: 0)
-                    EpisodeDownloadButton(episode: episode)
-                }
-                .padding(.top, 4)
+                .padding(.top, compact ? 0 : 2)
             }
         }
     }
@@ -327,6 +298,8 @@ struct EpisodeDownloadButton: View {
     @Environment(DownloadStore.self) private var store
     let episode: PodcastEpisode
     var size: CGFloat = 30
+    /// A small mark on a line of text (New episodes): the glyph about the text's height, the tap target still 44 pt.
+    var small = false
     @State private var removing = false
     @State private var error: String?
     @State private var failure: String?
@@ -341,11 +314,12 @@ struct EpisodeDownloadButton: View {
             default: removing = true
             }
         } label: {
-            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: size * 0.75)
-                .font(.title3)
+            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: small ? 16 : size * 0.75)
+                .font(small ? .system(size: 15, weight: .semibold) : .title3)
                 .foregroundStyle(Color.screen)
-                .frame(width: size, height: size)
-                .contentShape(Rectangle())
+                .frame(width: small ? 18 : size, height: small ? 18 : size)
+                // At least 44 pt to tap, though it draws small.
+                .contentShape(Rectangle().inset(by: small ? -13 : min(0, (size - 44) / 2)))
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
