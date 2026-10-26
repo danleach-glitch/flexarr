@@ -9,6 +9,7 @@ struct PodcastsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var home = PodcastsHomeModel()
+    @State private var editingUpNext = false
 
     var body: some View {
         Group {
@@ -70,6 +71,9 @@ struct PodcastsView: View {
                 .padding(.vertical, 8)
                 .bareListRow()
             }
+            if !model.upNext.isEmpty {
+                upNextSection
+            }
             if !home.listening.isEmpty {
                 episodes("Continue listening", home.listening)
             }
@@ -82,7 +86,39 @@ struct PodcastsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .environment(\.editMode, .constant(editingUpNext ? .active : .inactive))
         .refreshable { await load() }
+    }
+
+    /// Up Next, the same on every device: drag into a new order (Edit), swipe one off.
+    @ViewBuilder
+    private var upNextSection: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Up Next")
+                .font(.marquee(26, weight: .bold))
+                .foregroundStyle(Color.screen)
+            Spacer()
+            if model.upNext.count > 1 {
+                Button(editingUpNext ? "Done" : "Edit") { withAnimation { editingUpNext.toggle() } }
+                    .buttonStyle(.borderless)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+            }
+        }
+        .padding(.horizontal, Layout.edge)
+        .padding(.top, 20)
+        .bareListRow()
+        ForEach(model.upNext) { episode in
+            PodcastEpisodeRow(episode: episode, showsPodcast: true, compact: true, removeFromUpNext: {
+                Task { await model.removeFromUpNext(episode.id) }
+            })
+            .episodeListRow()
+        }
+        .onMove { from, to in
+            var order = model.upNext
+            order.move(fromOffsets: from, toOffset: to)
+            Task { await model.reorderUpNext(order) }
+        }
     }
 
     @ViewBuilder
@@ -99,7 +135,9 @@ struct PodcastsView: View {
     private func load() async {
         if model.podcastStatus == nil { await model.loadLibraries() }
         guard model.podcastStatus?.available != false else { return }
+        async let queue: Void = model.loadUpNext()
         await home.load(model: model)
+        await queue
     }
 }
 

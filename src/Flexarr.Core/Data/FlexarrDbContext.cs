@@ -27,6 +27,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<PodcastFeed> PodcastFeeds => Set<PodcastFeed>();
     public DbSet<PodcastEpisode> PodcastEpisodes => Set<PodcastEpisode>();
     public DbSet<PodcastSubscription> PodcastSubscriptions => Set<PodcastSubscription>();
+    public DbSet<PodcastQueueEntry> PodcastQueue => Set<PodcastQueueEntry>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -181,6 +182,16 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(s => s.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(s => s.Feed).WithMany().HasForeignKey(s => s.FeedId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(s => s.FeedId);
+        });
+
+        modelBuilder.Entity<PodcastQueueEntry>(e =>
+        {
+            e.HasKey(q => new { q.ProfileId, q.EpisodeId });
+            e.Property(q => q.ProfileId).HasMaxLength(64);
+            // A profile's Up Next goes with it, and an episode that leaves the library leaves it.
+            e.HasOne<Profile>().WithMany().HasForeignKey(q => q.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(q => q.Episode).WithMany().HasForeignKey(q => q.EpisodeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(q => new { q.ProfileId, q.Position });
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

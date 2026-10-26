@@ -111,3 +111,22 @@ public sealed class PodcastSubscription
     /// </summary>
     public bool OldestFirst { get; set; }
 }
+
+/// <summary>
+/// An episode in a profile's Up Next: the podcasts to hear after the one playing, in order, the same on every device.
+/// Played episodes, and ones that start playing, leave it.
+/// </summary>
+public sealed class PodcastQueueEntry
+{
+    public required string ProfileId { get; set; }
+
+    /// <summary>The episode (its <see cref="MediaItem"/>'s id).</summary>
+    public Guid EpisodeId { get; set; }
+
+    public MediaItem? Episode { get; set; }
+
+    /// <summary>Its place: lower plays sooner.</summary>
+    public int Position { get; set; }
+
+    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+}

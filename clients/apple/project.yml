@@ -14,6 +14,9 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     # The Apple TV app's bundle ID; its Top Shelf extension's is this plus .topshelf. `make apple-install` sets it.
     FLEXARR_TV_BUNDLE_ID: io.github.flexarr.tv
+    # The iPhone and iPad app's bundle ID; its widgets' is this plus .widgets, and the app group they share is
+    # group.<this>. Set it rather than PRODUCT_BUNDLE_IDENTIFIER, which would give the widgets the app's own.
+    FLEXARR_IOS_BUNDLE_ID: io.github.flexarr.ios
 packages:
   FlexarrKit:
     path: FlexarrKit
@@ -91,16 +94,28 @@ targets:
   FlexarriOS:
     type: application
     platform: iOS
-    sources: [Shared, FlexarriOS]
+    # WidgetShared is what the app and its widgets both know: the snapshot it writes for them, the Play/Pause intent.
+    sources: [Shared, FlexarriOS, WidgetShared]
     dependencies:
       - package: FlexarrKit
       - package: AetherEngine
+      - target: FlexarrWidgets
     info:
       path: FlexarriOS/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # CarPlay's own scene (podcasts in the car). Without the CarPlay entitlement (see FLEXARR_IOS_ENTITLEMENTS) the
+        # car never asks for it; the phone's window is SwiftUI's as before.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         UILaunchScreen:
           UIColorName: LaunchBackground
         UIApplicationSupportsIndirectInputEvents: true
@@ -131,9 +146,40 @@ targets:
           - INAlternativeAppName: Flex are
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.flexarr.ios
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_IOS_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # The app group (shared with the widgets) and CarPlay need a provisioning profile that includes them: the app
+        # group once Xcode is signed in to the team's account, CarPlay once Apple grants the entitlement. Until then
+        # device builds go without both (the widgets show nothing, the car doesn't list the app); the simulator
+        # always has them. For a device build pass FLEXARR_IOS_ENTITLEMENTS=FlexarriOS/FlexarriOS.entitlements (the
+        # app group) or FlexarriOS/FlexarriOS-CarPlay.entitlements (the app group and CarPlay).
+        FLEXARR_IOS_ENTITLEMENTS: ""
+        "FLEXARR_IOS_ENTITLEMENTS[sdk=iphonesimulator*]": FlexarriOS/FlexarriOS-CarPlay.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_IOS_ENTITLEMENTS)
+  # Podcast widgets for the Home Screen and Lock Screen: Continue listening and Up Next, from what the app saves.
+  FlexarrWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [Widgets, WidgetShared]
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_IOS_BUNDLE_ID).widgets
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # As the app's (see FLEXARR_IOS_ENTITLEMENTS).
+        FLEXARR_WIDGET_ENTITLEMENTS: ""
+        "FLEXARR_WIDGET_ENTITLEMENTS[sdk=iphonesimulator*]": Widgets/FlexarrWidgets.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_WIDGET_ENTITLEMENTS)
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) WIDGET
   # Smoke test that walks the app against a live server and saves screenshots.
   # Skipped unless FLEXARR_SERVER and FLEXARR_KEY are passed (as TEST_RUNNER_FLEXARR_*).
   FlexarriOSUITests:

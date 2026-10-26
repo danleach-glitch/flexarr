@@ -19,6 +19,12 @@ final class AppModel {
     private(set) var podcastStatus: PodcastStatus?
     /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
     private(set) var podcastPreferences: PodcastPreferences?
+    /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
+    private(set) var upNext: [PodcastEpisode] = [] {
+        didSet { if upNext != oldValue { onPodcastsChange?() } }
+    }
+    /// Up Next or what's playing changed (the iPhone's widgets follow).
+    @ObservationIgnored var onPodcastsChange: (() -> Void)?
     private(set) var profiles: [Profile] = []
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
@@ -70,6 +76,10 @@ final class AppModel {
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
         // A speed picked in the player is the profile's speed from then on, everywhere.
+        music.onPodcastStarted = { [weak self] in
+            guard let self else { return }
+            Task { await self.loadUpNext() }
+        }
         music.onSpeedChange = { [weak self] speed in
             guard let self else { return }
             Task { await self.updatePodcastPreferences(.init(speed: speed)) }
@@ -345,6 +355,30 @@ final class AppModel {
         music.playPodcast(episode, speed: podcastPreferences?.speed, client: client)
     }
 
+    func loadUpNext() async {
+        guard let client, podcastStatus?.available != false else { return }
+        if let queue = try? await client.upNext() { upNext = queue }
+    }
+
+    /// Puts an episode in Up Next: first (Play next), or last.
+    func addToUpNext(_ episodeId: String, next: Bool) async {
+        guard let client else { return }
+        if let queue = try? await client.addToUpNext(episodeId, next: next) { upNext = queue }
+    }
+
+    func removeFromUpNext(_ episodeId: String) async {
+        guard let client else { return }
+        upNext.removeAll { $0.id == episodeId }
+        try? await client.removeFromUpNext(episodeId)
+    }
+
+    /// A new order (dragged into place here at once, then kept on the server).
+    func reorderUpNext(_ episodes: [PodcastEpisode]) async {
+        guard let client else { return }
+        upNext = episodes
+        if let queue = try? await client.setUpNext(episodes.map(\.id)) { upNext = queue }
+    }
+
     /// Changes how this profile listens to podcasts, on every device; nil when it couldn't be saved.
     @discardableResult
     func updatePodcastPreferences(_ update: PodcastPreferencesUpdate) async -> PodcastPreferences? {
@@ -400,7 +434,14 @@ final class AppModel {
         switch command.kind {
         case .play:
             guard let client, let id = command.itemId else { return }
-            player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client, shuffle: command.shuffle)
+            // A podcast episode (the command carries only its id) plays in the podcast player; anything else as video.
+            Task {
+                if let episode = try? await client.podcastEpisode(id) {
+                    playEpisode(episode.summary)
+                } else {
+                    player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client, shuffle: command.shuffle)
+                }
+            }
         case .pause: player.pause()
         case .resume: player.resume()
         case .stop: player.closePlayer()
@@ -411,7 +452,9 @@ final class AppModel {
     /// Plays a title here as an intent asked (Siri, Shortcuts): a show's next episode, a film as it is.
     func playFromIntent(itemId: String) async {
         guard let client else { return }
-        if let detail = try? await client.item(itemId), detail.item.kind == .series || detail.item.kind == .season {
+        if let episode = try? await client.podcastEpisode(itemId) {
+            playEpisode(episode.summary)
+        } else if let detail = try? await client.item(itemId), detail.item.kind == .series || detail.item.kind == .season {
             if let next = try? await client.nextUp(itemId) { play(next) } else { pendingRoute = .itemID(itemId) }
         } else {
             player.play(itemId: itemId, preview: nil, startAt: nil, client: client)
@@ -431,7 +474,14 @@ final class AppModel {
             let start = query.first(where: { $0.name == "t" })?.value.flatMap(Double.init)
             let subtitles = query.first(where: { $0.name == "s" })?.value
             let shuffle = query.first(where: { $0.name == "shuffle" })?.value == "1" // a show's episodes in a random order
-            player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
+            // A podcast episode (Siri's "Play The Rest Is History") goes to the podcast player.
+            Task {
+                if let episode = try? await client.podcastEpisode(id) {
+                    playEpisode(episode.summary)
+                } else {
+                    player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
+                }
+            }
         default: break
         }
     }

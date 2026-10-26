@@ -109,6 +109,8 @@ final class PodcastPageModel {
             if following {
                 // The order chosen while looking carries over to the subscription.
                 podcast = try await client.subscribe(to: id, oldestFirst: oldestFirst ? true : nil)
+                // Following a show is when telling of its new episodes makes sense: asked here, never at launch.
+                Task { await PodcastNotifier.askIfNeeded() }
             } else {
                 try await client.unsubscribe(from: id)
                 podcast = try await client.podcast(id)

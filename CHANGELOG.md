@@ -2,6 +2,21 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Podcasts
+- Up Next: queue episodes with Play next or Add to Up Next, and they play in that order on any device: the web and the phone share one queue. It's on the Podcasts page, where episodes can be moved or taken out; one that starts playing or is played leaves it.
+- iPhone and iPad: Up Next too (Play next and Add to Up Next on episodes, a reorderable Up Next on the Podcasts screen, and in Now Playing).
+- Siri and Shortcuts: "Play <show> in Flexarr" plays the episode you'd hear next; also "Play the latest <show>", "What's new in my podcasts", "Add <show> to Up Next" and "Play my Up Next".
+- Notifications when the shows you follow have new episodes (Settings › Podcasts), with a Play button.
+- Widgets: Continue listening (Home Screen and Lock Screen) and Up Next.
+- CarPlay: Up Next, New episodes and your podcasts in the car, with speed and skips. It turns on once Apple approves Flexarr for CarPlay.
+- Settings › Downloads: "Automatic downloads on Wi-Fi only" can be turned off, to let them use mobile data.
+- Assistants (over MCP) can list the podcasts you follow and their new episodes, queue episodes in Up Next, and play a podcast on a device (the episode you'd hear next).
+
+### Changed
+- Home's row of new podcast episodes is called New podcasts.
+
 ## 0.26.0 · 26 October 2026
 
 ### Downloads on iPhone and iPad

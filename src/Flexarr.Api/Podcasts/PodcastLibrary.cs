@@ -115,6 +115,27 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
         return new PodcastAddResult(podcast.Id, null);
     }
 
+    /// <summary>
+    /// The episode of a show this profile would hear next: one it's part way through, else the next unplayed (the
+    /// oldest for a show heard in order, the newest otherwise), else the newest. Null when the show has no episodes.
+    /// </summary>
+    public static async Task<MediaItem?> NextToHearAsync(FlexarrDbContext db, Guid podcastId, string profileId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var episodes = db.MediaItems.AsNoTracking().Where(i => i.ParentId == podcastId && i.Kind == MediaKind.PodcastEpisode);
+        var started = await episodes.Where(i => i.PlaybackStates.Any(p => p.UserId == profileId && !p.Watched && p.PositionSeconds > 0))
+            .OrderByDescending(i => i.PlaybackStates.Where(p => p.UserId == profileId).Max(p => p.LastPlayedAt)).FirstOrDefaultAsync(ct);
+        if (started is not null)
+        {
+            return started;
+        }
+
+        var oldestFirst = await db.PodcastSubscriptions.AnyAsync(s => s.ProfileId == profileId && s.FeedId == podcastId && s.OldestFirst, ct);
+        var unplayed = episodes.Where(i => i.Enclosure!.EpisodeType != PodcastEpisodeType.Trailer && !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched));
+        return await (oldestFirst ? unplayed.OrderBy(i => i.SortTitle) : unplayed.OrderByDescending(i => i.SortTitle)).FirstOrDefaultAsync(ct)
+            ?? await episodes.OrderByDescending(i => i.SortTitle).FirstOrDefaultAsync(ct);
+    }
+
     /// <summary>Fetches a feed again (unless it says it hasn't changed) and brings its podcast and episodes up to date.</summary>
     /// <returns>How many episodes were new.</returns>
     public async Task<int> RefreshAsync(Guid podcastId, CancellationToken ct)

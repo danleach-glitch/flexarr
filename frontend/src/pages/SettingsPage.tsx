@@ -395,7 +395,7 @@ function PodcastsSection() {
           <label className="setting-row">
             <span className="setting-text">
               <strong>Show in the sidebar</strong>
-              <span className="muted">Podcasts among the libraries. Either way, Home has a row of new episodes.</span>
+              <span className="muted">Podcasts among the libraries. Either way, Home has a New podcasts row.</span>
             </span>
             <input type="checkbox" role="switch" className="switch" checked={p.showInSidebar} onChange={(e) => void save({ showInSidebar: e.target.checked })} />
           </label>

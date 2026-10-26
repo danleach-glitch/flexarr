@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Form
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   addPodcast,
+  addToUpNext,
   ApiError,
   getContinueListening,
   getNewEpisodes,
@@ -12,8 +13,11 @@ import {
   getPodcasts,
   getPodcastStatus,
   getTopPodcasts,
+  getUpNext,
   imageUrl,
   importOpml,
+  removeFromUpNext,
+  reorderUpNext,
   opmlUrl,
   searchPodcasts,
   setWatched,
@@ -25,7 +29,7 @@ import {
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { Check, More, Pause, Play } from '../components/icons'
+import { Check, ChevronDown, ChevronUp, Close, More, Pause, Play } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
@@ -98,6 +102,7 @@ function PodcastsHome() {
   const changed = useCallback(() => setVersion((v) => v + 1), [])
   const podcasts = useApi((signal) => getPodcasts(signal), [version])
   const listening = useApi((signal) => getContinueListening(signal), [version])
+  const upNext = useApi((signal) => getUpNext(signal), [version])
   const fresh = useApi((signal) => getNewEpisodes(signal, true), [version])
   // Episodes marked played here, gone from New episodes before the server's answer comes back.
   const [heard, setHeard] = useState<Set<string>>(new Set())
@@ -170,6 +175,13 @@ function PodcastsHome() {
             <PodcastCard key={podcast.id} podcast={podcast} />
           ))}
         </Row>
+      )}
+
+      {(upNext.data?.length ?? 0) > 0 && (
+        <section className="podcast-section">
+          <h2>Up Next</h2>
+          <UpNextList key={upNext.data!.map((e) => e.id).join()} episodes={upNext.data!} onChanged={changed} />
+        </section>
       )}
 
       {(listening.data?.length ?? 0) > 0 && (
@@ -266,8 +278,9 @@ function EpisodeRow({
     onChanged()
   }
   const actions: MenuAction[] = [
-    { label: 'Play next', run: () => player.playNext(track()) },
-    { label: 'Add to queue', run: () => player.enqueue(track()) },
+    // Up Next lives on the server, so it's the same on the phone.
+    { label: 'Play next', run: () => addToUpNext(episode.id, true).then(onChanged) },
+    { label: 'Add to Up Next', run: () => addToUpNext(episode.id).then(onChanged) },
     ...(showPodcast ? [{ label: `Go to ${episode.podcastTitle}`, run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
   ]
 
@@ -329,6 +342,44 @@ function EpisodeRow({
       </div>
       {menu && <Menu label={`More for ${episode.title}`} at={menu} actions={actions} onClose={() => setMenu(null)} />}
     </div>
+  )
+}
+
+/** Up Next, in order: each can move up or down, or be taken out. */
+function UpNextList({ episodes, onChanged }: { episodes: PodcastEpisode[]; onChanged: () => void }) {
+  // Changes show at once; the list starts afresh (its key) when the server's answer differs.
+  const [order, setOrder] = useState(episodes)
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= order.length) return
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setOrder(next)
+    void reorderUpNext(next.map((e) => e.id)).then(onChanged, onChanged)
+  }
+  const remove = (id: string) => {
+    setOrder(order.filter((e) => e.id !== id))
+    void removeFromUpNext(id).then(onChanged, onChanged)
+  }
+  return (
+    <ol className="podcast-up-next">
+      {order.map((episode, i) => (
+        <li key={episode.id} className="podcast-up-next-row">
+          <EpisodeRow episode={episode} showPodcast onChanged={onChanged} />
+          <div className="podcast-up-next-tools">
+            <button className="icon-button" aria-label={`Move ${episode.title} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+              <ChevronUp />
+            </button>
+            <button className="icon-button" aria-label={`Move ${episode.title} down`} disabled={i === order.length - 1} onClick={() => move(i, i + 1)}>
+              <ChevronDown />
+            </button>
+            <button className="icon-button" aria-label={`Take ${episode.title} out of Up Next`} onClick={() => remove(episode.id)}>
+              <Close />
+            </button>
+          </div>
+        </li>
+      ))}
+    </ol>
   )
 }
 

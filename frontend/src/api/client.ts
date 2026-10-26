@@ -561,6 +561,12 @@ export function getPodcastEpisodes(
 export const getPodcastEpisode = (id: string, signal?: AbortSignal) => cachedGet<PodcastEpisode>(`/podcasts/episodes/${id}`, signal)
 /** What auto-play goes on to after an episode: the show's next, else the newest unplayed of the shows followed. */
 export const getNextEpisode = (id: string) => apiGet<PodcastEpisode | undefined>(`/podcasts/episodes/${id}/next`)
+/** Up Next: the podcast episodes to hear after this one, the same on every device. */
+export const getUpNext = (signal?: AbortSignal) => cachedGet<PodcastEpisode[]>('/podcasts/queue', signal)
+/** Puts an episode in Up Next: first (`next`), or after the rest. */
+export const addToUpNext = (episodeId: string, next = false) => request<PodcastEpisode[]>('POST', '/podcasts/queue', { episodeId, next })
+export const reorderUpNext = (episodeIds: string[]) => request<PodcastEpisode[]>('PUT', '/podcasts/queue', { episodeIds })
+export const removeFromUpNext = (episodeId: string) => request<void>('DELETE', `/podcasts/queue/${episodeId}`)
 export const getPodcastPreferences = (signal?: AbortSignal) => cachedGet<PodcastPreferences>('/podcasts/preferences', signal)
 export const savePodcastPreferences = (changes: Partial<PodcastPreferences>) => request<PodcastPreferences>('PUT', '/podcasts/preferences', changes)
 export const getNewEpisodes = (signal?: AbortSignal, unplayed = false) =>

@@ -55,7 +55,7 @@ ios-install: ## Build, sign and install the iOS app on a connected iPhone or iPa
 	test -n "$$device" || { echo "No iPhone or iPad found (connect it, or pair it in Xcode › Window › Devices and Simulators)"; exit 1; }; \
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination "id=$$device" \
 		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-		DEVELOPMENT_TEAM=$(TEAM) PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic build -quiet && \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-iphoneos/FlexarriOS.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
 
@@ -71,7 +71,7 @@ ios-upload: ## Archive the iOS app and upload it to App Store Connect
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination 'generic/platform=iOS' \
 		-archivePath build/apple/FlexarriOS.xcarchive -allowProvisioningUpdates \
-		DEVELOPMENT_TEAM=$(TEAM) PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
 		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
 		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \

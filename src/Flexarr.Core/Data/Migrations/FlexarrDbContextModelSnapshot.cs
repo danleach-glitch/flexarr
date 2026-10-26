@@ -953,6 +953,30 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("PodcastFeeds");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastQueueEntry", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EpisodeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProfileId", "EpisodeId");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("ProfileId", "Position");
+
+                    b.ToTable("PodcastQueue");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastSubscription", b =>
                 {
                     b.Property<string>("ProfileId")
@@ -1240,6 +1264,23 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastQueueEntry", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "Episode")
+                        .WithMany()
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Episode");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastSubscription", b =>

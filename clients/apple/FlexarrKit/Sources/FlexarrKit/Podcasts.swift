@@ -174,6 +174,15 @@ public enum PodcastEpisodeSort: String, Sendable {
     case newest, oldest
 }
 
+struct UpNextBody: Codable, Sendable {
+    let episodeId: String
+    let next: Bool
+}
+
+struct UpNextOrderBody: Codable, Sendable {
+    let episodeIds: [String]
+}
+
 struct SubscriptionBody: Codable, Sendable {
     let oldestFirst: Bool?
 }
@@ -251,6 +260,34 @@ extension FlexarrClient {
         } catch FlexarrClientError.http(status: 404, _) {
             return nil
         }
+    }
+
+    // MARK: Up Next
+
+    /// The episodes to hear after this one, in order, the same on every device. Played ones drop out, and starting one
+    /// takes it off. Servers before Up Next have none.
+    public func upNext() async throws -> [PodcastEpisode] {
+        do {
+            return try await get("podcasts/queue")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return []
+        }
+    }
+
+    /// Puts an episode in Up Next: first with `next`, else last. One already there moves. Returns the queue.
+    public func addToUpNext(_ episodeId: String, next: Bool) async throws -> [PodcastEpisode] {
+        let data = try await send("POST", "podcasts/queue", body: UpNextBody(episodeId: episodeId, next: next))
+        return try decode([PodcastEpisode].self, from: data)
+    }
+
+    /// Up Next in this order; ids left out leave it. Returns the queue.
+    public func setUpNext(_ episodeIds: [String]) async throws -> [PodcastEpisode] {
+        let data = try await send("PUT", "podcasts/queue", body: UpNextOrderBody(episodeIds: episodeIds))
+        return try decode([PodcastEpisode].self, from: data)
+    }
+
+    public func removeFromUpNext(_ episodeId: String) async throws {
+        _ = try await send("DELETE", "podcasts/queue/\(episodeId)")
     }
 
     public func podcastPreferences() async throws -> PodcastPreferences {

@@ -32,6 +32,20 @@ public sealed record McpDevice(string Id, string Name, bool Online, string Profi
 /// <param name="Delivered">False: Flexarr isn't open on the device; the command waits two minutes for it to be opened.</param>
 public sealed record McpCommandResult(bool Delivered, string Device, McpTitle? WillPlay, string Message);
 
+/// <summary>A podcast this profile follows, with how many episodes it hasn't heard.</summary>
+public sealed record McpPodcast(Guid Id, string Title, string? Author, int UnplayedEpisodes, DateTime? LatestEpisodeAt);
+
+/// <summary>A podcast episode: its show, when it came out, how long it is and how far this profile got.</summary>
+public sealed record McpPodcastEpisode(Guid Id, string Title, string Podcast, Guid PodcastId, DateTime? PublishedAt, double? DurationSeconds,
+    double PositionSeconds, bool Played)
+{
+    public static McpPodcastEpisode From(Podcasts.PodcastEpisodeDto e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return new McpPodcastEpisode(e.Id, e.Title, e.PodcastTitle, e.PodcastId, e.PublishedAt, e.DurationSeconds, e.UserData.PositionSeconds, e.UserData.Watched);
+    }
+}
+
 public sealed record McpNowPlaying(string Device, string Profile, McpTitle Item, double PositionSeconds, double DurationSeconds, bool Paused);
 
 /// <summary>
@@ -95,7 +109,82 @@ public static class FlexarrTools
             d.NowPlaying?.PositionSeconds, d.NowPlaying?.Paused)).ToList();
     }
 
-    [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's or track's id to play that; a show's or season's id plays the episode that device's profile is up to; an album's plays its first track. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
+    [McpServerTool(Name = "podcasts", ReadOnly = true), Description("The podcasts this profile follows, most recently updated first, with how many episodes it hasn't heard. Narrow it with words from the show's name. A podcast's id with play_on_device plays the episode to hear next.")]
+    public static async Task<IReadOnlyList<McpPodcast>> PodcastsAsync([Description("Words from the show's name, e.g. \"rest is history\"; leave out for all")] string? query,
+        FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(profile);
+        var followed = db.PodcastSubscriptions.Where(s => s.ProfileId == profile.Id).Select(s => s.FeedId);
+        var shows = db.MediaItems.Where(i => i.Kind == MediaKind.Podcast && followed.Contains(i.Id));
+        var term = (query ?? "").Trim().Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal);
+        if (term.Length > 0)
+        {
+            shows = shows.Where(i => EF.Functions.Like(i.Title, $"%{term}%"));
+        }
+
+        var me = profile.Id;
+        return await shows
+            .OrderByDescending(i => i.Children.Max(e => (DateTime?)e.AddedAt)).Take(50)
+            .Select(i => new McpPodcast(i.Id, i.Title, i.Studio, i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == me && p.Watched)),
+                i.Children.Max(e => (DateTime?)e.AddedAt)))
+            .ToListAsync(ct);
+    }
+
+    [McpServerTool(Name = "new_podcast_episodes", ReadOnly = true), Description("The newest episodes this profile hasn't heard from the podcasts it follows, newest first.")]
+    public static async Task<IReadOnlyList<McpPodcastEpisode>> NewPodcastEpisodesAsync(FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(profile);
+        var me = profile.Id;
+        var followed = db.PodcastSubscriptions.Where(s => s.ProfileId == me).Select(s => s.FeedId);
+        var episodes = db.MediaItems.Where(i => i.Kind == MediaKind.PodcastEpisode && i.ParentId != null && followed.Contains(i.ParentId.Value)
+                && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched))
+            .OrderByDescending(i => i.AddedAt).Take(20);
+        return (await Podcasts.PodcastEndpoints.Episodes(episodes, me, 0).ToListAsync(ct)).Select(McpPodcastEpisode.From).ToList();
+    }
+
+    [McpServerTool(Name = "podcast_up_next", ReadOnly = true), Description("This profile's Up Next: the podcast episodes queued to play after the current one, in order, the same on every device.")]
+    public static async Task<IReadOnlyList<McpPodcastEpisode>> UpNextAsync(FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(profile);
+        return (await Podcasts.PodcastEndpoints.Episodes(Podcasts.PodcastEndpoints.UpNext(db, profile.Id), profile.Id, 0).ToListAsync(ct))
+            .Select(McpPodcastEpisode.From).ToList();
+    }
+
+    [McpServerTool(Name = "add_to_up_next"), Description("Queues a podcast episode in this profile's Up Next, after the rest or (next) straight after what's playing. A podcast's id queues the episode to hear next.")]
+    public static async Task<string> AddToUpNextAsync([Description("An episode's id from new_podcast_episodes, or a podcast's from podcasts")] Guid id,
+        [Description("Play it next, ahead of the rest")] bool next, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(profile);
+        var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
+        var episode = item?.Kind switch
+        {
+            MediaKind.PodcastEpisode => item,
+            MediaKind.Podcast => await Podcasts.PodcastLibrary.NextToHearAsync(db, item.Id, profile.Id, ct),
+            _ => null,
+        };
+        if (episode is null)
+        {
+            throw new InvalidOperationException("That isn't a podcast or podcast episode.");
+        }
+
+        var queue = await db.PodcastQueue.Where(q => q.ProfileId == profile.Id).OrderBy(q => q.Position).ToListAsync(ct);
+        var entry = queue.FirstOrDefault(q => q.EpisodeId == episode.Id) ?? db.PodcastQueue.Add(new Core.Podcasts.PodcastQueueEntry { ProfileId = profile.Id, EpisodeId = episode.Id }).Entity;
+        queue.Remove(entry);
+        queue.Insert(next ? 0 : queue.Count, entry);
+        for (var i = 0; i < queue.Count; i++)
+        {
+            queue[i].Position = i;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return $"“{episode.Title}” is {(next ? "next" : $"number {queue.Count}")} in Up Next.";
+    }
+
+    [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's, track's or podcast episode's id to play that; a show's or season's id plays the episode that device's profile is up to; an album's plays its first track; a podcast's plays the episode to hear next. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
     public static async Task<McpCommandResult> PlayOnDeviceAsync([Description("The device's id, from list_devices")] string deviceId, [Description("The title's id, from search_library or continue_watching")] Guid itemId,
         [Description("Start from the beginning rather than carry on from where it was left")] bool fromBeginning,
         SignIns signIns, DeviceCommands commands, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct,
@@ -174,6 +263,7 @@ public static class FlexarrTools
         MediaKind.Episode => string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{item.SeriesTitle} S{item.SeasonNumber} E{item.EpisodeNumber}, \"{item.Title}\""),
         MediaKind.Track => $"\"{item.Title}\" by {item.SeriesTitle}",
+        MediaKind.PodcastEpisode => $"{item.SeriesTitle}: \"{item.Title}\"",
         _ => item.Year is { } year ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{item.Title} ({year})") : item.Title,
     };
 }

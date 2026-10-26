@@ -34,7 +34,7 @@ export function HomePage() {
   }
 
   const newEpisodes = (episodes.data?.length ?? 0) > 0 && (
-    <Row key="podcasts-new" title="New podcast episodes" link="/podcasts" style="poster">
+    <Row key="podcasts-new" title="New podcasts" link="/podcasts" style="poster">
       {episodes.data!.slice(0, 20).map((episode) => (
         <EpisodeCard key={episode.id} episode={episode} />
       ))}
