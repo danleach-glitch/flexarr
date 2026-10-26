@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## 0.32.0 · 26 October 2026
 
+### Settings
+- Saving settings now waits until the server has taken them up, so what you see straight after saving is what's saved. On a slower machine it could briefly show the old value.
+
 ### Live TV (Apple TV, iPhone and iPad)
 - Apple TV: Live TV is now a guide: categories down the left, and for the one chosen, channels down and three hours across. Move between programmes with the remote; past either edge it moves on an hour and a half. What's on now plays; anything later shows what it is, with a way to watch that channel now. Press and hold a programme to add its channel to Favourites or take it off; favourites carry a star.
 - Apple TV: the guide without leaving the channel. The player has a Guide button that opens the grid over the picture, which carries on behind it, starting on your channel at what's on now. Choose something else on now to change to it; Menu goes back to the channel.
