@@ -60,7 +60,7 @@ function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) 
 }
 
 const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
-const SettingsPage = lazyPage(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const SettingsPage = lazyPage(() => import('./pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 type ConnectionState =
   | { kind: 'loading' }
