@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.29.0 · 26 October 2026
 
 ### Settings on the web
 - Settings is in two groups: your profile's own (Playback and Podcasts) and the server's. Every profile can now open Settings and change its own playback and podcast settings; the server's pages stay with the main profile.
