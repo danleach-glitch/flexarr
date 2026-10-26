@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.34.0 · 26 October 2026
 
 ### Recording (DVR)
 - Record from the Live TV guide: choose a programme, then Record, or Record series for every showing of it (on that channel or any, new episodes only if you like). Programmes set to record carry a red dot; ones a series covers, two dots.
