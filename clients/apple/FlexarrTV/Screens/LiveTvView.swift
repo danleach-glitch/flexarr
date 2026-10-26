@@ -7,6 +7,8 @@ import SwiftUI
 /// are any. Recordings, under the channels, lists what's set to record and the series.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
+    /// Off on the Live TV tab, whose lit name in the tab bar already says where you are.
+    var showsTitle = true
     @State private var channels: [LiveChannel]?
     @State private var error: String?
     @State private var chosen: Category?
@@ -101,10 +103,12 @@ struct LiveTvView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Live TV")
-                .font(.marquee(56, weight: .black))
-                .foregroundStyle(Color.screen)
-                .padding(.bottom, 24)
+            if showsTitle {
+                Text("Live TV")
+                    .font(.marquee(56, weight: .black))
+                    .foregroundStyle(Color.screen)
+                    .padding(.bottom, 24)
+            }
             categoryButton(.favourites, "Favourites", systemImage: "star.fill")
             categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
             categoryButton(.recordings, "Recordings", systemImage: "record.circle")

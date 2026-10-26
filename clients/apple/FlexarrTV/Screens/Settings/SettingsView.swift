@@ -11,6 +11,8 @@ struct SettingsView: View {
     @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var topShelf = TopShelfStyle.current
     @State private var asksWhoIsWatching = AppModel.asksWhoIsWatching
+    @AppStorage(LibraryOpening.storageKey) private var libraryOpensOn = LibraryOpening.browse
+    @AppStorage(TabBarEntry.storageKey) private var tabBarOrder = ""
 
     var body: some View {
         SettingsPage(title: "Settings", summary: "Flexarr for Apple TV \(Bundle.main.shortVersion)") {
@@ -30,6 +32,16 @@ struct SettingsView: View {
                 PlaybackSettingsView()
             }
             .padding(.top, model.currentProfile == nil ? 0 : 36)
+            SettingsLinkRow(title: "Libraries", symbol: "rectangle.stack", value: libraryOpensOn == .browse ? "Open on Browse" : "Open on All titles",
+                            help: "Whether a library opens on its highlights (Browse) or on every title, A to Z.") {
+                LibrarySettingsView()
+            }
+            if let first = TabBarEntry.ordered(model: model, stored: tabBarOrder).first {
+                SettingsLinkRow(title: "Tab bar", symbol: "menubar.rectangle", value: "\(first.title) first",
+                                help: "The order of your libraries and Live TV in the tab bar, between Home and Search.") {
+                    TabBarSettingsView()
+                }
+            }
             SettingsLinkRow(title: "Home screen", symbol: "rectangle.topthird.inset.filled", value: topShelf.label,
                             help: "What the Apple TV's Top Shelf shows when Flexarr is in the top row.") {
                 HomeScreenSettingsView()

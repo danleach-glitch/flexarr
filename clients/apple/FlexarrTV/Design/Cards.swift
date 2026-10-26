@@ -6,10 +6,12 @@ struct PosterCard: View {
     @Environment(AppModel.self) private var model
     let item: ItemSummary
     var width: CGFloat = Layout.posterWidth
+    /// Optional shared focus state so a grid can steer focus to this card (by the item's id).
+    var focus: FocusState<String?>.Binding?
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: item.glowColor, action: action) {
+        ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             PosterArtwork(item: item, width: width)
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -209,6 +211,7 @@ struct PersonCard: View {
 struct ItemContextMenu: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(\.opensTitlesOnLibraryTab) private var opensOnLibraryTab
     let item: ItemSummary
     var showsDetails = false
 
@@ -224,13 +227,22 @@ struct ItemContextMenu: View {
             }
         }
         if showsDetails {
-            Button { router.push(.item(item)) } label: {
+            Button { goToDetails() } label: {
                 Label(item.kind == .episode ? "Go to episode" : "Go to details", systemImage: "info.circle")
             }
         }
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
         Button { Task { await model.setWatched(item, !watched) } } label: {
             Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+        }
+    }
+
+    private func goToDetails() {
+        // From Home, on the title's library tab (MainTabView picks it); anywhere else, on this tab's own screens.
+        if opensOnLibraryTab, TabBarEntry.libraries(model: model).contains(where: { $0.id == item.libraryId }) {
+            model.pendingRoute = .item(item)
+        } else {
+            router.push(.item(item))
         }
     }
 }

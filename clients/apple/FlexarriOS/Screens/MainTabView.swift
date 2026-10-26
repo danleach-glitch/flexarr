@@ -92,11 +92,11 @@ struct TabStack<Content: View>: View {
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
-        case .library(let library, _) where library.type == .music:
+        case .library(let library, _, _) where library.type == .music:
             MusicLibraryView(library: library)
-        case .library(let library, _) where library.type == .podcasts:
+        case .library(let library, _, _) where library.type == .podcasts:
             PodcastsView()
-        case .library(let library, let sort):
+        case .library(let library, let sort, _):
             LibraryView(library: library, initialSort: sort)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
