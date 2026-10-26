@@ -72,12 +72,13 @@ public static partial class LiveTvEndpoints
                     .Where(p => p.End > now && p.Start < now.AddHours(12))
                     .OrderBy(p => p.Start).ToListAsync(ct))
                 .GroupBy(p => p.ChannelId).ToDictionary(g => g.Key, g => g.Take(2).ToList());
+            var marks = await DvrEndpoints.Marks.LoadAsync(db, now, now.AddHours(12), ct);
             return channels.Select(c =>
             {
                 var list = upcoming.GetValueOrDefault(c.Id) ?? [];
                 var on = list.FirstOrDefault(p => p.Start <= now);
                 var next = list.FirstOrDefault(p => p.Start > now);
-                return ToDto(c, favourites.Contains(c.Id), on, next);
+                return ToDto(c, favourites.Contains(c.Id), on, next, marks);
             }).ToList();
         });
 
@@ -344,7 +345,8 @@ public static partial class LiveTvEndpoints
                 .Where(p => ids.Contains(p.ChannelId) && p.End > now && p.Start < now.AddHours(12))
                 .OrderBy(p => p.Start).ToListAsync(ct))
             .ToLookup(p => p.ChannelId);
-        return [.. channels.Select(c => ToDto(c, favourites.Contains(c.Id), upcoming[c.Id].FirstOrDefault(p => p.Start <= now), upcoming[c.Id].FirstOrDefault(p => p.Start > now)))];
+        var marks = await DvrEndpoints.Marks.LoadAsync(db, now, now.AddHours(12), ct);
+        return [.. channels.Select(c => ToDto(c, favourites.Contains(c.Id), marks, upcoming[c.Id].FirstOrDefault(p => p.Start <= now), upcoming[c.Id].FirstOrDefault(p => p.Start > now)))];
     }
 
     /// <summary>Whether a viewer gets the reduced version: as asked, else when they're away from home.</summary>
@@ -355,8 +357,15 @@ public static partial class LiveTvEndpoints
         _ => zone != NetworkZone.Local,
     };
 
-    internal static LiveChannelDto ToDto(LiveChannel c, bool favourite, LiveProgramme? now, LiveProgramme? next) =>
-        new(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourite, now is null ? null : ToDto(now), next is null ? null : ToDto(next));
+    internal static LiveChannelDto ToDto(LiveChannel c, bool favourite, LiveProgramme? now, LiveProgramme? next, DvrEndpoints.Marks? marks = null) =>
+        new(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourite, now is null ? null : Marked(now, marks), next is null ? null : Marked(next, marks));
+
+    private static LiveChannelDto ToDto(LiveChannel c, bool favourite, DvrEndpoints.Marks marks, LiveProgramme? now, LiveProgramme? next) =>
+        ToDto(c, favourite, now, next, marks);
+
+    /// <summary>A programme with what the DVR has for it: set to record, recording, covered by a series.</summary>
+    private static LiveProgrammeDto Marked(LiveProgramme p, DvrEndpoints.Marks? marks) =>
+        marks is null ? ToDto(p) : ToDto(p) with { Recording = marks.StateOf(p), Series = marks.InSeries(p) };
 
     private static async Task<HashSet<Guid>> FavouritesAsync(FlexarrDbContext db, string profileId, CancellationToken ct) =>
         [.. await db.LiveFavourites.AsNoTracking().Where(f => f.ProfileId == profileId).Select(f => f.ChannelId).ToListAsync(ct)];

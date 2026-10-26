@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.34.1 · 26 October 2026
+
+### Recording (DVR)
+- What's set to record now shows everywhere you'd look: a red dot on the programme in On now and the iPhone's channel list (now and next), and a REC badge while it's recording. In the guide, a programme set to record is outlined in red as well as dotted, on the web, Apple TV, iPhone and iPad.
+
 ## 0.34.0 · 26 October 2026
 
 ### Recording (DVR)

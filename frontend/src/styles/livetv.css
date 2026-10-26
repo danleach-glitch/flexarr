@@ -819,3 +819,27 @@
   gap: 8px;
   flex: none;
 }
+
+.record-badge {
+  display: inline-block;
+  margin-right: 0.4em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--record, #e5484d);
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: 0.1em;
+}
+
+/* Set to record: outlined in red, so it stands out across the guide. */
+.livetv-guide-programme.recording {
+  box-shadow: inset 0 0 0 2px var(--record, #e5484d);
+}
+
+.livetv-guide-programme.recording.now {
+  box-shadow:
+    inset 3px 0 0 var(--ambient),
+    inset 0 0 0 2px var(--record, #e5484d);
+}

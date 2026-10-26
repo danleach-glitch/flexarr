@@ -156,7 +156,8 @@ struct LiveGuideGrid: View {
                         cell(programme).opacity(cellWidth < 90 ? 0 : 1)
                     }
                     .accessibilityLabel(programme.displayTitle)
-                    .buttonStyle(GuideCellStyle(onNow: programme.start <= now && programme.end > now, past: programme.end <= now))
+                    .buttonStyle(GuideCellStyle(onNow: programme.start <= now && programme.end > now, past: programme.end <= now,
+                                                recording: programme.isSetToRecord))
                     .focused($focusedProgramme, equals: programme.id)
                     .contextMenu {
                         if programme.end > now {
@@ -318,15 +319,18 @@ struct LiveGuideGrid: View {
 private struct GuideCellStyle: ButtonStyle {
     let onNow: Bool
     let past: Bool
+    /// Set to record: outlined in red.
+    let recording: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        CellBody(configuration: configuration, onNow: onNow, past: past)
+        CellBody(configuration: configuration, onNow: onNow, past: past, recording: recording)
     }
 
     private struct CellBody: View {
         let configuration: Configuration
         let onNow: Bool
         let past: Bool
+        let recording: Bool
         @Environment(\.isFocused) private var isFocused
 
         var body: some View {
@@ -339,6 +343,12 @@ private struct GuideCellStyle: ButtonStyle {
                 .overlay(alignment: .leading) {
                     if onNow, !isFocused {
                         RoundedRectangle(cornerRadius: 2).fill(Color.silver).frame(width: 4).padding(.vertical, 12)
+                    }
+                }
+                .overlay {
+                    if recording {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color(red: 0.9, green: 0.28, blue: 0.3), lineWidth: 3)
                     }
                 }
                 .opacity(past && !isFocused ? 0.55 : 1)

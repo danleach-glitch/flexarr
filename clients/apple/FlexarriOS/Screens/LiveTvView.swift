@@ -246,20 +246,26 @@ private struct ChannelRow: View {
                     Text(channel.name).foregroundStyle(Color.usher).lineLimit(1)
                 }
                 .font(.caption.weight(.semibold))
-                Text(channel.now?.displayTitle ?? "No listings")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.screen)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    if let now = channel.now, now.isSetToRecord { RecordMark(recordingNow: now.isRecordingNow) }
+                    Text(channel.now?.displayTitle ?? "No listings")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .lineLimit(1)
+                }
                 if let now = channel.now {
                     ProgressView(value: now.progress())
                         .tint(.silver)
                         .frame(maxWidth: 220)
                 }
                 if let next = channel.next {
-                    Text("Next: \(Self.clock.string(from: next.start)) \(next.title)")
-                        .font(.caption)
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text("Next: \(Self.clock.string(from: next.start)) \(next.title)")
+                            .font(.caption)
+                            .foregroundStyle(Color.usher)
+                            .lineLimit(1)
+                        if next.isSetToRecord { RecordMark(recordingNow: false) }
+                    }
                 }
             }
             Spacer(minLength: 0)
@@ -325,5 +331,26 @@ struct HomeChannelCard: View {
             .frame(width: width, alignment: .leading)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// On a programme set to record: a red dot; while it's recording, a red REC badge.
+struct RecordMark: View {
+    let recordingNow: Bool
+
+    static let red = Color(red: 0.9, green: 0.28, blue: 0.3)
+
+    var body: some View {
+        if recordingNow {
+            Text("REC")
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Self.red))
+                .accessibilityLabel("Recording now")
+        } else {
+            Circle().fill(Self.red).frame(width: 9, height: 9).accessibilityLabel("Set to record")
+        }
     }
 }

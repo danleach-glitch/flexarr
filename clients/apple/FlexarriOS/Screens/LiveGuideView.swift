@@ -169,7 +169,7 @@ struct LiveGuideView: View {
             if !narrow {
                 HStack(spacing: 4) {
                     if programme.isSetToRecord {
-                        Circle().fill(Self.recordRed).frame(width: 8, height: 8)
+                        RecordMark(recordingNow: programme.isRecordingNow)
                     } else if programme.series == true {
                         Image(systemName: "square.stack.fill").font(.system(size: 9)).foregroundStyle(Self.recordRed)
                     }
@@ -188,6 +188,12 @@ struct LiveGuideView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat.opacity(onNow ? 1 : 0.55))
+        }
+        // Set to record: outlined in red, so it stands out across the grid.
+        .overlay {
+            if programme.isSetToRecord {
+                RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Self.recordRed, lineWidth: 2)
+            }
         }
         .overlay(alignment: .leading) {
             if onNow {

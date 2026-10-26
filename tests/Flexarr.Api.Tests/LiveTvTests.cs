@@ -282,6 +282,10 @@ public sealed class LiveTvTests : IDisposable
         Assert.False(scheduled.GetProperty("clashes").GetBoolean());
         // The guide shows it, and asking twice doesn't add it twice.
         Assert.Equal("scheduled", (await GuideProgrammeAsync(client, "Doctor Who")).GetProperty("recording").GetString());
+        // The channel list (On now, the iPhone's list, Home) says so on what's next.
+        var bbc = (await ChannelsAsync(client)).Single(c => c.GetProperty("name").GetString() == "BBC One");
+        Assert.Equal("scheduled", bbc.GetProperty("next").GetProperty("recording").GetString());
+        Assert.Equal(JsonValueKind.Null, bbc.GetProperty("now").GetProperty("recording").ValueKind);
         var again = await (await client.PostAsJsonAsync(Api("livetv/recordings"), new { programmeId = doctorWho })).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(scheduled.GetProperty("id").GetString(), again.GetProperty("id").GetString());
 

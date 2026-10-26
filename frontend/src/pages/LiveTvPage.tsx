@@ -144,6 +144,17 @@ function OnNow() {
  * A channel as a row: number, logo, what's on with how far through, and what's next, so hundreds of channels stay
  * quick to scan (the cards are for Home's row of favourites).
  */
+/** On a programme set to record: a red dot; while it's recording, a REC badge. */
+function RecordMark({ programme }: { programme: LiveProgramme }) {
+  if (programme.recording === 'recording')
+    return (
+      <span className="record-badge" aria-label="Recording now">
+        REC
+      </span>
+    )
+  return programme.recording ? <RecordDot className="record-dot" aria-label="Set to record" /> : null
+}
+
 function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
   return (
     <div className="livetv-row">
@@ -153,7 +164,10 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
           <ChannelLogo channel={c} />
         </span>
         <span className="livetv-row-now">
-          <strong>{c.now ? programmeTitle(c.now) : 'No listings'}</strong>
+          <strong>
+            {c.now && <RecordMark programme={c.now} />}
+            {c.now ? programmeTitle(c.now) : 'No listings'}
+          </strong>
           <span className="muted livetv-row-meta">
             <span className="livetv-row-name">{c.name}</span>
             {c.now && (
@@ -170,7 +184,9 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
           {c.next && (
             <>
               <span className="muted">Next · {clock.format(new Date(c.next.start))}</span>
-              <span>{c.next.title}</span>
+              <span>
+                {c.next.title} <RecordMark programme={c.next} />
+              </span>
             </>
           )}
         </span>
@@ -268,13 +284,15 @@ function Guide() {
                   return (
                     <button
                       key={p.id}
-                      className={['livetv-guide-programme', onNow && 'now', past && 'past', selected?.programme.id === p.id && 'selected'].filter(Boolean).join(' ')}
+                      className={['livetv-guide-programme', onNow && 'now', past && 'past', p.recording && 'recording', selected?.programme.id === p.id && 'selected']
+                        .filter(Boolean)
+                        .join(' ')}
                       style={{ left, width: Math.max(0, right - left - 2) }}
                       title={`${p.title} · ${programmeTime(p)}${p.recording ? (p.recording === 'recording' ? ' · Recording now' : ' · Set to record') : ''}`}
                       onClick={() => setSelected({ channel: c, programme: p })}
                     >
                       <strong>
-                        {p.recording && <RecordDot className={p.recording === 'recording' ? 'record-dot live' : 'record-dot'} aria-label={p.recording === 'recording' ? 'Recording now' : 'Set to record'} />}
+                        {p.recording && <RecordMark programme={p} />}
                         {p.series && !p.recording && <SeriesDots className="record-dot" aria-label="Series" />}
                         {programmeTitle(p)}
                       </strong>
