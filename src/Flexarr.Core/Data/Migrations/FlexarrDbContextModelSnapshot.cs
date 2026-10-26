@@ -962,6 +962,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid>("FeedId")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("OldestFirst")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("SubscribedAt")
                         .HasColumnType("TEXT");
 

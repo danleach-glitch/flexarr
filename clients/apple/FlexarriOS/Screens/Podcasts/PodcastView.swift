@@ -1,8 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
-/// A show: its artwork, who makes it and what it's about, Follow, then its episodes newest first: the unplayed ones,
-/// or all, and a button that marks them all played.
+/// A show: its artwork, who makes it and what it's about, Follow and Play, then its episodes: the unplayed ones or all,
+/// newest or oldest first (chosen in the ⋯ menu, which also marks them all played).
 struct PodcastView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
@@ -38,7 +38,12 @@ struct PodcastView: View {
                             .bareListRow()
                     }
                     ForEach(Array(page.episodes.enumerated()), id: \.element.id) { index, episode in
-                        PodcastEpisodeRow(episode: episode)
+                        PodcastEpisodeRow(episode: episode) { played in
+                            Task {
+                                await page.setPlayed(episode, played, model: model)
+                                await downloads.reconcilePodcasts()
+                            }
+                        }
                             .onAppear { if let client = model.client { page.loadMoreIfNeeded(at: index, client: client) } }
                             .episodeListRow()
                     }
@@ -82,7 +87,27 @@ struct PodcastView: View {
         } message: {
             Text("Its new episodes stop coming to this \(ThisDevice.name). Episodes already downloaded stay until you delete them.")
         }
-        .task(id: model.refreshToken) { await load() }
+        .toolbar {
+            if let podcast = page.podcast {
+                Menu {
+                    Section("Order") {
+                        order("Newest first", oldest: false)
+                        order("Oldest first", oldest: true)
+                    }
+                    Button { markingAllPlayed = true } label: { Label("Mark all as played", systemImage: "checkmark.circle") }
+                        .disabled(podcast.unplayedCount == 0)
+                } label: {
+                    Label("More", systemImage: "ellipsis")
+                }
+            }
+        }
+        .task(id: model.refreshToken) {
+            if page.skipsNextReload {
+                page.skipsNextReload = false
+                return
+            }
+            await load()
+        }
         .onChange(of: page.unplayedOnly) { _, _ in Task { await load() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await load() } }
@@ -127,9 +152,9 @@ struct PodcastView: View {
                     }
                 }
                 .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: !podcast.isSubscribed))
-                if let latest = page.episodes.first(where: { !$0.isPlayed }) {
-                    Button { model.playEpisode(latest.summary) } label: {
-                        Label(latest.progress != nil ? "Resume" : "Latest episode", systemImage: "play.fill")
+                if let next = page.nextToPlay {
+                    Button { model.playEpisode(next.summary) } label: {
+                        Label(next.progress != nil ? "Resume" : page.oldestFirst ? "Play" : "Latest episode", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(podcast.accentColor), prominent: podcast.isSubscribed))
                 }
@@ -158,7 +183,7 @@ struct PodcastView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    /// How many episodes, Mark all as played, and Unplayed or All.
+    /// How many episodes, and Unplayed or All.
     private func episodesHeading(_ podcast: Podcast) -> some View {
         HStack(spacing: 12) {
             Text(page.unplayedOnly ? "\(page.total.formatted()) unplayed" : page.total == 1 ? "1 episode" : "\(page.total.formatted()) episodes")
@@ -167,17 +192,6 @@ struct PodcastView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
-            if podcast.unplayedCount > 0 {
-                Button { markingAllPlayed = true } label: {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(Color.screen)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Mark all as played")
-            }
             @Bindable var page = page
             Picker("Show", selection: $page.unplayedOnly) {
                 Text("Unplayed").tag(true)
@@ -187,6 +201,19 @@ struct PodcastView: View {
             .fixedSize()
         }
         .padding(.top, 12)
+    }
+
+    /// An order in the menu, ticked when it's the one showing.
+    private func order(_ title: String, oldest: Bool) -> some View {
+        Button {
+            Task { await page.setOldestFirst(oldest, model: model) }
+        } label: {
+            if page.oldestFirst == oldest {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private func load() async {

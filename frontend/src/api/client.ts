@@ -540,7 +540,8 @@ export const getPodcast = (id: string, signal?: AbortSignal) => cachedGet<Podcas
 export const addPodcast = (show: { iTunesId: number } | { feedUrl: string }) => request<Podcast>('POST', '/podcasts', show)
 export const deletePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}`)
 export const refreshPodcast = (id: string) => request<Podcast>('POST', `/podcasts/${id}/refresh`)
-export const subscribePodcast = (id: string) => request<Podcast>('PUT', `/podcasts/${id}/subscription`, {})
+/** Follows a show; `oldestFirst` sets the order it's heard in (left out, it stays as it was). */
+export const subscribePodcast = (id: string, changes: { oldestFirst?: boolean } = {}) => request<Podcast>('PUT', `/podcasts/${id}/subscription`, changes)
 export const unsubscribePodcast = (id: string) => request<void>('DELETE', `/podcasts/${id}/subscription`)
 
 export function getPodcastEpisodes(

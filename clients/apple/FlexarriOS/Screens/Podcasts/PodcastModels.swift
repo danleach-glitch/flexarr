@@ -33,7 +33,9 @@ final class PodcastsHomeModel {
     }
 }
 
-/// A show's page: the show, whether it's followed, and its episodes, newest first: the unplayed ones, or all.
+/// A show's page: the show, whether it's followed, and its episodes, the unplayed ones or all, newest or oldest first.
+/// A followed show's order is kept on the server, so every device lists it the same way; marking an episode played
+/// shows at once, and the server is told after.
 @MainActor
 @Observable
 final class PodcastPageModel {
@@ -46,6 +48,11 @@ final class PodcastPageModel {
     /// Following or unfollowing, or saving a setting.
     private(set) var isSaving = false
     var unplayedOnly = true
+    /// Oldest first: from a followed show's subscription, else what was chosen on this screen.
+    private(set) var oldestFirst = false
+    /// The page changed something itself and has shown it already: the reload everyone else gets isn't needed here.
+    @ObservationIgnored var skipsNextReload = false
+    @ObservationIgnored private var orderKnown = false
     @ObservationIgnored private var generation = 0
 
     private static let pageSize = 40
@@ -59,7 +66,13 @@ final class PodcastPageModel {
         generation += 1
         let mine = generation
         do {
-            async let page = client.podcastEpisodes(id, unplayed: unplayedOnly, take: Self.pageSize)
+            // The order comes with the show the first time, so its episodes wait for it.
+            if !orderKnown {
+                let show = try await client.podcast(id)
+                oldestFirst = show.subscription?.oldestFirst ?? false
+                orderKnown = true
+            }
+            async let page = client.podcastEpisodes(id, sort: sort, unplayed: unplayedOnly, take: Self.pageSize)
             let loaded = try await client.podcast(id)
             let first = try await page
             guard mine == generation else { return }
@@ -79,7 +92,7 @@ final class PodcastPageModel {
         isLoadingMore = true
         Task {
             defer { isLoadingMore = false }
-            if let page = try? await client.podcastEpisodes(id, unplayed: unplayedOnly, skip: skip, take: Self.pageSize),
+            if let page = try? await client.podcastEpisodes(id, sort: sort, unplayed: unplayedOnly, skip: skip, take: Self.pageSize),
                mine == generation, skip == episodes.count {
                 let known = Set(episodes.map(\.id))
                 episodes.append(contentsOf: page.items.filter { !known.contains($0.id) })
@@ -94,7 +107,8 @@ final class PodcastPageModel {
         defer { isSaving = false }
         do {
             if following {
-                podcast = try await client.subscribe(to: id)
+                // The order chosen while looking carries over to the subscription.
+                podcast = try await client.subscribe(to: id, oldestFirst: oldestFirst ? true : nil)
             } else {
                 try await client.unsubscribe(from: id)
                 podcast = try await client.podcast(id)
@@ -103,6 +117,45 @@ final class PodcastPageModel {
         } catch {
             self.error = ConnectionError(error).message
         }
+    }
+
+    private var sort: PodcastEpisodeSort { oldestFirst ? .oldest : .newest }
+
+    /// What Play starts: an episode part-heard, else the first unplayed one in the order shown (newest or oldest).
+    var nextToPlay: PodcastEpisode? {
+        episodes.first { $0.progress != nil } ?? episodes.first { !$0.isPlayed }
+    }
+
+    func setOldestFirst(_ oldest: Bool, model: AppModel) async {
+        guard oldest != oldestFirst, let client = model.client else { return }
+        oldestFirst = oldest
+        orderKnown = true
+        if podcast?.isSubscribed == true, let saved = try? await client.subscribe(to: id, oldestFirst: oldest) {
+            podcast = saved
+        }
+        await load(model: model)
+    }
+
+    /// Marks an episode played or unplayed here at once (on Unplayed, a played one goes), then on the server.
+    func setPlayed(_ episode: PodcastEpisode, _ played: Bool, model: AppModel) async {
+        guard let client = model.client, episode.isPlayed != played else { return }
+        if unplayedOnly, played {
+            episodes.removeAll { $0.id == episode.id }
+            total = max(0, total - 1)
+        } else if let index = episodes.firstIndex(where: { $0.id == episode.id }) {
+            episodes[index] = episode.with(played: played)
+        }
+        if let podcast { self.podcast = podcast.with(unplayedCount: podcast.unplayedCount + (played ? -1 : 1)) }
+        do {
+            try await client.setWatched(episode.id, watched: played)
+        } catch {
+            await load(model: model) // didn't stick: back to what the server has
+            return
+        }
+        // Other screens catch up; this one already shows it, and only its counts are checked.
+        skipsNextReload = true
+        model.invalidate()
+        if let fresh = try? await client.podcast(id) { podcast = fresh }
     }
 
     /// Every episode played: for catching up on a show by starting from now.

@@ -9,9 +9,12 @@ public struct PodcastStatus: Codable, Sendable, Hashable {
     public let country: String
 }
 
-/// This profile follows the show (since when).
+/// This profile follows the show (since when), and whether it listens from the first episode on.
 public struct PodcastSubscription: Codable, Sendable, Hashable {
     public let subscribedAt: Date
+    /// Episodes in the order they came out (a story told in parts): the show lists, plays and downloads its oldest
+    /// unplayed ones first. Absent from servers before it existed.
+    public var oldestFirst: Bool? = nil
 }
 
 /// How a profile listens to podcasts, on every device: whether phones keep the newest `keepEpisodes` unplayed
@@ -64,6 +67,14 @@ public struct Podcast: Codable, Sendable, Hashable, Identifiable {
 
     public var isSubscribed: Bool { subscription != nil }
 
+    /// The same show with another count of unplayed episodes (a change shown before the server confirms it).
+    public func with(unplayedCount: Int) -> Podcast {
+        Podcast(id: id, title: title, author: author, overview: overview, artwork: artwork, accentColor: accentColor, link: link,
+                categories: categories, explicit: explicit, episodeCount: episodeCount, unplayedCount: max(0, unplayedCount),
+                latestEpisodeAt: latestEpisodeAt, iTunesId: iTunesId, feedUrl: feedUrl, checkedAt: checkedAt, error: error,
+                subscription: subscription)
+    }
+
     /// The show as screens that navigate by title know it.
     public var summary: ItemSummary {
         ItemSummary(id: id, libraryId: "", parentId: nil, kind: .podcast, title: title, year: nil, seasonNumber: nil, episodeNumber: nil,
@@ -101,6 +112,16 @@ public struct PodcastEpisode: Codable, Sendable, Hashable, Identifiable {
     public let hasTranscript: Bool
 
     public var isPlayed: Bool { userData.watched }
+
+    /// The same episode marked played (from the start) or unplayed: a change shown before the server confirms it.
+    public func with(played: Bool) -> PodcastEpisode {
+        PodcastEpisode(id: id, podcastId: podcastId, podcastTitle: podcastTitle, title: title, overview: overview, publishedAt: publishedAt,
+                       durationSeconds: durationSeconds, season: season, episode: episode, episodeType: episodeType, explicit: explicit,
+                       artwork: artwork, accentColor: accentColor,
+                       userData: UserData(positionSeconds: 0, watched: played, playCount: played ? max(1, userData.playCount) : userData.playCount,
+                                          lastPlayedAt: userData.lastPlayedAt, unwatchedCount: nil),
+                       sizeBytes: sizeBytes, hasTranscript: hasTranscript)
+    }
 
     /// Listened to part of the way (and not finished).
     public var progress: Double? {
@@ -153,7 +174,9 @@ public enum PodcastEpisodeSort: String, Sendable {
     case newest, oldest
 }
 
-struct EmptyBody: Codable, Sendable {}
+struct SubscriptionBody: Codable, Sendable {
+    let oldestFirst: Bool?
+}
 
 struct AddPodcastBody: Codable, Sendable {
     let feedUrl: String?
@@ -213,9 +236,9 @@ extension FlexarrClient {
         try await get("podcasts/continue", query: [.init(name: "limit", value: String(take))])
     }
 
-    /// Follows a show. Returns the show with its subscription.
-    public func subscribe(to podcastId: String) async throws -> Podcast {
-        let data = try await send("PUT", "podcasts/\(podcastId)/subscription", body: EmptyBody())
+    /// Follows a show, or (with `oldestFirst`) changes the order it's listened in. Returns the show with its subscription.
+    public func subscribe(to podcastId: String, oldestFirst: Bool? = nil) async throws -> Podcast {
+        let data = try await send("PUT", "podcasts/\(podcastId)/subscription", body: SubscriptionBody(oldestFirst: oldestFirst))
         return try decode(Podcast.self, from: data)
     }
 

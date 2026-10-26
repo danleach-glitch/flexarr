@@ -60,7 +60,8 @@ struct PodcastsView: View {
                     SectionHeading(title: "Your podcasts")
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                            ForEach(home.podcasts) { PodcastCard(podcast: $0).frame(width: Layout.posterWidth(sizeClass)) }
+                            // Artwork alone, the most recently updated first (as the server lists them).
+                            ForEach(home.podcasts) { PodcastCard(podcast: $0, showsTitle: false).frame(width: Layout.posterWidth(sizeClass)) }
                         }
                         .padding(.horizontal, Layout.edge)
                     }
@@ -75,7 +76,7 @@ struct PodcastsView: View {
             let listening = Set(home.listening.map(\.id))
             let unplayed = home.newEpisodes.filter { !$0.isPlayed && !listening.contains($0.id) }
             if !unplayed.isEmpty {
-                episodes("New episodes", Array(unplayed.prefix(15)))
+                episodes("New episodes", Array(unplayed.prefix(15)), compact: true)
             }
             Color.clear.frame(height: 24).bareListRow()
         }
@@ -85,12 +86,12 @@ struct PodcastsView: View {
     }
 
     @ViewBuilder
-    private func episodes(_ title: String, _ list: [PodcastEpisode]) -> some View {
+    private func episodes(_ title: String, _ list: [PodcastEpisode], compact: Bool = false) -> some View {
         SectionHeading(title: title)
             .padding(.top, 20)
             .bareListRow()
         ForEach(list) { episode in
-            PodcastEpisodeRow(episode: episode, showsPodcast: true)
+            PodcastEpisodeRow(episode: episode, showsPodcast: true, compact: compact)
                 .episodeListRow()
         }
     }

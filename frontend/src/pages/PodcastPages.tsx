@@ -99,6 +99,8 @@ function PodcastsHome() {
   const podcasts = useApi((signal) => getPodcasts(signal), [version])
   const listening = useApi((signal) => getContinueListening(signal), [version])
   const fresh = useApi((signal) => getNewEpisodes(signal, true), [version])
+  // Episodes marked played here, gone from New episodes before the server's answer comes back.
+  const [heard, setHeard] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState<string | null>(null)
   const file = useRef<HTMLInputElement>(null)
 
@@ -181,13 +183,19 @@ function PodcastsHome() {
       {(fresh.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
           <h2>New episodes</h2>
-          <EpisodeList episodes={fresh.data!.slice(0, 20)} showPodcast onChanged={changed} />
+          <EpisodeList
+            episodes={fresh.data!.slice(0, 20).filter((e) => !heard.has(e.id))}
+            showPodcast
+            onChanged={changed}
+            onMarked={(id, played) => setHeard((h) => (played ? new Set(h).add(id) : new Set([...h].filter((x) => x !== id))))}
+          />
         </section>
       )}
     </div>
   )
 }
 
+/** A followed show: its artwork alone (its name is the link's label), with how many episodes are unplayed. */
 function PodcastCard({ podcast }: { podcast: Podcast }) {
   return (
     <article className="card poster-card podcast-card">
@@ -201,10 +209,6 @@ function PodcastCard({ podcast }: { podcast: Podcast }) {
           )}
         </div>
       </Link>
-      <span className="card-title">
-        <Link to={`/podcasts/${podcast.id}`}>{podcast.title}</Link>
-      </span>
-      <span className="card-subtitle">{podcast.author ?? ''}</span>
     </article>
   )
 }
@@ -212,19 +216,43 @@ function PodcastCard({ podcast }: { podcast: Podcast }) {
 // ---------- Episodes
 
 /** Episodes in a list, newest first as given: date, title, notes, length, and Play. */
-function EpisodeList({ episodes, showPodcast = false, onChanged }: { episodes: PodcastEpisode[]; showPodcast?: boolean; onChanged: () => void }) {
+/**
+ * Episodes in a list, newest first as given: date, title, notes, length, and Play. `onMarked` hears of a played tick
+ * as it's given (before the server has it), so the list can move the episode at once.
+ */
+function EpisodeList({
+  episodes,
+  showPodcast = false,
+  onChanged,
+  onMarked,
+}: {
+  episodes: PodcastEpisode[]
+  showPodcast?: boolean
+  onChanged: () => void
+  onMarked?: (id: string, played: boolean) => void
+}) {
   return (
     <ol className="podcast-episode-list">
       {episodes.map((episode) => (
         <li key={episode.id}>
-          <EpisodeRow episode={episode} showPodcast={showPodcast} onChanged={onChanged} />
+          <EpisodeRow episode={episode} showPodcast={showPodcast} onChanged={onChanged} onMarked={onMarked} />
         </li>
       ))}
     </ol>
   )
 }
 
-function EpisodeRow({ episode, showPodcast, onChanged }: { episode: PodcastEpisode; showPodcast: boolean; onChanged: () => void }) {
+function EpisodeRow({
+  episode,
+  showPodcast,
+  onChanged,
+  onMarked,
+}: {
+  episode: PodcastEpisode
+  showPodcast: boolean
+  onChanged: () => void
+  onMarked?: (id: string, played: boolean) => void
+}) {
   const player = useAudioPlayer()
   const navigate = useNavigate()
   const [menu, setMenu] = useState<MenuPoint | null>(null)
@@ -233,7 +261,8 @@ function EpisodeRow({ episode, showPodcast, onChanged }: { episode: PodcastEpiso
   const played = episode.userData.watched
   const track = () => [episodeAsTrack(episode)]
   const mark = async (watched: boolean) => {
-    await setWatched(episode.id, watched)
+    onMarked?.(episode.id, watched)
+    await setWatched(episode.id, watched).catch(() => undefined)
     onChanged()
   }
   const actions: MenuAction[] = [
@@ -480,7 +509,8 @@ function PodcastShow() {
   const changed = useCallback(() => setVersion((v) => v + 1), [])
   const show = useApi((signal) => getPodcast(id, signal), [id, version])
   const [filter, setFilter] = useState<'all' | 'unplayed'>('unplayed')
-  const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
+  // The order chosen here, else the show's own (kept with the subscription, for shows heard in order).
+  const [sortChosen, setSortChosen] = useState<'newest' | 'oldest'>()
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [pages, setPages] = useState(1)
@@ -495,12 +525,16 @@ function PodcastShow() {
     return () => clearTimeout(timer)
   }, [search])
 
+  const sort = sortChosen ?? (show.data?.subscription?.oldestFirst ? 'oldest' : 'newest')
+  const loaded = show.data !== undefined
+
   // Every page so far, fetched again when anything changes (a played tick, a filter), so the list stays as long as it was.
   useEffect(() => {
+    if (!loaded) return
     const controller = new AbortController()
     getPodcastEpisodes(id, { limit: PAGE * pages, sort, unplayed: filter === 'unplayed', q }, controller.signal).then(setEpisodes, () => undefined)
     return () => controller.abort()
-  }, [id, pages, sort, filter, q, version])
+  }, [id, pages, sort, filter, q, version, loaded])
 
   // A show only being looked at is checked for new episodes when opened: look again shortly for what that found.
   useEffect(() => {
@@ -527,6 +561,21 @@ function PodcastShow() {
   // Play: the episode you're part way through, else the newest you haven't heard.
   const items = episodes?.items ?? []
   const next = items.find((e) => episodeProgress(e) !== null) ?? items.find((e) => !e.userData.watched)
+
+  function chooseSort(order: 'newest' | 'oldest') {
+    setSortChosen(order)
+    // A followed show remembers it, on every device.
+    if (subscription) void subscribePodcast(podcast.id, { oldestFirst: order === 'oldest' }).catch(() => undefined)
+  }
+
+  // Marked played or unplayed: moved at once (gone from Unplayed), the server catching up.
+  function marked(episodeId: string, played: boolean) {
+    setEpisodes((list) => {
+      if (!list) return list
+      if (played && filter === 'unplayed') return { total: list.total - 1, items: list.items.filter((e) => e.id !== episodeId) }
+      return { ...list, items: list.items.map((e) => (e.id === episodeId ? { ...e, userData: { ...e.userData, watched: played, positionSeconds: 0 } } : e)) }
+    })
+  }
 
   async function markAllPlayed() {
     setMarking('busy')
@@ -559,7 +608,7 @@ function PodcastShow() {
           <div className="detail-actions">
             {next && (
               <button className="button" onClick={() => player.play([episodeAsTrack(next)])}>
-                <Play /> {episodeProgress(next) !== null ? 'Resume' : 'Play latest'}
+                <Play /> {episodeProgress(next) !== null ? 'Resume' : sort === 'oldest' ? 'Play' : 'Play latest'}
               </button>
             )}
             <button className={subscription ? 'button quiet' : 'button'} onClick={follow} disabled={busy} aria-pressed={subscription !== null}>
@@ -617,7 +666,7 @@ function PodcastShow() {
             </button>
           </nav>
           <input type="search" placeholder="Search episodes" aria-label="Search episodes" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select aria-label="Order" value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'oldest')}>
+          <select aria-label="Order" value={sort} onChange={(e) => chooseSort(e.target.value as 'newest' | 'oldest')}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
           </select>
@@ -630,7 +679,7 @@ function PodcastShow() {
         {episodes && episodes.items.length === 0 && (
           <p className="muted">{q ? `No episodes match “${q}”.` : filter === 'unplayed' ? 'There are no unplayed episodes.' : 'No episodes yet.'}</p>
         )}
-        <EpisodeList episodes={items} onChanged={changed} />
+        <EpisodeList episodes={items} onChanged={changed} onMarked={marked} />
         {episodes && episodes.items.length < episodes.total && (
           <button className="button quiet podcast-more" onClick={() => setPages(pages + 1)}>
             Show more episodes

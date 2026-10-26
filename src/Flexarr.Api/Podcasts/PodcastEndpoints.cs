@@ -15,7 +15,11 @@ namespace Flexarr.Api.Podcasts;
 /// <param name="NeedsLibrary">There's no Podcasts library at all: the main profile can add one in Settings.</param>
 public sealed record PodcastStatusDto(bool Available, bool NeedsLibrary, string Country);
 
-public sealed record PodcastSubscriptionDto(DateTime SubscribedAt);
+/// <param name="OldestFirst">Heard in order: listed oldest first, and phones keep the oldest unplayed episodes.</param>
+public sealed record PodcastSubscriptionDto(DateTime SubscribedAt, bool OldestFirst = false);
+
+/// <summary>Follows a podcast, or changes how its episodes are ordered; left out, the order stays as it was.</summary>
+public sealed record SubscriptionRequest(bool? OldestFirst = null);
 
 /// <summary>A profile's podcast settings, for every show it follows.</summary>
 /// <param name="AutoDownload">Phones keep the newest episodes of followed shows without being asked (on Wi-Fi).</param>
@@ -232,21 +236,26 @@ public static class PodcastEndpoints
             return episodes.OrderByDescending(e => e.UserData.LastPlayedAt).ToList();
         });
 
-        // Follows a podcast (a body, if any, is ignored: how followed shows behave is the profile's podcast settings).
-        group.MapPut("/{id:guid}/subscription", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, CancellationToken ct) =>
+        // Follows a podcast, or sets the order its episodes are heard in. How followed shows behave otherwise is the
+        // profile's podcast settings.
+        group.MapPut("/{id:guid}/subscription", async (Guid id, SubscriptionRequest? request, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue,
+            CancellationToken ct) =>
         {
             if (!await db.MediaItems.AnyAsync(i => i.Id == id && i.Kind == MediaKind.Podcast, ct))
             {
                 return Results.NotFound();
             }
 
-            if (!await db.PodcastSubscriptions.AnyAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct))
+            var subscription = await db.PodcastSubscriptions.FirstOrDefaultAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct);
+            if (subscription is null)
             {
-                db.PodcastSubscriptions.Add(new PodcastSubscription { ProfileId = profile.Id, FeedId = id });
-                await db.SaveChangesAsync(ct);
+                subscription = new PodcastSubscription { ProfileId = profile.Id, FeedId = id };
+                db.PodcastSubscriptions.Add(subscription);
                 queue.Enqueue(id); // caught up straight away, rather than at its next turn
             }
 
+            subscription.OldestFirst = request?.OldestFirst ?? subscription.OldestFirst;
+            await db.SaveChangesAsync(ct);
             return Results.Ok(await PodcastAsync(db, id, profile.Id, ct));
         });
 
@@ -306,15 +315,18 @@ public static class PodcastEndpoints
                 return [];
             }
 
-            var feeds = await db.PodcastSubscriptions.AsNoTracking().Where(s => s.ProfileId == profile.Id).Select(s => s.FeedId).ToListAsync(ct);
+            var feeds = await db.PodcastSubscriptions.AsNoTracking().Where(s => s.ProfileId == profile.Id)
+                .Select(s => new { s.FeedId, s.OldestFirst }).ToListAsync(ct);
             var wanted = new List<AutoDownloadDto>();
             foreach (var feed in feeds)
             {
-                var episodes = await db.MediaItems.Where(i => i.ParentId == feed && i.Kind == MediaKind.PodcastEpisode
-                        && i.Enclosure!.EpisodeType != PodcastEpisodeType.Trailer
-                        && !i.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched))
-                    .OrderByDescending(i => i.SortTitle).Take(settings.PodcastKeepEpisodes).Select(i => i.Id).ToListAsync(ct);
-                wanted.AddRange(episodes.Select(e => new AutoDownloadDto(e, feed)));
+                var unplayed = db.MediaItems.Where(i => i.ParentId == feed.FeedId && i.Kind == MediaKind.PodcastEpisode
+                    && i.Enclosure!.EpisodeType != PodcastEpisodeType.Trailer
+                    && !i.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched));
+                // A show heard in order keeps the next ones to hear, not the newest.
+                var episodes = await (feed.OldestFirst ? unplayed.OrderBy(i => i.SortTitle) : unplayed.OrderByDescending(i => i.SortTitle))
+                    .Take(settings.PodcastKeepEpisodes).Select(i => i.Id).ToListAsync(ct);
+                wanted.AddRange(episodes.Select(e => new AutoDownloadDto(e, feed.FeedId)));
             }
 
             return wanted;
@@ -427,7 +439,7 @@ public static class PodcastEndpoints
                 Item = i,
                 Feed = i.Feed!,
                 Subscription = db.PodcastSubscriptions.Where(s => s.ProfileId == profileId && s.FeedId == i.Id)
-                    .Select(s => new PodcastSubscriptionDto(s.SubscribedAt)).FirstOrDefault(),
+                    .Select(s => new PodcastSubscriptionDto(s.SubscribedAt, s.OldestFirst)).FirstOrDefault(),
                 Count = i.Children.Count,
                 Unplayed = i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)),
                 Latest = i.Children.Max(e => (DateTime?)e.AddedAt),

@@ -2,6 +2,18 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Podcasts
+- A show can be listed oldest first, for ones heard in order. A followed show remembers its order, on the web and the phone. Play then starts the oldest you haven't heard, and phones keep the next ones to hear rather than the newest.
+- Marking an episode played or unplayed moves it at once: off Unplayed, or out of New episodes.
+- The row of shows you follow is just their artwork, the most recently updated first.
+- iPhone and iPad: a ⋯ menu on a show's page with Newest first, Oldest first and Mark all as played. New episodes rows are shorter: no notes, and Play beside the title.
+
+### Fixed
+- iPhone and iPad: downloaded podcast episodes were listed under Films; they're under Podcasts.
+- Deploying to a Mac no longer replaces the program that runs Flexarr when .NET updates, which made macOS withdraw its access to an external media drive (scans and downloads stalled until it was given again).
+
 ## 0.24.0 · 26 October 2026
 
 ### Podcasts

@@ -72,6 +72,18 @@ final class PodcastTour: XCTestCase {
         shot("43b-swiped-played")
         XCTAssertFalse(app.buttons[before].exists, "a played episode leaves the Unplayed list")
 
+        // The ⋯ menu: oldest first, then back.
+        app.buttons["More"].firstMatch.tap()
+        pause(1)
+        shot("43c-show-menu")
+        app.buttons["Oldest first"].firstMatch.tap()
+        pause(4)
+        shot("43d-oldest-first")
+        app.buttons["More"].firstMatch.tap()
+        pause(1)
+        app.buttons["Newest first"].firstMatch.tap()
+        pause(4)
+
         let play = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Play '")).firstMatch
         XCTAssertTrue(play.waitForExistence(timeout: 10), "episodes should have a Play button")
         play.tap()
