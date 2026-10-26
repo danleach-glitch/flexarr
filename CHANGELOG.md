@@ -2,6 +2,16 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Recording (DVR)
+- Record from the Live TV guide: choose a programme, then Record, or Record series for every showing of it (on that channel or any, new episodes only if you like). Programmes set to record carry a red dot; ones a series covers, two dots.
+- Flexarr records the channel as it comes, picture and every sound track (5.1 included), nothing converted, into a DVR folder on the drive your TV library is on (Settings › Connections › Dispatcharr to choose another). Recordings start a minute early and run five minutes on, as broadcasts drift; both can be changed.
+- Recordings appear in a Recordings library, named like TV episodes, and play like anything else, with resume and Continue watching.
+- Live TV › Recordings lists what's coming up, the series being recorded (keep all or only the latest few), and what's been recorded, with why anything didn't record.
+- Recordings and live viewing share the channels your IPTV login allows (watching and recording the same channel counts once). A recording takes priority: if someone's watching another channel when it's due, that channel stops with a message; and while every stream is recording, trying another channel says what's recording and offers to watch that channel instead, or stop the recording. Two recordings that would need more streams than there are are flagged as clashing when you set them.
+- No new recording starts when the recordings drive has less than 100 GB free (changeable), or isn't connected; the Recordings list says why. A recording under way when Flexarr restarts carries on afterwards.
+
 ## 0.33.1 · 26 October 2026
 
 ### Playback (iPhone and iPad)

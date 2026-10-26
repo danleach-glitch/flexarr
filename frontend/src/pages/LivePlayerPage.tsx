@@ -1,7 +1,7 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ApiError, getLiveChannels, liveHeartbeat, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
+import { ApiError, getLiveChannels, liveHeartbeat, removeRecording, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Pause, Play, Replay10, Forward10, Star, Tv, Volume } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
@@ -30,6 +30,8 @@ export default function LivePlayerPage() {
   const [channels, setChannels] = useState<LiveChannel[]>([])
   const [watch, setWatch] = useState<LiveWatch>()
   const [error, setError] = useState<string>()
+  /** Every stream is recording: what, so the viewer can watch that channel instead or stop the recording. */
+  const [blocked, setBlocked] = useState<{ recordingId: string; channelId: string; channelName: string }>()
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(true)
   const [window_, setWindow] = useState({ start: 0, end: 0, time: 0 })
@@ -74,6 +76,7 @@ export default function LivePlayerPage() {
     async (channelId: string) => {
       const request = ++starts.current
       setError(undefined)
+      setBlocked(undefined)
       setWaiting(true)
       // The old channel's player stops first: the server lets that channel go as this one starts.
       hls.current?.destroy()
@@ -93,6 +96,10 @@ export default function LivePlayerPage() {
         viewer.current = undefined
         setWatch(undefined)
         setWaiting(false)
+        const problem = e instanceof ApiError && e.status === 409 ? e.problem : undefined
+        if (problem && typeof problem.recordingId === 'string' && typeof problem.channelId === 'string') {
+          setBlocked({ recordingId: problem.recordingId, channelId: problem.channelId, channelName: String(problem.channelName ?? 'that channel') })
+        }
         setError(e instanceof ApiError && e.messages.length ? e.messages.join(' ') : 'The channel couldn’t be played.')
       }
     },
@@ -115,7 +122,16 @@ export default function LivePlayerPage() {
 
   // Paused players fetch nothing, so the player says it's still here.
   usePolling(() => {
-    if (viewer.current) void liveHeartbeat(viewer.current).catch(() => undefined)
+    if (!viewer.current) return
+    void liveHeartbeat(viewer.current).catch((e: unknown) => {
+      // Stopped for a recording: say so (the picture would otherwise just stop).
+      if (e instanceof ApiError && e.status === 410) {
+        hls.current?.destroy()
+        hls.current = null
+        viewer.current = undefined
+        setError(e.messages.join(' ') || 'A recording needed the stream.')
+      }
+    })
   }, HEARTBEAT_MS)
 
   const measure = () => {
@@ -282,9 +298,27 @@ export default function LivePlayerPage() {
         <div key={error} className="player-error" role="alertdialog" aria-modal="true" aria-labelledby="live-error-message">
           <p id="live-error-message">{error}</p>
           <div className="player-error-actions">
-            <button className="button" autoFocus onClick={() => void start(id)}>
-              Try again
-            </button>
+            {blocked ? (
+              <>
+                <button className="button" autoFocus onClick={() => navigate(`/live/${blocked.channelId}`, { replace: true })}>
+                  Watch {blocked.channelName}
+                </button>
+                <button
+                  className="button quiet"
+                  onClick={async () => {
+                    await removeRecording(blocked.recordingId).catch(() => undefined)
+                    // The recording takes a moment to let its stream go.
+                    window.setTimeout(() => void start(id), 2500)
+                  }}
+                >
+                  Stop the recording
+                </button>
+              </>
+            ) : (
+              <button className="button" autoFocus onClick={() => void start(id)}>
+                Try again
+              </button>
+            )}
             <button className="button quiet" onClick={() => setList(true)}>
               Other channels
             </button>

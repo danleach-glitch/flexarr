@@ -272,3 +272,16 @@ export const Star = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
     <path d="m12 3.5 2.6 5.3 5.9.9-4.25 4.1 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.7l5.9-.9L12 3.5Z" />
   </svg>
 )
+/** Recording: a filled dot, as on a recorder. */
+export const RecordDot = (p: IconProps) => (
+  <svg {...base} {...p} fill="currentColor" stroke="none">
+    <circle cx="12" cy="12" r="7" />
+  </svg>
+)
+/** A series: every showing recorded. */
+export const SeriesDots = (p: IconProps) => (
+  <svg {...base} {...p} fill="currentColor" stroke="none">
+    <circle cx="7" cy="12" r="4.5" />
+    <circle cx="17" cy="12" r="4.5" opacity="0.55" />
+  </svg>
+)

@@ -9,6 +9,7 @@ import {
   testLiveTv,
   type ArrKind,
   type ArrStatus,
+  type LiveTvSettingsUpdate,
   type LiveTvTest,
   type Settings,
 } from '../../api/client'
@@ -334,6 +335,11 @@ function SeerrRow({
  * channels and guide are the ones Dispatcharr gives that user. It's often reachable only on this server, so a
  * localhost address gets no Open link (a browser elsewhere couldn't follow it).
  */
+/** A select's choices with the saved value among them (set elsewhere, it would otherwise be changed by saving). */
+function withSaved(choices: number[], saved: number | undefined) {
+  return saved === undefined || choices.includes(saved) ? choices : [...choices, saved].sort((a, b) => a - b)
+}
+
 function DispatcharrRow({
   liveTv,
   status,
@@ -352,13 +358,18 @@ function DispatcharrRow({
   open: boolean
   onOpen: () => void
   onClose: () => void
-  onSave: (liveTv: { baseUrl: string; username?: string; password?: string; rewindMinutes?: number }, message?: string) => Promise<void>
+  onSave: (liveTv: LiveTvSettingsUpdate, message?: string) => Promise<void>
   onRefresh: () => Promise<void>
 }) {
   const [baseUrl, setBaseUrl] = useState(liveTv?.baseUrl ?? '')
   const [username, setUsername] = useState(liveTv?.username ?? '')
   const [password, setPassword] = useState('')
   const [rewind, setRewind] = useState(liveTv?.rewindMinutes ?? 60)
+  const [dvrFolder, setDvrFolder] = useState(liveTv?.dvrFolder ?? '')
+  const [before, setBefore] = useState(liveTv?.paddingBeforeMinutes ?? 1)
+  const [after, setAfter] = useState(liveTv?.paddingAfterMinutes ?? 5)
+  const [minFree, setMinFree] = useState(liveTv?.minFreeGigabytes ?? 100)
+  const [streams, setStreams] = useState(liveTv?.maxStreams ?? 0)
   const [test, setTest] = useState<LiveTvTest | 'testing'>()
   const local = /^(localhost|127\.|\[::1\])/.test(hostOf(liveTv?.baseUrl))
   const shown = test === 'testing' ? 'Testing…' : test ? (test.ok ? testSummary(test) : test.error) : status
@@ -373,7 +384,17 @@ function DispatcharrRow({
           onSubmit={(e) => {
             e.preventDefault()
             setTest(undefined)
-            void onSave({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, rewindMinutes: rewind })
+            void onSave({
+              baseUrl: baseUrl.trim(),
+              username: username.trim(),
+              password: password || undefined,
+              rewindMinutes: rewind,
+              dvrFolder: dvrFolder.trim(),
+              paddingBeforeMinutes: before,
+              paddingAfterMinutes: after,
+              minFreeGigabytes: minFree,
+              maxStreams: streams,
+            })
           }}
         >
           <p className="muted">
@@ -412,6 +433,63 @@ function DispatcharrRow({
             </select>
             <span className="muted">Kept on this server while someone watches a channel, about 2 GB an hour for HD.</span>
           </label>
+          <fieldset className="connection-fieldset">
+            <legend>Recordings</legend>
+            <label className="field">
+              <span className="field-label">Folder</span>
+              <input type="text" value={dvrFolder} placeholder={liveTv?.dvrFolderInUse ?? 'A DVR folder on the drive your TV library is on'} onChange={(e) => setDvrFolder(e.target.value)} />
+              <span className="muted">
+                {dvrFolder.trim() ? 'Recordings made from now on go here; earlier ones stay where they are.' : `Empty for the default${liveTv?.dvrFolderInUse ? `: ${liveTv.dvrFolderInUse}` : ''}.`}
+              </span>
+            </label>
+            <div className="field-row">
+              <label>
+                Start early
+                <select value={before} onChange={(e) => setBefore(Number(e.target.value))}>
+                  {withSaved([0, 1, 2, 5, 10], liveTv?.paddingBeforeMinutes).map((m) => (
+                    <option key={m} value={m}>
+                      {m === 0 ? 'On time' : `${m} min`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Run on
+                <select value={after} onChange={(e) => setAfter(Number(e.target.value))}>
+                  {withSaved([0, 2, 5, 10, 15, 30], liveTv?.paddingAfterMinutes).map((m) => (
+                    <option key={m} value={m}>
+                      {m === 0 ? 'No' : `${m} min`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Keep free
+                <select value={minFree} onChange={(e) => setMinFree(Number(e.target.value))}>
+                  {withSaved([10, 25, 50, 100, 250, 500], liveTv?.minFreeGigabytes).map((g) => (
+                    <option key={g} value={g}>
+                      {g} GB
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Channels at once
+                <select value={streams} onChange={(e) => setStreams(Number(e.target.value))}>
+                  <option value={0}>As Dispatcharr says</option>
+                  {withSaved([1, 2, 3, 4, 5], liveTv?.maxStreams ?? undefined).map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <span className="muted">
+              Broadcasts drift, so recordings start a little early and run on. No new recording starts when the drive has less than that free. Recordings and
+              live viewing share the channels your IPTV login allows (watching and recording the same channel counts once).
+            </span>
+          </fieldset>
           <div className="form-actions">
             {liveTv && (
               <button

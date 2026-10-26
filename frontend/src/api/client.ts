@@ -5,6 +5,9 @@ import type {
   LiveTvStatus,
   LiveTvTest,
   LiveWatch,
+  Recording,
+  Recordings,
+  RecordingSeries,
   ArrStatus,
   DirectoryListing,
   DirectoryPodcast,
@@ -61,12 +64,15 @@ export class ApiError extends Error {
   readonly status: number
   readonly messages: string[]
   readonly retryAfterSeconds?: number
+  /** The server's problem as it sent it, with any details of its own (a recording's id, say). */
+  readonly problem?: Record<string, unknown>
 
-  constructor(status: number, statusText: string, messages: string[], retryAfterSeconds?: number) {
+  constructor(status: number, statusText: string, messages: string[], retryAfterSeconds?: number, problem?: Record<string, unknown>) {
     super(messages[0] ?? `${status} ${statusText}`)
     this.status = status
     this.messages = messages
     this.retryAfterSeconds = retryAfterSeconds
+    this.problem = problem
   }
 }
 
@@ -171,14 +177,16 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (!response.ok) {
     let messages: string[] = []
     let retryAfter = seconds(response.headers.get('Retry-After'))
+    let details: Record<string, unknown> | undefined
     try {
       const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string; detail?: string; retryAfterSeconds?: unknown }
       messages = problem.errors ? Object.values(problem.errors).flat() : [problem.detail ?? problem.title].filter((m): m is string => !!m)
       retryAfter = seconds(problem.retryAfterSeconds) ?? retryAfter
+      details = problem as Record<string, unknown>
     } catch {
       // Not a JSON problem response.
     }
-    throw new ApiError(response.status, response.statusText, messages, retryAfter)
+    throw new ApiError(response.status, response.statusText, messages, retryAfter, details)
   }
   if (response.status === 202 || response.status === 204) {
     return undefined as T
@@ -544,6 +552,19 @@ export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal) =>
   apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}`, signal)
 /** Starts watching a channel; `replaces` is the viewer's previous channel, let go first so its connection is free. */
 export const watchLiveChannel = (id: string, replaces?: string) => request<LiveWatch>('POST', `/livetv/channels/${id}/watch`, { replaces })
+
+// ---------- Recordings (the DVR): the household's, so anyone can schedule, stop or delete them
+
+export const getRecordings = (signal?: AbortSignal) => apiGet<Recordings>('/livetv/recordings', signal)
+export const recordProgramme = (programmeId: number) => request<Recording>('POST', '/livetv/recordings', { programmeId })
+/** A scheduled one comes off the list; one recording now stops (keeping what it has); a finished one is deleted. */
+export const removeRecording = (id: string) => request<void>('DELETE', `/livetv/recordings/${id}`)
+export const recordSeries = (programmeId: number, options: { anyChannel?: boolean; newOnly?: boolean; keepLatest?: number } = {}) =>
+  request<RecordingSeries>('POST', '/livetv/recordings/series', { programmeId, ...options })
+export const updateSeries = (id: string, changes: { anyChannel?: boolean; newOnly?: boolean; keepLatest?: number }) =>
+  request<RecordingSeries>('PUT', `/livetv/recordings/series/${id}`, changes)
+/** The series stops: its scheduled showings come off the list; what it recorded stays. */
+export const removeSeries = (id: string) => request<void>('DELETE', `/livetv/recordings/series/${id}`)
 export const liveHeartbeat = (viewer: string) => request<void>('POST', `/livetv/watch/${viewer}/heartbeat`)
 export const stopLiveChannel = (viewer: string) => request<void>('DELETE', `/livetv/watch/${viewer}/`)
 export const refreshLiveTv = () => request<void>('POST', '/livetv/refresh')

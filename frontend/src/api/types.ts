@@ -419,7 +419,21 @@ export interface Settings {
   /** The podcast charts' country: the one chosen (null for the server's region), and the one in use. */
   podcasts?: { country: string | null; resolvedCountry: string }
   /** The Live TV source (Dispatcharr); the password is never sent back. */
-  liveTv?: { baseUrl: string; username: string; hasPassword: boolean; rewindMinutes: number } | null
+  liveTv?: {
+    baseUrl: string
+    username: string
+    hasPassword: boolean
+    rewindMinutes: number
+    /** Chosen in Settings; null for the default. */
+    dvrFolder: string | null
+    /** Where recordings go now (the chosen folder, or the default). */
+    dvrFolderInUse: string
+    /** Channels open at once; null for what Dispatcharr says. */
+    maxStreams: number | null
+    paddingBeforeMinutes: number
+    paddingAfterMinutes: number
+    minFreeGigabytes: number
+  } | null
 }
 
 export interface SettingsUpdate {
@@ -431,7 +445,7 @@ export interface SettingsUpdate {
   /** An empty country goes back to the server's region. */
   podcasts?: { country: string }
   /** An empty address removes the source; an omitted password keeps the saved one (for the same server). */
-  liveTv?: { baseUrl: string; username?: string; password?: string; rewindMinutes?: number }
+  liveTv?: LiveTvSettingsUpdate
 }
 
 export interface ArrStatus {
@@ -597,6 +611,20 @@ export interface OpmlImport {
 
 // ---------- Live TV
 
+export interface LiveTvSettingsUpdate {
+  baseUrl: string
+  username?: string
+  password?: string
+  rewindMinutes?: number
+  /** Empty for the default. */
+  dvrFolder?: string
+  /** 0 for what Dispatcharr says. */
+  maxStreams?: number
+  paddingBeforeMinutes?: number
+  paddingAfterMinutes?: number
+  minFreeGigabytes?: number
+}
+
 export interface LiveTvStatus {
   configured: boolean
   channels: number
@@ -617,6 +645,56 @@ export interface LiveProgramme {
   season: number | null
   episode: number | null
   isNew: boolean
+  /** On the DVR's list (in the guide only). */
+  recording?: 'scheduled' | 'recording' | null
+  /** A series covers it (in the guide only). */
+  series?: boolean
+}
+
+export interface Recording {
+  id: string
+  ruleId: string | null
+  channelId: string
+  channelName: string
+  title: string
+  subtitle: string | null
+  description: string | null
+  season: number | null
+  episode: number | null
+  isNew: boolean
+  start: string
+  end: string
+  state: 'scheduled' | 'recording' | 'completed' | 'failed' | 'cancelled' | 'skipped'
+  /** Why it failed or was skipped, or a note ("Stopped early."). */
+  reason: string | null
+  size: number | null
+  /** Won't record as things stand: recordings scheduled before it want every stream. */
+  clashes: boolean
+  /** In the library, to play. */
+  itemId: string | null
+}
+
+export interface RecordingSeries {
+  id: string
+  title: string
+  /** Only on this channel; null for any. */
+  channelId: string | null
+  channelName: string | null
+  newOnly: boolean
+  /** 0 keeps them all. */
+  keepLatest: number
+  upcoming: number
+  recorded: number
+}
+
+export interface Recordings {
+  upcoming: Recording[]
+  recent: Recording[]
+  series: RecordingSeries[]
+  /** How many channels can be open at once, recordings and live viewing together. */
+  streams: number
+  folder: string
+  freeBytes: number | null
 }
 
 export interface LiveChannel {

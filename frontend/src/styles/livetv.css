@@ -703,3 +703,119 @@
     transform: none;
   }
 }
+
+/* ---------- Recording (the DVR) ---------- */
+
+.record-dot {
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 0.35em;
+  vertical-align: -0.05em;
+  color: var(--record, #e5484d);
+  flex: none;
+}
+
+.record-dot.live {
+  animation: record-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes record-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-dot.live {
+    animation: none;
+  }
+}
+
+.livetv-details-actions,
+.record-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.record-controls {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--aisle);
+}
+
+.record-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 10px;
+  font-size: var(--step--1);
+}
+
+.record-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.record-note {
+  margin: 10px 0 0;
+  font-size: var(--step--1);
+}
+
+.recordings {
+  max-width: 56rem;
+}
+
+.recordings-summary {
+  margin: 0 0 18px;
+  font-size: var(--step--1);
+}
+
+.recordings-summary code {
+  word-break: break-all;
+}
+
+.recordings-heading {
+  margin: 26px 0 10px;
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+
+.recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recording-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--seat-raised);
+}
+
+.recording-row > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recording-row .muted,
+.recording-row .error {
+  font-size: var(--step--1);
+}
+
+.recording-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}

@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
 import { FavouriteButton } from '../components/FavouriteButton'
+import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
-import { Star, Tv } from '../components/icons'
+import { Play, RecordDot, SeriesDots, Star, Tv } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
+
+const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
 /** How wide the guide draws a minute. */
 const PX_PER_MINUTE = 6
@@ -23,7 +26,7 @@ function guideStart(now = new Date()) {
 
 export default function LiveTvPage() {
   const [params, setParams] = useSearchParams()
-  const view = params.get('view') === 'guide' ? 'guide' : 'now'
+  const view = params.get('view') === 'guide' ? 'guide' : params.get('view') === 'recordings' ? 'recordings' : 'now'
   const status = useApi(getLiveTvStatus, [])
   const { me } = useSession()
 
@@ -62,6 +65,14 @@ export default function LiveTvPage() {
           >
             Guide
           </button>
+          <button
+            role="tab"
+            aria-selected={view === 'recordings'}
+            className={view === 'recordings' ? 'season-tab active' : 'season-tab'}
+            onClick={() => setParams({ view: 'recordings' }, { replace: true })}
+          >
+            Recordings
+          </button>
         </div>
       </header>
       {status.data?.error && (
@@ -69,7 +80,15 @@ export default function LiveTvPage() {
           {status.data.error}
         </p>
       )}
-      {view === 'now' ? <OnNow /> : <Guide />}
+      {view === 'now' ? (
+        <OnNow />
+      ) : view === 'guide' ? (
+        <Guide />
+      ) : (
+        <Suspense fallback={<p className="page-message muted">Loading…</p>}>
+          <LiveRecordings />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -169,6 +188,8 @@ function Guide() {
   const [failed, setFailed] = useState<string>()
   const [selected, setSelected] = useState<{ channel: LiveGuide['channels'][number]; programme: LiveProgramme }>()
   const [now, setNow] = useState(() => Date.now())
+  /** Bumped when a recording changes, so the guide's marks are fetched again. */
+  const [version, setVersion] = useState(0)
   const scroller = useRef<HTMLDivElement>(null)
   // Favourites first, as in On now, when there are any.
   const [favouritesChosen, setFavouritesOnly] = useState<boolean>()
@@ -176,11 +197,23 @@ function Guide() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getLiveGuide(from, hours, controller.signal).then(setGuide, (e: unknown) => {
-      if (!controller.signal.aborted) setFailed(e instanceof Error ? e.message : String(e))
-    })
+    getLiveGuide(from, hours, controller.signal).then(
+      (loaded) => {
+        setGuide(loaded)
+        // The programme open in the details keeps up with its marks.
+        setSelected((open) => {
+          if (!open) return open
+          const channel = loaded.channels.find((c) => c.id === open.channel.id)
+          const programme = channel?.programmes.find((p) => p.id === open.programme.id)
+          return channel && programme ? { channel, programme } : open
+        })
+      },
+      (e: unknown) => {
+        if (!controller.signal.aborted) setFailed(e instanceof Error ? e.message : String(e))
+      },
+    )
     return () => controller.abort()
-  }, [from, hours])
+  }, [from, hours, version])
 
   const minutes = (iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
   const width = hours * 60 * PX_PER_MINUTE
@@ -237,10 +270,14 @@ function Guide() {
                       key={p.id}
                       className={['livetv-guide-programme', onNow && 'now', past && 'past', selected?.programme.id === p.id && 'selected'].filter(Boolean).join(' ')}
                       style={{ left, width: Math.max(0, right - left - 2) }}
-                      title={`${p.title} · ${programmeTime(p)}`}
-                      onClick={() => (onNow ? navigate(`/live/${c.id}`) : setSelected({ channel: c, programme: p }))}
+                      title={`${p.title} · ${programmeTime(p)}${p.recording ? (p.recording === 'recording' ? ' · Recording now' : ' · Set to record') : ''}`}
+                      onClick={() => setSelected({ channel: c, programme: p })}
                     >
-                      <strong>{programmeTitle(p)}</strong>
+                      <strong>
+                        {p.recording && <RecordDot className={p.recording === 'recording' ? 'record-dot live' : 'record-dot'} aria-label={p.recording === 'recording' ? 'Recording now' : 'Set to record'} />}
+                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label="Series" />}
+                        {programmeTitle(p)}
+                      </strong>
                       <span className="muted">{programmeTime(p)}</span>
                     </button>
                   )
@@ -268,9 +305,17 @@ function Guide() {
           </p>
           {selected.programme.subtitle && <p>{selected.programme.subtitle}</p>}
           {selected.programme.description && <p>{selected.programme.description}</p>}
-          <button className="button quiet small" onClick={() => setSelected(undefined)}>
-            Close
-          </button>
+          <div className="livetv-details-actions">
+            {Date.parse(selected.programme.start) <= now && Date.parse(selected.programme.end) > now && (
+              <button className="button small" onClick={() => navigate(`/live/${selected.channel.id}`)}>
+                <Play /> Watch now
+              </button>
+            )}
+            <button className="button quiet small" onClick={() => setSelected(undefined)}>
+              Close
+            </button>
+          </div>
+          <RecordControls programme={selected.programme} channelId={selected.channel.id} now={now} onChanged={() => setVersion((v) => v + 1)} />
         </aside>
       )}
     </>
