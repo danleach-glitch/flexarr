@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.27.0 · 26 October 2026
 
 ### Podcasts
 - Up Next: queue episodes with Play next or Add to Up Next, and they play in that order on any device: the web and the phone share one queue. It's on the Podcasts page, where episodes can be moved or taken out; one that starts playing or is played leaves it.
