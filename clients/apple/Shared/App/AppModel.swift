@@ -502,7 +502,12 @@ final class AppModel {
         let id = url.pathComponents.dropFirst().first ?? ""
         guard !id.isEmpty else { return }
         switch host {
-        case "item": pendingRoute = .itemID(id)
+        case "item":
+            // With its summary, which says what library it's in: the Apple TV opens it on that library's tab.
+            Task {
+                let item = (try? await client?.item(id))?.item
+                pendingRoute = item.map(Route.item) ?? .itemID(id)
+            }
         // flexarr://live/<channel id>: Siri's "Put on BBC One".
         case "live": Task { await watchChannel(id: id) }
         case "play":

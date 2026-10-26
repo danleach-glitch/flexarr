@@ -20,18 +20,23 @@ struct MainTabView: View {
     @State private var choosingProfile = false
     /// Home's screens, here so Menu on the tab bar can go back through them (see below).
     @State private var homeRouter = Router()
+    @State private var librariesLoaded = false
+    /// Where a link (the Top Shelf) opens its title: on its library's tab, so Home stays Home.
+    @State private var linkTab: TabID?
+    /// Just after a link picks a tab: as the app starts, focus can land on the Home tab a moment later and, since the
+    /// tab bar selects what it focuses, take the selection back to Home with the title hidden on the other tab.
+    @State private var linkHold: (tab: TabID, until: Date)?
 
     var body: some View {
         TabView(selection: $selection) {
             Tab(value: TabID.home) {
-                TabStack(router: homeRouter, handlesDeepLinks: true) { HomeView() }
+                TabStack(router: homeRouter, opensLinks: linkTab == .home) { HomeView() }
             } label: {
                 Text("Home")
             }
-            // Podcasts are on iPhone, iPad and the web, not here.
-            ForEach(model.libraries.filter { $0.type != .podcasts }) { library in
+            ForEach(tabLibraries) { library in
                 Tab(value: TabID.library(library.id)) {
-                    TabStack {
+                    TabStack(opensLinks: linkTab == .library(library.id)) {
                         if library.type == .music {
                             MusicLibraryView(library: library)
                         } else {
@@ -70,8 +75,7 @@ struct MainTabView: View {
                     .accessibilityLabel("Settings")
             }
         }
-        // Menu on the tab bar leaves the app. With a title opened on Home (from the Top Shelf, say), go back to Home
-        // first, or that title would be all Home ever shows again.
+        // Menu on the tab bar leaves the app. With screens open on Home, go back through them first.
         .onExitCommand(perform: selection == .home && !homeRouter.path.isEmpty ? { homeRouter.path.removeLast() } : nil)
         // The remote's play/pause button runs the music from any screen (the video player takes it over while it's up).
         .onPlayPauseCommand { if model.music.current != nil { model.music.togglePlayPause() } }
@@ -90,13 +94,40 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
         }
-        .task { await model.loadLibraries() }
-        .onChange(of: model.pendingRoute) { _, route in
-            if route != nil { selection = .home }
+        .task {
+            await model.loadLibraries()
+            librariesLoaded = true
+        }
+        .onAppear(perform: routeLink)
+        .onChange(of: model.pendingRoute) { _, _ in routeLink() }
+        .onChange(of: librariesLoaded) { _, _ in routeLink() }
+        .onChange(of: selection) { _, tab in
+            guard let hold = linkHold, tab != hold.tab else { return }
+            if Date() < hold.until { selection = hold.tab } else { linkHold = nil }
         }
         .onChange(of: model.pendingSearch) { _, words in
             if words != nil { selection = .search }
         }
+    }
+
+    /// Podcasts are on iPhone, iPad and the web, not here.
+    private var tabLibraries: [Library] { model.libraries.filter { $0.type != .podcasts } }
+
+    /// Picks the tab a link's title opens on and goes to it; that tab's stack then shows the title.
+    private func routeLink() {
+        guard let route = model.pendingRoute else {
+            linkTab = nil
+            return
+        }
+        var tab = TabID.home
+        if case .item(let item) = route {
+            // Until the libraries are in, its tab may not be there yet.
+            guard librariesLoaded else { return }
+            if tabLibraries.contains(where: { $0.id == item.libraryId }) { tab = .library(item.libraryId) }
+        }
+        linkTab = tab
+        selection = tab
+        linkHold = (tab, Date().addingTimeInterval(1.5))
     }
 }
 
@@ -236,15 +267,24 @@ private struct ProfileCornerButton: UIViewRepresentable {
 /// A navigation stack per tab with the shared destinations.
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
-    @State private var router: Router
-    var handlesDeepLinks: Bool
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var ownRouter = Router()
+    /// Home's, owned by `MainTabView` and used as it is (not copied into state here), so the stack and Menu's check
+    /// on the tab bar always look at the same screens.
+    private let sharedRouter: Router?
+    /// This tab is where the pending link opens (see `MainTabView.routeLink`).
+    var opensLinks: Bool
     @ViewBuilder var content: () -> Content
+    /// What's open came from a link (the Top Shelf), not from browsing.
+    @State private var openedFromLink = false
 
-    init(router: Router = Router(), handlesDeepLinks: Bool = false, @ViewBuilder content: @escaping () -> Content) {
-        _router = State(initialValue: router)
-        self.handlesDeepLinks = handlesDeepLinks
+    init(router: Router? = nil, opensLinks: Bool = false, @ViewBuilder content: @escaping () -> Content) {
+        sharedRouter = router
+        self.opensLinks = opensLinks
         self.content = content
     }
+
+    private var router: Router { sharedRouter ?? ownRouter }
 
     var body: some View {
         @Bindable var router = router
@@ -258,13 +298,25 @@ struct TabStack<Content: View>: View {
         .safeAreaInset(edge: .bottom) { NowPlayingBar() }
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
+        .onChange(of: opensLinks) { _, _ in consumeDeepLink() }
         .onAppear(perform: consumeDeepLink)
+        .onChange(of: router.path.isEmpty) { _, empty in
+            if empty { openedFromLink = false }
+        }
+        // A title opened from the Top Shelf is a visit: leaving the app puts the tab back as it was, so coming back
+        // doesn't find the title still in its place.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .background, openedFromLink else { return }
+            router.path = []
+            openedFromLink = false
+        }
     }
 
     private func consumeDeepLink() {
-        guard handlesDeepLinks, let route = model.pendingRoute else { return }
-        // In place of whatever was open, so Menu comes straight back to Home rather than through old links.
+        guard opensLinks, let route = model.pendingRoute else { return }
+        // In place of whatever was open, so Menu comes straight back to the tab rather than through old links.
         router.path = [route]
+        openedFromLink = true
         model.pendingRoute = nil
     }
 

@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Top Shelf (Apple TV)
+- A title opened from the Top Shelf opens on its library's tab (an episode on TV Shows, a film on Movies), with that tab lit in the bar, so Home stays Home: choosing Home in the bar takes you there. Menu from the title goes back to the library. Leaving the app and coming back no longer finds the title still open. Before, the title took Home's place and Home couldn't be reached again without closing the app.
+
 ## 0.37.0 · 26 October 2026
 
 ### Settings (Apple TV)
