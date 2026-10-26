@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.30.0 · 26 October 2026
 
 ### Live TV (web)
 - Watch TV channels from Dispatcharr: connect it in Settings › Connections (beside Sonarr, Radarr and Seerr) with a Dispatcharr user of Flexarr's own, test the connection, and the channels and guide come in (and are refreshed every six hours). How far back live TV can be rewound is set there too.
