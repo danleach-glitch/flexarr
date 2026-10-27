@@ -82,6 +82,21 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     /// The server's address for away from home (over Tailscale), once remote access is turned on. Absent from
     /// servers older than 0.21.
     public var remoteUrl: URL?
+    /// Whether the server's owner has turned on error reports (to Sentry) for the apps. Absent from older servers,
+    /// which means off.
+    public var errorReports: ErrorReportSetting?
+}
+
+/// The server's error-report switch, which the apps follow: off unless the owner turned it on.
+public struct ErrorReportSetting: Codable, Sendable, Equatable {
+    public var enabled: Bool
+    /// A random id for the server, not tied to anything else: the only "user" an error report carries.
+    public var installId: String?
+
+    public init(enabled: Bool, installId: String? = nil) {
+        self.enabled = enabled
+        self.installId = installId
+    }
 }
 
 // MARK: - Libraries

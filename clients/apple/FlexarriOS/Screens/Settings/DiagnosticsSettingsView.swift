@@ -16,7 +16,7 @@ struct DiagnosticsSettingsView: View {
                     .disabled(upload.isSending)
                     .listRowBackground(Color.seat)
             } footer: {
-                Text("Sends what this \(ThisDevice.name) has logged lately to your server, and nowhere else, so a problem can be looked into there. Sign-ins and stream addresses are taken out first.")
+                Text("Sends what this \(ThisDevice.name) has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)")
             }
 
             Section {

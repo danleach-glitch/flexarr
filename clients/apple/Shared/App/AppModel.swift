@@ -14,7 +14,16 @@ final class AppModel {
 
     private(set) var phase: Phase {
         // Warnings and errors go to the server signed in to, and its sign-in is kept out of the log.
-        didSet { if phase != oldValue { LogHub.shared.signedIn(client) } }
+        didSet {
+            guard phase != oldValue else { return }
+            LogHub.shared.signedIn(client)
+            // Error reports follow the server signed in to: none signed out, the last answer for a new one.
+            if credentials?.address != Self.credentials(in: oldValue)?.address {
+                ErrorReports.stop()
+                ErrorReports.resume(server: credentials?.address)
+                Task { await refreshErrorReports() }
+            }
+        }
     }
     private(set) var libraries: [Library] = []
     private(set) var librariesError: String?
@@ -45,6 +54,8 @@ final class AppModel {
     var pendingRoute: Route?
     /// Words to search for, from Siri ("Search for Fargo in Flexarr"); the Search tab takes them.
     var pendingSearch: String?
+    /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
+    private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
 
@@ -93,6 +104,9 @@ final class AppModel {
         }
         #endif
         LogHub.shared.signedIn(client)
+        // Before anything else can crash: the server's answer comes later (see `refreshErrorReports`).
+        ErrorReports.resume(server: credentials?.address)
+        Task { await refreshErrorReports() }
         player.onSessionEnded = { [weak self] in
             self?.invalidate()
             self?.music.videoEnded()
@@ -132,6 +146,20 @@ final class AppModel {
     var credentials: ServerCredentials? {
         if case .signedIn(let credentials) = phase { return credentials }
         return nil
+    }
+
+    private static func credentials(in phase: Phase) -> ServerCredentials? {
+        if case .signedIn(let credentials) = phase { return credentials }
+        return nil
+    }
+
+    /// Asks the server whether it wants error reports now (after signing in, and each time the app comes to the
+    /// front), and starts or stops them to match.
+    func refreshErrorReports() async {
+        guard let credentials, let client else { return }
+        guard let status = try? await client.systemStatus(), self.credentials?.address == credentials.address else { return }
+        errorReports = status.errorReports
+        ErrorReports.apply(status.errorReports, server: credentials.address)
     }
 
     var currentProfile: Profile? { profiles.first(where: \.isCurrent) }

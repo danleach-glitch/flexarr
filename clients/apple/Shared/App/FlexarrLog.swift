@@ -30,8 +30,10 @@ struct FlexarrLog: Sendable {
         write(.warning, message, error, properties)
     }
 
+    /// With an `error:`, also an error report when the server has them on: the error's kind only, never the message.
     func error(_ message: String, error: (any Error)? = nil, _ properties: [String: String?] = [:]) {
         write(.error, message, error, properties)
+        if let error { ErrorReports.capture(error, category: category) }
     }
 
     private func write(_ level: ClientLogLevel, _ message: String, _ error: (any Error)?, _ properties: [String: String?]) {
@@ -104,6 +106,9 @@ final class LogHub: Sendable {
         }
         return entry
     }
+
+    /// The sign-in's secrets, which nothing sent may contain.
+    var secrets: [String] { redactor.withLock { $0.secrets } }
 
     /// The server to send to (nil when signed out), whose sign-in is also kept out of the log from now on.
     func signedIn(_ client: FlexarrClient?) {
