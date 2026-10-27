@@ -33,6 +33,9 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     private const int MaxText = 8 * 1024;
     private const int MaxProperties = 20;
 
+    /// <summary>Stands in for a device's line breaks, so its text can't pass for lines of the server's own.</summary>
+    public const string LineBreak = "⏎";
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly ConcurrentDictionary<string, (long Minute, int Count)> _rates = new();
@@ -55,13 +58,13 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         {
             var properties = new Dictionary<string, object>
             {
-                ["Platform"] = Clip(batch.Platform, 16),
-                ["Device"] = who.Device,
+                ["Platform"] = OneLine(Clip(batch.Platform, 16)),
+                ["Device"] = OneLine(who.Device),
             };
             Add(properties, "Profile", who.Profile);
             Add(properties, "AppVersion", batch.AppVersion);
             Add(properties, "Category", line.Category);
-            Add(properties, "ClientError", line.Error is null ? null : Clip(line.Error));
+            Add(properties, "ClientError", line.Error);
 
             // A device's clock can be off; its own time is kept, the entry is filed when it arrived.
             Add(properties, "ClientTime", line.Timestamp?.ToString("O", CultureInfo.InvariantCulture));
@@ -71,13 +74,13 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
                 var key = name.Length is > 0 and <= 40 && name.All(char.IsAsciiLetterOrDigit) ? char.ToUpperInvariant(name[0]) + name[1..] : null;
                 if (key is not null && !properties.ContainsKey(key) && key != "ClientMessage")
                 {
-                    properties[key] = Clip(value, 200);
+                    properties[key] = OneLine(Clip(value, 200));
                 }
             }
 
             using (_log.BeginScope(properties))
             {
-                LogReport(_log, Level(line.Level), Clip(line.Message));
+                LogReport(_log, Level(line.Level), OneLine(Clip(line.Message)));
             }
         }
 
@@ -162,7 +165,7 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     {
         if (!string.IsNullOrWhiteSpace(value))
         {
-            properties[name] = Clip(value, 200);
+            properties[name] = OneLine(Clip(value, name == "ClientError" ? MaxText : 200));
         }
     }
 
@@ -172,6 +175,18 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
 
     [LoggerMessage(Level = LogLevel.Information, Message = "{Device} sent diagnostics ({Platform}, {SizeKb} KB)")]
     private static partial void LogUploaded(ILogger logger, string device, string platform, long sizeKb);
+
+    /// <summary>
+    /// A device's text as one line: its line breaks become <see cref="LineBreak"/> (the log reader turns a reported error's back
+    /// into real ones) and other control characters, terminal colour codes among them, are dropped.
+    /// </summary>
+    private static string OneLine(string text)
+    {
+        text = text.Replace("\r\n", LineBreak, StringComparison.Ordinal).Replace("\n", LineBreak, StringComparison.Ordinal)
+            .Replace("\r", LineBreak, StringComparison.Ordinal).Replace("\u2028", LineBreak, StringComparison.Ordinal)
+            .Replace("\u2029", LineBreak, StringComparison.Ordinal);
+        return text.Any(c => char.IsControl(c) && c != '\t') ? string.Concat(text.Where(c => !char.IsControl(c) || c == '\t')) : text;
+    }
 
     private static string Clip(string text, int max = MaxText) => text.Length <= max ? text : text[..max] + "…";
 }

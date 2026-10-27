@@ -41,7 +41,7 @@ public sealed record LogEntry(
             var source = root.TryGetProperty("SourceContext", out var sc) ? sc.GetString() ?? "" : "";
             var area = root.TryGetProperty(AreaEnricher.Property, out var a) ? a.GetString() ?? LogAreas.Of(source) : LogAreas.Of(source);
             var exception = root.TryGetProperty("@x", out var x) ? x.GetString()
-                : root.TryGetProperty("ClientError", out var ce) ? ce.GetString() : null;
+                : root.TryGetProperty("ClientError", out var ce) ? ce.GetString()?.Replace(ClientLogs.LineBreak, "\n", StringComparison.Ordinal) : null;
             var properties = new Dictionary<string, string>();
             foreach (var property in root.EnumerateObject())
             {
