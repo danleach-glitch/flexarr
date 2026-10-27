@@ -19,11 +19,11 @@ struct SettingsView: View {
             if let profile = model.currentProfile {
                 SettingsGroupLabel("Watching as")
                 if model.profiles.count > 1 {
-                    SettingsRow(title: profile.name, symbol: "person.crop.circle", value: "Switch", help: "Switch to another profile. Each has its own Continue Watching, watch history and playback settings.") {
+                    SettingsRow(title: profile.name, profile: profile, value: "Switch", help: "Switch to another profile. Each has its own Continue Watching, watch history and playback settings.") {
                         choosingProfile = true
                     }
                 } else {
-                    SettingsFact("Profile", profile.name)
+                    SettingsFact("Profile", profile.name, profile: profile)
                 }
             }
 
@@ -38,7 +38,7 @@ struct SettingsView: View {
             }
             if let first = TabBarEntry.ordered(model: model, stored: tabBarOrder).first {
                 SettingsLinkRow(title: "Sidebar", symbol: "sidebar.left", value: "\(first.title) first",
-                                help: "The order of your libraries and Live TV in the sidebar, between Home and Search.") {
+                                help: "The order of your libraries and Live TV in the sidebar, between Home and Discover.") {
                     TabBarSettingsView()
                 }
             }

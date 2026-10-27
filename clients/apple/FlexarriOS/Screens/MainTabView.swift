@@ -106,6 +106,9 @@ struct TabStack<Content: View>: View {
             PodcastBrowseView()
         case .liveTv:
             LiveTvView()
+        case .external, .genre:
+            // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
+            EmptyView()
         }
     }
 }

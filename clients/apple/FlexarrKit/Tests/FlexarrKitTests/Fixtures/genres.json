@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Drama",
+    "movies": 390,
+    "shows": 176,
+    "backdrop": "/api/v1/images/items/01a16bea-cd18-7449-90fb-3479e15406c8/backdrop?v=63928537371"
+  },
+  {
+    "name": "Comedy",
+    "movies": 303,
+    "shows": 143,
+    "backdrop": "/api/v1/images/items/01a16bea-f07f-7828-bc0e-0b61fd485fa9/backdrop?v=63928537379"
+  },
+  {
+    "name": "Thriller",
+    "movies": 310,
+    "shows": 75,
+    "backdrop": "/api/v1/images/items/01a16bea-e66d-714a-a332-a0bff336350f/backdrop?v=63928537375"
+  }
+]

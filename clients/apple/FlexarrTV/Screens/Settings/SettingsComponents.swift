@@ -123,6 +123,8 @@ enum SettingAccessory {
 struct SettingsRow: View {
     let title: String
     var symbol: String?
+    /// Their picture (or initial) in the symbol's place, for a row about a profile.
+    var profile: Profile?
     var value: String?
     var help: String?
     var accessory: SettingAccessory = .none
@@ -135,7 +137,9 @@ struct SettingsRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 22) {
-                if let symbol {
+                if let profile {
+                    ProfileAvatar(profile: profile, size: SettingsAvatar.size)
+                } else if let symbol {
                     Image(systemName: symbol)
                         .font(.system(size: 26, weight: .semibold))
                         .frame(width: 40)
@@ -263,14 +267,21 @@ struct SettingsRowStyle: ButtonStyle {
 struct SettingsFact: View {
     let label: String
     let value: String
+    /// Their picture (or initial) before the label, for a fact about a profile.
+    var profile: Profile?
 
-    init(_ label: String, _ value: String) {
+    init(_ label: String, _ value: String, profile: Profile? = nil) {
         self.label = label
         self.value = value
+        self.profile = profile
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 30) {
+        HStack(alignment: profile == nil ? .firstTextBaseline : .center, spacing: 30) {
+            if let profile {
+                ProfileAvatar(profile: profile, size: SettingsAvatar.size)
+                    .padding(.trailing, -8)
+            }
             Text(label)
                 .foregroundStyle(Color.usher)
             Spacer(minLength: 30)
@@ -283,4 +294,9 @@ struct SettingsFact: View {
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, minHeight: 74, alignment: .leading)
     }
+}
+
+/// A profile's picture on a row: a little larger than a symbol, still within the row's height.
+enum SettingsAvatar {
+    static let size: CGFloat = 52
 }

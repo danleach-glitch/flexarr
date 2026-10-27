@@ -1,0 +1,74 @@
+{
+  "tmdbId": 1384216,
+  "mediaType": "movie",
+  "title": "The Dog Stars",
+  "tagline": "At the end of the world, no one survives alone.",
+  "year": 2026,
+  "overview": "After the world's population has been ravaged by a pandemic, a man lives a lonesome existence in a Colorado airplane hangar with his dog and a dour gunman he has befriended. When a mysterious transmission comes through on the radio while he’s flying his old Cessna, it sparks a hunt for the provenance of the sound.",
+  "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F5O616X9vmRzQdB68PHzBewPittd.jpg&s=873f11b250ebcab6387c1ab985d72b74",
+  "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FjoVtII9prX3MC4a2LfoKsiMWET3.jpg&s=c213a8406c5d7a9685b0bed82e3c88db",
+  "genres": [
+    "Drama",
+    "Thriller",
+    "Adventure",
+    "Science Fiction"
+  ],
+  "runtimeMinutes": 119,
+  "seasons": null,
+  "certification": "R",
+  "status": "Released",
+  "tmdbRating": 6.6,
+  "criticScore": 41,
+  "audienceScore": 69,
+  "imdbRating": 6.4,
+  "trailerYouTubeId": "-xSxaE1ClEE",
+  "cast": [
+    {
+      "name": "Jacob Elordi",
+      "character": "Hig",
+      "image": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F9FGS8AGjVNtpWuUeoipYWR23sRZ.jpg&s=e9044c04e9d1f3bf2dd71b0d279b050e"
+    },
+    {
+      "name": "Josh Brolin",
+      "character": "Bangley",
+      "image": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F7QpneI3HoZCCDVPyWx3p3t7yeo7.jpg&s=513bec3a6f190cd7e84d7056e2d88481"
+    },
+    {
+      "name": "Margaret Qualley",
+      "character": "Cima",
+      "image": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F4LeaweyyTXCNs9V5swAuU4gGgZC.jpg&s=e6c3571fc822a5ca521711cf2ecd7f17"
+    }
+  ],
+  "madeBy": [
+    "Ridley Scott"
+  ],
+  "studio": "20th Century Studios",
+  "availability": "None",
+  "libraryItemId": null,
+  "recommendations": [
+    {
+      "tmdbId": 726209,
+      "mediaType": "movie",
+      "title": "Leave the World Behind",
+      "year": 2023,
+      "overview": "A family's getaway to a luxurious rental home takes an ominous turn when a cyberattack knocks out their devices—and two strangers appear at their door.",
+      "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F29rhl1xopxA7JlGVVsf1UHfYPvN.jpg&s=5395a50d22bf1df901b226b68017e51b",
+      "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F5cRw2QHQz5bp7W2KLdSpZoFoTTw.jpg&s=d283a191ae6781d00b277e52874164f6",
+      "rating": 6.4,
+      "availability": "None",
+      "libraryItemId": null
+    },
+    {
+      "tmdbId": 6479,
+      "mediaType": "movie",
+      "title": "I Am Legend",
+      "year": 2007,
+      "overview": "Robert Neville is a scientist who was unable to stop the spread of the terrible virus that was incurable and man-made. Immune, Neville is now the last human survivor in what is left of New York City and perhaps the world. For three years, Neville has faithfully sent out daily radio messages, desperate to find any other survivors who might be out there. But he is not alone.",
+      "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Ffhbiz5BsGUVEZmzPP72SoPlbMz0.jpg&s=5c99d6e5f7a93f858ab1691f6a102c31",
+      "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FePgD1cwmklyrFBjl6z96IuixuSY.jpg&s=fd54f0365f97b5acae6d796f2c574365",
+      "rating": 7.2,
+      "availability": "None",
+      "libraryItemId": null
+    }
+  ]
+}

@@ -12,7 +12,7 @@ struct TabBarSettingsView: View {
     private var entries: [TabBarEntry] { TabBarEntry.ordered(model: model, stored: stored) }
 
     var body: some View {
-        SettingsPage(title: "Sidebar", summary: "Home is always first, and Search and Settings last.") {
+        SettingsPage(title: "Sidebar", summary: "Home is always first, and Discover, Search and Settings last.") {
             SettingsGroupLabel("Between Home and Search")
             ForEach(entries) { entry in
                 SettingsRow(title: entry.title, symbol: entry.symbol, value: moving == entry.id ? "Move up or down" : nil,
