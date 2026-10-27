@@ -46,7 +46,3 @@ xcuserdata/
 
 # Vercel project link for the landing page (site/)
 .vercel/
-
-# Python (the Home Assistant integration)
-__pycache__/
-.venv/
