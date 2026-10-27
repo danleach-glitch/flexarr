@@ -377,6 +377,19 @@ describe('Settings', () => {
     expect(screen.getByRole('link', { name: 'Manage the server' })).toBeInTheDocument()
   })
 
+  it('doesn’t call a new server’s main profile “Main profile’s profile”', async () => {
+    mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [{ id: 'owner', name: 'Main profile', isMain: true, hasPin: false, isCurrent: true }],
+    })
+
+    renderAt('/settings/playback')
+
+    expect(await screen.findByRole('heading', { name: 'Main profile' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Main profile’s profile' })).not.toBeInTheDocument()
+  })
+
   it('saves Home’s rows in the order they’re dragged into', async () => {
     let saved: { home: { id: string }[] } | undefined
     const row = (id: string) => ({ id, label: id, enabled: true })
