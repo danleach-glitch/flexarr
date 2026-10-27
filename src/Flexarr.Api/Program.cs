@@ -6,6 +6,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Devices;
 using Flexarr.Api.Downloads;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Events;
 using Flexarr.Api.Import;
 using Flexarr.Api.LiveTv;
 using Flexarr.Api.Mcp;
@@ -137,6 +138,9 @@ builder.Services.AddSingleton<DeviceCommands>();
 builder.Services.AddHttpClient<PushRelay>(c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddScoped<Notifier>();
 builder.Services.AddHostedService<NotificationWorker>();
+// What's playing where, as it changes, for Home Assistant: GET /api/v1/events.
+builder.Services.AddSingleton<PlaybackEvents>();
+builder.Services.AddHostedService<PlaybackEventPublisher>();
 // An AI assistant's way in (Claude and the like): the same sign-in as a script, at /api/v1/mcp.
 builder.Services.AddMcpServer(o =>
 {
@@ -319,6 +323,7 @@ app.MapGroup("/api/v1")
     .MapRemoteAccessEndpoints()
     .MapDeviceEndpoints()
     .MapNotificationEndpoints()
+    .MapEventEndpoints()
     .MapSessionEndpoints();
 
 app.MapMcp("/api/v1/mcp").RequireAuthorization();

@@ -14,7 +14,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 - **Music:** queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums
 - **Podcasts:** Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple)
 - **Apple apps:** Apple TV, iPhone and iPad with Flexarr's own player, profiles, Top Shelf, downloads, Picture in Picture and AirPlay
-- **Control:** Siri and Shortcuts (play, shuffle, on another device), play on another device, an MCP server for assistants
+- **Control:** Siri and Shortcuts (play, shuffle, on another device), play on another device, an MCP server for assistants, Home Assistant (media players and playback triggers)
 - **Profiles and access:** per-person history and settings, PINs, a sign-in per device, Bonjour and code pairing, Tailscale with automatic fallback
 
 ## Next
@@ -52,5 +52,5 @@ In order. Small items first, so each stage ships something.
 Open for discussion, not yet scheduled:
 
 - **Watching:** watching together [#20](https://github.com/danleach-glitch/flexarr/discussions/20), a "Tonight" picker [#21](https://github.com/danleach-glitch/flexarr/discussions/21), dialogue boost and night mode [#23](https://github.com/danleach-glitch/flexarr/discussions/23), search inside what people say [#24](https://github.com/danleach-glitch/flexarr/discussions/24), skipping more than intros [#25](https://github.com/danleach-glitch/flexarr/discussions/25), getting films ready for a trip [#26](https://github.com/danleach-glitch/flexarr/discussions/26), notifications for new episodes [#27](https://github.com/danleach-glitch/flexarr/discussions/27), your year in review [#29](https://github.com/danleach-glitch/flexarr/discussions/29)
-- **Library:** a storage manager with Sonarr and Radarr [#22](https://github.com/danleach-glitch/flexarr/discussions/22), Home Assistant control [#28](https://github.com/danleach-glitch/flexarr/discussions/28)
+- **Library:** a storage manager with Sonarr and Radarr [#22](https://github.com/danleach-glitch/flexarr/discussions/22)
 - **Podcasts and music:** chapters [#30](https://github.com/danleach-glitch/flexarr/discussions/30), skipping intros and outros [#31](https://github.com/danleach-glitch/flexarr/discussions/31), transcripts [#32](https://github.com/danleach-glitch/flexarr/discussions/32), voice boost and silence trimming [#33](https://github.com/danleach-glitch/flexarr/discussions/33), AirPlay from the web [#34](https://github.com/danleach-glitch/flexarr/discussions/34), podcasts on Apple TV [#35](https://github.com/danleach-glitch/flexarr/discussions/35)

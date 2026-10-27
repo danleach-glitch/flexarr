@@ -1,5 +1,6 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Events;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
@@ -264,13 +265,15 @@ public static class PlaybackEndpoints
             return File.Exists(path) ? Results.File(path, "image/jpeg") : Results.NotFound();
         });
 
-        group.MapPost("/progress", async (string sid, ProgressRequest progress, PlaybackSessions sessions, PlaybackService playback, CancellationToken ct) =>
+        group.MapPost("/progress", async (string sid, ProgressRequest progress, PlaybackSessions sessions, PlaybackService playback, PlaybackEvents events,
+            CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
                 return Results.NotFound();
             }
 
+            events.Observe(session, progress);
             session.LastPosition = progress.PositionSeconds;
             session.Paused = progress.Paused;
             await playback.ReportProgressAsync(session, progress, ct);
