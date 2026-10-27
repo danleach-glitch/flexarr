@@ -603,6 +603,10 @@ enum Route: Hashable {
     case podcastBrowse
     /// The channels and what's on them (iPhone and iPad; the Apple TV has a tab).
     case liveTv
+    /// A film or show from outside the library, found on Discover (Apple TV).
+    case external(ExternalTitle)
+    /// What the library has in a genre (Apple TV's Discover).
+    case genre(String)
 }
 
 /// One navigation stack per tab.

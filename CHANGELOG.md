@@ -2,6 +2,18 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Discover (Apple TV)
+- Discover is in the sidebar, above Search, as on the web. It shows what's trending, popular films and shows, and what's coming to cinemas, each marked if it's in your library or already requested.
+- Open a title you don't have to see its ratings (TMDB, IMDb, Rotten Tomatoes), cast, director or creator, and more like it, and press Request to ask Seerr for it. One you already have opens as itself.
+- Search, at the top of Discover next to Browse, opens straight to the keyboard and finds any film or show, not just what's in your library, so you can request it. Menu comes back to Discover.
+- Your library by genre, five across: pick one to see everything in it, best rated first, and narrow it to films or shows.
+- Without Seerr connected, Discover shows your library by genre, and says where to connect Seerr to request new titles.
+
+### Settings (Apple TV)
+- Watching as shows your profile picture next to your name.
+
 ## 0.42.0 · 27 October 2026
 
 ### Rename libraries

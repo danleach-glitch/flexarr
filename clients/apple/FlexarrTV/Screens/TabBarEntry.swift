@@ -1,8 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-/// A tab between Home and Search: a library, or Live TV once the server has it set up (Settings › Connections on
-/// the web). Their order is chosen in Settings › Sidebar and kept on this Apple TV; Home, Search and Settings stay put.
+/// A tab between Home and Discover: a library, or Live TV once the server has it set up (Settings › Connections on
+/// the web). Their order is chosen in Settings › Sidebar and kept on this Apple TV; Home, Discover, Search and
+/// Settings stay put.
 enum TabBarEntry: Identifiable, Hashable {
     case library(Library)
     case liveTv

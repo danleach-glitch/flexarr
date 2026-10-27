@@ -1,0 +1,170 @@
+[
+  {
+    "id": "trending",
+    "title": "Trending this week",
+    "items": [
+      {
+        "tmdbId": 1384216,
+        "mediaType": "movie",
+        "title": "The Dog Stars",
+        "year": 2026,
+        "overview": "After the world's population has been ravaged by a pandemic, a man lives a lonesome existence in a Colorado airplane hangar with his dog and a dour gunman he has befriended. When a mysterious transmission comes through on the radio while he’s flying his old Cessna, it sparks a hunt for the provenance of the sound.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F5O616X9vmRzQdB68PHzBewPittd.jpg&s=873f11b250ebcab6387c1ab985d72b74",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FjoVtII9prX3MC4a2LfoKsiMWET3.jpg&s=c213a8406c5d7a9685b0bed82e3c88db",
+        "rating": 6.6,
+        "availability": "None",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 1400940,
+        "mediaType": "movie",
+        "title": "Clayface",
+        "year": 2026,
+        "overview": "Matt Hagen's meteoric rise from Gotham street kid to Hollywood leading man is tragically cut short when a local crime boss's actions leave him horribly disfigured. Abandoned by his team and with nothing left, Matt seeks out a cutting edge treatment that miraculously returns him to his former self… but also unexpectedly affects his grip on reality, spiraling him down a destructive path of all-consuming revenge.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F9l1NuFjel2j89hiuiJbsxfblqjy.jpg&s=02c3dc964001ffa03466e2eeb0a934e5",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FuL4cIrNi2uaUnWIOQQ28EVnkETG.jpg&s=da209c072a4b764b4e68374b158f6fcf",
+        "rating": 7.5,
+        "availability": "None",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 96677,
+        "mediaType": "tv",
+        "title": "Lupin",
+        "year": 2021,
+        "overview": "Inspired by the adventures of Arsène Lupin, gentleman thief Assane Diop sets out to avenge his father for an injustice inflicted by a wealthy family.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fh6Z2oogE4mJk2uffdtIlLhb0EHx.jpg&s=2c4240c953ba471d2d2e8fb42c357dd7",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FaY7zv2pfk9H0QxaaL3PBjvalbKQ.jpg&s=a4847bec339d6a5478b502a5d7e768e6",
+        "rating": 7.7,
+        "availability": "Available",
+        "libraryItemId": "01a16bec-4729-7ea1-94bb-fba603095d9a"
+      }
+    ]
+  },
+  {
+    "id": "movies",
+    "title": "Popular films",
+    "items": [
+      {
+        "tmdbId": 969681,
+        "mediaType": "movie",
+        "title": "Spider-Man: Brand New Day",
+        "year": 2026,
+        "overview": "Fighting crime full-time as Spider-Man in a world that doesn't remember him—and the pressure of seeing his old friends move on without him—sparks a change in Peter Parker he may not have the power to control. But that transformation might also be the only thing that can stop a shocking new threat to the city and those he loves - a powerful villain no one can even see.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FbjiS5ipwxb9JFy3XRRN4OAilSeX.jpg&s=32b8d0c42cfb3973f4868704ad9b55b4",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fr08LxMJCbf1SiJIWeyH9aJmdqwC.jpg&s=41a5f2347fbb34e78ba75eb2207d8beb",
+        "rating": 8.5,
+        "availability": "Requested",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 687163,
+        "mediaType": "movie",
+        "title": "Project Hail Mary",
+        "year": 2026,
+        "overview": "Science teacher Ryland Grace wakes up on a spaceship light years from home with no recollection of who he is or how he got there. As his memory returns, he begins to uncover his mission: solve the riddle of the mysterious substance causing the sun to die out. He must call on his scientific knowledge and unorthodox ideas to save everything on Earth from extinction.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FiOb2fjXLbpJgyQXe46n1WtGCnaa.jpg&s=c13e30e05238c42ff45ae4bc441c2cfe",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2F8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg&s=0e8cb223a15bd6bbfeb63b536f80b3e4",
+        "rating": 8.6,
+        "availability": "Available",
+        "libraryItemId": "01a16bea-1112-7018-a75f-423fae706681"
+      },
+      {
+        "tmdbId": 1003596,
+        "mediaType": "movie",
+        "title": "Avengers: Doomsday",
+        "year": 2026,
+        "overview": "Beloved heroes from three distinct universes are set on a deadly collision course and face an existential threat unlike anything they've ever encountered.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FsLYCyO58UvBuBtbHTQjPCCgJ4dG.jpg&s=f82b94e36ef7688bcf61aa411c93d78b",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fg3gpP5YDbA85DsA0bt5mgGQIe5q.jpg&s=f36be53552df7d093aa43ee879a06e11",
+        "rating": 0,
+        "availability": "Requested",
+        "libraryItemId": null
+      }
+    ]
+  },
+  {
+    "id": "tv",
+    "title": "Popular shows",
+    "items": [
+      {
+        "tmdbId": 1416,
+        "mediaType": "tv",
+        "title": "Grey's Anatomy",
+        "year": 2005,
+        "overview": "Follows the personal and professional lives of a group of doctors at Seattle's Grey Sloan Memorial Hospital.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FgO8Fo47KV1opiutRDdBS5jclTQB.jpg&s=79cab1c9c53577d2bd159dcfdee4f9b7",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FA4NwkQXTXElE5iAsne5RpvS8R2Z.jpg&s=d53399ab043792a29f435280a84c2908",
+        "rating": 8.2,
+        "availability": "None",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 1411,
+        "mediaType": "tv",
+        "title": "Person of Interest",
+        "year": 2011,
+        "overview": "John Reese, former CIA paramilitary operative, is presumed dead and teams up with reclusive billionaire Finch to prevent violent crimes in New York City by initiating their own type of justice. With the special training that Reese has had in Covert Operations and Finch's genius software inventing mind, the two are a perfect match for the job that they have to complete. With the help of surveillance equipment, they work \"outside the law\" and get the right criminal behind bars. ",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Ff8aIvYk5h7Z8EP3dinCmVgQFYow.jpg&s=971c6964ad90748118b4e2814ceb4286",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FefeMgQn6iRALsOqDa2cqlf6Pw5O.jpg&s=284141d0498ac83b6ae5066288089b8f",
+        "rating": 8.1,
+        "availability": "None",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 83631,
+        "mediaType": "tv",
+        "title": "What We Do in the Shadows",
+        "year": 2019,
+        "overview": "A documentary-style look into the daily (or rather, nightly) lives of a group of vampires in Staten Island who have “lived” together for hundreds and hundreds of years.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fwa3ZQE9kLnqwN3vQ0NNjg1NPsCa.jpg&s=792926cbf1ef530c950814c7d5002931",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FmKikck71CvVISUSTLk29fwRbH4y.jpg&s=57c264e741e22d19a7a583b7f87f1dab",
+        "rating": 8,
+        "availability": "Available",
+        "libraryItemId": "01a16bee-8651-7db2-9448-ae7f0e9ca15f"
+      }
+    ]
+  },
+  {
+    "id": "upcoming",
+    "title": "Coming to cinemas",
+    "items": [
+      {
+        "tmdbId": 1003596,
+        "mediaType": "movie",
+        "title": "Avengers: Doomsday",
+        "year": 2026,
+        "overview": "Beloved heroes from three distinct universes are set on a deadly collision course and face an existential threat unlike anything they've ever encountered.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FsLYCyO58UvBuBtbHTQjPCCgJ4dG.jpg&s=f82b94e36ef7688bcf61aa411c93d78b",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fg3gpP5YDbA85DsA0bt5mgGQIe5q.jpg&s=f36be53552df7d093aa43ee879a06e11",
+        "rating": 0,
+        "availability": "Requested",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 1294189,
+        "mediaType": "movie",
+        "title": "The Mongoose",
+        "year": 2026,
+        "overview": "A falsely accused war hero with nothing to lose leads police on an epic televised cross-country car chase, helped by members of his former Special Forces Army battalion and closely monitored by a fascinated public rooting for his safe getaway.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FeSS5mvSG84UUuvtbHel5Yu3Wik4.jpg&s=371144b7e4864237499eb18825467325",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2FiRIhPqqoUHiFBxn8oYf3gCQnaKk.jpg&s=eeb7a8994930dbe4942f54aeae69a23b",
+        "rating": 8.6,
+        "availability": "None",
+        "libraryItemId": null
+      },
+      {
+        "tmdbId": 1170608,
+        "mediaType": "movie",
+        "title": "Dune: Part Three",
+        "year": 2026,
+        "overview": "Nearly two decades after he seized control of the Imperium, Paul Atreides is now a ruthless Emperor, and must face the consequences of his reign as old allies return, terrifying new threats emerge, and betrayal lurks in every shadow. Haunted by visions of Imperial collapse and the reappearance of his long-lost love, Paul is drawn into a sweeping conspiracy, with Chani at the heart of its unfolding mystery. As enemies close in, Paul must confront the true cost of power and the fate of those he loves the most.",
+        "poster": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fd43fvHQsIMa4kpyhKXw0haEJIvI.jpg&s=100929d8bc5c4d2b9af1169998691fad",
+        "backdrop": "/api/v1/images/remote?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Foriginal%2Fi5E9H7Ik0u61ylDDTbmUpTL3Yw.jpg&s=e0b97e5ba59194fb935655aa147b46a3",
+        "rating": 0,
+        "availability": "None",
+        "libraryItemId": null
+      }
+    ]
+  }
+]

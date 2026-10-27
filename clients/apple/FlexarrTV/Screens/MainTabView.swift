@@ -6,6 +6,7 @@ enum TabID: Hashable {
     case home
     case library(String)
     case liveTv
+    case discover
     case search
     case settings
     /// Who's watching: selecting it opens "Who's watching?" rather than a screen of its own.
@@ -14,7 +15,7 @@ enum TabID: Hashable {
     case nowPlaying
 }
 
-/// tvOS sidebar: who's watching (with several profiles), Home, the libraries and Live TV, then Search and Settings.
+/// tvOS sidebar: who's watching (with several profiles), Home, the libraries and Live TV, then Discover, Search and Settings.
 /// A sidebar rather than tabs along the top, which run out of room with more than a few libraries.
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
@@ -79,9 +80,14 @@ struct MainTabView: View {
                     }
                 }
             }
-            // Search and Settings after the libraries. In a section of their own, since the sidebar puts tabs outside
-            // a section above them.
+            // Discover, Search and Settings after the libraries. In a section of their own, since the sidebar puts tabs
+            // outside a section above them.
             TabSection {
+                Tab(value: TabID.discover) {
+                    TabStack { DiscoverView() }
+                } label: {
+                    Label("Discover", systemImage: "sparkles")
+                }
                 Tab(value: TabID.search, role: .search) {
                     TabStack { SearchView() }
                 } label: {
@@ -309,6 +315,10 @@ struct TabStack<Content: View>: View {
         case .podcasts, .podcastBrowse:
             // Podcasts are on iPhone, iPad and the web; nothing on the Apple TV goes here.
             EmptyView()
+        case .external(let title):
+            ExternalTitleView(preview: title)
+        case .genre(let name):
+            GenreView(name: name)
         }
     }
 }

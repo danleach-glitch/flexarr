@@ -54,23 +54,38 @@ struct LibraryViewSwitch: View {
     @Binding var view: LibraryOpening
     /// Told when focus comes to the switch and leaves it.
     var focusChanged: (Bool) -> Void = { _ in }
-    @Environment(\.focusesViewSwitch) private var takesFocus
-    @Environment(\.focusesContent) private var passesFocus
-    @FocusState private var focused: LibraryOpening?
-    @State private var appearedAt = Date.distantPast
 
     /// From the top of the screen: under the collapsed sidebar's label ("‹ Movies"), about where the tab bar was.
     static let topInset: CGFloat = 150
 
     var body: some View {
+        ViewSwitch(choices: [(.browse, "Browse"), (.all, library.type == .tvShows ? "All shows" : "All films")], selection: $view,
+                   focusChanged: focusChanged)
+    }
+}
+
+/// Two or three views of a screen as quiet words at its top-left: a library's Browse and All, Discover's Browse and
+/// Search.
+struct ViewSwitch<Choice: Hashable>: View {
+    let choices: [(Choice, String)]
+    @Binding var selection: Choice
+    /// Told when focus comes to the switch and leaves it.
+    var focusChanged: (Bool) -> Void = { _ in }
+    @Environment(\.focusesViewSwitch) private var takesFocus
+    @Environment(\.focusesContent) private var passesFocus
+    @FocusState private var focused: Choice?
+    @State private var appearedAt = Date.distantPast
+
+    var body: some View {
         HStack(spacing: 6) {
-            option(.browse, "Browse")
-            option(.all, library.type == .tvShows ? "All shows" : "All films")
+            ForEach(choices.indices, id: \.self) { index in
+                option(choices[index].0, choices[index].1)
+            }
         }
         // Words line up with the edge below them; the padding is for the capsule focus puts behind them.
         .padding(.leading, -22)
         // Coming into the switch lands on the view shown.
-        .defaultFocus($focused, view)
+        .defaultFocus($focused, selection)
         .onChange(of: focused) { old, now in
             focusChanged(now != nil)
             // Selecting the library in the sidebar gives focus to whatever is at the top-left, which is this switch;
@@ -82,14 +97,14 @@ struct LibraryViewSwitch: View {
             // The view chosen replaces the one whose switch had focus, which would otherwise go to the first word.
             guard takesFocus.wrappedValue else { appearedAt = .now; return }
             takesFocus.wrappedValue = false
-            focused = view
+            focused = selection
         }
     }
 
-    private func option(_ opening: LibraryOpening, _ title: String) -> some View {
-        Button(title) { view = opening }
-            .buttonStyle(ViewSwitchStyle(selected: view == opening))
-            .focused($focused, equals: opening)
+    private func option(_ choice: Choice, _ title: String) -> some View {
+        Button(title) { selection = choice }
+            .buttonStyle(ViewSwitchStyle(selected: selection == choice))
+            .focused($focused, equals: choice)
     }
 }
 
