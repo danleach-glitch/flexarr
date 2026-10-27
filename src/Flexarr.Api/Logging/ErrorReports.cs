@@ -91,7 +91,11 @@ public sealed partial class ErrorReports : ILogEventSink, IDisposable
     {
         o.Dsn = _dsn;
         o.Release = $"flexarr-server@{Version}";
+#if DEBUG
+        o.Environment = "development"; // dotnet run / watch, apart from published releases
+#else
         o.Environment = "production";
+#endif
         o.SendDefaultPii = false;
         o.ServerName = "";
         o.AutoSessionTracking = false;

@@ -1,4 +1,4 @@
-.PHONY: apple-install ios-install ios-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: apple-install ios-install ios-upload ios-dsyms setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -86,6 +86,14 @@ ios-upload: ## Archive the iOS app and upload it to App Store Connect
 		'</dict></plist>' > build/apple/ExportOptions.plist
 	xcodebuild -exportArchive -archivePath build/apple/FlexarriOS.xcarchive -exportOptionsPlist build/apple/ExportOptions.plist \
 		-exportPath build/apple/export -allowProvisioningUpdates $(ASC_AUTH)
+	@$(MAKE) --no-print-directory ios-dsyms
+
+# Debug symbols to Sentry, so crash and hang reports from that build show function names. Needs SENTRY_AUTH_TOKEN (an
+# organization token for dan-leach with project:releases); without one it's skipped, so forks can still upload.
+SENTRY_CLI = npx --yes @sentry/cli@3.8.2
+ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
+	@if [ -z "$$SENTRY_AUTH_TOKEN" ]; then echo "SENTRY_AUTH_TOKEN not set: skipping the dSYM upload to Sentry"; exit 0; fi; \
+	$(SENTRY_CLI) debug-files upload --org dan-leach --project flexarr-apple --include-sources build/apple/FlexarriOS.xcarchive/dSYMs
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
