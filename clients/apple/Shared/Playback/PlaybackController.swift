@@ -34,6 +34,9 @@ final class PlaybackController: NSObject {
     @ObservationIgnored var onSessionEnded: (() -> Void)?
     /// Called as a title is asked for, before its screen comes up (so music can give way).
     @ObservationIgnored var onWillStart: (() -> Void)?
+    /// Called when something is watched into its credits; `closing` when the player is going away with it, rather
+    /// than moving on to the next episode.
+    @ObservationIgnored var onWatchedToEnd: ((_ closing: Bool) -> Void)?
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
 
@@ -683,6 +686,7 @@ final class PlaybackController: NSObject {
         isAdvancing = true
         endFinishing()
         report(paused: false, ended: leavingTrail && isPastCredits(current))
+        if recordsHistory, isPastCredits(current) { onWatchedToEnd?(false) }
         let finished = current.sessionId
         Task {
             defer { isAdvancing = false }
@@ -741,6 +745,7 @@ final class PlaybackController: NSObject {
 
     /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
+        let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
         if let info, info.isOffline {
             if recording, recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: isPastCredits(info)) }
         } else if let info, let client {
@@ -766,6 +771,7 @@ final class PlaybackController: NSObject {
         countdownTask = nil
         dropPrepared()
         if client != nil { onSessionEnded?() }
+        if watchedToEnd { onWatchedToEnd?(true) }
     }
 
     private func dismissPlayer(then completion: (() -> Void)? = nil) {

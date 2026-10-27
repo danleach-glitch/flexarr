@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### iPhone
+- After you've finished a few films or episodes on more than one day, the iPhone app may ask whether you're enjoying Flexarr, using Apple's own star-rating box. It asks at most once a version, never during playback, and iOS limits it to three times a year.
+- **Settings › Rate Flexarr** opens the App Store so you can rate or review Flexarr whenever you like.
+
 ## 0.47.1 · 27 October 2026
 
 ### Logs
