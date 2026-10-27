@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logs and diagnostics · Flexarr guide</title>
+  <meta name="description" content="Read Flexarr&#39;s log, turn up the detail for one area, follow a single playback, collect diagnostics from the apps, and choose whether to send error reports.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/logs-and-diagnostics">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Logs and diagnostics · Flexarr guide">
+  <meta property="og:description" content="Read Flexarr&#39;s log, turn up the detail for one area, follow a single playback, collect diagnostics from the apps, and choose whether to send error reports.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/logs-and-diagnostics">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics" aria-current="page">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
+        <h1>Logs and diagnostics</h1>
+        <p class="lede">Read Flexarr&#39;s log, turn up the detail for one area, follow a single playback, collect diagnostics from the apps, and choose whether to send error reports.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#reading-the-log">Reading the log</a></li>
+            <li><a href="#following-one-playback">Following one playback</a></li>
+            <li><a href="#turning-up-the-detail">Turning up the detail</a></li>
+            <li><a href="#what-the-apps-send">What the apps send</a></li>
+            <li><a href="#download-diagnostics">Download diagnostics</a></li>
+            <li><a href="#what-s-taken-out">What&#39;s taken out</a></li>
+            <li><a href="#how-long-logs-are-kept">How long logs are kept</a></li>
+            <li><a href="#error-reports">Error reports</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr keeps a log of what the server and its apps do. When a film won&#39;t play, a scan stalls or Sonarr can&#39;t be reached, the log usually says why. It stays on your server: nothing in it is sent anywhere unless you download it and attach it to a bug report yourself.</p>
+<h2 id="reading-the-log"><a class="anchor" href="#reading-the-log" aria-hidden="true" tabindex="-1">#</a>Reading the log</h2>
+<p>Open <strong>Settings › Server › Logs</strong> in the web app, as the main profile. The newest entries are at the top. Select an entry to see its details.</p>
+<p>To narrow it down:</p>
+<ul>
+<li><strong>Minimum level</strong>: show only warnings and errors, say, or everything down to Debug.</li>
+<li><strong>Area</strong>: one part of Flexarr, such as Playback or Library scans, or <strong>All areas</strong>.</li>
+<li><strong>Search</strong>: any text in the entry.</li>
+<li><strong>Live</strong>: turn it on to watch new entries arrive as they happen. It&#39;s handy while you reproduce a problem.</li>
+</ul>
+<p><strong>Load older</strong> at the bottom goes further back.</p>
+<!-- screenshot: Settings › Server › Logs with the level, area and search filters, Live switched on, and one entry opened showing its details -->
+
+<h2 id="following-one-playback"><a class="anchor" href="#following-one-playback" aria-hidden="true" tabindex="-1">#</a>Following one playback</h2>
+<p>Every time something starts playing it gets a short id, such as <code>3f9a1c07</code>. The server&#39;s lines about that playback show it as <code>#3f9a1c07</code>, and the Apple TV, iPhone and iPad apps attach the same id to what they report. Open an entry and select its <code>playbackId</code> to see only that playback: the whole story, from the server and the device, from start to finish.</p>
+<h2 id="turning-up-the-detail"><a class="anchor" href="#turning-up-the-detail" aria-hidden="true" tabindex="-1">#</a>Turning up the detail</h2>
+<p>Under <strong>Levels</strong>, the <strong>Default level</strong> applies to the whole server. Each area can be set to log more (<strong>Debug</strong>) or less (<strong>Warning</strong>) than that. Changes apply straight away, with no restart.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>General</td>
+<td>Everything not below, including startup</td>
+</tr>
+<tr>
+<td>Playback</td>
+<td>Direct play, transcoding, ffmpeg, downloads to phones</td>
+</tr>
+<tr>
+<td>Library scans</td>
+<td>Scanning, reading files, imports</td>
+</tr>
+<tr>
+<td>Sonarr, Radarr and Seerr</td>
+<td>Calls to the *arr apps and Seerr</td>
+</tr>
+<tr>
+<td>Metadata and artwork</td>
+<td>TVmaze, TMDB, artwork</td>
+</tr>
+<tr>
+<td>Live TV</td>
+<td>Dispatcharr channels, the guide, recordings</td>
+</tr>
+<tr>
+<td>Podcasts</td>
+<td>Feeds and episode downloads</td>
+</tr>
+<tr>
+<td>Notifications</td>
+<td>Push notifications</td>
+</tr>
+<tr>
+<td>Web requests</td>
+<td>One line per request. Failures show at Information; set Debug to see every request</td>
+</tr>
+<tr>
+<td>Apps and browsers</td>
+<td>What the Apple TV, iPhone, iPad and web app report</td>
+</tr>
+</tbody></table></div>
+<blockquote class="callout tip"><p><strong>Tip</strong> Chasing a problem? Set its area to Debug, make the problem happen again, then set the area back to Default so the log doesn&#39;t fill up.</p>
+</blockquote>
+<h2 id="what-the-apps-send"><a class="anchor" href="#what-the-apps-send" aria-hidden="true" tabindex="-1">#</a>What the apps send</h2>
+<ul>
+<li><strong>Automatically:</strong> warnings and errors from the Apple TV, iPhone and iPad apps, and errors from the web app. They appear under the <strong>Apps and browsers</strong> area, named after the device.</li>
+<li><strong>When you ask:</strong> <strong>Send diagnostics</strong> sends a device&#39;s recent log in full. On Apple TV, iPhone and iPad it&#39;s in the app&#39;s <strong>Settings › Server › Send diagnostics</strong>. Add a note saying what happened and roughly when, then send.</li>
+</ul>
+<p>Diagnostics go to your server and nowhere else. They&#39;re listed under <strong>Diagnostics from apps</strong> at the bottom of the Logs page, with the device, app version, profile and when they arrived, and a <strong>Download</strong> button for each.</p>
+<h2 id="download-diagnostics"><a class="anchor" href="#download-diagnostics" aria-hidden="true" tabindex="-1">#</a>Download diagnostics</h2>
+<p><strong>Download diagnostics</strong>, at the top of the Logs page, makes a zip to attach to a bug report. It holds:</p>
+<ul>
+<li>the server&#39;s logs</li>
+<li>diagnostics sent from the apps</li>
+<li>your settings, with every key and password blanked</li>
+<li>a description of the server: Flexarr version, operating system, ffmpeg, free space and library sizes</li>
+</ul>
+<h2 id="what-s-taken-out"><a class="anchor" href="#what-s-taken-out" aria-hidden="true" tabindex="-1">#</a>What&#39;s taken out</h2>
+<p>API keys, passwords, sign-in tokens and playback session ids are removed before anything is written: keys and passwords become <code>***</code>, and long tokens become a short <code>#id</code>. That&#39;s true of the server&#39;s log files, what the apps send and the diagnostics zip, so the zip is safe to attach to a public bug report.</p>
+<p>Titles and file names do appear in the log, because they&#39;re what you need to work out what went wrong. Look through the zip first if that matters to you.</p>
+<h2 id="how-long-logs-are-kept"><a class="anchor" href="#how-long-logs-are-kept" aria-hidden="true" tabindex="-1">#</a>How long logs are kept</h2>
+<p>Logs are kept for <strong>14 days</strong>, and the log folder is capped at <strong>100 MB</strong>, oldest files first. Change both under <strong>Retention</strong> on the Logs page: <strong>Keep for (days)</strong> and <strong>Largest size (MB)</strong>.</p>
+<p>The server starts a new file each day (<code>flexarr-20261027.log</code>, say), and another if one day&#39;s passes 10 MB. Each line is a JSON object, so other tools can read them.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Install</th>
+<th>Log folder</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mac</td>
+<td><code>~/.flexarr/logs</code></td>
+</tr>
+<tr>
+<td>Docker</td>
+<td><code>/config/logs</code> (and <code>docker logs flexarr</code>)</td>
+</tr>
+<tr>
+<td>Anywhere else</td>
+<td><code>logs</code> in Flexarr&#39;s data folder, or set <code>Flexarr__Logs__Directory</code></td>
+</tr>
+</tbody></table></div>
+<h2 id="error-reports"><a class="anchor" href="#error-reports" aria-hidden="true" tabindex="-1">#</a>Error reports</h2>
+<p>You can choose to send error reports to Flexarr&#39;s developer, so bugs get found and fixed sooner. <strong>It&#39;s off unless you turn it on.</strong></p>
+<p>The switch, <strong>Send error reports to Flexarr&#39;s developer</strong>, is at the top of the Logs page. A green dot means on and a red dot off. One switch covers the server and every Apple TV, iPhone, iPad and browser connected to it, and turning it off stops it everywhere at once. <strong>What&#39;s sent, and what never is</strong> opens the full list.</p>
+<p>Reports go to Sentry, an error-tracking service, which stores them in the EU and deletes them after at most 90 days.</p>
+<p><strong>What&#39;s sent</strong>, and only when something goes wrong:</p>
+<ul>
+<li>what went wrong and where in Flexarr&#39;s code (the error and its stack trace)</li>
+<li>the Flexarr version, the operating system and the device model</li>
+<li>a random id for your server, made when you turn reports on, so repeats from one server can be told apart; it isn&#39;t linked to you</li>
+</ul>
+<p><strong>What&#39;s never sent:</strong></p>
+<ul>
+<li>titles, file names or paths, or anything about your library</li>
+<li>what anyone watches, and your logs</li>
+<li>profile names and device names</li>
+<li>addresses: IP addresses, your server&#39;s address, network names</li>
+<li>keys, passwords and tokens</li>
+</ul>
+<p>Reports are cleaned on your server or device before they leave it. The server sends its message templates (&quot;Couldn&#39;t scan {Folder}&quot;) without the values filled in. The apps send only the type and code of an error, never its message. A further pass removes web addresses, file paths, file names, email and IP addresses, and anything in quotes. A report that can&#39;t be cleaned isn&#39;t sent.</p>
+<p>See also <a href="/guide/troubleshooting">Troubleshooting</a>, which starts most fixes from this page.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/backups"><span>Previous</span>Backups</a>
+          <a class="next" href="/guide/troubleshooting"><span>Next</span>Troubleshooting</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/logs-and-diagnostics.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Logs%20and%20diagnostics">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

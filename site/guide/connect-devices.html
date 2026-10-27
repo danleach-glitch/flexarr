@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connect your devices · Flexarr guide</title>
+  <meta name="description" content="Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/connect-devices">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Connect your devices · Flexarr guide">
+  <meta property="og:description" content="Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/connect-devices">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices" aria-current="page">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Connect your devices</h1>
+        <p class="lede">Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#iphone-and-ipad">iPhone and iPad</a></li>
+            <li><a href="#apple-tv">Apple TV</a></li>
+            <li><a href="#other-browsers">Other browsers</a></li>
+            <li><a href="#who-can-approve-a-device">Who can approve a device</a></li>
+            <li><a href="#if-the-app-can-t-find-your-server">If the app can&#39;t find your server</a></li>
+            <li><a href="#enter-an-address-instead">Enter an address instead</a></li>
+            <li><a href="#manage-and-remove-devices">Manage and remove devices</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Every device signs in to your server with a code. The device shows the code, and you type it in on the computer where you <a href="/guide/first-setup">set up Flexarr</a>. Each device then gets a sign-in of its own, which you can rename or sign out at any time.</p>
+<h2 id="iphone-and-ipad"><a class="anchor" href="#iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>iPhone and iPad</h2>
+<p>Get the app <a href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener">from the App Store</a>.</p>
+<p>The first time you open it, three short cards explain what Flexarr is, that it plays from your own Flexarr server at home, and how it finds that server on your Wi-Fi. If you haven&#39;t set up a server yet, <strong>Set up at flexarr.io</strong> brings you to this guide. If you have, choose <strong>Skip</strong>, or <strong>Next</strong> through to <strong>Find my server</strong>.</p>
+<ol>
+<li>When iOS asks whether Flexarr can find devices on your local network, choose <strong>Allow</strong>. Without it, the app can&#39;t see your server.</li>
+<li>Under <strong>Servers on your network</strong>, choose your server.</li>
+<li>The app shows <strong>Connect this iPhone</strong> (or iPad) with a code like <code>ABC-123</code>.</li>
+<li>On your computer, open the server&#39;s address in a browser, go to <strong>Settings › Access › Connect a device</strong>, type in the code and choose <strong>Continue</strong>.</li>
+<li>Check that the code matches the one on your phone, and choose <strong>Allow</strong>.</li>
+</ol>
+<p>The app moves on by itself a moment later. If your household has several profiles, it asks who&#39;s watching.</p>
+<p>If Safari on the same phone is already signed in to Flexarr, <strong>Approve in Safari instead</strong> opens the approval page there, so you don&#39;t need the computer.</p>
+<!-- screenshot: the iPhone's "Connect this iPhone" screen with its numbered steps and code -->
+
+<h2 id="apple-tv"><a class="anchor" href="#apple-tv" aria-hidden="true" tabindex="-1">#</a>Apple TV</h2>
+<p>The Apple TV app isn&#39;t on the App Store yet. Until it is, <a href="/guide/apple-tv-xcode">install it with Xcode</a>.</p>
+<ol>
+<li>Open Flexarr on the Apple TV. It lists <strong>Servers on your network</strong>; choose yours.</li>
+<li>The TV shows <strong>Connect this Apple TV</strong> and a code.</li>
+<li>On your computer, go to <strong>Settings › Access › Connect a device</strong>, type in the code, then choose <strong>Continue</strong> and <strong>Allow</strong>.</li>
+</ol>
+<p>The TV also shows a QR code. Scan it with a phone that&#39;s already signed in to Flexarr in its browser, and the approval page opens with the code filled in.</p>
+<blockquote class="callout note"><p><strong>Note</strong> If a code runs out before you&#39;ve typed it, choose <strong>New code</strong> on the device.</p>
+</blockquote>
+<h2 id="other-browsers"><a class="anchor" href="#other-browsers" aria-hidden="true" tabindex="-1">#</a>Other browsers</h2>
+<p>Browsers don&#39;t get a code. Open the server&#39;s address in the new browser and it asks for the <strong>API key</strong>: type it in once, and the browser gets a sign-in of its own, so it doesn&#39;t keep the key. The key is in <strong>Settings › Access</strong> on the browser you set up with (see <a href="/guide/first-setup#the-api-key">The API key</a>).</p>
+<p>Over <a href="/guide/away-from-home">Tailscale</a>, browsers sign in by your Tailscale account instead, with no key.</p>
+<h2 id="who-can-approve-a-device"><a class="anchor" href="#who-can-approve-a-device" aria-hidden="true" tabindex="-1">#</a>Who can approve a device</h2>
+<p>Only the <strong>main profile</strong> can connect devices. If the browser you&#39;re using is on another profile, the <strong>Connect a device</strong> page says so and offers <strong>Switch to the main profile</strong> (asking for its PIN, if it has one).</p>
+<p>When the approval page says the request <strong>didn&#39;t come from your home network</strong>, be careful: only allow it if your own device is showing that code and you started it a moment ago. If someone sent you a link to approve, choose <strong>Don&#39;t allow</strong>.</p>
+<h2 id="if-the-app-can-t-find-your-server"><a class="anchor" href="#if-the-app-can-t-find-your-server" aria-hidden="true" tabindex="-1">#</a>If the app can&#39;t find your server</h2>
+<p>The apps find the server by asking the network for it. When <strong>Looking for Flexarr…</strong> doesn&#39;t turn into your server, work through these.</p>
+<h3 id="same-wi-fi"><a class="anchor" href="#same-wi-fi" aria-hidden="true" tabindex="-1">#</a>Same Wi-Fi</h3>
+<p>The device and the server must be on the same network. Phones on mobile data, or on a <strong>guest network</strong>, can&#39;t see it. Many routers keep guest Wi-Fi apart from everything else on purpose, and some mesh systems and access points have a setting called <strong>client isolation</strong> or <strong>AP isolation</strong> that does the same on the main network. Connect to your main Wi-Fi, or turn isolation off.</p>
+<h3 id="local-network-permission-iphone-and-ipad"><a class="anchor" href="#local-network-permission-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>Local network permission (iPhone and iPad)</h3>
+<p>If you chose <strong>Don&#39;t Allow</strong> when iOS asked, the app can&#39;t look for servers. Open the iPhone&#39;s <strong>Settings › Privacy &amp; Security › Local Network</strong> and turn <strong>Flexarr</strong> on.</p>
+<h3 id="firewall"><a class="anchor" href="#firewall" aria-hidden="true" tabindex="-1">#</a>Firewall</h3>
+<p>The server&#39;s firewall must let other devices reach port <strong>8383</strong>. On a Mac with the firewall turned on (<strong>System Settings › Network › Firewall</strong>), check it isn&#39;t blocking incoming connections. Check you can open <code>http://&lt;server&gt;:8383</code> from another computer at home; if a browser can&#39;t reach it, the apps can&#39;t either.</p>
+<h3 id="servers-that-don-t-announce-themselves"><a class="anchor" href="#servers-that-don-t-announce-themselves" aria-hidden="true" tabindex="-1">#</a>Servers that don&#39;t announce themselves</h3>
+<p>Finding the server by itself works when Flexarr runs natively on a Mac. In Docker, including on a Synology or Unraid server, the container usually can&#39;t announce itself to the network, so the app won&#39;t list it. Enter the address instead (below).</p>
+<h2 id="enter-an-address-instead"><a class="anchor" href="#enter-an-address-instead" aria-hidden="true" tabindex="-1">#</a>Enter an address instead</h2>
+<p>Every app has <strong>Enter an address instead</strong> under the list of servers.</p>
+<ul>
+<li><strong>iPhone and iPad:</strong> type the server&#39;s address, such as <code>http://192.168.1.20:8383</code>, and choose <strong>Connect</strong>. You get a code to approve, as above. Away from home, <strong>Connecting from outside your home? Use an API key</strong> asks for the <a href="/guide/first-setup#the-api-key">API key</a> instead.</li>
+<li><strong>Apple TV:</strong> type the address and the <strong>API key</strong>. The key isn&#39;t needed if the address is the server&#39;s Tailscale address.</li>
+</ul>
+<p>Use the server&#39;s IP address and port. You&#39;ll find the IP address in your router&#39;s list of devices, or on the server itself.</p>
+<h2 id="manage-and-remove-devices"><a class="anchor" href="#manage-and-remove-devices" aria-hidden="true" tabindex="-1">#</a>Manage and remove devices</h2>
+<p>Signed in as the main profile, go to <strong>Settings › Access</strong>. Under <strong>Signed-in browsers and TVs</strong> you&#39;ll see every browser, iPhone, iPad and Apple TV with a sign-in of its own, and when it was last used.</p>
+<ul>
+<li><strong>Rename</strong> gives a device a name you&#39;ll recognise.</li>
+<li><strong>Sign out</strong> signs out one device. It&#39;ll need a new code to come back.</li>
+<li><strong>Sign out every other browser and TV</strong> signs out everything but the browser you&#39;re using.</li>
+</ul>
+<p>If you think your API key has got out, <strong>Make a new key</strong> under <strong>API key</strong> replaces it, and can sign every other device out at the same time.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Each phone gets notifications for one profile, the one it was on when you turned them on. See <a href="/guide/notifications-and-widgets">Notifications and widgets</a>.</p>
+</blockquote>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/first-setup"><span>Previous</span>First setup</a>
+          <a class="next" href="/guide/apple-tv-xcode"><span>Next</span>Install the Apple TV app with Xcode</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/connect-devices.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Connect%20your%20devices">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

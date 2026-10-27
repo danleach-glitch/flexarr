@@ -1,0 +1,8 @@
+{
+  "name": "flexarr-guide",
+  "private": true,
+  "type": "module",
+  "description": "Builds flexarr.io/guide from docs/guide/*.md into site/guide/.",
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": { "marked": "16.4.1" }
+}

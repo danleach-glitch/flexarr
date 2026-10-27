@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live TV and recording · Flexarr guide</title>
+  <meta name="description" content="Watch TV channels in Flexarr with a guide, favourites and rewind, and record programmes and series, using Dispatcharr as the source.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/live-tv">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Live TV and recording · Flexarr guide">
+  <meta property="og:description" content="Watch TV channels in Flexarr with a guide, favourites and rewind, and record programmes and series, using Dispatcharr as the source.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/live-tv">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv" aria-current="page">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Live TV and recording</h1>
+        <p class="lede">Watch TV channels in Flexarr with a guide, favourites and rewind, and record programmes and series, using Dispatcharr as the source.</p>
+        <p class="meta">5 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-you-need">What you need</a></li>
+            <li><a href="#connecting-dispatcharr">Connecting Dispatcharr</a></li>
+            <li><a href="#watching">Watching</a></li>
+            <li><a href="#watching-away-from-home">Watching away from home</a></li>
+            <li><a href="#recording">Recording</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr can show TV channels next to your films and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn&#39;t come with any channels. You bring your own, through Dispatcharr.</p>
+<p>Live TV is on the web, Apple TV, iPhone and iPad.</p>
+<h2 id="what-you-need"><a class="anchor" href="#what-you-need" aria-hidden="true" tabindex="-1">#</a>What you need</h2>
+<p>Flexarr reads channels and their guide from <a href="https://github.com/Dispatcharr/Dispatcharr" rel="noopener">Dispatcharr</a>, a free, self-hosted app that gathers TV sources into one channel list. Dispatcharr is the only source Flexarr supports. You can&#39;t give Flexarr an M3U playlist or XMLTV guide address directly; add them to Dispatcharr instead.</p>
+<p>Into Dispatcharr you can bring:</p>
+<ul>
+<li><strong>Your own tuner</strong>, such as an HDHomeRun on an aerial or cable connection, for free-to-air channels.</li>
+<li><strong>An IPTV service you&#39;re entitled to use</strong>, given to Dispatcharr as an M3U playlist with an XMLTV guide.</li>
+</ul>
+<p>Setting up Dispatcharr itself is covered in its own documentation. Once it has channels and a guide, carry on below.</p>
+<blockquote class="callout important"><p><strong>Important</strong> Only use sources you have the right to watch. Flexarr doesn&#39;t provide, find or recommend channels.</p>
+</blockquote>
+<h2 id="connecting-dispatcharr"><a class="anchor" href="#connecting-dispatcharr" aria-hidden="true" tabindex="-1">#</a>Connecting Dispatcharr</h2>
+<p>First, in Dispatcharr:</p>
+<ol>
+<li>Add a user for Flexarr, at <strong>Streamer</strong> level.</li>
+<li>Give it a long, random XC password. This works as Flexarr&#39;s key. It can only list and play channels, never sign in to Dispatcharr or change anything.</li>
+<li>Give that user the channels you want in Flexarr.</li>
+</ol>
+<p>Then in Flexarr, as the main profile:</p>
+<ol>
+<li>Open <strong>Settings › Connections</strong> and edit <strong>Dispatcharr</strong>.</li>
+<li>Fill in <strong>Address</strong> (for example <code>http://localhost:9191</code>), <strong>User name</strong> and <strong>Key (XC password)</strong>.</li>
+<li>Choose <strong>Test</strong>. It should say how many channels it found and how many connections your source allows at a time. Then choose <strong>Save</strong>.</li>
+</ol>
+<p>The channels and guide come in straight away. The guide refreshes every six hours, and channels you add or remove in Dispatcharr show up within five minutes. <strong>Refresh channels and guide</strong> fetches them now.</p>
+<p>Channel logos come from a community logo collection where it has a match, and from Dispatcharr where it doesn&#39;t.</p>
+<h2 id="watching"><a class="anchor" href="#watching" aria-hidden="true" tabindex="-1">#</a>Watching</h2>
+<p><strong>Live TV</strong> sits with your libraries.</p>
+<ul>
+<li><strong>On the web</strong>, <strong>On now</strong> lists every channel with what&#39;s on, how far through it is and what&#39;s next, filtered by group. The <strong>Guide</strong> shows the next six hours, or up to a day, as a grid.</li>
+<li><strong>On Apple TV</strong>, the guide has categories down the left and channels with three hours across. What&#39;s on now plays; anything later shows what it is.</li>
+<li><strong>On iPhone and iPad</strong>, Live TV is a list of channels. The <strong>Guide</strong> button turns it into a grid, and <strong>List</strong> goes back.</li>
+</ul>
+<!-- screenshot: the Apple TV Live TV guide with Favourites selected on the left -->
+
+<p>In the player, previous and next change channel. The <strong>Channels</strong> button lists every channel over the picture, with <strong>Last watched</strong> at the top so flipping between two is one press. On Apple TV, the <strong>Guide</strong> button opens the guide over the picture while the channel carries on behind it.</p>
+<p>Home has a Live TV row too, starting with the channel you watched last, then your favourites.</p>
+<h3 id="favourites"><a class="anchor" href="#favourites" aria-hidden="true" tabindex="-1">#</a>Favourites</h3>
+<p>Star the channels you watch most. Each profile has its own, and Live TV opens on them.</p>
+<ul>
+<li><strong>Web:</strong> select the star on a channel.</li>
+<li><strong>Apple TV:</strong> press and hold a channel or programme.</li>
+<li><strong>iPhone and iPad:</strong> swipe right on a channel, or press and hold.</li>
+</ul>
+<h3 id="pause-and-rewind"><a class="anchor" href="#pause-and-rewind" aria-hidden="true" tabindex="-1">#</a>Pause and rewind</h3>
+<p>You can pause a channel and rewind it. The timeline shows the time of day, <strong>LIVE</strong> or how far behind you are, and a button to jump back to live.</p>
+<p>The server keeps the rewind window while anyone is watching a channel, so you can rewind to when the channel was first put on, up to the limit. Set the limit in <strong>Settings › Live TV › Rewind up to</strong>, from 15 minutes to 4 hours (1 hour to start with). It takes about 2 GB of space an hour for HD.</p>
+<h3 id="picture-and-sound"><a class="anchor" href="#picture-and-sound" aria-hidden="true" tabindex="-1">#</a>Picture and sound</h3>
+<p>Channels that are already H.264 play as they come. Others (interlaced, MPEG-2 and HEVC) are converted, and interlaced channels are made smooth at 50 frames a second. On Apple TV, iPhone and iPad at home, channels broadcasting Dolby Digital or Dolby Digital Plus come through as 5.1. The web player is stereo.</p>
+<p>One channel is shared by everyone watching it, so a source that allows one connection can still serve the whole house.</p>
+<h2 id="watching-away-from-home"><a class="anchor" href="#watching-away-from-home" aria-hidden="true" tabindex="-1">#</a>Watching away from home</h2>
+<p>Away from home, over <a href="/guide/away-from-home">Tailscale</a> or the internet, channels come in a reduced version: at most 720p at about 2.5 Mbps, in stereo, so they keep playing on hotel Wi-Fi or a phone&#39;s data. At home they play as they come. Someone at home and someone away can watch the same channel at once.</p>
+<h2 id="recording"><a class="anchor" href="#recording" aria-hidden="true" tabindex="-1">#</a>Recording</h2>
+<h3 id="setting-a-recording"><a class="anchor" href="#setting-a-recording" aria-hidden="true" tabindex="-1">#</a>Setting a recording</h3>
+<p>In the guide, choose a programme (on Apple TV, press and hold it), then:</p>
+<ul>
+<li><strong>Record</strong> for this showing, or</li>
+<li><strong>Record series</strong> for every showing. On the web you can choose <strong>On any channel</strong> and <strong>New episodes only</strong>.</li>
+</ul>
+<p>A programme set to record has a red dot, and one a series covers has two. While it&#39;s recording it shows a <strong>REC</strong> badge.</p>
+<p><strong>Live TV › Recordings</strong> lists what&#39;s coming up, the series being recorded (keep all of them or only the latest few), what&#39;s been recorded, and why anything didn&#39;t record.</p>
+<h3 id="where-recordings-go"><a class="anchor" href="#where-recordings-go" aria-hidden="true" tabindex="-1">#</a>Where recordings go</h3>
+<p>Recordings are saved as MKV files, with the picture and every soundtrack as they came, nothing converted. They&#39;re named like TV episodes, for example <code>Show/Season 2/Show - S02E05 - Episode.mkv</code>, or by date when the guide doesn&#39;t number them.</p>
+<p>By default they go in a <code>DVR</code> folder at the top of the drive your TV library is on. To choose another, set <strong>Folder</strong> in <strong>Settings › Live TV</strong>. Recordings play like anything else in Flexarr, with resume and Continue Watching, from <strong>Live TV › Recordings</strong>.</p>
+<h3 id="recording-settings"><a class="anchor" href="#recording-settings" aria-hidden="true" tabindex="-1">#</a>Recording settings</h3>
+<p>In <strong>Settings › Live TV</strong>:</p>
+<ul>
+<li><strong>Start early</strong> and <strong>Run on</strong>: broadcasts drift, so recordings start a minute early and run five minutes on unless you change them.</li>
+<li><strong>Keep free on the drive</strong>: no new recording starts with less than this free (100 GB to start with). The Recordings list says when that&#39;s why.</li>
+<li><strong>Channels at once</strong>: how many channels can be open together, for watching and recording combined. <strong>As Dispatcharr says</strong> uses the limit your source reports.</li>
+</ul>
+<h3 id="when-channels-run-out"><a class="anchor" href="#when-channels-run-out" aria-hidden="true" tabindex="-1">#</a>When channels run out</h3>
+<p>Watching and recording share your source&#39;s connections. Watching and recording the same channel counts once. A recording takes priority: if someone is watching another channel when it&#39;s due, that channel stops with a message. If every connection is recording, choosing another channel tells you what&#39;s recording and offers to watch that instead, or stop the recording. Recordings that would need more connections than you have are flagged as clashing when you set them.</p>
+<p>A recording under way when Flexarr restarts carries on afterwards.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/downloads"><span>Previous</span>Downloads</a>
+          <a class="next" href="/guide/profiles"><span>Next</span>Profiles</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/live-tv.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Live%20TV%20and%20recording">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playback and transcoding · Flexarr guide</title>
+  <meta name="description" content="How Flexarr plays a file as it is, repackages it, or converts it, and how to set up hardware acceleration on your server.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/playback-and-transcoding">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Playback and transcoding · Flexarr guide">
+  <meta property="og:description" content="How Flexarr plays a file as it is, repackages it, or converts it, and how to set up hardware acceleration on your server.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/playback-and-transcoding">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding" aria-current="page">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Playback and transcoding</h1>
+        <p class="lede">How Flexarr plays a file as it is, repackages it, or converts it, and how to set up hardware acceleration on your server.</p>
+        <p class="meta">5 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#three-ways-a-file-can-play">Three ways a file can play</a></li>
+            <li><a href="#hardware-acceleration">Hardware acceleration</a></li>
+            <li><a href="#limiting-quality">Limiting quality</a></li>
+            <li><a href="#settings-that-are-per-device">Settings that are per device</a></li>
+            <li><a href="#how-to-tell-what-s-happening">How to tell what&#39;s happening</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Every time you press Play, Flexarr works out the least it has to do for that screen to show the file. Most of the time that&#39;s nothing at all. This page explains the three ways a file can reach you, what your server needs for the hardest of them, and how to see which one is happening.</p>
+<h2 id="three-ways-a-file-can-play"><a class="anchor" href="#three-ways-a-file-can-play" aria-hidden="true" tabindex="-1">#</a>Three ways a file can play</h2>
+<h3 id="direct-play-the-file-as-it-is"><a class="anchor" href="#direct-play-the-file-as-it-is" aria-hidden="true" tabindex="-1">#</a>Direct play: the file as it is</h3>
+<p>When a device can open the file and decode its picture and sound, Flexarr sends the file untouched. The server does no more work than a file share would. This is the best case: full quality, and the lightest load on the server.</p>
+<p>On Apple TV, iPhone and iPad, <strong>Play files directly</strong> is on by default. With it, the app opens almost any file itself, including MKV and AVI files and AV1, VC-1, MPEG-2 and XviD video, decoding in software what the hardware can&#39;t. HDR and Dolby Vision stay as they are. The server only steps in for the few files the app can&#39;t open.</p>
+<h3 id="repackaging-same-picture-new-wrapping"><a class="anchor" href="#repackaging-same-picture-new-wrapping" aria-hidden="true" tabindex="-1">#</a>Repackaging: same picture, new wrapping</h3>
+<p>Sometimes the picture is fine but the file around it isn&#39;t. A typical case is an MKV with H.264 or HEVC video, when <strong>Play files directly</strong> is off. Flexarr then copies the original picture into a stream the device accepts, cut at the file&#39;s own keyframes. Nothing is re-encoded, so you lose no quality, HDR and Dolby Vision included, and the server barely notices. Starting and seeking stay instant.</p>
+<p>MKV files can be repackaged straight away. Other files are indexed in the background the first time they&#39;re played, and repackage from the next time.</p>
+<h3 id="transcoding-converting-as-it-plays"><a class="anchor" href="#transcoding-converting-as-it-plays" aria-hidden="true" tabindex="-1">#</a>Transcoding: converting as it plays</h3>
+<p>When the device can&#39;t decode the picture, or the stream has to be smaller, Flexarr converts the file as you watch, to H.264 video. It converts only what you&#39;re about to watch, so you can still jump anywhere in a film instantly. HDR is converted to SDR on the way.</p>
+<p>Converting is real work for the server. By default it converts at most three videos at once. Beyond that, the player says the server is busy rather than slowing everyone down.</p>
+<h2 id="hardware-acceleration"><a class="anchor" href="#hardware-acceleration" aria-hidden="true" tabindex="-1">#</a>Hardware acceleration</h2>
+<p>Converting video on the server&#39;s graphics chip is much faster and lighter than on its processor. Choose how in <strong>Settings › Streaming › Hardware acceleration</strong>. This page belongs to the main profile, the one that manages the server.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Choice</th>
+<th>For</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Automatic (recommended)</strong></td>
+<td>Apple VideoToolbox on a Mac. Anywhere else, Automatic means the processor, so pick one of the options below.</td>
+</tr>
+<tr>
+<td><strong>Apple VideoToolbox</strong></td>
+<td>Macs. Automatic already picks this.</td>
+</tr>
+<tr>
+<td><strong>VA-API (Intel and AMD on Linux)</strong></td>
+<td>Intel and AMD graphics on Linux. A <strong>VA-API device</strong> field appears, set to <code>/dev/dri/renderD128</code> unless you change it.</td>
+</tr>
+<tr>
+<td><strong>Intel Quick Sync</strong></td>
+<td>Intel processors with built-in graphics.</td>
+</tr>
+<tr>
+<td><strong>NVIDIA NVENC</strong></td>
+<td>NVIDIA graphics cards.</td>
+</tr>
+<tr>
+<td><strong>Off: convert on the CPU</strong></td>
+<td>No graphics chip, or for troubleshooting. A <strong>Software speed</strong> choice appears.</td>
+</tr>
+</tbody></table></div>
+<p>Only the options your server&#39;s copy of FFmpeg was built with are listed. Being listed doesn&#39;t prove the hardware is reachable, though. In Docker, for example, the container also needs the graphics device passed through to it. After changing this, play something that needs converting and check it starts (see <strong>How to tell what&#39;s happening</strong>, below).</p>
+<blockquote class="callout note"><p><strong>Note</strong> On a Mac, files whose video the graphics chip can&#39;t decode (old AVI and XviD files, VC-1) are decoded on the processor and still encoded on the graphics chip. You don&#39;t need to do anything.</p>
+</blockquote>
+<h3 id="without-a-graphics-chip"><a class="anchor" href="#without-a-graphics-chip" aria-hidden="true" tabindex="-1">#</a>Without a graphics chip</h3>
+<p>With <strong>Off: convert on the CPU</strong>, <strong>Software speed</strong> offers <strong>Fastest, lowest quality</strong>, <strong>Fast (recommended)</strong> and <strong>Slower, better quality</strong>. Faster uses less of the server, at some cost to picture quality.</p>
+<p>Converting video in software is demanding. A recent multi-core desktop processor can usually keep up with a 1080p stream or two. A low-power NAS processor may struggle with even one, and converting 4K or HDR in software is heavy for almost anything. If your server has no graphics chip, the good news is that Apple devices rarely need converting at all, thanks to <strong>Play files directly</strong> and repackaging.</p>
+<h2 id="limiting-quality"><a class="anchor" href="#limiting-quality" aria-hidden="true" tabindex="-1">#</a>Limiting quality</h2>
+<p><strong>Settings › Streaming › Limit each stream to</strong> caps every stream from the server: <strong>No limit</strong>, <strong>20 Mbps</strong>, <strong>10 Mbps</strong>, <strong>4 Mbps (good for remote viewing)</strong> or <strong>2 Mbps</strong>. A file above the limit is converted down to fit.</p>
+<p>Use it when your home internet&#39;s upload is slow and people watch <a href="/guide/away-from-home">away from home</a>. Bear in mind it applies to every stream, at home too, and anything converted to fit loses HDR and lossless sound. At home on a decent network, <strong>No limit</strong> is best.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Live TV is different: away from home, channels automatically come in a reduced version. See <a href="/guide/live-tv">Live TV and recording</a>.</p>
+</blockquote>
+<p>In the web player, the quality button in the corner chooses <strong>Best for this device</strong>, <strong>1080p</strong>, <strong>720p</strong> or <strong>480p</strong> for what you&#39;re watching now.</p>
+<h2 id="settings-that-are-per-device"><a class="anchor" href="#settings-that-are-per-device" aria-hidden="true" tabindex="-1">#</a>Settings that are per device</h2>
+<p>On Apple TV, iPhone and iPad, these live in the app&#39;s <strong>Settings › Playback</strong> under this device&#39;s own settings, not your profile&#39;s:</p>
+<ul>
+<li><strong>Play files directly</strong>: on by default. Off, the server sends a stream instead and converts what the device can&#39;t play.</li>
+<li><strong>Lossless surround</strong>: appears when <strong>Play files directly</strong> is on. See <a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a>.</li>
+<li><strong>Skip back and forward</strong>: 10, 15 or 30 seconds.</li>
+</ul>
+<h2 id="how-to-tell-what-s-happening"><a class="anchor" href="#how-to-tell-what-s-happening" aria-hidden="true" tabindex="-1">#</a>How to tell what&#39;s happening</h2>
+<ul>
+<li><strong>Web player:</strong> the quality button says <strong>Original</strong> when the file is playing as it is, and <strong>Auto</strong> when it&#39;s being converted.</li>
+<li><strong>Apple TV, iPhone and iPad:</strong> with the player&#39;s controls showing, a line in the corner describes the stream. It ends in &quot;Original&quot; for a file played as it is, says &quot;repackaged&quot; when the original picture is copied, and gives a size and bitrate (such as &quot;1080p H.264 at 10 Mbps&quot;) when it&#39;s converted.</li>
+<li><strong>Settings › Overview:</strong> under <strong>Watching now</strong>, each stream is tagged <strong>Original file</strong> or <strong>Converting to …</strong>.</li>
+</ul>
+<!-- screenshot: Settings › Overview with two streams under Watching now, one tagged Original file and one Converting to 1080p H.264 -->
+
+<p>If something is converting that you didn&#39;t expect, check whether <strong>Limit each stream to</strong> is set, whether <strong>Play files directly</strong> is off on that device, and whether picture-based subtitles are on in the web player (they have to be burned into the picture). For more, see <a href="/guide/troubleshooting">Troubleshooting</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/requests"><span>Previous</span>Requests</a>
+          <a class="next" href="/guide/hdr-and-atmos"><span>Next</span>HDR and Dolby Atmos</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/playback-and-transcoding.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Playback%20and%20transcoding">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

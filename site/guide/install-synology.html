@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install on a Synology NAS · Flexarr guide</title>
+  <meta name="description" content="Run Flexarr on a Synology NAS as a Container Manager project, with its settings folder, your media and the right permissions.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/install-synology">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Install on a Synology NAS · Flexarr guide">
+  <meta property="og:description" content="Run Flexarr on a Synology NAS as a Container Manager project, with its settings folder, your media and the right permissions.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/install-synology">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology" aria-current="page">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Install on a Synology NAS</h1>
+        <p class="lede">Run Flexarr on a Synology NAS as a Container Manager project, with its settings folder, your media and the right permissions.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#1-install-container-manager">1. Install Container Manager</a></li>
+            <li><a href="#2-make-the-folders">2. Make the folders</a></li>
+            <li><a href="#3-find-your-user-id">3. Find your user ID</a></li>
+            <li><a href="#4-create-the-project">4. Create the project</a></li>
+            <li><a href="#hardware-transcoding">Hardware transcoding</a></li>
+            <li><a href="#updating">Updating</a></li>
+            <li><a href="#next-set-it-up">Next: set it up</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>On a Synology NAS, Flexarr runs as a container in <strong>Container Manager</strong>, Synology&#39;s Docker app. You need DSM 7.2 or later and a model that supports Container Manager. Flexarr&#39;s image is built for both Intel/AMD and 64-bit ARM processors, so if Container Manager installs on your model, Flexarr should run.</p>
+<h2 id="1-install-container-manager"><a class="anchor" href="#1-install-container-manager" aria-hidden="true" tabindex="-1">#</a>1. Install Container Manager</h2>
+<p>Open <strong>Package Center</strong>, search for <strong>Container Manager</strong> and install it. Installing it creates a shared folder called <code>docker</code>.</p>
+<h2 id="2-make-the-folders"><a class="anchor" href="#2-make-the-folders" aria-hidden="true" tabindex="-1">#</a>2. Make the folders</h2>
+<p>Container Manager won&#39;t create missing folders for you, so make them first in <strong>File Station</strong>:</p>
+<ol>
+<li>In the <code>docker</code> shared folder, create a folder called <code>flexarr</code>.</li>
+<li>Inside it, create a folder called <code>config</code>. This holds Flexarr&#39;s settings, database and caches.</li>
+</ol>
+<p>Note where your media is, for example <code>/volume1/data/media</code> with <code>movies</code>, <code>tv</code> and <code>music</code> inside. If you run Sonarr, Radarr and Lidarr on the NAS, use the folder they use.</p>
+<h2 id="3-find-your-user-id"><a class="anchor" href="#3-find-your-user-id" aria-hidden="true" tabindex="-1">#</a>3. Find your user ID</h2>
+<p>The Flexarr container doesn&#39;t read <code>PUID</code> or <code>PGID</code> settings. Instead you tell it which user to run as, so it can write to its folder and read your media. You need that user&#39;s numeric ID and group ID.</p>
+<ol>
+<li><p>In <strong>Control Panel › Terminal &amp; SNMP</strong>, tick <strong>Enable SSH service</strong> and apply.</p>
+</li>
+<li><p>From a computer, connect with <code>ssh yourname@your-nas</code> and run <code>id</code>:</p>
+<pre><code class="language-bash">id
+# uid=1026(yourname) gid=100(users) ...
+</code></pre>
+</li>
+<li><p>Note the two numbers (here <code>1026</code> and <code>100</code>). You can turn SSH off again afterwards.</p>
+</li>
+</ol>
+<blockquote class="callout tip"><p><strong>Tip</strong> Use an account that can read your media shares and write to the <code>docker</code> share. If your *arrs already run with a <code>PUID</code> and <code>PGID</code>, use those same numbers.</p>
+</blockquote>
+<h2 id="4-create-the-project"><a class="anchor" href="#4-create-the-project" aria-hidden="true" tabindex="-1">#</a>4. Create the project</h2>
+<ol>
+<li><p>Open <strong>Container Manager</strong> and go to <strong>Project</strong>, then <strong>Create</strong>.</p>
+</li>
+<li><p><strong>Project name</strong>: <code>flexarr</code>.</p>
+</li>
+<li><p><strong>Path</strong>: choose <strong>Set path</strong> and pick <code>docker/flexarr</code>.</p>
+</li>
+<li><p><strong>Source</strong>: choose <strong>Create docker-compose.yml</strong> and paste this, changing the IDs and the media path to yours:</p>
+<pre><code class="language-yaml">services:
+  flexarr:
+    image: ghcr.io/danleach-glitch/flexarr:latest
+    container_name: flexarr
+    user: &quot;1026:100&quot;
+    ports: [&quot;8383:8383&quot;]
+    volumes:
+      - /volume1/docker/flexarr/config:/config
+      - /volume1/data/media:/data/media
+    restart: unless-stopped
+</code></pre>
+</li>
+<li><p>Click <strong>Next</strong>. You can skip the web portal settings. Click <strong>Next</strong> again, then <strong>Done</strong>.</p>
+</li>
+</ol>
+<p>Container Manager downloads the image and starts Flexarr. The project shows as running when it&#39;s ready.</p>
+<!-- screenshot: Container Manager's Create project dialog with the name, path and compose file filled in -->
+
+<h3 id="about-the-media-path"><a class="anchor" href="#about-the-media-path" aria-hidden="true" tabindex="-1">#</a>About the media path</h3>
+<p>Mount your media at the <strong>same path</strong> inside the container that Sonarr, Radarr and Lidarr use inside theirs. If they all see <code>/data/media/tv/...</code>, the paths they report to Flexarr match what Flexarr sees and everything lines up. If they don&#39;t, you can map one to the other in <strong>Settings › Connections › Path mappings</strong>. See <a href="/guide/media-paths">Media paths</a>.</p>
+<h3 id="port"><a class="anchor" href="#port" aria-hidden="true" tabindex="-1">#</a>Port</h3>
+<p>Flexarr listens on port <code>8383</code>. If you use DSM&#39;s firewall (<strong>Control Panel › Security › Firewall</strong>), allow that port from your home network.</p>
+<h2 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h2>
+<p>Flexarr converts video on the processor by default. Many Intel-based Synology models have a graphics chip that could do this work, but the Flexarr image doesn&#39;t yet include the Intel drivers it needs. Leave <strong>Settings › Streaming › Hardware acceleration</strong> on <strong>Automatic</strong>.</p>
+<p>This matters less than you might expect: the iPhone, iPad and Apple TV apps play most files directly, so the server only converts for web browsers, quality-limited streams away from home and some downloads. On a NAS with a low-power processor, keep those to one or two at a time.</p>
+<h2 id="updating"><a class="anchor" href="#updating" aria-hidden="true" tabindex="-1">#</a>Updating</h2>
+<p>When a new release is out, Container Manager&#39;s <strong>Image</strong> page marks the Flexarr image as having an update. Select it and choose <strong>Update</strong>, and Container Manager restarts Flexarr on the new version. Your settings stay in <code>docker/flexarr/config</code>. See <a href="/guide/updating">Updating</a>.</p>
+<h2 id="next-set-it-up"><a class="anchor" href="#next-set-it-up" aria-hidden="true" tabindex="-1">#</a>Next: set it up</h2>
+<p>Open <strong>http://&lt;your-nas&gt;:8383</strong> in a browser on your home network, using the NAS&#39;s name or IP address, and choose <strong>Set up Flexarr</strong>. The first browser to reach a new server becomes its owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/install-macos"><span>Previous</span>Install on a Mac</a>
+          <a class="next" href="/guide/install-unraid"><span>Next</span>Install on Unraid</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-synology.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20on%20a%20Synology%20NAS">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

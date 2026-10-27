@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install on a Mac · Flexarr guide</title>
+  <meta name="description" content="Build Flexarr from source and run it natively on a Mac as a background service, with hardware video conversion through VideoToolbox.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/install-macos">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Install on a Mac · Flexarr guide">
+  <meta property="og:description" content="Build Flexarr from source and run it natively on a Mac as a background service, with hardware video conversion through VideoToolbox.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/install-macos">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos" aria-current="page">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Install on a Mac</h1>
+        <p class="lede">Build Flexarr from source and run it natively on a Mac as a background service, with hardware video conversion through VideoToolbox.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#before-you-start">Before you start</a></li>
+            <li><a href="#turn-on-remote-login">Turn on Remote Login</a></li>
+            <li><a href="#build-and-install">Build and install</a></li>
+            <li><a href="#where-things-live">Where things live</a></li>
+            <li><a href="#keep-it-running">Keep it running</a></li>
+            <li><a href="#media-on-an-external-drive">Media on an external drive</a></li>
+            <li><a href="#hardware-transcoding">Hardware transcoding</a></li>
+            <li><a href="#if-your-arrs-run-in-docker-on-this-mac">If your *arrs run in Docker on this Mac</a></li>
+            <li><a href="#updating">Updating</a></li>
+            <li><a href="#next-set-it-up">Next: set it up</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>On a Mac, Flexarr runs natively rather than in Docker. That way it can use the Mac&#39;s graphics hardware (Apple VideoToolbox) to convert video, which Docker on macOS can&#39;t. It works on Apple silicon and Intel Macs.</p>
+<p>There&#39;s no downloadable Mac app or installer yet. You build Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Prefer not to build anything? Docker Desktop for Mac runs the <a href="/guide/install-docker">Docker image</a> too, but without VideoToolbox: video is converted on the processor.</p>
+</blockquote>
+<h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
+<p>You&#39;ll build on one Mac and install on another over SSH. They can be the same Mac, which is what this page assumes. You need:</p>
+<ul>
+<li><strong>macOS command line tools</strong> (git, make, Python). Run <code>xcode-select --install</code> in Terminal, or install Xcode.</li>
+<li><strong><a href="https://brew.sh" rel="noopener">Homebrew</a></strong>, for FFmpeg and Node.js.</li>
+<li><strong>The .NET 10 SDK</strong>, from <a href="https://dotnet.microsoft.com/download/dotnet/10.0" rel="noopener">Microsoft&#39;s download page</a>. Choose the latest SDK installer for your Mac (Arm64 for Apple silicon, x64 for Intel).</li>
+<li><strong>Node.js 24 or later</strong>: <code>brew install node</code>.</li>
+<li><strong>FFmpeg</strong>, on the Mac that will run Flexarr: <code>brew install ffmpeg</code>. Flexarr uses it to read your files and convert video.</li>
+</ul>
+<h2 id="turn-on-remote-login"><a class="anchor" href="#turn-on-remote-login" aria-hidden="true" tabindex="-1">#</a>Turn on Remote Login</h2>
+<p>The install script copies Flexarr into place and starts it over SSH, even on the same Mac.</p>
+<ol>
+<li><p>Open <strong>System Settings › General › Sharing</strong> and turn on <strong>Remote Login</strong>.</p>
+</li>
+<li><p>In Terminal, make an SSH key if you don&#39;t have one, and let it sign in to this Mac without a password:</p>
+<pre><code class="language-bash">ssh-keygen -t ed25519        # press Return to accept the defaults
+ssh-copy-id localhost
+ssh localhost true           # should finish without asking for a password
+</code></pre>
+</li>
+</ol>
+<h2 id="build-and-install"><a class="anchor" href="#build-and-install" aria-hidden="true" tabindex="-1">#</a>Build and install</h2>
+<ol>
+<li><p>Get the source code:</p>
+<pre><code class="language-bash">git clone https://github.com/danleach-glitch/flexarr.git
+cd flexarr
+</code></pre>
+</li>
+<li><p>Build and install:</p>
+<pre><code class="language-bash">make deploy DEPLOY_HOST=localhost
+</code></pre>
+</li>
+</ol>
+<p>The script builds the web app and the server, downloads Microsoft&#39;s ASP.NET Core runtime into <code>~/.dotnet</code> (checking it against Microsoft&#39;s published checksum), copies Flexarr into <code>~/.flexarr</code>, and starts it. It waits until Flexarr answers, then prints its address, something like <code>http://your-mac.local:8383</code>.</p>
+<p>To install on a different Mac, use its SSH host name in place of <code>localhost</code>, for example <code>make deploy DEPLOY_HOST=mini</code>. That Mac needs Remote Login and FFmpeg, but not the SDK or Node.js.</p>
+<h2 id="where-things-live"><a class="anchor" href="#where-things-live" aria-hidden="true" tabindex="-1">#</a>Where things live</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What&#39;s there</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>~/.flexarr/app</code></td>
+<td>Flexarr itself. Replaced each time you install.</td>
+</tr>
+<tr>
+<td><code>~/.flexarr/data</code></td>
+<td>Your settings (<code>config.json</code>), database and caches. Installing never touches it.</td>
+</tr>
+<tr>
+<td><code>~/.flexarr/logs</code></td>
+<td>Log files, one a day. <code>console.log</code> has errors from when the server couldn&#39;t start.</td>
+</tr>
+<tr>
+<td><code>~/Library/LaunchAgents/io.github.flexarr.server.plist</code></td>
+<td>The service: starts Flexarr at login and restarts it if it stops.</td>
+</tr>
+</tbody></table></div>
+<h2 id="keep-it-running"><a class="anchor" href="#keep-it-running" aria-hidden="true" tabindex="-1">#</a>Keep it running</h2>
+<p>Flexarr runs as a LaunchAgent, which means it runs while you&#39;re logged in. On a Mac that acts as a server:</p>
+<ul>
+<li>Turn on automatic login for your user in <strong>System Settings › Users &amp; Groups</strong>. (macOS doesn&#39;t offer it while FileVault is on.)</li>
+<li>Stop the Mac going to sleep on its own, in System Settings&#39; energy or battery settings.</li>
+</ul>
+<p>To restart, stop or start Flexarr by hand:</p>
+<pre><code class="language-bash">launchctl kickstart -k gui/$(id -u)/io.github.flexarr.server   # restart
+launchctl bootout gui/$(id -u)/io.github.flexarr.server        # stop
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.flexarr.server.plist  # start
+</code></pre>
+<h2 id="media-on-an-external-drive"><a class="anchor" href="#media-on-an-external-drive" aria-hidden="true" tabindex="-1">#</a>Media on an external drive</h2>
+<p>The first time Flexarr reads a library on an external drive, macOS may ask whether to allow access. Allow it. If scans can&#39;t see your media, look in <strong>System Settings › Privacy &amp; Security</strong> under <strong>Files &amp; Folders</strong> (or <strong>Full Disk Access</strong>) for <code>dotnet</code>, the program Flexarr runs under, and turn its access on.</p>
+<h2 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h2>
+<p>Nothing to set up. <strong>Settings › Streaming › Hardware acceleration</strong> starts on <strong>Automatic</strong>, which on a Mac means Apple VideoToolbox. The graphics hardware decodes H.264 and HEVC; other formats (older AVI files, VC-1 and the like) are decoded on the processor and still encoded in hardware.</p>
+<h2 id="if-your-arrs-run-in-docker-on-this-mac"><a class="anchor" href="#if-your-arrs-run-in-docker-on-this-mac" aria-hidden="true" tabindex="-1">#</a>If your *arrs run in Docker on this Mac</h2>
+<p>Sonarr, Radarr and Lidarr in Docker see your media under their own paths, such as <code>/data/tv</code>. Tell Flexarr where those are on the Mac in <strong>Settings › Connections › Path mappings</strong>. From inside a container, the Mac is <code>host.docker.internal</code>, so webhooks go to <code>http://host.docker.internal:8383</code>. <a href="/guide/connect-arrs">Connect Sonarr, Radarr and Lidarr</a> and <a href="/guide/media-paths">Media paths</a> cover both.</p>
+<h2 id="updating"><a class="anchor" href="#updating" aria-hidden="true" tabindex="-1">#</a>Updating</h2>
+<p>Fetch the latest code and install again. Your settings and library stay as they are.</p>
+<pre><code class="language-bash">cd flexarr
+git pull
+make deploy DEPLOY_HOST=localhost
+</code></pre>
+<p>See <a href="/guide/updating">Updating</a> for more.</p>
+<h2 id="next-set-it-up"><a class="anchor" href="#next-set-it-up" aria-hidden="true" tabindex="-1">#</a>Next: set it up</h2>
+<p>Open <strong><a href="http://your-mac.local:8383" rel="noopener">http://your-mac.local:8383</a></strong> (or <strong><a href="http://localhost:8383" rel="noopener">http://localhost:8383</a></strong> on the Mac itself) in a browser and choose <strong>Set up Flexarr</strong>. The first browser to reach a new server becomes its owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/what-you-need"><span>Previous</span>What you need</a>
+          <a class="next" href="/guide/install-synology"><span>Next</span>Install on a Synology NAS</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-macos.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20on%20a%20Mac">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

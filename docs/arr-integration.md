@@ -2,6 +2,8 @@
 
 Flexarr is designed to be the playback end of an \*arr stack: the \*arrs find and organise media, Flexarr serves it.
 
+This page is how it works underneath. To set it up, see the guide: [Connect your \*arrs](guide/connect-arrs.md) and [Media paths](guide/media-paths.md).
+
 ## Today: webhooks
 
 Each \*arr app sends a webhook when it imports, upgrades, renames or deletes media. Flexarr rescans only the affected folder.
@@ -12,11 +14,11 @@ Each \*arr app sends a webhook when it imports, upgrades, renames or deletes med
 | Radarr | `/api/v1/webhooks/radarr?secret=SECRET` | `movie.folderPath` |
 | Lidarr | `/api/v1/webhooks/lidarr?secret=SECRET` | `artist.path` |
 
-`SECRET` is the webhook secret from Settings › Server (`webhookSecret` in `config.json`). It can only queue scans, so the API key needn't live in the \*arr apps' settings. Webhooks set up with `?apikey=KEY` keep working.
+`SECRET` is the webhook secret from Settings › Connections (`webhookSecret` in `config.json`). It can only queue scans, so the API key needn't live in the \*arr apps' settings. Webhooks set up with `?apikey=KEY` keep working.
 
 Events that trigger a scan: `Download` (import/upgrade), `Rename`, `SeriesAdd`/`MovieAdded`/`ArtistAdd`, `*Delete`, `AlbumDownload`, `TrackRetag`. `Test` returns `200 OK`; other events (`Grab`, `Health`, …) are accepted and ignored.
 
-**Paths must match.** Mount media at the same path in Flexarr and the \*arrs (the provided `docker-compose.yml` uses `/data/media` everywhere). Remote path mappings are on the roadmap.
+**Paths must match.** Mount media at the same path in Flexarr and the \*arrs (the provided `docker-compose.yml` uses `/data/media` everywhere). Where they can't match, add a path mapping in Settings › Connections.
 
 ## Planned
 

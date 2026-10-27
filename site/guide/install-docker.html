@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install with Docker on Linux or Windows · Flexarr guide</title>
+  <meta name="description" content="Run Flexarr&#39;s Docker image on a Linux machine, or on Windows through Docker Desktop and WSL 2, with docker run or Docker Compose.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/install-docker">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Install with Docker on Linux or Windows · Flexarr guide">
+  <meta property="og:description" content="Run Flexarr&#39;s Docker image on a Linux machine, or on Windows through Docker Desktop and WSL 2, with docker run or Docker Compose.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/install-docker">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker" aria-current="page">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Install with Docker on Linux or Windows</h1>
+        <p class="lede">Run Flexarr&#39;s Docker image on a Linux machine, or on Windows through Docker Desktop and WSL 2, with docker run or Docker Compose.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-the-container-needs">What the container needs</a></li>
+            <li><a href="#linux">Linux</a></li>
+            <li><a href="#windows">Windows</a></li>
+            <li><a href="#next-set-it-up">Next: set it up</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>On Linux and Windows, Flexarr runs as a Docker container. The image is <code>ghcr.io/danleach-glitch/flexarr</code>, built for 64-bit Intel/AMD (<code>amd64</code>) and 64-bit ARM (<code>arm64</code>), so it also runs on a Raspberry Pi 5 with a 64-bit operating system. There&#39;s no native Windows build: on Windows, use Docker Desktop.</p>
+<h2 id="what-the-container-needs"><a class="anchor" href="#what-the-container-needs" aria-hidden="true" tabindex="-1">#</a>What the container needs</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th></th>
+<th>Inside the container</th>
+<th>What to give it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Port</td>
+<td><code>8383</code></td>
+<td>Publish it as <code>8383</code> on the host.</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td><code>/config</code></td>
+<td>A folder (or Docker volume) for Flexarr&#39;s settings, database and caches. Keep it: it&#39;s your whole setup.</td>
+</tr>
+<tr>
+<td>Media</td>
+<td><code>/data/media</code> (your choice)</td>
+<td>Your media folder. Mount it at <strong>the same path</strong> Sonarr, Radarr and Lidarr use, so the paths they report match what Flexarr sees.</td>
+</tr>
+</tbody></table></div>
+<p>The <code>latest</code> tag is always the newest <a href="https://github.com/danleach-glitch/flexarr/releases" rel="noopener">release</a>. To upgrade only when you choose, use a version instead, such as <code>ghcr.io/danleach-glitch/flexarr:0.49</code>.</p>
+<h2 id="linux"><a class="anchor" href="#linux" aria-hidden="true" tabindex="-1">#</a>Linux</h2>
+<h3 id="permissions"><a class="anchor" href="#permissions" aria-hidden="true" tabindex="-1">#</a>Permissions</h3>
+<p>The container runs as user ID <code>1654</code>, not as root, and doesn&#39;t read <code>PUID</code> or <code>PGID</code> settings. It needs to write to its settings folder and read your media. The simplest way is to run it as the user who owns your media, with Docker&#39;s <code>--user</code> option (<code>user:</code> in Compose). Find your IDs with <code>id</code>:</p>
+<pre><code class="language-bash">id
+# uid=1000(you) gid=1000(you) ...
+</code></pre>
+<p>Create the settings folder yourself before starting the container, so it belongs to you rather than to root:</p>
+<pre><code class="language-bash">mkdir -p ~/flexarr/config
+</code></pre>
+<h3 id="docker-run"><a class="anchor" href="#docker-run" aria-hidden="true" tabindex="-1">#</a>docker run</h3>
+<pre><code class="language-bash">docker run -d --name flexarr --restart unless-stopped \
+  --user 1000:1000 \
+  -p 8383:8383 \
+  -v ~/flexarr/config:/config \
+  -v /path/to/media:/data/media \
+  ghcr.io/danleach-glitch/flexarr:latest
+</code></pre>
+<blockquote class="callout tip"><p><strong>Tip</strong> If you&#39;d rather not deal with permissions, keep the settings in a named Docker volume instead: leave out <code>--user</code> and use <code>-v flexarr-config:/config</code>. Docker sets that volume up so Flexarr can write to it. Your media still needs to be readable by everyone, or by user <code>1654</code>.</p>
+</blockquote>
+<h3 id="docker-compose"><a class="anchor" href="#docker-compose" aria-hidden="true" tabindex="-1">#</a>Docker Compose</h3>
+<p>Save this as <code>docker-compose.yml</code> and run <code>docker compose up -d</code> in the same folder.</p>
+<pre><code class="language-yaml">services:
+  flexarr:
+    image: ghcr.io/danleach-glitch/flexarr:latest
+    container_name: flexarr
+    user: &quot;1000:1000&quot;
+    ports: [&quot;8383:8383&quot;]
+    volumes:
+      - ./config:/config
+      - /path/to/media:/data/media
+    restart: unless-stopped
+</code></pre>
+<p>If Sonarr, Radarr and Lidarr are in the same Compose file, give them the same media mount (<code>/path/to/media:/data/media</code>). They can then reach Flexarr at <code>http://flexarr:8383</code> for webhooks.</p>
+<h3 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h3>
+<p>Flexarr converts video on the processor unless you pick something else in <strong>Settings › Streaming › Hardware acceleration</strong>. On Linux, <strong>Automatic</strong> means the processor. The menu lists only the encoders the image&#39;s FFmpeg was built with, which can include VA-API, Intel Quick Sync and NVIDIA NVENC.</p>
+<blockquote class="callout important"><p><strong>Important</strong> Hardware transcoding in Docker isn&#39;t ready-made yet. The image doesn&#39;t include the Intel or AMD drivers that VA-API and Quick Sync need, so choosing them is likely to make conversions fail. Leave the setting on <strong>Automatic</strong> unless you&#39;ve tested otherwise. The Apple apps play most files directly, so many homes rarely need conversion at all.</p>
+</blockquote>
+<p><strong>NVIDIA</strong> is the exception worth trying, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add this to the service in Compose:</p>
+<pre><code class="language-yaml">    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+</code></pre>
+<p>Then choose <strong>NVIDIA NVENC</strong> in <strong>Settings › Streaming</strong> and play something that needs converting. If it fails, set it back to <strong>Automatic</strong>.</p>
+<h2 id="windows"><a class="anchor" href="#windows" aria-hidden="true" tabindex="-1">#</a>Windows</h2>
+<ol>
+<li><p>Install <a href="https://www.docker.com/products/docker-desktop/" rel="noopener">Docker Desktop</a> and keep its default <strong>WSL 2</strong> backend. It asks to install WSL if you don&#39;t have it.</p>
+</li>
+<li><p>In Docker Desktop&#39;s settings, turn on <strong>Start Docker Desktop when you sign in</strong>, so Flexarr comes back after a restart.</p>
+</li>
+<li><p>Make a folder, say <code>C:\flexarr</code>, and save this in it as <code>docker-compose.yml</code>:</p>
+<pre><code class="language-yaml">services:
+  flexarr:
+    image: ghcr.io/danleach-glitch/flexarr:latest
+    container_name: flexarr
+    ports: [&quot;8383:8383&quot;]
+    volumes:
+      - flexarr-config:/config
+      - D:/Media:/data/media
+    restart: unless-stopped
+
+volumes:
+  flexarr-config:
+</code></pre>
+<p>Change <code>D:/Media</code> to where your media is, with forward slashes.</p>
+</li>
+<li><p>Open PowerShell in that folder and run <code>docker compose up -d</code>.</p>
+</li>
+</ol>
+<h3 id="performance-on-windows"><a class="anchor" href="#performance-on-windows" aria-hidden="true" tabindex="-1">#</a>Performance on Windows</h3>
+<p>Docker Desktop runs Linux containers inside WSL 2. Files on your Windows drives (<code>C:</code>, <code>D:</code>, which WSL sees as <code>/mnt/c</code>, <code>/mnt/d</code>) are reached across a bridge between Windows and Linux, which is much slower than Linux&#39;s own disk. Playback is usually fine, but library scans are slower, and a database there is slow and can be unreliable.</p>
+<p>That&#39;s why the Compose file above keeps <code>/config</code> in a Docker <strong>volume</strong> (<code>flexarr-config</code>), which lives inside WSL 2, and only your media on a Windows drive. Don&#39;t change <code>/config</code> to a folder like <code>C:\flexarr\config</code>.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Your media can stay on any Windows drive, including a second internal disk. A network share mapped to a drive letter usually isn&#39;t visible to containers this way. If your media is on a NAS, consider running Flexarr on the NAS itself.</p>
+</blockquote>
+<h3 id="hardware-transcoding-on-windows"><a class="anchor" href="#hardware-transcoding-on-windows" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding on Windows</h3>
+<p>Flexarr converts on the processor. Docker Desktop can pass an NVIDIA graphics card through to containers, so the NVIDIA steps above may work, with <code>gpus: all</code> under the service in place of <code>runtime: nvidia</code>. Intel and AMD graphics aren&#39;t available to containers on Windows.</p>
+<h2 id="next-set-it-up"><a class="anchor" href="#next-set-it-up" aria-hidden="true" tabindex="-1">#</a>Next: set it up</h2>
+<p>Open <strong>http://&lt;server&gt;:8383</strong> in a browser on your home network, using the computer&#39;s name or IP address (or <strong><a href="http://localhost:8383" rel="noopener">http://localhost:8383</a></strong> on the computer itself), and choose <strong>Set up Flexarr</strong>. The first browser to reach a new server becomes its owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/install-unraid"><span>Previous</span>Install on Unraid</a>
+          <a class="next" href="/guide/first-setup"><span>Next</span>First setup</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-docker.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20with%20Docker%20on%20Linux%20or%20Windows">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

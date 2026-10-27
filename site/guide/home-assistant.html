@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home Assistant · Flexarr guide</title>
+  <meta name="description" content="Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/home-assistant">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Home Assistant · Flexarr guide">
+  <meta property="og:description" content="Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/home-assistant">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant" aria-current="page">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
+        <h1>Home Assistant</h1>
+        <p class="lede">Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-you-get">What you get</a></li>
+            <li><a href="#install-it">Install it</a></li>
+            <li><a href="#play-something-from-home-assistant">Play something from Home Assistant</a></li>
+            <li><a href="#the-playback-event">The playback event</a></li>
+            <li><a href="#example-lights-down-for-films">Example: lights down for films</a></li>
+            <li><a href="#for-other-automation-tools">For other automation tools</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p><a href="https://www.home-assistant.io" rel="noopener">Home Assistant</a> is a popular app for running your smart home yourself. Flexarr has an integration for it, so your home can react to what you&#39;re watching: lights down when a film starts, up again when the credits roll.</p>
+<p>The integration lives in its own repository, <a href="https://github.com/danleach-glitch/flexarr-home-assistant" rel="noopener">flexarr-home-assistant</a>, and needs Flexarr 0.45.0 or later.</p>
+<h2 id="what-you-get"><a class="anchor" href="#what-you-get" aria-hidden="true" tabindex="-1">#</a>What you get</h2>
+<ul>
+<li><strong>A media player for each device.</strong> Every Apple TV, iPhone and iPad signed in to Flexarr appears in Home Assistant, named as it is in Flexarr&#39;s list of signed-in devices. It shows what&#39;s playing (title, show, season and episode, artwork and position) and has play, pause and stop. It&#39;s <em>idle</em> while Flexarr is open with nothing playing, and <em>off</em> when Flexarr isn&#39;t open on it. Devices you connect later appear by themselves.</li>
+<li><strong>Device triggers</strong> for <em>started</em>, <em>paused</em>, <em>resumed</em>, <em>credits</em>, <em>ended</em> and <em>stopped</em>, to pick in an automation&#39;s Device trigger.</li>
+<li><strong>A <code>flexarr_playback</code> event</strong> for every change, which covers browsers too.</li>
+</ul>
+<h2 id="install-it"><a class="anchor" href="#install-it" aria-hidden="true" tabindex="-1">#</a>Install it</h2>
+<p>The easiest way is through <a href="https://hacs.xyz" rel="noopener">HACS</a>, the community store for Home Assistant, which also tells you about updates.</p>
+<ol>
+<li>In Home Assistant, open <strong>HACS</strong>, then the <strong>⋮</strong> menu, then <strong>Custom repositories</strong>.</li>
+<li>Add <code>https://github.com/danleach-glitch/flexarr-home-assistant</code> with the type <strong>Integration</strong>.</li>
+<li>Find <strong>Flexarr</strong> in HACS, download it, and restart Home Assistant.</li>
+<li>Go to <strong>Settings › Devices &amp; services › Add integration</strong> and choose <strong>Flexarr</strong>.</li>
+<li>Enter the <strong>Server address</strong>, for example <code>http://192.168.1.20:8383</code>, and the <strong>API key</strong>.</li>
+</ol>
+<p>The API key is in Flexarr under <strong>Settings › Access</strong>, signed in as the main profile. Showing it asks for the main profile&#39;s PIN.</p>
+<!-- screenshot: Home Assistant's Flexarr setup dialog with the server address and API key fields -->
+
+<blockquote class="callout note"><p><strong>Note</strong> If you copied the integration into <code>custom_components</code> by hand before it had its own repository, it keeps working. Remove the old copy and install it through HACS to get updates.</p>
+</blockquote>
+<h2 id="play-something-from-home-assistant"><a class="anchor" href="#play-something-from-home-assistant" aria-hidden="true" tabindex="-1">#</a>Play something from Home Assistant</h2>
+<p>Call <code>media_player.play_media</code> with a Flexarr title&#39;s id. You&#39;ll find the id in the title&#39;s address in the web app. A show&#39;s id plays the episode that device&#39;s profile is up to.</p>
+<pre><code class="language-yaml">action: media_player.play_media
+target:
+  entity_id: media_player.living_room_tv
+data:
+  media_content_id: 01a17ab1-0000-0000-0000-000000000000
+  media_content_type: tvshow
+</code></pre>
+<p>As with Siri, Flexarr has to be open on the device for it to play.</p>
+<h2 id="the-playback-event"><a class="anchor" href="#the-playback-event" aria-hidden="true" tabindex="-1">#</a>The playback event</h2>
+<p><code>flexarr_playback</code> carries:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>type</code></td>
+<td><code>started</code>, <code>paused</code>, <code>resumed</code>, <code>credits</code>, <code>ended</code> or <code>stopped</code></td>
+</tr>
+<tr>
+<td><code>device_id</code></td>
+<td>the Home Assistant device (none for a browser)</td>
+</tr>
+<tr>
+<td><code>device_name</code></td>
+<td>the device or browser, as named in Flexarr</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td>whose profile is watching</td>
+</tr>
+<tr>
+<td><code>media_type</code></td>
+<td><code>movie</code>, <code>episode</code>, <code>music</code> or <code>podcast</code></td>
+</tr>
+<tr>
+<td><code>title</code>, <code>series_title</code>, <code>season</code>, <code>episode</code></td>
+<td>what&#39;s playing</td>
+</tr>
+<tr>
+<td><code>media_id</code></td>
+<td>its Flexarr id</td>
+</tr>
+<tr>
+<td><code>position</code>, <code>duration</code></td>
+<td>in seconds</td>
+</tr>
+</tbody></table></div>
+<p><em>Credits</em> fires where Flexarr has found the end credits, within about ten seconds of them starting. A title without credits found goes straight to <em>ended</em>. See <a href="/guide/subtitles-and-skipping">Subtitles and skipping</a> for how credits are found.</p>
+<p>A playback that stops reporting counts as stopped after two minutes, or fifteen if it was paused.</p>
+<h2 id="example-lights-down-for-films"><a class="anchor" href="#example-lights-down-for-films" aria-hidden="true" tabindex="-1">#</a>Example: lights down for films</h2>
+<p>This dims the living room when a film starts on the living room TV, and brings the lights up at the credits or when you stop.</p>
+<pre><code class="language-yaml">automation:
+  - alias: Lights down for a film
+    triggers:
+      - trigger: event
+        event_type: flexarr_playback
+        event_data:
+          type: started
+          media_type: movie
+          device_name: Living room TV
+    actions:
+      - action: light.turn_on
+        target: { entity_id: light.living_room }
+        data: { brightness_pct: 10, transition: 5 }
+
+  - alias: Lights up at the credits
+    triggers:
+      - trigger: event
+        event_type: flexarr_playback
+        event_data: { type: credits, device_name: Living room TV }
+      - trigger: event
+        event_type: flexarr_playback
+        event_data: { type: stopped, device_name: Living room TV }
+    actions:
+      - action: light.turn_on
+        target: { entity_id: light.living_room }
+        data: { brightness_pct: 80, transition: 10 }
+</code></pre>
+<p>Change <code>Living room TV</code> to your device&#39;s name in Flexarr, and <code>light.living_room</code> to your own light.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Leave out <code>media_type: movie</code> to dim the lights for episodes too, or add a <code>profile</code> to make it only happen when you&#39;re the one watching.</p>
+</blockquote>
+<h2 id="for-other-automation-tools"><a class="anchor" href="#for-other-automation-tools" aria-hidden="true" tabindex="-1">#</a>For other automation tools</h2>
+<p>The integration is built on Flexarr&#39;s event stream, which anything else can use too. <code>GET /api/v1/events</code> on your server is a stream of server-sent events: one <code>playback</code> event, as JSON, for each change, with a keep-alive comment every twenty seconds. Because it shows what everyone is watching, it needs the API key, sent as an <code>X-Api-Key</code> header.</p>
+<pre><code class="language-bash">curl -N -H &quot;X-Api-Key: &lt;your key&gt;&quot; http://&lt;server&gt;:8383/api/v1/events
+</code></pre>
+<blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Keep Home Assistant and anything else holding it on your home network or your tailnet. See <a href="/guide/away-from-home">Watch away from home</a>.</p>
+</blockquote>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/notifications-and-widgets"><span>Previous</span>Notifications and widgets</a>
+          <a class="next" href="/guide/assistant-mcp"><span>Next</span>Use an AI assistant</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/home-assistant.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Home%20Assistant">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

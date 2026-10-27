@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notifications and widgets · Flexarr guide</title>
+  <meta name="description" content="Get told on your iPhone or iPad when something new is ready, add podcast widgets to your Home Screen, and fill the Apple TV&#39;s Top Shelf.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/notifications-and-widgets">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Notifications and widgets · Flexarr guide">
+  <meta property="og:description" content="Get told on your iPhone or iPad when something new is ready, add podcast widgets to your Home Screen, and fill the Apple TV&#39;s Top Shelf.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/notifications-and-widgets">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets" aria-current="page">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
+        <h1>Notifications and widgets</h1>
+        <p class="lede">Get told on your iPhone or iPad when something new is ready, add podcast widgets to your Home Screen, and fill the Apple TV&#39;s Top Shelf.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#notifications-iphone-and-ipad">Notifications (iPhone and iPad)</a></li>
+            <li><a href="#widgets-iphone-and-ipad">Widgets (iPhone and iPad)</a></li>
+            <li><a href="#top-shelf-apple-tv">Top Shelf (Apple TV)</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr can tell your phone when something new arrives, keep podcasts on your Home Screen and Lock Screen, and put what you&#39;re watching at the top of the Apple TV&#39;s Home screen.</p>
+<h2 id="notifications-iphone-and-ipad"><a class="anchor" href="#notifications-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>Notifications (iPhone and iPad)</h2>
+<h3 id="turn-them-on"><a class="anchor" href="#turn-them-on" aria-hidden="true" tabindex="-1">#</a>Turn them on</h3>
+<ol>
+<li>In the Flexarr app, go to <strong>Settings › Notifications</strong>.</li>
+<li>Turn on <strong>Notifications</strong>, and allow them when iOS asks.</li>
+<li>Under <strong>Tell me about</strong>, choose what you want to hear about.</li>
+<li>Tap <strong>Send test notification</strong> to check one arrives.</li>
+</ol>
+<!-- screenshot: Settings › Notifications on iPhone, with the Tell me about toggles and Upcoming -->
+
+<p>If iOS has notifications switched off for Flexarr, the page says so and offers <strong>Open Settings</strong> to allow them there first.</p>
+<h3 id="what-you-can-be-told-about"><a class="anchor" href="#what-you-can-be-told-about" aria-hidden="true" tabindex="-1">#</a>What you can be told about</h3>
+<ul>
+<li><strong>Films</strong> and <strong>Shows</strong>: something new in the library that you haven&#39;t seen, in a library your profile can see. A brand-new show says so, and several episodes of one show arriving together are one notification. Upgrades and replacements of things you already have don&#39;t count.</li>
+<li><strong>Podcasts</strong>: a new episode of a show you follow.</li>
+<li><strong>Recordings</strong>: a Live TV recording has finished. This appears when Live TV is set up.</li>
+<li><strong>Requests</strong>: something you asked for through Flexarr is ready. This takes the place of the ordinary &quot;new&quot; notification for it.</li>
+<li><strong>Upcoming</strong> (off to start with): each morning, at the hour you choose under <strong>At</strong>, what&#39;s airing or out today from the shows you watch and the films you asked for.</li>
+</ul>
+<p>A library&#39;s first scan never notifies, and a big batch arriving at once is summed up in one notification, so adding a new library or a season pack won&#39;t flood your phone.</p>
+<p>Notifications have buttons. Films and episodes have <strong>Play</strong>, <strong>Download</strong> and <strong>Play on Apple TV</strong>. Podcast episodes have <strong>Play</strong> and <strong>Download</strong>. Tapping the notification opens the title.</p>
+<h3 id="one-profile-per-phone"><a class="anchor" href="#one-profile-per-phone" aria-hidden="true" tabindex="-1">#</a>One profile per phone</h3>
+<p>Each phone gets notifications for one profile: the one it was on when you turned them on. A phone the household shares gets one set, not one for each person. If you switch profile, <strong>Settings › Notifications</strong> offers <strong>Get notifications for … instead</strong>. See <a href="/guide/profiles">Profiles</a>.</p>
+<p>Signing the phone out, or signing it out from <strong>Settings › Access</strong> on the web, stops its notifications.</p>
+<h3 id="how-they-reach-your-phone-and-what-s-shared"><a class="anchor" href="#how-they-reach-your-phone-and-what-s-shared" aria-hidden="true" tabindex="-1">#</a>How they reach your phone, and what&#39;s shared</h3>
+<p>Apple only delivers notifications that come from the app maker&#39;s own key, and that key can&#39;t be handed to every Flexarr server. So your server sends each notification through a small relay at flexarr.io, which hands it to Apple to deliver.</p>
+<p>Here&#39;s what goes where:</p>
+<ol>
+<li>When you turn notifications on, your phone makes a random secret key and gives it to <strong>your own server</strong>. It never leaves the two of them.</li>
+<li>When something new arrives, your server writes the notification (title, text, artwork link and buttons) and <strong>encrypts it</strong> with that key.</li>
+<li>Your server sends the relay the encrypted notification and your phone&#39;s Apple push address. The relay can&#39;t read the notification, and keeps nothing.</li>
+<li>The relay passes it to <strong>Apple</strong> under a plain &quot;Something new is ready&quot; message.</li>
+<li>On your phone, Flexarr <strong>decrypts</strong> it and shows the real title, text, artwork and buttons.</li>
+</ol>
+<p>So the relay and Apple see that your phone got a notification, and when, but not what it says. Artwork in a notification is a public poster address, which your phone fetches to show it. The <a href="https://flexarr.io/privacy">privacy policy</a> has the details.</p>
+<blockquote class="callout note"><p><strong>Note</strong> A server can use no relay at all. Set the environment variable <code>Flexarr__Notifications__Enabled=false</code> (or <code>Flexarr:Notifications:Enabled</code> set to <code>false</code> in the server&#39;s settings) and restart. The app then says your server has notifications turned off.</p>
+</blockquote>
+<h2 id="widgets-iphone-and-ipad"><a class="anchor" href="#widgets-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>Widgets (iPhone and iPad)</h2>
+<p>Flexarr has two podcast widgets. Add them the usual way: touch and hold an empty part of the Home Screen, tap <strong>Edit › Add Widget</strong>, and search for Flexarr.</p>
+<ul>
+<li><strong>Continue listening</strong> shows the episode you&#39;re on, with a play and pause button. Small and medium sizes for the Home Screen, and a Lock Screen size too.</li>
+<li><strong>Up Next</strong> shows the episodes waiting in your Up Next queue. Small and medium sizes.</li>
+</ul>
+<p>The widgets show what the app last saved, and update when your podcasts change in the app. They don&#39;t fetch anything from your server themselves. See <a href="/guide/podcasts">Podcasts</a> for Up Next.</p>
+<h2 id="top-shelf-apple-tv"><a class="anchor" href="#top-shelf-apple-tv" aria-hidden="true" tabindex="-1">#</a>Top Shelf (Apple TV)</h2>
+<p>Put Flexarr in the top row of the Apple TV&#39;s Home screen, and the Top Shelf above it shows your Continue Watching. Select a title to open it in Flexarr, or press Play on the remote to carry on watching straight away. With nothing on the go, it shows featured titles instead.</p>
+<p>To choose how it looks:</p>
+<ol>
+<li>In Flexarr on the Apple TV, open <strong>Settings › Home screen</strong>.</li>
+<li>Choose <strong>Posters</strong>, which fit more titles in, or <strong>Wide artwork</strong>, with each title&#39;s logo on it.</li>
+</ol>
+<p>Each title shows how far through it you are. The Top Shelf shows the Continue Watching of the profile currently chosen on the Apple TV.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> To move Flexarr to the top row, highlight its icon on the Apple TV&#39;s Home screen, press and hold until it wobbles, move it up, then press the remote&#39;s centre to drop it.</p>
+</blockquote>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/siri-and-shortcuts"><span>Previous</span>Siri and Shortcuts</a>
+          <a class="next" href="/guide/home-assistant"><span>Next</span>Home Assistant</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/notifications-and-widgets.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Notifications%20and%20widgets">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

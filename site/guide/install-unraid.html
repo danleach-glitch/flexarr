@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install on Unraid · Flexarr guide</title>
+  <meta name="description" content="Add Flexarr to Unraid as a Docker container by hand, with its appdata folder, your media share and the right user.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/install-unraid">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Install on Unraid · Flexarr guide">
+  <meta property="og:description" content="Add Flexarr to Unraid as a Docker container by hand, with its appdata folder, your media share and the right user.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/install-unraid">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid" aria-current="page">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Install on Unraid</h1>
+        <p class="lede">Add Flexarr to Unraid as a Docker container by hand, with its appdata folder, your media share and the right user.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#before-you-start">Before you start</a></li>
+            <li><a href="#add-the-container">Add the container</a></li>
+            <li><a href="#hardware-transcoding">Hardware transcoding</a></li>
+            <li><a href="#updating">Updating</a></li>
+            <li><a href="#next-set-it-up">Next: set it up</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>On Unraid, Flexarr runs as a Docker container. There&#39;s no Community Applications template for it yet, so you add the container by hand. It takes a few minutes and you only do it once.</p>
+<h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
+<ul>
+<li>Make sure Docker is enabled, under <strong>Settings › Docker</strong>.</li>
+<li>Know where your media lives, for example the <code>data</code> share at <code>/mnt/user/data/media</code>. If you run Sonarr, Radarr and Lidarr on this server, look at the media path in their containers&#39; settings: you&#39;ll give Flexarr the same one.</li>
+</ul>
+<h2 id="add-the-container"><a class="anchor" href="#add-the-container" aria-hidden="true" tabindex="-1">#</a>Add the container</h2>
+<ol>
+<li><p>Go to the <strong>Docker</strong> tab and click <strong>Add Container</strong> at the bottom of the page.</p>
+</li>
+<li><p>Fill in the top of the form:</p>
+<ul>
+<li><strong>Name</strong>: <code>flexarr</code></li>
+<li><strong>Repository</strong>: <code>ghcr.io/danleach-glitch/flexarr:latest</code></li>
+<li><strong>Network Type</strong>: <code>Bridge</code></li>
+</ul>
+</li>
+<li><p>Switch the form to the advanced view with the <strong>Basic View</strong> toggle at the top right, and fill in:</p>
+<ul>
+<li><strong>WebUI</strong>: <code>http://[IP]:[PORT:8383]/</code></li>
+<li><strong>Extra Parameters</strong>: <code>--user 99:100</code></li>
+</ul>
+</li>
+<li><p>Add the port, the settings folder and your media with <strong>Add another Path, Port, Variable, Label or Device</strong> at the bottom, one at a time:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Config Type</th>
+<th>Name</th>
+<th>Container</th>
+<th>Host</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Port</td>
+<td>Web UI</td>
+<td><code>8383</code></td>
+<td><code>8383</code></td>
+</tr>
+<tr>
+<td>Path</td>
+<td>Config</td>
+<td><code>/config</code></td>
+<td><code>/mnt/user/appdata/flexarr</code></td>
+</tr>
+<tr>
+<td>Path</td>
+<td>Media</td>
+<td><code>/data/media</code></td>
+<td><code>/mnt/user/data/media</code></td>
+</tr>
+</tbody></table></div>
+<p>Change the media paths to match yours. The container path should be the one your *arrs use inside their containers.</p>
+</li>
+<li><p>Click <strong>Apply</strong>. Unraid downloads the image and starts Flexarr.</p>
+</li>
+</ol>
+<!-- screenshot: Unraid's Add Container form filled in for Flexarr, advanced view -->
+
+<h3 id="why-user-99-100"><a class="anchor" href="#why-user-99-100" aria-hidden="true" tabindex="-1">#</a>Why <code>--user 99:100</code></h3>
+<p>The Flexarr container runs as its own user rather than root, and doesn&#39;t read <code>PUID</code> or <code>PGID</code> variables. <code>--user 99:100</code> runs it as Unraid&#39;s usual <code>nobody:users</code>, the owner of files on your shares and in appdata, so it can write its settings and read your media. If your other containers use a different <code>PUID</code> and <code>PGID</code>, use those numbers instead.</p>
+<h3 id="media-paths"><a class="anchor" href="#media-paths" aria-hidden="true" tabindex="-1">#</a>Media paths</h3>
+<p>Sonarr, Radarr and Lidarr tell Flexarr where each new file is. When all of them see your media at the same container path (here <code>/data/media</code>), those paths match and new downloads appear straight away. If they don&#39;t, map one to the other in <strong>Settings › Connections › Path mappings</strong>. See <a href="/guide/media-paths">Media paths</a>.</p>
+<h2 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h2>
+<p>Flexarr converts video on the processor by default. On Linux, <strong>Settings › Streaming › Hardware acceleration › Automatic</strong> means the processor.</p>
+<p><strong>Intel and AMD graphics.</strong> Passing <code>/dev/dri</code> to the container isn&#39;t enough yet: the Flexarr image doesn&#39;t include the Intel or AMD drivers that VA-API and Quick Sync need. Leave hardware acceleration on <strong>Automatic</strong>.</p>
+<p><strong>NVIDIA graphics</strong> may work, because Unraid&#39;s NVIDIA driver supplies the libraries to the container. This is untested, so treat it as an experiment:</p>
+<ol>
+<li>Install the <strong>Nvidia Driver</strong> plugin from the Apps tab and reboot if it asks.</li>
+<li>Edit the Flexarr container. Add <code>--runtime=nvidia</code> to <strong>Extra Parameters</strong>, after <code>--user 99:100</code>.</li>
+<li>Add two <strong>Variables</strong>: <code>NVIDIA_VISIBLE_DEVICES</code> set to <code>all</code> (or your card&#39;s ID from the plugin&#39;s page), and <code>NVIDIA_DRIVER_CAPABILITIES</code> set to <code>compute,video,utility</code>.</li>
+<li>Apply, then choose <strong>NVIDIA NVENC</strong> in <strong>Settings › Streaming</strong> and play something that needs converting. If it fails, set it back to <strong>Automatic</strong>.</li>
+</ol>
+<blockquote class="callout note"><p><strong>Note</strong> Conversion matters less than you might think. The iPhone, iPad and Apple TV apps play most files directly, so the server mainly converts for web browsers, quality-limited streams away from home and some downloads.</p>
+</blockquote>
+<h2 id="updating"><a class="anchor" href="#updating" aria-hidden="true" tabindex="-1">#</a>Updating</h2>
+<p>The Docker tab shows when a newer Flexarr image is available. Click <strong>apply update</strong> under the container to move to it. Your settings stay in <code>appdata/flexarr</code>. See <a href="/guide/updating">Updating</a>.</p>
+<h2 id="next-set-it-up"><a class="anchor" href="#next-set-it-up" aria-hidden="true" tabindex="-1">#</a>Next: set it up</h2>
+<p>Click Flexarr&#39;s icon in the Docker tab and choose <strong>WebUI</strong>, or open <strong>http://&lt;your-unraid&gt;:8383</strong> in a browser on your home network. Choose <strong>Set up Flexarr</strong>: the first browser to reach a new server becomes its owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/install-synology"><span>Previous</span>Install on a Synology NAS</a>
+          <a class="next" href="/guide/install-docker"><span>Next</span>Install with Docker on Linux or Windows</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-unraid.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20on%20Unraid">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

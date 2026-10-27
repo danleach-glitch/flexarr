@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>First setup · Flexarr guide</title>
+  <meta name="description" content="Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/first-setup">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="First setup · Flexarr guide">
+  <meta property="og:description" content="Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/first-setup">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup" aria-current="page">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>First setup</h1>
+        <p class="lede">Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#open-flexarr-in-a-browser">Open Flexarr in a browser</a></li>
+            <li><a href="#choose-set-up-flexarr">Choose Set up Flexarr</a></li>
+            <li><a href="#what-you-see-next">What you see next</a></li>
+            <li><a href="#add-your-libraries">Add your libraries</a></li>
+            <li><a href="#the-first-scan">The first scan</a></li>
+            <li><a href="#the-api-key">The API key</a></li>
+            <li><a href="#next-steps">Next steps</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Once the server is installed and running, everything else happens in a web browser. There&#39;s no account to make and no key to copy: the first browser to open a new server on your home network becomes its owner.</p>
+<h2 id="open-flexarr-in-a-browser"><a class="anchor" href="#open-flexarr-in-a-browser" aria-hidden="true" tabindex="-1">#</a>Open Flexarr in a browser</h2>
+<p>Flexarr listens on port <strong>8383</strong>. On a computer on the same home network as the server, open:</p>
+<pre><code class="language-text">http://&lt;server&gt;:8383
+</code></pre>
+<p>Replace <code>&lt;server&gt;</code> with the server&#39;s address. Any of these usually work:</p>
+<ul>
+<li>On the server itself: <code>http://localhost:8383</code></li>
+<li>The server&#39;s name on your network, such as <code>http://mac-mini.local:8383</code></li>
+<li>Its IP address, such as <code>http://192.168.1.20:8383</code>. Your router&#39;s app or admin page lists the addresses of devices on your network.</li>
+</ul>
+<p>If the page doesn&#39;t load, check that Flexarr is running (your install guide, linked from <a href="/guide/what-you-need">What you need</a>, shows how) and that you&#39;ve typed <code>http://</code>, not <code>https://</code>.</p>
+<h2 id="choose-set-up-flexarr"><a class="anchor" href="#choose-set-up-flexarr" aria-hidden="true" tabindex="-1">#</a>Choose Set up Flexarr</h2>
+<p>A new server greets you with <strong>Welcome to your Flexarr server</strong> and one button, <strong>Set up Flexarr</strong>. Choose it, and this browser becomes the server&#39;s owner and is signed in. That&#39;s the whole sign-up.</p>
+<!-- screenshot: the "Welcome to your Flexarr server" panel with the Set up Flexarr button -->
+
+<p>A few things to know:</p>
+<ul>
+<li><strong>It only works once.</strong> As soon as anyone signs in, setup closes for good. Every other phone, tablet, TV and browser then connects with a code that you approve from this browser. See <a href="/guide/connect-devices">Connect your devices</a>.</li>
+<li><strong>It only works from home.</strong> The button appears only to a browser on your home network, reaching the server by its IP address, a <code>.local</code> name or the server&#39;s own name. That stops anyone on the internet, or a web page you happen to visit, from claiming your server.</li>
+<li><strong>Servers set up before version 0.49.0 aren&#39;t affected.</strong> They keep using the API key, as before.</li>
+</ul>
+<blockquote class="callout note"><p><strong>Note</strong> If you see a box asking for an <strong>API key</strong> instead of the welcome, someone has already set this server up, or you&#39;re not on the home network. Try opening it by its IP address from a computer at home. If you set it up yourself in another browser, approve this one from there with a code, or sign in with the key (see <a href="#the-api-key">The API key</a> below).</p>
+</blockquote>
+<h2 id="what-you-see-next"><a class="anchor" href="#what-you-see-next" aria-hidden="true" tabindex="-1">#</a>What you see next</h2>
+<p>Flexarr doesn&#39;t walk you through a long wizard. You land on Home, which says <strong>Your cinema is empty</strong> until you add a library, with an <strong>Add a library</strong> button that takes you to the right place.</p>
+<p>You&#39;re signed in as the server&#39;s <strong>main profile</strong>, the one that can change settings. If other people will use Flexarr, it&#39;s worth giving the main profile a PIN, and making profiles for everyone else, in <strong>Settings › Profiles</strong>. See <a href="/guide/profiles">Profiles</a>.</p>
+<h2 id="add-your-libraries"><a class="anchor" href="#add-your-libraries" aria-hidden="true" tabindex="-1">#</a>Add your libraries</h2>
+<p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
+<ol>
+<li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong> or <strong>Music</strong>.</li>
+<li>Give it a <strong>Name</strong> if you like. Left blank, it&#39;s named after its kind. You can rename it later.</li>
+<li>Under <strong>Folders</strong>, browse the server&#39;s disks and choose <strong>Use this folder</strong> on the folder that holds that media. Add more than one folder if your films are spread across drives.</li>
+<li>Choose <strong>Add library</strong>.</li>
+</ol>
+<p>Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.</p>
+<blockquote class="callout important"><p><strong>Important</strong> The folder browser shows the disks as the <em>server</em> sees them. In Docker, that means the paths inside the container, such as <code>/data/media/movies</code>, not the paths on your NAS. If you can&#39;t find your media, check the volumes you gave the container in your install guide.</p>
+</blockquote>
+<h3 id="podcasts-are-built-in"><a class="anchor" href="#podcasts-are-built-in" aria-hidden="true" tabindex="-1">#</a>Podcasts are built in</h3>
+<p>You don&#39;t need to add a podcasts library. There&#39;s always one, listed under <strong>Podcasts</strong> at the bottom of <strong>Settings › Libraries</strong>. Its <strong>Episodes folder</strong> is where episodes wait on their way to phones; you can move it with <strong>Change</strong>. See <a href="/guide/podcasts">Podcasts</a>.</p>
+<h2 id="the-first-scan"><a class="anchor" href="#the-first-scan" aria-hidden="true" tabindex="-1">#</a>The first scan</h2>
+<p>Adding a library starts a scan straight away. You&#39;ll see its progress in <strong>Settings › Libraries</strong>, and titles appear on Home and in the sidebar as they&#39;re found.</p>
+<p>How long it takes depends on the size of your library and how fast the disks are, and artwork keeps arriving for a while after the files are found. You can start watching as soon as something shows up.</p>
+<p>After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, <a href="/guide/connect-arrs">connect them</a> next. Without them, films and episodes still play, named from their files, but have no artwork. Music reads the tags and cover images in your files, and Lidarr adds more.</p>
+</blockquote>
+<h2 id="the-api-key"><a class="anchor" href="#the-api-key" aria-hidden="true" tabindex="-1">#</a>The API key</h2>
+<p>Flexarr still has an API key. You won&#39;t need it for everyday use at home, but it&#39;s there for:</p>
+<ul>
+<li>signing in a browser or app away from home, when you don&#39;t use <a href="/guide/away-from-home">Tailscale</a></li>
+<li>connecting an Apple TV by typing the server&#39;s address, when it doesn&#39;t find the server by itself</li>
+<li>scripts, <a href="/guide/home-assistant">Home Assistant</a> and <a href="/guide/assistant-mcp">assistants</a></li>
+<li>getting back in if you&#39;ve lost every signed-in browser</li>
+</ul>
+<p>Signed in as the main profile, you can see it in <strong>Settings › Access</strong> under <strong>API key</strong>: choose the eye to show it (with the main profile&#39;s PIN, if it has one). <strong>Make a new key</strong> replaces it if it&#39;s ever got out.</p>
+<p>It&#39;s also in the server&#39;s settings file, <code>config.json</code>, as <code>apiKey</code>:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Installed with</th>
+<th>Where <code>config.json</code> is</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Docker (including Synology and Unraid)</td>
+<td><code>/config/config.json</code> inside the container, which is the folder you mounted at <code>/config</code></td>
+</tr>
+<tr>
+<td>macOS</td>
+<td><code>~/.flexarr/data/config.json</code></td>
+</tr>
+</tbody></table></div>
+<blockquote class="callout important"><p><strong>Important</strong> Anyone with the API key can manage your server. Don&#39;t post it in screenshots or bug reports.</p>
+</blockquote>
+<h2 id="next-steps"><a class="anchor" href="#next-steps" aria-hidden="true" tabindex="-1">#</a>Next steps</h2>
+<ul>
+<li><a href="/guide/connect-devices">Connect your devices</a>: your iPhone, iPad, Apple TV and other browsers</li>
+<li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+<li><a href="/guide/profiles">Profiles</a> for everyone in the house</li>
+</ul>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/install-docker"><span>Previous</span>Install with Docker on Linux or Windows</a>
+          <a class="next" href="/guide/connect-devices"><span>Next</span>Connect your devices</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/first-setup.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20First%20setup">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

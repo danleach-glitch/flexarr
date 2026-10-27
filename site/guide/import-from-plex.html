@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bring your history over from Plex · Flexarr guide</title>
+  <meta name="description" content="Copy what each person has watched, and where they stopped, from Plex Media Server into Flexarr, matched by file and without changing Plex.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/import-from-plex">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Bring your history over from Plex · Flexarr guide">
+  <meta property="og:description" content="Copy what each person has watched, and where they stopped, from Plex Media Server into Flexarr, matched by file and without changing Plex.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/import-from-plex">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex" aria-current="page">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
+        <h1>Bring your history over from Plex</h1>
+        <p class="lede">Copy what each person has watched, and where they stopped, from Plex Media Server into Flexarr, matched by file and without changing Plex.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-comes-over">What comes over</a></li>
+            <li><a href="#what-doesn-t">What doesn&#39;t</a></li>
+            <li><a href="#before-you-start">Before you start</a></li>
+            <li><a href="#bring-the-history-over">Bring the history over</a></li>
+            <li><a href="#running-it-again-is-safe">Running it again is safe</a></li>
+            <li><a href="#profile-pictures">Profile pictures</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>If you&#39;ve been using Plex Media Server, Flexarr can copy across what you&#39;ve watched and where you stopped, so Continue Watching and the watched ticks pick up where you left off. Plex itself is never changed: Flexarr takes a private copy of Plex&#39;s database, reads it, and deletes the copy.</p>
+<h2 id="what-comes-over"><a class="anchor" href="#what-comes-over" aria-hidden="true" tabindex="-1">#</a>What comes over</h2>
+<ul>
+<li><strong>Watched films and episodes</strong>, with how many times each was played.</li>
+<li><strong>Resume points</strong> for anything part-watched, so it shows in Continue Watching.</li>
+<li><strong>Profile pictures</strong>, if you use Plex Home (a separate button, below).</li>
+</ul>
+<p>Each Plex user&#39;s history goes into the Flexarr profile you choose, so the household&#39;s histories stay apart.</p>
+<h2 id="what-doesn-t"><a class="anchor" href="#what-doesn-t" aria-hidden="true" tabindex="-1">#</a>What doesn&#39;t</h2>
+<ul>
+<li><strong>Music.</strong> Only films and episodes are brought over.</li>
+<li><strong>Files Flexarr doesn&#39;t have.</strong> Titles are matched by the file on disk, not by name. If a file Plex knows about isn&#39;t in one of your Flexarr libraries, it&#39;s skipped and counted in the summary.</li>
+<li><strong>Anything else in Plex</strong>: playlists, collections, ratings, server settings and users. Create profiles in Flexarr yourself (<a href="/guide/profiles">Profiles</a>).</li>
+</ul>
+<h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
+<p>Flexarr reads Plex&#39;s database file, <code>com.plexapp.plugins.library.db</code>, so it has to be able to see it.</p>
+<ul>
+<li><strong>Plex on the same computer.</strong> Flexarr looks in the usual places on a Mac, on Linux and on Windows, and normally finds it without help.</li>
+<li><strong>Plex in Docker, or Flexarr in Docker.</strong> Make Plex&#39;s data folder visible to Flexarr, for example by mounting it into Flexarr&#39;s container read-only, then give Flexarr the full path to the database file when it asks. The file sits in Plex&#39;s data folder under <code>Plug-in Support/Databases/</code>.</li>
+<li><strong>Plex on a different computer.</strong> Copy its <code>Plug-in Support/Databases</code> folder to the Flexarr machine and point Flexarr at the copied <code>com.plexapp.plugins.library.db</code>.</li>
+</ul>
+<blockquote class="callout note"><p><strong>Note</strong> Flexarr only accepts a path to a file named <code>com.plexapp.plugins.library.db</code>. It won&#39;t read any other file you point it at.</p>
+</blockquote>
+<p>Matching is by file path, so your libraries need to be set up in Flexarr first, with their scans finished. If Plex saw your media under different paths from Flexarr (common when one of them runs in Docker), add a path mapping in <strong>Settings › Connections › Path mappings</strong> before importing; Flexarr applies the same mappings to Plex&#39;s paths. See <a href="/guide/media-paths">Media paths</a>.</p>
+<h2 id="bring-the-history-over"><a class="anchor" href="#bring-the-history-over" aria-hidden="true" tabindex="-1">#</a>Bring the history over</h2>
+<p>You need the main profile for this.</p>
+<ol>
+<li>In the web app, open <strong>Settings › Libraries</strong> and choose <strong>Bring over from Plex</strong>.</li>
+<li>Flexarr says where it found Plex. If it says Plex wasn&#39;t found, type the full path to <code>com.plexapp.plugins.library.db</code> and choose <strong>Look there</strong>.</li>
+<li>Under <strong>Whose history</strong>, pick the Plex user. Each is listed with how many titles they&#39;ve watched and how many are in progress.</li>
+<li>If you have more than one Flexarr profile, choose one under <strong>Into which Flexarr profile</strong>. It starts on the main profile.</li>
+<li>Choose <strong>Bring history over</strong>.</li>
+</ol>
+<!-- screenshot: Settings › Libraries › Bring over from Plex, with a Plex user and a Flexarr profile chosen and the summary line underneath -->
+
+<p>When it&#39;s done, a summary says how many titles were matched, how many are now watched, and how many are ready to resume. It also says how many files Plex knows about that aren&#39;t in your Flexarr libraries.</p>
+<p>Repeat steps 3 to 5 for each person, picking their Plex user and their Flexarr profile each time.</p>
+<h2 id="running-it-again-is-safe"><a class="anchor" href="#running-it-again-is-safe" aria-hidden="true" tabindex="-1">#</a>Running it again is safe</h2>
+<p>You can run the import as often as you like. For each title, the most recent viewing wins: if you&#39;ve watched something in Flexarr since you last watched it in Plex, Flexarr keeps its own, and the summary tells you how many were left alone. Play counts never go down.</p>
+<p>This makes it easy to try Flexarr alongside Plex for a while and bring over whatever you&#39;ve watched in Plex in the meantime.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> If a lot of files come up as not matched, check your path mappings, then rescan the libraries and run the import again.</p>
+</blockquote>
+<h2 id="profile-pictures"><a class="anchor" href="#profile-pictures" aria-hidden="true" tabindex="-1">#</a>Profile pictures</h2>
+<p>Under the import there&#39;s a <strong>Profile pictures</strong> panel. <strong>Use Plex profile pictures</strong> takes each Plex Home user&#39;s picture and puts it on the Flexarr profile with the same name, replacing any picture it has. Plex&#39;s owner is matched to the main profile if no profile shares their name.</p>
+<p>This step does go online: Flexarr reads Plex&#39;s own sign-in from its settings file and makes one request to plex.tv for the list of Home users and their pictures. The sign-in isn&#39;t stored. If Flexarr can&#39;t find the sign-in, Plex Media Server needs to be on this machine (or its data folder visible to Flexarr) and signed in to plex.tv.</p>
+<p>If a Plex user has no matching profile, the summary names them. Add a profile with that name in <strong>Settings › Profiles</strong> and run it again.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/assistant-mcp"><span>Previous</span>Use an AI assistant</a>
+          <a class="next" href="/guide/library-health"><span>Next</span>Library health</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/import-from-plex.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Bring%20your%20history%20over%20from%20Plex">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

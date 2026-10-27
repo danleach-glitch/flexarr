@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What you need · Flexarr guide</title>
+  <meta name="description" content="What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/what-you-need">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="What you need · Flexarr guide">
+  <meta property="og:description" content="What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/what-you-need">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <p class="section">Getting started</p>
+            <ul>
+              <li><a href="/guide/what-you-need" aria-current="page">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            <p class="section">Your *arrs</p>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            <p class="section">Watching and listening</p>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            <p class="section">Around the house</p>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            <p class="section">Looking after it</p>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>What you need</h1>
+        <p class="lede">What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#a-computer-that-stays-on">A computer that stays on</a></li>
+            <li><a href="#do-you-need-sonarr-radarr-and-lidarr">Do you need Sonarr, Radarr and Lidarr?</a></li>
+            <li><a href="#the-apps">The apps</a></li>
+            <li><a href="#pick-your-platform">Pick your platform</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr comes in two halves. The <strong>server</strong> runs on a computer in your home and keeps your films, TV shows, music and podcasts. The <strong>apps</strong> on your iPhone, iPad, Apple TV and web browser connect to it and play from it. There&#39;s no account and no cloud service in the middle: your library stays on your own disk.</p>
+<p>If you&#39;ve installed the iPhone app and it sent you here, this is the part you&#39;re missing. Set up the server once, then connect your phone to it with a short code.</p>
+<p>Flexarr is free for personal and other noncommercial use under the <a href="https://github.com/danleach-glitch/flexarr/blob/main/LICENSE" rel="noopener">PolyForm Noncommercial licence</a>.</p>
+<h2 id="a-computer-that-stays-on"><a class="anchor" href="#a-computer-that-stays-on" aria-hidden="true" tabindex="-1">#</a>A computer that stays on</h2>
+<p>The server needs a machine that&#39;s switched on whenever you want to watch. Any of these work:</p>
+<ul>
+<li><strong>A Mac</strong>, Apple silicon or Intel. Flexarr runs on it natively and uses the Mac&#39;s graphics chip to convert video.</li>
+<li><strong>A NAS</strong> that runs containers, such as a Synology or an Unraid server.</li>
+<li><strong>A Linux box or mini PC</strong> with Docker. That includes a Raspberry Pi 5 running a 64-bit operating system.</li>
+<li><strong>A Windows PC</strong> with Docker Desktop.</li>
+</ul>
+<p>The Docker image is built for both 64-bit Intel/AMD (<code>amd64</code>) and 64-bit ARM (<code>arm64</code>) processors. There&#39;s no 32-bit build, and no native Windows or Linux download: on those, Docker is the way in.</p>
+<h3 id="disk-space"><a class="anchor" href="#disk-space" aria-hidden="true" tabindex="-1">#</a>Disk space</h3>
+<p>Your media takes whatever it takes. Flexarr itself needs room for its database and a cache of artwork, subtitles, scrubbing previews and video it&#39;s converting at the moment. Leave a few gigabytes free on the drive that holds Flexarr&#39;s settings folder, more for a large library.</p>
+<h3 id="processor-and-hardware-transcoding"><a class="anchor" href="#processor-and-hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Processor and hardware transcoding</h3>
+<p>Most of the time Flexarr sends files as they are. The iPhone, iPad and Apple TV apps play files directly by default, HDR and Dolby Vision included, so the server does little more than read from disk.</p>
+<p>The server converts (transcodes) video when a device can&#39;t play a file as it is: a web browser meeting a format it doesn&#39;t know, a stream limited to a lower quality for watching away from home, or some downloads. Converting is hard work for a processor, so this is where the machine matters:</p>
+<ul>
+<li><strong>On a Mac</strong>, Flexarr uses Apple VideoToolbox automatically. Any recent Mac copes well.</li>
+<li><strong>In Docker</strong>, Flexarr converts on the processor unless you choose hardware acceleration in <strong>Settings › Streaming</strong>, which lists only what the server&#39;s FFmpeg supports. See your platform&#39;s install page for what&#39;s available there.</li>
+</ul>
+<p>A modest machine is fine if you mostly watch on Apple devices at home. If you plan to stream to browsers or over a slow connection a lot, a faster processor (or a Mac) helps. Flexarr converts at most three videos at once by default and tells anyone beyond that the server is busy, rather than slowing everybody down.</p>
+<h2 id="do-you-need-sonarr-radarr-and-lidarr"><a class="anchor" href="#do-you-need-sonarr-radarr-and-lidarr" aria-hidden="true" tabindex="-1">#</a>Do you need Sonarr, Radarr and Lidarr?</h2>
+<p>Flexarr is built to sit alongside Sonarr (TV), Radarr (films), Lidarr (music) and Seerr (requests). It doesn&#39;t download anything itself, and it takes its titles, artwork and details from those apps rather than asking you for API keys to online databases.</p>
+<p>You can run Flexarr without them, but what you get differs by library.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Library</th>
+<th>With the app</th>
+<th>Without it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Films</td>
+<td>Radarr supplies titles, posters, backgrounds, overviews, genres, ratings, trailers and cast. Films Radarr doesn&#39;t manage are looked up through its search.</td>
+<td>Films are found and play, named from their folders and files, but have no artwork or details.</td>
+</tr>
+<tr>
+<td>TV shows</td>
+<td>Sonarr supplies show and episode details and artwork. Flexarr adds cast from TVmaze.</td>
+<td>Episodes are found and play, organised from names like <code>S01E02</code>, but have no artwork or details.</td>
+</tr>
+<tr>
+<td>Music</td>
+<td>Lidarr adds artist pictures, album details and sorts albums, EPs and singles apart.</td>
+<td>Works well: Flexarr reads the tags in your files and uses <code>cover.jpg</code> or <code>folder.jpg</code> images, or art embedded in the files.</td>
+</tr>
+<tr>
+<td>Requests</td>
+<td>Seerr lets you search for and request films and shows from the web app and the Apple TV.</td>
+<td>No requests.</td>
+</tr>
+</tbody></table></div>
+<p>A few other things depend on the *arrs too:</p>
+<ul>
+<li><strong>New downloads appear straight away</strong> when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in <strong>Settings › Libraries</strong>.</li>
+<li><strong>Coming soon</strong>, showing episodes about to air and films about to be released, comes from Sonarr and Radarr.</li>
+</ul>
+<p>Some features don&#39;t need any of them: podcasts are built in, <a href="/guide/live-tv">Live TV</a> uses Dispatcharr, and the web app, profiles, downloads to your phone and <a href="/guide/import-from-plex">importing your history from Plex</a> all work on their own.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> If you don&#39;t run the *arrs yet, you can start with Flexarr and a folder of media, then add Sonarr and Radarr later. Flexarr tries unmatched titles again within a day, or straight away when you choose <strong>Refresh artwork and details</strong> on a library in <strong>Settings › Libraries</strong>.</p>
+</blockquote>
+<blockquote class="callout note"><p><strong>Note</strong> Seerr only adds requests. Flexarr talks to Sonarr, Radarr and Lidarr directly for everything else.</p>
+</blockquote>
+<h2 id="the-apps"><a class="anchor" href="#the-apps" aria-hidden="true" tabindex="-1">#</a>The apps</h2>
+<ul>
+<li><strong>iPhone and iPad</strong>: <a href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener">on the App Store</a>.</li>
+<li><strong>Apple TV</strong>: coming soon to the App Store. Until then you can <a href="/guide/apple-tv-xcode">install it from Xcode</a>.</li>
+<li><strong>Web</strong>: built into the server. Open the server&#39;s address in any browser.</li>
+</ul>
+<h2 id="pick-your-platform"><a class="anchor" href="#pick-your-platform" aria-hidden="true" tabindex="-1">#</a>Pick your platform</h2>
+<ul>
+<li><a href="/guide/install-macos">Install on a Mac</a></li>
+<li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+<li><a href="/guide/install-unraid">Install on Unraid</a></li>
+<li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+</ul>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <span></span>
+          <a class="next" href="/guide/install-macos"><span>Next</span>Install on a Mac</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/what-you-need.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20What%20you%20need">Something wrong or missing?</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

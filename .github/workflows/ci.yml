@@ -26,6 +26,7 @@ jobs:
       server: ${{ steps.diff.outputs.server }}
       web: ${{ steps.diff.outputs.web }}
       apple: ${{ steps.diff.outputs.apple }}
+      guide: ${{ steps.diff.outputs.guide }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,6 +45,7 @@ jobs:
           echo "server=$(has '^(src/|tests/|Directory\.|global\.json|dotnet-tools\.json|Flexarr\.slnx|\.editorconfig|CHANGELOG\.md|frontend/package\.json|clients/apple/project\.yml)')" >>"$GITHUB_OUTPUT"
           echo "web=$(has '^(frontend/|\.nvmrc)')" >>"$GITHUB_OUTPUT"
           echo "apple=$(has '^clients/apple/')" >>"$GITHUB_OUTPUT"
+          echo "guide=$(has '^(docs/guide/|scripts/guide/|site/guide/)')" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   server:
@@ -79,6 +81,25 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # flexarr.io/guide is built from docs/guide and committed; this fails when someone forgot `make guide`.
+  guide:
+    name: Guide
+    needs: changes
+    if: needs.changes.outputs.guide == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts/guide
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: scripts/guide/package-lock.json
+      - run: npm ci
+      - run: node build.mjs --check
 
   apple:
     name: Apple (${{ matrix.name }})
@@ -127,7 +148,7 @@ jobs:
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, apple]
+    needs: [changes, server, web, guide, apple]
     if: always()
     runs-on: ubuntu-latest
     steps:

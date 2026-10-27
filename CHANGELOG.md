@@ -2,6 +2,14 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Website and guide
+- **A guide at [flexarr.io/guide](https://flexarr.io/guide)**: 31 step-by-step articles, from installing on a Mac, Synology, Unraid, Linux or Windows to connecting your devices and \*arrs, live TV, podcasts, Siri, Home Assistant, backups and troubleshooting, with search. The source is in `docs/guide`, so corrections are a pull request away.
+- flexarr.io has been redone around Apple TV and iPhone, with every feature, a "Just got the iPhone app?" starting point for anyone new to running a server, setup steps for each kind of computer, and answers to common questions.
+- The quick start keeps Flexarr's settings in a Docker volume, so it works without setting folder permissions first.
+- The README is shorter and points to the guide for the details.
+
 ## 0.49.1 · 27 October 2026
 
 ### Error reports
