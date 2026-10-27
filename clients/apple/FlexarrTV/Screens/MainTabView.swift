@@ -26,7 +26,8 @@ struct MainTabView: View {
     /// Where a link (the Top Shelf) opens its title: on its library's tab, so Home stays Home.
     @State private var linkTab: TabID?
     /// Just after a link picks a tab: as the app starts, focus can land on the Home tab a moment later and, since a
-    /// tab bar selects what it focuses (tvOS 18 shows one when the sidebar is collapsed), take the selection back to Home with the title hidden on the other tab.
+    /// tab bar selects what it focuses (tvOS 18 shows one when the sidebar is collapsed), take the selection back to
+    /// Home with the title hidden on the other tab.
     @State private var linkHold: (tab: TabID, until: Date)?
     @AppStorage(TabBarEntry.storageKey) private var tabBarOrder = ""
 
@@ -92,9 +93,9 @@ struct MainTabView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
             } header: {
-                // A blank heading, for a little space between them and the libraries: the sidebar takes a section's
-                // heading as text, so a spacer or a line here would be dropped.
-                Text(verbatim: " ")
+                // A rule between them and the libraries: the sidebar takes a section's heading as plain text, so a
+                // Divider, a shape or a strikethrough here would be dropped; a run of box-drawing lines draws it.
+                Text(verbatim: String(repeating: "\u{2500}", count: 12))
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -195,15 +196,27 @@ private struct SidebarProfileLabel: View {
     }
 }
 
-/// The app's version, quietly at the foot of the sidebar. The footer is new in tvOS 27; before that, it's only on
+/// The logo and the app's version, quietly at the foot of the sidebar. The footer is new in tvOS 27; before that, it's only on
 /// Settings.
 private struct SidebarVersion: ViewModifier {
     func body(content: Content) -> some View {
         if #available(tvOS 27, *) {
             content.tabViewSidebarFooter {
-                Text("Flexarr \(Bundle.main.shortVersion)")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(Color.usher.opacity(0.7))
+                // The logo's middle on the version's.
+                HStack(alignment: .center, spacing: 12) {
+                    HStack(alignment: .center, spacing: 6) {
+                        BrandMark(size: 26)
+                        Text("flexarr")
+                            .font(.marquee(22, weight: .black))
+                            .foregroundStyle(Color.screen.opacity(0.8))
+                    }
+                    Text(Bundle.main.shortVersion)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(Color.usher.opacity(0.7))
+                        .monospacedDigit()
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Flexarr \(Bundle.main.shortVersion)")
             }
         } else {
             content
@@ -217,13 +230,15 @@ struct TabStack<Content: View>: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var ownRouter = Router()
     /// Home's, owned by `MainTabView` and used as it is (not copied into state here), so the stack and Menu's check
-    /// on the tab bar always look at the same screens.
+    /// on the sidebar always look at the same screens.
     private let sharedRouter: Router?
     /// This tab is where the pending link opens (see `MainTabView.routeLink`).
     var opensLinks: Bool
     @ViewBuilder var content: () -> Content
     /// What's open came from a link (the Top Shelf), not from browsing.
     @State private var openedFromLink = false
+    /// The title a link just opened should take focus (see `focusesPlay`).
+    @State private var linkFocus = false
 
     init(router: Router? = nil, opensLinks: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         sharedRouter = router
@@ -239,7 +254,7 @@ struct TabStack<Content: View>: View {
             content()
                 .navigationDestination(for: Route.self) { route in
                     // Given again here: the sidebar shows pushed screens outside the stack's environment.
-                    destination(route).environment(router)
+                    destination(route).environment(router).environment(\.focusesPlay, $linkFocus)
                 }
         }
         // Music carries on under every screen; the bar says what's playing and opens Now Playing.
@@ -249,7 +264,10 @@ struct TabStack<Content: View>: View {
         .onChange(of: opensLinks) { _, _ in consumeDeepLink() }
         .onAppear(perform: consumeDeepLink)
         .onChange(of: router.path.isEmpty) { _, empty in
-            if empty { openedFromLink = false }
+            if empty {
+                openedFromLink = false
+                linkFocus = false
+            }
         }
         // A title opened from the Top Shelf is a visit: leaving the app puts the tab back as it was, so coming back
         // doesn't find the title still in its place.
@@ -265,6 +283,7 @@ struct TabStack<Content: View>: View {
         // In place of whatever was open, so Menu comes straight back to the tab rather than through old links.
         router.path = [route]
         openedFromLink = true
+        linkFocus = true
         model.pendingRoute = nil
     }
 
@@ -332,4 +351,32 @@ extension EnvironmentValues {
     /// On Home: a long-press's "Go to details" opens the title on its library's tab, as the Top Shelf does, so the
     /// title (and what's played from it) doesn't take Home's place.
     @Entry var opensTitlesOnLibraryTab = false
+    /// Set as a link (the Top Shelf) opens a title: its Play takes focus as it appears, and clears it. With the app
+    /// already open, focus would otherwise stay wherever it was, the sidebar say, where Menu leaves the app.
+    @Entry var focusesPlay: Binding<Bool> = .constant(false)
+}
+
+/// Play on a title a link opened: it takes focus as it appears (see `focusesPlay`).
+private struct LinkFocus: ViewModifier {
+    @Environment(\.focusesPlay) private var takesFocus
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .focused($focused)
+            .task {
+                guard takesFocus.wrappedValue else { return }
+                takesFocus.wrappedValue = false
+                // Shown at once from the link's preview, it can appear while the screen is still sliding in, too
+                // early to take focus: keep asking for a moment.
+                for _ in 0..<8 where !focused {
+                    focused = true
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+            }
+    }
+}
+
+extension View {
+    func takesFocusFromLink() -> some View { modifier(LinkFocus()) }
 }

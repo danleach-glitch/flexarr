@@ -71,6 +71,7 @@ struct AlbumView: View {
                         Label("Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                    .takesFocusFromLink()
                     Button { model.playTracks(tracks, shuffled: true, albums: [item]) } label: {
                         Label("Shuffle", systemImage: "shuffle")
                     }

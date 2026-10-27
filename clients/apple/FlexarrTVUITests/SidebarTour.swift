@@ -2,11 +2,9 @@ import FlexarrKit
 import XCTest
 
 /// The sidebar with the Siri Remote: the profile at the top, a long list of libraries, opening a title in one and
-/// coming back. It presses Select on whatever has focus (tvOS doesn't say which sidebar row that is), so run it
-/// against a test server with films in a library, not a real one: FLEXARR_LIBRARY_ROW is how many rows below Home
-/// that library is.
+/// coming back. Read-only; FLEXARR_LIBRARY names a library with films (Movies otherwise).
 ///
-///     TEST_RUNNER_FLEXARR_SERVER=http://localhost:8395 TEST_RUNNER_FLEXARR_KEY=... TEST_RUNNER_FLEXARR_LIBRARY_ROW=8 \
+///     TEST_RUNNER_FLEXARR_SERVER=http://localhost:8395 TEST_RUNNER_FLEXARR_KEY=... \
 ///     TEST_RUNNER_FLEXARR_SCREENSHOTS=/tmp/flexarr-shots \
 ///     xcodebuild test -project Flexarr.xcodeproj -scheme FlexarrTV -only-testing:FlexarrTVUITests/SidebarTour \
 ///       -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation) (at 1080p)'
@@ -37,9 +35,11 @@ final class SidebarTour: XCTestCase {
     func testSidebar() throws {
         shot("60-sidebar-launch")
 
-        // Focus passing over the profile mustn't open "Who's watching?"; selecting it does.
+        // Focus passing over the profile, above Home, mustn't open "Who's watching?"; selecting it does.
+        app.focusSidebarRow("Home")
         press(.up, wait: 1.5)
         shot("61-profile-focused")
+        XCTAssertNotEqual(app.focusedSidebarRow ?? "Home", "Home", "the sidebar should start with the profile")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Who'")).firstMatch.exists, "focusing the profile shouldn't open the picker")
         press(.select, wait: 2)
         shot("62-profile-selected")
@@ -51,13 +51,10 @@ final class SidebarTour: XCTestCase {
         press(.left, wait: 1.5)
         shot("63b-left-opens-sidebar")
 
-        // Down to the library, which opens on All, then right (onto the Browse · All switch) and down onto its first
-        // poster.
-        press(.down, times: Int(env("FLEXARR_LIBRARY_ROW") ?? "1") ?? 1, wait: 0.6)
+        // Down to the library, which opens on All with focus on its first poster.
+        app.focusSidebarRow(env("FLEXARR_LIBRARY") ?? "Movies")
         shot("64-library-focused")
-        press(.select, wait: 3)
-        press(.right, wait: 1.5)
-        press(.down, wait: 1.5)
+        press(.select, wait: 4)
         shot("65-library-grid")
         let play = app.buttons["Play"]
         XCTAssertFalse(play.exists && play.hasFocus, "focus should be on a poster")
@@ -74,7 +71,7 @@ final class SidebarTour: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
 
         // Search and Settings sit below the libraries.
-        press(.down, times: 12, wait: 0.5)
+        app.focusSidebarRow("Settings")
         shot("69-sidebar-bottom")
     }
 

@@ -25,8 +25,10 @@ struct LibraryTab: View {
     /// Picked with the switch; until then (and again after Settings changes), the setting.
     @State private var picked: LibraryOpening?
     /// Just switched: the view taking over puts focus on its switch once, as the one pressed has gone. Coming back to
-    /// the tab later leaves focus in the tab bar.
+    /// the tab later leaves focus in the sidebar.
     @State private var switching = false
+    /// Focus has just come to the switch with the tab (see `focusesContent`).
+    @State private var arriving = false
 
     var body: some View {
         let view = Binding { picked ?? opensOn } set: {
@@ -40,21 +42,24 @@ struct LibraryTab: View {
             }
         }
         .environment(\.focusesViewSwitch, $switching)
+        .environment(\.focusesContent, $arriving)
         .onChange(of: opensOn) { picked = nil }
     }
 }
 
 /// "Browse" and "All films" (or "All shows") as quiet text at the top-left of both views. Plain words rather than
-/// pills, so it doesn't read as a second tab bar under the real one; the lit tab already names the library.
+/// pills, so it doesn't read as a second row of tabs; the sidebar's label above already names the library.
 struct LibraryViewSwitch: View {
     let library: Library
     @Binding var view: LibraryOpening
     /// Told when focus comes to the switch and leaves it.
     var focusChanged: (Bool) -> Void = { _ in }
     @Environment(\.focusesViewSwitch) private var takesFocus
+    @Environment(\.focusesContent) private var passesFocus
     @FocusState private var focused: LibraryOpening?
+    @State private var appearedAt = Date.distantPast
 
-    /// From the top of the screen: under the tab bar, which sits 46pt from the top and is 68pt tall.
+    /// From the top of the screen: under the collapsed sidebar's label ("‹ Movies"), about where the tab bar was.
     static let topInset: CGFloat = 150
 
     var body: some View {
@@ -66,10 +71,16 @@ struct LibraryViewSwitch: View {
         .padding(.leading, -22)
         // Coming into the switch lands on the view shown.
         .defaultFocus($focused, view)
-        .onChange(of: focused) { _, now in focusChanged(now != nil) }
+        .onChange(of: focused) { old, now in
+            focusChanged(now != nil)
+            // Selecting the library in the sidebar gives focus to whatever is at the top-left, which is this switch;
+            // pass it on to the screen's first title. Up from there, or a switch of view, still comes here.
+            if old == nil, now != nil, Date.now.timeIntervalSince(appearedAt) < 1.5 { passesFocus.wrappedValue = true }
+            if now == nil { passesFocus.wrappedValue = false }
+        }
         .onAppear {
             // The view chosen replaces the one whose switch had focus, which would otherwise go to the first word.
-            guard takesFocus.wrappedValue else { return }
+            guard takesFocus.wrappedValue else { appearedAt = .now; return }
             takesFocus.wrappedValue = false
             focused = view
         }
@@ -218,4 +229,7 @@ struct LibraryBrowseView: View {
 extension EnvironmentValues {
     /// Set as the switch changes the view: the new view's switch takes focus as it appears, and clears it.
     @Entry var focusesViewSwitch: Binding<Bool> = .constant(false)
+    /// Set as the switch is given focus with the tab: the hero's Play, or the first title, takes it (once there is
+    /// one, while the switch still has focus), and clears it.
+    @Entry var focusesContent: Binding<Bool> = .constant(false)
 }

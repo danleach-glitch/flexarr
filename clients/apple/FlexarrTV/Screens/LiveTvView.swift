@@ -1,13 +1,13 @@
 import FlexarrKit
 import SwiftUI
 
-/// Live TV: categories down the left (Favourites, All, the source's groups) and the guide on the right, three hours
+/// Live TV: categories down the left (Favourites, Recordings, All, the source's groups) and the guide on the right, three hours
 /// across for the channels in the category. Moving onto a category shows it; choosing what's on now plays it; holding
 /// a programme adds its channel to Favourites or takes it off, or records it. Favourites is where it opens when there
-/// are any. Recordings, under the channels, lists what's set to record and the series.
+/// are any. Recordings, under Favourites, lists what's set to record and the series.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
-    /// Off on the Live TV tab, whose lit name in the tab bar already says where you are.
+    /// Off on the Live TV tab, whose lit name in the sidebar already says where you are.
     var showsTitle = true
     @State private var channels: [LiveChannel]?
     @State private var error: String?
@@ -110,8 +110,8 @@ struct LiveTvView: View {
                     .padding(.bottom, 24)
             }
             categoryButton(.favourites, "Favourites", systemImage: "star.fill")
-            categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
             categoryButton(.recordings, "Recordings", systemImage: "record.circle")
+            categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
             if groups.count > 1 {
                 ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
             }

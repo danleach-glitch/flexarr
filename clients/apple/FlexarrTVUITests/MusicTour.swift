@@ -32,11 +32,7 @@ final class MusicTour: XCTestCase {
     func test1Library() async throws {
         let libraries = try await client.libraries()
         guard let music = libraries.first(where: { $0.type == .music }) else { throw XCTSkip("no music library") }
-        press(.up, wait: 1.5)
-        // Tabs are in the server's order after Home; move right to the music one.
-        let position = (libraries.firstIndex(of: music) ?? 0) + 1
-        press(.right, times: position, wait: 1.2)
-        pause(4)
+        app.openSidebarRow(music.name)
         shot("30-music-library")
         press(.down, wait: 1.5)
         shot("31-music-library-row")
@@ -56,20 +52,20 @@ final class MusicTour: XCTestCase {
         app.open(URL(string: "flexarr://item/\(album.id)")!)
         pause(5)
         shot("33-album")
-        // Opened from the tab bar, focus is still up there: down lands on Play.
-        press(.down, wait: 1.5)
+        // Opened by a link, focus is on Play; otherwise down to it, past the artist's pill when the album has one.
+        for _ in 0..<3 where !app.buttons["Play"].firstMatch.hasFocus {
+            press(.down, wait: 1.5)
+        }
         logFocus("album")
+        guard app.buttons["Play"].firstMatch.hasFocus else { return XCTFail("the album's Play should have focus") }
         press(.select, wait: 7)
         shot("34-album-playing")
         press(.down, times: 3, wait: 0.8)
         shot("35-album-tracks-focused")
-        // The Now Playing tab is the last one; up to the tab bar and right past the rest.
-        press(.up, times: 6, wait: 0.6)
-        press(.right, times: 8, wait: 0.6)
-        pause(2)
+        // Now Playing, in the sidebar while the music plays; selecting it puts focus on the controls.
+        app.openSidebarRow("Now Playing", wait: 2)
         shot("36-now-playing-tab")
         logFocus("tab")
-        press(.down, wait: 1.5)
         shot("37-now-playing")
         logFocus("now playing")
         press(.right, wait: 1.5)
@@ -88,15 +84,15 @@ final class MusicTour: XCTestCase {
         app.open(URL(string: "flexarr://item/\(album)")!)
         pause(5)
         shot("41-album-with-lyrics")
-        // Down from the tab bar: past the artist's pill, when the album has one, to Play.
+        // Opened by a link, focus is on Play; otherwise down to it, past the artist's pill when the album has one.
         for _ in 0..<3 where !app.buttons["Play"].firstMatch.hasFocus {
             press(.down, wait: 1.5)
         }
         logFocus("album")
+        guard app.buttons["Play"].firstMatch.hasFocus else { return XCTFail("the album's Play should have focus") }
         press(.select, wait: 7)
-        press(.up, times: 6, wait: 0.6)
-        press(.right, times: 8, wait: 0.6)
-        press(.down, wait: 1.5) // Play/Pause, then past Next and Repeat to Lyrics.
+        app.openSidebarRow("Now Playing", wait: 2)
+        // From Play/Pause, past Next and Repeat to Lyrics.
         press(.right, times: 3, wait: 1)
         logFocus("lyrics control")
         shot("42-now-playing-lyrics-focused")

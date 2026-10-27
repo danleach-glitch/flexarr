@@ -74,7 +74,8 @@ final class ScreenshotTour: XCTestCase {
 
     func test1HomeAndLibrary() async throws {
         shot("01-home")
-        press(.down, wait: 1.5)
+        // The app opens with focus on Home in the sidebar; right goes into it.
+        press(.right, wait: 1.5)
         shot("02-home-hero-focused")
         press(.down, wait: 2)
         shot("03-home-continue-watching")
@@ -84,11 +85,14 @@ final class ScreenshotTour: XCTestCase {
         press(.down, wait: 1.5)
         shot("05-home-top10")
 
-        // Library tab: Menu returns focus to the tab bar.
-        press(.menu, wait: 1.5)
-        press(.right, times: 2, wait: 1)
-        pause(3)
-        press(.down, times: 2, wait: 2)
+        // The first library, below Home in the sidebar.
+        app.focusSidebarRow("Home")
+        press(.down, wait: 1)
+        XCTAssertNotNil(app.focusedSidebarRow, "the sidebar should have a library below Home")
+        if app.focusedSidebarRow != nil {
+            press(.select, wait: 4)
+            press(.down, wait: 2)
+        }
         shot("06-library")
     }
 

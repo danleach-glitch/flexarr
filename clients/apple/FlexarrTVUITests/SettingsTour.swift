@@ -1,8 +1,8 @@
 import FlexarrKit
 import XCTest
 
-/// Opens Settings from the gear at the end of the tab bar and walks each of its pages with the Siri Remote, saving a screenshot at
-/// each stop. Same environment as `ScreenshotTour`; the server needs several profiles for the Profiles page. It
+/// Opens Settings from the sidebar and walks each of its pages with the Siri Remote, saving a screenshot at each
+/// stop. Same environment as `ScreenshotTour`; the server needs several profiles for the Profiles page. It
 /// changes nothing on the server: the profile settings it opens are left as they were.
 @MainActor
 final class SettingsTour: XCTestCase {
@@ -69,17 +69,9 @@ final class SettingsTour: XCTestCase {
         shot("39-sign-out-focused")
     }
 
-    /// Up to the tab bar, right to the gear at its end, then down into the page.
+    /// Selects Settings in the sidebar, which puts focus on the page's first row.
     private func openSettings() {
-        press(.up, wait: 1.5)
-        let gear = app.buttons["Settings"]
-        XCTAssertTrue(gear.waitForExistence(timeout: 3), "the tab bar should end with Settings")
-        for _ in 0..<10 where !gear.hasFocus {
-            press(.right, wait: 0.6)
-        }
-        XCTAssertTrue(gear.hasFocus, "Settings should have focus")
-        pause(2)
-        press(.down, wait: 2)
+        app.openSidebarRow("Settings", wait: 2)
     }
 
     /// A row by its title: a row's label also carries its value ("Playback, Files play directly").

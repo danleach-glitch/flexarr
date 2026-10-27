@@ -36,7 +36,7 @@ final class LibraryTour: XCTestCase {
     func test1BrowseAndAll() throws {
         openTab(named: env("FLEXARR_LIBRARY") ?? "Movies")
         shot("40-library-browse")
-        press(.down, wait: 2)
+        // Opened from the sidebar, focus is on the hero's Play.
         shot("41-browse-hero-play")
         XCTAssertTrue(app.buttons["Browse"].exists, "Browse should have the view switch")
 
@@ -69,7 +69,6 @@ final class LibraryTour: XCTestCase {
 
     func test2SeeAll() throws {
         openTab(named: env("FLEXARR_LIBRARY") ?? "Movies")
-        press(.down, wait: 2)
         // Down past the hero to the rows.
         press(.down, times: 3, wait: 1.5)
         shot("48-browse-rows")
@@ -87,12 +86,7 @@ final class LibraryTour: XCTestCase {
     }
 
     func test3Settings() throws {
-        press(.up, wait: 1.5)
-        let gear = app.buttons["Settings"]
-        XCTAssertTrue(gear.waitForExistence(timeout: 3))
-        for _ in 0..<10 where !gear.hasFocus { press(.right, wait: 0.6) }
-        pause(2)
-        press(.down, wait: 2)
+        app.openSidebarRow("Settings", wait: 2)
         let libraries = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Libraries'")).firstMatch
         XCTAssertTrue(libraries.waitForExistence(timeout: 3), "Settings should list Libraries")
         for _ in 0..<8 where !libraries.hasFocus { press(.down, wait: 0.8) }
@@ -110,20 +104,17 @@ final class LibraryTour: XCTestCase {
         }
     }
 
-    /// Picks up the first tab in Settings › Tab bar, moves it down one and looks at the tab bar. It leaves the order
-    /// changed: afterwards, delete `FlexarrTabBarOrder` from the app's preferences to go back to the server's order.
-    func test5TabBarOrder() throws {
-        press(.up, wait: 1.5)
-        let gear = app.buttons["Settings"]
-        XCTAssertTrue(gear.waitForExistence(timeout: 3))
-        for _ in 0..<10 where !gear.hasFocus { press(.right, wait: 0.6) }
-        pause(2)
-        press(.down, wait: 2)
-        let tabBar = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Tab bar'")).firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 3), "Settings should list Tab bar")
-        for _ in 0..<8 where !tabBar.hasFocus { press(.down, wait: 0.8) }
+    /// Picks up the first library in Settings › Sidebar, moves it down one and looks at the sidebar. It leaves the
+    /// order changed: afterwards, delete `FlexarrTabBarOrder` from the app's preferences to go back to the server's
+    /// order.
+    func test5SidebarOrder() throws {
+        app.openSidebarRow("Settings", wait: 2)
+        let sidebar = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sidebar'")).firstMatch
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 3), "Settings should list Sidebar")
+        for _ in 0..<8 where !sidebar.hasFocus { press(.down, wait: 0.8) }
+        guard sidebar.hasFocus else { return XCTFail("Sidebar should have focus") }
         press(.select, wait: 2.5)
-        shot("56-tab-bar-settings")
+        shot("56-sidebar-settings")
 
         press(.select, wait: 1.5)
         shot("57-tab-picked-up")
@@ -131,18 +122,18 @@ final class LibraryTour: XCTestCase {
         shot("58-tab-moved-down")
         press(.select, wait: 1.5)
 
-        // The tab bar shows the new order.
+        // The sidebar shows the new order.
         press(.menu, wait: 2)
-        press(.up, wait: 1.5)
-        press(.up, wait: 1.5)
-        shot("59-tab-bar-reordered")
-
+        app.focusSidebarRow("Home")
+        pause(1)
+        shot("59-sidebar-reordered")
     }
 
     /// A long-press on Home's Continue watching, then Go to: the title opens on its library's tab, and Home stays Home.
     func test6GoToFromHome() throws {
-        // Down past the hero to Continue watching.
-        press(.down, wait: 2)
+        // The app opens with focus on Home in the sidebar: right into Home (the hero's Play), then down to
+        // Continue watching.
+        press(.right, wait: 2)
         press(.down, wait: 2)
         shot("61-home-continue-focused")
         remote.press(.select, forDuration: 1.5)
@@ -153,7 +144,9 @@ final class LibraryTour: XCTestCase {
         let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true"))
         var onGoTo = false
         for _ in 0..<4 {
-            if focused.allElementsBoundByIndex.contains(where: { $0.label.hasPrefix("Go to") }) {
+            // The focused item is a cell; its name ("Go to episode") is on an element inside it.
+            let names = focused.allElementsBoundByIndex.flatMap { [$0.label] + $0.descendants(matching: .any).allElementsBoundByIndex.map(\.label) }
+            if names.contains(where: { $0.hasPrefix("Go to") }) {
                 onGoTo = true
                 break
             }
@@ -167,34 +160,28 @@ final class LibraryTour: XCTestCase {
         shot("63-go-to-opened")
         press(.menu, wait: 2)
         shot("64-back-on-library-tab")
-        let home = app.buttons["Home"]
-        press(.up, wait: 1.5)
-        for _ in 0..<8 where !home.hasFocus { press(.left, wait: 0.8) }
-        pause(3)
+        app.openSidebarRow("Home", wait: 3)
         shot("65-home-is-home")
     }
 
-    /// Both ends of the tab bar: Home focused, then Settings, so nothing falls off either end.
-    func test7TabBarEnds() throws {
-        press(.up, wait: 2)
-        shot("66-tab-bar-home-end")
-        XCTAssertFalse(app.buttons["Recordings"].exists, "Recordings belongs in Live TV, not the tab bar")
-        let gear = app.buttons["Settings"]
-        for _ in 0..<10 where !gear.hasFocus { press(.right, wait: 0.6) }
-        pause(2)
-        shot("67-tab-bar-settings-end")
+    /// Both ends of the sidebar: Home, then Settings, so nothing falls off either end.
+    func test7SidebarEnds() throws {
+        app.focusSidebarRow("Home")
+        pause(1)
+        shot("66-sidebar-home-end")
+        XCTAssertFalse(app.buttons["Recordings"].exists, "Recordings belongs in Live TV, not the sidebar")
+        app.focusSidebarRow("Settings")
+        pause(1)
+        shot("67-sidebar-settings-end")
     }
 
-    /// Opening a library leaves focus in the tab bar, even after its switch has been used; down goes to the first
-    /// title, and up from there to the switch.
+    /// Opening a library from the sidebar puts focus on its hero's Play, or its first title, rather than the switch at
+    /// the top-left, even after the switch has been used; up from there reaches the switch.
     func test8FocusOnArrival() throws {
         let name = env("FLEXARR_LIBRARY") ?? "Movies"
         openTab(named: name)
-        let tab = app.buttons[name]
-        XCTAssertTrue(tab.hasFocus, "arriving on \(name) should leave focus on its tab")
-        press(.down, wait: 2)
-        shot("68-browse-down-from-tab-bar")
-        XCTAssertFalse(app.buttons["Browse"].hasFocus, "down from the tab bar shouldn't land on the switch")
+        shot("68-browse-opened")
+        XCTAssertFalse(app.buttons["Browse"].hasFocus, "opening \(name) shouldn't land on the switch")
         press(.up, wait: 1.5)
         XCTAssertTrue(app.buttons["Browse"].hasFocus, "up from the hero should reach the switch")
 
@@ -204,20 +191,13 @@ final class LibraryTour: XCTestCase {
         press(.select, wait: 4)
         XCTAssertTrue(all.hasFocus, "focus should stay on All after switching")
 
-        // Away to Home and back: the tab keeps focus this time too.
-        press(.up, wait: 1.5)
-        let home = app.buttons["Home"]
-        for _ in 0..<6 where !home.hasFocus { press(.left, wait: 0.8) }
-        pause(2)
-        for _ in 0..<6 where !tab.hasFocus { press(.right, wait: 0.8) }
-        pause(4)
-        shot("69-back-on-library-tab")
-        XCTAssertTrue(tab.hasFocus, "coming back to \(name) should leave focus on its tab")
-        press(.down, wait: 2)
-        shot("70-all-down-from-tab-bar")
-        XCTAssertFalse(all.hasFocus, "down from the tab bar shouldn't land on the switch")
+        // Away to Home and back: on All this time, focus goes to the first title.
+        app.openSidebarRow("Home", wait: 2)
+        openTab(named: name)
+        shot("70-all-opened")
+        XCTAssertFalse(all.hasFocus, "opening \(name) shouldn't land on the switch")
         let focusedFrame = app.buttons.allElementsBoundByIndex.first(where: \.hasFocus)?.frame ?? .zero
-        XCTAssertLessThan(focusedFrame.minX, 200, "down from the tab bar should land on the first title, at the left")
+        XCTAssertLessThan(focusedFrame.minX, 200, "opening \(name) should land on the first title, at the left")
         press(.up, wait: 1.5)
         shot("71-all-up-to-switch")
         XCTAssertTrue(all.hasFocus || app.buttons["Browse"].hasFocus, "up from the first title should reach the switch")
@@ -225,14 +205,9 @@ final class LibraryTour: XCTestCase {
 
     private func env(_ name: String) -> String? { ProcessInfo.processInfo.environment[name] }
 
-    /// Up to the tab bar and along it to the library's tab, which opens as it's focused.
+    /// Selects the library in the sidebar; focus goes on into it.
     private func openTab(named name: String) {
-        press(.up, wait: 1.5)
-        let tab = app.buttons[name]
-        XCTAssertTrue(tab.waitForExistence(timeout: 3), "no \(name) tab")
-        for _ in 0..<8 where !tab.hasFocus { press(.right, wait: 0.8) }
-        XCTAssertTrue(tab.hasFocus, "\(name) should have focus")
-        pause(4)
+        app.openSidebarRow(name)
     }
 
     private func press(_ button: XCUIRemote.Button, times: Int = 1, wait: TimeInterval) {

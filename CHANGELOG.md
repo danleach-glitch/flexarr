@@ -6,10 +6,18 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Sidebar (Apple TV)
 - The tabs along the top are now a sidebar down the left, like the Apple TV app's, so any number of libraries fits. Before, with more than five or six, the tab bar ran off the screen and took Search and Settings with it.
-- Who's watching is at the top, with your profile picture: select it to switch. Then Home, your libraries and Live TV, and Search and Settings a little apart at the bottom.
+- Who's watching is at the top, with your profile picture: select it to switch. Then Home, your libraries and Live TV, and a line before Search and Settings at the bottom.
 - Press left, or Menu, to bring the sidebar back from a screen. Moving through it doesn't change the screen until you select.
-- Flexarr's version is at the foot of the sidebar on tvOS 27, and still in Settings.
+- Selecting a library puts you on Play, or on its first title in All, rather than on the Browse · All switch at the top. Up from there still reaches the switch.
+- The Flexarr logo and version are at the foot of the sidebar on tvOS 27. The version is still in Settings too.
 - Settings › Tab bar is now Settings › Sidebar.
+- A title opened from the Top Shelf, or a link, while Flexarr is already open gets focus on its Play button. Before, focus could stay in the sidebar, where Menu left the app instead of going back.
+
+### Live TV (Apple TV)
+- Recordings is now right under Favourites, above All channels and the source's groups.
+
+### Settings (Apple TV)
+- Settings › Home screen lists Posters, the default for the Top Shelf, above Wide artwork.
 
 ## 0.40.0 · 27 October 2026
 

@@ -89,6 +89,7 @@ struct ArtistView: View {
                         Label("Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                    .takesFocusFromLink()
                     Button { Task { await model.playAll(of: page, shuffled: true) } } label: {
                         Label("Shuffle", systemImage: "shuffle")
                     }

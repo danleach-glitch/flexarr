@@ -151,6 +151,7 @@ struct DetailView: View {
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
                 .monospacedDigit()
+                .takesFocusFromLink()
 
                 if playable.isResumable {
                     Button { model.play(playable, fromBeginning: true) } label: {
