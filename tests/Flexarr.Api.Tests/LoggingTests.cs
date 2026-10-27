@@ -114,6 +114,33 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task AReportCantForgeLogLines()
+    {
+        var device = await DeviceAsync("Forging test TV");
+        var marker = Guid.NewGuid().ToString("N")[..12];
+
+        await device.PostAsJsonAsync(Api("/logs/client"), new
+        {
+            platform = "web",
+            entries = new[]
+            {
+                new
+                {
+                    level = "Error",
+                    message = $"ok {marker}\r\n2026-10-27 09:00:00.000 +00:00 [ERR] Flexarr.Api: fake\u001b[31m",
+                    error = "TypeError: x\n    at play (app.js:1)",
+                    properties = new { playbackId = "a\nb" },
+                },
+            },
+        });
+
+        var entry = await WaitForAsync(marker);
+        Assert.Equal($"ok {marker}⏎2026-10-27 09:00:00.000 +00:00 [ERR] Flexarr.Api: fake[31m", entry.GetProperty("message").GetString());
+        Assert.Equal("a⏎b", entry.GetProperty("properties").GetProperty("playbackId").GetString());
+        Assert.Equal("TypeError: x\n    at play (app.js:1)", entry.GetProperty("exception").GetString());
+    }
+
+    [Fact]
     public async Task OnlyAdminsReadTheLog()
     {
         var anonymous = await factory.CreateClient().GetAsync(Api("/logs"));

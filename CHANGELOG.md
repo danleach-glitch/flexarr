@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Logs
+- What the apps and browsers report is kept to one line per entry, so a report can't pass itself off as a line from the server. Errors they report keep their full stack trace (up to 8 KB, not cut at 200 characters as before), still shown line by line in Settings › Logs.
+
 ## 0.47.0 · 27 October 2026
 
 ### Logs
