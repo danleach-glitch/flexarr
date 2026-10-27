@@ -43,6 +43,8 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var screen: PlayerViewController?
     @ObservationIgnored private var transport: PlayerTransport?
     @ObservationIgnored private var lastReport = Date.distantPast
+    /// The last report said paused, so playing again is reported straight away (automations follow it).
+    @ObservationIgnored private var reportedPaused = false
     @ObservationIgnored private var prompt: PlaybackPrompt = .none
     @ObservationIgnored private var isAdvancing = false
     @ObservationIgnored private var isRecovering = false
@@ -394,6 +396,7 @@ final class PlaybackController: NSObject {
         switch phase {
         case .playing:
             hasPlayed = true
+            if reportedPaused { report(paused: false) }
         case .paused:
             if hasPlayed { report(paused: true) }
         case .ended:
@@ -423,6 +426,7 @@ final class PlaybackController: NSObject {
         }
         guard recordsHistory, let client, let sessionId = info?.sessionId else { return }
         lastReport = Date()
+        reportedPaused = paused && !ended
         let position = self.position
         Task { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
     }

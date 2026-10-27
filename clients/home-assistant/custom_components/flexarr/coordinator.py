@@ -46,6 +46,8 @@ class FlexarrCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 async for event in self.client.events():
                     failures = 0
                     self._fire(event)
+                    self._apply(event)
+                    # The rest (who's online) on the next fetch; refreshes are throttled to one every ten seconds.
                     await self.async_request_refresh()
             except FlexarrAuthError:
                 _LOGGER.error("Flexarr refused the API key for its event stream; reconfigure the integration")
@@ -56,6 +58,27 @@ class FlexarrCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 (_LOGGER.debug if failures else _LOGGER.info)("%s; reconnecting in %s s", err, delay)
                 failures += 1
                 await asyncio.sleep(delay)
+
+    def _apply(self, event: dict[str, Any]) -> None:
+        """Shows the change on the device's player at once, rather than after the next fetch of the device list."""
+        flexarr_device = event.get("deviceId")
+        if not self.data or flexarr_device not in self.data:
+            return
+        kind = str(event["kind"]).lower()
+        device = dict(self.data[flexarr_device])
+        if kind == "stopped":
+            # Only if it's this playback that stopped: the next episode may already have started.
+            playing = device.get("nowPlaying") or {}
+            if (playing.get("item") or {}).get("id") in (None, (event.get("item") or {}).get("id")):
+                device["nowPlaying"] = None
+        else:
+            device["nowPlaying"] = {
+                "item": event.get("item"),
+                "positionSeconds": event.get("positionSeconds"),
+                "durationSeconds": event.get("durationSeconds"),
+                "paused": kind in ("paused", "ended"),
+            }
+        self.async_set_updated_data({**self.data, flexarr_device: device})
 
     def _fire(self, event: dict[str, Any]) -> None:
         item = event.get("item") or {}

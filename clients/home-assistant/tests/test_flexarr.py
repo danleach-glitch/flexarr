@@ -133,3 +133,25 @@ async def test_a_device_signed_in_later_gets_a_player(hass: HomeAssistant, flexa
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
     assert hass.states.get("media_player.kitchen_ipad").state == "idle"
+
+
+async def test_the_player_follows_events_without_waiting_for_a_fetch(
+    hass: HomeAssistant, flexarr: FakeFlexarr, entry: MockConfigEntry
+) -> None:
+    await _set_up(hass, entry)
+    item = heat()["nowPlaying"]["item"]
+    # Fetches are throttled to one every ten seconds; the events alone must carry the player.
+    with patch("custom_components.flexarr.coordinator.FlexarrCoordinator.async_request_refresh", AsyncMock()):
+        await flexarr.queue.put({"kind": "Paused", "deviceId": "tv1", "item": item, "positionSeconds": 3700.0, "durationSeconds": 10200.0})
+        await hass.async_block_till_done()
+        state = hass.states.get(PLAYER)
+        assert state.state == "paused"
+        assert state.attributes["media_position"] == 3700
+
+        await flexarr.queue.put({"kind": "Resumed", "deviceId": "tv1", "item": item, "positionSeconds": 3700.0, "durationSeconds": 10200.0})
+        await hass.async_block_till_done()
+        assert hass.states.get(PLAYER).state == "playing"
+
+        await flexarr.queue.put({"kind": "Stopped", "deviceId": "tv1", "item": item, "positionSeconds": 3710.0, "durationSeconds": 10200.0})
+        await hass.async_block_till_done()
+        assert hass.states.get(PLAYER).state == "idle"

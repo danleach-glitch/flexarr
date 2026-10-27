@@ -26,7 +26,7 @@ data:
   media_content_type: tvshow
 ```
 
-**Triggers.** Each device has triggers for *started*, *paused*, *resumed*, *credits*, *ended* and *stopped* (pick the device in an automation's "Device" trigger). Credits fire where Flexarr has found the end credits; a title without them goes straight to *ended*.
+**Triggers.** Each device has triggers for *started*, *paused*, *resumed*, *credits*, *ended* and *stopped* (pick the device in an automation's "Device" trigger). Credits fire where Flexarr has found the end credits (within ten seconds of them starting: players report every ten seconds); a title without them goes straight to *ended*.
 
 Behind them is the `flexarr_playback` event, which also covers browsers. Its data:
 
