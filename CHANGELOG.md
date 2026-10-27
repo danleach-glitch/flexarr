@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.42.0 · 27 October 2026
 
 ### Rename libraries
 - Settings › Libraries has a Rename button on each library. The new name shows in the sidebar and on every device straight away.
