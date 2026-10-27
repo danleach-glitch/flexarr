@@ -24,7 +24,7 @@
 
 /* Article layout: contents on the left, the article on the right. */
 .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); padding-block: 12px 72px; align-items: start; }
-.sidebar { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; padding-right: 6px; display: grid; gap: 18px; }
+.sidebar { position: sticky; top: 96px; max-height: calc(100vh - 116px); overflow-y: auto; padding-right: 6px; display: grid; gap: 18px; }
 .contents > summary { display: none; }
 .contents details.section { border-top: 1px solid var(--aisle); }
 .contents details.section:first-child { border-top: 0; }
@@ -54,8 +54,8 @@ article .meta { color: var(--usher); font-size: 0.9rem; margin: 8px 0 0; }
 
 /* The article's own text */
 .prose { margin-top: 12px; }
-.prose h2 { font-size: 2.2rem; margin: 52px 0 6px; scroll-margin-top: 20px; }
-.prose h3 { font-family: var(--text); font-weight: 700; font-size: 1.2rem; line-height: 1.3; letter-spacing: 0; margin: 34px 0 4px; scroll-margin-top: 20px; }
+.prose h2 { font-size: 2.2rem; margin: 52px 0 6px; scroll-margin-top: 96px; }
+.prose h3 { font-family: var(--text); font-weight: 700; font-size: 1.2rem; line-height: 1.3; letter-spacing: 0; margin: 34px 0 4px; scroll-margin-top: 96px; }
 .prose h4 { margin: 24px 0 0; }
 .prose .anchor { float: left; margin-left: -1.1em; width: 1.1em; color: var(--aisle); text-decoration: none; font-weight: 400; opacity: 0; }
 .prose :is(h2, h3):hover .anchor { opacity: 1; }

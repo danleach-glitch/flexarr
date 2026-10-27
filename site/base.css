@@ -17,7 +17,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 body {
   overflow-x: clip;
   margin: 0;
@@ -48,14 +48,17 @@ code { font-family: var(--mono); font-size: 0.9em; }
 
 /* Header */
 /* A dimmed, blurred strip so the links stay readable over the posters behind the home page's hero. */
-.site-header { padding-block: 18px; background: linear-gradient(rgb(27 23 32 / 0.92), rgb(27 23 32 / 0.7)); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid rgb(242 238 231 / 0.06); }
+/* Stays at the top while you scroll. */
+.site-header { position: sticky; top: 0; z-index: 20; padding-block: 18px; background: rgb(27 23 32 / 0.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  mask-image: linear-gradient(#000 75%, transparent); -webkit-mask-image: linear-gradient(#000 75%, transparent); }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--screen); font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1; }
 .wordmark img { width: 34px; height: 34px; }
 .site-nav { display: flex; gap: 4px; align-items: center; }
 .site-nav a { color: #d9d3e0; text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; }
 .site-nav a:hover, .site-nav a[aria-current] { color: var(--screen); background: var(--seat); }
-.site-nav .github { color: var(--screen); border: 1px solid var(--aisle); }
+.site-nav .github { display: inline-flex; align-items: center; gap: 8px; color: var(--screen); border: 1px solid var(--aisle); }
+.site-nav .github svg { width: 18px; height: 18px; flex: none; }
 @media (max-width: 860px) {
   .site-nav a:not(.keep) { display: none; }
 }

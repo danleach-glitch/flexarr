@@ -25,6 +25,8 @@ If the page doesn't load, check that Flexarr is running (your install guide, lin
 
 A new server greets you with **Welcome to your Flexarr server** and one button, **Set up Flexarr**. Choose it, and this browser becomes the server's owner and is signed in. That's the whole sign-up.
 
+![The welcome panel on a new server, with a Set up Flexarr button](../../site/guide/img/welcome.webp "What a new server shows the first browser to reach it")
+
 
 A few things to know:
 
@@ -37,6 +39,8 @@ A few things to know:
 ## What you see next
 
 Flexarr doesn't walk you through a long wizard. You land on Home, which says **Your cinema is empty** until you add a library, with an **Add a library** button that takes you to the right place.
+
+![An empty Home page saying Your cinema is empty, with an Add a library button](../../site/guide/img/empty-home.webp "Home on a new server, before any libraries")
 
 You're signed in as the server's **main profile**, the one that can change settings. If other people will use Flexarr, it's worth giving the main profile a PIN, and making profiles for everyone else, in **Settings › Profiles**. See [Profiles](profiles.md).
 
