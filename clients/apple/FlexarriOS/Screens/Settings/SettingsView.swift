@@ -46,6 +46,18 @@ struct SettingsView: View {
             }
 
             Section {
+                Link(destination: ReviewPrompt.writeReviewURL) {
+                    LabeledContent {
+                        Image(systemName: "arrow.up.forward").font(.footnote.weight(.semibold))
+                    } label: {
+                        Label { Text("Rate Flexarr") } icon: { SettingsIcon("star.fill") }
+                    }
+                }
+                .foregroundStyle(.primary)
+                .listRowBackground(Color.seat)
+            }
+
+            Section {
                 Button(role: .destructive) { confirmSignOut = true } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                         .foregroundStyle(Color.danger)
@@ -98,15 +110,28 @@ struct SettingsLink<Destination: View>: View {
                 Label {
                     Text(title)
                 } icon: {
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.screen)
-                        .frame(width: 29, height: 29)
-                        .background(Color.aisle, in: .rect(cornerRadius: 7))
+                    SettingsIcon(icon)
                 }
             }
         }
         .listRowBackground(Color.seat)
+    }
+}
+
+/// A Settings row's symbol, in its tile.
+struct SettingsIcon: View {
+    var name: String
+
+    init(_ name: String) {
+        self.name = name
+    }
+
+    var body: some View {
+        Image(systemName: name)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color.screen)
+            .frame(width: 29, height: 29)
+            .background(Color.aisle, in: .rect(cornerRadius: 7))
     }
 }
 

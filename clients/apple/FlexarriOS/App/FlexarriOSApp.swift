@@ -1,6 +1,7 @@
 import AppIntents
 import BackgroundTasks
 import FlexarrKit
+import StoreKit
 import SwiftUI
 import UserNotifications
 
@@ -192,6 +193,8 @@ struct RootView: View {
     @Environment(DownloadStore.self) private var downloads
     @Environment(PushNotifications.self) private var notifications
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
+    @State private var reviews = ReviewPrompt()
 
     var body: some View {
         ZStack {
@@ -220,6 +223,7 @@ struct RootView: View {
         // Downloads follow the server and profile signed in; signing out deletes them.
         .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")") {
             model.player.offlineLibrary = downloads
+            model.player.onWatchedToEnd = { [weak reviews] closing in reviews?.watchedToEnd(closing: closing) }
             model.onPodcastsChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.offlineLibrary = downloads
@@ -245,6 +249,15 @@ struct RootView: View {
                 AppDelegate.schedulePodcastRefresh()
                 WidgetBridge.publish(model)
             }
+        }
+        // Apple's rating prompt, once the player has finished closing and nothing else is being said (or when the app
+        // is next in front, if it went away meanwhile).
+        .task(id: "\(reviews.isDue)#\(scenePhase == .active)") {
+            guard reviews.isDue, scenePhase == .active else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled, model.player.errorMessage == nil, !model.player.isStarting else { return }
+            requestReview()
+            reviews.asked()
         }
         // While in front and signed in, another device (or Siri on one) can play here.
         .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {
