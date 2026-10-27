@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.39.0 · 27 October 2026
 
 ### Licence
 - Flexarr is now licensed under the PolyForm Noncommercial License 1.0.0 instead of the GPL-3.0. It stays free to use, change and share for any noncommercial purpose, but it can't be sold or used in a commercial product without a separate licence.
