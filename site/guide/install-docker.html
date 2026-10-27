@@ -110,7 +110,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Install with Docker on Linux or Windows</h1>
         <p class="lede">Run Flexarr&#39;s Docker image on a Linux machine, or on Windows through Docker Desktop and WSL 2, with docker run or Docker Compose.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -181,6 +181,13 @@
     restart: unless-stopped
 </code></pre>
 <p>If Sonarr, Radarr and Lidarr are in the same Compose file, give them the same media mount (<code>/path/to/media:/data/media</code>). They can then reach Flexarr at <code>http://flexarr:8383</code> for webhooks.</p>
+<h3 id="found-on-your-network"><a class="anchor" href="#found-on-your-network" aria-hidden="true" tabindex="-1">#</a>Found on your network</h3>
+<p>The Apple TV, iPhone and iPad list servers that announce themselves on the Wi-Fi. Docker&#39;s own network doesn&#39;t pass the announcement on, so to have Flexarr listed, run it on the host&#39;s network: <code>--network host</code> in place of <code>-p 8383:8383</code> with <code>docker run</code>, or in Compose:</p>
+<pre><code class="language-yaml">    network_mode: host
+</code></pre>
+<p>in place of the <code>ports:</code> line. Flexarr is then at port 8383 on the computer itself. Without it, everything still works; in the apps, choose <strong>Enter an address instead</strong> and type <code>http://&lt;server&gt;:8383</code>.</p>
+<blockquote class="callout note"><p><strong>Note</strong> On the host&#39;s network, other containers in the Compose file can&#39;t reach Flexarr as <code>http://flexarr:8383</code>. Use the computer&#39;s address instead, or <code>http://host.docker.internal:8383</code> with <code>extra_hosts: [&quot;host.docker.internal:host-gateway&quot;]</code> on those containers.</p>
+</blockquote>
 <h3 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h3>
 <p>Flexarr converts video on the processor unless you pick something else in <strong>Settings › Streaming › Hardware acceleration</strong>. On Linux, <strong>Automatic</strong> means the processor. The menu lists only what the container can use. The Apple apps play most files directly, so many homes rarely need conversion at all.</p>
 <p><strong>Intel and AMD graphics.</strong> The image includes the VA-API drivers: AMD&#39;s on both <code>amd64</code> and <code>arm64</code>, Intel&#39;s (with Quick Sync) on <code>amd64</code> only. Pass the graphics device into the container, with <code>--device /dev/dri</code> for <code>docker run</code> or this under the service in Compose:</p>

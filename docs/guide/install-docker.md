@@ -62,6 +62,18 @@ services:
 
 If Sonarr, Radarr and Lidarr are in the same Compose file, give them the same media mount (`/path/to/media:/data/media`). They can then reach Flexarr at `http://flexarr:8383` for webhooks.
 
+### Found on your network
+
+The Apple TV, iPhone and iPad list servers that announce themselves on the Wi-Fi. Docker's own network doesn't pass the announcement on, so to have Flexarr listed, run it on the host's network: `--network host` in place of `-p 8383:8383` with `docker run`, or in Compose:
+
+```yaml
+    network_mode: host
+```
+
+in place of the `ports:` line. Flexarr is then at port 8383 on the computer itself. Without it, everything still works; in the apps, choose **Enter an address instead** and type `http://<server>:8383`.
+
+> **Note** On the host's network, other containers in the Compose file can't reach Flexarr as `http://flexarr:8383`. Use the computer's address instead, or `http://host.docker.internal:8383` with `extra_hosts: ["host.docker.internal:host-gateway"]` on those containers.
+
 ### Hardware transcoding
 
 Flexarr converts video on the processor unless you pick something else in **Settings › Streaming › Hardware acceleration**. On Linux, **Automatic** means the processor. The menu lists only what the container can use. The Apple apps play most files directly, so many homes rarely need conversion at all.

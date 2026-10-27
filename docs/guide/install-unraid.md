@@ -16,7 +16,7 @@ On Unraid, Flexarr runs as a Docker container. There's no Community Applications
 2. Fill in the top of the form:
    - **Name**: `flexarr`
    - **Repository**: `ghcr.io/danleach-glitch/flexarr:latest`
-   - **Network Type**: `Bridge`
+   - **Network Type**: `Host`, so the Apple TV and iPhone apps find Flexarr by themselves. `Bridge` works too, but then you type the server's address in the apps.
 3. Switch the form to the advanced view with the **Basic View** toggle at the top right, and fill in:
    - **WebUI**: `http://[IP]:[PORT:8383]/`
 4. Add the port, the settings folder, your media and the user to run as with **Add another Path, Port, Variable, Label or Device** at the bottom, one at a time:

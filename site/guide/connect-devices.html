@@ -110,7 +110,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Connect your devices</h1>
         <p class="lede">Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -163,7 +163,8 @@
 <h3 id="firewall"><a class="anchor" href="#firewall" aria-hidden="true" tabindex="-1">#</a>Firewall</h3>
 <p>The server&#39;s firewall must let other devices reach port <strong>8383</strong>. On a Mac with the firewall turned on (<strong>System Settings › Network › Firewall</strong>), check it isn&#39;t blocking incoming connections. Check you can open <code>http://&lt;server&gt;:8383</code> from another computer at home; if a browser can&#39;t reach it, the apps can&#39;t either.</p>
 <h3 id="servers-that-don-t-announce-themselves"><a class="anchor" href="#servers-that-don-t-announce-themselves" aria-hidden="true" tabindex="-1">#</a>Servers that don&#39;t announce themselves</h3>
-<p>Finding the server by itself works when Flexarr runs natively on a Mac. In Docker, including on a Synology or Unraid server, the container usually can&#39;t announce itself to the network, so the app won&#39;t list it. Enter the address instead (below).</p>
+<p>Flexarr announces itself to the network wherever it runs, but in Docker, including on a Synology or Unraid server, only when the container shares the computer&#39;s network. Docker&#39;s own network (the usual <code>-p 8383:8383</code>) doesn&#39;t pass the announcement on, so the app won&#39;t list the server. Run the container on the host&#39;s network (see <a href="/guide/install-docker#found-on-your-network">Install with Docker</a>), or enter the address instead (below).</p>
+<p>The announcement uses UDP port <strong>5353</strong> (mDNS). A firewall on the server needs to let it through as well as port 8383.</p>
 <h2 id="enter-an-address-instead"><a class="anchor" href="#enter-an-address-instead" aria-hidden="true" tabindex="-1">#</a>Enter an address instead</h2>
 <p>Every app has <strong>Enter an address instead</strong> under the list of servers.</p>
 <ul>
