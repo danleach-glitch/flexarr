@@ -12,16 +12,23 @@ using Microsoft.Net.Http.Headers;
 
 namespace Flexarr.Api.Playback;
 
-public static class PlaybackEndpoints
+public static partial class PlaybackEndpoints
 {
     /// <summary>Starting playback, watch state and Continue Watching (authenticated).</summary>
     public static RouteGroupBuilder MapPlaybackEndpoints(this RouteGroupBuilder api)
     {
-        api.MapPost("/playback", async (PlaybackRequest request, PlaybackService playback, CancellationToken ct) =>
+        api.MapPost("/playback", async (PlaybackRequest request, PlaybackService playback, ILogger<PlaybackService> logger, CancellationToken ct) =>
         {
             try
             {
-                return await playback.StartAsync(request, ct) is { } info ? Results.Ok(info) : Results.NotFound();
+                if (await playback.StartAsync(request, ct) is not { } info)
+                {
+                    return Results.NotFound();
+                }
+
+                // The first line of every playback's story: search the Logs page for its id to follow it.
+                LogStarted(logger, info.PlaybackId, info.Item.Title, info.Method, info.Reasons.Count > 0 ? $" ({string.Join("; ", info.Reasons)})" : "");
+                return Results.Ok(info);
             }
             catch (TranscodeLimitException ex)
             {
@@ -126,7 +133,14 @@ public static class PlaybackEndpoints
     /// </summary>
     public static RouteGroupBuilder MapStreamEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/playback/{sid}").WithTags("Streaming").AllowAnonymous();
+        var group = api.MapGroup("/playback/{sid}").WithTags("Streaming").AllowAnonymous()
+            .AddEndpointFilter(async (context, next) =>
+            {
+                // Whatever's logged while serving the stream says which playback it was.
+                using var _ = Serilog.Context.LogContext.PushProperty("PlaybackId",
+                    Logging.Redactor.ShortHash(context.HttpContext.Request.RouteValues["sid"] as string ?? ""));
+                return await next(context);
+            });
 
         // The viewer chose subtitles (or none) in the player: the session takes note, so the choice is what the next
         // sitting and the next episode start with. Apple's player switches renditions on the device, so without this
@@ -347,4 +361,7 @@ public static class PlaybackEndpoints
         "avi" => "video/x-msvideo",
         _ => "application/octet-stream",
     };
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Playback {PlaybackId} of {Title}: {Method}{Reasons}")]
+    private static partial void LogStarted(ILogger logger, string playbackId, string title, PlaybackMethod method, string reasons);
 }

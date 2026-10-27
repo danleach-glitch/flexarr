@@ -543,6 +543,9 @@ public struct PlaybackInfo: Codable, Sendable {
     public var subtitleDelaySeconds: Double? = nil
     /// The episode before this one, in order: nil on shuffle, for the first episode, and from servers before it existed.
     public var previous: ItemSummary? = nil
+    /// A short one-way hash of `sessionId`, for logs: the same playback can be found in the app's and the server's
+    /// logs without either holding the session id, which is the stream URLs' credential. Absent from older servers.
+    public var playbackId: String? = nil
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.

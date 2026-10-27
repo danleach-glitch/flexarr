@@ -2,10 +2,9 @@ import AVFoundation
 import FlexarrKit
 import MediaPlayer
 import Observation
-import os
 import UIKit
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "music")
+private let log = FlexarrLog("music")
 
 /// Where downloaded tracks are kept, so one plays from its file with no server session (and no connection): the
 /// iPhone's downloads. A play heard through is recorded here, to be told to the server once there's a connection.
@@ -91,6 +90,8 @@ final class MusicPlayer {
     @ObservationIgnored private var albumTitles: [String: String] = [:]
     @ObservationIgnored private let player = AVPlayer()
     @ObservationIgnored private var sessionId: String?
+    /// The session's id for logs (never the session id itself, the stream's credential).
+    @ObservationIgnored private var playbackId: String?
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var itemObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var statusObservation: NSKeyValueObservation?
@@ -395,6 +396,7 @@ final class MusicPlayer {
                 }
                 guard let url = client.url(for: info.url) else { throw FlexarrClientError.invalidResponse }
                 sessionId = info.sessionId
+                playbackId = info.playbackId
                 if info.durationSeconds > 0 { duration = info.durationSeconds }
                 lastReport = Date()
                 attach(item(url: url))
@@ -406,7 +408,7 @@ final class MusicPlayer {
             } catch {
                 guard mine == generation else { return }
                 isLoading = false
-                log.error("Couldn't start \(track.title, privacy: .public): \(error)")
+                log.error("Couldn't start \(track.title)", error: error)
                 errorMessage = ConnectionError(error).message
             }
         }
@@ -526,7 +528,7 @@ final class MusicPlayer {
     }
 
     private func trackFailed(_ reason: String?) {
-        log.error("Track failed: \(reason ?? "no reason", privacy: .public)")
+        log.error("Track failed: \(reason ?? "no reason")", ["playbackId": playbackId])
         errorMessage = reason ?? "This track couldn't be played."
         endSession()
         clearItem()

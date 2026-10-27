@@ -734,3 +734,73 @@ export interface LiveTvTest {
   expiresAt: string | null
   error: string | null
 }
+
+// ---------- Logs
+
+export type LogLevel = 'Verbose' | 'Debug' | 'Information' | 'Warning' | 'Error' | 'Fatal'
+
+/** One line of the server's log (or a device's, sent to it), newest first. */
+export interface LogEntry {
+  id: string
+  timestamp: string
+  level: LogLevel
+  /** The area's key: general, playback, library… */
+  area: string
+  /** The logger's name. */
+  source: string
+  message: string
+  exception: string | null
+  /** What it was about: playbackId, requestId, device, profile, platform. */
+  properties: Record<string, string>
+}
+
+export interface LogPage {
+  entries: LogEntry[]
+  /** Passed as `before` for the next older page; null at the end. */
+  nextCursor: string | null
+}
+
+export interface LogQuery {
+  level?: LogLevel
+  area?: string
+  q?: string
+  before?: string
+  limit?: number
+}
+
+export interface LogSettings {
+  level: LogLevel
+  /** Each area's own level; null follows `level`. */
+  areas: { key: string; name: string; level: LogLevel | null }[]
+  retentionDays: number
+  maxSizeMb: number
+}
+
+export interface LogSettingsUpdate {
+  level?: LogLevel
+  areas?: { key: string; level: LogLevel | null }[]
+  retentionDays?: number
+  maxSizeMb?: number
+}
+
+/** Diagnostics an Apple TV or iPhone sent from its own settings. */
+export interface LogUpload {
+  id: string
+  device: string
+  platform: string
+  profile: string | null
+  appVersion: string | null
+  note: string | null
+  uploadedAt: string
+  sizeBytes: number
+}
+
+/** An error or warning from an app, for the server's log. */
+export interface ClientLogEntry {
+  timestamp: string
+  level: 'Debug' | 'Information' | 'Warning' | 'Error'
+  category: string
+  message: string
+  error?: string
+  properties?: Record<string, string>
+}

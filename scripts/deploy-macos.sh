@@ -8,7 +8,8 @@
 #                     kept: macOS's external-drive permission belongs to it)
 #   ~/.flexarr/app    binaries (replaced on every deploy)
 #   ~/.flexarr/data   config.json (API key, path mappings), database, caches — never touched by deploys
-#   ~/.flexarr/logs   flexarr.log
+#   ~/.flexarr/logs   flexarr-<date>.log (the server's own, trimmed to Settings › Logs › Retention); console.log
+#                     (warnings and crashes on standard output, for when the server can't start)
 set -euo pipefail
 
 host="${1:?usage: $0 <ssh-host>}"
@@ -145,7 +146,7 @@ for _ in \$(seq 1 30); do
   curl -sf http://localhost:8383/health >/dev/null && break
   sleep 1
 done
-curl -sf http://localhost:8383/health >/dev/null || { echo "Flexarr did not become healthy; see $root/logs/flexarr.log" >&2; tail -20 "$root/logs/flexarr.log" >&2; exit 1; }
+curl -sf http://localhost:8383/health >/dev/null || { echo "Flexarr did not become healthy; see $root/logs/console.log" >&2; tail -20 "$root/logs/console.log" >&2; exit 1; }
 REMOTE
 
 echo "==> Flexarr is running: http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"

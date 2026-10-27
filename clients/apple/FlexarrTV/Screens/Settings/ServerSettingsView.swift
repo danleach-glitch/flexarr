@@ -34,6 +34,11 @@ struct ServerSettingsView: View {
             }
             .disabled(checking)
             .padding(.top, 30)
+
+            SettingsLinkRow(title: "Send diagnostics", symbol: "stethoscope",
+                            help: "Send this Apple TV's recent log to your server, to look into a problem.") {
+                DiagnosticsSettingsView()
+            }
         }
         .task { await load() }
     }

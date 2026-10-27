@@ -52,7 +52,14 @@ public sealed record PlaybackInfoDto(
     bool Shuffle = false,
     PlaybackPreferencesDto? Preferences = null,
     double SubtitleDelaySeconds = 0,
-    ItemSummaryDto? Previous = null);
+    ItemSummaryDto? Previous = null)
+{
+    /// <summary>
+    /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the
+    /// stream. The apps attach it to what they report, and the server's own lines show it as #playbackId.
+    /// </summary>
+    public string PlaybackId => Logging.Redactor.ShortHash(SessionId);
+}
 
 /// <summary>How this profile likes to watch: auto-play the next episode, and what to skip without asking.</summary>
 /// <param name="SubtitleSize">Left out (an older app saving its toggles), the profile's size is kept.</param>

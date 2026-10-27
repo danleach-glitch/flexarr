@@ -12,7 +12,10 @@ final class AppModel {
         case signedIn(ServerCredentials)
     }
 
-    private(set) var phase: Phase
+    private(set) var phase: Phase {
+        // Warnings and errors go to the server signed in to, and its sign-in is kept out of the log.
+        didSet { if phase != oldValue { LogHub.shared.signedIn(client) } }
+    }
     private(set) var libraries: [Library] = []
     private(set) var librariesError: String?
     /// Whether this profile has podcasts; nil for servers before them.
@@ -89,6 +92,7 @@ final class AppModel {
             skipsProfileChoice = true
         }
         #endif
+        LogHub.shared.signedIn(client)
         player.onSessionEnded = { [weak self] in
             self?.invalidate()
             self?.music.videoEnded()

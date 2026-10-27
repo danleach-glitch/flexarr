@@ -1,8 +1,7 @@
 import FlexarrKit
 import Foundation
-import os
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "commands")
+private let log = FlexarrLog("commands")
 
 /// Keeps the server's command stream open while the app is in front, so another device (an iPhone saying "play the
 /// next episode on the living room TV" to Siri), the web app or an assistant can play, pause, resume and stop here.
@@ -23,7 +22,7 @@ final class DeviceCommandListener {
             while !Task.isCancelled {
                 do {
                     for try await command in client.commandStream() {
-                        log.info("Command \(command.kind.rawValue, privacy: .public) from \(command.sentBy ?? "someone", privacy: .public)")
+                        log.info("Command \(command.kind.rawValue) from \(command.sentBy ?? "someone")")
                         handle(command)
                         delay = .seconds(2)
                     }
@@ -37,7 +36,7 @@ final class DeviceCommandListener {
                     return
                 } catch {
                     if Task.isCancelled { return }
-                    log.info("Command stream dropped (\(error.localizedDescription, privacy: .public)); retrying in \(delay.components.seconds)s")
+                    log.info("Command stream dropped; retrying in \(delay.components.seconds)s", error: error)
                 }
                 try? await Task.sleep(for: delay)
                 delay = min(delay * 2, .seconds(60))

@@ -1,0 +1,80 @@
+using Flexarr.Api.Configuration;
+using Microsoft.Extensions.Options;
+
+namespace Flexarr.Api.Logging;
+
+/// <summary>
+/// Keeps the log folder within the retention settings: files older than the limit go, then the oldest until it fits
+/// the size cap. Runs at startup, hourly, and when the settings change. The file being written is never deleted.
+/// </summary>
+public sealed partial class LogJanitor(LogPaths paths, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, ILogger<LogJanitor> logger)
+    : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var changed = new SemaphoreSlim(0);
+        using var watch = options.OnChange(_ => changed.Release());
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            Tidy();
+            try
+            {
+                await changed.WaitAsync(TimeSpan.FromHours(1), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    public void Tidy()
+    {
+        var settings = options.CurrentValue.Logs;
+        var cutoff = clock.GetUtcNow().UtcDateTime.AddDays(-Math.Max(1, settings.RetentionDays));
+        var logs = paths.LogFiles();
+        var current = logs.Count > 0 ? logs[0] : null;
+        var uploads = new DirectoryInfo(paths.UploadsDirectory);
+        var files = logs.Skip(1)
+            .Concat(uploads.Exists ? uploads.EnumerateFiles() : [])
+            .OrderBy(f => f.LastWriteTimeUtc)
+            .ToList();
+
+        var total = files.Sum(f => f.Length) + (current?.Length ?? 0);
+        var limit = Math.Max(10, settings.MaxSizeMb) * 1024L * 1024;
+        var removed = 0;
+        foreach (var file in files)
+        {
+            if (file.LastWriteTimeUtc >= cutoff && total <= limit)
+            {
+                break;
+            }
+
+            try
+            {
+                file.Delete();
+                total -= file.Length;
+                removed++;
+            }
+            catch (IOException ex)
+            {
+                LogDeleteFailed(file.Name, ex);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogDeleteFailed(file.Name, ex);
+            }
+        }
+
+        if (removed > 0)
+        {
+            LogTidied(removed);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Count} old log files")]
+    private partial void LogTidied(int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't delete old log file {File}")]
+    private partial void LogDeleteFailed(string file, Exception exception);
+}

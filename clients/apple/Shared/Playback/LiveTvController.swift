@@ -1,9 +1,8 @@
 import FlexarrKit
-import os
 import SwiftUI
 import UIKit
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "livetv")
+private let log = FlexarrLog("livetv")
 
 /// Watching a live channel: asks the server for it, puts it on the player screen with the rewind window as the
 /// timeline, keeps the server told the viewer is there, and changes channel (Previous and Next, or the remote's
@@ -81,7 +80,7 @@ final class LiveTvController: NSObject {
                 offer(instead: recording, of: channel)
             } catch {
                 if Task.isCancelled { return }
-                log.error("Couldn't start \(channel.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                log.error("Couldn't start \(channel.name)", error: error)
                 watching = nil
                 close(message: Self.message(for: error))
             }
@@ -90,7 +89,7 @@ final class LiveTvController: NSObject {
 
     private func present(_ started: LiveWatch) throws {
         guard let client, let url = client.url(for: started.playlist) else { throw FlexarrClientError.invalidResponse }
-        log.info("Watching \(started.channel.name, privacy: .public) (\(started.method, privacy: .public))")
+        log.info("Watching \(started.channel.name) (\(started.method))", ["playbackId": started.playbackId])
         watching = started
         if let lastChannel, lastChannel.id != started.channel.id { previousChannel = lastChannel }
         lastChannel = started.channel

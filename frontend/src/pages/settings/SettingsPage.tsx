@@ -13,6 +13,7 @@ import { HealthSection } from './HealthSection'
 import { ImportSection } from './ImportSection'
 import { LayoutSection } from './LayoutSection'
 import { LibrariesSection } from './LibrariesSection'
+import { LogsSection } from './LogsSection'
 import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
 import { PodcastsSection } from './PodcastsSection'
@@ -48,6 +49,7 @@ const serverPages: Page[] = [
   { id: 'access', label: 'Access', render: () => <AccessSection /> },
   { id: 'tv', label: 'Connect a TV', render: () => <ConnectTvSection />, under: 'access' },
   { id: 'backups', label: 'Backup and restore', render: () => <BackupSection /> },
+  { id: 'logs', label: 'Logs', render: () => <LogsSection /> },
   { id: 'about', label: 'About', render: () => <AboutSection /> },
 ]
 

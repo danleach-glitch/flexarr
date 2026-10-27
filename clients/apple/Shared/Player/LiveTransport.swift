@@ -1,9 +1,8 @@
 import AVFoundation
 import AVKit
 import FlexarrKit
-import os
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "transport")
+private let log = FlexarrLog("transport")
 
 /// A live channel through AVPlayer. The server keeps a rolling window of the channel (the rewind window); this
 /// transport shows that window as the player's timeline, so the scrubber, skips and the remote's scanning work as
@@ -154,7 +153,7 @@ final class LiveTransport: NSObject, PlayerTransport {
             player.play()
         case .failed:
             let reason = message ?? "The channel couldn't be opened."
-            log.error("Live item failed: \(reason, privacy: .public)")
+            log.error("Live item failed: \(reason)")
             phase = .failed("The channel stopped sending. Try again, or pick another channel.")
         default:
             break

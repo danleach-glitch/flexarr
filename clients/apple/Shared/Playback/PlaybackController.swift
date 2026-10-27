@@ -1,10 +1,9 @@
 import AVFoundation
 import FlexarrKit
 import Observation
-import os
 import UIKit
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "playback")
+private let log = FlexarrLog("playback")
 
 /// Where a downloaded file's watching is recorded (to be sent to the server once there's a connection), and which
 /// downloaded episode comes after it.
@@ -143,6 +142,7 @@ final class PlaybackController: NSObject {
                 let info = try await client.startPlayback(request)
                 try present(info)
             } catch {
+                log.error("Couldn't start playback of \(request.itemId)", error: error)
                 show(error, retry: request)
             }
         }
@@ -243,8 +243,9 @@ final class PlaybackController: NSObject {
 
     /// Makes the transport for `info` and wires the session: the engine for a file it can play, else Apple's player.
     private func attach(_ info: PlaybackInfo, to screen: PlayerViewController) throws {
-        // The session id is the stream URLs' only credential, so keep it out of shareable logs.
-        log.info("Session \(info.sessionId, privacy: .private) \(info.method.rawValue, privacy: .public) for \(info.item.title, privacy: .public), start \(info.startPositionSeconds)")
+        // Never the session id, which is the stream URLs' only credential: the playback id stands for it.
+        log.info("Playing \(info.item.title): \(info.method.rawValue) from \(Int(info.startPositionSeconds))s",
+                 ["playbackId": info.playbackId, "reasons": info.reasons.isEmpty ? nil : info.reasons.joined(separator: "; ")])
         self.info = info
         hasPlayed = false
         lastPosition = info.startPositionSeconds
@@ -287,7 +288,7 @@ final class PlaybackController: NSObject {
 
     /// The engine couldn't play this title: ask the server for its stream instead, from the same place.
     private func fallBackFromEngine(_ info: PlaybackInfo, reason: String) {
-        log.info("Engine fell back to the server for \(info.item.title, privacy: .public): \(reason, privacy: .public)")
+        log.warning("Engine fell back to the server for \(info.item.title): \(reason)", ["playbackId": info.playbackId])
         engineSuppressedItem = info.item.id
         transport?.stop()
         transport = nil
@@ -317,7 +318,7 @@ final class PlaybackController: NSObject {
             do {
                 try await client.setSubtitleDelay(itemId: current.item.id, seconds: seconds)
             } catch {
-                log.error("Couldn't move subtitles: \(error.localizedDescription, privacy: .public)")
+                log.warning("Couldn't move subtitles", error: error, ["playbackId": current.playbackId])
                 return
             }
             guard self.info?.sessionId == current.sessionId else { return }
@@ -368,7 +369,7 @@ final class PlaybackController: NSObject {
         // Skip intros and recaps by themselves when the profile asks, once each.
         if case .skip(let type, let end) = next, type == .intro ? preferences.skipIntros : preferences.skipRecaps,
            autoSkipped.insert("\(type.rawValue)@\(end)").inserted {
-            log.info("Skipping the \(type.rawValue, privacy: .public) by itself")
+            log.info("Skipping the \(type.rawValue) by itself", ["playbackId": info.playbackId])
             skip(to: end)
             return
         }
@@ -380,7 +381,7 @@ final class PlaybackController: NSObject {
             beginFinishing()
         }
         if next != prompt {
-            log.info("Prompt \(String(describing: next), privacy: .public) at \(seconds)")
+            log.debug("Prompt \(String(describing: next)) at \(Int(seconds))s", ["playbackId": info.playbackId])
             prompt = next
             updatePrompt()
             // The credits started: get the next episode ready. Back out of them: let it go.
@@ -458,7 +459,7 @@ final class PlaybackController: NSObject {
             }
             return
         }
-        log.info("Recovering playback at \(retry.startPositionSeconds ?? 0)")
+        log.warning("Stream stopped (\(reason)); recovering at \(Int(retry.startPositionSeconds ?? 0))s", ["playbackId": current.playbackId])
         isRecovering = true
         lastRecovery = Date()
         Task {
@@ -544,7 +545,7 @@ final class PlaybackController: NSObject {
                 try? await client.stopPlayback(sessionId: ready.sessionId)
                 return
             }
-            log.info("Next episode ready: \(ready.item.title, privacy: .public)")
+            log.info("Next episode ready: \(ready.item.title)", ["playbackId": ready.playbackId])
             prepared = (request, ready)
         }
     }
@@ -678,7 +679,7 @@ final class PlaybackController: NSObject {
     /// subtitles), the next episode opens straight away.
     private func move(to target: ItemSummary, from current: PlaybackInfo, leavingTrail: Bool) {
         guard !isAdvancing, let client else { return }
-        log.info("Moving on to \(target.title, privacy: .public)")
+        log.info("Moving on to \(target.title)", ["playbackId": current.playbackId])
         isAdvancing = true
         endFinishing()
         report(paused: false, ended: leavingTrail && isPastCredits(current))
@@ -743,7 +744,7 @@ final class PlaybackController: NSObject {
         if let info, info.isOffline {
             if recording, recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: isPastCredits(info)) }
         } else if let info, let client {
-            log.info("Stopping session \(info.sessionId, privacy: .private)")
+            log.info("Stopping", ["playbackId": info.playbackId])
             let position = self.position
             let sessionId = info.sessionId
             let record = recordsHistory
@@ -869,7 +870,7 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??) {
         viewerSubtitleKey = key
-        log.info("Subtitles chosen in the player: \(key.flatMap { $0 } ?? "off", privacy: .public)")
+        log.info("Subtitles chosen in the player: \(key.flatMap { $0 } ?? "off")", ["playbackId": info?.playbackId])
         // The server remembers the pick for this title and its show, so it holds next time.
         if let client, let info, !info.isOffline, case .some(let chosen) = key {
             Task { try? await client.setSubtitle(sessionId: info.sessionId, key: chosen) }

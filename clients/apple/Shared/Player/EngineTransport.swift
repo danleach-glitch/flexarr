@@ -4,10 +4,9 @@ import AVFoundation
 import AVKit
 import Combine
 import FlexarrKit
-import os
 import UIKit
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "engine")
+private let log = FlexarrLog("engine")
 
 /// The file played as it is on the device by AetherEngine: it demuxes the file from the server, and VideoToolbox
 /// decodes it when it can (the hardware route) or FFmpeg does (the software route, for AV1, VC-1, MPEG-2, XviD and
@@ -71,7 +70,7 @@ final class EngineTransport: PlayerTransport {
         #endif
 
         observe()
-        log.info("Opening \(self.info.item.title, privacy: .public) at \(seconds)")
+        log.info("Opening \(self.info.item.title) at \(Int(seconds))s", ["playbackId": self.info.playbackId])
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -80,12 +79,13 @@ final class EngineTransport: PlayerTransport {
             } catch is CancellationError {
                 return
             } catch {
-                log.error("Couldn't open: \(error.localizedDescription, privacy: .public)")
+                log.error("Couldn't open", error: error, ["playbackId": self.info.playbackId])
                 self.phase = .failed(error.localizedDescription)
                 return
             }
             self.loading = false
-            log.info("Route \(self.engine.videoRoute.rawValue, privacy: .public), audio \(self.engine.audioTracks.count) tracks, subtitles \(self.engine.subtitleTracks.count)")
+            log.info("Route \(self.engine.videoRoute.rawValue), audio \(self.engine.audioTracks.count) tracks, subtitles \(self.engine.subtitleTracks.count)",
+                     ["playbackId": self.info.playbackId])
             #if DEBUG
             // `-FlexarrDumpEngine YES`: what the engine's own HLS server hands AVPlayer (playlists and init segment),
             // for comparing with what our server serves when the TV refuses ours.
@@ -95,7 +95,7 @@ final class EngineTransport: PlayerTransport {
                     guard let self else { return }
                     let item = self.engine.currentAVPlayerItem ?? self.engine.currentAVPlayer?.currentItem
                     guard let url = (item?.asset as? AVURLAsset)?.url else {
-                        log.info("DUMP: no player item (route \(self.engine.videoRoute.rawValue, privacy: .public))")
+                        log.debug("DUMP: no player item (route \(self.engine.videoRoute.rawValue))")
                         return
                     }
                     await Self.dumpServed(url)
@@ -304,25 +304,25 @@ final class EngineTransport: PlayerTransport {
     #if DEBUG
     private static func dumpServed(_ master: URL) async {
         guard let (data, _) = try? await URLSession.shared.data(from: master), let text = String(data: data, encoding: .utf8) else {
-            log.info("DUMP master: couldn't fetch \(master.absoluteString, privacy: .public)")
+            log.debug("DUMP master: couldn't fetch \(master.absoluteString)")
             return
         }
-        for line in text.split(separator: "\n") { log.info("DUMP master: \(line, privacy: .public)") }
+        for line in text.split(separator: "\n") { log.debug("DUMP master: \(line)") }
         // The first media playlist, and its init segment.
         let lines = text.split(separator: "\n").map(String.init)
         guard let mediaLine = lines.first(where: { !$0.hasPrefix("#") && !$0.isEmpty }), let media = URL(string: mediaLine, relativeTo: master),
               let (mediaData, _) = try? await URLSession.shared.data(from: media), let mediaText = String(data: mediaData, encoding: .utf8) else { return }
-        for line in mediaText.split(separator: "\n").prefix(14) { log.info("DUMP media: \(line, privacy: .public)") }
+        for line in mediaText.split(separator: "\n").prefix(14) { log.debug("DUMP media: \(line)") }
         guard let mapLine = mediaText.split(separator: "\n").first(where: { $0.hasPrefix("#EXT-X-MAP") }),
               let uriStart = mapLine.range(of: "URI=\""), let uriEnd = mapLine[uriStart.upperBound...].firstIndex(of: "\""),
               let initURL = URL(string: String(mapLine[uriStart.upperBound..<uriEnd]), relativeTo: media),
               let (initData, _) = try? await URLSession.shared.data(from: initURL) else { return }
-        log.info("DUMP init: \(initData.count) bytes, boxes \(Self.boxes(initData), privacy: .public)")
+        log.debug("DUMP init: \(initData.count) bytes, boxes \(Self.boxes(initData))")
         if let hvcC = Self.find(box: "hvcC", in: initData) {
-            log.info("DUMP init hvcC: \(hvcC.prefix(23).map { String(format: "%02x", $0) }.joined(), privacy: .public)")
+            log.debug("DUMP init hvcC: \(hvcC.prefix(23).map { String(format: "%02x", $0) }.joined())")
         }
         for name in ["colr", "mdcv", "clli", "dvcC", "dvvC", "pasp"] {
-            if let box = Self.find(box: name, in: initData) { log.info("DUMP init \(name, privacy: .public): \(box.map { String(format: "%02x", $0) }.joined(), privacy: .public)") }
+            if let box = Self.find(box: name, in: initData) { log.debug("DUMP init \(name): \(box.map { String(format: "%02x", $0) }.joined())") }
         }
     }
 

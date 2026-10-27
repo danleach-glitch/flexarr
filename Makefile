@@ -95,5 +95,5 @@ DEPLOY_HOST ?= mini
 deploy: ## Build and install/upgrade Flexarr on DEPLOY_HOST (default: mini) over SSH
 	scripts/deploy-macos.sh $(DEPLOY_HOST)
 
-logs: ## Tail the server log on DEPLOY_HOST
-	ssh $(DEPLOY_HOST) tail -f .flexarr/logs/flexarr.log
+logs: ## Tail the server log on DEPLOY_HOST (today's file; LEVEL=Warning to show only warnings and errors)
+	ssh $(DEPLOY_HOST) 'tail -n 100 -F "$$(ls -t .flexarr/logs/flexarr-*.log | head -1)"' | python3 scripts/pretty-log.py $(LEVEL)

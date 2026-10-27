@@ -17,7 +17,8 @@ make logs                      # tail the server log
 | `~/.flexarr/app` | Binaries — replaced on every deploy |
 | `~/.flexarr/data/config.json` | Your settings: API key, path mappings — never touched by deploys. Readable only by you |
 | `~/.flexarr/data/devices.json` | Signed-in browsers and Apple TVs (hashes of their tokens). Delete it to sign them all out |
-| `~/.flexarr/logs/flexarr.log` | Server log |
+| `~/.flexarr/logs/flexarr-<date>.log` | Server log, one file a day (see [Logs](logging.md)). `make logs` tails it |
+| `~/.flexarr/logs/console.log` | Warnings and errors on standard output: look here when the server won't start |
 | `~/Library/LaunchAgents/io.github.flexarr.server.plist` | Service definition (starts at login, restarts on crash) |
 
 The server listens on port **8383** on all interfaces: `http://<mac-name>.local:8383`.

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router'
 import {
   clearApiCache,
   getMe,
@@ -12,6 +12,7 @@ import {
   UnauthorizedError,
   type Profile,
 } from './api/client'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { ProfilePicker } from './components/ProfilePicker'
 import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
@@ -29,6 +30,7 @@ import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
 import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from './pages/PodcastPages'
 import { UpcomingPage } from './pages/UpcomingPage'
 import { LinkPage } from './pages/LinkPage'
+import { errorReporter } from './lib/errorReporter'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/app.css'
@@ -75,39 +77,42 @@ type ConnectionState =
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
 export function Shell() {
+  const { pathname } = useLocation()
   return (
     <SessionProvider>
       <LibrariesProvider>
         <AudioPlayerProvider>
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="play/:id" element={<PlayerPage />} />
-              <Route path="live/:id" element={<LivePlayerPage />} />
-              <Route element={<Layout />}>
-                <Route index element={<HomePage />} />
-                <Route path="library/:id" element={<LibraryPage />} />
-                <Route path="item/:id" element={<ItemPage />} />
-                <Route path="person/:id" element={<PersonPage />} />
-                <Route path="collections" element={<CollectionsPage />} />
-                <Route path="collection/:id" element={<CollectionPage />} />
-                <Route path="playlists" element={<PlaylistsPage />} />
-                <Route path="playlist/:id" element={<PlaylistPage />} />
-                <Route path="mix/:id" element={<MixPage />} />
-                <Route path="livetv" element={<LiveTvPage />} />
-                <Route path="podcasts" element={<PodcastsPage />} />
-                <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
-                <Route path="podcasts/episode/:id" element={<PodcastEpisodePage />} />
-                <Route path="podcasts/:id" element={<PodcastPage />} />
-                <Route path="discover" element={<DiscoverPage />} />
-                <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
-                <Route path="upcoming" element={<UpcomingPage />} />
-                <Route path="link" element={<LinkPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="settings/:section" element={<SettingsPage />} />
-                <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
-              </Route>
-            </Routes>
-          </Suspense>
+          <ErrorBoundary resetKey={pathname}>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="play/:id" element={<PlayerPage />} />
+                <Route path="live/:id" element={<LivePlayerPage />} />
+                <Route element={<Layout />}>
+                  <Route index element={<HomePage />} />
+                  <Route path="library/:id" element={<LibraryPage />} />
+                  <Route path="item/:id" element={<ItemPage />} />
+                  <Route path="person/:id" element={<PersonPage />} />
+                  <Route path="collections" element={<CollectionsPage />} />
+                  <Route path="collection/:id" element={<CollectionPage />} />
+                  <Route path="playlists" element={<PlaylistsPage />} />
+                  <Route path="playlist/:id" element={<PlaylistPage />} />
+                  <Route path="mix/:id" element={<MixPage />} />
+                  <Route path="livetv" element={<LiveTvPage />} />
+                  <Route path="podcasts" element={<PodcastsPage />} />
+                  <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
+                  <Route path="podcasts/episode/:id" element={<PodcastEpisodePage />} />
+                  <Route path="podcasts/:id" element={<PodcastPage />} />
+                  <Route path="discover" element={<DiscoverPage />} />
+                  <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
+                  <Route path="upcoming" element={<UpcomingPage />} />
+                  <Route path="link" element={<LinkPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="settings/:section" element={<SettingsPage />} />
+                  <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </AudioPlayerProvider>
       </LibrariesProvider>
     </SessionProvider>
@@ -122,6 +127,10 @@ export default function App() {
     const controller = new AbortController()
     migrateStoredApiKey()
       .then(() => getSystemStatus(controller.signal))
+      // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
+      .then((status) => {
+        errorReporter.enable(status.version.split('+')[0])
+      })
       // An older server without profiles still works: carry on as the main profile.
       .then(() =>
         Promise.all([
@@ -153,8 +162,10 @@ export default function App() {
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
-        if (error instanceof UnauthorizedError) setState({ kind: 'unauthorized' })
-        else setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
+        if (error instanceof UnauthorizedError) {
+          errorReporter.disable()
+          setState({ kind: 'unauthorized' })
+        } else setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
       })
     return () => controller.abort()
   }, [attempt])

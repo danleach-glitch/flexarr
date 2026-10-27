@@ -94,6 +94,8 @@ public struct LiveWatch: Codable, Sendable, Hashable {
     /// How the channel reaches the player ("Original", "Converted to 720p, deinterlaced").
     public let method: String
     public let rewindSeconds: Int
+    /// As `PlaybackInfo.playbackId`, for logs; servers may leave it out.
+    public var playbackId: String? = nil
 }
 
 /// A channel in the guide, with its programmes in the window asked for.

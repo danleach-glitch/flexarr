@@ -32,6 +32,12 @@ struct ServerSettingsView: View {
                 }
                 row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
             }
+
+            Section {
+                SettingsLink("Send diagnostics", icon: "stethoscope") { DiagnosticsSettingsView() }
+            } footer: {
+                Text("Send this \(ThisDevice.name)'s recent log to your server, to look into a problem.")
+            }
         }
         .settingsPage("Server")
         .task { await load() }

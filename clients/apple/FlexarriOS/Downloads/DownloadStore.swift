@@ -2,11 +2,10 @@ import FlexarrKit
 import Foundation
 import Network
 import Observation
-import os
 import Security
 import UIKit
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "downloads")
+private let log = FlexarrLog("downloads")
 
 /// A film, episode, track or podcast episode kept on this device for watching or listening with no connection.
 struct LocalDownload: Codable, Identifiable, Hashable {
@@ -343,7 +342,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 try await client.reportOfflineProgress(itemId: download.item.id, positionSeconds: unsent.position, finished: unsent.finished, playedAt: unsent.playedAt)
                 update(download.id) { if $0.unsent == unsent { $0.unsent = nil } }
             } catch {
-                log.error("Couldn't send offline progress: \(error.localizedDescription, privacy: .public)")
+                log.warning("Couldn't send offline progress", error: error)
             }
         }
         // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
@@ -422,7 +421,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         all.removeAll { $0.id == remote.id }
         all.append(local)
         save()
-        log.info("Downloading \(remote.item.title, privacy: .public) at \(quality.rawValue, privacy: .public)")
+        log.info("Downloading \(remote.item.title) at \(quality.rawValue)")
         if let image = await fetchImage(for: remote.item, id: remote.id) {
             local.imageFileName = image
             update(remote.id) { $0.imageFileName = image }
@@ -465,7 +464,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         saveCollections()
         queueing.insert(collection.id)
         defer { queueing.remove(collection.id) }
-        log.info("Downloading \(collection.title, privacy: .public): \(tracks.count) tracks")
+        log.info("Downloading \(collection.title): \(tracks.count) tracks")
 
         if let name = collection.imageFileName, !FileManager.default.fileExists(atPath: Self.folder.appending(path: name).path(percentEncoded: false)) {
             await fetchImage(at: coverPath, named: name)
@@ -743,7 +742,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             $0.fileName = fileName
             $0.sizeBytes = bytes
         }
-        log.info("Downloaded \(id, privacy: .public)")
+        log.info("Downloaded \(id)")
         if let client { Task { try? await client.markDownloadReceived(id) } }
         if let download = all.first(where: { $0.id == id }) { fetchNext(after: download) }
     }
