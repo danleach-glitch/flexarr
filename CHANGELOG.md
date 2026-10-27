@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.43.1 · 27 October 2026
 
 ### Discover (Apple TV)
 - A title you already have is marked with a gold play badge on its poster's top-left corner, in place of "In your library" under it.
