@@ -96,7 +96,7 @@ The Apple apps (in `clients/apple`) have Home, your libraries, search, title pag
 - 🚗 **CarPlay** for podcasts (Up Next, New episodes and your shows), switched on once Apple approves Flexarr for CarPlay
 - 🔐 Both find your server on the home network; approve the code the app shows in **Settings › Access › Connect a device** on a signed-in browser, and each device gets a sign-in of its own
 
-**Getting them:** the iPhone and iPad app is on TestFlight and coming to the App Store. The Apple TV app installs from Xcode onto your own device:
+**Getting them:** the iPhone and iPad app is [on the App Store](https://apps.apple.com/app/flexarr/id6826618084). The Apple TV app installs from Xcode onto your own device:
 
 1. Sign Xcode in to your Apple ID (Xcode › Settings › Accounts). A free one works.
 2. Pair the Apple TV: on the TV, Settings › Remotes and Devices › Remote App and Devices; on the Mac, Devices and Simulators (⇧⌘2).
