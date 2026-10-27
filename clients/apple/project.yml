@@ -88,6 +88,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
+        # App Store uploads refuse a 64-bit extension without it.
+        UIRequiredDeviceCapabilities: [arm64]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSExtension:
