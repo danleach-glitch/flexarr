@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.43.0 · 27 October 2026
 
 ### Discover (Apple TV)
 - Discover is in the sidebar, above Search, as on the web. It shows what's trending, popular films and shows, and what's coming to cinemas, each marked if it's in your library or already requested.

@@ -10,7 +10,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.42.0"
+    MARKETING_VERSION: "0.43.0"
     CURRENT_PROJECT_VERSION: "1"
     # The Apple TV app's bundle ID; its Top Shelf extension's is this plus .topshelf. `make apple-install` sets it.
     FLEXARR_TV_BUNDLE_ID: io.github.flexarr.tv
