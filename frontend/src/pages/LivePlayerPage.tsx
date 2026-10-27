@@ -2,6 +2,7 @@ import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ApiError, getLiveChannels, liveHeartbeat, removeRecording, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
+import { AsyncButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Pause, Play, Replay10, Forward10, Star, Tv, Volume } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
@@ -303,16 +304,17 @@ export default function LivePlayerPage() {
                 <button className="button" autoFocus onClick={() => navigate(`/live/${blocked.channelId}`, { replace: true })}>
                   Watch {blocked.channelName}
                 </button>
-                <button
+                <AsyncButton
                   className="button quiet"
                   onClick={async () => {
                     await removeRecording(blocked.recordingId).catch(() => undefined)
                     // The recording takes a moment to let its stream go.
-                    window.setTimeout(() => void start(id), 2500)
+                    await new Promise((done) => window.setTimeout(done, 2500))
+                    void start(id)
                   }}
                 >
                   Stop the recording
-                </button>
+                </AsyncButton>
               </>
             ) : (
               <button className="button" autoFocus onClick={() => void start(id)}>

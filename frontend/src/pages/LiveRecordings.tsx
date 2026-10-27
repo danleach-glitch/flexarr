@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError, getRecordings, removeRecording, removeSeries, updateSeries, type Recording, type RecordingSeries } from '../api/client'
-import { Play, RecordDot } from '../components/icons'
+import { AsyncButton, IconButton } from '../components/AsyncButton'
+import { Close, Play, RecordDot, Stop, Trash } from '../components/icons'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
@@ -64,9 +65,11 @@ export default function LiveRecordings() {
                   </span>
                   {r.clashes && <span className="error">Won’t record: every stream is wanted by recordings scheduled before it.</span>}
                 </div>
-                <button className="button quiet small" onClick={() => act(() => removeRecording(r.id))}>
-                  {r.state === 'recording' ? 'Stop' : 'Don’t record'}
-                </button>
+                <IconButton
+                  label={r.state === 'recording' ? 'Stop recording' : 'Don’t record'}
+                  icon={r.state === 'recording' ? <Stop /> : <Close />}
+                  onClick={() => act(() => removeRecording(r.id))}
+                />
               </li>
             ))}
           </ul>
@@ -105,12 +108,12 @@ export default function LiveRecordings() {
                       <Play /> Play
                     </Link>
                   )}
-                  <button
-                    className="button quiet small"
+                  <IconButton
+                    label={r.state === 'completed' ? 'Delete' : 'Clear'}
+                    icon={r.state === 'completed' ? <Trash /> : <Close />}
+                    className={r.state === 'completed' ? 'button quiet small icon danger-icon' : undefined}
                     onClick={() => (r.state !== 'completed' || window.confirm(`Delete the recording of ${r.title}?`)) && act(() => removeRecording(r.id))}
-                  >
-                    {r.state === 'completed' ? 'Delete' : 'Clear'}
-                  </button>
+                  />
                 </div>
               </li>
             ))}
@@ -147,9 +150,9 @@ function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () 
           </label>
         </div>
       </div>
-      <button className="button quiet small" onClick={() => act(() => removeSeries(series.id))}>
+      <AsyncButton className="button quiet small" onClick={() => act(() => removeSeries(series.id))}>
         Stop the series
-      </button>
+      </AsyncButton>
     </li>
   )
 }

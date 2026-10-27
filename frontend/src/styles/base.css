@@ -182,6 +182,116 @@ code {
   height: 22px;
 }
 
+/* Square buttons that show only an icon; data-tip names them on hover. */
+.button.small.icon {
+  width: 36px;
+}
+
+.button.icon.danger-icon:hover {
+  color: var(--danger);
+}
+
+/* ---------- Busy: while a button's action is under way, a spinner takes its label's place ---------- */
+
+.button {
+  --spin: var(--room);
+}
+
+.button.quiet,
+.icon-button {
+  --spin: var(--screen);
+}
+
+.button.danger {
+  --spin: var(--danger);
+}
+
+.text-button {
+  --spin: var(--usher);
+}
+
+.card-play {
+  --spin: var(--room);
+}
+
+.pin-keys button,
+.profile-choices button,
+.playlist-choice,
+.profile-menu button {
+  --spin: var(--screen);
+}
+
+:is(.button, .icon-button, .text-button, .card-play, .pin-keys button, .profile-choices button, .playlist-choice, .profile-menu button)[aria-busy='true'] {
+  position: relative;
+  color: transparent !important;
+  cursor: progress;
+}
+
+/* Busy buttons are disabled too, but shouldn't look switched off. */
+:is(.button, .icon-button, .text-button, .card-play, .pin-keys button, .profile-choices button, .playlist-choice, .profile-menu button)[aria-busy='true']:disabled {
+  opacity: 1;
+}
+
+/* Stays where it sits on the artwork, and in sight once the pointer has gone. */
+.card-play[aria-busy='true'] {
+  position: absolute;
+  opacity: 1;
+}
+
+.text-button[aria-busy='true'] {
+  display: inline-block;
+}
+
+:is(.button, .icon-button, .text-button, .card-play, .pin-keys button, .profile-choices button, .playlist-choice, .profile-menu button)[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 1.05em;
+  height: 1.05em;
+  margin: auto;
+  border: 2px solid var(--spin);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: busy-spin 0.7s linear infinite;
+}
+
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Tips: the name of an icon-only button, shown on hover and keyboard focus ---------- */
+
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]:is(:hover, :focus-visible)::before {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 20;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: rgb(20 16 24 / 0.94);
+  border: 1px solid var(--aisle);
+  color: var(--screen);
+  font: 600 var(--step--1) / 1.2 var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tip-in 0.15s ease 0.35s both;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    translate: -50% 3px;
+  }
+}
+
 .text-button {
   border: 0;
   padding: 0;

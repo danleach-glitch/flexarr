@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { AsyncButton } from '../../components/AsyncButton'
 import { ChevronLeft, ChevronRight, External } from '../../components/icons'
 import { appLink } from '../../lib/apps'
 
-export function SaveBar({ saved, error, label = 'Save changes' }: { saved?: string; error?: string; label?: string }) {
+export function SaveBar({ saved, error, busy, label = 'Save changes' }: { saved?: string; error?: string; busy?: boolean; label?: string }) {
   return (
     <div className="form-actions">
       {error && (
@@ -16,20 +17,19 @@ export function SaveBar({ saved, error, label = 'Save changes' }: { saved?: stri
           {saved}
         </span>
       )}
-      <button type="submit" className="button">
+      <AsyncButton type="submit" className="button" busy={busy}>
         {label}
-      </button>
+      </AsyncButton>
     </div>
   )
 }
 
 /** Opens the app in a new tab, at the address typed above it. */
-export function OpenApp({ baseUrl, name }: { baseUrl: string; name: string }) {
-  const href = appLink(baseUrl)
+export function OpenApp({ baseUrl, name, host }: { baseUrl: string; name: string; host?: string | null }) {
+  const href = appLink(baseUrl, host || window.location.hostname)
   return (
     href && (
-      <a className="open-app" href={href} target="_blank" rel="noreferrer">
-        Open {name}
+      <a className="open-app" href={href} target="_blank" rel="noreferrer" aria-label={`Open ${name}`} data-tip={`Open ${name}`}>
         <External />
       </a>
     )

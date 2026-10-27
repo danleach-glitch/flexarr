@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, fixMatch, getItem, imageUrl, resetMatch, searchMatches, type MatchCandidate } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
 
 interface Props {
@@ -70,9 +71,9 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
 
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Search ${arr}`} autoFocus disabled={busy} />
-          <button className="button quiet" type="submit" disabled={busy}>
+          <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
             <Search /> Search
-          </button>
+          </AsyncButton>
         </form>
 
         <div className="fix-match-results" aria-busy={results.loading}>
@@ -121,16 +122,16 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
 
         <div className="form-actions">
           {locked && (
-            <button className="text-button fix-match-reset" disabled={busy} onClick={() => run(() => resetMatch(item.id))}>
+            <AsyncButton className="text-button fix-match-reset" disabled={busy} onClick={() => run(() => resetMatch(item.id))}>
               Match automatically again
-            </button>
+            </AsyncButton>
           )}
           <button className="button quiet" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="button" disabled={!chosen || busy} onClick={() => chosen && run(() => fixMatch(item.id, chosen.id))}>
-            {busy ? (chosen && !chosen.managedBy ? `Adding to ${arr}…` : 'Matching…') : chosen ? `Use ${chosen.title}${chosen.year ? ` (${chosen.year})` : ''}` : 'Choose one'}
-          </button>
+          <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && run(() => fixMatch(item.id, chosen.id))}>
+            {chosen ? `Use ${chosen.title}${chosen.year ? ` (${chosen.year})` : ''}` : 'Choose one'}
+          </AsyncButton>
         </div>
       </div>
     </div>

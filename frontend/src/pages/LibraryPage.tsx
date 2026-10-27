@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
+import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
@@ -484,13 +485,13 @@ function LibraryAll() {
               </option>
             ))}
           </select>
-          <button
+          <AsyncButton
             className="button quiet small"
-            disabled={!!library.scan}
-            onClick={() => scanLibrary(library.id).then(() => setTimeout(reloadLibraries, 2500))}
+            busy={!!library.scan}
+            onClick={() => scanLibrary(library.id).then(() => new Promise((done) => setTimeout(done, 2500))).then(reloadLibraries)}
           >
             Scan for changes
-          </button>
+          </AsyncButton>
         </div>
       </header>
 
@@ -583,9 +584,9 @@ function LibraryAll() {
 
       {total !== undefined && items.length < total && (
         <div className="load-more">
-          <button className="button quiet" onClick={loadMore} disabled={busy}>
+          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
             Show {Math.min(PAGE_SIZE, total - items.length)} more
-          </button>
+          </AsyncButton>
         </div>
       )}
     </div>

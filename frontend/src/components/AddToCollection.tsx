@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { addToCollection, ApiError, createCollection, getItemCollections, removeFromCollection, type ItemCollection } from '../api/client'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
+import { AsyncButton } from './AsyncButton'
 
 /** Asks for the Add to collection dialog, from anywhere (a card's menu closes before it opens). */
 const OPEN = 'flexarr:add-to-collection'
@@ -28,6 +29,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
   const { me } = useSession()
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
+  const [creating, setCreating] = useState(false)
   // Ticks show at once; the server catches up (and a failure puts them back).
   const [ticked, setTicked] = useState<Record<string, boolean>>({})
 
@@ -63,11 +65,12 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
   function create(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
+    setCreating(true)
     void run(async () => {
       const created = await createCollection({ name: name.trim(), personal: !(me?.isAdmin ?? false) })
       await addToCollection(created.id, item.id)
       setName('')
-    })
+    }).finally(() => setCreating(false))
   }
 
   const editable = collections.data?.filter((c) => c.canEdit) ?? []
@@ -94,9 +97,9 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
             New collection
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name it, then press Create" />
           </label>
-          <button className="button" type="submit" disabled={!name.trim()}>
+          <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={creating}>
             Create
-          </button>
+          </AsyncButton>
         </form>
         {error && (
           <p className="error" role="alert">

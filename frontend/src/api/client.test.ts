@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mockApi } from '../test/mockApi'
-import { clearApiCache, FETCH_TIMEOUT_MS, getLibraryGenres, getLibraryItems, keepPage, keptPage, setWatched } from './client'
+import { mockApi, movies } from '../test/mockApi'
+import { clearApiCache, FETCH_TIMEOUT_MS, getLibraries, getLibraryGenres, getLibraryItems, keepPage, keptPage, setWatched } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -104,5 +104,18 @@ describe('API cache', () => {
     await getLibraryGenres('b')
     expect(sent(fetchMock, '/libraries/a/genres')).toBe(2)
     expect(sent(fetchMock, '/libraries/b/genres')).toBe(1)
+  })
+})
+
+describe('Times', () => {
+  it('reads times sent without a zone as UTC, and leaves dates and zoned times alone', async () => {
+    mockApi({ '/libraries': [{ ...movies, lastScannedAt: '2026-10-27T01:53:49.215901', created: '2026-10-27T01:53:49Z', aired: '2026-10-27', name: '2026-10-27T01:53:49 notes' }] })
+
+    const [library] = (await getLibraries()) as unknown as Record<string, string>[]
+
+    expect(library.lastScannedAt).toBe('2026-10-27T01:53:49.215901Z')
+    expect(library.created).toBe('2026-10-27T01:53:49Z')
+    expect(library.aired).toBe('2026-10-27')
+    expect(library.name).toBe('2026-10-27T01:53:49 notes')
   })
 })

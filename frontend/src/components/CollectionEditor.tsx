@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, createCollection, getGenres, updateCollection, type CollectionSummary, type SmartRules } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { AsyncButton } from './AsyncButton'
 
 const thisYear = new Date().getFullYear()
 
@@ -27,6 +28,7 @@ export function CollectionEditor({
   const [smart, setSmart] = useState(collection ? collection.kind === 'Smart' : false)
   const [rules, setRules] = useState<SmartRules>(initialRules ?? { sort: 'rating', limit: 50 })
   const [error, setError] = useState<string>()
+  const [saving, setSaving] = useState(false)
   const genres = useApi(getGenres, [])
   const set = (change: Partial<SmartRules>) => setRules((r) => ({ ...r, ...change }))
 
@@ -38,6 +40,7 @@ export function CollectionEditor({
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    setSaving(true)
     try {
       const saved = collection
         ? await updateCollection(collection.id, { name, description, rules: smart ? rules : undefined })
@@ -45,6 +48,7 @@ export function CollectionEditor({
       onSaved(saved)
     } catch (err) {
       setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setSaving(false)
     }
   }
 
@@ -183,9 +187,9 @@ export function CollectionEditor({
           <button type="button" className="button quiet" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="button">
+          <AsyncButton type="submit" className="button" busy={saving}>
             {collection ? 'Save' : 'Create collection'}
-          </button>
+          </AsyncButton>
         </div>
       </form>
     </div>

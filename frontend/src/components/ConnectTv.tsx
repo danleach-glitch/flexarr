@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, approvePairing, askForProfile, declinePairing, getPairing, type PairingDetails } from '../api/client'
+import { AsyncButton } from './AsyncButton'
 
 /**
  * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving gives the TV a
@@ -127,12 +128,12 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
         <p className="field-help">The TV can sign in to Flexarr like any other device. You can sign it out later in Settings › Access.</p>
         {errorLine}
         <div className="form-actions">
-          <button className="button quiet" onClick={() => void decline()} disabled={state === 'approving' || state === 'declining'} autoFocus={!home}>
+          <AsyncButton className="button quiet" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()} autoFocus={!home}>
             Don’t allow
-          </button>
-          <button className="button" onClick={() => void allow()} disabled={state === 'approving' || state === 'declining'} autoFocus={home}>
-            {state === 'approving' ? 'Connecting…' : 'Allow'}
-          </button>
+          </AsyncButton>
+          <AsyncButton className="button" busy={state === 'approving'} disabled={state === 'declining'} onClick={() => allow()} autoFocus={home}>
+            Allow
+          </AsyncButton>
         </div>
       </div>
     )
@@ -165,9 +166,9 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
       </div>
       {errorLine}
       <div className="form-actions">
-        <button type="submit" className="button" disabled={state === 'checking' || !code.trim()}>
-          {state === 'checking' ? 'Checking…' : 'Continue'}
-        </button>
+        <AsyncButton type="submit" className="button" busy={state === 'checking'} disabled={!code.trim()}>
+          Continue
+        </AsyncButton>
       </div>
     </form>
   )

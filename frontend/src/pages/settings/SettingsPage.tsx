@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
 import { askForProfile, getMe, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
+import { AsyncButton } from '../../components/AsyncButton'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { AboutSection } from './AboutSection'
@@ -15,6 +16,7 @@ import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
 import { PodcastsSection } from './PodcastsSection'
 import { ProfilesSection } from './ProfilesSection'
+import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
 
 interface Page {
@@ -40,6 +42,7 @@ const serverPages: Page[] = [
   { id: 'profiles', label: 'Profiles', render: () => <ProfilesSection /> },
   { id: 'layout', label: 'Home and Browse', render: () => <LayoutSection /> },
   { id: 'streaming', label: 'Streaming', render: () => <StreamingSection /> },
+  { id: 'livetv', label: 'Live TV', render: () => <LiveTvSection /> },
   { id: 'connections', label: 'Connections', render: () => <ConnectionsSection /> },
   { id: 'access', label: 'Access', render: () => <AccessSection /> },
   { id: 'tv', label: 'Connect a TV', render: () => <ConnectTvSection />, under: 'access' },
@@ -123,7 +126,7 @@ function MainProfileNote() {
         <p className="muted">Ask whoever manages Flexarr to give the main profile a PIN.</p>
       ) : (
         <p>
-          <button
+          <AsyncButton
             className="button"
             onClick={async () => {
               if (main && !main.hasPin) {
@@ -141,7 +144,7 @@ function MainProfileNote() {
             }}
           >
             Switch to the main profile
-          </button>
+          </AsyncButton>
         </p>
       )}
     </div>
@@ -154,6 +157,7 @@ function MainProfileNote() {
  */
 function TailscaleAdminNote() {
   const [error, setError] = useState<string>()
+  const [signingIn, setSigningIn] = useState(false)
   const profiles = useApi(getProfiles, [])
   const main = profiles.data?.find((p) => p.isMain)
   const mainHasPin = main?.hasPin ?? false
@@ -163,9 +167,13 @@ function TailscaleAdminNote() {
     const key = new FormData(event.currentTarget).get('apiKey')?.toString().trim()
     if (!key) return
     setError(undefined)
+    setSigningIn(true)
     signIn(key)
       .then(() => window.location.reload())
-      .catch((e: unknown) => setError(e instanceof UnauthorizedError ? 'That isn’t the right key.' : String(e)))
+      .catch((e: unknown) => {
+        setError(e instanceof UnauthorizedError ? 'That isn’t the right key.' : String(e))
+        setSigningIn(false)
+      })
   }
 
   return (
@@ -186,9 +194,9 @@ function TailscaleAdminNote() {
       <p className="settings-lede">{mainHasPin ? 'Or sign this browser in with the API key:' : 'Sign this browser in with the API key:'}</p>
       <form className="api-key-row" onSubmit={submit}>
         <input name="apiKey" type="password" autoComplete="off" aria-label="API key" required />
-        <button type="submit" className="button">
+        <AsyncButton type="submit" className="button" busy={signingIn}>
           Sign in
-        </button>
+        </AsyncButton>
       </form>
       {error && (
         <p className="error" role="alert">

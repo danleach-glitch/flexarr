@@ -7,6 +7,7 @@ import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
 import { Antenna, Calendar, ChevronsLeft, Close, Film, Gear, Home, Menu as MenuIcon, Microphone, Playlist, Search, Sparkles, Stack } from './icons'
 import { libraryIcons } from './libraryIcons'
+import { AsyncButton } from './AsyncButton'
 import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
 import { NowPlaying } from './NowPlaying'
@@ -175,7 +176,7 @@ export function Layout() {
                 <div className="profile-menu" role="menu">
                   <p className="muted">Watching as {me.name}</p>
                   {profiles.length > 1 && (
-                    <button
+                    <AsyncButton
                       role="menuitem"
                       onClick={async () => {
                         // With just one other profile and no PIN to ask for, switch straight to it.
@@ -194,7 +195,7 @@ export function Layout() {
                       }}
                     >
                       {other && !other.hasPin ? `Switch to ${other.name}` : 'Switch profile'}
-                    </button>
+                    </AsyncButton>
                   )}
                   {isAdmin && (
                     <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>

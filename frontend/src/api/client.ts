@@ -191,8 +191,14 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   if (response.status === 202 || response.status === 204) {
     return undefined as T
   }
-  return (await response.json()) as T
+  return JSON.parse(await response.text(), asUtc) as T
 }
+
+/** A date and time with no zone: the server's times are all UTC, but older servers sent them without saying so. */
+const zoneless = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/
+
+/** Reads zoneless times as UTC, so "scanned 4 h ago" isn't out by the browser's time zone. */
+const asUtc = (_key: string, value: unknown) => (typeof value === 'string' && zoneless.test(value) ? `${value}Z` : value)
 
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>('GET', path, undefined, signal)
 

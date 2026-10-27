@@ -41,11 +41,11 @@ describe('Profile form', () => {
     })
 
     renderAt('/settings/profiles')
-    const edits = await screen.findAllByRole('button', { name: 'Edit' })
-    fireEvent.click(edits[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Dan' }))
     expect(await screen.findByRole('form', { name: 'Edit Dan' })).toBeInTheDocument()
-    // The form stands in for Dan's row, so the only Edit left is Kids'.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    // The form stands in for Dan's row.
+    expect(screen.queryByRole('button', { name: 'Edit Dan' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Kids' }))
 
     const form = await screen.findByRole('form', { name: 'Edit Kids' })
     expect(screen.queryByRole('form', { name: 'Edit Dan' })).not.toBeInTheDocument()
@@ -94,7 +94,7 @@ describe('Profile form', () => {
   it('says the main profile’s PIN also unlocks Settings away from home', async () => {
     mockApi({ '/libraries': [], '/me': adminHere, '/profiles': [main, kids] })
     renderAt('/settings/profiles')
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Edit' }))[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Dan' }))
     expect(screen.getByText('The main profile’s PIN also unlocks Settings away from home.')).toBeInTheDocument()
   })
 })

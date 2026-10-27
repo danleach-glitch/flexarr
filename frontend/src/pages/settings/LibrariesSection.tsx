@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   createLibrary,
@@ -16,7 +16,8 @@ import {
 import { FolderPicker } from '../../components/FolderPicker'
 import { ScanProgress } from '../../components/ScanProgress'
 import { useLibraries } from '../../hooks/librariesContext'
-import { Film } from '../../components/icons'
+import { AsyncButton, IconButton } from '../../components/AsyncButton'
+import { Film, Pencil, Picture, Refresh, Trash } from '../../components/icons'
 import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
@@ -166,6 +167,7 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
 
 function LibraryRow({ library, onChange }: { library: Library; onChange: () => void }) {
   const [message, setMessage] = useState<string>()
+  const [renaming, setRenaming] = useState(false)
 
   async function remove() {
     if (!confirm(`Remove “${library.name}” from Flexarr? The files themselves stay where they are.`)) return
@@ -177,10 +179,21 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
   return (
     <div className="library-row">
       <div>
-        <h3 className="library-title">
-          <Icon />
-          {library.name}
-        </h3>
+        {renaming ? (
+          <RenameLibraryForm
+            library={library}
+            onDone={(renamed) => {
+              setRenaming(false)
+              if (renamed) onChange()
+              requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-rename="${library.id}"]`)?.focus())
+            }}
+          />
+        ) : (
+          <h3 className="library-title">
+            <Icon />
+            {library.name}
+          </h3>
+        )}
         <p className="muted">
           {libraryTypeLabel[library.type]} · {library.itemCount.toLocaleString()} {library.itemCount === 1 ? 'title' : 'titles'} · scanned {relativeTime(library.lastScannedAt)}
         </p>
@@ -192,27 +205,71 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
         {library.scan && <ScanProgress scan={library.scan} />}
         {message && <p className="muted">{message}</p>}
       </div>
-      <div className="library-row-actions">
-        <button
-          className="button quiet small"
-          title="Looks for files added, changed or removed"
-          disabled={!!library.scan}
-          onClick={() => scanLibrary(library.id).then(() => setTimeout(onChange, 2500))}
-        >
-          Scan
-        </button>
-        <button
-          className="button quiet small"
-          title="Fetches artwork and details again"
-          onClick={() => scanLibrary(library.id, true).then(() => setMessage('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.'))}
-        >
-          Refresh details
-        </button>
-        <button className="text-button danger-text" onClick={remove}>
-          Remove
-        </button>
-      </div>
+      {!renaming && (
+        <div className="library-row-actions">
+          <IconButton label="Rename" icon={<Pencil />} data-rename={library.id} aria-label={`Rename ${library.name}`} onClick={() => setRenaming(true)} />
+          <IconButton
+            label="Scan for new and changed files"
+            icon={<Refresh />}
+            busy={!!library.scan}
+            onClick={() => scanLibrary(library.id).then(() => new Promise((done) => setTimeout(done, 2500))).then(onChange)}
+          />
+          <IconButton
+            label="Refresh artwork and details"
+            icon={<Picture />}
+            onClick={() => scanLibrary(library.id, true).then(() => setMessage('Refreshing artwork and details from Sonarr and Radarr. This takes a few minutes.'))}
+          />
+          <IconButton label="Remove" icon={<Trash />} className="button quiet small icon danger-icon" onClick={remove} />
+        </div>
+      )}
     </div>
+  )
+}
+
+/** In place of the library's title: the name it goes by in the sidebar and on every device. Escape puts it back. */
+function RenameLibraryForm({ library, onDone }: { library: Library; onDone: (renamed: boolean) => void }) {
+  const [name, setName] = useState(library.name)
+  const [error, setError] = useState<string>()
+  const [saving, setSaving] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    input.current?.focus()
+    input.current?.select()
+  }, [])
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || name.trim() === library.name) return onDone(false)
+    setSaving(true)
+    try {
+      await updateLibrary(library.id, { name: name.trim(), type: library.type, folders: library.folders })
+      onDone(true)
+    } catch (err) {
+      setError(errorText(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form className="library-rename" onSubmit={(e) => void save(e)} onKeyDown={(e) => e.key === 'Escape' && onDone(false)}>
+      <label className="field">
+        <span className="field-label">Name for {library.name}</span>
+        <input ref={input} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="off" />
+      </label>
+      <div className="form-actions">
+        <button type="button" className="button quiet small" onClick={() => onDone(false)}>
+          Cancel
+        </button>
+        <AsyncButton type="submit" className="button small" busy={saving}>
+          Save
+        </AsyncButton>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
   )
 }
 
@@ -275,9 +332,9 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         <button type="button" className="button quiet" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="button" disabled={saving || folders.length === 0}>
-          {saving ? 'Adding…' : 'Add library'}
-        </button>
+        <AsyncButton type="submit" className="button" busy={saving} disabled={folders.length === 0}>
+          Add library
+        </AsyncButton>
       </div>
     </form>
   )

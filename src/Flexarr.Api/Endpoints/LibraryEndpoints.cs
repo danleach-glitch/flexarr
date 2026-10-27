@@ -85,9 +85,10 @@ public static class LibraryEndpoints
 
             var folders = Normalize(request.Folders);
             var removed = library.Folders.Where(f => !folders.Contains(f.Path)).ToList();
+            var added = folders.Where(p => library.Folders.All(f => f.Path != p)).Select(p => new LibraryFolder { Path = p }).ToList();
             library.Name = request.Name.Trim();
             library.Folders.RemoveAll(removed.Contains);
-            library.Folders.AddRange(folders.Where(p => library.Folders.All(f => f.Path != p)).Select(p => new LibraryFolder { Path = p }));
+            library.Folders.AddRange(added);
 
             // Items from a folder that's no longer part of the library go with it.
             foreach (var folder in removed)
@@ -97,7 +98,13 @@ public static class LibraryEndpoints
             }
 
             await db.SaveChangesAsync(ct);
-            await EnqueueAsync(library, queue, "Library updated", ct);
+
+            // Only new folders need a scan: a rename, or dropping a folder, leaves the rest as they were.
+            foreach (var folder in added)
+            {
+                await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, "Library updated"), ct);
+            }
+
             return Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError, getPlexSource, importPlexAvatars, type PlexAvatarResult, getProfiles, importFromPlex, type PlexImportResult } from '../../api/client'
+import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
 
@@ -47,9 +48,9 @@ export function ImportSection() {
             <span className="field-label">Plex wasn't found in the usual places. Where is com.plexapp.plugins.library.db?</span>
             <input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/Plug-in Support/Databases/com.plexapp.plugins.library.db" />
             <div className="form-actions">
-              <button type="submit" className="button quiet small">
+              <AsyncButton type="submit" className="button quiet small" busy={source.loading}>
                 Look there
-              </button>
+              </AsyncButton>
             </div>
           </form>
         )}
@@ -97,9 +98,9 @@ export function ImportSection() {
               </p>
             )}
             <div className="form-actions">
-              <button className="button" disabled={busy || chosen === undefined} onClick={run}>
-                {busy ? 'Bringing history over…' : 'Bring history over'}
-              </button>
+              <AsyncButton className="button" busy={busy} disabled={chosen === undefined} onClick={run}>
+                Bring history over
+              </AsyncButton>
             </div>
           </>
         )}
@@ -142,9 +143,9 @@ function PlexPictures({ path }: { path?: string }) {
         </p>
       )}
       <div className="form-actions">
-        <button className="button quiet small" disabled={busy} onClick={run}>
-          {busy ? 'Fetching pictures…' : 'Use Plex profile pictures'}
-        </button>
+        <AsyncButton className="button quiet small" busy={busy} onClick={run}>
+          Use Plex profile pictures
+        </AsyncButton>
       </div>
     </div>
   )

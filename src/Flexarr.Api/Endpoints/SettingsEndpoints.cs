@@ -33,7 +33,8 @@ public sealed record SettingsDto(
     string FfprobePath,
     string? WebhookSecret = null,
     PodcastSettingsDto? Podcasts = null,
-    LiveTvSettingsDto? LiveTv = null);
+    LiveTvSettingsDto? LiveTv = null,
+    string? HostName = null);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
@@ -200,7 +201,9 @@ public static class SettingsEndpoints
                 // Nothing changed on disk (an unchanged save), or the watcher is slow: answer with what there is.
             }
 
-            if (update.LiveTv is { } savedLive)
+            // Only a new source (or login) needs the channels again: the rewind or the DVR's settings don't.
+            if (update.LiveTv is { } savedLive && (!SameServer(current.LiveTv?.BaseUrl, savedLive.BaseUrl) || savedLive.BaseUrl.Length == 0
+                || (savedLive.Username is { } user && user.Trim() != current.LiveTv?.Username) || !string.IsNullOrEmpty(savedLive.Password)))
             {
                 // The refresh reads the options, so it waits until they hold the new source (or its removal): asked for
                 // before then, it found none and cleared the channels instead.
@@ -359,7 +362,24 @@ public static class SettingsEndpoints
         o.LiveTv is { BaseUrl.Length: > 0 } l
             ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes, l.DvrFolder, dvrFolder, l.MaxStreams,
                 l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes)
-            : null);
+            : null,
+        HostName());
+
+    /// <summary>
+    /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to
+    /// apps set up there. None in a container, whose name means nothing anywhere else.
+    /// </summary>
+    private static string? HostName()
+    {
+        if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+        {
+            return null;
+        }
+
+        var name = System.Net.Dns.GetHostName();
+        name = name.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ? name[..^".local".Length] : name;
+        return name.Length > 0 && !name.Equals("localhost", StringComparison.OrdinalIgnoreCase) ? name : null;
+    }
 
     /// <summary>
     /// Showing or replacing the API key asks again, so a script that found its way into the page can't just take it:

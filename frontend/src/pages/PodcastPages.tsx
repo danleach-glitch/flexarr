@@ -28,6 +28,7 @@ import {
   type PodcastEpisode,
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
+import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Check, ChevronDown, ChevronUp, Close, More, Pause, Play } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
@@ -107,10 +108,12 @@ function PodcastsHome() {
   // Episodes marked played here, gone from New episodes before the server's answer comes back.
   const [heard, setHeard] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const file = useRef<HTMLInputElement>(null)
 
   async function importFile(chosen: File) {
     setImporting('Adding your podcasts…')
+    setAdding(true)
     try {
       const result = await importOpml(chosen)
       const parts = [`Followed ${result.added} ${result.added === 1 ? 'show' : 'shows'}`]
@@ -120,6 +123,8 @@ function PodcastsHome() {
       changed()
     } catch (e) {
       setImporting(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAdding(false)
     }
   }
 
@@ -139,9 +144,9 @@ function PodcastsHome() {
               if (chosen) void importFile(chosen)
             }}
           />
-          <button className="button quiet small" onClick={() => file.current?.click()}>
+          <AsyncButton className="button quiet small" busy={adding} onClick={() => file.current?.click()}>
             Import
-          </button>
+          </AsyncButton>
           {!empty && (
             <a className="button quiet small" href={opmlUrl} download="Flexarr podcasts.opml">
               Export
@@ -323,9 +328,9 @@ function EpisodeRow({
               <span style={{ width: `${progress * 100}%` }} />
             </span>
           )}
-          <button className={played ? 'icon-button podcast-episode-played on' : 'icon-button podcast-episode-played'} aria-label={played ? 'Mark as unplayed' : 'Mark as played'} aria-pressed={played} onClick={() => mark(!played)}>
+          <AsyncButton className={played ? 'icon-button podcast-episode-played on' : 'icon-button podcast-episode-played'} aria-label={played ? 'Mark as unplayed' : 'Mark as played'} aria-pressed={played} onClick={() => mark(!played)}>
             <Check />
-          </button>
+          </AsyncButton>
           <button
             className="icon-button"
             aria-label={`More for ${episode.title}`}
@@ -488,9 +493,9 @@ function AddFeed({ url }: { url: string }) {
     <form className="podcast-empty panel" onSubmit={add}>
       <h2>Add a podcast by its feed</h2>
       <p className="muted podcast-feed-url">{url}</p>
-      <button className="button" type="submit" disabled={state.adding}>
-        {state.adding ? 'Fetching the feed…' : 'Add this podcast'}
-      </button>
+      <AsyncButton className="button" type="submit" busy={state.adding}>
+        Add this podcast
+      </AsyncButton>
       {state.error && (
         <p className="error" role="alert">
           {state.error}
@@ -565,6 +570,7 @@ function PodcastShow() {
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [pages, setPages] = useState(1)
+  const [pagesShown, setPagesShown] = useState(1)
   const [episodes, setEpisodes] = useState<{ total: number; items: PodcastEpisode[] }>()
   const [busy, setBusy] = useState(false)
   const [marking, setMarking] = useState<'asking' | 'busy' | 'failed' | null>(null)
@@ -583,7 +589,10 @@ function PodcastShow() {
   useEffect(() => {
     if (!loaded) return
     const controller = new AbortController()
-    getPodcastEpisodes(id, { limit: PAGE * pages, sort, unplayed: filter === 'unplayed', q }, controller.signal).then(setEpisodes, () => undefined)
+    getPodcastEpisodes(id, { limit: PAGE * pages, sort, unplayed: filter === 'unplayed', q }, controller.signal).then((list) => {
+      setEpisodes(list)
+      setPagesShown(pages)
+    }, () => undefined)
     return () => controller.abort()
   }, [id, pages, sort, filter, q, version, loaded])
 
@@ -662,7 +671,7 @@ function PodcastShow() {
                 <Play /> {episodeProgress(next) !== null ? 'Resume' : sort === 'oldest' ? 'Play' : 'Play latest'}
               </button>
             )}
-            <button className={subscription ? 'button quiet' : 'button'} onClick={follow} disabled={busy} aria-pressed={subscription !== null}>
+            <AsyncButton className={subscription ? 'button quiet' : 'button'} onClick={follow} busy={busy} aria-pressed={subscription !== null}>
               {subscription ? (
                 <>
                   <Check /> Following
@@ -670,7 +679,7 @@ function PodcastShow() {
               ) : (
                 'Follow'
               )}
-            </button>
+            </AsyncButton>
           </div>
           {podcast.overview && (
             <>
@@ -732,9 +741,9 @@ function PodcastShow() {
         )}
         <EpisodeList episodes={items} onChanged={changed} onMarked={marked} />
         {episodes && episodes.items.length < episodes.total && (
-          <button className="button quiet podcast-more" onClick={() => setPages(pages + 1)}>
+          <AsyncButton className="button quiet podcast-more" busy={pagesShown < pages} onClick={() => setPages(pages + 1)}>
             Show more episodes
-          </button>
+          </AsyncButton>
         )}
       </section>
     </article>
@@ -799,7 +808,7 @@ function EpisodeDetail() {
                 Play from the start
               </button>
             )}
-            <button
+            <AsyncButton
               className="button quiet"
               aria-pressed={e.userData.watched}
               onClick={async () => {
@@ -814,7 +823,7 @@ function EpisodeDetail() {
               ) : (
                 'Mark as played'
               )}
-            </button>
+            </AsyncButton>
           </div>
         </div>
       </header>

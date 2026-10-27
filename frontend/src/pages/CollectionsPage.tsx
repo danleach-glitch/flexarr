@@ -15,9 +15,10 @@ import {
   type CollectionSummary,
   type ItemSummary,
 } from '../api/client'
+import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { CollectionEditor } from '../components/CollectionEditor'
-import { Play } from '../components/icons'
+import { EyeOff, Pencil, Play, Trash } from '../components/icons'
 import { RequestButton } from '../components/RequestButton'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
@@ -81,9 +82,9 @@ export function CollectionsPage() {
                   <strong>{s.name}</strong>
                   <span className="muted">{s.description}</span>
                 </div>
-                <button className="button small" onClick={() => adopt(s)}>
+                <AsyncButton className="button small" onClick={() => adopt(s)}>
                   Add
-                </button>
+                </AsyncButton>
               </div>
             ))}
           </div>
@@ -233,44 +234,41 @@ export function CollectionPage() {
           {c.description && <p className="detail-overview">{c.description}</p>}
           <div className="detail-actions">
             {next && (
-              <button className="button" onClick={() => (next.kind === 'Series' ? play(next) : navigate(`/play/${next.id}`))}>
+              <AsyncButton className="button" onClick={() => (next.kind === 'Series' ? play(next) : navigate(`/play/${next.id}`))}>
                 <Play /> {next.userData.watched ? 'Play' : `Play ${next.title}`}
-              </button>
+              </AsyncButton>
             )}
             {items.length > 1 && (
-              <button
+              <AsyncButton
                 className="button quiet"
                 onClick={() => {
                   const pool = items.filter((i) => !i.userData.watched)
                   const pick = (pool.length ? pool : items)[Math.floor(Math.random() * (pool.length || items.length))]
-                  if (pick.kind === 'Series') void play(pick)
-                  else navigate(`/play/${pick.id}`)
+                  if (pick.kind === 'Series') return play(pick)
+                  navigate(`/play/${pick.id}`)
                 }}
               >
                 Shuffle
-              </button>
+              </AsyncButton>
             )}
             {c.canEdit && (
-              <button className="button quiet" aria-pressed={c.showOnHome} onClick={() => act(() => updateCollection(c.id, { showOnHome: !c.showOnHome }))}>
+              <AsyncButton className="button quiet" aria-pressed={c.showOnHome} onClick={() => act(() => updateCollection(c.id, { showOnHome: !c.showOnHome }))}>
                 {c.showOnHome ? 'On Home' : 'Show on Home'}
-              </button>
+              </AsyncButton>
             )}
             {c.canEdit && c.kind !== 'Franchise' && (
-              <button className="button quiet" onClick={() => setEditing(true)}>
-                Edit
-              </button>
+              <IconButton label="Edit" icon={<Pencil />} className="button quiet icon" onClick={() => setEditing(true)} />
             )}
             {c.canEdit && (
-              <button
-                className="button quiet danger"
-                onClick={async () => {
+              <IconButton
+                label={c.kind === 'Franchise' ? 'Hide' : 'Delete'}
+                icon={c.kind === 'Franchise' ? <EyeOff /> : <Trash />}
+                className="button quiet icon danger-icon"
+                onClick={() => {
                   if (!confirm(c.kind === 'Franchise' ? `Hide ${c.name}? It won’t come back with the next sync.` : `Delete ${c.name}? The titles stay in your library.`)) return
-                  await deleteCollection(c.id)
-                  navigate('/collections', { replace: true })
+                  return deleteCollection(c.id).then(() => navigate('/collections', { replace: true }))
                 }}
-              >
-                {c.kind === 'Franchise' ? 'Hide' : 'Delete'}
-              </button>
+              />
             )}
           </div>
           {message && (
@@ -299,9 +297,9 @@ export function CollectionPage() {
           >
             <PosterCard item={item} />
             {manual && (
-              <button className="text-button collection-remove" onClick={() => act(() => removeFromCollection(c.id, item.id))}>
+              <AsyncButton className="text-button collection-remove" onClick={() => act(() => removeFromCollection(c.id, item.id))}>
                 Remove
-              </button>
+              </AsyncButton>
             )}
           </div>
         ))}

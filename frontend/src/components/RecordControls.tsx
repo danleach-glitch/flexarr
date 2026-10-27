@@ -10,6 +10,7 @@ import {
   type Recording,
   type RecordingSeries,
 } from '../api/client'
+import { AsyncButton } from './AsyncButton'
 import { RecordDot, SeriesDots } from './icons'
 
 /**
@@ -61,22 +62,22 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
     <div className="record-controls">
       <div className="record-buttons">
         {recording ? (
-          <button className="button quiet small" disabled={busy} onClick={() => act(() => removeRecording(recording.id))}>
+          <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => removeRecording(recording.id))}>
             <RecordDot className="record-dot" /> {recordingNow ? 'Stop recording' : 'Don’t record'}
-          </button>
+          </AsyncButton>
         ) : (
-          <button className="button small" disabled={busy} onClick={() => act(() => recordProgramme(programme.id))}>
+          <AsyncButton className="button small" disabled={busy} onClick={() => act(() => recordProgramme(programme.id))}>
             <RecordDot className="record-dot" /> Record
-          </button>
+          </AsyncButton>
         )}
         {series ? (
-          <button className="button quiet small" disabled={busy} onClick={() => act(() => removeSeries(series.id))}>
+          <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => removeSeries(series.id))}>
             <SeriesDots className="record-dot" /> Stop recording the series
-          </button>
+          </AsyncButton>
         ) : (
-          <button className="button quiet small" disabled={busy} onClick={() => act(() => recordSeries(programme.id, { anyChannel, newOnly }))}>
+          <AsyncButton className="button quiet small" disabled={busy} onClick={() => act(() => recordSeries(programme.id, { anyChannel, newOnly }))}>
             <SeriesDots className="record-dot" /> Record series
-          </button>
+          </AsyncButton>
         )}
       </div>
       {!series && (

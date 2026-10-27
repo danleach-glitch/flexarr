@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ApiError, getLibraryHealth, confirmHeldRemoval, keepMatch, removeDuplicates, deleteCopy, getHealthCheck, startHealthCheck, type ItemSummary, type LibraryHealth, type HeldFolder, searchAgain } from '../../api/client'
 import { Artwork } from '../../components/Artwork'
+import { AsyncButton } from '../../components/AsyncButton'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { FixMatchDialog } from '../../components/FixMatchDialog'
 import { useApi } from '../../hooks/useApi'
@@ -40,16 +41,16 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
                 : 'Looks at every file: whether it’s still on disk, not empty, and readable.'}
           </p>
         </div>
-        <button
+        <AsyncButton
           className="button quiet small"
-          disabled={running}
+          busy={running}
           onClick={async () => {
             await startHealthCheck()
             check.reload()
           }}
         >
-          {running ? 'Checking…' : 'Run health check'}
-        </button>
+          Run health check
+        </AsyncButton>
       </div>
       {running && report && report.total > 0 && (
         <span className="scan-track" aria-hidden="true">
@@ -73,7 +74,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
                       <code>{file.path}</code>
                     </span>
                     {item && (
-                      <button
+                      <AsyncButton
                         className="button quiet small"
                         disabled={!!requested[item.id]}
                         onClick={async () => {
@@ -86,7 +87,7 @@ function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
                         }}
                       >
                         {requested[item.id] ?? 'Search again'}
-                      </button>
+                      </AsyncButton>
                     )}
                   </li>
                 ))}
@@ -215,9 +216,9 @@ export function HealthSection() {
         lede={`More than one file for the same film or episode. Removing spares frees ${formatSize(data.reclaimableBytes)}; the best copy, and the one Sonarr or Radarr use, always stay.`}
         action={
           data.duplicates.length > 0 && (
-            <button className="button danger small" disabled={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
+            <AsyncButton className="button danger small" busy={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
               Remove all spare copies ({formatSize(data.reclaimableBytes)})
-            </button>
+            </AsyncButton>
           )
         }
       >
@@ -243,15 +244,15 @@ export function HealthSection() {
           <details key={d.item.id} className="health-row-expandable">
             <summary>
               <HealthRowMain item={d.item} detail={`${d.files.length} copies, ${formatSize(d.reclaimableBytes)} spare`} />
-              <button
+              <AsyncButton
                 className="button quiet small"
                 onClick={(e) => {
                   e.preventDefault()
-                  void removeSpares([d.item.id])
+                  return removeSpares([d.item.id])
                 }}
               >
                 Remove spares
-              </button>
+              </AsyncButton>
             </summary>
             <ul className="health-copies">
               {d.files.map((f) => {
@@ -264,9 +265,9 @@ export function HealthSection() {
                     <span className={f.keep || identical ? 'tag keep' : 'tag'}>{identical ? 'Identical' : f.keep ? 'Best' : 'Spare'}</span>
                     <span title={f.path}>{fileName(f.path)}</span>
                     <span className="muted">{[f.resolution, f.videoCodec?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(', ')}</span>
-                    <button className="text-button" onClick={() => removeCopy(f.id)}>
+                    <AsyncButton className="text-button" onClick={() => removeCopy(f.id)}>
                       Delete this copy
-                    </button>
+                    </AsyncButton>
                     {copyErrors[f.id] && (
                       <span className="error" role="alert">
                         {copyErrors[f.id]}
@@ -293,9 +294,9 @@ export function HealthSection() {
               (data.downloading[u.item.id] ? (
                 <DownloadingNote state={data.downloading[u.item.id]} />
               ) : (
-                <button className="button quiet small" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
+                <AsyncButton className="button quiet small" onClick={() => upgrade(u.item!.id)} disabled={!!requested[u.item.id]}>
                   {requested[u.item.id] ?? 'Get a new copy'}
-                </button>
+                </AsyncButton>
               ))}
           </div>
         ))}
@@ -308,9 +309,9 @@ export function HealthSection() {
             {data.downloading[item.id] ? (
               <DownloadingNote state={data.downloading[item.id]} />
             ) : (
-              <button className="button quiet small" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
+              <AsyncButton className="button quiet small" onClick={() => upgrade(item.id)} disabled={!!requested[item.id]}>
                 {requested[item.id] ?? 'Find a better copy'}
-              </button>
+              </AsyncButton>
             )}
           </div>
         ))}
@@ -326,7 +327,7 @@ export function HealthSection() {
             <div key={item.id} className="health-row">
               <HealthRowMain item={item} detail={requested[item.id] ?? 'Matched by title'} />
               <div className="health-row-actions">
-                <button
+                <AsyncButton
                   className="button quiet small"
                   disabled={requested[item.id] === 'Keeping this match…'}
                   onClick={async () => {
@@ -340,7 +341,7 @@ export function HealthSection() {
                   }}
                 >
                   Ignore
-                </button>
+                </AsyncButton>
                 <button className="button quiet small" onClick={() => setMatching(item)}>
                   Fix match
                 </button>
@@ -461,7 +462,7 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
           confirmLabel="Remove from Flexarr"
           danger
           onClose={() => setAsking(null)}
-          onConfirm={() => void confirm(asking)}
+          onConfirm={() => confirm(asking)}
         >
           <p>Flexarr can’t find them in this folder:</p>
           <p>
