@@ -122,3 +122,17 @@ jobs:
           xcodebuild -project Flexarr.xcodeproj -scheme ${{ matrix.scheme }} \
             -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
+
+  # The one check main's ruleset requires: the jobs above are skipped when a commit doesn't touch their part, and a
+  # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
+  passed:
+    name: CI passed
+    needs: [changes, server, web, apple]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          ! grep -qE 'failure|cancelled' <<<"$RESULTS"
