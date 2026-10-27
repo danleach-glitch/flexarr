@@ -9,7 +9,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
-    <VersionPrefix>0.49.1</VersionPrefix>
+    <VersionPrefix>0.49.2</VersionPrefix>
     <Authors>Flexarr contributors</Authors>
     <Product>Flexarr</Product>
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>

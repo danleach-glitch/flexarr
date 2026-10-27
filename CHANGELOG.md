@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.49.2 · 27 October 2026
 
 ### Website and guide
 - **A guide at [flexarr.io/guide](https://flexarr.io/guide)**: 31 step-by-step articles, from installing on a Mac, Synology, Unraid, Linux or Windows to connecting your devices and \*arrs, live TV, podcasts, Siri, Home Assistant, backups and troubleshooting, with search. The source is in `docs/guide`, so corrections are a pull request away.
