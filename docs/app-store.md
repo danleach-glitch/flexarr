@@ -69,3 +69,18 @@ artwork, accepting the risk under guideline 5.2), then are set in device frames 
 artwork-tinted backgrounds. Point the simulator at a local address (an SSH tunnel to `127.0.0.1` works):
 the app refuses plain http to anything else. The preview video is a simulator recording of
 `FlexarriOSUITests/PreviewTour.swift`.
+
+## Apple TV
+
+The Apple TV app is on the same listing as the iPhone and iPad app (universal purchase), so it ships with the iOS
+bundle ID: `make tv-upload TEAM=<team id> BUNDLE_ID=<the iOS bundle id>` (the Top Shelf extension becomes
+`<bundle id>.topshelf`). It has its own version, text, screenshots (1920×1080) and review submission; the name,
+subtitle, age rating and App Privacy are shared.
+
+- tvOS can't open links, so the listing needs the privacy policy as plain text (App Information › Privacy Policy
+  Text). Until it's there, App Store Connect refuses to submit any platform's version. Keep it in step with
+  `site/privacy.html`.
+- Reviewers sign in with the Siri Remote: "Enter an address instead", the review server's address and the API key,
+  then the App Review profile. `FlexarrTVUITests/ReviewerSignIn.swift` walks it on a fresh install, with the same
+  environment as the iOS test.
+- The screens behind the screenshots come from `FlexarrTVUITests/StoreTour.swift`.
