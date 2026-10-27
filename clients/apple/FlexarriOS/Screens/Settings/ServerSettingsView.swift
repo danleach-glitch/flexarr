@@ -32,10 +32,27 @@ struct ServerSettingsView: View {
                 }
                 row("Libraries", model.libraries.map(\.name).joined(separator: ", "))
             }
+
+            Section {
+                row("Error reports", errorReportsOn ? "On" : "Off")
+            } footer: {
+                Text(ErrorReports.privacyNote)
+            }
+
+            Section {
+                SettingsLink("Send diagnostics", icon: "stethoscope") { DiagnosticsSettingsView() }
+            } footer: {
+                Text("Send this \(ThisDevice.name)'s recent log to your server, to look into a problem.")
+            }
         }
         .settingsPage("Server")
         .task { await load() }
         .refreshable { await load() }
+    }
+
+    /// As the server says now, or as this device last heard while it can't be asked.
+    private var errorReportsOn: Bool {
+        status.map { $0.errorReports?.enabled == true } ?? ErrorReports.isOn
     }
 
     private func row(_ label: String, _ value: String) -> some View {

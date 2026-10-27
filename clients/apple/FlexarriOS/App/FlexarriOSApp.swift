@@ -239,6 +239,7 @@ struct RootView: View {
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()
+                Task { await model.refreshErrorReports() }
             }
             if phase == .background, model.credentials != nil {
                 AppDelegate.schedulePodcastRefresh()

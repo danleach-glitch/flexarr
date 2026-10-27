@@ -82,6 +82,21 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     /// The server's address for away from home (over Tailscale), once remote access is turned on. Absent from
     /// servers older than 0.21.
     public var remoteUrl: URL?
+    /// Whether the server's owner has turned on error reports (to Sentry) for the apps. Absent from older servers,
+    /// which means off.
+    public var errorReports: ErrorReportSetting?
+}
+
+/// The server's error-report switch, which the apps follow: off unless the owner turned it on.
+public struct ErrorReportSetting: Codable, Sendable, Equatable {
+    public var enabled: Bool
+    /// A random id for the server, not tied to anything else: the only "user" an error report carries.
+    public var installId: String?
+
+    public init(enabled: Bool, installId: String? = nil) {
+        self.enabled = enabled
+        self.installId = installId
+    }
 }
 
 // MARK: - Libraries
@@ -543,6 +558,9 @@ public struct PlaybackInfo: Codable, Sendable {
     public var subtitleDelaySeconds: Double? = nil
     /// The episode before this one, in order: nil on shuffle, for the first episode, and from servers before it existed.
     public var previous: ItemSummary? = nil
+    /// A short one-way hash of `sessionId`, for logs: the same playback can be found in the app's and the server's
+    /// logs without either holding the session id, which is the stream URLs' credential. Absent from older servers.
+    public var playbackId: String? = nil
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.

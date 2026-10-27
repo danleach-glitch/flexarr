@@ -68,6 +68,9 @@ struct RootView: View {
         .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {
             model.listenForCommands(scenePhase == .active)
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await model.refreshErrorReports() } }
+        }
         .overlay {
             if model.player.isStarting || model.liveTv.isStarting {
                 ZStack {

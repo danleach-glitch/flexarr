@@ -27,6 +27,14 @@ struct ServerSettingsView: View {
             }
             SettingsFact("Libraries", model.libraries.map(\.name).joined(separator: ", "))
 
+            SettingsGroupLabel("Error reports")
+            SettingsFact("Error reports", errorReportsOn ? "On" : "Off")
+            Text(ErrorReports.privacyNote)
+                .font(.system(size: 24))
+                .foregroundStyle(Color.usher)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 32)
+
             // The only control here, so focus has somewhere to land; it also tells whether the server's still up.
             SettingsRow(title: checking ? "Checking…" : "Check again", symbol: "arrow.clockwise",
                         help: "Ask the server how it is now.") {
@@ -34,8 +42,18 @@ struct ServerSettingsView: View {
             }
             .disabled(checking)
             .padding(.top, 30)
+
+            SettingsLinkRow(title: "Send diagnostics", symbol: "stethoscope",
+                            help: "Send this Apple TV's recent log to your server, to look into a problem.") {
+                DiagnosticsSettingsView()
+            }
         }
         .task { await load() }
+    }
+
+    /// As the server says now, or as this Apple TV last heard while it can't be asked.
+    private var errorReportsOn: Bool {
+        status.map { $0.errorReports?.enabled == true } ?? ErrorReports.isOn
     }
 
     private var summary: String {

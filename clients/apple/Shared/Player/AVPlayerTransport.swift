@@ -1,9 +1,8 @@
 import AVFoundation
 import AVKit
 import FlexarrKit
-import os
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "transport")
+private let log = FlexarrLog("transport")
 
 /// A server stream (HLS) or a downloaded file through AVPlayer. Subtitles are the stream's own renditions, drawn by
 /// the player layer; audio is whichever track the server put in the stream.
@@ -225,10 +224,10 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
             play()
         case .failed:
             let reason = message ?? "The stream couldn't be opened."
-            log.error("Item failed: \(reason, privacy: .public)")
+            log.error("Item failed: \(reason)", ["playbackId": info.playbackId])
             // AVFoundation's own account of what went wrong with the playlists (the error alone says little).
             for event in item.errorLog()?.events.prefix(5) ?? [] {
-                log.error("Item failed, detail: \(event.errorStatusCode) \(event.errorComment ?? "", privacy: .public) \(event.uri ?? "", privacy: .private)")
+                log.warning("Item failed, detail: \(event.errorStatusCode) \(event.errorComment ?? "")", ["uri": event.uri, "playbackId": info.playbackId])
             }
             phase = .failed(reason)
         default:
@@ -268,7 +267,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
             let index = SubtitleMatch.option(for: wanted, in: info, among: group.options.map(Self.subtitleOption))
             selectedOption = index.map { group.options[$0] }
             item.select(selectedOption, in: group)
-            log.info("Subtitles at start: \(self.selectedOption?.displayName ?? "off", privacy: .public)")
+            log.info("Subtitles at start: \(self.selectedOption?.displayName ?? "off")", ["playbackId": info.playbackId])
             delegate?.transportTracksChanged(self)
         }
     }
@@ -279,7 +278,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         guard let group = legibleGroup else { return }
         let selected = item.currentMediaSelection.selectedMediaOption(in: group)
         guard selected != selectedOption else { return }
-        log.info("Keeping subtitles \(self.selectedOption?.displayName ?? "off", privacy: .public) (the player chose \(selected?.displayName ?? "off", privacy: .public))")
+        log.info("Keeping subtitles \(self.selectedOption?.displayName ?? "off") (the player chose \(selected?.displayName ?? "off"))", ["playbackId": info.playbackId])
         item.select(selectedOption, in: group)
     }
 

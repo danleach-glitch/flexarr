@@ -51,17 +51,19 @@
   <main>
     <a class="home" href="/">← Flexarr</a>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated 26 October 2026</p>
+    <p class="updated">Last updated 27 October 2026</p>
 
     <p>Flexarr is a media server you run yourself, with apps for iPhone, iPad, Apple TV and the web. This policy covers
     those apps and this website.</p>
 
     <h2>The apps collect nothing</h2>
     <p>The Flexarr apps don't collect, sell or share any personal data. They contain no analytics, advertising or
-    tracking, and they never contact the developer.</p>
-    <p>The apps talk only to the Flexarr server you connect them to. That server belongs to you or to whoever invited
-    you, not to the Flexarr project. What you watch, your progress and your profiles are kept on that server, under its
-    owner's control.</p>
+    tracking, and they don't contact the developer unless the server's owner turns on error reports (below).</p>
+    <p>The apps talk to the Flexarr server you connect them to. That server belongs to you or to whoever invited you,
+    not to the Flexarr project. What you watch, your progress and your profiles are kept on that server, under its
+    owner's control. So is its log: the apps send the server their warnings and errors, and their recent log when you
+    tap Send diagnostics, so its owner can see what went wrong. Keys and passwords are taken out first, and the log
+    never leaves that server.</p>
 
     <h2>What stays on your device</h2>
     <ul>
@@ -69,16 +71,28 @@
       <li>Your sign-in key, in the device's Keychain.</li>
       <li>Anything you download for offline, and what you played while offline until it's sent to your server.</li>
     </ul>
-    <p>Notifications of new podcast episodes are made on the device itself; there's no push server. Podcast searches
-    and episodes go through your server, so podcast hosts see your server rather than each listener. When you speak to Siri, Apple handles the speech under its own privacy policy.</p>
+    <p>If you turn on notifications on iPhone, your server sends each one through a small relay at flexarr.io, which
+    passes it to Apple to deliver. It's encrypted on your server and only your phone can read it, so the relay never sees
+    what it says, and it keeps nothing. Apple handles delivery under its own privacy policy. Podcast searches and episodes
+    go through your server, so podcast hosts see your server rather than each listener. When you speak to Siri, Apple handles the speech under its own privacy policy.</p>
     <p>Deleting the app removes them. The apps ask for local network access only to find and reach your server at home.</p>
+
+    <h2>Optional error reports</h2>
+    <p>A Flexarr server's owner can choose to send error reports to the developer, to help fix bugs. It's off unless
+    they turn it on (Settings › Server › Logs), and turning it off stops it at once on the server and every app
+    connected to it. Reports go to <a href="https://sentry.io/privacy/">Sentry</a>, which stores them in the EU.</p>
+    <p>A report says what went wrong and where in Flexarr's code, the Flexarr version, the operating system and device
+    model, and a random id for the server that isn't linked to anyone. Titles, file names and paths, what anyone
+    watches, profile and device names, addresses (IP, server, network), keys and passwords are removed on the server or
+    device before anything is sent. Logs and viewing history are never sent. Reports are used only to fix Flexarr,
+    never for tracking or advertising, and Sentry deletes them after at most 90 days.</p>
 
     <h2>This website</h2>
     <p>flexarr.io sets no cookies and runs no analytics. It is hosted by Vercel and loads fonts from Google Fonts, which
     see your IP address as part of serving the page, as any web host does.</p>
 
     <h2>Children</h2>
-    <p>Flexarr collects no data from anyone, including children.</p>
+    <p>Flexarr collects no personal data from anyone, including children.</p>
 
     <h2>Changes and contact</h2>
     <p>If this policy changes, this page will show the new date. Questions are welcome on

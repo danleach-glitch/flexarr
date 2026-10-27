@@ -1,0 +1,177 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Text.Json;
+using Serilog.Events;
+
+namespace Flexarr.Api.Logging;
+
+public sealed record ClientLogBatch(string Platform, string? AppVersion, IReadOnlyList<ClientLogLine> Entries);
+
+public sealed record ClientLogLine(DateTimeOffset? Timestamp, LogEventLevel Level, string? Category, string Message, string? Error,
+    Dictionary<string, string>? Properties);
+
+/// <summary>Diagnostics a device sent: the file is the device's own log, the rest is who sent it.</summary>
+public sealed record ClientUpload(string Id, string Device, string Platform, string? Profile, string? AppVersion, string? Note, DateTimeOffset UploadedAt,
+    long SizeBytes);
+
+/// <summary>Who's reporting: the sign-in's name and profile, worked out by the endpoint.</summary>
+public sealed record ClientIdentity(string Key, string Device, string? Profile);
+
+/// <summary>
+/// What the apps and browsers report. Warnings and errors arrive on their own and go into the server's log under
+/// "Apps and browsers", so one place shows a failed playback from both ends. A full device log arrives only when
+/// someone taps Send diagnostics, and is kept as its own file beside the log.
+/// </summary>
+public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILoggerFactory loggers)
+{
+    public const int MaxBatch = 100;
+    public const int MaxUploadBytes = 5 * 1024 * 1024;
+
+    /// <summary>Per device, per minute. A browser stuck in a render loop mustn't fill the disk.</summary>
+    private const int MaxPerMinute = 300;
+
+    private const int MaxText = 8 * 1024;
+    private const int MaxProperties = 20;
+
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    private readonly ConcurrentDictionary<string, (long Minute, int Count)> _rates = new();
+
+    /// <summary>Reports go through the server's own logging, so they're filtered, redacted and stored like the rest.</summary>
+    private readonly ILogger _log = loggers.CreateLogger(LogAreas.ClientSource);
+
+    /// <summary>Writes the batch to the log; false when the device has sent too much this minute.</summary>
+    public bool Write(ClientIdentity who, ClientLogBatch batch)
+    {
+        var minute = clock.GetUtcNow().ToUnixTimeSeconds() / 60;
+        var rate = _rates.AddOrUpdate(who.Key, _ => (minute, batch.Entries.Count),
+            (_, r) => r.Minute == minute ? (minute, r.Count + batch.Entries.Count) : (minute, batch.Entries.Count));
+        if (rate.Count > MaxPerMinute)
+        {
+            return false;
+        }
+
+        foreach (var line in batch.Entries.Take(MaxBatch))
+        {
+            var properties = new Dictionary<string, object>
+            {
+                ["Platform"] = Clip(batch.Platform, 16),
+                ["Device"] = who.Device,
+            };
+            Add(properties, "Profile", who.Profile);
+            Add(properties, "AppVersion", batch.AppVersion);
+            Add(properties, "Category", line.Category);
+            Add(properties, "ClientError", line.Error is null ? null : Clip(line.Error));
+
+            // A device's clock can be off; its own time is kept, the entry is filed when it arrived.
+            Add(properties, "ClientTime", line.Timestamp?.ToString("O", CultureInfo.InvariantCulture));
+            foreach (var (name, value) in (line.Properties ?? []).Take(MaxProperties))
+            {
+                // Their names become ours: keep them to plain words, and never let a device overwrite ours.
+                var key = name.Length is > 0 and <= 40 && name.All(char.IsAsciiLetterOrDigit) ? char.ToUpperInvariant(name[0]) + name[1..] : null;
+                if (key is not null && !properties.ContainsKey(key) && key != "ClientMessage")
+                {
+                    properties[key] = Clip(value, 200);
+                }
+            }
+
+            using (_log.BeginScope(properties))
+            {
+                LogReport(_log, Level(line.Level), Clip(line.Message));
+            }
+        }
+
+        return true;
+    }
+
+    public async Task<ClientUpload> SaveUploadAsync(ClientIdentity who, string platform, string? appVersion, string? note, Stream body, CancellationToken ct)
+    {
+        Directory.CreateDirectory(paths.UploadsDirectory);
+        var now = clock.GetUtcNow();
+        var id = $"{now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..24];
+        var path = Path.Combine(paths.UploadsDirectory, id + ".log");
+
+        // Redacted line by line on the way in: the app does its best, but this file goes into bug reports.
+        long size = 0;
+        using (var reader = new StreamReader(body))
+        await using (var writer = new StreamWriter(path))
+        {
+            while (await reader.ReadLineAsync(ct) is { } line)
+            {
+                var clean = Redactor.Redact(line);
+                size += clean.Length + 1;
+                if (size > MaxUploadBytes)
+                {
+                    await writer.WriteLineAsync("… (cut short: diagnostics are limited to 5 MB)");
+                    break;
+                }
+
+                await writer.WriteLineAsync(clean);
+            }
+        }
+
+        var upload = new ClientUpload(id, who.Device, Clip(platform, 16), who.Profile, appVersion is null ? null : Clip(appVersion, 40),
+            note is null ? null : Redactor.Redact(Clip(note, 500)), now, new FileInfo(path).Length);
+        await File.WriteAllTextAsync(Path.Combine(paths.UploadsDirectory, id + ".json"), JsonSerializer.Serialize(upload, Json), ct);
+        LogUploaded(_log, who.Device, upload.Platform, upload.SizeBytes / 1024);
+        return upload;
+    }
+
+    public IReadOnlyList<ClientUpload> Uploads()
+    {
+        var folder = new DirectoryInfo(paths.UploadsDirectory);
+        if (!folder.Exists)
+        {
+            return [];
+        }
+
+        var uploads = new List<ClientUpload>();
+        foreach (var file in folder.EnumerateFiles("*.json"))
+        {
+            try
+            {
+                if (JsonSerializer.Deserialize<ClientUpload>(File.ReadAllText(file.FullName), Json) is { } upload && File.Exists(UploadPath(upload.Id)))
+                {
+                    uploads.Add(upload);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or JsonException)
+            {
+                // Half-written or being tidied away.
+            }
+        }
+
+        return [.. uploads.OrderByDescending(u => u.UploadedAt)];
+    }
+
+    /// <summary>The upload's file, or null for an id that isn't one (ids are only ever ours, never a path).</summary>
+    public string? UploadPath(string id) =>
+        id.Length == 24 && id.All(c => char.IsAsciiDigit(c) || c == '-' || char.IsAsciiHexDigitLower(c))
+            ? Path.Combine(paths.UploadsDirectory, id + ".log")
+            : null;
+
+    private static LogLevel Level(LogEventLevel level) => level switch
+    {
+        <= LogEventLevel.Debug => LogLevel.Debug,
+        LogEventLevel.Information => LogLevel.Information,
+        LogEventLevel.Warning => LogLevel.Warning,
+        _ => LogLevel.Error,
+    };
+
+    private static void Add(Dictionary<string, object> properties, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            properties[name] = Clip(value, 200);
+        }
+    }
+
+    // :l writes the text as it came, without quotes; the app's message is data, never a template.
+    [LoggerMessage(Message = "{ClientMessage:l}")]
+    private static partial void LogReport(ILogger logger, LogLevel level, string clientMessage);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Device} sent diagnostics ({Platform}, {SizeKb} KB)")]
+    private static partial void LogUploaded(ILogger logger, string device, string platform, long sizeKb);
+
+    private static string Clip(string text, int max = MaxText) => text.Length <= max ? text : text[..max] + "…";
+}

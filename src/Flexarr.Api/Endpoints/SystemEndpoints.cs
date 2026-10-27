@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -8,7 +10,11 @@ namespace Flexarr.Api.Endpoints;
 /// The server's address for away from home (over Tailscale, once remote access is turned on), or null. The apps keep
 /// it beside the address they were connected with and use it when that one can't be reached.
 /// </param>
-public sealed record SystemStatus(string AppName, string Version, string OsDescription, string RuntimeVersion, DateTimeOffset StartTime, string? RemoteUrl);
+/// <param name="ErrorReports">Whether the apps send error reports (Settings › Logs), and this server's random id for them.</param>
+public sealed record SystemStatus(string AppName, string Version, string OsDescription, string RuntimeVersion, DateTimeOffset StartTime, string? RemoteUrl,
+    ErrorReportStatus ErrorReports);
+
+public sealed record ErrorReportStatus(bool Enabled, string? InstallId);
 
 public static class SystemEndpoints
 {
@@ -31,13 +37,14 @@ public static class SystemEndpoints
             return Results.Text(reader.ReadToEnd(), "text/markdown; charset=utf-8");
         });
 
-        group.MapGet("/status", async (HttpContext http, TailscaleService tailscale, CancellationToken ct) => new SystemStatus(
+        group.MapGet("/status", async (HttpContext http, TailscaleService tailscale, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) => new SystemStatus(
             "Flexarr",
             Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0",
             RuntimeInformation.OSDescription,
             RuntimeInformation.FrameworkDescription,
             StartTime,
-            await tailscale.RemoteUrlAsync(http.Connection.LocalPort > 0 ? http.Connection.LocalPort : 8383, ct)));
+            await tailscale.RemoteUrlAsync(http.Connection.LocalPort > 0 ? http.Connection.LocalPort : 8383, ct),
+            options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null)));
 
         return api;
     }

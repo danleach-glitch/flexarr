@@ -20,6 +20,12 @@ import type {
   LibraryRequest,
   Loudness,
   Lyrics,
+  ClientLogEntry,
+  LogPage,
+  LogQuery,
+  LogSettings,
+  LogSettingsUpdate,
+  LogUpload,
   MixDetail,
   MixSummary,
   OpmlImport,
@@ -147,7 +153,7 @@ export async function migrateStoredApiKey() {
 }
 
 /** The chosen profile, plus the header that lets the session cookie make changes (another site can't send it). */
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'X-Requested-With': 'flexarr' }
   const profile = profileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
@@ -1101,5 +1107,43 @@ export async function signOut() {
     sessionStorage.removeItem('flexarr.profileChosen')
   } catch {
     // Storage unavailable.
+  }
+}
+
+// ---------- Logs (the server's, for the main profile)
+
+/** `?level=…&area=…` from whichever of them are set. */
+function logQuery(query: LogQuery) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value))
+  const text = params.toString()
+  return text ? `?${text}` : ''
+}
+
+export const getLogs = (query: LogQuery, signal?: AbortSignal) => apiGet<LogPage>(`/logs${logQuery(query)}`, signal)
+/** Server-sent events, one LogEntry each, from now on. EventSource sends the session cookie itself. */
+export const logStreamUrl = (query: Pick<LogQuery, 'level' | 'area'>) => `/api/v1/logs/stream${logQuery(query)}`
+export const getLogSettings = (signal?: AbortSignal) => apiGet<LogSettings>('/logs/settings', signal)
+export const saveLogSettings = (changes: LogSettingsUpdate) => request<LogSettings>('PUT', '/logs/settings', changes)
+export const getLogUploads = (signal?: AbortSignal) => apiGet<LogUpload[]>('/logs/uploads', signal)
+export const logUploadUrl = (id: string) => `/api/v1/logs/uploads/${encodeURIComponent(id)}`
+export const diagnosticsUrl = '/api/v1/logs/diagnostics'
+
+/**
+ * Sends this browser's errors to the server's log, and says how it went (the status, or 0 when it never got there).
+ * Not through `request`: that clears the cache, and a failure here must never throw. `keepalive` lets it finish as
+ * the page goes away.
+ */
+export async function sendClientLogs(appVersion: string, entries: ClientLogEntry[], keepalive = false): Promise<number> {
+  try {
+    const response = await fetch('/api/v1/logs/client', {
+      method: 'POST',
+      keepalive,
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform: 'web', appVersion, entries }),
+    })
+    return response.status
+  } catch {
+    return 0
   }
 }

@@ -7,6 +7,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Home Assistant
 - The Home Assistant integration has its own home: [flexarr-home-assistant](https://github.com/danleach-glitch/flexarr-home-assistant). Install it through HACS (add that address under Custom repositories), so Home Assistant offers its updates. Copied in by hand before, it keeps working; remove the old copy and install it through HACS to get updates.
 
+### Logs
+- New **Settings › Server › Logs**: the server's log, newest first, filtered by level and area, searchable, and **Live** to watch it as it happens. **Download diagnostics** makes a zip to attach to a bug report.
+- Turn up the detail for one area (Playback, Library scans, Live TV…) while you chase a problem; it applies at once, no restart.
+- Every playback has a short id that shows on the server's lines and in what the apps report, so you can follow one from start to finish.
+- The Apple TV and iPhone apps send their warnings and errors to your server, and the web app its errors. **Send diagnostics** in an app's settings sends its full recent log.
+- Keys, passwords and tokens are taken out of everything logged. Logs never leave your server.
+- **Error reports**, off unless you turn them on in Settings › Logs: errors and crashes from the server and its apps are sent to Flexarr's developer (through Sentry) to get bugs fixed sooner. Titles, file names, what you watch, names, addresses and keys are removed before anything is sent; the setting lists exactly what goes and what doesn't.
+- Logs now have timestamps, start a new file each day, and are kept for 14 days up to 100 MB (both adjustable). Routine chatter is gone: the old log was mostly lines about every call to Sonarr and Radarr.
+
 ## 0.45.0 · 27 October 2026
 
 ### Home Assistant

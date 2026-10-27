@@ -93,6 +93,8 @@ public sealed class FlexarrOptions
 
     public NotificationOptions Notifications { get; set; } = new();
 
+    public Logging.LogOptions Logs { get; set; } = new();
+
     /// <summary>Optional Live TV source: Dispatcharr (or another server with an Xtream Codes API).</summary>
     public LiveTvOptions? LiveTv { get; set; }
 

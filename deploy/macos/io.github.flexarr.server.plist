@@ -24,6 +24,12 @@
     <string>Production</string>
     <key>Flexarr__DataDirectory</key>
     <string>__ROOT__/data</string>
+    <!-- Flexarr writes its own daily log files here (Settings › Logs reads them) and trims them itself. -->
+    <key>Flexarr__Logs__Directory</key>
+    <string>__ROOT__/logs</string>
+    <!-- Nothing trims launchd's copy of standard output, so only warnings and errors go there. -->
+    <key>Flexarr__Logs__ConsoleLevel</key>
+    <string>Warning</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
@@ -34,8 +40,8 @@
   <key>ProcessType</key>
   <string>Interactive</string>
   <key>StandardOutPath</key>
-  <string>__ROOT__/logs/flexarr.log</string>
+  <string>__ROOT__/logs/console.log</string>
   <key>StandardErrorPath</key>
-  <string>__ROOT__/logs/flexarr.log</string>
+  <string>__ROOT__/logs/console.log</string>
 </dict>
 </plist>

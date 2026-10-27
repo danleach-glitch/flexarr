@@ -1,10 +1,9 @@
 import AVFoundation
 import AVKit
 import FlexarrKit
-import os
 import UIKit
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "player")
+private let log = FlexarrLog("player")
 
 @MainActor
 protocol PlayerScreenDelegate: AnyObject {
@@ -770,7 +769,7 @@ extension PlayerViewController: AVPictureInPictureControllerDelegate {
 
     nonisolated func pictureInPictureController(_ controller: AVPictureInPictureController, failedToStartPictureInPictureWithError error: any Error) {
         MainActor.assumeIsolated {
-            log.error("Picture in Picture didn't start: \(error.localizedDescription, privacy: .public)")
+            log.warning("Picture in Picture didn't start", error: error)
             isInPictureInPicture = false
             transport?.setPictureInPictureActive(false)
         }

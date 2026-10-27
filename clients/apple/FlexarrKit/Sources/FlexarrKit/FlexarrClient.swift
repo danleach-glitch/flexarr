@@ -388,6 +388,33 @@ public struct FlexarrClient: Sendable {
         _ = try await send("DELETE", "session")
     }
 
+    // MARK: Logs
+
+    /// Warnings and errors from this app (at most `ClientLogQueue.batchSize`). The server answers 429 when too much
+    /// is being sent. Who sent them, the server knows from the sign-in.
+    public func sendLogs(platform: String, appVersion: String, entries: [ClientLogEntry]) async throws {
+        _ = try await send("POST", "logs/client", body: ClientLogBatch(platform: platform, appVersion: appVersion, entries: entries))
+    }
+
+    /// The app's whole log, sent on purpose from Settings, for looking into a problem; returns its id on the server.
+    public func sendDiagnostics(platform: String, appVersion: String, note: String?, text: String) async throws -> String {
+        var query = [URLQueryItem(name: "platform", value: platform), URLQueryItem(name: "appVersion", value: appVersion)]
+        if let note, !note.isEmpty { query.append(.init(name: "note", value: note)) }
+        let data = try await send("POST", "logs/client/diagnostics", query: query, bodyData: Data(text.utf8),
+                                  contentType: "text/plain; charset=utf-8", timeout: 120)
+        return try decode(DiagnosticsReceipt.self, from: data).id
+    }
+
+    private struct ClientLogBatch: Encodable {
+        let platform: String
+        let appVersion: String
+        let entries: [ClientLogEntry]
+    }
+
+    private struct DiagnosticsReceipt: Decodable {
+        let id: String
+    }
+
     // MARK: URLs
 
     /// Resolves a server-relative URL such as a stream or artwork path.
@@ -423,8 +450,9 @@ public struct FlexarrClient: Sendable {
         try await send(method, path, bodyData: JSONEncoder().encode(body))
     }
 
-    func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil) async throws -> Data {
-        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData)
+    func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil,
+              contentType: String = "application/json", timeout: TimeInterval = 20) async throws -> Data {
+        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout)
 
         switch http.statusCode {
         case 204, 202:
@@ -446,12 +474,13 @@ public struct FlexarrClient: Sendable {
         }
     }
 
-    private func request(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, at base: URL) -> URLRequest {
+    private func request(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, at base: URL,
+                         contentType: String = "application/json", timeout: TimeInterval = 20) -> URLRequest {
         var url = base.appending(path: "api/v1/\(path)")
         if !query.isEmpty { url.append(queryItems: query) }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 20
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let apiKey, !apiKey.isEmpty {
             request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
@@ -461,7 +490,7 @@ public struct FlexarrClient: Sendable {
         }
         if let bodyData {
             request.httpBody = bodyData
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         return request
     }
@@ -472,14 +501,15 @@ public struct FlexarrClient: Sendable {
     /// first (or hasn't heard back after `ServerAddresses.alternateDelay`) is also sent there and the first answer
     /// wins; anything else only moves over once the first address has failed to connect, so a write is never sent
     /// twice. Whichever address answers is used from then on.
-    private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?) async throws -> Answer {
+    private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?,
+                          contentType: String, timeout: TimeInterval) async throws -> Answer {
         let primary = addresses.current
-        let first = request(method, path, query: query, bodyData: bodyData, at: primary)
+        let first = request(method, path, query: query, bodyData: bodyData, at: primary, contentType: contentType, timeout: timeout)
         guard let alternate = addresses.alternate(to: primary) else {
             return try await exchange(first)
         }
 
-        let second = request(method, path, query: query, bodyData: bodyData, at: alternate)
+        let second = request(method, path, query: query, bodyData: bodyData, at: alternate, contentType: contentType, timeout: timeout)
         let answer: Answer
         let reached: URL
         if method == "GET" {

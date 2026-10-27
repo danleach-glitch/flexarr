@@ -1,10 +1,9 @@
 import FlexarrKit
 import Foundation
-import os
 import UIKit
 import UserNotifications
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "io.github.flexarr", category: "notifications")
+private let log = FlexarrLog("notifications")
 
 /// Notifications from the server (see docs/notifications.md): what's new, sealed with a key only this phone and its
 /// server know, and opened by the notification extension. The phone hears about one profile, whichever it was on when
@@ -186,13 +185,13 @@ final class PushNotifications {
             do {
                 _ = try await register(as: forProfile(credentials), settings: settings)
             } catch {
-                log.error("Couldn't send the new device token: \(error.localizedDescription, privacy: .public)")
+                log.warning("Couldn't send the new device token", error: error)
             }
         }
     }
 
     func failedToRegister(_ error: Error) {
-        log.error("No device token: \(error.localizedDescription, privacy: .public)")
+        log.warning("No device token", error: error)
         let waiting = tokenWaiters
         tokenWaiters = []
         waiting.forEach { $0.resume(returning: nil) }

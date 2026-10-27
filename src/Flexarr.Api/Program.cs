@@ -9,6 +9,7 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Api.Events;
 using Flexarr.Api.Import;
 using Flexarr.Api.LiveTv;
+using Flexarr.Api.Logging;
 using Flexarr.Api.Mcp;
 using Flexarr.Api.Notifications;
 using Flexarr.Api.Playback;
@@ -46,6 +47,8 @@ builder.Services.AddOptions<FlexarrOptions>()
     .Configure(options => userConfig.Bind(options));
 builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(new ConfigurationChangeTokenSource<FlexarrOptions>(userConfig));
 builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfigStore>();
+
+builder.AddFlexarrLogging(dataDirectory, userConfig);
 
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
@@ -255,6 +258,7 @@ app.Use((http, next) =>
     return next(http);
 });
 app.UseForwardedHeaders();
+app.UseFlexarrLogging();
 app.UseFlexarrSecurityHeaders();
 app.UseResponseCompression();
 
@@ -324,6 +328,7 @@ app.MapGroup("/api/v1")
     .MapDeviceEndpoints()
     .MapNotificationEndpoints()
     .MapEventEndpoints()
+    .MapLogEndpoints()
     .MapSessionEndpoints();
 
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
