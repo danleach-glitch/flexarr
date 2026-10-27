@@ -14,6 +14,8 @@
   --ambient: var(--silver);
 
   --display: 'Big Shoulders Display Variable', 'Arial Narrow', sans-serif;
+  /* Pairing codes: the device's own font, as the Apple apps show them, so a code reads the same on both screens. */
+  --code-face: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --text: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
 
   /* 1.25 scale from 17px. */

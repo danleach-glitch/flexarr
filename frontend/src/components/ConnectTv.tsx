@@ -11,7 +11,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
   const [details, setDetails] = useState<PairingDetails>()
   const [state, setState] = useState<'idle' | 'checking' | 'approving' | 'declining' | 'done' | 'declined'>('idle')
   const [error, setError] = useState<string>()
-  // Another profile is chosen on this browser: only the main profile can connect a TV.
+  // Another profile is chosen on this browser: only the main profile can connect a device.
   const [notMain, setNotMain] = useState(false)
 
   function failed(e: unknown) {
@@ -79,7 +79,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
   if (state === 'done') {
     return (
       <div className="panel connect-tv" role="status">
-        <h2>{details?.deviceName ?? 'The TV'} is connected</h2>
+        <h2>{details?.deviceName ?? 'The device'} is connected</h2>
         <p className="muted">It signs in within a couple of seconds. You can put this away.</p>
       </div>
     )
@@ -117,15 +117,15 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
         </p>
         {home ? (
           <p>
-            Only allow this if your TV is showing <strong>{details.code}</strong> right now. If someone sent you this link, choose Don’t allow.
+            Only allow this if your device is showing <strong>{details.code}</strong> right now. If someone sent you this link, choose Don’t allow.
           </p>
         ) : (
           <p className="panel advice">
-            This request didn’t come from your home network. Only allow it if your TV is showing <strong>{details.code}</strong> and you started it just now. If
+            This request didn’t come from your home network. Only allow it if your device is showing <strong>{details.code}</strong> and you started it just now. If
             someone sent you this link, choose Don’t allow.
           </p>
         )}
-        <p className="field-help">The TV can sign in to Flexarr like any other device. You can sign it out later in Settings › Access.</p>
+        <p className="field-help">It signs in to Flexarr like any other device. You can sign it out later in Settings › Access.</p>
         {errorLine}
         <div className="form-actions">
           <AsyncButton className="button quiet" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()} autoFocus={!home}>
@@ -141,13 +141,13 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
 
   return (
     <form className="panel connect-tv" onSubmit={submit}>
-      {titled && <h2>Connect a TV</h2>}
+      {titled && <h2>Connect a device</h2>}
       {state === 'declined' && (
         <p className="key-note" role="status">
-          Not connected. The TV will show a new code in a moment.
+          Not connected. The device will show a new code in a moment.
         </p>
       )}
-      <p className="muted">Open Flexarr on the TV and enter the code it shows, or scan its QR code with your phone.</p>
+      <p className="muted">Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.</p>
       <div className="field-row">
         <label className="grow">
           Code
@@ -176,7 +176,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
 
 const message = (e: unknown) =>
   e instanceof ApiError && e.status === 403
-    ? 'Only the main profile can connect a TV.'
+    ? 'Only the main profile can connect a device.'
     : e instanceof ApiError && e.messages[0]
       ? e.messages[0]
       : String(e)

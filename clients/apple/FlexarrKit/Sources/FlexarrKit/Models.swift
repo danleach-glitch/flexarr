@@ -636,6 +636,11 @@ public struct PairingStart: Decodable, Sendable, Equatable {
     public let expiresAt: Date
 }
 
+/// GET /setup: a new server that nobody has set up in a browser yet.
+public struct SetupStatus: Decodable, Sendable, Equatable {
+    public let open: Bool
+}
+
 public struct PairingStatus: Decodable, Sendable, Equatable {
     /// "waiting", "approved" or "expired".
     public let status: String

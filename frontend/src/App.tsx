@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router'
 import {
+  claimSetup,
   clearApiCache,
   getMe,
   getProfiles,
@@ -8,6 +9,7 @@ import {
   migrateStoredApiKey,
   profileToken,
   saveProfileToken,
+  setupOpen,
   signIn,
   UnauthorizedError,
   type Profile,
@@ -73,7 +75,7 @@ type ConnectionState =
   | { kind: 'ready' }
   /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
   | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
-  | { kind: 'unauthorized'; wrongKey?: boolean }
+  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
@@ -168,7 +170,10 @@ export default function App() {
         if (controller.signal.aborted) return
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
-          setState({ kind: 'unauthorized' })
+          // A new server nobody has signed in to yet: this browser can set it up, no key needed.
+          void setupOpen().then((open) => {
+            if (!controller.signal.aborted) setState({ kind: 'unauthorized', setupOpen: open })
+          })
         } else setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
       })
     return () => controller.abort()
@@ -187,6 +192,13 @@ export default function App() {
       .catch((error: unknown) =>
         setState(error instanceof UnauthorizedError ? { kind: 'unauthorized', wrongKey: true } : { kind: 'error', message: error instanceof Error ? error.message : String(error) }),
       )
+  }
+
+  function setUp() {
+    setState({ kind: 'loading' })
+    claimSetup()
+      .then(() => setAttempt((n) => n + 1))
+      .catch(() => setAttempt((n) => n + 1))
   }
 
   if (state.kind === 'choose-profile') {
@@ -221,27 +233,56 @@ export default function App() {
     )
   }
 
+  // Arrived from a phone's or tablet's code: laid out like the app's own code screen, which it sits beside.
+  const codePage = state.kind === 'unauthorized' && !state.setupOpen && tvCode !== null
+  const thisDevice = /iPad/.test(navigator.userAgent) ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device'
+
   return (
-    <div className="connect">
+    <div className={codePage ? 'connect connect-code' : 'connect'}>
       <p className="wordmark">
         <img src="/logo-mark.svg" alt="" className="wordmark-mark" />
         flexarr
       </p>
+      {codePage && <p className="connect-tagline">Your entertainment, on every screen.</p>}
       <section className="panel" aria-label="Server status">
         {state.kind === 'loading' && <p className="muted">Connecting…</p>}
         {state.kind === 'error' && <p className="error">Can't reach the server ({state.message}). Check that Flexarr is running, then reload.</p>}
-        {state.kind === 'unauthorized' && (
+        {state.kind === 'unauthorized' && state.setupOpen && (
+          <div className="setup-welcome">
+            <h1>Welcome to your Flexarr server</h1>
+            <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
+            <button type="button" className="button" onClick={setUp}>
+              Set up Flexarr
+            </button>
+          </div>
+        )}
+        {state.kind === 'unauthorized' && !state.setupOpen && tvCode && (
+          // Arrived from a device's code: this browser isn't signed in, and only a signed-in main profile can let a device in.
+          <div className="setup-welcome">
+            {/* The same steps, words and look as the app's own code screen. */}
+            <h1>Connect this {thisDevice}</h1>
+            <ol className="setup-steps">
+              <li>
+                <span>
+                  On your computer, open <strong>{window.location.origin}</strong> in a web browser.
+                </span>
+              </li>
+              <li>
+                <span>
+                  Go to <strong>Settings</strong>, then <strong>Access</strong>, then <strong>Connect a device</strong>.
+                </span>
+              </li>
+              <li>
+                <span>Type in this code:</span>
+              </li>
+            </ol>
+            <p className="setup-code">{tvCode}</p>
+          </div>
+        )}
+        {state.kind === 'unauthorized' && !state.setupOpen && !tvCode && (
           <form className="api-key-form" onSubmit={submitApiKey}>
             <label htmlFor="apiKey">API key</label>
-            {tvCode ? (
-              // Arrived from a TV's QR code: this device has never signed in, and only a signed-in main profile can let a TV in.
-              <p className="muted">
-                To let your TV in, this device needs to sign in once with the API key (Settings › Access on a computer that’s signed in). Or skip it: on that
-                computer, open Flexarr, go to <strong>Settings › Access › Connect a TV</strong> and enter <span className="connect-tv-code">{tvCode}</span>
-              </p>
-            ) : (
-              <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>
-            )}
+            <p className="muted">Ask whoever set up Flexarr for the key, or connect from home.</p>
             <div className="api-key-row">
               <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
               <button type="submit" className="button">
@@ -249,11 +290,9 @@ export default function App() {
               </button>
             </div>
             {state.wrongKey && <p className="error">That isn't the right key.</p>}
-            {!tvCode && (
-              <p className="muted small-print">
-                For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.
-              </p>
-            )}
+            <p className="muted small-print">
+              For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.
+            </p>
           </form>
         )}
       </section>

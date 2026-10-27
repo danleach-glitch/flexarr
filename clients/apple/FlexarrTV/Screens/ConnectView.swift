@@ -26,7 +26,7 @@ struct ConnectView: View {
                         .font(.marquee(150, weight: .black))
                         .foregroundStyle(Color.screen)
                 }
-                Text("Your own cinema, on the big screen.")
+                Text("Your entertainment, on every screen.")
                     .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(Color.usher)
                 if let notice = model.signedOutNotice {
@@ -146,12 +146,13 @@ private struct PairWithServer: View {
                         Text("Scan with your phone")
                             .font(.system(size: 34, weight: .semibold))
                             .foregroundStyle(Color.screen)
-                        Text("It opens Flexarr; tap Allow. Or, on any device signed in to Flexarr, open Settings › Connect a TV and enter:")
+                        Text("It opens Flexarr; tap Allow. Or, on any device signed in to Flexarr, open Settings › Access › Connect a device and enter:")
                             .font(.system(size: 25))
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)
+                        // Regular width, as the web pages show codes (SF Pro Black), so the two read the same.
                         Text(start.code)
-                            .font(.marquee(96, weight: .black))
+                            .font(.system(size: 88, weight: .black))
                             .foregroundStyle(Color.screen)
                             .kerning(6)
                         if pairing.renewedAt != nil {

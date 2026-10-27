@@ -195,14 +195,22 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
     @State private var reviews = ReviewPrompt()
+    /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
+    @AppStorage("FlexarrWelcomed") private var welcomed = false
 
     var body: some View {
         ZStack {
             Color.room.ignoresSafeArea()
             switch model.phase {
             case .signedOut:
-                ConnectView()
-                    .transition(.opacity)
+                // Only a fresh install gets the welcome: anyone who has connected before knows about the server.
+                if !welcomed && model.store.lastAddress == nil {
+                    WelcomeView { welcomed = true }
+                        .transition(.opacity)
+                } else {
+                    ConnectView()
+                        .transition(.opacity)
+                }
             case .signedIn(let credentials):
                 if !model.profilesLoaded {
                     ProgressView().controlSize(.large)
@@ -218,6 +226,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: model.phase)
+        .animation(.easeInOut(duration: 0.3), value: welcomed)
         .animation(.easeInOut(duration: 0.3), value: model.needsProfileChoice)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Downloads follow the server and profile signed in; signing out deletes them.

@@ -1142,7 +1142,7 @@
   white-space: nowrap;
 }
 
-/* ---------- Connect a TV ---------- */
+/* ---------- Connect a device ---------- */
 
 .link-page {
   max-width: 560px;
@@ -1159,13 +1159,14 @@
   font-size: var(--step-3);
 }
 
+/* Codes look the same as on the device showing them: the system font at its heaviest (SF Pro Black on Apple's). */
 .connect-tv-big-code {
   margin: 0;
-  font-family: var(--display);
+  font-family: var(--code-face);
   font-size: var(--step-6);
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   color: var(--screen);
 }
 

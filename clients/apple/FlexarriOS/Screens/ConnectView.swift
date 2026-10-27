@@ -25,7 +25,7 @@ struct ConnectView: View {
                             .font(.marquee(64, weight: .black))
                             .foregroundStyle(Color.screen)
                     }
-                    Text("Your own cinema, wherever you are.")
+                    Text("Your entertainment, on every screen.")
                         .font(.title3.weight(.medium))
                         .foregroundStyle(Color.usher)
                     if let notice = model.signedOutNotice {
@@ -42,7 +42,7 @@ struct ConnectView: View {
                 case .pair(let server):
                     PairWithServer(server: server, onBack: { step = .choose })
                 case .manual:
-                    ManualConnect(onBack: { step = .choose })
+                    ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
                 }
             }
             .padding(24)
@@ -91,10 +91,12 @@ private struct ChooseServer: View {
                 }
                 .padding(.vertical, 8)
                 if lookingAWhile {
-                    Text("Can’t see your server? Check this \(ThisDevice.name) is on the same Wi-Fi as it, or enter its address.")
+                    Text("Can’t see your server? Check it’s running and this \(ThisDevice.name) is on the same Wi-Fi, or enter its address.")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.screen)
                 }
+                NewToFlexarr()
+                    .padding(.top, 8)
             } else {
                 ForEach(browser.servers) { server in
                     Button { onPick(server) } label: {
@@ -116,9 +118,61 @@ private struct ChooseServer: View {
                 .padding(.top, 6)
         }
         .task {
-            guard (try? await Task.sleep(for: .seconds(10))) != nil else { return }
+            guard (try? await Task.sleep(for: .seconds(6))) != nil else { return }
             lookingAWhile = true
         }
+    }
+}
+
+/// Shown while nothing is found: the app is nothing without the server, and App Store downloads often don't
+/// know there is one.
+private struct NewToFlexarr: View {
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "server.rack")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.silver)
+                    .frame(width: 44, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.silver.opacity(0.16)))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("New to Flexarr?")
+                        .font(.headline)
+                        .foregroundStyle(Color.screen)
+                    Text("You’ll need the Flexarr server on a computer at home: a Mac, a NAS or anything with Docker.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.usher)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 8) {
+                badge("Completely free", systemImage: "checkmark")
+                badge("Under a minute", systemImage: "clock")
+            }
+            Button { openURL(WelcomeView.installURL) } label: {
+                Label("Set up a server", systemImage: "arrow.up.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ActionButtonStyle(prominent: true))
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.seat)
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.silver.opacity(0.22)))
+        }
+    }
+
+    private func badge(_ title: LocalizedStringKey, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color.screen)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Color.screen.opacity(0.1)))
     }
 }
 
@@ -132,18 +186,30 @@ private struct PairWithServer: View {
     @State private var pairing: Pairing?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             if let pairing, let start = pairing.current {
-                Text("Approve this \(ThisDevice.name)")
+                Text("Connect this \(ThisDevice.name)")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.screen)
-                Text("Open the link in Safari where you’re signed in to Flexarr, and tap Allow. Or, on any device signed in to Flexarr, open Settings › Connect a TV and enter:")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.usher)
+
+                // Short steps for someone who's never done this. A new server has nobody to approve the code yet, so
+                // setting it up comes first.
+                VStack(alignment: .leading, spacing: 14) {
+                    NumberedStep(1) {
+                        Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
+                    }
+                    if pairing.needsSetup {
+                        NumberedStep(2) { Text("Click **Set up Flexarr**.") }
+                    }
+                    NumberedStep(pairing.needsSetup ? 3 : 2) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
+                    NumberedStep(pairing.needsSetup ? 4 : 3) { Text("Type in this code:") }
+                }
+
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    // Regular width, not the condensed marquee face: the web pages show codes in the same SF Pro Black.
                     Text(start.code)
-                        .font(.marquee(56, weight: .black))
-                        .kerning(3)
+                        .font(.system(size: 52, weight: .black))
+                        .kerning(2)
                         .foregroundStyle(Color.screen)
                         .textSelection(.enabled)
                     if pairing.renewedAt != nil {
@@ -152,13 +218,10 @@ private struct PairWithServer: View {
                             .foregroundStyle(Color.silver)
                     }
                 }
-                Button { openURL(pairing.link(for: start)) } label: {
-                    Label("Approve in Safari", systemImage: "safari")
-                }
-                .buttonStyle(ActionButtonStyle(prominent: true))
+
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Connecting to \(server.name). Waiting for approval…")
+                    Text("This screen moves on by itself once you have.")
                         .font(.footnote)
                         .foregroundStyle(Color.usher)
                 }
@@ -170,8 +233,14 @@ private struct PairWithServer: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.screen)
             }
-            Button("Back", action: onBack)
-                .font(.body.weight(.semibold))
+            HStack(spacing: 20) {
+                Button("Back", action: onBack)
+                // Only works if Safari on this phone is signed in already, so it stays out of the way.
+                if let pairing, let start = pairing.current, !pairing.needsSetup {
+                    Button("Approve in Safari instead") { openURL(pairing.link(for: start)) }
+                }
+            }
+            .font(.subheadline.weight(.semibold))
         }
         .task(id: server) {
             let pairing = Pairing(server: server)
@@ -181,13 +250,44 @@ private struct PairWithServer: View {
     }
 }
 
+/// One step of the connect instructions: a number in a circle, then what to do.
+private struct NumberedStep<Content: View>: View {
+    let number: Int
+    @ViewBuilder let content: Content
+
+    init(_ number: Int, @ViewBuilder content: () -> Content) {
+        self.number = number
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.room)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.silver))
+            content
+                .padding(.top, 2)
+                .font(.body)
+                .foregroundStyle(Color.screen)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+    }
+}
+
 // MARK: - Typed address and key
 
+/// A server that can't be found (over Tailscale, say): type its address and connect with a code like any other.
+/// The API key is only for connecting from outside the home network and tailnet.
 private struct ManualConnect: View {
     @Environment(AppModel.self) private var model
+    let onPair: (DiscoveredServer) -> Void
     let onBack: () -> Void
     @State private var address = ""
     @State private var apiKey = ""
+    @State private var usesKey = false
     @State private var isConnecting = false
     @State private var error: String?
     @FocusState private var focus: Field?
@@ -203,14 +303,20 @@ private struct ManualConnect: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .focused($focus, equals: .address)
-                    .submitLabel(.next)
-                    .onSubmit { focus = .key }
+                    .submitLabel(usesKey ? .next : .go)
+                    .onSubmit { if usesKey { focus = .key } else { connect() } }
             }
-            field("API key (not needed over Tailscale)") {
-                SecureField("Paste your API key", text: $apiKey)
-                    .focused($focus, equals: .key)
-                    .submitLabel(.go)
-                    .onSubmit { connect() }
+            if usesKey {
+                field("API key") {
+                    SecureField("Paste your API key", text: $apiKey)
+                        .focused($focus, equals: .key)
+                        .submitLabel(.go)
+                        .onSubmit { connect() }
+                }
+            } else {
+                Text("You’ll get a code to approve, like a server found on your Wi-Fi.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.usher)
             }
 
             HStack(spacing: 12) {
@@ -238,10 +344,18 @@ private struct ManualConnect: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 0.42, green: 0.2, blue: 0.28).opacity(0.6)))
             }
+
+            if !usesKey {
+                Button("Connecting from outside your home? Use an API key") {
+                    usesKey = true
+                    focus = .key
+                }
+                .font(.footnote.weight(.semibold))
+            }
         }
         .onAppear {
             if address.isEmpty { address = model.store.lastAddress ?? "" }
-            focus = address.isEmpty ? .address : .key
+            focus = address.isEmpty || !usesKey ? .address : .key
         }
     }
 
@@ -258,6 +372,14 @@ private struct ManualConnect: View {
 
     private func connect() {
         guard !isConnecting else { return }
+        if !usesKey {
+            guard let server = FlexarrClient.normalizeAddress(address) else {
+                error = "That doesn’t look like a server address. Try one like http://192.168.1.20:8383."
+                return
+            }
+            onPair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
+            return
+        }
         isConnecting = true
         error = nil
         Task {

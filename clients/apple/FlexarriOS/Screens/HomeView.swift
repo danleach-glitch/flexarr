@@ -4,7 +4,31 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var home: Home?
-    /// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
+    /// A server with nothing in it yet, usually just set up: say where the films and shows get added.
+private struct EmptyHome: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "film.stack")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(Color.silver)
+            Text("Nothing to watch yet")
+                .font(.marquee(34, weight: .black))
+                .foregroundStyle(Color.screen)
+            Text("Add your movies, shows and music on the computer where you set up Flexarr: open Flexarr in a browser and go to Settings › Libraries. They appear here once they’re added.")
+                .font(.body)
+                .foregroundStyle(Color.usher)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Pull down to refresh.")
+                .font(.footnote)
+                .foregroundStyle(Color.usher)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
     @State private var newEpisodes: [PodcastEpisode] = []
     @State private var error: String?
     @State private var featuredIndex = 0
@@ -63,6 +87,10 @@ struct HomeView: View {
 
     private func content(_ home: Home) -> some View {
         ScrollView(.vertical) {
+            if home.featured.isEmpty && newEpisodes.isEmpty && !home.rows.contains(where: \.hasContent) {
+                EmptyHome()
+                    .containerRelativeFrame(.vertical)
+            }
             LazyVStack(alignment: .leading, spacing: 28) {
                 if !home.featured.isEmpty {
                     HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)

@@ -296,6 +296,13 @@ public struct FlexarrClient: Sendable {
         try await get("pairing/\(id)")
     }
 
+    /// Whether the server is new and nobody has set it up in a browser yet (so there's nobody to approve a code).
+    /// False on servers from before this, which don't say.
+    public func setupOpen() async -> Bool {
+        let status: SetupStatus? = try? await get("setup")
+        return status?.open ?? false
+    }
+
     // MARK: Devices (playing on another screen)
 
     /// Every Apple TV, iPhone and iPad signed in to the server, the ones with Flexarr open first.

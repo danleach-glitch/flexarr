@@ -60,6 +60,13 @@ public sealed class FlexarrOptions
     /// </summary>
     public DateTime? LegacySignInsUntil { get; set; }
 
+    /// <summary>
+    /// A new server, not yet signed in to: the first browser on the home network to reach it becomes its owner
+    /// without the API key. Phones and TVs then connect with a code, approved from that browser. Set when the key is first made (so never on a server that already existed); cleared
+    /// by the first sign-in of any kind.
+    /// </summary>
+    public bool SetupOpen { get; set; }
+
     /// <summary>Whether <see cref="LegacySignInsUntil"/> hasn't passed yet.</summary>
     public bool AcceptsLegacySignIns(DateTime utcNow) =>
         LegacySignInsUntil is { } until && utcNow < (until.Kind == DateTimeKind.Local ? until.ToUniversalTime() : until);

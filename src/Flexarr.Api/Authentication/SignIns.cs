@@ -106,6 +106,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
 
         LogIssued(kind, PathComparison.Printable(signIn.Name), zone);
+        FirstRun.Close(options.CurrentValue);
         return (signIn, token);
     }
 
