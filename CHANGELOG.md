@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Home Assistant
+- Flexarr has a Home Assistant integration (in `clients/home-assistant`; copy it into Home Assistant's `custom_components` folder). Set it up with the server's address and the API key from Settings › Access.
+- Each Apple TV, iPhone and iPad becomes a media player: see what it's playing, with artwork and position, and play, pause or stop it. `media_player.play_media` with a title's id plays it there; a show plays the episode that device's profile is up to.
+- Automations can follow what's playing: each device has triggers for started, paused, resumed, credits, ended and stopped, so the lights can dim when a film starts and come up at the credits. The `flexarr_playback` event covers browsers too, with the title, kind (film, episode, music or podcast) and profile.
+- For other automation tools, the server streams the same events at `GET /api/v1/events`.
+- Resuming on the Apple TV, iPhone or iPad is reported straight away, so a paused film shows as playing again at once rather than up to ten seconds later.
+
 ## 0.44.0 · 27 October 2026
 
 ### Backup and restore

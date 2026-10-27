@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Flexarr.Api.Events;
 using Flexarr.Streaming;
 
 namespace Flexarr.Api.Playback;
@@ -43,6 +44,15 @@ public sealed class PlaybackSession
     public double LastPosition { get; set; }
     public bool Paused { get; set; }
     public bool CountedAsPlay { get; set; }
+
+    /// <summary>A Started event went out for it, and no Stopped since (see <see cref="Events.PlaybackEvents"/>).</summary>
+    public bool Announced { get; set; }
+
+    /// <summary>It's past the credits marker, so the Credits event has gone out.</summary>
+    public bool InCredits { get; set; }
+
+    /// <summary>It played to the end, so the Ended event has gone out.</summary>
+    public bool Finished { get; set; }
 }
 
 public sealed partial class PlaybackSessions
@@ -51,14 +61,22 @@ public sealed partial class PlaybackSessions
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
     private readonly TranscodeManager transcodes;
     private readonly ILogger<PlaybackSessions> logger;
+    private readonly PlaybackEvents? events;
 
-    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger)
+    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger, PlaybackEvents? events = null)
     {
         this.transcodes = transcodes;
         this.logger = logger;
+        this.events = events;
 
         // A transcode ended to make way for another viewer takes its playback with it.
-        transcodes.TakenOver += id => _sessions.TryRemove(id, out _);
+        transcodes.TakenOver += id =>
+        {
+            if (_sessions.TryRemove(id, out var session))
+            {
+                events?.Removed(session);
+            }
+        };
     }
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
@@ -87,7 +105,13 @@ public sealed partial class PlaybackSessions
 
     public async Task RemoveAsync(string id)
     {
-        if (_sessions.TryRemove(id, out var session) && session.Transcode is { } transcode)
+        if (!_sessions.TryRemove(id, out var session))
+        {
+            return;
+        }
+
+        events?.Removed(session);
+        if (session.Transcode is { } transcode)
         {
             await transcodes.StopAsync(transcode.Id);
         }
@@ -95,6 +119,7 @@ public sealed partial class PlaybackSessions
 
     public async Task SweepAsync()
     {
+        events?.Sweep(_sessions.Values, DateTime.UtcNow);
         foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
         {
             try

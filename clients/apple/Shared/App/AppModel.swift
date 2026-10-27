@@ -76,6 +76,19 @@ final class AppModel {
         music.recordsHistory = player.recordsHistory
         #endif
         phase = store.load().map(Phase.signedIn) ?? .signedOut
+        #if DEBUG
+        // `-FlexarrVisitServer <url>` uses the saved sign-in with another server (a test copy of this one, which
+        // knows the same tokens) for this launch only: nothing is saved, so the next launch is back home.
+        if let visit = defaults.string(forKey: "FlexarrVisitServer"), let url = FlexarrClient.normalizeAddress(visit),
+           case .signedIn(var saved) = phase {
+            saved.address = url
+            saved.remoteAddress = nil
+            phase = .signedIn(saved)
+            upgradeChecked = true
+            remoteChecked = true
+            skipsProfileChoice = true
+        }
+        #endif
         player.onSessionEnded = { [weak self] in
             self?.invalidate()
             self?.music.videoEnded()
