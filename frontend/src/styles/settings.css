@@ -2112,9 +2112,45 @@
 }
 
 /* What opt-in error reports send and never send, in plain sight under the switch. */
-.error-reports-privacy {
-  padding: 2px 0 14px;
+.error-reports-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Opens and closes what's sent under the switch; the chevron turns when it's open. */
+.error-reports-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
   border-top: 1px solid var(--aisle);
+  background: none;
+  color: var(--usher);
+  font: inherit;
+  font-size: var(--step--1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.error-reports-disclosure:hover {
+  color: var(--screen);
+}
+
+.error-reports-disclosure svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease;
+}
+
+.error-reports-disclosure[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.error-reports-privacy {
+  padding: 0 0 14px;
   color: var(--usher);
   font-size: var(--step--1);
 }
