@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.44.0 · 27 October 2026
 
 ### Backup and restore
 - Settings › Backup and restore keeps backups of everything Flexarr can't rebuild from your media: profiles, what everyone's watched, playlists, collections, settings and signed-in devices. Artwork and previews are left out; they come back by themselves.
