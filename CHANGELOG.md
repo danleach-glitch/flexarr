@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.45.0 · 27 October 2026
 
 ### Home Assistant
 - Flexarr has a Home Assistant integration (in `clients/home-assistant`; copy it into Home Assistant's `custom_components` folder). Set it up with the server's address and the API key from Settings › Access.
