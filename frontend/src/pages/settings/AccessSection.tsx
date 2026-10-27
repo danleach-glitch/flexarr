@@ -54,6 +54,7 @@ function RemoteAccessGroups() {
 
   if (!remote.data) return <p className="muted">{remote.error ? remote.error.message : 'Checking Tailscale…'}</p>
   const { tailscale: ts } = remote.data
+  const inDocker = !ts.installed && remote.data.inContainer
   const you = (
     <>
       You’re connected from {zoneLabel[remote.data.yourConnection]}
@@ -81,7 +82,9 @@ function RemoteAccessGroups() {
           <span className="setting-text">
             <strong>Tailscale</strong>
             <span className="muted">
-              {!ts.installed
+              {inDocker
+                ? 'Not available in Docker'
+                : !ts.installed
                 ? 'Not installed on the server'
                 : !ts.running
                   ? 'Installed, not connected'
@@ -98,8 +101,15 @@ function RemoteAccessGroups() {
             </span>
           )}
         </div>
-        {ts.problem && <p className="error">{ts.problem}</p>}
-        {!ts.installed && (
+        {ts.problem && !inDocker && <p className="error">{ts.problem}</p>}
+        {inDocker && (
+          <p className="muted">
+            Flexarr runs in a container here, which can’t reach Tailscale on the computer around it, so it can’t turn this on. Run Flexarr without
+            Docker on a computer with Tailscale, or put it behind an HTTPS reverse proxy. See{' '}
+            <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
+          </p>
+        )}
+        {!ts.installed && !inDocker && (
           <p className="muted">
             Install Tailscale on the server from <a href="https://tailscale.com/download">tailscale.com/download</a>, sign in, then come back here.
           </p>

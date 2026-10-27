@@ -1087,6 +1087,8 @@ export interface RemoteAccess {
   links: { login: string; name: string; profileId: string | null }[]
   cloudflareTunnelRunning: boolean
   mainProfileHasPin: boolean
+  /** Flexarr runs in a container (Docker), which can't reach the host's Tailscale. */
+  inContainer: boolean
 }
 
 export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)

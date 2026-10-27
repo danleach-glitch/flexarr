@@ -24,7 +24,7 @@ From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the 
 In a browser away from home, open the private address instead of the usual one.
 
 > **Note**
-> Flexarr needs the `tailscale` command on the same computer it runs on to turn this on. If **Settings › Access** says Tailscale isn't installed on the server even though you've installed it, Flexarr probably runs in a container that can't see it. That's usually the case on a NAS or in Docker.
+> Flexarr needs the `tailscale` command on the same computer it runs on to turn this on. In Docker it can't see the Tailscale installed around it, so **Settings › Access** says **Not available in Docker**. To use Flexarr away from home from Docker, put it behind an [HTTPS reverse proxy](#an-https-reverse-proxy-instead), or run Flexarr without Docker on a computer with Tailscale.
 
 ### Who can get in
 
