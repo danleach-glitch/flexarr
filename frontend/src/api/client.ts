@@ -171,27 +171,44 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     body: body === undefined ? undefined : file ? body : JSON.stringify(body),
   }).finally(() => changes && clearApiCache())
 
-  if (response.status === 401) {
-    throw new UnauthorizedError()
-  }
-  if (!response.ok) {
-    let messages: string[] = []
-    let retryAfter = seconds(response.headers.get('Retry-After'))
-    let details: Record<string, unknown> | undefined
-    try {
-      const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string; detail?: string; retryAfterSeconds?: unknown }
-      messages = problem.errors ? Object.values(problem.errors).flat() : [problem.detail ?? problem.title].filter((m): m is string => !!m)
-      retryAfter = seconds(problem.retryAfterSeconds) ?? retryAfter
-      details = problem as Record<string, unknown>
-    } catch {
-      // Not a JSON problem response.
-    }
-    throw new ApiError(response.status, response.statusText, messages, retryAfter, details)
-  }
+  if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T
   }
   return JSON.parse(await response.text(), asUtc) as T
+}
+
+/** Why a request was refused: not signed in, or the server's problem with it. */
+async function failure(response: Response): Promise<Error> {
+  if (response.status === 401) return new UnauthorizedError()
+  let messages: string[] = []
+  let retryAfter = seconds(response.headers.get('Retry-After'))
+  let details: Record<string, unknown> | undefined
+  try {
+    const problem = (await response.json()) as { errors?: Record<string, string[]>; title?: string; detail?: string; retryAfterSeconds?: unknown }
+    messages = problem.errors ? Object.values(problem.errors).flat() : [problem.detail ?? problem.title].filter((m): m is string => !!m)
+    retryAfter = seconds(problem.retryAfterSeconds) ?? retryAfter
+    details = problem as Record<string, unknown>
+  } catch {
+    // Not a JSON problem response.
+  }
+  return new ApiError(response.status, response.statusText, messages, retryAfter, details)
+}
+
+/** Asks for a file (a backup, a settings file) with a POST, and saves it to the browser's downloads under the server's name for it. */
+async function download(path: string, body: unknown, fallbackName: string) {
+  const response = await fetch(`/api/v1${path}`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  if (!response.ok) throw await failure(response)
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const name = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1] ?? /filename="?([^";]+)"?/i.exec(disposition)?.[1]
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name ? decodeURIComponent(name) : fallbackName
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 /** A date and time with no zone: the server's times are all UTC, but older servers sent them without saying so. */
@@ -694,6 +711,92 @@ export function imageWidths(url: string | null | undefined, widths: number[]): s
   if (!url) return undefined
   return widths.map((w) => `${imageUrl(url, w)} ${w}w`).join(', ')
 }
+
+// ---------- Backups
+
+export type BackupKind = 'Manual' | 'Nightly' | 'PreUpgrade' | 'PreRestore'
+export interface Backup {
+  name: string
+  kind: BackupKind
+  createdAt: string
+  size: number
+  flexarrVersion: string | null
+}
+export interface Backups {
+  /** Where they're kept now. */
+  folder: string
+  /** The folder chosen in Settings; null for the default, in the data folder. */
+  folderSetting: string | null
+  nightly: boolean
+  keepNightly: number
+  backups: Backup[]
+  /** Why the folder can't be used now (a share that isn't mounted), if it can't. */
+  folderProblem: string | null
+}
+export interface BackupContents {
+  createdAt: string
+  kind: BackupKind
+  flexarrVersion: string
+  profiles: number
+  libraries: number
+  titles: number
+  /** Why it can't be restored here, if it can't. */
+  problem: string | null
+}
+export interface SettingsFileLibrary {
+  name: string
+  type: import('./types').LibraryType
+  folders: { path: string; exists: boolean }[]
+  alreadyHere: boolean
+}
+export interface SettingsFile {
+  exportedAt: string | null
+  flexarrVersion: string | null
+  sections: string[]
+  libraries: SettingsFileLibrary[]
+}
+/** A backup or settings file brought in from this browser; `kind` is null while it waits for its passphrase. */
+export interface BackupUpload {
+  id: string
+  encrypted: boolean
+  kind: 'backup' | 'settings' | null
+  backup: BackupContents | null
+  settings: SettingsFile | null
+  /** Made by a different Flexarr server: restoring it brings that server's keys and sign-ins. */
+  fromAnotherServer: boolean
+}
+export interface SettingsImportResult {
+  applied: string[]
+  librariesAdded: number
+  problems: string[]
+}
+export const getBackups = (signal?: AbortSignal) => apiGet<Backups>('/backups', signal)
+export const saveBackupSettings = (update: { folder?: string; nightly?: boolean }) => request<Backups>('PUT', '/backups/settings', update)
+export const backUpNow = () => request<Backup>('POST', '/backups')
+export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
+/**
+ * Saves a backup to this computer, protected with `passphrase` when there is one. Without one it's a plain link, so the
+ * browser writes it straight to disk rather than holding it all in the page first.
+ */
+export async function downloadBackup(name: string, passphrase?: string) {
+  if (passphrase) return download(`/backups/${encodeURIComponent(name)}/download`, { passphrase }, name)
+  const link = document.createElement('a')
+  link.href = `/api/v1/backups/${encodeURIComponent(name)}/download`
+  link.download = name
+  document.body.append(link)
+  link.click()
+  link.remove()
+}
+export const exportSettings = (passphrase?: string) => download('/backups/settings-export', { passphrase }, 'flexarr-settings.json')
+/** Puts a backup kept on the server back in place; the server restarts to do it. */
+export const restoreBackup = (name: string, confirmation: KeyConfirmation) =>
+  request<void>('POST', `/backups/${encodeURIComponent(name)}/restore`, confirmation)
+export const uploadBackupFile = (file: Blob) => request<BackupUpload>('POST', '/backups/uploads', file.type ? file : new Blob([file], { type: 'application/octet-stream' }))
+export const openBackupFile = (id: string, passphrase: string) => request<BackupUpload>('POST', `/backups/uploads/${id}/open`, { passphrase })
+export const restoreBackupFile = (id: string, confirmation: KeyConfirmation) => request<void>('POST', `/backups/uploads/${id}/restore`, confirmation)
+export const importSettingsFile = (id: string, choice: { sections: string[]; libraries: { name: string; folders: string[] }[] } & KeyConfirmation) =>
+  request<SettingsImportResult>('POST', `/backups/uploads/${id}/import`, choice)
+export const forgetBackupFile = (id: string) => request<void>('DELETE', `/backups/uploads/${id}`)
 
 export interface PlexSource {
   path: string | null

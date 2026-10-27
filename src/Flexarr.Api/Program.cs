@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Backups;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Devices;
@@ -32,6 +33,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 var dataDirectory = builder.Configuration[$"{FlexarrOptions.SectionName}:{nameof(FlexarrOptions.DataDirectory)}"] ?? "data";
 Directory.CreateDirectory(dataDirectory);
+// A backup chosen for restore goes in place now, before anything reads the settings or opens the database.
+var restored = PendingRestore.Apply(dataDirectory, DateTime.UtcNow);
 var userConfig = new ConfigurationBuilder()
     .AddJsonFile(ServerConfigStore.PathFor(dataDirectory), optional: true, reloadOnChange: true)
     .Build();
@@ -123,6 +126,10 @@ builder.Services.AddSingleton<PodcastRefreshQueue>();
 builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<ProfileImages>();
+builder.Services.AddSingleton<BackupStore>();
+builder.Services.AddSingleton<BackupUploads>();
+builder.Services.AddSingleton<IServerRestart, ServerRestart>();
+builder.Services.AddHostedService<BackupWorker>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
@@ -216,6 +223,18 @@ Directory.CreateDirectory(app.Services.GetRequiredService<IOptions<FlexarrOption
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+    var backups = app.Services.GetRequiredService<BackupStore>();
+    if (restored)
+    {
+        backups.LogRestored();
+    }
+
+    // An upgrade is about to change the database: keep a copy of it as it was, to go back to.
+    if ((await db.Database.GetPendingMigrationsAsync()).Any() && (await db.Database.GetAppliedMigrationsAsync()).Any())
+    {
+        await backups.BeforeUpgradeAsync(CancellationToken.None);
+    }
+
     await db.Database.MigrateAsync();
     // Readers (the web app, players) don't wait on a scan's writes, or the other way round. Stored in the file, but
     // a database created or restored elsewhere may not have it.
@@ -279,6 +298,7 @@ app.MapGroup("/api/v1")
     .MapDiscoveryEndpoints()
     .MapSettingsEndpoints()
     .MapImportEndpoints()
+    .MapBackupEndpoints()
     .MapUpcomingEndpoints()
     .MapHealthEndpoints()
     .MapMatchEndpoints()

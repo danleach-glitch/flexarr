@@ -21,6 +21,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
 
     public FakeWhois Whois { get; } = new();
 
+    public RecordingRestart Restart { get; } = new();
+
     public string DataDirectory { get; } = Directory.CreateTempSubdirectory("flexarr-api-").FullName;
 
     /// <summary>A scratch folder tests can use as a library root.</summary>
@@ -43,6 +45,7 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<IStartupFilter, PeerFromHeader>();
             services.AddSingleton<ITailnetWhois>(Whois);
+            services.AddSingleton<Flexarr.Api.Backups.IServerRestart>(Restart);
         });
     }
 
@@ -83,6 +86,14 @@ public sealed class PeerFromHeader : IStartupFilter
         });
         next(app);
     };
+}
+
+/// <summary>Counts restarts asked for (a restore), rather than stopping the test server.</summary>
+public sealed class RecordingRestart : Flexarr.Api.Backups.IServerRestart
+{
+    public int Requests { get; private set; }
+
+    public void Request() => Requests++;
 }
 
 /// <summary>Stands in for <c>tailscale whois</c>: tests say which login owns which tailnet address.</summary>

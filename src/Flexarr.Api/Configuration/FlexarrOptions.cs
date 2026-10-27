@@ -95,6 +95,24 @@ public sealed class FlexarrOptions
 
     /// <summary>Optional Live TV source: Dispatcharr (or another server with an Xtream Codes API).</summary>
     public LiveTvOptions? LiveTv { get; set; }
+
+    public BackupOptions Backups { get; set; } = new();
+}
+
+/// <summary>Backups of the database and settings (see <see cref="Flexarr.Api.Backups.BackupStore"/>).</summary>
+public sealed class BackupOptions
+{
+    /// <summary>Where backups are kept; unset, &lt;DataDirectory&gt;/backups. A folder on another drive survives this one failing.</summary>
+    public string? Folder { get; set; }
+
+    /// <summary>Take one every night, at half past three server time.</summary>
+    public bool Nightly { get; set; } = true;
+
+    /// <summary>How many nightly backups are kept; older ones are deleted as new ones are made.</summary>
+    public int KeepNightly { get; set; } = 7;
+
+    public string ResolvedFolder(string dataDirectory) =>
+        Path.GetFullPath(string.IsNullOrWhiteSpace(Folder) ? Path.Combine(dataDirectory, "backups") : Folder);
 }
 
 public sealed class LiveTvOptions

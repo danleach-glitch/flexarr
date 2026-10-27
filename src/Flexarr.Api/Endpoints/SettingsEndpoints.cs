@@ -386,8 +386,12 @@ public static class SettingsEndpoints
     /// the main profile's PIN when it has one (a script can't know it), otherwise an explicit "yes" from the web app
     /// (which only stops a page that wasn't written for this). Callers holding the key already needn't.
     /// </summary>
-    private static async Task<IResult?> ConfirmKeyAsync(KeyRequest? request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
-        CancellationToken ct)
+    /// <summary>
+    /// Asks again before something sensitive (the API key, a restore): the main profile's PIN when it has one, or a yes.
+    /// Null when that's given; otherwise the refusal. Signing in with the key itself is enough.
+    /// </summary>
+    internal static async Task<IResult?> ConfirmKeyAsync(KeyRequest? request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
+        CancellationToken ct, string action = "see the API key")
     {
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.ApiKey)
         {
@@ -397,12 +401,12 @@ public static class SettingsEndpoints
         var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
         if (main?.PinHash is null)
         {
-            return request?.Confirm == true ? null : Results.Problem("Confirm that you want to see the API key.", statusCode: 400);
+            return request?.Confirm == true ? null : Results.Problem($"Confirm that you want to {action}.", statusCode: 400);
         }
 
         if (string.IsNullOrEmpty(request?.Pin))
         {
-            return Results.Problem("Enter the main profile's PIN to see the API key.", statusCode: 403);
+            return Results.Problem($"Enter the main profile's PIN to {action}.", statusCode: 403);
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);

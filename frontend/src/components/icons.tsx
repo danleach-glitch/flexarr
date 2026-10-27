@@ -341,3 +341,19 @@ export const Stop = (p: IconProps) => (
     <rect x="6" y="6" width="12" height="12" rx="2" />
   </svg>
 )
+/** Download: an arrow down onto a tray. */
+export const Download = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 4v11" />
+    <path d="M7 10l5 5 5-5" />
+    <path d="M5 20h14" />
+  </svg>
+)
+/** Restore: an arrow turning back round to the start. */
+export const Restore = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7" />
+    <path d="M4 4v4.7h4.7" />
+    <path d="M12 8v4l3 2" />
+  </svg>
+)
