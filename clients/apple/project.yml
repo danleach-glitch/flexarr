@@ -49,6 +49,8 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        # Only HTTPS, which is exempt: answers App Store Connect's export compliance question for each build.
+        ITSAppUsesNonExemptEncryption: false
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
         CFBundleShortVersionString: $(MARKETING_VERSION)
