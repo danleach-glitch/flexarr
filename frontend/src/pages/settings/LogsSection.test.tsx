@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Shell } from '../../App'
-import { mockApi, movies } from '../../test/mockApi'
+import { configureSentry } from '../../lib/sentry'
+import { mockApi, movies, status } from '../../test/mockApi'
+
+// The SDK itself isn't wanted here: only that the page tells it what the switch says.
+vi.mock('../../lib/sentry', () => ({ configureSentry: vi.fn(), captureForSentry: vi.fn() }))
 
 beforeAll(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
@@ -34,9 +38,46 @@ const settings = {
   ],
   retentionDays: 14,
   maxSizeMb: 200,
+  errorReports: false,
 }
 
 describe('Settings › Logs', () => {
+  it('error reports are off until switched on, with what’s sent and never sent in sight', async () => {
+    let sent: unknown
+    mockApi({
+      '/libraries': [movies],
+      '/me': admin,
+      '/profiles': [main],
+      '/logs': { entries: [], nextCursor: null },
+      '/logs/settings': settings,
+      'PUT /logs/settings': (init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return { ...settings, errorReports: true }
+      },
+      '/logs/uploads': [],
+      '/system/status': { ...status, version: '0.44.0+abc', errorReports: { enabled: true, installId: 'install-1' } },
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/settings/logs']}>
+        <Shell />
+      </MemoryRouter>,
+    )
+
+    const toggle = await screen.findByRole('switch', { name: 'Send error reports to Flexarr’s developer' })
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByText(/titles, file names or paths/)).toBeVisible()
+    expect(screen.getByRole('link', { name: 'What exactly is sent' })).toHaveAttribute(
+      'href',
+      'https://github.com/danleach-glitch/flexarr/blob/main/docs/logging.md#error-reports',
+    )
+
+    fireEvent.click(toggle)
+    await waitFor(() => expect(sent).toEqual({ errorReports: true }))
+    await waitFor(() => expect(configureSentry).toHaveBeenCalledWith({ enabled: true, installId: 'install-1' }, '0.44.0'))
+    expect(toggle).toBeChecked()
+  })
+
   it('lists entries, follows a playback, pages back and saves a level as it changes', async () => {
     const queries: URLSearchParams[] = []
     let saved: unknown

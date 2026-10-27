@@ -1,4 +1,8 @@
 import { sendClientLogs, type ClientLogEntry } from '../api/client'
+import { redact } from './redact'
+import { captureForSentry } from './sentry'
+
+export { redact }
 
 /** How long errors gather before they go, so a burst goes as one request. */
 export const BATCH_DELAY_MS = 2000
@@ -15,18 +19,6 @@ const MAX_MESSAGE = 1000
 const MAX_DETAIL = 4000
 
 export type Send = (appVersion: string, entries: ClientLogEntry[], keepalive: boolean) => Promise<number>
-
-/**
- * Strips anything that could let someone in (API keys, tokens, PINs, passwords) out of text bound for the log:
- * addresses lose their query strings, long hex runs (keys, session ids) go, and so does a header or "key: value".
- */
-export function redact(text: string): string {
-  return text
-    .replace(/((?:https?:\/\/|\/)[^\s?"'()<>]*)\?[^\s"'()<>]*/g, '$1')
-    .replace(/[0-9a-f]{32,}/gi, '[redacted]')
-    .replace(/((?:x-api-key|x-flexarr-profile|authorization|api[_-]?key|token|password|secret)["']?\s*[:=]\s*["']?)(?:bearer\s+)?[^\s"',;&]+/gi, '$1[redacted]')
-    .replace(/\bbearer\s+[\w.~+/-]+=*/gi, 'Bearer [redacted]')
-}
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text)
 
@@ -52,7 +44,7 @@ export function describe(error: unknown): { message: string; detail?: string } {
  * more than MAX_PER_MINUTE a minute in all. Nothing goes until `enable` (signed in), and reporting never throws or
  * reports its own failures.
  */
-export function createErrorReporter(send: Send = sendClientLogs) {
+export function createErrorReporter(send: Send = sendClientLogs, forward?: (error: unknown, category: string) => void) {
   let appVersion = 'unknown'
   let enabled = false
   let queue: ClientLogEntry[] = []
@@ -81,15 +73,16 @@ export function createErrorReporter(send: Send = sendClientLogs) {
     )
   }
 
-  function report(entry: Omit<ClientLogEntry, 'timestamp'> & { timestamp?: string }) {
+  /** Takes an entry for the server's log; false when it's turned away (signed out, a repeat, or over the cap). */
+  function report(entry: Omit<ClientLogEntry, 'timestamp'> & { timestamp?: string }): boolean {
     try {
-      if (!enabled) return
+      if (!enabled) return false
       const now = Date.now()
       const key = `${entry.category} ${entry.message}`
       const last = seen.get(key)
-      if (last !== undefined && now - last < DEDUPE_MS) return
+      if (last !== undefined && now - last < DEDUPE_MS) return false
       recent = recent.filter((t) => now - t < 60_000)
-      if (recent.length >= MAX_PER_MINUTE) return
+      if (recent.length >= MAX_PER_MINUTE) return false
       recent.push(now)
       seen.set(key, now)
       if (seen.size > 500) for (const [k, t] of seen) if (now - t >= DEDUPE_MS) seen.delete(k)
@@ -105,8 +98,10 @@ export function createErrorReporter(send: Send = sendClientLogs) {
       })
       if (queue.length >= MAX_BATCH) flush()
       else timer ??= setTimeout(flush, BATCH_DELAY_MS)
+      return true
     } catch {
       // Reporting must never be the thing that breaks.
+      return false
     }
   }
 
@@ -114,7 +109,14 @@ export function createErrorReporter(send: Send = sendClientLogs) {
   function reportError(error: unknown, category: string, properties?: Record<string, string>) {
     const { message, detail } = describe(error)
     if (isNoise(message, error)) return
-    report({ level: 'Error', category, message, error: detail, properties })
+    // The same error goes to Sentry too, when error reports are on: deduped and capped the same way.
+    if (report({ level: 'Error', category, message, error: detail, properties })) {
+      try {
+        forward?.(error, category)
+      } catch {
+        // Nor Sentry.
+      }
+    }
   }
 
   return {
@@ -141,7 +143,7 @@ export function createErrorReporter(send: Send = sendClientLogs) {
 export type ErrorReporter = ReturnType<typeof createErrorReporter>
 
 /** The app's one reporter. */
-export const errorReporter = createErrorReporter()
+export const errorReporter = createErrorReporter(sendClientLogs, captureForSentry)
 
 let installed = false
 

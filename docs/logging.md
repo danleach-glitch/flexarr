@@ -1,6 +1,6 @@
 # Logs
 
-Flexarr keeps a log of what the server and its apps do, so when something goes wrong (a film won't play, a scan stalls, Sonarr can't be reached) you can see why. Everything stays on your server: nothing is sent anywhere else.
+Flexarr keeps a log of what the server and its apps do, so when something goes wrong (a film won't play, a scan stalls, Sonarr can't be reached) you can see why. Everything stays on your server. The one exception is [error reports](#error-reports), which are off unless you turn them on.
 
 ## Reading the log
 
@@ -49,3 +49,33 @@ Logs are kept for **14 days** and the folder is capped at **100 MB**; the oldest
 | Anywhere else | `<data directory>/logs`, or set `Flexarr__Logs__Directory` |
 
 **Download diagnostics** on the Logs page makes a zip of the logs, diagnostics from apps, your settings (with every key and password blanked) and a description of the server (version, OS, ffmpeg, free space, library sizes).
+
+## Error reports
+
+You can choose to send error reports to Flexarr's developer, so bugs get found and fixed sooner. **It's off unless you turn it on**, in **Settings › Server › Logs** (main profile only). One switch covers the server and every Apple TV, iPhone and browser connected to it, and turning it off stops it at once everywhere.
+
+Reports go to [Sentry](https://sentry.io), an error-tracking service, which stores them in the EU (Germany).
+
+**What's sent**, and only when something goes wrong:
+
+- what went wrong and where in Flexarr's code (the error and its stack trace)
+- the Flexarr version, the operating system, and the device model
+- a random id for your server, made when you turn reports on, so repeats from one server can be told apart. It isn't linked to you, your account or your address.
+
+**What's never sent:**
+
+- titles, file names or paths, or anything about your library
+- what anyone watches, and your logs
+- profile names and device names
+- addresses: IP addresses, your server's address, network names
+- keys, passwords and tokens
+
+**How that's enforced:** reports are cleaned on your server or device before they leave it:
+
+1. The server sends its log message *templates* ("Couldn't scan {Folder}"), never the values filled in.
+2. The same redaction the logs use removes keys, passwords and tokens.
+3. A stricter pass removes web addresses, file paths, media file names, email and IP addresses, and anything in quotes, where titles and names usually appear.
+4. Sentry's own collection of personal data is turned off, and so are its extras: no breadcrumbs, request details, screenshots, performance tracing or session tracking.
+5. The apps send only the type and code of an error they log, never the message text. Crashes include the stack trace.
+
+A report that can't be cleaned isn't sent. Reports are rate-limited, and Sentry deletes them after at most 90 days.

@@ -15,7 +15,8 @@ namespace Flexarr.Api.Logging;
 
 public sealed record LogAreaSetting(string Key, string? Name, LogEventLevel? Level);
 
-public sealed record LogSettingsDto(LogEventLevel? Level, IReadOnlyList<LogAreaSetting>? Areas, int? RetentionDays, int? MaxSizeMb);
+/// <param name="ErrorReports">Send errors to Flexarr's developer through Sentry: off unless turned on here.</param>
+public sealed record LogSettingsDto(LogEventLevel? Level, IReadOnlyList<LogAreaSetting>? Areas, int? RetentionDays, int? MaxSizeMb, bool? ErrorReports = null);
 
 public static class LogEndpoints
 {
@@ -74,6 +75,18 @@ public static class LogEndpoints
                 if (update.MaxSizeMb is { } size)
                 {
                     logs["maxSizeMb"] = Math.Clamp(size, 10, 10_000);
+                }
+
+                if (update.ErrorReports is { } reports)
+                {
+                    logs["errorReports"] = reports;
+
+                    // A random id, made the first time it's turned on: it lets one server's repeats be told apart, and
+                    // says nothing about the server or its owner.
+                    if (reports && string.IsNullOrEmpty(current.Logs.ErrorReportsId))
+                    {
+                        logs["errorReportsId"] = Guid.NewGuid().ToString("N");
+                    }
                 }
 
                 config["logs"] = logs;
@@ -202,5 +215,6 @@ public static class LogEndpoints
         [.. LogAreas.All.Select(a => new LogAreaSetting(a.Key, a.Name,
             logs.Areas.FirstOrDefault(x => x.Key.Equals(a.Key, StringComparison.OrdinalIgnoreCase)) is { Key: not null } set ? set.Value : null))],
         logs.RetentionDays,
-        logs.MaxSizeMb);
+        logs.MaxSizeMb,
+        logs.ErrorReports);
 }

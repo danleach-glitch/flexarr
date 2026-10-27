@@ -31,6 +31,7 @@ import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from
 import { UpcomingPage } from './pages/UpcomingPage'
 import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
+import { configureSentry } from './lib/sentry'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/app.css'
@@ -128,8 +129,11 @@ export default function App() {
     migrateStoredApiKey()
       .then(() => getSystemStatus(controller.signal))
       // Signed in from here: this browser's errors go to the server's log, as the version the server serves.
+      // And to Flexarr's developer too, only when the main profile has switched error reports on.
       .then((status) => {
-        errorReporter.enable(status.version.split('+')[0])
+        const version = status.version.split('+')[0]
+        errorReporter.enable(version)
+        configureSentry(status.errorReports, version)
       })
       // An older server without profiles still works: carry on as the main profile.
       .then(() =>

@@ -36,6 +36,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Flexarr:ApiKey", ApiKey);
         builder.UseSetting("Flexarr:DataDirectory", DataDirectory);
         builder.UseSetting("Flexarr:AuthenticationRequired", "Enabled");
+        // Never send the tests' errors to Sentry, even with error reports switched on.
+        builder.UseSetting("Flexarr:Logs:ErrorReportsDsn", "");
         builder.UseSetting("Flexarr:PathMappings:0:From", "/data");
         builder.UseSetting("Flexarr:PathMappings:0:To", "/Volumes/Media/data");
         builder.ConfigureServices(services =>

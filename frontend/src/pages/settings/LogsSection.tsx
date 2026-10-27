@@ -4,6 +4,7 @@ import {
   getLogs,
   getLogSettings,
   getLogUploads,
+  getSystemStatus,
   logStreamUrl,
   logUploadUrl,
   saveLogSettings,
@@ -15,7 +16,8 @@ import {
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { formatSize, relativeTime } from '../../lib/format'
-import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
+import { configureSentry } from '../../lib/sentry'
+import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
 /** The levels worth choosing between; Verbose and Fatal still show up in the list. */
@@ -240,6 +242,65 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
   )
 }
 
+export const errorReportsDocs = 'https://github.com/danleach-glitch/flexarr/blob/main/docs/logging.md#error-reports'
+
+/** This browser follows the server's switch at once, without waiting for a reload. */
+async function followSwitch(on: boolean) {
+  const status = await getSystemStatus()
+  configureSentry(status.errorReports ?? { enabled: on, installId: null }, status.version.split('+')[0])
+}
+
+/**
+ * The one switch for opt-in error reports to Flexarr's developer, for the server and every app, with what's sent and
+ * what never is in plain sight beside it.
+ */
+function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (settings: LogSettings) => void }) {
+  const [on, setOn] = useState(settings.errorReports)
+  const [saved, setSaved] = useState<string>()
+  const [error, setError] = useState<string>()
+
+  async function change(next: boolean) {
+    setOn(next)
+    setError(undefined)
+    // Off stops this browser's reports before the server has even answered.
+    if (!next) configureSentry({ enabled: false, installId: null }, '')
+    try {
+      const result = await saveLogSettings({ errorReports: next })
+      onSaved(result)
+      setOn(result.errorReports)
+      setSaved(result.errorReports ? 'On' : 'Off')
+      setTimeout(() => setSaved(undefined), 3000)
+      await followSwitch(result.errorReports).catch(() => {})
+    } catch (e) {
+      setOn(settings.errorReports)
+      setError(errorText(e))
+      await followSwitch(settings.errorReports).catch(() => {})
+    }
+  }
+
+  return (
+    <SettingsGroup title="Error reports" note={saved || error ? <SaveStatus saved={saved} error={error} /> : undefined}>
+      <ToggleRow label="Send error reports to Flexarr’s developer" checked={on} onChange={(next) => void change(next)} />
+      <div className="error-reports-privacy">
+        <p>Off by default. When on, errors from this server and its apps (not your logs) go to Sentry so bugs can be fixed sooner.</p>
+        <p>
+          <strong>Sent:</strong> what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.
+        </p>
+        <p>
+          <strong>Never sent:</strong> titles, file names or paths, what you watch, profile or device names, addresses (IP, server, network), keys or
+          passwords. These are removed on your server or device before anything leaves it.
+        </p>
+        <p>
+          Switching off stops it at once, on every app.{' '}
+          <a href={errorReportsDocs} target="_blank" rel="noreferrer">
+            What exactly is sent
+          </a>
+        </p>
+      </div>
+    </SettingsGroup>
+  )
+}
+
 /** How much the server writes, overall and area by area, and how long it keeps it. Each change saves as it's made. */
 function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (settings: LogSettings) => void }) {
   const [draft, setDraft] = useState(settings)
@@ -373,6 +434,7 @@ export function LogsSection() {
           </a>
         }
       />
+      {settings && <ErrorReports settings={settings} onSaved={setSettings} />}
       <LogViewer areaNames={areaNames} />
       {settings ? <LogLevels settings={settings} onSaved={setSettings} /> : loaded.error && <SaveStatus error={errorText(loaded.error)} />}
       <DeviceUploads />

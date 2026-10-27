@@ -177,6 +177,60 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
             settings.GetProperty("areas").EnumerateArray().First(a => a.GetProperty("key").GetString() == key).GetProperty("level").GetString();
     }
 
+    [Theory]
+    [InlineData("Couldn't open '/Volumes/Media/data/movies/Dune (2021)/Dune.mkv'", "Couldn't open \"…\"")]
+    [InlineData("Probe failed for /Volumes/Media/data/movies/Dune (2021)/Dune Part Two.mkv: timeout", "Probe failed for <path> Part <file>: timeout")]
+    [InlineData("Could not find a part of the path /Users/dan/.flexarr/data/cache/x", "Could not find a part of the path <path>")]
+    [InlineData("Sonarr at http://192.168.1.106:8989/api/v3/series failed", "Sonarr at <server>/api/v3/series failed")]
+    [InlineData("connect to 10.0.0.12 refused", "connect to <ip> refused")]
+    [InlineData("No match for “The Bear” in TVmaze", "No match for \"…\" in TVmaze")]
+    [InlineData("mail dan@example.com about it", "mail <email> about it")]
+    [InlineData("Transcode segment 14 failed: exit code 1", "Transcode segment 14 failed: exit code 1")]
+    public void ErrorReportsKeepNothingAboutTheUser(string message, string expected) => Assert.Equal(expected, ErrorReports.Scrub(message));
+
+    [Fact]
+    public async Task ErrorReportsAreOffUntilTurnedOnAndTheAppsFollow()
+    {
+        var admin = Admin();
+        admin.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+
+        var before = await admin.GetFromJsonAsync<JsonElement>(Api("/system/status"));
+        var settings = await admin.GetFromJsonAsync<JsonElement>(Api("/logs/settings"));
+        Assert.False(before.GetProperty("errorReports").GetProperty("enabled").GetBoolean());
+        Assert.False(settings.GetProperty("errorReports").GetBoolean());
+
+        try
+        {
+            await admin.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = true });
+            var on = await admin.GetFromJsonAsync<JsonElement>(Api("/system/status"));
+            var id = on.GetProperty("errorReports").GetProperty("installId").GetString();
+            Assert.True(on.GetProperty("errorReports").GetProperty("enabled").GetBoolean());
+            Assert.Matches("^[0-9a-f]{32}$", id);
+
+            await admin.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = false });
+            var off = await admin.GetFromJsonAsync<JsonElement>(Api("/system/status"));
+            Assert.False(off.GetProperty("errorReports").GetProperty("enabled").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, off.GetProperty("errorReports").GetProperty("installId").ValueKind);
+        }
+        finally
+        {
+            await admin.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = false });
+        }
+    }
+
+    [Fact]
+    public async Task OnlyAdminsSwitchErrorReports()
+    {
+        var device = await DeviceAsync("Not an admin TV");
+        await device.GetAsync(Api("/system/status"));
+
+        // A device sign-in is the main profile unless it picked another; a profile that isn't main can't manage the server.
+        var profile = factory.CreateClient();
+        var sent = await profile.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = true });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, sent.StatusCode);
+    }
+
     private async Task<HttpClient> DeviceAsync(string name)
     {
         var response = await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = name });

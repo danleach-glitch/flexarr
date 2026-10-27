@@ -22,10 +22,12 @@ public static class LoggingSetup
         var levels = new LogLevels();
         levels.Update(settings);
         var feed = new LogFeed();
+        var errorReports = new ErrorReports(settings.ErrorReportsDsn);
 
         builder.Services.AddSingleton(paths);
         builder.Services.AddSingleton(levels);
         builder.Services.AddSingleton(feed);
+        builder.Services.AddSingleton(errorReports);
         builder.Services.AddSingleton<LogReader>();
         builder.Services.AddSingleton<ClientLogs>();
         builder.Services.AddScoped<Diagnostics>();
@@ -45,7 +47,8 @@ public static class LoggingSetup
             .WriteTo.Console(
                 new RedactingFormatter(new MessageTemplateTextFormatter("{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")),
                 restrictedToMinimumLevel: settings.ConsoleLevel)
-            .WriteTo.Sink(feed),
+            .WriteTo.Sink(feed)
+            .WriteTo.Sink(errorReports),
             // This server's own logger, not Serilog's global one: several servers in one process (the tests) otherwise
             // write into whichever was set up last.
             preserveStaticLogger: true);
@@ -56,12 +59,14 @@ public static class LoggingSetup
     {
         var options = app.Services.GetRequiredService<IOptionsMonitor<FlexarrOptions>>();
         var levels = app.Services.GetRequiredService<LogLevels>();
+        var errorReports = app.Services.GetRequiredService<ErrorReports>();
         Apply(options.CurrentValue);
         options.OnChange(Apply);
 
         void Apply(FlexarrOptions current)
         {
             levels.Update(current.Logs);
+            errorReports.Apply(current.Logs);
             Redactor.UseSecrets([
                 current.ApiKey, current.WebhookSecret, current.ImageSecret, current.Seerr?.ApiKey, current.LiveTv?.Password,
                 .. current.Arr.Select(a => a.ApiKey),

@@ -2108,3 +2108,24 @@
     margin-left: 0;
   }
 }
+
+/* What opt-in error reports send and never send, in plain sight under the switch. */
+.error-reports-privacy {
+  padding: 2px 0 14px;
+  border-top: 1px solid var(--aisle);
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
+.error-reports-privacy p {
+  margin: 10px 0 0;
+}
+
+.error-reports-privacy strong {
+  color: var(--screen);
+  font-weight: 600;
+}
+
+.error-reports-privacy a {
+  color: var(--screen);
+}

@@ -10,6 +10,7 @@
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="Serilog.Expressions" />
+    <PackageReference Include="Sentry" />
   </ItemGroup>
   <ItemGroup>
     <!-- Shown in Settings › About, so it always matches the version that's running. -->

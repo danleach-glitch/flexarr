@@ -16,6 +16,13 @@ export interface SystemStatus {
   startTime: string
   /** The server's address for away from home (over Tailscale), once remote access is on. */
   remoteUrl: string | null
+  /** Whether errors go to Flexarr's developer (Sentry), and this server's random id for them; older servers leave it out. */
+  errorReports?: ErrorReports
+}
+
+export interface ErrorReports {
+  enabled: boolean
+  installId: string | null
 }
 
 export interface ScanStatus {
@@ -774,6 +781,8 @@ export interface LogSettings {
   areas: { key: string; name: string; level: LogLevel | null }[]
   retentionDays: number
   maxSizeMb: number
+  /** Errors from the server and its apps go to Flexarr's developer. Off unless switched on. */
+  errorReports: boolean
 }
 
 export interface LogSettingsUpdate {
@@ -781,6 +790,7 @@ export interface LogSettingsUpdate {
   areas?: { key: string; level: LogLevel | null }[]
   retentionDays?: number
   maxSizeMb?: number
+  errorReports?: boolean
 }
 
 /** Diagnostics an Apple TV or iPhone sent from its own settings. */

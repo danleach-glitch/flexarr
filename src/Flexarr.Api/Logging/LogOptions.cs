@@ -29,5 +29,17 @@ public sealed class LogOptions
     /// </summary>
     public LogEventLevel ConsoleLevel { get; set; } = LogEventLevel.Information;
 
+    /// <summary>
+    /// Send errors to Flexarr's developer through Sentry (see <see cref="ErrorReports"/>). Off unless the main profile
+    /// turns it on; the apps follow it too.
+    /// </summary>
+    public bool ErrorReports { get; set; }
+
+    /// <summary>A random id for this server in error reports, so one install's repeats can be told apart. Nothing else.</summary>
+    public string? ErrorReportsId { get; set; }
+
+    /// <summary>Where the server's error reports go. Empty sends none (the tests). Read at startup.</summary>
+    public string ErrorReportsDsn { get; set; } = Logging.ErrorReports.ServerDsn;
+
     public string ResolvedDirectory(string dataDirectory) => Path.GetFullPath(Directory ?? Path.Combine(dataDirectory, "logs"));
 }
