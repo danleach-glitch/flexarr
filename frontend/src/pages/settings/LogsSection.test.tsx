@@ -72,10 +72,43 @@ describe('Settings › Logs', () => {
       'https://github.com/danleach-glitch/flexarr/blob/main/docs/logging.md#error-reports',
     )
 
+    const dot = toggle.closest('label')!.querySelector('.status-dot')!
+    expect(dot).toHaveClass('bad')
+
     fireEvent.click(toggle)
     await waitFor(() => expect(sent).toEqual({ errorReports: true }))
     await waitFor(() => expect(configureSentry).toHaveBeenCalledWith({ enabled: true, installId: 'install-1' }, '0.44.0'))
     expect(toggle).toBeChecked()
+    expect(dot).toHaveClass('ok')
+  })
+
+  it('what’s sent folds away, and stays folded next time', async () => {
+    mockApi({
+      '/libraries': [movies],
+      '/me': admin,
+      '/profiles': [main],
+      '/logs': { entries: [], nextCursor: null },
+      '/logs/settings': settings,
+      '/logs/uploads': [],
+    })
+    const page = () =>
+      render(
+        <MemoryRouter initialEntries={['/settings/logs']}>
+          <Shell />
+        </MemoryRouter>,
+      )
+
+    const first = page()
+    const disclosure = await screen.findByRole('button', { name: 'What’s sent, and what never is' })
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(disclosure)
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText(/titles, file names or paths/)).not.toBeVisible()
+    first.unmount()
+
+    page()
+    expect(await screen.findByRole('button', { name: 'What’s sent, and what never is' })).toHaveAttribute('aria-expanded', 'false')
+    localStorage.clear()
   })
 
   it('lists entries, follows a playback, pages back and saves a level as it changes', async () => {

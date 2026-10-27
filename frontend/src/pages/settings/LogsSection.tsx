@@ -14,6 +14,7 @@ import {
   type LogSettingsUpdate,
 } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
+import { ChevronDown } from '../../components/icons'
 import { useApi } from '../../hooks/useApi'
 import { formatSize, relativeTime } from '../../lib/format'
 import { configureSentry } from '../../lib/sentry'
@@ -244,6 +245,25 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
 
 export const errorReportsDocs = 'https://github.com/danleach-glitch/flexarr/blob/main/docs/logging.md#error-reports'
 
+/** Whether "what's sent" is open under the switch: this browser's own choice, kept across visits. Open until closed. */
+const privacyOpenKey = 'flexarr.errorReports.detailsOpen'
+
+function readPrivacyOpen() {
+  try {
+    return localStorage.getItem(privacyOpenKey) !== '0'
+  } catch {
+    return true
+  }
+}
+
+function keepPrivacyOpen(open: boolean) {
+  try {
+    localStorage.setItem(privacyOpenKey, open ? '1' : '0')
+  } catch {
+    // Private windows and blocked storage: it just opens again next time.
+  }
+}
+
 /** This browser follows the server's switch at once, without waiting for a reload. */
 async function followSwitch(on: boolean) {
   const status = await getSystemStatus()
@@ -258,6 +278,12 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
   const [on, setOn] = useState(settings.errorReports)
   const [saved, setSaved] = useState<string>()
   const [error, setError] = useState<string>()
+  const [detailsOpen, setDetailsOpen] = useState(readPrivacyOpen)
+
+  function toggleDetails() {
+    setDetailsOpen(!detailsOpen)
+    keepPrivacyOpen(!detailsOpen)
+  }
 
   async function change(next: boolean) {
     setOn(next)
@@ -279,9 +305,22 @@ function ErrorReports({ settings, onSaved }: { settings: LogSettings; onSaved: (
   }
 
   return (
-    <SettingsGroup title="Error reports" note={saved || error ? <SaveStatus saved={saved} error={error} /> : undefined}>
-      <ToggleRow label="Send error reports to Flexarr’s developer" checked={on} onChange={(next) => void change(next)} />
-      <div className="error-reports-privacy">
+    <SettingsGroup title="Error reports" action={saved || error ? <SaveStatus saved={saved} error={error} /> : undefined}>
+      <ToggleRow
+        label={
+          <span className="error-reports-label">
+            <span className={on ? 'status-dot ok' : 'status-dot bad'} aria-hidden="true" />
+            Send error reports to Flexarr’s developer
+          </span>
+        }
+        checked={on}
+        onChange={(next) => void change(next)}
+      />
+      <button type="button" className="error-reports-disclosure" aria-expanded={detailsOpen} aria-controls="error-reports-privacy" onClick={toggleDetails}>
+        What’s sent, and what never is
+        <ChevronDown aria-hidden="true" />
+      </button>
+      <div className="error-reports-privacy" id="error-reports-privacy" hidden={!detailsOpen}>
         <p>Off by default. When on, errors from this server and its apps (not your logs) go to Sentry so bugs can be fixed sooner.</p>
         <p>
           <strong>Sent:</strong> what went wrong and where in the code; Flexarr version; OS and device model; a random id for this server.
@@ -336,7 +375,7 @@ function LogLevels({ settings, onSaved }: { settings: LogSettings; onSaved: (set
   const status = saved || error ? <SaveStatus saved={saved} error={error} /> : undefined
   return (
     <>
-      <SettingsGroup title="Levels" note={status}>
+      <SettingsGroup title="Levels" action={status}>
         <SettingRow label="Default level">
           <select value={draft.level} onChange={(e) => void save({ level: e.target.value as LogLevel }, { ...draft, level: e.target.value as LogLevel })}>
             {levels.map((l) => (

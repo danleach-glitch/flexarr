@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Logs
+- Error reports in Settings › Logs show a green or red dot for on and off, and what's sent folds away under the switch; your browser remembers whether it's open.
+
 ## 0.46.0 · 27 October 2026
 
 ### Home Assistant
