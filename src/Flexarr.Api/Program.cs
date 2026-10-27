@@ -8,6 +8,7 @@ using Flexarr.Api.Endpoints;
 using Flexarr.Api.Import;
 using Flexarr.Api.LiveTv;
 using Flexarr.Api.Mcp;
+using Flexarr.Api.Notifications;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Playlists;
 using Flexarr.Api.Podcasts;
@@ -126,6 +127,9 @@ builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
 builder.Services.AddSingleton<DeviceCommands>();
+builder.Services.AddHttpClient<PushRelay>(c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddScoped<Notifier>();
+builder.Services.AddHostedService<NotificationWorker>();
 // An AI assistant's way in (Claude and the like): the same sign-in as a script, at /api/v1/mcp.
 builder.Services.AddMcpServer(o =>
 {
@@ -291,6 +295,7 @@ app.MapGroup("/api/v1")
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()
     .MapDeviceEndpoints()
+    .MapNotificationEndpoints()
     .MapSessionEndpoints();
 
 app.MapMcp("/api/v1/mcp").RequireAuthorization();

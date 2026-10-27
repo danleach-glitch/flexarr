@@ -100,6 +100,7 @@ targets:
       - package: FlexarrKit
       - package: AetherEngine
       - target: FlexarrWidgets
+      - target: FlexarrNotificationService
     info:
       path: FlexarriOS/Info.plist
       properties:
@@ -149,7 +150,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_IOS_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # The app group (shared with the widgets) and CarPlay need a provisioning profile that includes them: the app
+        # The app group (shared with the widgets and the notification extension), push notifications and CarPlay need a
+        # provisioning profile that includes them: the app
         # group once Xcode is signed in to the team's account, CarPlay once Apple grants the entitlement. Until then
         # device builds go without both (the widgets show nothing, the car doesn't list the app); the simulator
         # always has them. For a device build pass FLEXARR_IOS_ENTITLEMENTS=FlexarriOS/FlexarriOS.entitlements (the
@@ -180,6 +182,32 @@ targets:
         "FLEXARR_WIDGET_ENTITLEMENTS[sdk=iphonesimulator*]": Widgets/FlexarrWidgets.entitlements
         CODE_SIGN_ENTITLEMENTS: $(FLEXARR_WIDGET_ENTITLEMENTS)
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) WIDGET
+  # Opens the server's sealed notifications (the relay only carries "Something new is ready"): the real text, buttons
+  # and artwork. The key it opens them with is in the Keychain, under the app group (see NotificationKey).
+  FlexarrNotificationService:
+    type: app-extension
+    platform: iOS
+    sources: [NotificationService]
+    dependencies:
+      - package: FlexarrKit
+    info:
+      path: NotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_IOS_BUNDLE_ID).NotificationService
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # As the app's (see FLEXARR_IOS_ENTITLEMENTS).
+        FLEXARR_NOTIFICATION_ENTITLEMENTS: ""
+        "FLEXARR_NOTIFICATION_ENTITLEMENTS[sdk=iphonesimulator*]": NotificationService/NotificationService.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(FLEXARR_NOTIFICATION_ENTITLEMENTS)
   # Smoke test that walks the app against a live server and saves screenshots.
   # Skipped unless FLEXARR_SERVER and FLEXARR_KEY are passed (as TEST_RUNNER_FLEXARR_*).
   FlexarriOSUITests:

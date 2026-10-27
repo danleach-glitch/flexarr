@@ -4,6 +4,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Flexarr.Core.Notifications;
 using Flexarr.Integrations.Arr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -169,7 +170,8 @@ public static class RequestEndpoints
             }
         });
 
-        group.MapPost("/", async (TitleRequest request, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (TitleRequest request, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CurrentProfile current,
+            CancellationToken ct) =>
         {
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
             {
@@ -189,6 +191,14 @@ public static class RequestEndpoints
             try
             {
                 await seerr.RequestAsync(instance, request.MediaType, request.TmdbId, ct);
+                // Remembered here (Seerr only knows Flexarr asked), so whoever asked hears when it's in.
+                var kind = KindOf(request.MediaType);
+                if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == current.Id && r.Kind == kind && r.TmdbId == request.TmdbId && r.FulfilledAt == null, ct))
+                {
+                    db.MediaRequests.Add(new MediaRequest { ProfileId = current.Id, Kind = kind, TmdbId = request.TmdbId });
+                    await db.SaveChangesAsync(ct);
+                }
+
                 return Results.Accepted();
             }
             catch (HttpRequestException ex)

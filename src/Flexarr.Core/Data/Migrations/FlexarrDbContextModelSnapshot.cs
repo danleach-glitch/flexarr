@@ -1088,6 +1088,127 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("WatchTombstones");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Notifications.MediaRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FulfilledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId");
+
+                    b.HasIndex("FulfilledAt", "Kind", "TmdbId");
+
+                    b.ToTable("MediaRequests");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Notifications.NotificationCursor", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Through")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Kind");
+
+                    b.ToTable("NotificationCursors");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Notifications.NotificationDevice", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Films")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Key")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<bool>("Podcasts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Recordings")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Requests")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Shows")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SignInId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Upcoming")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UpcomingHour")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("UpcomingSentOn")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId");
+
+                    b.HasIndex("Token");
+
+                    b.ToTable("NotificationDevices");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastEpisode", b =>
                 {
                     b.Property<Guid>("MediaItemId")
@@ -1537,6 +1658,24 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Collections");
 
                     b.Navigation("Playback");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Notifications.MediaRequest", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Notifications.NotificationDevice", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Flexarr.Core.Podcasts.PodcastEpisode", b =>

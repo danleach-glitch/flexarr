@@ -584,13 +584,13 @@ public struct FlexarrClient: Sendable {
         }
     }
 
-    /// Reads ASP.NET problem details (`errors`, `detail` or `title`) into one message.
+    /// Reads ASP.NET problem details (`errors`, `detail` or `title`), or a plain `reason`, into one message.
     static func problemMessage(_ data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         if let errors = object["errors"] as? [String: [String]], let first = errors.values.flatMap({ $0 }).first {
             return first
         }
-        return (object["detail"] as? String) ?? (object["title"] as? String)
+        return (object["detail"] as? String) ?? (object["title"] as? String) ?? (object["reason"] as? String)
     }
 
     public static let decoder: JSONDecoder = {

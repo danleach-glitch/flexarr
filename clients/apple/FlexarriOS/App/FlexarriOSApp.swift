@@ -5,17 +5,24 @@ import SwiftUI
 import UserNotifications
 
 /// Owns the downloads, so the system can hand back ones that finished while the app was closed, and wakes now and
-/// then to fetch new episodes of the podcasts this phone keeps.
+/// then to fetch new episodes of the podcasts this phone keeps. Hears Apple's device token and what's done with a
+/// notification.
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let podcastRefresh = "io.github.flexarr.podcasts"
 
     let downloads = DownloadStore()
+    let notifications = PushNotifications()
     /// The app model, once the window's up: what a tapped notification plays or opens with.
-    weak var model: AppModel?
+    weak var model: AppModel? {
+        didSet {
+            // Signing out stops this phone's notifications on the server while its sign-in still works.
+            model?.onSignOut = { [notifications] client in await notifications.signedOut(client) }
+        }
+    }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
-        MainActor.assumeIsolated { PodcastNotifier.registerCategory() }
+        MainActor.assumeIsolated { PushNotifications.registerCategories() }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.podcastRefresh, using: .main) { [weak self] task in
             MainActor.assumeIsolated { self?.refreshPodcasts(Refresh(task: task)) }
         }
@@ -29,27 +36,97 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     // MARK: Notifications
 
-    /// In front: new episodes still show, as a banner.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        notifications.received(token: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: any Error) {
+        notifications.failedToRegister(error)
+    }
+
+    /// In front: notifications still show, as a banner.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
 
-    /// A new-episode notification: Play plays it; a tap opens its show.
+    /// A button on a notification, or a tap on it (which opens what it's about: the title, or the podcast).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        let info = response.notification.request.content.userInfo
-        let episodeId = info[PodcastNotifier.episodeKey] as? String
-        let podcastId = info[PodcastNotifier.podcastKey] as? String
-        let play = response.actionIdentifier == PodcastNotifier.playAction
-        await MainActor.run {
-            guard let model = self.model, let client = model.client else { return }
-            Task { @MainActor in
-                if play, let episodeId, let episode = try? await client.podcastEpisode(episodeId) {
-                    model.playEpisode(episode.summary)
-                } else if let podcastId, let podcast = try? await client.podcast(podcastId) {
-                    model.pendingRoute = .item(podcast.summary)
-                }
+        let content = response.notification.request.content
+        var info: [String: String] = [:]
+        for case let (key as String, value as String) in content.userInfo { info[key] = value }
+        await respond(to: response.actionIdentifier, category: content.categoryIdentifier, info: info)
+    }
+
+    @MainActor
+    private func respond(to action: String, category: String, info: [String: String]) async {
+        switch action {
+        case UNNotificationDismissActionIdentifier:
+            return
+        case PushNotifications.downloadAction:
+            await download(info["play"] ?? info["episode"], podcast: category == PushNotifications.podcastCategory)
+        case PushNotifications.playOnTvAction:
+            await playOnTv(info["play"] ?? info["item"])
+        default:
+            guard let model = await appModel() else { return }
+            if action == PushNotifications.playAction, let id = info["play"] ?? info["episode"],
+               let url = URL(string: "flexarr://play/\(id)") {
+                model.open(url: url)
+            } else if let podcastId = info["podcast"] {
+                if let podcast = try? await model.client?.podcast(podcastId) { model.pendingRoute = .item(podcast.summary) }
+            } else if let id = info["item"], let url = URL(string: "flexarr://item/\(id)") {
+                model.open(url: url)
             }
         }
+    }
+
+    /// The app model, waiting a moment for it when a notification opened the app from closed (the window isn't up yet).
+    @MainActor
+    private func appModel() async -> AppModel? {
+        for _ in 0..<50 where model == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        return model
+    }
+
+    /// The sign-in, from the app or (woken in the background with no window) from what's saved.
+    @MainActor
+    private var client: FlexarrClient? { model?.client ?? CredentialStore().load()?.client() }
+
+    /// Download, without opening the app: the server gets it ready and the phone fetches it in the background.
+    @MainActor
+    private func download(_ itemId: String?, podcast: Bool) async {
+        guard let itemId, let client else { return }
+        if !downloads.isAttached { downloads.attach(client: client, profileId: nil) }
+        do {
+            // Podcast episodes come as they are, as the episode list's download button has them.
+            if podcast {
+                try await downloads.download(itemId: itemId, quality: .original)
+            } else {
+                try await downloads.download(itemId: itemId)
+            }
+        } catch {
+            await tell("Couldn't download this", ConnectionError(error).message)
+        }
+    }
+
+    /// Play on Apple TV: on the one Siri plays on if Flexarr is open there, otherwise the one used most recently of
+    /// those with Flexarr open.
+    @MainActor
+    private func playOnTv(_ itemId: String?) async {
+        guard let itemId, let client else { return }
+        let open = ((try? await client.devices()) ?? []).filter { $0.online && !$0.isThisOne }
+        guard let device = open.first(where: { $0.id == AppModel.siriDevice }) ?? open.max(by: { $0.lastUsedAt < $1.lastUsedAt }) else {
+            await tell("No Apple TV to play on", "Open Flexarr on your Apple TV, then try again.")
+            return
+        }
+        let delivered = (try? await client.play(on: device.id, itemId: itemId))?.delivered ?? false
+        if !delivered { await tell("Couldn't play on \(device.name)", "Make sure Flexarr is open on it, then try again.") }
+    }
+
+    /// A notification of the phone's own, for a button that couldn't do its job with the app closed.
+    private func tell(_ title: String, _ body: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
     /// Asks to be woken in an hour or so (the system decides when, by how the phone is used).
@@ -74,7 +151,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 downloads.attach(client: client, profileId: nil)
             }
             await downloads.catchUp()
-            if let client { await PodcastNotifier.check(client: client, profileId: downloads.profileId) }
             refresh.task.setTaskCompleted(success: !Task.isCancelled)
         }
         refresh.task.expirationHandler = { work.cancel() }
@@ -102,6 +178,7 @@ struct FlexarriOSApp: App {
             RootView()
                 .environment(model)
                 .environment(delegate.downloads)
+                .environment(delegate.notifications)
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }
@@ -113,6 +190,7 @@ struct FlexarriOSApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
+    @Environment(PushNotifications.self) private var notifications
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -146,17 +224,21 @@ struct RootView: View {
             model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.offlineLibrary = downloads
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
-            if let client = model.client { await PodcastNotifier.check(client: client, profileId: model.currentProfile?.id) }
+            if model.client != nil { notifications.refresh() }
         }
         .onChange(of: model.phase) { old, new in
-            if case .signedIn = old, new == .signedOut { downloads.deleteAll() }
+            if case .signedIn = old, new == .signedOut {
+                downloads.deleteAll()
+                notifications.forget()
+            }
         }
-        // Back in front: new podcast episodes, and anything else that's due. Leaving: a wake-up for later.
+        // Back in front: anything that's due, and Apple's device token again in case it changed. Leaving: a wake-up
+        // for later.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, model.credentials != nil {
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
-                if let client = model.client { Task { await PodcastNotifier.check(client: client, profileId: model.currentProfile?.id) } }
+                notifications.refresh()
             }
             if phase == .background, model.credentials != nil {
                 AppDelegate.schedulePodcastRefresh()

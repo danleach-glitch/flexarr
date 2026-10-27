@@ -1,6 +1,7 @@
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
 using Flexarr.Core.Media;
+using Flexarr.Core.Notifications;
 using Flexarr.Core.Podcasts;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,6 +36,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<LiveLastChannel> LiveLastChannels => Set<LiveLastChannel>();
     public DbSet<RecordingRule> RecordingRules => Set<RecordingRule>();
     public DbSet<Recording> Recordings => Set<Recording>();
+    public DbSet<NotificationDevice> NotificationDevices => Set<NotificationDevice>();
+    public DbSet<MediaRequest> MediaRequests => Set<MediaRequest>();
+    public DbSet<NotificationCursor> NotificationCursors => Set<NotificationCursor>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -283,6 +287,34 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<LiveChannel>().WithMany().HasForeignKey(l => l.ChannelId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(l => l.ChannelId);
             e.Property(l => l.WatchedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        });
+
+        modelBuilder.Entity<NotificationDevice>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Id).HasMaxLength(300);
+            e.Property(d => d.SignInId).HasMaxLength(64);
+            e.Property(d => d.ProfileId).HasMaxLength(64);
+            e.Property(d => d.Token).HasMaxLength(256);
+            e.Property(d => d.Environment).HasMaxLength(16);
+            e.Property(d => d.TimeZone).HasMaxLength(64);
+            // A profile's phones stop hearing about it when it goes.
+            e.HasOne<Profile>().WithMany().HasForeignKey(d => d.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => d.Token);
+        });
+
+        modelBuilder.Entity<MediaRequest>(e =>
+        {
+            e.Property(r => r.ProfileId).HasMaxLength(64);
+            e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
+        });
+
+        modelBuilder.Entity<NotificationCursor>(e =>
+        {
+            e.HasKey(c => c.Kind);
+            e.Property(c => c.Kind).HasMaxLength(32);
+            e.Property(c => c.Through).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

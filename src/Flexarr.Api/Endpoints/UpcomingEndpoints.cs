@@ -30,7 +30,8 @@ public sealed record UpcomingDto(
     bool Available,
     DownloadStateDto? Download,
     string? Source = null,
-    string? ManageUrl = null);
+    string? ManageUrl = null,
+    int? TmdbId = null);
 
 /// <param name="Source">The Sonarr or Radarr instance it's in, by name.</param>
 /// <param name="ManageUrl">That instance's queue, where a stuck download is sorted out.</param>
@@ -124,7 +125,7 @@ public static class UpcomingEndpoints
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
                     movies.GetValueOrDefault(movie.TmdbId.ToString(CultureInfo.InvariantCulture)), movie.HasFile, download, radarr.Name,
-                    movie.TitleSlug is { } slug ? WebUrl(radarr, host, $"movie/{slug}") : null));
+                    movie.TitleSlug is { } slug ? WebUrl(radarr, host, $"movie/{slug}") : null, movie.TmdbId));
             }
         }
 

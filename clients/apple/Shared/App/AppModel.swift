@@ -27,6 +27,8 @@ final class AppModel {
     }
     /// Up Next or what's playing changed (the iPhone's widgets follow).
     @ObservationIgnored var onPodcastsChange: (() -> Void)?
+    /// About to sign out, with the sign-in still working: the iPhone stops its notifications.
+    @ObservationIgnored var onSignOut: (@MainActor (FlexarrClient) async -> Void)?
     private(set) var profiles: [Profile] = []
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
@@ -153,7 +155,13 @@ final class AppModel {
 
     func signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
-        if let client = credentials?.client { Task { try? await client.signOut() } }
+        if let client = credentials?.client {
+            let leaving = onSignOut
+            Task {
+                await leaving?(client)
+                try? await client.signOut()
+            }
+        }
         forget()
     }
 
