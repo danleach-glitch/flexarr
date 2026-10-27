@@ -14,7 +14,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 - **Music:** queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums
 - **Podcasts:** Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple)
 - **Apple apps:** Apple TV, iPhone and iPad with Flexarr's own player, profiles, Top Shelf, downloads, Picture in Picture and AirPlay
-- **Control:** Siri and Shortcuts (play, shuffle, on another device), play on another device, an MCP server for assistants, Home Assistant (media players and playback triggers)
+- **Control:** Siri and Shortcuts (play, shuffle, on another device), play on another device, an MCP server for assistants, [Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant) (media players and playback triggers)
 - **Profiles and access:** per-person history and settings, PINs, a sign-in per device, Bonjour and code pairing, Tailscale with automatic fallback
 
 ## Next
