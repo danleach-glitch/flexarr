@@ -454,7 +454,7 @@ public static class SettingsEndpoints
         }
     }
 
-    /// <summary>Hardware encoders this ffmpeg build actually has (checked once).</summary>
+    /// <summary>Hardware encoders this ffmpeg build has and can reach (checked once).</summary>
     private static async Task<IReadOnlyList<HardwareAcceleration>> AvailableAsync(FlexarrOptions options, CancellationToken ct)
     {
         if (_available is not null)
@@ -470,8 +470,10 @@ public static class SettingsEndpoints
             var encoders = await process.StandardOutput.ReadToEndAsync(ct);
             await process.WaitForExitAsync(ct);
             if (encoders.Contains("h264_videotoolbox", StringComparison.Ordinal)) found.Add(HardwareAcceleration.VideoToolbox);
-            if (encoders.Contains("h264_vaapi", StringComparison.Ordinal)) found.Add(HardwareAcceleration.Vaapi);
-            if (encoders.Contains("h264_qsv", StringComparison.Ordinal)) found.Add(HardwareAcceleration.Qsv);
+            // On Linux, VA-API and Quick Sync go through a render device, which a container only has when it's passed
+            // in (--device /dev/dri): an ffmpeg with the encoders but no device can't use them, so they aren't offered.
+            if (encoders.Contains("h264_vaapi", StringComparison.Ordinal) && File.Exists(options.Transcoding.VaapiDevice)) found.Add(HardwareAcceleration.Vaapi);
+            if (encoders.Contains("h264_qsv", StringComparison.Ordinal) && (!OperatingSystem.IsLinux() || HasRenderDevice())) found.Add(HardwareAcceleration.Qsv);
             if (encoders.Contains("h264_nvenc", StringComparison.Ordinal)) found.Add(HardwareAcceleration.Nvenc);
         }
         catch (System.ComponentModel.Win32Exception)
@@ -481,4 +483,7 @@ public static class SettingsEndpoints
 
         return _available = found;
     }
+
+    private static bool HasRenderDevice() =>
+        Directory.Exists("/dev/dri") && Directory.EnumerateFileSystemEntries("/dev/dri", "renderD*").Any();
 }

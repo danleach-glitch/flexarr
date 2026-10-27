@@ -150,22 +150,22 @@
 <p>The <code>latest</code> tag is always the newest <a href="https://github.com/danleach-glitch/flexarr/releases" rel="noopener">release</a>. To upgrade only when you choose, use a version instead, such as <code>ghcr.io/danleach-glitch/flexarr:0.49</code>.</p>
 <h2 id="linux"><a class="anchor" href="#linux" aria-hidden="true" tabindex="-1">#</a>Linux</h2>
 <h3 id="permissions"><a class="anchor" href="#permissions" aria-hidden="true" tabindex="-1">#</a>Permissions</h3>
-<p>The container runs as user ID <code>1654</code>, not as root, and doesn&#39;t read <code>PUID</code> or <code>PGID</code> settings. It needs to write to its settings folder and read your media. The simplest way is to run it as the user who owns your media, with Docker&#39;s <code>--user</code> option (<code>user:</code> in Compose). Find your IDs with <code>id</code>:</p>
+<p>Flexarr runs as user ID <code>1654</code> unless you tell it otherwise. It needs to write to its settings folder and read your media, so the simplest way is to run it as the user who owns your media with <code>PUID</code> and <code>PGID</code>, as with Sonarr, Radarr and Lidarr. Find your IDs with <code>id</code>:</p>
 <pre><code class="language-bash">id
 # uid=1000(you) gid=1000(you) ...
 </code></pre>
-<p>Create the settings folder yourself before starting the container, so it belongs to you rather than to root:</p>
-<pre><code class="language-bash">mkdir -p ~/flexarr/config
-</code></pre>
+<p>When it starts, Flexarr gives its settings folder to that user, so it doesn&#39;t matter if Docker created the folder as root.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Docker&#39;s <code>--user</code> option (<code>user:</code> in Compose) works too, in place of <code>PUID</code> and <code>PGID</code>. The container then changes no owners, so create the settings folder yourself first (<code>mkdir -p ~/flexarr/config</code>) so it belongs to you.</p>
+</blockquote>
 <h3 id="docker-run"><a class="anchor" href="#docker-run" aria-hidden="true" tabindex="-1">#</a>docker run</h3>
 <pre><code class="language-bash">docker run -d --name flexarr --restart unless-stopped \
-  --user 1000:1000 \
+  -e PUID=1000 -e PGID=1000 \
   -p 8383:8383 \
   -v ~/flexarr/config:/config \
   -v /path/to/media:/data/media \
   ghcr.io/danleach-glitch/flexarr:latest
 </code></pre>
-<blockquote class="callout tip"><p><strong>Tip</strong> If you&#39;d rather not deal with permissions, keep the settings in a named Docker volume instead: leave out <code>--user</code> and use <code>-v flexarr-config:/config</code>. Docker sets that volume up so Flexarr can write to it. Your media still needs to be readable by everyone, or by user <code>1654</code>.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> You can keep the settings in a named Docker volume instead, with <code>-v flexarr-config:/config</code>.</p>
 </blockquote>
 <h3 id="docker-compose"><a class="anchor" href="#docker-compose" aria-hidden="true" tabindex="-1">#</a>Docker Compose</h3>
 <p>Save this as <code>docker-compose.yml</code> and run <code>docker compose up -d</code> in the same folder.</p>
@@ -173,7 +173,7 @@
   flexarr:
     image: ghcr.io/danleach-glitch/flexarr:latest
     container_name: flexarr
-    user: &quot;1000:1000&quot;
+    environment: [PUID=1000, PGID=1000]
     ports: [&quot;8383:8383&quot;]
     volumes:
       - ./config:/config
@@ -182,10 +182,15 @@
 </code></pre>
 <p>If Sonarr, Radarr and Lidarr are in the same Compose file, give them the same media mount (<code>/path/to/media:/data/media</code>). They can then reach Flexarr at <code>http://flexarr:8383</code> for webhooks.</p>
 <h3 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h3>
-<p>Flexarr converts video on the processor unless you pick something else in <strong>Settings › Streaming › Hardware acceleration</strong>. On Linux, <strong>Automatic</strong> means the processor. The menu lists only the encoders the image&#39;s FFmpeg was built with, which can include VA-API, Intel Quick Sync and NVIDIA NVENC.</p>
-<blockquote class="callout important"><p><strong>Important</strong> Hardware transcoding in Docker isn&#39;t ready-made yet. The image doesn&#39;t include the Intel or AMD drivers that VA-API and Quick Sync need, so choosing them is likely to make conversions fail. Leave the setting on <strong>Automatic</strong> unless you&#39;ve tested otherwise. The Apple apps play most files directly, so many homes rarely need conversion at all.</p>
+<p>Flexarr converts video on the processor unless you pick something else in <strong>Settings › Streaming › Hardware acceleration</strong>. On Linux, <strong>Automatic</strong> means the processor. The menu lists only what the container can use. The Apple apps play most files directly, so many homes rarely need conversion at all.</p>
+<p><strong>Intel and AMD graphics.</strong> The image includes the VA-API drivers: AMD&#39;s on both <code>amd64</code> and <code>arm64</code>, Intel&#39;s (with Quick Sync) on <code>amd64</code> only. Pass the graphics device into the container, with <code>--device /dev/dri</code> for <code>docker run</code> or this under the service in Compose:</p>
+<pre><code class="language-yaml">    devices:
+      - /dev/dri:/dev/dri
+</code></pre>
+<p>Flexarr joins the device&#39;s group by itself. Then <strong>VA-API (Intel and AMD on Linux)</strong>, and on Intel <strong>Intel Quick Sync</strong>, appear in <strong>Settings › Streaming</strong>. Choose one and play something that needs converting. If it fails, set it back to <strong>Automatic</strong>.</p>
+<blockquote class="callout note"><p><strong>Note</strong> With <code>--user</code> in place of <code>PUID</code>, Flexarr can&#39;t join the device&#39;s group by itself. Add it with <code>--group-add</code> (<code>group_add:</code> in Compose), using the group number from <code>ls -n /dev/dri</code>.</p>
 </blockquote>
-<p><strong>NVIDIA</strong> is the exception worth trying, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add this to the service in Compose:</p>
+<p><strong>NVIDIA</strong> works too, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add this to the service in Compose:</p>
 <pre><code class="language-yaml">    runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all

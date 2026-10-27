@@ -64,11 +64,20 @@ If Sonarr, Radarr and Lidarr are in the same Compose file, give them the same me
 
 ### Hardware transcoding
 
-Flexarr converts video on the processor unless you pick something else in **Settings › Streaming › Hardware acceleration**. On Linux, **Automatic** means the processor. The menu lists only the encoders the image's FFmpeg was built with, which can include VA-API, Intel Quick Sync and NVIDIA NVENC.
+Flexarr converts video on the processor unless you pick something else in **Settings › Streaming › Hardware acceleration**. On Linux, **Automatic** means the processor. The menu lists only what the container can use. The Apple apps play most files directly, so many homes rarely need conversion at all.
 
-> **Important** Hardware transcoding in Docker isn't ready-made yet. The image doesn't include the Intel or AMD drivers that VA-API and Quick Sync need, so choosing them is likely to make conversions fail. Leave the setting on **Automatic** unless you've tested otherwise. The Apple apps play most files directly, so many homes rarely need conversion at all.
+**Intel and AMD graphics.** The image includes the VA-API drivers: AMD's on both `amd64` and `arm64`, Intel's (with Quick Sync) on `amd64` only. Pass the graphics device into the container, with `--device /dev/dri` for `docker run` or this under the service in Compose:
 
-**NVIDIA** is the exception worth trying, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add this to the service in Compose:
+```yaml
+    devices:
+      - /dev/dri:/dev/dri
+```
+
+Flexarr joins the device's group by itself. Then **VA-API (Intel and AMD on Linux)**, and on Intel **Intel Quick Sync**, appear in **Settings › Streaming**. Choose one and play something that needs converting. If it fails, set it back to **Automatic**.
+
+> **Note** With `--user` in place of `PUID`, Flexarr can't join the device's group by itself. Add it with `--group-add` (`group_add:` in Compose), using the group number from `ls -n /dev/dri`.
+
+**NVIDIA** works too, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add this to the service in Compose:
 
 ```yaml
     runtime: nvidia
