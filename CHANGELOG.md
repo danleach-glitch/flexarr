@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### iPhone, iPad and Apple TV
+- When Flexarr asks to use your local network, it now says why: to find your Flexarr server at home so you can connect without typing an address, with an example.
+
 ## 0.49.2 · 27 October 2026
 
 ### Website and guide

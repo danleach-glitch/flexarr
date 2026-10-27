@@ -1,4 +1,4 @@
-.PHONY: guide apple-install ios-install ios-upload ios-dsyms setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: guide apple-install ios-install ios-upload ios-dsyms tv-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -97,6 +97,22 @@ ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
 
 guide: ## Build flexarr.io/guide (site/guide) from docs/guide
 	cd scripts/guide && npm ci --silent && node build.mjs
+
+# Archive the tvOS app and upload it to App Store Connect. Pass the iOS app's bundle ID to ship both on one
+# listing (universal purchase); the Top Shelf extension becomes <bundle id>.topshelf.
+#   make tv-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios
+tv-upload: ## Archive the tvOS app and upload it to App Store Connect
+	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make tv-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
+	cd clients/apple && xcodegen generate --quiet
+	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination 'generic/platform=tvOS' \
+		-archivePath build/apple/FlexarrTV.xcarchive -allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
+		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
+		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
+		'</dict></plist>' > build/apple/ExportOptions.plist
+	xcodebuild -exportArchive -archivePath build/apple/FlexarrTV.xcarchive -exportOptionsPlist build/apple/ExportOptions.plist \
+		-exportPath build/apple/export-tv -allowProvisioningUpdates $(ASC_AUTH)
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
