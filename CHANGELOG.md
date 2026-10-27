@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.48.0 · 27 October 2026
 
 ### iPhone
 - After you've finished a few films or episodes on more than one day, the iPhone app may ask whether you're enjoying Flexarr, using Apple's own star-rating box. It asks at most once a version, never during playback, and iOS limits it to three times a year.
