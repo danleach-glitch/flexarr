@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Error reports
+- Reports sent while Flexarr is being developed or tested are now kept apart from reports from real use, so problems you hit show up clearly.
+
 ## 0.49.0 · 27 October 2026
 
 ### Setting up
