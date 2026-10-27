@@ -59,7 +59,7 @@ targets:
         # Self-hosted servers are usually plain HTTP on the LAN.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        NSLocalNetworkUsageDescription: Flexarr connects to your media server on the local network.
+        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your films, shows and music from it."
         # Servers announce themselves (Bonjour) so the connect screen can list them.
         NSBonjourServices: [_flexarr._tcp]
         # flexarr://item/<id> opens a title, flexarr://play/<id> plays it.
@@ -142,7 +142,7 @@ targets:
         # Self-hosted servers are usually plain HTTP on the LAN.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        NSLocalNetworkUsageDescription: Flexarr connects to your media server on the local network.
+        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your films, shows, music and podcasts from it."
         # Servers announce themselves (Bonjour) so the connect screen can list them.
         NSBonjourServices: [_flexarr._tcp]
         # flexarr://item/<id> opens a title, flexarr://play/<id> plays it.
