@@ -72,7 +72,7 @@ Finding the server by itself works when Flexarr runs natively on a Mac. In Docke
 Every app has **Enter an address instead** under the list of servers.
 
 - **iPhone and iPad:** type the server's address, such as `http://192.168.1.20:8383`, and choose **Connect**. You get a code to approve, as above. Away from home, **Connecting from outside your home? Use an API key** asks for the [API key](first-setup.md#the-api-key) instead.
-- **Apple TV:** type the address and the **API key**. The key isn't needed if the address is the server's Tailscale address.
+- **Apple TV:** the same as iPhone: type the address and choose **Connect** to get a code, or **Connecting from outside your home? Use an API key** away from home.
 
 Use the server's IP address and port. You'll find the IP address in your router's list of devices, or on the server itself.
 

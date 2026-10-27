@@ -90,7 +90,7 @@ Plain `http://` is fine on a home network you trust. Anywhere else, use Tailscal
 Devices normally connect with a code you approve in **Settings › Access › Connect a device**, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:
 
 - **iPhone and iPad:** on the connect screen, choose **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
-- **Apple TV:** under **Enter an address instead**, type the address and the API key. Over Tailscale it isn't needed.
+- **Apple TV:** the same: **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
 
 The API key is in **Settings › Access** under **API key**. Showing it asks for the main profile's PIN. It's also in `config.json`.
 

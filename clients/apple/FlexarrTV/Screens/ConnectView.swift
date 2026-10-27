@@ -4,8 +4,8 @@ import SwiftUI
 import UIKit
 
 /// First run. Servers on the network are listed (they announce themselves), so there's nothing to type: pick one and
-/// the TV shows a code and QR code to approve from a phone or computer signed in to Flexarr. Typing an address (and
-/// API key) is still there for servers that can't be found, such as over Tailscale.
+/// the TV shows a code and QR code to approve from a phone or computer signed in to Flexarr. Typing an address is
+/// still there for servers that can't be found (in Docker, or over Tailscale), and leads to the same code.
 struct ConnectView: View {
     @Environment(AppModel.self) private var model
     @State private var browser = ServerBrowser()
@@ -46,7 +46,7 @@ struct ConnectView: View {
                 case .pair(let server):
                     PairWithServer(server: server, onBack: { step = .choose })
                 case .manual:
-                    ManualConnect(onBack: { step = .choose })
+                    ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
                 }
             }
             .frame(width: 820)
@@ -254,11 +254,15 @@ private struct QRCode: View {
 
 // MARK: - Typed address and key
 
+/// A server that can't be found (in Docker, or over Tailscale): type its address and connect with a code like any
+/// other. The API key is only for connecting from outside the home network and tailnet, where codes aren't offered.
 private struct ManualConnect: View {
     @Environment(AppModel.self) private var model
+    let onPair: (DiscoveredServer) -> Void
     let onBack: () -> Void
     @State private var address = ""
     @State private var apiKey = ""
+    @State private var usesKey = false
     @State private var isConnecting = false
     @State private var error: String?
     @FocusState private var focus: Field?
@@ -274,14 +278,20 @@ private struct ManualConnect: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .focused($focus, equals: .address)
-                    .submitLabel(.next)
-                    .onSubmit { focus = .key }
+                    .submitLabel(usesKey ? .next : .go)
+                    .onSubmit { if usesKey { focus = .key } else { connect() } }
             }
-            field("API key (not needed over Tailscale)") {
-                SecureField("Paste or type your API key", text: $apiKey)
-                    .focused($focus, equals: .key)
-                    .submitLabel(.go)
-                    .onSubmit { connect() }
+            if usesKey {
+                field("API key") {
+                    SecureField("Paste or type your API key", text: $apiKey)
+                        .focused($focus, equals: .key)
+                        .submitLabel(.go)
+                        .onSubmit { connect() }
+                }
+            } else {
+                Text("You’ll get a code to approve, like a server found on your network.")
+                    .font(.system(size: 24))
+                    .foregroundStyle(Color.usher)
             }
 
             HStack(spacing: 24) {
@@ -311,10 +321,18 @@ private struct ManualConnect: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color(red: 0.42, green: 0.2, blue: 0.28).opacity(0.6)))
             }
+
+            if !usesKey {
+                Button("Connecting from outside your home? Use an API key") {
+                    usesKey = true
+                    focus = .key
+                }
+                .buttonStyle(ActionButtonStyle(prominent: false))
+            }
         }
         .onAppear {
             if address.isEmpty { address = model.store.lastAddress ?? "" }
-            focus = address.isEmpty ? .address : .key
+            focus = address.isEmpty ? .address : .connect
         }
     }
 
@@ -330,6 +348,14 @@ private struct ManualConnect: View {
 
     private func connect() {
         guard !isConnecting else { return }
+        if !usesKey {
+            guard let server = FlexarrClient.normalizeAddress(address) else {
+                error = "That doesn’t look like a server address. Try one like http://192.168.1.20:8383."
+                return
+            }
+            onPair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
+            return
+        }
         isConnecting = true
         error = nil
         Task {
