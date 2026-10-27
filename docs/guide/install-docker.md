@@ -19,31 +19,29 @@ The `latest` tag is always the newest [release](https://github.com/danleach-glit
 
 ### Permissions
 
-The container runs as user ID `1654`, not as root, and doesn't read `PUID` or `PGID` settings. It needs to write to its settings folder and read your media. The simplest way is to run it as the user who owns your media, with Docker's `--user` option (`user:` in Compose). Find your IDs with `id`:
+Flexarr runs as user ID `1654` unless you tell it otherwise. It needs to write to its settings folder and read your media, so the simplest way is to run it as the user who owns your media with `PUID` and `PGID`, as with Sonarr, Radarr and Lidarr. Find your IDs with `id`:
 
 ```bash
 id
 # uid=1000(you) gid=1000(you) ...
 ```
 
-Create the settings folder yourself before starting the container, so it belongs to you rather than to root:
+When it starts, Flexarr gives its settings folder to that user, so it doesn't matter if Docker created the folder as root.
 
-```bash
-mkdir -p ~/flexarr/config
-```
+> **Note** Docker's `--user` option (`user:` in Compose) works too, in place of `PUID` and `PGID`. The container then changes no owners, so create the settings folder yourself first (`mkdir -p ~/flexarr/config`) so it belongs to you.
 
 ### docker run
 
 ```bash
 docker run -d --name flexarr --restart unless-stopped \
-  --user 1000:1000 \
+  -e PUID=1000 -e PGID=1000 \
   -p 8383:8383 \
   -v ~/flexarr/config:/config \
   -v /path/to/media:/data/media \
   ghcr.io/danleach-glitch/flexarr:latest
 ```
 
-> **Tip** If you'd rather not deal with permissions, keep the settings in a named Docker volume instead: leave out `--user` and use `-v flexarr-config:/config`. Docker sets that volume up so Flexarr can write to it. Your media still needs to be readable by everyone, or by user `1654`.
+> **Tip** You can keep the settings in a named Docker volume instead, with `-v flexarr-config:/config`.
 
 ### Docker Compose
 
@@ -54,7 +52,7 @@ services:
   flexarr:
     image: ghcr.io/danleach-glitch/flexarr:latest
     container_name: flexarr
-    user: "1000:1000"
+    environment: [PUID=1000, PGID=1000]
     ports: ["8383:8383"]
     volumes:
       - ./config:/config

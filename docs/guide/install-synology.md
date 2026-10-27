@@ -20,7 +20,7 @@ Note where your media is, for example `/volume1/data/media` with `movies`, `tv` 
 
 ## 3. Find your user ID
 
-The Flexarr container doesn't read `PUID` or `PGID` settings. Instead you tell it which user to run as, so it can write to its folder and read your media. You need that user's numeric ID and group ID.
+You tell the Flexarr container which user to run as, with `PUID` and `PGID`, so it can write to its folder and read your media. You need that user's numeric ID and group ID.
 
 1. In **Control Panel › Terminal & SNMP**, tick **Enable SSH service** and apply.
 2. From a computer, connect with `ssh yourname@your-nas` and run `id`:
@@ -46,7 +46,7 @@ The Flexarr container doesn't read `PUID` or `PGID` settings. Instead you tell i
      flexarr:
        image: ghcr.io/danleach-glitch/flexarr:latest
        container_name: flexarr
-       user: "1026:100"
+       environment: [PUID=1026, PGID=100]
        ports: ["8383:8383"]
        volumes:
          - /volume1/docker/flexarr/config:/config

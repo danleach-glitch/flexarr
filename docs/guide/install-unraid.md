@@ -19,22 +19,23 @@ On Unraid, Flexarr runs as a Docker container. There's no Community Applications
    - **Network Type**: `Bridge`
 3. Switch the form to the advanced view with the **Basic View** toggle at the top right, and fill in:
    - **WebUI**: `http://[IP]:[PORT:8383]/`
-   - **Extra Parameters**: `--user 99:100`
-4. Add the port, the settings folder and your media with **Add another Path, Port, Variable, Label or Device** at the bottom, one at a time:
+4. Add the port, the settings folder, your media and the user to run as with **Add another Path, Port, Variable, Label or Device** at the bottom, one at a time:
 
    | Config Type | Name | Container | Host |
    | --- | --- | --- | --- |
    | Port | Web UI | `8383` | `8383` |
    | Path | Config | `/config` | `/mnt/user/appdata/flexarr` |
    | Path | Media | `/data/media` | `/mnt/user/data/media` |
+   | Variable | PUID | `PUID` | `99` |
+   | Variable | PGID | `PGID` | `100` |
 
    Change the media paths to match yours. The container path should be the one your \*arrs use inside their containers.
 5. Click **Apply**. Unraid downloads the image and starts Flexarr.
 
 
-### Why `--user 99:100`
+### Why `PUID` 99 and `PGID` 100
 
-The Flexarr container runs as its own user rather than root, and doesn't read `PUID` or `PGID` variables. `--user 99:100` runs it as Unraid's usual `nobody:users`, the owner of files on your shares and in appdata, so it can write its settings and read your media. If your other containers use a different `PUID` and `PGID`, use those numbers instead.
+They run Flexarr as Unraid's usual `nobody:users`, the owner of files on your shares and in appdata, so it can write its settings and read your media. If your other containers use a different `PUID` and `PGID`, use those numbers instead. Flexarr gives `appdata/flexarr` to that user when it starts.
 
 ### Media paths
 

@@ -35,11 +35,12 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /app ./
 COPY --from=web /src/frontend/dist ./wwwroot
+COPY deploy/docker/entrypoint.sh /usr/local/bin/flexarr-entrypoint
 
 ENV Flexarr__DataDirectory=/config \
     ASPNETCORE_HTTP_PORTS=8383
-RUN mkdir /config && chown $APP_UID /config
+RUN mkdir /config && chown $APP_UID:$APP_UID /config
 VOLUME /config
 EXPOSE 8383
-USER $APP_UID
-ENTRYPOINT ["dotnet", "Flexarr.dll"]
+# Starts as root only to hand /config to PUID:PGID (1654 unless set), then runs Flexarr as that user. --user skips it.
+ENTRYPOINT ["flexarr-entrypoint"]
