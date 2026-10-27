@@ -9,7 +9,7 @@ struct HomeScreenSettingsView: View {
     var body: some View {
         SettingsPage(title: "Home screen") {
             SettingsGroupLabel("Top Shelf")
-            ForEach([TopShelfStyle.wide, .posters], id: \.self) { style in
+            ForEach(TopShelfStyle.allCases, id: \.self) { style in
                 SettingsRow(title: style.label, symbol: style == .wide ? "rectangle.inset.filled" : "rectangle.portrait.inset.filled",
                             help: style.help, accessory: topShelf == style ? .checkmark : .none) {
                     topShelf = style

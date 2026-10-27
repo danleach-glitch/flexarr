@@ -37,11 +37,9 @@ final class TopShelfTour: XCTestCase {
         logFocus("opened")
         XCTAssertTrue(showingDetail, "the link didn't open the title")
 
-        // Up to the tab bar and across to Home: Home as it was, not the title. (Tabs don't report being selected to
-        // UI tests on tvOS; the screenshots show which is.)
-        press(.up, times: 4, wait: 0.8)
-        for _ in 0..<8 where !app.buttons["Home"].hasFocus { press(.left, wait: 0.8) }
-        pause(3)
+        // Home in the sidebar: Home as it was, not the title. (Tabs don't report being selected to UI tests on tvOS;
+        // the screenshots show which is.)
+        app.openSidebarRow("Home", wait: 3)
         shot("72-home-tab")
         logFocus("home tab")
         XCTAssertFalse(showingDetail, "Home showed the title opened from the Top Shelf")

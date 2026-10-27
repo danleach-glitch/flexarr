@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The music that's playing, as its own tab while there is any: the cover, the track's name, how far it's got, the
 /// transport controls and what comes next. The remote's play/pause works here as everywhere; Menu goes back to the
-/// tab bar with the music on. A Lyrics control, there when the track has any, opens the words as a page of their own,
+/// sidebar with the music on. A Lyrics control, there when the track has any, opens the words as a page of their own,
 /// which Menu closes.
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model

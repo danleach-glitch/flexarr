@@ -1,7 +1,7 @@
 import FlexarrKit
 import XCTest
 
-/// Drives "Who's watching?" and the profile button in the tab bar with the Siri Remote against a live server
+/// Drives "Who's watching?" and the profile at the top of the sidebar with the Siri Remote against a live server
 /// (several profiles needed), saving a screenshot at each stop. Same environment as `ScreenshotTour`.
 @MainActor
 final class ProfilePickerTour: XCTestCase {
@@ -49,16 +49,18 @@ final class ProfilePickerTour: XCTestCase {
         XCTAssertEqual(startFocused, afterLeft, "left should move focus back")
     }
 
-    /// Choose the first profile, reach the profile button at the end of the tab bar, and open the picker from it.
-    func testCornerButtonAndSwitchPicker() async throws {
+    /// Choose the first profile, reach the profile at the top of the sidebar, and open the picker from it.
+    func testSidebarProfileAndSwitchPicker() async throws {
         press(.select, wait: 6)
         shot("20-home")
+        app.focusSidebarRow("Home")
+        shot("21-sidebar")
+        // Up from Home is the profile watching now.
         press(.up, wait: 1.5)
-        shot("21-tab-bar")
-        // Right past the last tab lands on the profile button.
-        press(.right, times: 8, wait: 0.8)
-        shot("22-corner-button-focused")
-        logFocus("corner")
+        shot("22-sidebar-profile-focused")
+        let profile = app.focusedSidebarRow
+        guard let profile, profile != "Home" else { return XCTFail("the sidebar should start with the profile") }
+        logFocus("profile \(profile)")
 
         press(.select, wait: 3) // straight to "Who's watching?"
         shot("23-switch-picker")

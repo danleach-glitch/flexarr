@@ -57,7 +57,7 @@ struct HomeView: View {
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
-        // Under the hero; with none (only Live TV so far), the rows start below the tab bar.
+        // Under the hero; with none (only Live TV so far), the rows start below the sidebar's label at the top.
         .ignoresSafeArea(edges: home.featured.isEmpty ? [.horizontal] : [.top, .horizontal])
     }
 
@@ -84,8 +84,9 @@ struct HomeHero: View {
     let items: [ItemSummary]
     let overviews: [String: String?]
     @Binding var index: Int
-    /// Controls at the top-left, under the tab bar (a library's Browse and All switch); up from Play reaches them.
+    /// Controls at the top-left, under the sidebar's label (a library's Browse and All switch); up from Play reaches them.
     var top: AnyView?
+    @Environment(\.focusesContent) private var takesFocus
     @FocusState private var focusedButton: HeroButton?
     @Namespace private var heroScope
 
@@ -146,9 +147,9 @@ struct HomeHero: View {
             }
             .padding(.leading, Layout.edge)
             .padding(.bottom, 40)
-            // The focusable part of the hero is this corner, which sits below the tab bar. Coming down from the tab bar
-            // the focus engine looks for a section beneath it; one spanning the whole hero (tab bar included) isn't,
-            // and the rows' second poster was winning.
+            // The focusable part of the hero is this corner. Coming in from the sidebar (or down from the switch above)
+            // the focus engine looks for a section beside it; one spanning the whole hero isn't, and the rows' second
+            // poster was winning.
             .focusSection()
 
             if let top {
@@ -161,14 +162,16 @@ struct HomeHero: View {
         }
         .frame(height: 900)
         .frame(maxWidth: .infinity)
-        // Coming down from the tab bar (or back up from the rows) lands on Play.
+        // Coming in from the sidebar (or back up from the rows) lands on Play.
         .focusScope(heroScope)
         .defaultFocus($focusedButton, .play, priority: .userInitiated)
         .onChange(of: focusedButton) { old, new in
-            // The focus engine picks the geometrically nearest button (often More info under
-            // the tab bar); entering the hero should always land on Play.
+            // The focus engine picks the geometrically nearest button (often More info, nearer
+            // the sidebar); entering the hero should always land on Play.
             if old == nil, new == .info { focusedButton = .play }
         }
+        .onAppear(perform: takeFocus)
+        .onChange(of: takesFocus.wrappedValue, takeFocus)
         .task(id: HeroClock(index: index, focused: focusedButton != nil)) {
             // While the hero has focus, crossfade to the next title after a while; a manual
             // step restarts the clock. Browsing the rows below leaves the room colour alone.
@@ -177,6 +180,13 @@ struct HomeHero: View {
             guard !Task.isCancelled else { return }
             step(1)
         }
+    }
+
+    /// From the library's switch, as the tab opens (see `focusesContent`).
+    private func takeFocus() {
+        guard takesFocus.wrappedValue else { return }
+        takesFocus.wrappedValue = false
+        focusedButton = .play
     }
 
     private var backdrop: some View {

@@ -30,17 +30,13 @@ final class LiveTvTour: XCTestCase {
 
     func testLiveTv() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
-        // The Live TV tab comes after Home and the libraries (podcasts aren't on the Apple TV).
-        let libraries = try await client.libraries().filter { $0.type != .podcasts }
         shot("49-home")
-        press(.up, wait: 1.5)
-        press(.right, times: libraries.count + 1, wait: 1.2)
-        pause(4)
+        // Opened from the sidebar, focus is on the first category; then down past Recordings to All channels, across
+        // to the channels, and down a few.
+        app.openSidebarRow("Live TV")
         shot("50-live-tv")
-        // Into the categories, across to the channels, and down a few.
-        press(.down, wait: 2)
         shot("51-live-tv-categories")
-        press(.down, wait: 2)
+        for _ in 0..<3 where !focused(prefix: "All channels") { press(.down, wait: 2) }
         shot("51b-live-tv-all")
         press(.right, wait: 2)
         press(.down, times: 3, wait: 0.8)
@@ -61,18 +57,13 @@ final class LiveTvTour: XCTestCase {
         shot("55-live-back")
     }
 
-    /// The guide: the sidebar's Guide button, then around the grid, and a programme that's on now plays.
+    /// The guide: across from the categories, then around the grid, and a programme that's on now plays.
     func testGuide() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
-        // The Live TV tab: up to the tab bar, all the way left, then across until it's focused.
-        press(.up, times: 3, wait: 0.8)
-        press(.left, times: 6, wait: 0.5)
-        for _ in 0..<6 where !focused("Live TV") { press(.right, wait: 0.8) }
-        pause(3)
-        // Into the screen (the sidebar), then across into the guide: what's on now on the first channel plays.
-        press(.down, wait: 2)
-        press(.left, times: 2, wait: 0.8)
-        logFocus("sidebar")
+        // Opened from the sidebar, focus is on the first category; across into the guide, what's on now on the first
+        // channel plays.
+        app.openSidebarRow("Live TV")
+        logFocus("categories")
         shot("60-guide")
         press(.right, wait: 2)
         shot("61-guide-focused")
@@ -107,23 +98,18 @@ final class LiveTvTour: XCTestCase {
         shot("68-guide-back")
     }
 
-    /// Recordings in the sidebar, then holding a later programme in the guide for its record options (not chosen).
+    /// Recordings in the categories, then holding a later programme in the guide for its record options (not chosen).
     func testRecordings() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
-        press(.up, times: 3, wait: 0.8)
-        press(.left, times: 6, wait: 0.5)
-        for _ in 0..<6 where !focused("Live TV") { press(.right, wait: 0.8) }
-        pause(3)
-        press(.down, wait: 2)
-        press(.left, times: 2, wait: 0.8)
-        for _ in 0..<6 where !app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Recordings' AND hasFocus == true")).firstMatch.exists {
+        app.openSidebarRow("Live TV")
+        for _ in 0..<6 where !focused(prefix: "Recordings") {
             press(.down, wait: 0.6)
         }
         logFocus("recordings")
         pause(3)
         shot("70-recordings")
-        // Back up to All channels, across into the guide, along to a later programme, and hold it.
-        press(.up, wait: 1)
+        // Down to All channels, across into the guide, along to a later programme, and hold it.
+        press(.down, wait: 1)
         pause(2)
         press(.right, wait: 2)
         press(.right, times: 3, wait: 1)
@@ -136,6 +122,11 @@ final class LiveTvTour: XCTestCase {
 
     private func focused(_ label: String) -> Bool {
         app.buttons.matching(NSPredicate(format: "label == %@ AND hasFocus == true", label)).count > 0
+    }
+
+    /// A category's label also carries its count ("All channels, 122").
+    private func focused(prefix: String) -> Bool {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND hasFocus == true", prefix)).firstMatch.exists
     }
 
     private func logFocus(_ stop: String) {

@@ -33,8 +33,9 @@ struct LibraryView: View {
     /// The sort and genre buttons and the A–Z rail.
     @FocusState private var focusedControl: String?
     @State private var switchFocused = false
-    /// When focus last left something on this screen (or the screen appeared), to tell focus coming down from the
-    /// tab bar from focus moving within the screen or coming back to it.
+    @Environment(\.focusesContent) private var takesFocus
+    /// When focus last left something on this screen (or the screen appeared), to tell focus coming in from the
+    /// sidebar from focus moving within the screen or coming back to it.
     @State private var lastFocusHereAt = Date.distantPast
     @Environment(\.scenePhase) private var scenePhase
 
@@ -123,9 +124,11 @@ struct LibraryView: View {
             lastFocusHereAt = .now
         }
         .onChange(of: focusedControl) { _, now in if now == nil { lastFocusHereAt = .now } }
+        .onChange(of: takesFocus.wrappedValue, focusFirstTitleOnArrival)
+        .onChange(of: items.first?.id, focusFirstTitleOnArrival)
         .onChange(of: focusedItem) { old, new in
             if old != nil, new == nil { lastFocusHereAt = .now }
-            focusFirstTitleFromTabBar(old: old, new: new)
+            focusFirstTitleFromSidebar(old: old, new: new)
         }
         .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
@@ -250,14 +253,21 @@ struct LibraryView: View {
         }
     }
 
-    /// Down from the tab bar, focus lands on whichever poster in the top row is under the tab it left; the first
+    /// In from the sidebar, focus lands on whichever poster in the top row is nearest the row it left; the first
     /// title is where a page starts, so it goes there instead. Focus moving here from the switch, the sort buttons or
     /// the rail, a letter jump, or coming back from a title, stays where it lands.
-    private func focusFirstTitleFromTabBar(old: String?, new: String?) {
+    private func focusFirstTitleFromSidebar(old: String?, new: String?) {
         guard old == nil, let new, jumping == nil, focusedControl == nil, !switchFocused,
               Date.now.timeIntervalSince(lastFocusHereAt) > 1,
               let index = items.firstIndex(where: { $0.id == new }), index > 0, index < 6,
               let first = items.first else { return }
+        focusedItem = first.id
+    }
+
+    /// From the switch, as the tab opens (see `focusesContent`): to the first title, once it's loaded.
+    private func focusFirstTitleOnArrival() {
+        guard takesFocus.wrappedValue, switchFocused, let first = items.first else { return }
+        takesFocus.wrappedValue = false
         focusedItem = first.id
     }
 

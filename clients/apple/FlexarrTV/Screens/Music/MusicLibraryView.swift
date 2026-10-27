@@ -6,7 +6,7 @@ struct MusicLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @State private var browse: MusicBrowseModel
-    /// Off on the library's tab, whose lit name in the tab bar already says where you are.
+    /// Off on the library's tab, whose lit name in the sidebar already says where you are.
     private let showsTitle: Bool
     @State private var isVisible = false
     @Environment(\.scenePhase) private var scenePhase
