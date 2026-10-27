@@ -22,15 +22,20 @@ as what the app lacks.
   music & podcasts). Listed in English (UK) and English (US).
 - **Category:** Entertainment. **Price:** free, every country except mainland China (which needs an ICP filing).
 - **Age rating:** 4+. The app has no content of its own; what's on the viewer's server is theirs.
-- **Keywords:** media server, home cinema (en-US: home theater), self-hosted, stream, movies, tv shows,
-  music, podcasts, offline, player, films. Never other apps' names: App Review rejects them.
+- **Keywords:** media server, home server, free, no ads, no account, self-hosted, home cinema (en-US: home
+  theater), offline, player, movies, shows. Words in the name and subtitle are indexed already, so they
+  aren't repeated. Never other apps' names: App Review rejects them.
 - **Support URL:** GitHub issues. **Marketing URL:** https://flexarr.io.
   **Privacy policy:** https://flexarr.io/privacy (`site/privacy.html`).
 
 ## App Privacy
 
-"Data Not Collected": the app only talks to the viewer's own server, never to the developer or
-third parties. The bundled `PrivacyInfo.xcprivacy` declares UserDefaults (reason CA92.1) and no tracking.
+Since 0.49.0 (Sentry error reports): Diagnostics › Crash Data, Performance Data (app hangs) and Other
+Diagnostic Data, each for App Functionality, not linked to the user and not used for tracking. They're off
+unless the server's owner turns them on, but an on/off switch doesn't meet Apple's "optional disclosure"
+exemption, so they're declared. Nothing else goes to the developer or third parties: the push relay keeps
+nothing. The bundled `PrivacyInfo.xcprivacy` declares UserDefaults (reason CA92.1) and no tracking; it
+should list the same three data types.
 
 ## The demo server for App Review
 
@@ -48,8 +53,13 @@ Review notes:
 
 > Flexarr is a client for a self-hosted media server, like the Plex or Jellyfin apps. It contains no
 > content and offers no way to obtain any. We've set up a demo server with openly licensed films
-> (Blender Foundation, CC BY). On the Connect screen, tap "Enter an address instead", enter the
-> server address (the user name below) and the API key (the password below), then tap Connect.
+> (Blender Foundation, CC BY). Tap Skip on the welcome cards. On the Connect screen, tap "Enter an
+> address instead" and enter the server address (the user name below). Tap "Connecting from outside your
+> home? Use an API key", enter the API key (the password below), tap Connect, and choose the "App
+> Review" profile.
+
+`FlexarriOSUITests/ReviewerSignIn.swift` walks these steps on a fresh install; run it against the review
+server before submitting a version whose connect screens changed.
 
 ## Screenshots and preview
 
