@@ -1926,6 +1926,8 @@
 .backup-problems {
   margin: 6px 0 0;
   padding-left: 18px;
+}
+
 /* ---------- Logs: compact monospace lines, newest first ---------- */
 
 .log-filters {
