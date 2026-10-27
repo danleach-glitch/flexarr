@@ -91,6 +91,8 @@ public sealed class FlexarrOptions
 
     public PodcastOptions Podcasts { get; set; } = new();
 
+    public NotificationOptions Notifications { get; set; } = new();
+
     /// <summary>Optional Live TV source: Dispatcharr (or another server with an Xtream Codes API).</summary>
     public LiveTvOptions? LiveTv { get; set; }
 }
@@ -161,6 +163,13 @@ public sealed class TranscodingOptions
 
     /// <summary>Most videos converted at once (0 = no limit). A Mac mini's media engine handles about three well.</summary>
     public int MaxConcurrentTranscodes { get; set; } = 3;
+}
+
+/// <summary>Push notifications to phones, through the relay that holds Apple's key (see docs/notifications.md).</summary>
+public sealed class NotificationOptions
+{
+    public bool Enabled { get; set; } = true;
+    public string RelayUrl { get; set; } = "https://flexarr.io/api/push";
 }
 
 public sealed class SeerrOptions

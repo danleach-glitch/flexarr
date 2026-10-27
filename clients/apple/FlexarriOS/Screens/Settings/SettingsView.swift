@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
+    @Environment(PushNotifications.self) private var notifications
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
     @State private var siriDeviceName: String?
@@ -36,6 +37,7 @@ struct SettingsView: View {
                 if model.podcastStatus?.available == true {
                     SettingsLink("Podcasts", icon: "mic.fill") { PodcastSettingsView() }
                 }
+                SettingsLink("Notifications", icon: "bell.fill", value: notifications.isOn ? "On" : "Off") { NotificationSettingsView() }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? "This \(ThisDevice.name)") { SiriSettingsView() }
             }
 

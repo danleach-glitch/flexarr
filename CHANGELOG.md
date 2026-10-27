@@ -2,6 +2,17 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Notifications (iPhone and iPad)
+- Get a notification when something new is ready: a film or show you haven't seen, new episodes, a podcast episode from a show you follow, or a recording that's finished. Turn them on, and choose which, in Settings › Notifications.
+- Several episodes of a show arriving together are one notification, and a big batch is summed up in one, so a season pack or a new library doesn't flood your phone. Upgrades and replacements of things already in the library don't count as new.
+- "Your request is ready": whoever asked for a film or show from Flexarr is told when it arrives.
+- Upcoming (off to start with): each morning at the hour you choose, what's airing or out today from the shows you watch and the films you asked for.
+- Buttons on the notification: Play, Download, and Play on Apple TV. Podcasts have Play and Download.
+- Each phone gets notifications for one profile, the one it was on when they were turned on, so a phone the household shares gets one set, not one for each profile.
+- Notifications travel through a relay at flexarr.io to reach Apple, sealed so that only your phone can read them: the relay never sees what's in them. A server can turn them off with `Flexarr:Notifications:Enabled=false`.
+- These replace the podcast-only notifications: turn on Settings › Notifications to keep getting new episodes.
 ## 0.39.0 · 27 October 2026
 
 ### Licence

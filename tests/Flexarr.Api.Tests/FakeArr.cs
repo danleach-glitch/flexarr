@@ -11,7 +11,10 @@ namespace Flexarr.Api.Tests;
 /// <summary>Stands in for Sonarr and Radarr: answers by method and path, and records what was asked.</summary>
 public sealed class FakeArr : HttpMessageHandler
 {
-    /// <summary>Bodies by "METHOD /api/v3/path?query"; anything else is a 404.</summary>
+    /// <summary>
+    /// Bodies by "METHOD /api/v3/path?query", or "METHOD //host/api/v3/path?query" for one instance only (Sonarr and
+    /// Radarr share some paths); anything else is a 404.
+    /// </summary>
     public ConcurrentDictionary<string, string> Responses { get; } = new();
 
     public ConcurrentQueue<string> Requests { get; } = new();
@@ -24,7 +27,7 @@ public sealed class FakeArr : HttpMessageHandler
         var key = $"{request.Method} {request.RequestUri!.PathAndQuery}";
         Requests.Enqueue(key);
         OnRequest?.Invoke(request);
-        return Task.FromResult(Responses.TryGetValue(key, out var body)
+        return Task.FromResult(Responses.TryGetValue($"{request.Method} //{request.RequestUri.Host}{request.RequestUri.PathAndQuery}", out var body) || Responses.TryGetValue(key, out body)
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.NotFound));
     }

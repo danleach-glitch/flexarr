@@ -4,8 +4,6 @@ import SwiftUI
 struct PodcastSettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
-    @State private var notifiesPodcasts = false
-    @State private var notificationsRefused = false
 
     var body: some View {
         List {
@@ -40,31 +38,11 @@ struct PodcastSettingsView: View {
             }
 
             Section {
-                Toggle("Notify me of new episodes", isOn: Binding(get: { notifiesPodcasts }, set: { on in
-                    Task {
-                        if on, !(await PodcastNotifier.askIfNeeded()) {
-                            notificationsRefused = true
-                            return
-                        }
-                        PodcastNotifier.isEnabled = on
-                        notifiesPodcasts = on
-                    }
-                }))
-                .settingsRow()
-            } header: {
-                Text("This \(ThisDevice.name)")
+                SettingsLink("Notifications", icon: "bell.fill") { NotificationSettingsView() }
+            } footer: {
+                Text("New episodes can come as notifications, along with films and shows.")
             }
         }
         .settingsPage("Podcasts")
-        .task {
-            let allowed = await PodcastNotifier.isAllowed()
-            notifiesPodcasts = PodcastNotifier.isEnabled && allowed
-        }
-        .alert("Notifications are off for Flexarr", isPresented: $notificationsRefused) {
-            Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
-            Button("Not now", role: .cancel) {}
-        } message: {
-            Text("Allow notifications for Flexarr in the Settings app to hear about new episodes.")
-        }
     }
 }
