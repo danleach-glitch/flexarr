@@ -99,7 +99,7 @@ Categories and their buttons:
 
 ## Relay API
 
-`POST https://flexarr.io/api/push`
+`POST https://www.flexarr.io/api/push`
 
 ```json
 { "token": "<hex>", "environment": "production", "payload": "<base64>", "collapseId": "<≤64 chars, optional>" }
