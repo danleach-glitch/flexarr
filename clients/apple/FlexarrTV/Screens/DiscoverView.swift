@@ -263,6 +263,9 @@ struct ExternalCard: View {
                 }
             }
             .frame(width: width, height: width * 1.5)
+            .overlay(alignment: .topTrailing) {
+                if title.isInLibrary { LibraryBadge().padding(10) }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -281,10 +284,26 @@ struct ExternalCard: View {
 }
 
 extension ExternalTitle {
-    /// "In your library" or "Requested"; nil for something that's neither.
+    /// Ready to watch: the poster says so with a badge (see `LibraryBadge`).
+    var isInLibrary: Bool { libraryItemId != nil || availability == .available }
+
+    /// "Requested" or "Partly in your library", under the title; nil for something that's neither, or that's in.
     var state: String? {
-        if libraryItemId != nil { return "In your library" }
-        return availability.label
+        isInLibrary ? nil : availability.label
+    }
+}
+
+/// On a poster from Discover: it's in the library, ready to play. A play mark rather than a tick, which on a poster
+/// means watched.
+private struct LibraryBadge: View {
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: 16, weight: .heavy))
+            .foregroundStyle(Color.room)
+            .offset(x: 1)
+            .frame(width: 36, height: 36)
+            .background(Circle().fill(Color.screen.opacity(0.92)))
+            .accessibilityLabel("In your library")
     }
 }
 

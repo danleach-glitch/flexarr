@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Discover (Apple TV)
+- A title you already have is marked with a play badge on its poster, in place of "In your library" under it.
+
 ## 0.43.0 · 27 October 2026
 
 ### Discover (Apple TV)
