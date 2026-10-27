@@ -4,7 +4,7 @@ import Observation
 import UIKit
 
 /// Connecting by code: the server hands out a short code, someone signed in to Flexarr approves it (Settings ›
-/// Connect a TV, or the link), and this device gets a sign-in of its own. Codes that run out are replaced.
+/// Connect a device, or the link), and this device gets a sign-in of its own. Codes that run out are replaced.
 @MainActor
 @Observable
 final class Pairing {
@@ -13,6 +13,8 @@ final class Pairing {
     /// The code on screen replaced one that ran out, so anyone part-way through typing the old one notices.
     private(set) var renewedAt: Date?
     private(set) var error: String?
+    /// The server is new and nobody has set it up in a browser yet, so there's nobody to approve the code: say so.
+    private(set) var needsSetup = false
 
     init(server: DiscoveredServer) {
         self.server = server
@@ -30,11 +32,12 @@ final class Pairing {
         while !Task.isCancelled {
             do {
                 let started = try await client.startPairing(deviceName: UIDevice.current.name)
+                needsSetup = await client.setupOpen()
                 if let shown = current, shown.code != started.code { renewedAt = Date() }
                 current = started
                 error = nil
+                // Asked straight away: a new server lets its first device in without anyone approving it.
                 while !Task.isCancelled {
-                    try await Task.sleep(for: .seconds(2))
                     if let renewedAt, Date().timeIntervalSince(renewedAt) > 10 { self.renewedAt = nil }
                     let status = try await client.pairingStatus(started.id)
                     if status.status == "approved", let key = status.apiKey {
@@ -42,6 +45,9 @@ final class Pairing {
                         return
                     }
                     if status.status == "expired" { break } // a fresh code next time round
+                    try await Task.sleep(for: .seconds(2))
+                    // Set up in the browser meanwhile: switch to the usual instructions.
+                    if needsSetup { needsSetup = await client.setupOpen() }
                 }
             } catch is CancellationError {
                 return

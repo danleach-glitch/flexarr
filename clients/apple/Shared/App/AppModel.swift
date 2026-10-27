@@ -240,7 +240,7 @@ final class AppModel {
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
             guard credentials == refused else { return }
-            signedOutNotice = "This \(ThisDevice.name) was signed out. Connect it again to keep watching."
+            signedOutNotice = "This \(ThisDevice.name) was signed out."
             forget()
         }
     }

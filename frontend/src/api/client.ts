@@ -135,6 +135,22 @@ export async function signIn(key: string) {
   if (!response.ok) throw new ApiError(response.status, response.statusText, [])
 }
 
+/** Whether this browser can set up a new server: nobody has signed in yet, and it's on the home network. */
+export async function setupOpen(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/v1/setup')
+    return response.ok && ((await response.json()) as { open: boolean }).open
+  } catch {
+    return false
+  }
+}
+
+/** Sets up a new server from this browser, which becomes its owner and is signed in. */
+export async function claimSetup() {
+  const response = await fetch('/api/v1/setup/claim', { method: 'POST', headers: { 'X-Requested-With': 'flexarr' } })
+  if (!response.ok) throw new ApiError(response.status, response.statusText, [])
+}
+
 /** An API key left in storage by an earlier version: swap it for a session cookie, then forget it. */
 export async function migrateStoredApiKey() {
   const key = stored(LEGACY_API_KEY_STORAGE)

@@ -26,7 +26,7 @@ struct ConnectView: View {
                         .font(.marquee(150, weight: .black))
                         .foregroundStyle(Color.screen)
                 }
-                Text("Your own cinema, on the big screen.")
+                Text("Your entertainment, on every screen.")
                     .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(Color.usher)
                 if let notice = model.signedOutNotice {
@@ -139,31 +139,51 @@ private struct PairWithServer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
             if let pairing, let start = pairing.current {
-                HStack(alignment: .top, spacing: 44) {
-                    QRCode(text: pairing.link(for: start).absoluteString)
-                        .frame(width: 300, height: 300)
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text("Scan with your phone")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(Color.screen)
-                        Text("It opens Flexarr; tap Allow. Or, on any device signed in to Flexarr, open Settings › Connect a TV and enter:")
-                            .font(.system(size: 25))
-                            .foregroundStyle(Color.usher)
-                            .fixedSize(horizontal: false, vertical: true)
+                // The iPhone's steps, word for word. A new server has nobody to approve the code yet, so setting it
+                // up comes first; the QR code only helps a phone that's signed in already, so it's small, underneath.
+                VStack(alignment: .leading, spacing: 26) {
+                    Text("Connect this Apple TV")
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(Color.screen)
+                    VStack(alignment: .leading, spacing: 20) {
+                        NumberedStep(1) {
+                            Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
+                        }
+                        if pairing.needsSetup {
+                            NumberedStep(2) { Text("Click **Set up Flexarr**.") }
+                        }
+                        NumberedStep(pairing.needsSetup ? 3 : 2) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
+                        NumberedStep(pairing.needsSetup ? 4 : 3) { Text("Type in this code:") }
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 20) {
+                        // Regular width, as the web pages show codes (SF Pro Black), so the two read the same.
                         Text(start.code)
-                            .font(.marquee(96, weight: .black))
+                            .font(.system(size: 88, weight: .black))
                             .foregroundStyle(Color.screen)
                             .kerning(6)
+                            .fixedSize()
                         if pairing.renewedAt != nil {
                             Label("New code", systemImage: "arrow.clockwise")
                                 .font(.system(size: 30, weight: .semibold))
                                 .foregroundStyle(Color.silver)
                         }
                     }
+                    HStack(spacing: 14) {
+                        ProgressView()
+                        Text("This screen moves on by itself once you have.")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Color.usher)
+                    }
                 }
-                Text("Connecting to \(server.name). Waiting for approval…")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Color.usher)
+                if !pairing.needsSetup {
+                    HStack(spacing: 20) {
+                        QRCode(text: pairing.link(for: start).absoluteString)
+                            .frame(width: 140, height: 140)
+                        Text("Or scan with a phone that’s signed in to Flexarr.")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Color.usher)
+                    }
+                }
             } else if pairing?.error == nil {
                 ProgressView()
             }
@@ -179,6 +199,32 @@ private struct PairWithServer: View {
             let pairing = Pairing(server: server)
             self.pairing = pairing
             await pairing.run(model: model)
+        }
+    }
+}
+
+/// One step of the connect instructions: a number in a circle, then what to do (as on the iPhone).
+private struct NumberedStep<Content: View>: View {
+    let number: Int
+    @ViewBuilder let content: Content
+
+    init(_ number: Int, @ViewBuilder content: () -> Content) {
+        self.number = number
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 18) {
+            Text("\(number)")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(Color.room)
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(Color.silver))
+            content
+                .font(.system(size: 30))
+                .foregroundStyle(Color.screen)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
         }
     }
 }

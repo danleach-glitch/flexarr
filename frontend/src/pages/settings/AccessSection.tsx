@@ -21,7 +21,7 @@ export function AccessSection() {
         <div className="settings-group-head">
           <h3 className="settings-subhead">Signed-in browsers and TVs</h3>
           <Link className="button quiet small" to="/settings/tv">
-            Connect a TV
+            Connect a device
           </Link>
         </div>
         <SignIns key={signInsVersion} />

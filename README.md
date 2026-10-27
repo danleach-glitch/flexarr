@@ -94,7 +94,7 @@ The Apple apps (in `clients/apple`) have Home, your libraries, search, title pag
 - 📺 **Apple TV:** Top Shelf with Continue Watching, a Now Playing tab while music plays, Settings and Switch profile under your picture
 - 📱 **iPhone and iPad:** Picture in Picture, AirPlay, lock-screen and Control Center, **Downloads** for offline, and **podcasts** with Up Next, widgets and new-episode notifications
 - 🚗 **CarPlay** for podcasts (Up Next, New episodes and your shows), switched on once Apple approves Flexarr for CarPlay
-- 🔐 Both find your server on the home network; approve the code the app shows in **Settings › Connect a TV** on any signed-in device, and each device gets a sign-in of its own
+- 🔐 Both find your server on the home network; approve the code the app shows in **Settings › Access › Connect a device** on a signed-in browser, and each device gets a sign-in of its own
 
 **Getting them:** the iPhone and iPad app is on TestFlight and coming to the App Store. The Apple TV app installs from Xcode onto your own device:
 
@@ -135,7 +135,7 @@ docker run -d --name flexarr \
 
 `latest` is the newest [release](https://github.com/danleach-glitch/flexarr/releases); pin a version such as `0.27` to upgrade when you choose.
 
-Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Server.
+Open <http://localhost:8383> (or the server's address from another computer on your home network) and choose **Set up Flexarr**: the first browser to reach a new server becomes its owner, no key needed. Phones, tablets and Apple TVs then connect with a code you enter in Settings › Access › Connect a device; each gets a sign-in of its own, listed in Settings › Access. The API key in `/config/config.json` is still there for scripts and for connecting from outside your home.
 
 Plain `http://` is fine on a home network you trust. From anywhere else, use Tailscale (Settings › Remote access) or an HTTPS reverse proxy, listed in `trustedProxies` if it runs on another machine. Mount your media at the **same path** Sonarr, Radarr and Lidarr use, or add `pathMappings` to `config.json`. For podcast downloads to phones, choose a folder in **Settings › Podcasts** where episodes wait on their way (each is deleted once the phone has it).
 

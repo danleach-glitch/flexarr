@@ -189,7 +189,7 @@ public static class PairingEndpoints
             var zone = NetworkZones.Of(http);
             if (zone == NetworkZone.Internet || !NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts))
             {
-                return Results.Problem("A TV can only connect this way from your home network or over Tailscale. Type the API key on the TV instead.", statusCode: 403);
+                return Results.Problem("A device can only connect with a code from your home network or over Tailscale. Use the API key instead.", statusCode: 403);
             }
 
             if (Pairings.UnfitName(request.DeviceName))

@@ -68,7 +68,12 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
             Directory.CreateDirectory(options.DataDirectory);
             var key = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
             options.ApiKey = key;
-            Update(options.DataDirectory, config => config["apiKey"] = key);
+            options.SetupOpen = true;
+            Update(options.DataDirectory, config =>
+            {
+                config["apiKey"] = key;
+                config["setupOpen"] = true;
+            });
             LogGeneratedApiKey(path);
         }
 

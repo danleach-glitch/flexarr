@@ -377,6 +377,25 @@ kbd {
   height: 2.9rem;
 }
 
+/* A phone's or tablet's code page: left-aligned and without the card, like the app's code screen. */
+.connect-code .wordmark {
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.connect-code .connect-tagline {
+  margin: 0 0 28px;
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: var(--usher);
+}
+
+.connect-code .panel {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
 .connect-tv-code {
   font-family: var(--display);
   font-size: var(--step-3);
@@ -402,6 +421,78 @@ kbd {
 .api-key-form .small-print {
   margin: 14px 0 0;
   font-size: var(--step--1);
+}
+
+/* Plain bold text like the app's "Connect this iPhone", not the display face. */
+.setup-welcome h1 {
+  margin: 0 0 16px;
+  font-family: var(--text);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.setup-welcome p {
+  margin: 0 0 18px;
+}
+
+/* Numbered like the app's code screen: a number in a silver circle, then what to do. */
+.setup-steps {
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  line-height: 1.45;
+  color: var(--screen);
+}
+
+.setup-steps li {
+  counter-increment: step;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.setup-steps li + li {
+  margin-top: 14px;
+}
+
+.setup-steps li::before {
+  content: counter(step);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--silver);
+  color: var(--room);
+  font-weight: 700;
+  font-size: var(--step--1);
+}
+
+.setup-steps span {
+  padding-top: 1px;
+}
+
+.setup-steps strong {
+  overflow-wrap: anywhere;
+}
+
+/* The code, in the same face as the app's (see .connect-tv-big-code). */
+.setup-code {
+  margin: 0;
+  font-family: var(--code-face);
+  /* The app's size, so the code is the same on the phone's screen and in its browser. */
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--screen);
+}
+
+.setup-welcome p:last-child {
+  margin-bottom: 0;
 }
 
 .api-key-row {

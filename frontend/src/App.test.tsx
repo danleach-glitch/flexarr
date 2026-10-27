@@ -130,6 +130,26 @@ describe('App', () => {
     expect(localStorage.length).toBe(0)
   })
 
+  it('sets up a new server from the first browser, without a key', async () => {
+    let claimed = false
+    mockApi({
+      '/setup': () => ({ open: !claimed }),
+      '/setup/claim': () => {
+        claimed = true
+        return new Response(null, { status: 204 })
+      },
+      '/system/status': () => (claimed ? status : new Response('', { status: 401 })),
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up Flexarr' }))
+
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
+  })
+
   it('says so when the API key is wrong', async () => {
     mockApi({ '/session': new Response(null, { status: 401 }), '/system/status': new Response('', { status: 401 }) })
 
@@ -545,7 +565,7 @@ describe('Settings', () => {
     expect(await screen.findByText('ABC-DEF', { selector: '.connect-tv-big-code' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
     fireEvent.click(screen.getByRole('button', { name: 'Don’t allow' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('The TV will show a new code')
+    expect(await screen.findByRole('status')).toHaveTextContent('The device will show a new code')
     expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/pairing/code/ABC-DEF/decline') && init?.method === 'POST')).toBe(true)
   })
 
@@ -557,7 +577,7 @@ describe('Settings', () => {
 
     renderAt('/link?code=ABC-DEF')
 
-    expect(await screen.findByText('Only the main profile can connect a TV.')).toBeInTheDocument()
+    expect(await screen.findByText('Only the main profile can connect a device.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Switch to the main profile' })).toBeInTheDocument()
   })
 
