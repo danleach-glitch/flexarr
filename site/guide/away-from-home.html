@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watch away from home · Flexarr guide</title>
+  <meta name="description" content="Reach your Flexarr server from anywhere with Tailscale, with no ports opened on your router, or through an HTTPS reverse proxy.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/away-from-home">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Watch away from home · Flexarr guide">
+  <meta property="og:description" content="Reach your Flexarr server from anywhere with Tailscale, with no ports opened on your router, or through an HTTPS reverse proxy.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/away-from-home">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home" aria-current="page">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
+        <h1>Watch away from home</h1>
+        <p class="lede">Reach your Flexarr server from anywhere with Tailscale, with no ports opened on your router, or through an HTTPS reverse proxy.</p>
+        <p class="meta">5 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#tailscale">Tailscale</a></li>
+            <li><a href="#quality-away-from-home">Quality away from home</a></li>
+            <li><a href="#an-https-reverse-proxy-instead">An HTTPS reverse proxy instead</a></li>
+            <li><a href="#why-not-forward-a-port">Why not forward a port?</a></li>
+            <li><a href="#connecting-a-device-from-outside">Connecting a device from outside</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>At home, your devices find Flexarr on the Wi-Fi. Away from home, they need a safe way back to it. The easiest is <strong>Tailscale</strong>, and it&#39;s the one Flexarr is built around. If you already run an HTTPS reverse proxy, that works too.</p>
+<h2 id="tailscale"><a class="anchor" href="#tailscale" aria-hidden="true" tabindex="-1">#</a>Tailscale</h2>
+<p><a href="https://tailscale.com" rel="noopener">Tailscale</a> is a free app that puts your devices on a small private network of their own, called a tailnet. Your phone can then reach your server from a hotel or a train as if it were at home. The connection is encrypted, and nothing is opened on your router, so Flexarr isn&#39;t on the public internet.</p>
+<h3 id="set-it-up"><a class="anchor" href="#set-it-up" aria-hidden="true" tabindex="-1">#</a>Set it up</h3>
+<ol>
+<li><strong>On the server</strong>, install Tailscale from <a href="https://tailscale.com/download" rel="noopener">tailscale.com/download</a> and sign in.</li>
+<li>In Flexarr on the web, signed in as the main profile, go to <strong>Settings › Access</strong>. Under <strong>Away from home</strong>, Tailscale should say it&#39;s connected. Choose <strong>Turn on</strong>.</li>
+<li>Flexarr shows its <strong>Private address</strong>, something like <code>https://your-server.your-tailnet.ts.net:8443</code>. It&#39;s HTTPS, with a real certificate from Tailscale.</li>
+<li><strong>On your iPhone or iPad</strong>, install Tailscale from the App Store and sign in with the same account. Leave it connected.</li>
+<li>Open the Flexarr app once while you&#39;re at home, so it learns the private address.</li>
+</ol>
+<figure><img src="/guide/img/access.webp" alt="Settings › Access with Tailscale on, the private address and its Copy button, and the people on the tailnet" data-caption="Settings › Access, with Tailscale on" loading="lazy" decoding="async"></figure>
+<p>From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn&#39;t answer, they use the Tailscale one, and they go back to the home address when you&#39;re home again. There&#39;s nothing to change in the apps.</p>
+<p>In a browser away from home, open the private address instead of the usual one.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Flexarr needs the <code>tailscale</code> command on the same computer it runs on to turn this on. If <strong>Settings › Access</strong> says Tailscale isn&#39;t installed on the server even though you&#39;ve installed it, Flexarr probably runs in a container that can&#39;t see it. That&#39;s usually the case on a NAS or in Docker.</p>
+</blockquote>
+<h3 id="who-can-get-in"><a class="anchor" href="#who-can-get-in" aria-hidden="true" tabindex="-1">#</a>Who can get in</h3>
+<p>When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under <strong>People on your tailnet</strong> in <strong>Settings › Access</strong>. Choose a profile for each person. Anyone set to <strong>Not allowed</strong> is turned away, even though Tailscale lets them reach the server.</p>
+<p>Over Tailscale, watching works as it does at home. Changing settings is stricter: you&#39;ll be asked to choose the main profile with its PIN. That browser then stays signed in until it&#39;s signed out, or left unused for two weeks. See <a href="/guide/profiles">Profiles</a> for setting a PIN.</p>
+<blockquote class="callout important"><p><strong>Important</strong> If the main profile has no PIN, anyone using a browser or device you&#39;ve signed in can switch to it. Flexarr warns you about this when Tailscale is on.</p>
+</blockquote>
+<p>Don&#39;t use <strong>Tailscale Funnel</strong> for Flexarr. Funnel publishes an address to the whole internet. If Flexarr spots it, Settings warns you; turn remote access off and on again to make it private.</p>
+<h2 id="quality-away-from-home"><a class="anchor" href="#quality-away-from-home" aria-hidden="true" tabindex="-1">#</a>Quality away from home</h2>
+<p>Hotel Wi-Fi and phone data are slower than your home network, and so is the upload speed of most home broadband.</p>
+<ul>
+<li><strong>Live TV</strong> comes in a reduced version away from home: at most 720p, at about 2.5 Mbps, in stereo. At home, channels play as they come.</li>
+<li><strong>Films and shows</strong> play as they do at home unless you set a limit. In <strong>Settings › Streaming</strong>, <strong>Limit each stream to</strong> caps every stream; <strong>4 Mbps</strong> is a good choice for watching away. The limit applies at home too.</li>
+<li><strong>On the web</strong>, the player&#39;s quality menu lets you choose 1080p, 720p or 480p for one viewing.</li>
+<li><strong>On iPhone and iPad</strong>, downloading before you leave avoids the question altogether. See <a href="/guide/downloads">Downloads</a>.</li>
+</ul>
+<h2 id="an-https-reverse-proxy-instead"><a class="anchor" href="#an-https-reverse-proxy-instead" aria-hidden="true" tabindex="-1">#</a>An HTTPS reverse proxy instead</h2>
+<p>If you already run a reverse proxy such as nginx, Caddy or Traefik with an HTTPS certificate, you can put Flexarr behind it.</p>
+<p>If the proxy runs on another computer, or in Docker, tell Flexarr to believe the visitor addresses it passes on. Add it to <code>trustedProxies</code> in <code>config.json</code>, in the server&#39;s data folder, as a list of addresses or ranges:</p>
+<pre><code class="language-json">{
+  &quot;trustedProxies&quot;: [&quot;172.17.0.1&quot;, &quot;10.0.0.0/24&quot;]
+}
+</code></pre>
+<p>Without it, everyone who comes through that proxy counts as the internet and has to sign in. Restart Flexarr after editing; it&#39;s read at startup.</p>
+<p>If the proxy runs on the <strong>same computer</strong> as Flexarr, it must send <code>X-Forwarded-For</code>. In nginx:</p>
+<pre><code class="language-nginx">proxy_set_header X-Forwarded-For $remote_addr;
+</code></pre>
+<p>To be safe, also set this in <code>config.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;loopbackNeedsForwarding&quot;: true
+}
+</code></pre>
+<p>Then a request from the same computer that doesn&#39;t say who it&#39;s for counts as the internet, so a badly set up proxy can&#39;t let anyone in. A browser on the server itself then needs the API key too.</p>
+<blockquote class="callout important"><p><strong>Important</strong> In <strong>Settings › Access</strong>, <strong>Ask for it</strong> set to <strong>Only away from home</strong> lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on <strong>Always</strong>.</p>
+</blockquote>
+<h2 id="why-not-forward-a-port"><a class="anchor" href="#why-not-forward-a-port" aria-hidden="true" tabindex="-1">#</a>Why not forward a port?</h2>
+<p>It&#39;s tempting to open port 8383 on your router and connect to <code>http://your-home-address:8383</code>. Please don&#39;t. Plain <code>http://</code> isn&#39;t encrypted, so your API key, your sign-ins and what you watch cross the internet readable by anyone along the way. It also puts your server in front of every scanner on the internet.</p>
+<p>Plain <code>http://</code> is fine on a home network you trust. Anywhere else, use Tailscale or HTTPS.</p>
+<h2 id="connecting-a-device-from-outside"><a class="anchor" href="#connecting-a-device-from-outside" aria-hidden="true" tabindex="-1">#</a>Connecting a device from outside</h2>
+<p>Devices normally connect with a code you approve in <strong>Settings › Access › Connect a device</strong>, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:</p>
+<ul>
+<li><strong>iPhone and iPad:</strong> on the connect screen, choose <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
+<li><strong>Apple TV:</strong> under <strong>Enter an address instead</strong>, type the address and the API key. Over Tailscale it isn&#39;t needed.</li>
+</ul>
+<p>The API key is in <strong>Settings › Access</strong> under <strong>API key</strong>. Showing it asks for the main profile&#39;s PIN. It&#39;s also in <code>config.json</code>.</p>
+<blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Don&#39;t paste it anywhere you wouldn&#39;t paste a password. If it leaks, <strong>Make a new key</strong> in <strong>Settings › Access</strong> replaces it, and can sign out every other browser and device at the same time.</p>
+</blockquote>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/profiles"><span>Previous</span>Profiles</a>
+          <a class="next" href="/guide/siri-and-shortcuts"><span>Next</span>Siri and Shortcuts</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/away-from-home.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Watch%20away%20from%20home">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

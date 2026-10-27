@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Updating Flexarr · Flexarr guide</title>
+  <meta name="description" content="How to update the Flexarr server in Docker or on a Mac, what happens to your data when you do, and how to keep the apps up to date.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/updating">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Updating Flexarr · Flexarr guide">
+  <meta property="og:description" content="How to update the Flexarr server in Docker or on a Mac, what happens to your data when you do, and how to keep the apps up to date.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/updating">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section" open>
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating" aria-current="page">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Updating Flexarr</h1>
+        <p class="lede">How to update the Flexarr server in Docker or on a Mac, what happens to your data when you do, and how to keep the apps up to date.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#before-you-update">Before you update</a></li>
+            <li><a href="#docker">Docker</a></li>
+            <li><a href="#on-a-mac">On a Mac</a></li>
+            <li><a href="#what-happens-to-your-data">What happens to your data</a></li>
+            <li><a href="#keeping-the-apps-up-to-date">Keeping the apps up to date</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Updating Flexarr replaces the program and leaves your data alone. Your settings, profiles, watch history and libraries live in the data folder (<code>/config</code> in Docker, <code>~/.flexarr/data</code> on a Mac), which an update never overwrites.</p>
+<h2 id="before-you-update"><a class="anchor" href="#before-you-update" aria-hidden="true" tabindex="-1">#</a>Before you update</h2>
+<p>Read what&#39;s changed. Every release is listed, newest first, in:</p>
+<ul>
+<li><strong>Settings › About</strong> on your server, under <strong>What&#39;s new</strong></li>
+<li>the <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" rel="noopener">changelog</a></li>
+<li><a href="https://github.com/danleach-glitch/flexarr/releases" rel="noopener">GitHub releases</a></li>
+</ul>
+<p><strong>Settings › About</strong> also shows the version you&#39;re running now.</p>
+<p>You don&#39;t need to make a backup by hand: Flexarr makes one itself whenever an update is about to change the database (see <a href="#what-happens-to-your-data">below</a>). If you&#39;d like an extra copy anyway, choose <strong>Back up now</strong> in <strong>Settings › Backup and restore</strong>.</p>
+<h2 id="docker"><a class="anchor" href="#docker" aria-hidden="true" tabindex="-1">#</a>Docker</h2>
+<p>Flexarr&#39;s image is <code>ghcr.io/danleach-glitch/flexarr</code>. Updating means downloading the newer image and making a new container from it, with the same settings and folders as before.</p>
+<h3 id="with-docker-compose"><a class="anchor" href="#with-docker-compose" aria-hidden="true" tabindex="-1">#</a>With Docker Compose</h3>
+<p>In the folder with your <code>docker-compose.yml</code>:</p>
+<pre><code class="language-bash">docker compose pull flexarr
+docker compose up -d flexarr
+</code></pre>
+<p>Compose replaces the container only if the image has changed.</p>
+<h3 id="with-docker-run"><a class="anchor" href="#with-docker-run" aria-hidden="true" tabindex="-1">#</a>With docker run</h3>
+<p>Download the new image, remove the old container, and start a new one with the same command you used to install:</p>
+<pre><code class="language-bash">docker pull ghcr.io/danleach-glitch/flexarr:latest
+docker stop flexarr
+docker rm flexarr
+docker run -d --name flexarr \
+  -p 8383:8383 \
+  -v /path/to/config:/config \
+  -v /path/to/media:/data/media \
+  ghcr.io/danleach-glitch/flexarr:latest
+</code></pre>
+<p>Removing the container doesn&#39;t touch your data, as long as <code>/config</code> is a folder or volume you mounted. Use exactly the same <code>-v</code> paths as before.</p>
+<blockquote class="callout note"><p><strong>Note</strong> On a Synology or Unraid server, use the platform&#39;s own way to update a container. See <a href="/guide/install-synology">Install on a Synology NAS</a> or <a href="/guide/install-unraid">Install on Unraid</a>.</p>
+</blockquote>
+<h3 id="which-tag-to-use"><a class="anchor" href="#which-tag-to-use" aria-hidden="true" tabindex="-1">#</a>Which tag to use</h3>
+<p>Images are published for every release with these tags:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>What it follows</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>latest</code></td>
+<td>The newest release. Every update you pull may be a bigger step.</td>
+</tr>
+<tr>
+<td><code>0.49</code></td>
+<td>The newest <code>0.49.x</code> release: fixes, without moving to <code>0.50</code>.</td>
+</tr>
+<tr>
+<td><code>0.49.1</code></td>
+<td>Exactly that release, never anything else.</td>
+</tr>
+</tbody></table></div>
+<p>Use <code>latest</code> to always get the newest Flexarr, or pin a version like <code>0.49</code> and change the number when you&#39;re ready to move on. Change the tag in your <code>docker-compose.yml</code> (<code>image: ghcr.io/danleach-glitch/flexarr:0.49</code>) or in your <code>docker run</code> command.</p>
+<p>Images are built for 64-bit Intel/AMD and 64-bit ARM, and Docker picks the right one for your machine.</p>
+<h2 id="on-a-mac"><a class="anchor" href="#on-a-mac" aria-hidden="true" tabindex="-1">#</a>On a Mac</h2>
+<p>If you installed Flexarr natively on a Mac with the deploy script (see <a href="/guide/install-macos">Install on a Mac</a>), update by getting the newest source and running the same command again from the machine you deployed from:</p>
+<pre><code class="language-bash">cd flexarr
+git pull
+make deploy DEPLOY_HOST=&lt;your-mac&gt;
+</code></pre>
+<p>The script builds the new version, replaces the program in <code>~/.flexarr/app</code>, brings the .NET runtime up to its latest patch, and restarts the server. It waits for the server to come back before saying it&#39;s done, and shows the end of the log if it doesn&#39;t. Your settings in <code>~/.flexarr/data</code> are never touched.</p>
+<h2 id="what-happens-to-your-data"><a class="anchor" href="#what-happens-to-your-data" aria-hidden="true" tabindex="-1">#</a>What happens to your data</h2>
+<p>When a new version starts for the first time, it updates the database to its new layout if it needs to. Before it does, it makes a <strong>pre-upgrade backup</strong> in your backups folder. The last three pre-upgrade backups are kept, alongside the nightly ones.</p>
+<p>You&#39;ll find them in <strong>Settings › Backup and restore</strong>. If an update goes wrong, install the version you had before, then restore its pre-upgrade backup from that page. See <a href="/guide/backups">Backups</a>.</p>
+<blockquote class="callout important"><p><strong>Important</strong> Don&#39;t try to run an older Flexarr on a database a newer one has already updated. Go back to the older version and restore the pre-upgrade backup instead. A backup made by a newer Flexarr is refused by an older one.</p>
+</blockquote>
+<blockquote class="callout note"><p><strong>Note</strong> If your backups folder is on a drive that isn&#39;t connected when you update, the pre-upgrade backup can&#39;t be made. Flexarr carries on starting rather than staying down, and says so in its log.</p>
+</blockquote>
+<h2 id="keeping-the-apps-up-to-date"><a class="anchor" href="#keeping-the-apps-up-to-date" aria-hidden="true" tabindex="-1">#</a>Keeping the apps up to date</h2>
+<ul>
+<li><strong>iPhone and iPad:</strong> the App Store updates Flexarr like any other app. To update by hand, open the App Store, tap your picture, and pull down to refresh the list of updates.</li>
+<li><strong>Apple TV:</strong> until it&#39;s on the App Store, pull the latest source and run <code>make apple-install</code> again. See <a href="/guide/apple-tv-xcode#updating-the-app">Install the Apple TV app with Xcode</a>.</li>
+<li><strong>Web:</strong> the web app comes with the server, so it&#39;s up to date as soon as the server is. Reload any open tabs.</li>
+</ul>
+<p>It&#39;s best to keep the server and the apps roughly in step. When a release adds something to both, the app&#39;s side of it only works once the server has it too.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/apple-tv-xcode"><span>Previous</span>Install the Apple TV app with Xcode</a>
+          <a class="next" href="/guide/connect-arrs"><span>Next</span>Connect Sonarr, Radarr, Lidarr and Seerr</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/updating.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Updating%20Flexarr">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

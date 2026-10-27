@@ -1,4 +1,4 @@
-.PHONY: apple-install ios-install ios-upload ios-dsyms setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: guide apple-install ios-install ios-upload ios-dsyms setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -94,6 +94,9 @@ SENTRY_CLI = npx --yes @sentry/cli@3.8.2
 ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
 	@if [ -z "$$SENTRY_AUTH_TOKEN" ] && ! grep -qs '^token=' ~/.sentryclirc; then echo "No Sentry token (SENTRY_AUTH_TOKEN or ~/.sentryclirc): skipping the dSYM upload to Sentry"; exit 0; fi; \
 	$(SENTRY_CLI) debug-files upload --org dan-leach --project flexarr-apple --include-sources build/apple/FlexarriOS.xcarchive/dSYMs
+
+guide: ## Build flexarr.io/guide (site/guide) from docs/guide
+	cd scripts/guide && npm ci --silent && node build.mjs
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .

@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connect Sonarr, Radarr, Lidarr and Seerr · Flexarr guide</title>
+  <meta name="description" content="Add your *arr apps and Seerr to Flexarr for artwork, Coming soon, requests and instant imports, and set up webhooks so new downloads appear straight away.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/connect-arrs">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Connect Sonarr, Radarr, Lidarr and Seerr · Flexarr guide">
+  <meta property="og:description" content="Add your *arr apps and Seerr to Flexarr for artwork, Coming soon, requests and instant imports, and set up webhooks so new downloads appear straight away.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/connect-arrs">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs" aria-current="page">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
+        <h1>Connect Sonarr, Radarr, Lidarr and Seerr</h1>
+        <p class="lede">Add your *arr apps and Seerr to Flexarr for artwork, Coming soon, requests and instant imports, and set up webhooks so new downloads appear straight away.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-each-connection-gives-you">What each connection gives you</a></li>
+            <li><a href="#add-a-connection">Add a connection</a></li>
+            <li><a href="#webhooks-new-downloads-appear-straight-away">Webhooks: new downloads appear straight away</a></li>
+            <li><a href="#paths-must-match">Paths must match</a></li>
+            <li><a href="#checking-it-works">Checking it works</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn&#39;t download anything itself; it takes its artwork and details from them, and they tell it when something new arrives. If you don&#39;t run them yet, Flexarr still plays your files. See <a href="/guide/what-you-need">What you need</a> for what you get with and without each one.</p>
+<h2 id="what-each-connection-gives-you"><a class="anchor" href="#what-each-connection-gives-you" aria-hidden="true" tabindex="-1">#</a>What each connection gives you</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>App</th>
+<th>What Flexarr gets from it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Radarr</strong></td>
+<td>Titles, posters, backgrounds, overviews, genres, ratings and trailers for films. Upcoming films in <strong>Coming soon</strong>. Deleting a film from Flexarr goes through Radarr. Film series for collections.</td>
+</tr>
+<tr>
+<td><strong>Sonarr</strong></td>
+<td>Show and episode details and artwork. Upcoming episodes in <strong>Coming soon</strong>. Deleting a show or episode goes through Sonarr.</td>
+</tr>
+<tr>
+<td><strong>Lidarr</strong></td>
+<td>Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart.</td>
+</tr>
+<tr>
+<td><strong>Seerr</strong></td>
+<td><strong>Discover</strong> and requests. Seerr and Overseerr both work. See <a href="/guide/requests">Requests</a>.</td>
+</tr>
+</tbody></table></div>
+<p>Films and shows that Radarr or Sonarr don&#39;t manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn&#39;t download.</p>
+<h2 id="add-a-connection"><a class="anchor" href="#add-a-connection" aria-hidden="true" tabindex="-1">#</a>Add a connection</h2>
+<p>You need two things for each app: its <strong>address</strong> and its <strong>API key</strong>.</p>
+<figure><img src="/guide/img/connections.webp" alt="Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with path mappings below" data-caption="Settings › Connections" loading="lazy" decoding="async"></figure>
+<ol>
+<li>In Flexarr, go to <strong>Settings › Connections</strong>.</li>
+<li>Under <strong>Apps</strong>, choose <strong>Add a connection</strong>.</li>
+<li>Pick the <strong>Kind</strong>: Sonarr, Radarr or Lidarr. Give it a <strong>Name</strong> if you run more than one of a kind, such as &quot;Radarr 4K&quot;.</li>
+<li>Type its <strong>Address</strong>, such as <code>http://192.168.1.20:7878</code>.</li>
+<li>Paste its <strong>API key</strong>.</li>
+<li>Choose <strong>Test</strong>. A tick means Flexarr reached it; otherwise you&#39;ll see what went wrong.</li>
+<li>Choose <strong>Add</strong>.</li>
+</ol>
+<p>Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change or remove it.</p>
+<h3 id="the-address"><a class="anchor" href="#the-address" aria-hidden="true" tabindex="-1">#</a>The address</h3>
+<p>Use the address Flexarr can reach the app on, with its port. The usual ports are:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>App</th>
+<th>Usual address</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Sonarr</td>
+<td><code>http://&lt;host&gt;:8989</code></td>
+</tr>
+<tr>
+<td>Radarr</td>
+<td><code>http://&lt;host&gt;:7878</code></td>
+</tr>
+<tr>
+<td>Lidarr</td>
+<td><code>http://&lt;host&gt;:8686</code></td>
+</tr>
+<tr>
+<td>Seerr</td>
+<td><code>http://&lt;host&gt;:5055</code></td>
+</tr>
+</tbody></table></div>
+<p><code>localhost</code> only works if the app runs on the same machine as Flexarr <em>and</em> neither is in its own Docker container. Between containers, use the machine&#39;s IP address, or the container&#39;s name if they share a Docker network.</p>
+<h3 id="where-to-find-each-api-key"><a class="anchor" href="#where-to-find-each-api-key" aria-hidden="true" tabindex="-1">#</a>Where to find each API key</h3>
+<div class="table"><table>
+<thead>
+<tr>
+<th>App</th>
+<th>Where its API key is</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Sonarr</td>
+<td><strong>Settings › General</strong>, under <strong>Security</strong></td>
+</tr>
+<tr>
+<td>Radarr</td>
+<td><strong>Settings › General</strong>, under <strong>Security</strong></td>
+</tr>
+<tr>
+<td>Lidarr</td>
+<td><strong>Settings › General</strong>, under <strong>Security</strong></td>
+</tr>
+<tr>
+<td>Seerr</td>
+<td><strong>Settings › General</strong></td>
+</tr>
+</tbody></table></div>
+<h3 id="seerr"><a class="anchor" href="#seerr" aria-hidden="true" tabindex="-1">#</a>Seerr</h3>
+<p>Seerr has its own row under <strong>Apps</strong>. Choose the pencil beside <strong>Seerr</strong>, type its <strong>Address</strong> and <strong>API key</strong>, and choose <strong>Save</strong>. Once it&#39;s connected, <strong>Discover</strong> fills with what&#39;s trending and popular, and you can request what you don&#39;t have. See <a href="/guide/requests">Requests</a>.</p>
+<h2 id="webhooks-new-downloads-appear-straight-away"><a class="anchor" href="#webhooks-new-downloads-appear-straight-away" aria-hidden="true" tabindex="-1">#</a>Webhooks: new downloads appear straight away</h2>
+<p>Without webhooks, Flexarr finds new files on its own scan every 12 hours. With them, Sonarr, Radarr and Lidarr tell Flexarr the moment they import, upgrade, rename or delete something, and Flexarr rescans only that folder.</p>
+<p>The addresses to use are at the bottom of <strong>Settings › Connections</strong>, under <strong>Webhooks</strong>, already filled in with your server&#39;s address and its <strong>webhook secret</strong>. They look like this:</p>
+<pre><code class="language-text">http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/sonarr?secret=&lt;webhook-secret&gt;
+http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/radarr?secret=&lt;webhook-secret&gt;
+http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/lidarr?secret=&lt;webhook-secret&gt;
+</code></pre>
+<p>The secret can only start scans, so you don&#39;t hand your API key to the *arr apps.</p>
+<p>In each app:</p>
+<ol>
+<li>Go to <strong>Settings › Connect</strong>, choose <strong>+</strong>, then <strong>Webhook</strong>.</li>
+<li>Give it a name, such as &quot;Flexarr&quot;.</li>
+<li>Under triggers, turn on the ones for <strong>importing</strong>, <strong>upgrading</strong>, <strong>renaming</strong> and <strong>deleting</strong> files. Their names vary a little between apps and versions, such as <strong>On File Import</strong>, <strong>On File Upgrade</strong>, <strong>On Rename</strong>, and the <strong>Delete</strong> triggers. Adding a series, film or artist works too. Other triggers, such as <strong>On Grab</strong> or health events, are accepted and ignored.</li>
+<li>Paste the address for that app into <strong>Webhook URL</strong>.</li>
+<li>Leave <strong>Method</strong> as <strong>POST</strong>.</li>
+<li>Choose <strong>Test</strong>, then <strong>Save</strong>.</li>
+</ol>
+<blockquote class="callout important"><p><strong>Important</strong> The webhook addresses are built from the address you opened Flexarr on. If you&#39;re using it at <code>localhost</code>, the address won&#39;t work from another machine or container. Swap in the server&#39;s IP address or name. If the *arrs run in Docker on the same Mac as a native Flexarr, use <code>host.docker.internal</code> in place of the host name.</p>
+</blockquote>
+<p><strong>Make a new secret</strong> replaces the webhook secret if it&#39;s ever got out. The *arr apps can&#39;t start scans until you give them the new addresses.</p>
+<h2 id="paths-must-match"><a class="anchor" href="#paths-must-match" aria-hidden="true" tabindex="-1">#</a>Paths must match</h2>
+<p>When Sonarr says &quot;I&#39;ve imported <code>/tv/Show/Season 1/episode.mkv</code>&quot;, Flexarr has to find that same file. If the *arr apps and Flexarr see your media under different paths, as often happens with Docker, webhooks and some matching won&#39;t work. See <a href="/guide/media-paths">Media paths</a> to line them up.</p>
+<h2 id="checking-it-works"><a class="anchor" href="#checking-it-works" aria-hidden="true" tabindex="-1">#</a>Checking it works</h2>
+<ul>
+<li><strong>Settings › Connections</strong> shows each app&#39;s dot: green when Flexarr can reach it.</li>
+<li><strong>Coming soon</strong> in the sidebar lists upcoming episodes and films from Sonarr and Radarr.</li>
+<li>Download something, and it should appear in Flexarr within a few seconds of the *arr importing it.</li>
+</ul>
+<p>If artwork is missing on titles that were already there before you connected Radarr or Sonarr, choose <strong>Refresh artwork and details</strong> on the library in <strong>Settings › Libraries</strong>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/updating"><span>Previous</span>Updating Flexarr</a>
+          <a class="next" href="/guide/media-paths"><span>Next</span>Media paths</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/connect-arrs.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Connect%20Sonarr%2C%20Radarr%2C%20Lidarr%20and%20Seerr">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troubleshooting · Flexarr guide</title>
+  <meta name="description" content="Fixes for the most common Flexarr problems, from an app that can&#39;t find your server to playback that won&#39;t start, HDR, sound and connecting away from home.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/troubleshooting">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Troubleshooting · Flexarr guide">
+  <meta property="og:description" content="Fixes for the most common Flexarr problems, from an app that can&#39;t find your server to playback that won&#39;t start, HDR, sound and connecting away from home.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/troubleshooting">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting" aria-current="page">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
+        <h1>Troubleshooting</h1>
+        <p class="lede">Fixes for the most common Flexarr problems, from an app that can&#39;t find your server to playback that won&#39;t start, HDR, sound and connecting away from home.</p>
+        <p class="meta">8 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#connecting">Connecting</a></li>
+            <li><a href="#your-library">Your library</a></li>
+            <li><a href="#watching">Watching</a></li>
+            <li><a href="#apps-and-profiles">Apps and profiles</a></li>
+            <li><a href="#getting-help">Getting help</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Most problems have a short fix. Find yours below. If it isn&#39;t here, or the fix doesn&#39;t work, the log usually says what&#39;s wrong: see <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>, and <a href="#where-can-i-get-help">where to get help</a> at the end.</p>
+<h2 id="connecting"><a class="anchor" href="#connecting" aria-hidden="true" tabindex="-1">#</a>Connecting</h2>
+<h3 id="the-app-can-t-find-my-server"><a class="anchor" href="#the-app-can-t-find-my-server" aria-hidden="true" tabindex="-1">#</a>The app can&#39;t find my server</h3>
+<p>The iPhone, iPad and Apple TV apps look for Flexarr on your home Wi-Fi. If <strong>Looking for Flexarr…</strong> never finds it:</p>
+<ol>
+<li><strong>Check the server is running.</strong> On another device on the same network, open <code>http://&lt;server&gt;:8383</code> in a browser, using the computer&#39;s name or IP address. If that doesn&#39;t load, the problem is the server, not the app. See your install guide: <a href="/guide/install-macos">Mac</a>, <a href="/guide/install-synology">Synology</a>, <a href="/guide/install-unraid">Unraid</a> or <a href="/guide/install-docker">Docker</a>.</li>
+<li><strong>Check you&#39;re on the same network.</strong> The device must be on the same Wi-Fi as the server, not a guest network and not mobile data.</li>
+<li><strong>Check local network access (iPhone and iPad).</strong> The app asks to find devices on your local network the first time it opens. If you said no, turn it back on in the iPhone&#39;s <strong>Settings › Privacy &amp; Security › Local Network › Flexarr</strong>.</li>
+<li><strong>Type the address instead.</strong> Choose <strong>Enter an address instead</strong> and type the address that worked in the browser, such as <code>http://192.168.1.20:8383</code>. You&#39;ll still get a code to approve.</li>
+</ol>
+<p>If the browser test works but discovery doesn&#39;t, your router may block devices from announcing themselves to each other. Typing the address always works.</p>
+<h3 id="the-app-says-the-server-hasn-t-been-set-up"><a class="anchor" href="#the-app-says-the-server-hasn-t-been-set-up" aria-hidden="true" tabindex="-1">#</a>The app says the server hasn&#39;t been set up</h3>
+<p>A new Flexarr server has no owner until someone sets it up in a browser. The app shows the steps; here they are in full:</p>
+<ol>
+<li>On a computer on your home network, open the server&#39;s address (the app shows it) in a web browser.</li>
+<li>Choose <strong>Set up Flexarr</strong>. That browser becomes the server&#39;s owner, with no key needed.</li>
+<li>Go to <strong>Settings › Access › Connect a device</strong> and type in the code the app is showing.</li>
+</ol>
+<p>The app moves on by itself once you have. See <a href="/guide/first-setup">First setup</a>.</p>
+<p><strong>Set up Flexarr</strong> only appears to a browser on your home network, using the server&#39;s own name or IP address. It won&#39;t appear over the internet, or once someone has set the server up. If someone else in the house set it up, ask them to approve your code from their browser.</p>
+<h3 id="i-can-t-connect-away-from-home"><a class="anchor" href="#i-can-t-connect-away-from-home" aria-hidden="true" tabindex="-1">#</a>I can&#39;t connect away from home</h3>
+<p>Flexarr isn&#39;t on the public internet. Away from home, the apps reach it over Tailscale. Check each of these:</p>
+<ol>
+<li><strong>Remote access is on.</strong> In the web app, <strong>Settings › Access › Away from home</strong> should say <strong>On: Flexarr is available on your tailnet</strong>. If it says Tailscale isn&#39;t installed or isn&#39;t connected, install Tailscale on the server and sign in first.</li>
+<li><strong>Tailscale is connected on your phone or tablet</strong>, signed in to the same tailnet.</li>
+<li><strong>You have a profile.</strong> Under <strong>People on your tailnet</strong>, each Tailscale account must be linked to a profile. Anyone without one is turned away.</li>
+<li><strong>The app has picked up the address.</strong> It learns the Tailscale address from the server and uses it when the home address can&#39;t be reached. If remote access was turned on after the app connected, close and reopen the app at home once. In the app, <strong>Settings › Server</strong> shows both addresses and which one it&#39;s using.</li>
+</ol>
+<p>Full details are in <a href="/guide/away-from-home">Away from home</a>.</p>
+<h2 id="your-library"><a class="anchor" href="#your-library" aria-hidden="true" tabindex="-1">#</a>Your library</h2>
+<h3 id="new-downloads-don-t-appear"><a class="anchor" href="#new-downloads-don-t-appear" aria-hidden="true" tabindex="-1">#</a>New downloads don&#39;t appear</h3>
+<p>Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something&#39;s arrived. If new downloads take hours to show up, the webhook is missing or failing.</p>
+<ol>
+<li>In Flexarr, open <strong>Settings › Connections</strong> and find <strong>Webhooks</strong>. Copy the address for each app.</li>
+<li>In Sonarr (and Radarr, and Lidarr), go to <strong>Settings › Connect › + › Webhook</strong>, paste the address, set the method to <strong>POST</strong>, and tick <strong>On Import</strong>, <strong>On Upgrade</strong>, <strong>On Rename</strong> and <strong>On Delete</strong>.</li>
+<li>Use <strong>Test</strong> in Sonarr to check it gets through.</li>
+</ol>
+<p>If Sonarr runs in Docker on the same computer as Flexarr, use <code>host.docker.internal</code> in the address in place of the computer&#39;s name. If you made a new webhook secret in Flexarr, the old addresses stop working: copy the new ones in.</p>
+<p>If the webhook arrives but nothing appears, the paths probably don&#39;t match. Sonarr tells Flexarr the folder by its own path, such as <code>/data/tv/Show</code>, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or add a mapping in <strong>Settings › Connections › Path mappings</strong>. See <a href="/guide/media-paths">Media paths</a>.</p>
+<p>To pick something up now, use the <strong>Scan for new and changed files</strong> icon on the library in <strong>Settings › Libraries</strong>.</p>
+<h3 id="artwork-or-details-are-missing"><a class="anchor" href="#artwork-or-details-are-missing" aria-hidden="true" tabindex="-1">#</a>Artwork or details are missing</h3>
+<p>Films and shows get their artwork and details from Radarr and Sonarr.</p>
+<ul>
+<li><strong>Are they connected?</strong> Check <strong>Settings › Connections</strong>. Without them, titles show without posters.</li>
+<li><strong>Is it the wrong title?</strong> Open <strong>Settings › Libraries › Library health</strong> and look under <strong>Missing artwork</strong> and <strong>Check these matches</strong>. Use <strong>Fix match</strong> to pick the right one. See <a href="/guide/library-health">Library health</a>.</li>
+<li><strong>Is the folder named clearly?</strong> For titles Sonarr and Radarr don&#39;t manage, Flexarr searches by the folder&#39;s name. <code>Title (Year)</code> works best.</li>
+<li><strong>Refresh it.</strong> In <strong>Settings › Libraries</strong>, use <strong>Refresh artwork and details</strong> on the library.</li>
+</ul>
+<p>For music, artist pictures and album covers come from Lidarr when it&#39;s connected, otherwise from the artwork in each album&#39;s folder and the files&#39; tags.</p>
+<h2 id="watching"><a class="anchor" href="#watching" aria-hidden="true" tabindex="-1">#</a>Watching</h2>
+<h3 id="playback-buffers-or-won-t-start"><a class="anchor" href="#playback-buffers-or-won-t-start" aria-hidden="true" tabindex="-1">#</a>Playback buffers or won&#39;t start</h3>
+<p>First, look at what the player says it&#39;s doing. The Apple TV, iPhone and iPad players show in a corner whether you&#39;re watching the original or a converted stream. Converting takes work on the server; the original takes almost none.</p>
+<ul>
+<li><strong>&quot;The server is busy.&quot;</strong> Flexarr converts up to 3 videos at once by default, so a busy evening can fill it. Wait for another screen to finish, or see <a href="/guide/faq#how-many-people-can-watch-at-once">How many streams at once?</a>.</li>
+<li><strong>Turn on Play files directly</strong> (Apple TV, iPhone and iPad, in the app&#39;s <strong>Settings › Playback</strong>). It&#39;s on by default. The device plays the file itself, so the server only sends bytes.</li>
+<li><strong>Check hardware acceleration.</strong> In the web app, <strong>Settings › Streaming › Hardware acceleration</strong> should normally be <strong>Automatic (recommended)</strong>; the list only offers what this server&#39;s ffmpeg supports. Converting on the graphics chip is far quicker than on the processor. On a Mac, run Flexarr natively rather than in Docker, which can&#39;t use the Mac&#39;s hardware. In Docker on Linux, the graphics device (usually <code>/dev/dri</code>) has to be passed into the container for Intel or AMD graphics. See <a href="/guide/playback-and-transcoding">Playback and transcoding</a>.</li>
+<li><strong>Check the network.</strong> Wi-Fi a long way from the router struggles with 4K. A cable to the Apple TV helps most. Away from home, set <strong>Limit each stream to</strong> in <strong>Settings › Streaming</strong>: <strong>4 Mbps</strong> suits most connections.</li>
+<li><strong>Check the file.</strong> If one title fails and others play, the file may be damaged. <strong>Run health check</strong> in Library health, then <strong>Search again</strong>.</li>
+</ul>
+<p>If it still won&#39;t play, set the <strong>Playback</strong> area to Debug in <strong>Settings › Logs</strong>, try again, and look for that playback&#39;s id. See <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>.</p>
+<h3 id="hdr-looks-washed-out-or-dim"><a class="anchor" href="#hdr-looks-washed-out-or-dim" aria-hidden="true" tabindex="-1">#</a>HDR looks washed out or dim</h3>
+<ul>
+<li><strong>On Apple TV, turn on Match Content.</strong> In the Apple TV&#39;s own <strong>Settings › Video and Audio › Match Content</strong>, turn on <strong>Match Dynamic Range</strong>. Flexarr&#39;s player then asks the TV to switch to HDR or Dolby Vision for titles that have it, and back for ones that don&#39;t.</li>
+<li><strong>Leave Play files directly on</strong>, so HDR10, HLG and Dolby Vision reach the TV untouched.</li>
+<li><strong>In a web browser,</strong> HDR films are converted to standard dynamic range so they look right on any screen. For HDR, watch on the Apple TV.</li>
+</ul>
+<p>More in <a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a>.</p>
+<h3 id="no-sound-or-dolby-atmos-is-missing"><a class="anchor" href="#no-sound-or-dolby-atmos-is-missing" aria-hidden="true" tabindex="-1">#</a>No sound, or Dolby Atmos is missing</h3>
+<ul>
+<li><strong>No sound at all, on Apple TV with a receiver or soundbar:</strong> try turning off <strong>Lossless surround</strong> in the app&#39;s <strong>Settings › Playback</strong>. With it on, TrueHD and DTS-HD soundtracks go as multichannel PCM, which some soundbars and receivers don&#39;t accept. Off, they go as Dolby Digital Plus, which anything plays.</li>
+<li><strong>Atmos:</strong> Dolby Atmos in Dolby Digital Plus reaches the Apple TV, iPhone and iPad intact. Atmos inside TrueHD doesn&#39;t yet keep its height channels; it&#39;s on the <a href="https://github.com/danleach-glitch/flexarr/discussions/45" rel="noopener">roadmap</a>. The web player doesn&#39;t pass Atmos through.</li>
+<li><strong>Away from home</strong> with a stream limit, the sound is compressed to save data.</li>
+</ul>
+<p>More in <a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a>.</p>
+<h2 id="apps-and-profiles"><a class="anchor" href="#apps-and-profiles" aria-hidden="true" tabindex="-1">#</a>Apps and profiles</h2>
+<h3 id="the-apple-tv-app-stopped-opening-after-7-days"><a class="anchor" href="#the-apple-tv-app-stopped-opening-after-7-days" aria-hidden="true" tabindex="-1">#</a>The Apple TV app stopped opening after 7 days</h3>
+<p>Until the Apple TV app is on the App Store, it installs from Xcode. With a free Apple ID, Apple only lets apps installed that way run for 7 days. Run the install command again to refresh it:</p>
+<pre><code class="language-bash">make apple-install TEAM=&lt;your team id&gt; BUNDLE_ID=com.yourname.flexarr.tv
+</code></pre>
+<p>With a paid Apple Developer account, an install lasts a year instead. See <a href="/guide/apple-tv-xcode">Apple TV with Xcode</a>.</p>
+<h3 id="i-forgot-a-profile-s-pin"><a class="anchor" href="#i-forgot-a-profile-s-pin" aria-hidden="true" tabindex="-1">#</a>I forgot a profile&#39;s PIN</h3>
+<ul>
+<li><strong>Someone else&#39;s profile:</strong> sign in as the main profile, open <strong>Settings › Profiles</strong>, edit their profile, and set a new PIN or remove it. You don&#39;t need the old one.</li>
+<li><strong>The main profile:</strong> changing or removing its PIN asks for the current one. Choose <strong>Use the API key instead</strong> and enter the server&#39;s API key. The same link appears on the PIN pad after too many wrong guesses.</li>
+</ul>
+<p>The API key is in Flexarr&#39;s <code>config.json</code>: <code>~/.flexarr/data/config.json</code> on a Mac, or <code>/config/config.json</code> in Docker.</p>
+<p>After a few wrong PINs, the profile is locked on that device for a while, longer each time. Other devices aren&#39;t affected.</p>
+<h2 id="getting-help"><a class="anchor" href="#getting-help" aria-hidden="true" tabindex="-1">#</a>Getting help</h2>
+<h3 id="where-can-i-get-help"><a class="anchor" href="#where-can-i-get-help" aria-hidden="true" tabindex="-1">#</a>Where can I get help?</h3>
+<p>Open an issue on GitHub: <a href="https://github.com/danleach-glitch/flexarr/issues" rel="noopener">github.com/danleach-glitch/flexarr/issues</a>.</p>
+<p>To help us fix it quickly:</p>
+<ol>
+<li>Say what you did, what you expected, and what happened instead.</li>
+<li>Include your Flexarr version (<strong>Settings › About</strong>) and the device and app you were using.</li>
+<li>If it happened on an Apple TV, iPhone or iPad, use <strong>Send diagnostics</strong> in the app&#39;s <strong>Settings › Server</strong> right after it happens, with a short note.</li>
+<li>In the web app, open <strong>Settings › Logs</strong> and choose <strong>Download diagnostics</strong>. Attach the zip to the issue.</li>
+</ol>
+<p>Keys and passwords are taken out of the zip, but titles and file names stay in. See <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>.</p>
+<p>Ideas and feature requests go in <a href="https://github.com/danleach-glitch/flexarr/discussions/categories/ideas" rel="noopener">Discussions</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/logs-and-diagnostics"><span>Previous</span>Logs and diagnostics</a>
+          <a class="next" href="/guide/faq"><span>Next</span>Frequently asked questions</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/troubleshooting.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Troubleshooting">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

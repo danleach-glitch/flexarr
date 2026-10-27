@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media paths · Flexarr guide</title>
+  <meta name="description" content="Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/media-paths">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Media paths · Flexarr guide">
+  <meta property="og:description" content="Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/media-paths">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths" aria-current="page">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
+        <h1>Media paths</h1>
+        <p class="lede">Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#the-best-fix-the-same-paths-everywhere">The best fix: the same paths everywhere</a></li>
+            <li><a href="#when-the-paths-can-t-match-path-mappings">When the paths can&#39;t match: path mappings</a></li>
+            <li><a href="#worked-examples">Worked examples</a></li>
+            <li><a href="#signs-the-paths-don-t-match">Signs the paths don&#39;t match</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Sonarr, Radarr and Lidarr talk to Flexarr about files by their <strong>path</strong>. When Sonarr imports an episode, its webhook says &quot;I&#39;ve just put a file in <code>/tv/Some Show/Season 1</code>&quot;, and Flexarr rescans that folder. When you delete a film, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say <code>/data/media/tv/Some Show/Season 1</code>, it can&#39;t tell they&#39;re the same folder.</p>
+<p>This mostly matters in Docker, where each container sees your disks at whatever paths its volumes give it. There are two ways to fix it: give every container the same paths (best), or tell Flexarr how to translate them.</p>
+<h2 id="the-best-fix-the-same-paths-everywhere"><a class="anchor" href="#the-best-fix-the-same-paths-everywhere" aria-hidden="true" tabindex="-1">#</a>The best fix: the same paths everywhere</h2>
+<p>Mount your media at the same path in every container. A common layout is one parent folder, <code>/data/media</code>, with a folder for each kind:</p>
+<pre><code class="language-yaml">services:
+  flexarr:
+    image: ghcr.io/danleach-glitch/flexarr:latest
+    ports: [&quot;8383:8383&quot;]
+    volumes:
+      - /srv/flexarr:/config
+      - /srv/media:/data/media
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    volumes:
+      - /srv/sonarr:/config
+      - /srv/media:/data/media
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    volumes:
+      - /srv/radarr:/config
+      - /srv/media:/data/media
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    volumes:
+      - /srv/lidarr:/config
+      - /srv/media:/data/media
+</code></pre>
+<p>The left side (<code>/srv/media</code>) is where the media is on the host. The right side (<code>/data/media</code>) is where every container sees it. Because the right side is the same everywhere, a file is <code>/data/media/tv/Some Show/…</code> to all of them.</p>
+<p>Then use those paths everywhere:</p>
+<ul>
+<li>Root folders in Sonarr, Radarr and Lidarr: <code>/data/media/tv</code>, <code>/data/media/movies</code>, <code>/data/media/music</code></li>
+<li>Library folders in Flexarr&#39;s <strong>Settings › Libraries</strong>: the same three</li>
+</ul>
+<blockquote class="callout tip"><p><strong>Tip</strong> If your downloads folder is on the same disk, mount the parent of both (for example <code>/srv/data:/data</code>, with <code>media</code> and <code>downloads</code> inside) in the *arrs. That lets them move files instead of copying them. Flexarr only needs to see the media.</p>
+</blockquote>
+<h2 id="when-the-paths-can-t-match-path-mappings"><a class="anchor" href="#when-the-paths-can-t-match-path-mappings" aria-hidden="true" tabindex="-1">#</a>When the paths can&#39;t match: path mappings</h2>
+<p>Sometimes you can&#39;t change the volumes, or the *arrs run in Docker and Flexarr runs natively on a Mac. Then add a <strong>path mapping</strong>: &quot;what Sonarr calls <em>this</em>, Flexarr calls <em>that</em>&quot;.</p>
+<h3 id="in-settings"><a class="anchor" href="#in-settings" aria-hidden="true" tabindex="-1">#</a>In Settings</h3>
+<p>Go to <strong>Settings › Connections</strong> and find <strong>Path mappings</strong>.</p>
+<figure><img src="/guide/img/connections.webp" alt="Settings › Connections, with a path mapping from /data in the apps to /Volumes/Media/data on the server" data-caption="Path mappings sit at the bottom of Settings › Connections" loading="lazy" decoding="async"></figure>
+<ol>
+<li>Choose <strong>Add a mapping</strong>.</li>
+<li>In <strong>Path in the app</strong>, type the path the *arr app uses, such as <code>/tv</code>.</li>
+<li>In <strong>Path on this server</strong>, type where Flexarr sees the same folder, such as <code>/data/media/tv</code>.</li>
+<li>Choose <strong>Save</strong>.</li>
+</ol>
+<p>Add one mapping for each folder that differs. Mappings apply straight away.</p>
+<h3 id="in-config-json"><a class="anchor" href="#in-config-json" aria-hidden="true" tabindex="-1">#</a>In config.json</h3>
+<p>The same mappings are kept in the server&#39;s <code>config.json</code> (in <code>/config</code> in Docker, <code>~/.flexarr/data</code> on a Mac) as <code>pathMappings</code>:</p>
+<pre><code class="language-json">{
+  &quot;pathMappings&quot;: [
+    { &quot;from&quot;: &quot;/tv&quot;, &quot;to&quot;: &quot;/data/media/tv&quot; },
+    { &quot;from&quot;: &quot;/movies&quot;, &quot;to&quot;: &quot;/data/media/movies&quot; }
+  ]
+}
+</code></pre>
+<p><code>from</code> is the path in Sonarr, Radarr or Lidarr; <code>to</code> is the path Flexarr sees. Leave the rest of the file as it is. Flexarr notices the change by itself; restart it if it doesn&#39;t seem to.</p>
+<h3 id="how-mappings-are-applied"><a class="anchor" href="#how-mappings-are-applied" aria-hidden="true" tabindex="-1">#</a>How mappings are applied</h3>
+<ul>
+<li>A mapping covers its folder and everything inside it: <code>/tv</code> maps <code>/tv/Some Show/Season 1/episode.mkv</code> to <code>/data/media/tv/Some Show/Season 1/episode.mkv</code>.</li>
+<li>It matches whole folder names, so <code>/tv</code> doesn&#39;t match <code>/tv4k</code>.</li>
+<li>If more than one mapping fits, the longest one wins. You can map <code>/data</code> broadly and <code>/data/4k</code> somewhere else.</li>
+<li>Paths that no mapping covers are used as they are.</li>
+</ul>
+<h2 id="worked-examples"><a class="anchor" href="#worked-examples" aria-hidden="true" tabindex="-1">#</a>Worked examples</h2>
+<h3 id="sonarr-in-docker-at-tv-flexarr-at-data-media-tv"><a class="anchor" href="#sonarr-in-docker-at-tv-flexarr-at-data-media-tv" aria-hidden="true" tabindex="-1">#</a>Sonarr in Docker at <code>/tv</code>, Flexarr at <code>/data/media/tv</code></h3>
+<p>Sonarr&#39;s container has <code>-v /srv/media/tv:/tv</code>, so its root folder is <code>/tv</code>. Flexarr&#39;s has <code>-v /srv/media:/data/media</code>, so its TV library is <code>/data/media/tv</code>.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Path in the app</th>
+<th>Path on this server</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/tv</code></td>
+<td><code>/data/media/tv</code></td>
+</tr>
+</tbody></table></div>
+<p>Or change Sonarr&#39;s volume to <code>-v /srv/media:/data/media</code>, set its root folder to <code>/data/media/tv</code>, and you won&#39;t need a mapping at all.</p>
+<h3 id="arrs-in-docker-on-a-mac-flexarr-native"><a class="anchor" href="#arrs-in-docker-on-a-mac-flexarr-native" aria-hidden="true" tabindex="-1">#</a>*arrs in Docker on a Mac, Flexarr native</h3>
+<p>Sonarr and Radarr run in Docker Desktop with <code>-v /Volumes/Media/data:/data</code>. Flexarr runs on the Mac itself and sees the drive as <code>/Volumes/Media/data</code>.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Path in the app</th>
+<th>Path on this server</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/data</code></td>
+<td><code>/Volumes/Media/data</code></td>
+</tr>
+</tbody></table></div>
+<h2 id="signs-the-paths-don-t-match"><a class="anchor" href="#signs-the-paths-don-t-match" aria-hidden="true" tabindex="-1">#</a>Signs the paths don&#39;t match</h2>
+<ul>
+<li><strong>New downloads don&#39;t appear until the next scan.</strong> Webhooks arrive, but Flexarr can&#39;t find the folder they name, so nothing happens until its scheduled scan every 12 hours.</li>
+<li><strong>Deleting a film or show offers to delete the files itself.</strong> The delete box says Radarr or Sonarr &quot;doesn&#39;t manage&quot; a title you know it does, because Flexarr couldn&#39;t match the paths.</li>
+<li><strong>Importing your history from Plex</strong> matches fewer titles than expected, if Plex saw your files at other paths too.</li>
+<li><strong>Albums don&#39;t pick up Lidarr&#39;s artwork</strong>, because Flexarr matches them to Lidarr by folder.</li>
+</ul>
+<p>To check, compare a file&#39;s path in the *arr app (on a title&#39;s <strong>Files</strong> tab, say) with its path in Flexarr, shown under each library&#39;s folders in <strong>Settings › Libraries</strong>. If the start of the path differs, add a mapping for that part.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Path mappings only translate what the *arr apps and Plex tell Flexarr. Flexarr&#39;s own library folders must always be paths it can see.</p>
+</blockquote>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/connect-arrs"><span>Previous</span>Connect Sonarr, Radarr, Lidarr and Seerr</a>
+          <a class="next" href="/guide/requests"><span>Next</span>Requests</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/media-paths.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Media%20paths">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

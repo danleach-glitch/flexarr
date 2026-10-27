@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Music · Flexarr guide</title>
+  <meta name="description" content="Music libraries with Lidarr&#39;s artwork and details, a queue, playlists, lyrics, daily mixes, artist radio and offline albums.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/music">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Music · Flexarr guide">
+  <meta property="og:description" content="Music libraries with Lidarr&#39;s artwork and details, a queue, playlists, lyrics, daily mixes, artist radio and offline albums.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/music">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music" aria-current="page">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Music</h1>
+        <p class="lede">Music libraries with Lidarr&#39;s artwork and details, a queue, playlists, lyrics, daily mixes, artist radio and offline albums.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#setting-up-a-music-library">Setting up a music library</a></li>
+            <li><a href="#playing-and-the-queue">Playing and the queue</a></li>
+            <li><a href="#now-playing-on-apple-tv">Now Playing on Apple TV</a></li>
+            <li><a href="#on-iphone-and-ipad">On iPhone and iPad</a></li>
+            <li><a href="#playlists">Playlists</a></li>
+            <li><a href="#lyrics">Lyrics</a></li>
+            <li><a href="#made-for-you-and-radio">Made for you, and radio</a></li>
+            <li><a href="#gapless-crossfade-and-volume">Gapless, crossfade and volume</a></li>
+            <li><a href="#albums-offline">Albums offline</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr plays your music library like a streaming app: artists with their pictures, albums on shelves, a queue, playlists and lyrics. It&#39;s at its fullest in the web app, with the Apple apps covering everyday listening.</p>
+<h2 id="setting-up-a-music-library"><a class="anchor" href="#setting-up-a-music-library" aria-hidden="true" tabindex="-1">#</a>Setting up a music library</h2>
+<ol>
+<li>In <strong>Settings › Libraries</strong>, choose <strong>Add library</strong>, pick <strong>Music</strong> and point it at your music folder.</li>
+<li>If you use Lidarr, connect it in <strong>Settings › Connections</strong>. See <a href="/guide/connect-arrs">Connect your *arrs</a>.</li>
+</ol>
+<p>Lidarr isn&#39;t required, but it makes a big difference. With it, artists and albums take their names, years, descriptions and artwork from Lidarr: the artist&#39;s own picture rather than an album cover, and a cover for every album even when the files carry none. An artist&#39;s page shelves releases into <strong>Albums</strong>, <strong>EPs and singles</strong>, <strong>Live and compilations</strong> and <strong>Other</strong>. Without Lidarr, Flexarr reads everything from the files&#39; tags.</p>
+<p>A track by someone other than the album&#39;s artist, such as a duet or a compilation track, shows its own artist. Compilations without an album artist are filed under <strong>Various Artists</strong>.</p>
+<h2 id="playing-and-the-queue"><a class="anchor" href="#playing-and-the-queue" aria-hidden="true" tabindex="-1">#</a>Playing and the queue</h2>
+<p>Every artist, album and playlist has <strong>Play</strong> and <strong>Shuffle</strong>. An artist&#39;s Play runs through their whole catalogue, oldest album first.</p>
+<p><strong>On the web</strong>, the now-playing bar stays with you as you browse. Tracks and albums have <strong>Play next</strong> and <strong>Add to queue</strong> in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.</p>
+<p><strong>On Apple TV, iPhone and iPad</strong>, the player has next and previous, seeking, shuffle and repeat, and shows the whole queue. Music carries on while you browse, and playing a film pauses it until you&#39;re done.</p>
+<h2 id="now-playing-on-apple-tv"><a class="anchor" href="#now-playing-on-apple-tv" aria-hidden="true" tabindex="-1">#</a>Now Playing on Apple TV</h2>
+<p>While music plays, a <strong>Now Playing</strong> entry appears in the sidebar, with the cover, controls and the queue. Play/pause on the remote works from anywhere in the app.</p>
+<figure><img src="/guide/img/tv-now-playing.webp" alt="Thriller playing on Apple TV, with the album art and the track list" data-caption="Music on Apple TV" loading="lazy" decoding="async" class="device"></figure>
+<h2 id="on-iphone-and-ipad"><a class="anchor" href="#on-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>On iPhone and iPad</h2>
+<p>A mini-player sits above the tab bar. Tap it for the full Now Playing sheet, with the cover, scrubber, controls, queue and AirPlay. The lock screen, Control Center and a paired Apple Watch control playback too.</p>
+<h2 id="playlists"><a class="anchor" href="#playlists" aria-hidden="true" tabindex="-1">#</a>Playlists</h2>
+<p>Each profile has its own playlists. On the web, choose <strong>Add to playlist</strong> from a track&#39;s, album&#39;s or artist&#39;s menu, and manage them from the <strong>Playlists</strong> page: rename, reorder by dragging, or delete. Playlists play on Apple TV, iPhone and iPad as well, and appear in a <strong>Your playlists</strong> row on Home.</p>
+<p>Making and editing playlists is on the web for now.</p>
+<h2 id="lyrics"><a class="anchor" href="#lyrics" aria-hidden="true" tabindex="-1">#</a>Lyrics</h2>
+<p>Flexarr shows lyrics on the web, Apple TV, iPhone and iPad. On the web, they&#39;re in a <strong>Lyrics</strong> panel under the album&#39;s track list. In the apps, there&#39;s a <strong>Lyrics</strong> button on Now Playing.</p>
+<p>Timed lyrics follow the song with the current line lit, and choosing a line jumps there.</p>
+<p>Flexarr doesn&#39;t fetch lyrics from the internet. It reads them from your files, in this order:</p>
+<ol>
+<li>An <code>.lrc</code> file beside the track, with the same name (timed lyrics).</li>
+<li>Lyrics stored in the track&#39;s own tags.</li>
+<li>A <code>.txt</code> file beside the track, with the same name.</li>
+</ol>
+<pre><code class="language-text">Brothers in Arms/01 - So Far Away.flac
+Brothers in Arms/01 - So Far Away.lrc
+</code></pre>
+<p>Any tool that saves <code>.lrc</code> files next to your music works.</p>
+<h2 id="made-for-you-and-radio"><a class="anchor" href="#made-for-you-and-radio" aria-hidden="true" tabindex="-1">#</a>Made for you, and radio</h2>
+<p>These are on the web for now.</p>
+<ul>
+<li><strong>Daily mixes:</strong> up to four for each profile, built from what it plays, grouping artists who share genres (&quot;Rock Mix&quot;). About 40 tracks each, the same all day and fresh tomorrow. They appear once a profile has played twenty or so tracks, in a <strong>Made for you</strong> row on Home and in a music library&#39;s Browse view.</li>
+<li><strong>Artist radio:</strong> start it from an artist&#39;s page. It&#39;s a station of about fifty tracks from that artist and others sharing their genres.</li>
+<li><strong>Home rows:</strong> <strong>Recently played</strong>, <strong>Most played</strong>, <strong>More from artists you play</strong> and <strong>New albums</strong>. Move them or turn them off in <strong>Settings › Home and Browse</strong>.</li>
+</ul>
+<h2 id="gapless-crossfade-and-volume"><a class="anchor" href="#gapless-crossfade-and-volume" aria-hidden="true" tabindex="-1">#</a>Gapless, crossfade and volume</h2>
+<p>The web player loads the next track before the current one ends, so the switch between them takes a few milliseconds. Live albums and DJ mixes flow on almost without a gap.</p>
+<p>In the web app, <strong>Settings › Playback › Music in this browser</strong> has two more:</p>
+<ul>
+<li><strong>Crossfade:</strong> <strong>Off</strong>, or fade the next track in over 2 to 12 seconds as the current one ends.</li>
+<li><strong>Normalise volume:</strong> on by default. It uses ReplayGain (and Opus R128) tags in your files to level loudness, so a quiet album and a loud one play at about the same volume. Tracks without these tags play as they are; a tagging tool can add them.</li>
+</ul>
+<p>These are kept per browser, since speakers and taste differ by room.</p>
+<h2 id="albums-offline"><a class="anchor" href="#albums-offline" aria-hidden="true" tabindex="-1">#</a>Albums offline</h2>
+<p>On iPhone and iPad, every album and playlist has a <strong>Download</strong> button. Tracks the phone plays as they are (AAC, ALAC, MP3, FLAC, WAV and AIFF) are kept as they are. Anything else is converted to AAC. Downloaded tracks carry a green tick and play with no connection. See <a href="/guide/downloads">Downloads</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/subtitles-and-skipping"><span>Previous</span>Subtitles, skipping and Up Next</a>
+          <a class="next" href="/guide/podcasts"><span>Next</span>Podcasts</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/music.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Music">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+/* Shared by the home page and the guide: colours, type, header, footer, buttons and code blocks. */
+:root {
+  --room: #1b1720;
+  --seat: #25202c;
+  --seat-raised: #2e2836;
+  --aisle: #3a3343;
+  --screen: #f2eee7;
+  --usher: #a39aae;
+  --silver: #a9c2ec;
+  --rose: #e8a0bf;
+  --amber: #f1c27d;
+  --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --text: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --edge: clamp(16px, 5vw, 64px);
+  --width: 1180px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 88px; }
+body {
+  overflow-x: clip;
+  margin: 0;
+  background: var(--room);
+  color: var(--screen);
+  font-family: var(--text);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+p { text-wrap: pretty; }
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--silver); }
+h1, h2, h3 { text-wrap: balance; font-family: var(--display); font-weight: 800; line-height: 1; margin: 0; letter-spacing: -0.005em; }
+code { font-family: var(--mono); font-size: 0.9em; }
+:focus-visible { outline: 2px solid var(--silver); outline-offset: 3px; border-radius: 6px; }
+.wrap { width: min(var(--width), 100% - 2 * var(--edge)); margin-inline: auto; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 16px; top: 16px; z-index: 10; background: var(--screen); color: var(--room); padding: 8px 14px; border-radius: 8px; }
+
+/* Bias lighting behind the page, as in the app. */
+.glow {
+  position: absolute; inset: 0 0 auto; height: 1100px; pointer-events: none; z-index: -1;
+  background:
+    radial-gradient(800px 600px at 12% 0%, rgb(169 194 236 / 0.20), transparent 70%),
+    radial-gradient(700px 500px at 95% 30%, rgb(232 160 191 / 0.12), transparent 70%);
+}
+
+/* Header */
+/* A dimmed, blurred strip so the links stay readable over the posters behind the home page's hero. */
+/* Stays at the top while you scroll. */
+.site-header { position: sticky; top: 0; z-index: 20; padding-block: 18px; background: rgb(27 23 32 / 0.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  mask-image: linear-gradient(#000 75%, transparent); -webkit-mask-image: linear-gradient(#000 75%, transparent); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.wordmark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--screen); font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1; }
+.wordmark img { width: 34px; height: 34px; }
+.site-nav { display: flex; gap: 4px; align-items: center; }
+.site-nav a { color: #d9d3e0; text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; }
+.site-nav a:hover, .site-nav a[aria-current] { color: var(--screen); background: var(--seat); }
+.site-nav .github { display: inline-flex; align-items: center; gap: 8px; color: var(--screen); border: 1px solid var(--aisle); }
+.site-nav .github svg { width: 18px; height: 18px; flex: none; }
+@media (max-width: 860px) {
+  .site-nav a:not(.keep) { display: none; }
+}
+
+/* Buttons */
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 50px; padding: 0 24px; border-radius: 12px; border: 1px solid transparent;
+  font-weight: 700; text-decoration: none; text-align: center;
+}
+.button.primary { background: var(--screen); color: var(--room); box-shadow: 0 10px 40px rgb(169 194 236 / 0.25); }
+.button.primary:hover { background: #fff; }
+.button.quiet { color: var(--screen); border-color: var(--aisle); background: rgb(242 238 231 / 0.04); }
+.button.quiet:hover { background: var(--seat); }
+.button svg { width: 20px; height: 20px; flex: none; }
+
+/* Code blocks with a copy button (the script adds the button). */
+.code, pre:has(> code) { position: relative; }
+pre {
+  margin: 14px 0 0; padding: 18px 20px; overflow-x: auto;
+  background: var(--room); border: 1px solid var(--aisle); border-radius: 12px;
+  font-family: var(--mono); font-size: 0.88rem; line-height: 1.65; color: var(--screen);
+}
+pre code { font-size: inherit; }
+.copy {
+  position: absolute; top: 10px; right: 10px;
+  font: inherit; font-family: var(--text); font-size: 0.85rem; font-weight: 700; color: var(--screen);
+  background: var(--seat-raised); border: 1px solid var(--aisle); border-radius: 8px; padding: 4px 10px; cursor: pointer;
+}
+.copy:hover { background: var(--aisle); }
+/* On a phone the button gets its own line above the code instead of covering it. */
+@media (max-width: 640px) { pre:has(> .copy) { padding-top: 48px; } }
+
+/* Footer */
+.site-footer { border-top: 1px solid var(--aisle); padding-block: 36px 48px; color: var(--usher); font-size: 0.95rem; }
+.site-footer .bar { flex-wrap: wrap; align-items: flex-start; }
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.site-footer a { color: var(--usher); }
+.site-footer a:hover { color: var(--screen); }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

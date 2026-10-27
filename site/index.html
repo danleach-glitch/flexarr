@@ -4,369 +4,483 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flexarr: your entertainment, every screen</title>
-  <meta name="description" content="Flexarr is a free, source-available, self-hosted media server for your films, TV, music and podcasts, built to sit alongside Sonarr, Radarr and Lidarr.">
+  <meta name="description" content="Flexarr is your own streaming service for the films, TV, music and podcasts you already have, on Apple TV, iPhone, iPad and the web. Free, self-hosted and built for Sonarr, Radarr and Lidarr.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Flexarr: your entertainment, every screen">
-  <meta property="og:description" content="A free, source-available media server for your films, TV, music and podcasts, built to sit alongside Sonarr, Radarr and Lidarr.">
-  <meta property="og:image" content="https://flexarr.io/shots/web-home.jpg">
+  <meta property="og:description" content="Your own streaming service for the films, TV, music and podcasts you already have. Apple TV, iPhone, iPad and the web. Free, private, no subscription.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
   <style>
-    :root {
-      --room: #1b1720;
-      --seat: #25202c;
-      --seat-raised: #2e2836;
-      --aisle: #3a3343;
-      --screen: #f2eee7;
-      --usher: #a39aae;
-      --silver: #a9c2ec;
-      --rose: #e8a0bf;
-      --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
-      --text: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-      --edge: clamp(16px, 5vw, 64px);
-      --width: 1180px;
-      color-scheme: dark;
-    }
-
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      background: var(--room);
-      color: var(--screen);
-      font-family: var(--text);
-      font-size: 1.0625rem;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    p { text-wrap: pretty; }
-    img { max-width: 100%; height: auto; display: block; }
-    a { color: var(--silver); }
-    h1, h2, h3 { text-wrap: balance; font-family: var(--display); font-weight: 800; line-height: 1; margin: 0; letter-spacing: -0.005em; }
-    code { font-family: var(--mono); font-size: 0.9em; }
-    .wrap { width: min(var(--width), 100% - 2 * var(--edge)); margin-inline: auto; }
-
-    /* Bias lighting behind the page, as in the app. */
-    .glow {
-      position: absolute; inset: 0 0 auto; height: 1100px; pointer-events: none; z-index: -1;
-      background:
-        radial-gradient(800px 600px at 12% 0%, rgb(169 194 236 / 0.20), transparent 70%),
-        radial-gradient(700px 500px at 95% 30%, rgb(232 160 191 / 0.12), transparent 70%);
-    }
-
-    /* Header */
-    header { padding-block: 22px; }
-    .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .wordmark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--screen); font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1; }
-    .wordmark img { width: 34px; height: 34px; }
-    nav { display: flex; gap: 6px; align-items: center; }
-    nav a { color: var(--usher); text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; }
-    nav a:hover { color: var(--screen); background: var(--seat); }
-    nav .github { color: var(--screen); border: 1px solid var(--aisle); }
-
     /* Hero */
-    .hero { padding-block: clamp(40px, 8vw, 96px) 40px; text-align: center; }
-    .hero h1 { font-size: clamp(2.4rem, 10.5vw, 7.5rem); font-weight: 900; }
+    .hero { padding-block: clamp(32px, 6vw, 72px) 0; text-align: center; }
+    .news { display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border: 1px solid rgb(242 238 231 / 0.16); border-radius: 999px; color: #d9d3e0; text-decoration: none; font-size: 0.92rem; background: rgb(27 23 32 / 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    .news b { color: var(--screen); font-weight: 500; }
+    .news span { color: var(--room); background: var(--silver); border-radius: 999px; padding: 2px 10px; font-weight: 700; }
+    .news:hover { border-color: var(--silver); }
+    .hero h1 { margin-top: 26px; font-size: clamp(2.4rem, 10.5vw, 7.5rem); font-weight: 900; }
     /* One sentence per line, never split. */
     .hero h1 span { display: block; white-space: nowrap; }
-    .hero .lede { max-width: 640px; text-wrap: balance; margin: 22px auto 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.3rem); }
+    .hero .lede { max-width: 680px; text-wrap: balance; margin: 22px auto 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.3rem); }
     .hero .lede strong { color: var(--screen); font-weight: 500; }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 32px; }
-    .button {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      min-height: 50px; padding: 0 24px; border-radius: 12px; border: 1px solid transparent;
-      font-weight: 700; text-decoration: none; text-align: center;
-    }
-    .button.primary { background: var(--screen); color: var(--room); box-shadow: 0 10px 40px rgb(169 194 236 / 0.25); }
-    .button.primary:hover { background: #fff; }
-    .button.quiet { color: var(--screen); border-color: var(--aisle); background: rgb(242 238 231 / 0.04); }
-    .button.quiet:hover { background: var(--seat); }
-    .button svg { width: 20px; height: 20px; }
-    .facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; margin-top: 22px; color: var(--usher); font-size: 0.95rem; }
+    .facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; margin: 22px 0 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.95rem; }
+    .facts li::before { content: "✓"; color: var(--silver); font-weight: 700; margin-right: 7px; }
+    /* Devices sit straight on the page. */
+    .shot { display: block; width: 100%; }
+    picture { display: block; }
+    picture:has(.wide) { margin-top: 40px; }
+    /* Above the fold sits on a wall of posters, dimmed for the headline and fading into the page. */
+    .band { position: absolute; inset: 0 0 auto; height: clamp(760px, 92vh, 1080px); z-index: -1; pointer-events: none;
+      background: url(/shots/wall.webp) center top / cover no-repeat;
+      mask-image: linear-gradient(#000 70%, transparent); }
+    /* Darker still behind the headline and buttons, so every word reads over the posters. */
+    .band::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 55% 45% at 50% 30%, rgb(27 23 32 / 0.78), rgb(27 23 32 / 0.35) 70%, transparent); }
+    .stage { margin-top: clamp(32px, 6vw, 56px); }
 
-    /* The hero: the app on a MacBook, an iPad and an iPhone, the frames drawn around the screenshots.
-       Everything is in percentages of the stage, so the group scales as one. */
-    .stage { position: relative; max-width: 1100px; margin: clamp(48px, 8vw, 84px) auto 0; aspect-ratio: 1100 / 640; }
-    .stage::before { content: ""; position: absolute; inset: 8% 4% -2%; background: radial-gradient(closest-side, rgb(169 194 236 / 0.22), transparent); filter: blur(40px); z-index: -1; }
-    .stage img { width: 100%; }
-    .bezel { background: #0c0a0f; border: 1px solid #3f3848; box-shadow: 0 30px 70px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.04); }
-    .mac { position: absolute; left: 13%; top: 0; width: 74%; }
-    .mac .bezel { padding: 2.2% 2.2% 3.2%; border-radius: 2.4% / 3.8%; }
-    .mac .bezel img { border-radius: 0.5% / 0.8%; }
-    .mac-base { position: relative; height: clamp(7px, 1.5vw, 17px); margin: 0 -7%; border-radius: 0 0 50% 50% / 0 0 100% 100%; background: linear-gradient(#5a5464, #2b2731); box-shadow: 0 18px 30px rgb(0 0 0 / 0.45); }
-    .mac-base::before { content: ""; position: absolute; left: 42%; right: 42%; top: 0; height: 45%; border-radius: 0 0 6px 6px; background: #1f1c24; }
-    .ipad { position: absolute; left: 0; bottom: 0; width: 26%; }
-    .ipad .bezel { padding: 5%; border-radius: 8% / 5.6%; }
-    .ipad .bezel img { border-radius: 4.5% / 3.1%; }
-    .iphone { position: absolute; right: 2%; bottom: 0; width: 14.5%; }
-    .iphone .bezel { padding: 6%; border-radius: 19% / 8.8%; }
-    .iphone .bezel img { border-radius: 14% / 6.5%; }
+    /* "Just got the app?" */
+    .newcomer {
+      display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px 22px; align-items: center;
+      margin-top: clamp(28px, 5vw, 48px); padding: 22px 26px; border-radius: 18px; text-align: left;
+      background: var(--seat); border: 1px solid var(--aisle);
+    }
+    .newcomer .icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--screen); color: var(--room); }
+    .newcomer .icon svg { width: 26px; height: 26px; }
+    .newcomer h2 { font-size: 1.9rem; }
+    .newcomer p { margin: 6px 0 0; color: var(--usher); }
+    @media (max-width: 720px) { .newcomer { grid-template-columns: minmax(0, 1fr); } .newcomer .icon { display: none; } }
 
     section { padding-block: clamp(56px, 9vw, 110px); }
     .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 12px; }
     section h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
-    .intro { max-width: 640px; color: var(--usher); margin: 16px 0 0; }
+    .intro { max-width: 680px; color: var(--usher); margin: 16px 0 0; font-size: 1.1rem; }
+    .center { text-align: center; }
+    .center .intro { margin-inline: auto; }
 
-    /* Features */
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 44px; }
-    .feature { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 4px 18px; align-items: start; background: var(--seat); border: 1px solid var(--aisle); border-radius: 18px; padding: 24px; }
-    .feature .icon { grid-column: 1; grid-row: 1 / 3; width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: rgb(169 194 236 / 0.14); color: var(--silver); }
-    .feature:nth-child(3n+2) .icon { background: rgb(232 160 191 / 0.14); color: var(--rose); }
-    .feature:nth-child(3n) .icon { background: rgb(242 238 231 / 0.1); color: var(--screen); }
-    .feature .icon svg { width: 24px; height: 24px; }
-    .feature h3 { grid-column: 2; font-size: 1.75rem; }
-    .feature p { grid-column: 2; margin: 0; color: var(--usher); }
+    /* Feature rows: words on one side, the picture on the other. */
+    /* Each feature: words on one side, the devices on the other, alternating. */
+    .row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(28px, 5vw, 64px); align-items: center; }
+    .row + .row { margin-top: clamp(64px, 10vw, 120px); }
+    .row.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+    .row.flip > :first-child { order: 2; }
+    .row h3 { font-size: clamp(2.2rem, 5vw, 3.3rem); }
+    .row p { color: var(--usher); margin: 14px 0 0; }
+    .ticks { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 10px; }
+    .ticks li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; }
+    .ticks li::before { content: ""; width: 22px; height: 22px; margin-top: 2px; border-radius: 50%; background: rgb(169 194 236 / 0.16) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9c2ec' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E") center / 14px no-repeat; }
+    .ticks strong { color: var(--screen); font-weight: 500; }
+    .more { display: inline-block; margin-top: 18px; font-weight: 700; text-decoration: none; }
+    .more:hover { text-decoration: underline; }
+    @media (max-width: 860px) {
+      .row, .row.flip { grid-template-columns: minmax(0, 1fr); }
+      .row.flip > :first-child { order: 0; }
+    }
 
-    /* Install */
-    .steps { counter-reset: step; display: grid; gap: 18px; margin-top: 40px; }
-    .step { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 18px; background: var(--seat); border: 1px solid var(--aisle); border-radius: 16px; padding: 26px; }
+    /* Tiles */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 40px; }
+    .tiles { gap: 8px 32px; }
+    .tile { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 16px; align-content: start; padding: 22px 0; border-top: 1px solid var(--aisle); color: inherit; text-decoration: none; }
+    a.tile:hover h3 { color: var(--silver); }
+    .tile .icon { grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: rgb(169 194 236 / 0.14); color: var(--silver); }
+    .tile:nth-child(3n+2) .icon { background: rgb(232 160 191 / 0.14); color: var(--rose); }
+    .tile:nth-child(3n) .icon { background: rgb(242 238 231 / 0.1); color: var(--screen); }
+    .tile .icon svg { width: 22px; height: 22px; }
+    .tile h3 { font-size: 1.6rem; }
+    .tile p { margin: 4px 0 0; color: var(--usher); font-size: 0.98rem; }
+
+    /* Apps */
+    .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 28px; }
+    .apps { gap: 8px 32px; }
+    .app { padding: 24px 0 0; border-top: 1px solid var(--aisle); display: flex; flex-direction: column; gap: 10px; }
+    .app h3 { font-size: 1.9rem; display: flex; align-items: center; gap: 14px; }
+    .app-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; background: rgb(169 194 236 / 0.14); color: var(--silver); }
+    .app:nth-child(2) .app-icon { background: rgb(232 160 191 / 0.14); color: var(--rose); }
+    .app:nth-child(3) .app-icon { background: rgb(242 238 231 / 0.1); color: var(--screen); }
+    .app-icon svg { width: 22px; height: 22px; }
+    .app p { margin: 0; color: var(--usher); flex: 1; }
+    .badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 11px; font-weight: 700; font-size: 0.95rem; text-decoration: none; }
+    .badge.ready { background: var(--screen); color: var(--room); }
+    .badge.ready:hover { background: #fff; }
+    .badge.soon { color: var(--usher); border: 1px dashed var(--aisle); }
+    .badge svg { width: 18px; height: 18px; }
+    .app .aside { font-size: 0.92rem; }
+
+    /* Set up */
+    .steps { counter-reset: step; display: grid; gap: 16px; margin-top: 40px; }
+    .step { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 18px; background: var(--seat); border: 1px solid var(--aisle); border-radius: 18px; padding: 26px; }
     .step::before { counter-increment: step; content: counter(step); font-family: var(--display); font-weight: 900; font-size: 2.6rem; line-height: 1; color: var(--silver); }
     .step h3 { font-size: 1.9rem; }
     .step p { color: var(--usher); margin: 10px 0 0; }
     .step p strong { color: var(--screen); font-weight: 500; }
-
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 18px; }
     .tabs button { font: inherit; font-weight: 700; color: var(--usher); background: transparent; border: 1px solid var(--aisle); border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+    .tabs button:hover { color: var(--screen); }
     .tabs button[aria-selected="true"] { color: var(--room); background: var(--screen); border-color: var(--screen); }
     .panel[hidden] { display: none; }
-
-    .code { position: relative; margin-top: 14px; background: var(--room); border: 1px solid var(--aisle); border-radius: 12px; }
-    .code pre { margin: 0; padding: 18px 20px; overflow-x: auto; font-family: var(--mono); font-size: 0.88rem; line-height: 1.65; color: var(--screen); }
-    .code .copy { position: absolute; top: 10px; right: 10px; font: inherit; font-size: 0.85rem; font-weight: 700; color: var(--screen); background: var(--seat-raised); border: 1px solid var(--aisle); border-radius: 8px; padding: 4px 12px; cursor: pointer; }
-    .code .copy:hover { background: var(--aisle); }
+    .panel> p:first-child { margin-top: 16px; }
     .note { font-size: 0.95rem; }
+    .note.links { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+    .tag { display: inline-block; vertical-align: middle; margin-left: 10px; padding: 3px 10px; border-radius: 999px; background: rgb(169 194 236 / 0.16); color: var(--silver); font-family: var(--text); font-size: 0.8rem; font-weight: 700; letter-spacing: 0; line-height: 1.4; }
+    @media (max-width: 860px) { .step { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 22px; } }
 
-    /* Apps */
-    .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 40px; }
-    .app { background: var(--seat); border: 1px solid var(--aisle); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 10px; }
-    .app h3 { font-size: 1.9rem; }
-    .app p { margin: 0; color: var(--usher); flex: 1; }
-    .badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px; font-weight: 700; font-size: 0.95rem; text-decoration: none; }
-    .badge.ready { background: var(--screen); color: var(--room); }
-    .badge.soon { color: var(--usher); border: 1px dashed var(--aisle); }
-    .badge svg { width: 18px; height: 18px; }
+    /* Questions */
+    .faq { max-width: 860px; margin: 36px auto 0; display: grid; gap: 10px; }
+    .faq details { background: var(--seat); border: 1px solid var(--aisle); border-radius: 14px; }
+    .faq summary { cursor: pointer; list-style: none; padding: 18px 22px; font-weight: 700; display: flex; justify-content: space-between; gap: 16px; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; color: var(--silver); font-size: 1.4rem; line-height: 1; }
+    .faq details[open] summary::after { content: "–"; }
+    .faq details p { margin: 0; padding: 0 22px 18px; color: var(--usher); }
 
-    footer { border-top: 1px solid var(--aisle); padding-block: 36px 48px; color: var(--usher); font-size: 0.95rem; }
-    footer .bar { flex-wrap: wrap; }
-    footer nav a { padding: 6px 10px; }
-
-    @media (max-width: 860px) {
-      nav a:not(.github) { display: none; }
-      .step { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 22px; }
-    }
-    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    .closing { text-align: center; }
+    .closing .actions { margin-top: 28px; }
   </style>
 </head>
 <body>
-  <div class="glow" aria-hidden="true"></div>
-
-  <header>
+  <a class="skip" href="#main">Skip to the content</a>
+  <div class="band" aria-hidden="true"></div>
+  <header class="site-header">
     <div class="wrap bar">
       <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
-      <nav aria-label="Main">
+      <nav class="site-nav" aria-label="Main">
         <a href="#features">Features</a>
-        <a href="#install">Install</a>
         <a href="#apps">Apps</a>
-        <a class="github" href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="#setup">Set up</a>
+        <a class="keep" href="/guide">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
       </nav>
     </div>
   </header>
 
-  <main>
+  <main id="main">
     <div class="wrap hero">
+      <a class="news" href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md"><b>New:</b> set up in your browser <span>0.49</span></a>
       <h1><span>Your entertainment.</span> <span>Every screen.</span></h1>
-      <p class="lede">The <strong>free, self-hosted media server</strong> built for <strong>Sonarr, Radarr and Lidarr</strong>. Films, TV, music and podcasts on the web, Apple TV, iPhone and iPad. No account. No cloud.</p>
+      <p class="lede">Your own streaming service for the <strong>films, TV, music and podcasts you already have</strong>, on Apple TV, iPhone, iPad and the web. Built for Sonarr, Radarr and Lidarr. No ads, no account, no subscription.</p>
       <div class="actions">
-        <a class="button primary" href="#install">Install the server</a>
-        <a class="button quiet" href="https://github.com/danleach-glitch/flexarr">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
-          View on GitHub
+        <a class="button primary" href="#setup">Set up your server</a>
+        <a class="button quiet" href="https://apps.apple.com/app/flexarr/id6826618084">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>
+          Get it for iPhone and iPad
         </a>
       </div>
-      <p class="facts"><span>Free for noncommercial use</span><span>Docker or native on macOS</span><span>Hardware transcoding</span><span>No account needed</span></p>
+      <ul class="facts"><li>Free for personal use</li><li>Your files never leave home</li><li>Docker, NAS or Mac</li><li>Apple TV app coming to the App Store</li></ul>
+      <div class="stage"><picture><source media="(max-width: 640px)" srcset="/shots/hero-m.webp"><img class="shot" src="/shots/hero.webp" srcset="/shots/hero-1000.webp 1000w, /shots/hero.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr on an Apple TV showing Ted Lasso's page, with Resume S3 E8 and the seasons, and an iPhone beside it showing Home with Only Murders in the Building and Continue watching." fetchpriority="high"></picture></div>
 
-      <div class="stage" role="img" aria-label="Flexarr on a Mac, an iPad and an iPhone: the web app's home page, Michael Jackson's artist page with his albums, and the Podcasts screen with followed shows and new episodes, three of them downloaded.">
-        <div class="mac">
-          <div class="bezel"><img src="/shots/web-home.jpg" width="1920" height="1200" alt=""></div>
-          <div class="mac-base"></div>
+      <div class="newcomer">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></div>
+        <div>
+          <h2>Just got the iPhone app?</h2>
+          <p>Flexarr plays your own films, shows and music from a Flexarr server at home. The server is free, and setting it up takes about ten minutes on a computer that stays on.</p>
         </div>
-        <div class="ipad"><div class="bezel"><img src="/shots/ipad-artist.jpg" width="1121" height="1613" alt=""></div></div>
-        <div class="iphone"><div class="bezel"><img src="/shots/iphone-podcasts.jpg" width="603" height="1311" alt=""></div></div>
+        <a class="button primary" href="/guide/what-you-need">Start here</a>
       </div>
     </div>
 
     <section id="features">
       <div class="wrap">
-        <p class="kicker">What it does</p>
-        <h2>Everything you need from your media server.</h2>
-        <div class="features">
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
-            <h3>Made for your *arrs</h3>
-            <p>Sonarr, Radarr and Lidarr fill in the artwork. New downloads show up the moment they land.</p>
+        <div class="row">
+          <div>
+            <h3>A player made for the big screen.</h3>
+            <p>Flexarr has its own player on Apple TV, iPhone and iPad. Files play as they are wherever the device can manage it, so you get the picture and sound you paid for.</p>
+            <ul class="ticks">
+              <li><span><strong>HDR10, HLG and Dolby Vision</strong> reach the TV untouched; <strong>Dolby Atmos</strong> passes through intact</span></li>
+              <li><span><strong>Skip intro, recap and credits</strong>, found automatically, then Up Next with a countdown</span></li>
+              <li><span>Plays AV1, VC-1, XviD and the rest, and <strong>converts on the fly</strong> only when it has to</span></li>
+              <li><span>Scrubbing previews, subtitles that remember your choice, Picture in Picture and AirPlay</span></li>
+            </ul>
+            <a class="more" href="/guide/hdr-and-atmos">Getting the best picture and sound</a>
           </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/></svg></div>
-            <h3>Discover, then add</h3>
-            <p>Browse what's trending, tap Request, and your *arrs fetch it straight into your library.</p>
+          <img class="shot" src="/shots/watch.webp" srcset="/shots/watch-1000.webp 900w, /shots/watch.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Brooklyn Nine-Nine paused in Flexarr's Apple TV player, with skip and scrub controls, beside Barbie's page on an iPhone.">
+        </div>
+
+        <div class="row flip">
+          <div>
+            <h3>Your music and podcasts, in one place.</h3>
+            <p>Your music library plays like a streaming app, and podcasts are built in: follow any show and pick up where you left off on any device.</p>
+            <ul class="ticks">
+              <li><span><strong>Synced lyrics</strong> on the TV and your phone, from your own lyric files and tags</span></li>
+              <li><span><strong>Daily mixes, artist radio, queues and crossfade</strong> in the web app, made from your own library</span></li>
+              <li><span><strong>Podcasts</strong> from Apple's directory or any feed, with Up Next shared across devices, speeds and a sleep timer</span></li>
+              <li><span>Bring your shows over from another app with <strong>OPML import</strong></span></li>
+            </ul>
+            <a class="more" href="/guide/podcasts">How podcasts work</a>
           </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5Z"/></svg></div>
-            <h3>Plays anything</h3>
-            <p>Files play as they are on the device, AV1 and VC-1 included. Hardware transcoding when they can't.</p>
+          <img class="shot" src="/shots/listen.webp" srcset="/shots/listen-1000.webp 900w, /shots/listen.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Michael Jackson's Thriller playing on Apple TV, with an iPhone in front showing the Podcasts screen: followed shows, Up Next and Continue listening.">
+        </div>
+
+        <div class="row">
+          <div>
+            <h3>Watch live. Record anything.</h3>
+            <p>Bring your own TV tuner or IPTV service through Dispatcharr, and Flexarr gives it a proper home: a full guide, favourites and recordings that sit with the rest of your library.</p>
+            <ul class="ticks">
+              <li><span><strong>A full programme guide</strong> with channel groups and your favourites first</span></li>
+              <li><span><strong>Pause and rewind</strong> live TV, and <strong>record</strong> a programme or a whole series</span></li>
+              <li><span>Watch live channels away from home, at a quality that suits the connection</span></li>
+            </ul>
+            <a class="more" href="/guide/live-tv">Setting up live TV</a>
           </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-            <h3>Picture and sound intact</h3>
-            <p>HDR10, HLG and Dolby Vision reach the TV untouched. Dolby Atmos passes straight through.</p>
+          <img class="shot" src="/shots/live.webp" srcset="/shots/live-1000.webp 900w, /shots/live.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Flexarr's live TV guide on an Apple TV, with channel groups down the side and programmes across the evening, and the channel list on an iPhone.">
+        </div>
+
+        <div class="row flip">
+          <div>
+            <h3>On the train, or the other side of the world.</h3>
+            <p>Download what you want for the journey, or watch from anywhere over Tailscale without opening a single port on your router.</p>
+            <ul class="ticks">
+              <li><span><strong>Downloads</strong> of films, episodes, albums and playlists on iPhone and iPad</span></li>
+              <li><span>New episodes of the podcasts you follow <strong>download by themselves</strong> on Wi-Fi</span></li>
+              <li><span><strong>Away from home over Tailscale</strong>: the apps switch over by themselves</span></li>
+            </ul>
+            <a class="more" href="/guide/away-from-home">Watching away from home</a>
           </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div>
-            <h3>Music, made for you</h3>
-            <p>A queue, playlists, synced lyrics, daily mixes and artist radio, with gapless and crossfade.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div>
-            <h3>Podcasts built in</h3>
-            <p>Follow any show, with one Up Next on every device, speeds, a sleep timer and new-episode alerts.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></div>
-            <h3>Take it with you</h3>
-            <p>Download films, episodes, albums and podcasts to your iPhone or iPad for the plane.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h2M8 8v8M12 5v14M16 8v8M20 12h-2"/></svg></div>
-            <h3>Just ask</h3>
-            <p>"Play the next episode of Curb Your Enthusiasm in Flexarr." Siri, Shortcuts and AI assistants can play and pause on any screen.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></div>
-            <h3>Keeps things tidy</h3>
-            <p>Spots duplicates, unreadable files and old standard-definition copies, and fixes wrong matches.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5v15l9-7.5ZM19 5v14"/></svg></div>
-            <h3>Skips the boring bits</h3>
-            <p>Intros, recaps and credits, spotted automatically. Up Next does the rest.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a5.5 5.5 0 0 1 3.5 6"/></svg></div>
-            <h3>One server, whole house</h3>
-            <p>Everyone gets a profile, a PIN and their own Continue&nbsp;Watching.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/></svg></div>
-            <h3>Yours, anywhere</h3>
-            <p>Watch away from home over Tailscale. No ports, no cloud, no account.</p>
-          </div>
+          <img class="shot" src="/shots/offline.webp" srcset="/shots/offline-1000.webp 900w, /shots/offline.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="The Downloads screen on an iPad and an iPhone, with Ted Lasso episodes, an album and podcast episodes ready to play offline.">
         </div>
       </div>
     </section>
 
-    <section id="install">
+    <section id="house">
       <div class="wrap">
-        <p class="kicker">Install</p>
-        <h2>Up and running in a minute.</h2>
-        <p class="intro">Flexarr runs on anything with Docker: a NAS, a home server, a Raspberry Pi 5. On a Mac it runs natively, so it can use the Mac's hardware for converting video.</p>
+        <h2>One server for everyone at home.</h2>
+        <p class="intro">Everyone gets their own profile, and Flexarr fits in with the rest of your home: your voice, your Home Screen and your smart home.</p>
+        <div class="tiles">
+          <a class="tile" href="/guide/profiles">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg></div>
+            <h3>Profiles</h3>
+            <p>Each with its own history, Continue Watching, libraries and an optional PIN.</p>
+          </a>
+          <a class="tile" href="/guide/siri-and-shortcuts">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div>
+            <h3>Siri and Shortcuts</h3>
+            <p>"Play the next episode of Ted Lasso in Flexarr" on your iPhone, or send it to the TV.</p>
+          </a>
+          <a class="tile" href="/guide/notifications-and-widgets">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="7" rx="1.8"/></svg></div>
+            <h3>Widgets and Top Shelf</h3>
+            <p>Continue Watching on the Apple TV Home Screen, and Up Next widgets on your phone.</p>
+          </a>
+          <a class="tile" href="/guide/notifications-and-widgets">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></div>
+            <h3>Notifications</h3>
+            <p>New episodes, films and recordings, the moment they're ready to play.</p>
+          </a>
+          <a class="tile" href="/guide/home-assistant">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3.5l9 7.5M5.5 9v11h13V9"/><path d="M10 20v-5h4v5"/></svg></div>
+            <h3>Home Assistant</h3>
+            <p>See what's playing in every room, and build automations around it.</p>
+          </a>
+          <a class="tile" href="/guide/assistant-mcp">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><rect x="7" y="7" width="10" height="10" rx="3"/><circle cx="12" cy="12" r="1.5"/></svg></div>
+            <h3>Your AI assistant</h3>
+            <p>Claude, or any assistant that speaks MCP, can search your library and play on the TV.</p>
+          </a>
+        </div>
+      </div>
+    </section>
 
-        <div class="steps">
-          <div class="step">
-            <div>
-              <h3>Start the server</h3>
-              <div class="tabs" role="tablist" aria-label="How to run Flexarr">
-                <button role="tab" id="tab-docker" aria-controls="panel-docker" aria-selected="true">Docker</button>
-                <button role="tab" id="tab-compose" aria-controls="panel-compose" aria-selected="false" tabindex="-1">Docker Compose</button>
-                <button role="tab" id="tab-mac" aria-controls="panel-mac" aria-selected="false" tabindex="-1">macOS</button>
-              </div>
-              <div class="panel" id="panel-docker" role="tabpanel" aria-labelledby="tab-docker">
-                <div class="code"><pre><code>docker run -d --name flexarr --restart unless-stopped \
-  -p 8383:8383 \
-  -v /path/to/config:/config \
-  -v /path/to/media:/data/media \
-  ghcr.io/danleach-glitch/flexarr:latest</code></pre><button class="copy" type="button">Copy</button></div>
-              </div>
-              <div class="panel" id="panel-compose" role="tabpanel" aria-labelledby="tab-compose" hidden>
-                <div class="code"><pre><code>services:
-  flexarr:
-    image: ghcr.io/danleach-glitch/flexarr:latest
-    container_name: flexarr
-    ports: ["8383:8383"]
-    volumes:
-      - ./flexarr:/config
-      - /path/to/media:/data/media
-    restart: unless-stopped</code></pre><button class="copy" type="button">Copy</button></div>
-                <p class="note">Save it as <code>docker-compose.yml</code> and run <code>docker compose up -d</code>.</p>
-              </div>
-              <div class="panel" id="panel-mac" role="tabpanel" aria-labelledby="tab-mac" hidden>
-                <p>Flexarr runs on macOS (Apple silicon or Intel) as a background service that starts when you log in, using VideoToolbox to convert video in hardware. Follow the <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/install-macos.md">macOS guide</a>.</p>
-              </div>
-              <p>Mount your media at <strong>the same path Sonarr, Radarr and Lidarr use</strong>, so the paths they report match what Flexarr sees (or map them in Settings › Connections). <code>latest</code> is always the newest <a href="https://github.com/danleach-glitch/flexarr/releases">release</a>.</p>
-            </div>
-          </div>
-
-          <div class="step">
-            <div>
-              <h3>Set it up</h3>
-              <p>Open <strong>http://&lt;your-server&gt;:8383</strong> in a browser on your home network and choose <strong>Set up Flexarr</strong>: the first browser to reach a new server becomes its owner, no key needed. Your phone, tablet and TV then connect with a code you enter in <strong>Settings › Access › Connect a device</strong>.</p>
-            </div>
-          </div>
-
-          <div class="step">
-            <div>
-              <h3>Add your libraries and *arr apps</h3>
-              <p>In <strong>Settings › Libraries</strong>, add your film, TV and music folders; podcasts are built in. In <strong>Settings › Connections</strong>, add Sonarr, Radarr and Lidarr (and Seerr, for requests) with their API keys. Then, in each app, add a <strong>Webhook</strong> connection (Settings › Connect) with the address shown in Flexarr's <strong>Settings › Server</strong>, so new downloads appear straight away.</p>
-            </div>
-          </div>
+    <section id="arrs">
+      <div class="wrap">
+        <h2>Made for Sonarr, Radarr and Lidarr.</h2>
+        <p class="intro">Flexarr takes its artwork and details from the apps you already run, so there are no keys to sign up for and nothing to match twice.</p>
+        <div class="tiles">
+          <a class="tile" href="/guide/connect-arrs">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7Z"/></svg></div>
+            <h3>New in seconds</h3>
+            <p>A webhook from each *arr, and new downloads appear the moment they land.</p>
+          </a>
+          <a class="tile" href="/guide/requests">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></div>
+            <h3>Requests</h3>
+            <p>Browse what's trending, tap Request, and Seerr fetches it into your library.</p>
+          </a>
+          <a class="tile" href="/guide/library-health">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></div>
+            <h3>Library health</h3>
+            <p>Spots duplicates, unreadable files and old SD copies, and fixes wrong matches.</p>
+          </a>
+          <a class="tile" href="/guide/import-from-plex">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></svg></div>
+            <h3>Bring your history</h3>
+            <p>Import what you've watched from Plex, matched by file, without touching Plex.</p>
+          </a>
+          <a class="tile" href="/guide/backups">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <h3>Backups</h3>
+            <p>Your settings, profiles and history, backed up by themselves and easy to restore.</p>
+          </a>
+          <a class="tile" href="/guide/logs-and-diagnostics">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></div>
+            <h3>Logs you can read</h3>
+            <p>Search, filter and watch live, and download a diagnostics zip for a bug report.</p>
+          </a>
         </div>
       </div>
     </section>
 
     <section id="apps">
       <div class="wrap">
-        <p class="kicker">Apps</p>
-        <h2>Watch on the big screen, or in bed.</h2>
+        <div class="center">
+          <h2>On Apple TV, iPhone, iPad and the web.</h2>
+          <p class="intro">Connect each app once with a short code, and every setting follows your profile from screen to screen.</p>
+        </div>
+        <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp"><img class="shot wide" src="/shots/screens.webp" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" loading="lazy" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page."></picture>
         <div class="apps">
           <div class="app">
-            <h3>Web</h3>
+            <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span>iPhone and iPad</h3>
+            <p>Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.</p>
+            <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>Download on the App Store</a>
+          </div>
+          <div class="app">
+            <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg></span>Apple TV</h3>
+            <p>Your libraries, music and live TV from the sofa, with Continue Watching in the Top Shelf and a player built for HDR and Atmos.</p>
+            <span class="badge soon">Coming soon to the App Store</span>
+            <p class="aside">Can't wait? <a href="/guide/apple-tv-xcode">Install it from Xcode</a>.</p>
+          </div>
+          <div class="app">
+            <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3Z"/></svg></span>Web</h3>
             <p>Built into the server, nothing to install. Open your server's address in any browser, on a computer, tablet or phone.</p>
-            <a class="badge ready" href="#install">Included with the server</a>
-          </div>
-          <div class="app">
-            <h3>Apple TV</h3>
-            <p>Your libraries, music and profiles from the sofa, with Continue Watching in the Top Shelf. Pick your server and approve it from your phone, no typing.</p>
-            <span class="badge soon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8s2.1-1.2 2.9-2.4a9.7 9.7 0 0 0 1.3-2.7 4.2 4.2 0 0 1-2.4-4ZM14 5.4A4.2 4.2 0 0 0 15 2.5a4.3 4.3 0 0 0-2.8 1.4A4 4 0 0 0 11.2 6.7 3.6 3.6 0 0 0 14 5.4Z"/></svg>App Store: coming soon</span>
-          </div>
-          <div class="app">
-            <h3>iPhone and iPad</h3>
-            <p>Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay. Finds your server by itself, at home or over Tailscale.</p>
-            <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8s2.1-1.2 2.9-2.4a9.7 9.7 0 0 0 1.3-2.7 4.2 4.2 0 0 1-2.4-4ZM14 5.4A4.2 4.2 0 0 0 15 2.5a4.3 4.3 0 0 0-2.8 1.4A4 4 0 0 0 11.2 6.7 3.6 3.6 0 0 0 14 5.4Z"/></svg>Download on the App Store</a>
+            <a class="badge ready" href="#setup">Included with the server</a>
           </div>
         </div>
-        <p class="intro">Can't wait for Apple TV? It builds from source with Xcode onto your own devices: see <a href="https://github.com/danleach-glitch/flexarr#apple-tv-iphone-and-ipad">the README</a>.</p>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="wrap">
+        <h2>Up and running in minutes.</h2>
+        <p class="intro">Flexarr runs on a computer at home that stays on: a NAS, a home server, a Mac mini or a desktop PC. It's free, and your films and music stay where they are.</p>
+        <div class="steps">
+          <div class="step">
+            <div>
+              <h3>Install the server</h3>
+              <p>Choose what it will run on.</p>
+              <div class="tabs" role="tablist" aria-label="Where Flexarr will run">
+                <button role="tab" id="tab-docker" aria-controls="panel-docker" aria-selected="true">Linux</button>
+                <button role="tab" id="tab-synology" aria-controls="panel-synology" aria-selected="false" tabindex="-1">Synology</button>
+                <button role="tab" id="tab-unraid" aria-controls="panel-unraid" aria-selected="false" tabindex="-1">Unraid</button>
+                <button role="tab" id="tab-mac" aria-controls="panel-mac" aria-selected="false" tabindex="-1">Mac</button>
+                <button role="tab" id="tab-windows" aria-controls="panel-windows" aria-selected="false" tabindex="-1">Windows</button>
+              </div>
+              <div class="panel" id="panel-docker" role="tabpanel" aria-labelledby="tab-docker">
+                <p>With Docker installed, one command starts Flexarr. Change <code>/path/to/media</code> to the folder that holds your films, shows and music.</p>
+                <div class="code"><pre><code>docker run -d --name flexarr --restart unless-stopped \
+  -p 8383:8383 \
+  -v flexarr-config:/config \
+  -v /path/to/media:/data/media \
+  ghcr.io/danleach-glitch/flexarr:latest</code></pre></div>
+                <p class="note">Prefer Compose, or want hardware video conversion? <a href="/guide/install-docker">See the Docker guide</a>.</p>
+              </div>
+              <div class="panel" id="panel-synology" role="tabpanel" aria-labelledby="tab-synology" hidden>
+                <p>On DSM 7.2 or later, Flexarr runs in <strong>Container Manager</strong> as a project: make two folders, paste a short Compose file and start it.</p>
+                <p class="note"><a href="/guide/install-synology">Step by step for Synology</a></p>
+              </div>
+              <div class="panel" id="panel-unraid" role="tabpanel" aria-labelledby="tab-unraid" hidden>
+                <p>Add a container on the <strong>Docker</strong> tab with the repository <code>ghcr.io/danleach-glitch/flexarr:latest</code>, port <strong>8383</strong>, an appdata folder for <code>/config</code> and your media share.</p>
+                <p class="note"><a href="/guide/install-unraid">Step by step for Unraid</a></p>
+              </div>
+              <div class="panel" id="panel-mac" role="tabpanel" aria-labelledby="tab-mac" hidden>
+                <p>On a Mac (Apple silicon or Intel), Flexarr runs natively as a background service, using the Mac's own hardware to convert video. It's built from the source with one command.</p>
+                <p class="note"><a href="/guide/install-macos">Step by step for macOS</a></p>
+              </div>
+              <div class="panel" id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+                <p>On Windows, Flexarr runs in <strong>Docker Desktop</strong>. Install it, then run the same command as on Linux in PowerShell, with your media folder in place of <code>/path/to/media</code>.</p>
+                <p class="note"><a href="/guide/install-docker#windows">Step by step for Windows</a></p>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <h3>Open it in your browser</h3>
+              <p>On a computer at home, go to <strong>http://&lt;your-server&gt;:8383</strong> and choose <strong>Set up Flexarr</strong>. The first browser to reach a new server becomes its owner: no account, no key. Then add your film, TV and music folders in <strong>Settings › Libraries</strong>.</p>
+              <p class="note"><a href="/guide/first-setup">First setup, in detail</a></p>
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <h3>Connect your Apple TV and iPhone</h3>
+              <p>Open the app on the same Wi-Fi. It looks for your server, or you can type in its address. Then it shows a short code: enter it on your computer under <strong>Settings › Access › Connect a device</strong>, and that device is signed in for good.</p>
+              <p class="note"><a href="/guide/connect-devices">Connecting devices, and what to do if one can't see your server</a></p>
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <h3>Add your *arrs <span class="tag">Recommended</span></h3>
+              <p>In <strong>Settings › Connections</strong>, add Sonarr, Radarr and Lidarr (and Seerr, for requests) for artwork, details and new downloads in seconds. Mount your media at <strong>the same path they use</strong>, so their paths match what Flexarr sees.</p>
+              <p class="note links"><a href="/guide/connect-arrs">Connecting your *arrs</a> <a href="/guide/media-paths">Getting the paths right</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="questions">
+      <div class="wrap">
+        <div class="center">
+          <h2>Good to know.</h2>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Is it really free?</summary>
+            <p>Yes, for personal and other noncommercial use, under the PolyForm Noncommercial License. There's no account, no subscription and nothing to unlock. The source is on GitHub.</p>
+          </details>
+          <details>
+            <summary>Do I need Sonarr, Radarr and Lidarr?</summary>
+            <p>They're recommended, not required. Flexarr takes artwork and details for films and shows from Radarr and Sonarr, so without them your files still play but look plain. Music works well without Lidarr, from your files' own tags and cover art. <a href="/guide/what-you-need">More on what you need</a>.</p>
+          </details>
+          <details>
+            <summary>What do I need to run it?</summary>
+            <p>A computer at home that stays on and can see your media: a NAS, a Linux or Windows machine with Docker, or a Mac. The Docker image runs on Intel, AMD and ARM 64-bit processors. A Mac can also use its own hardware to convert video quickly.</p>
+          </details>
+          <details>
+            <summary>Does anything leave my home?</summary>
+            <p>Your files and what you watch stay on your server. A few things are sent only if you use them: notifications to your phone pass through flexarr.io on their way to Apple, and error reports are off unless you turn them on. <a href="/privacy">Read the privacy policy</a>.</p>
+          </details>
+          <details>
+            <summary>Can I watch away from home?</summary>
+            <p>Yes. Tailscale connects your phone to your server from anywhere without opening ports on your router, and the apps switch over by themselves. <a href="/guide/away-from-home">How to set it up</a>.</p>
+          </details>
+          <details>
+            <summary>When is the Apple TV app on the App Store?</summary>
+            <p>Soon. Until then you can install it on your own Apple TV from a Mac with Xcode. <a href="/guide/apple-tv-xcode">Here's how</a>. There isn't an Android app yet, but the web app works in any browser.</p>
+          </details>
+        </div>
+        <p class="center" style="margin-top: 28px"><a class="more" href="/guide/faq">More questions and answers</a></p>
+      </div>
+    </section>
+
+    <section class="closing">
+      <div class="wrap">
+        <h2>Your own streaming service, tonight.</h2>
+        <div class="actions">
+          <a class="button primary" href="#setup">Set up your server</a>
+          <a class="button quiet" href="/guide">Read the guide</a>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer>
+  <footer class="site-footer">
     <div class="wrap bar">
-      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License. Not affiliated with the *arr projects.</span>
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
       <nav aria-label="Project">
+        <a href="/guide">Guide</a>
         <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
         <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
         <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
         <a href="/privacy">Privacy</a>
       </nav>
     </div>
   </footer>
-
   <script>
     // Tabs: click or arrow keys.
     const tabs = [...document.querySelectorAll('[role="tab"]')];
@@ -386,11 +500,11 @@
         if (step) { e.preventDefault(); select(tabs[(i + step + tabs.length) % tabs.length]); }
       });
     });
-
     // Copy buttons, with the old way as a fallback.
-    for (const button of document.querySelectorAll('.copy')) {
+    for (const pre of document.querySelectorAll('pre')) {
+      const button = Object.assign(document.createElement('button'), { type: 'button', className: 'copy', textContent: 'Copy' });
       button.addEventListener('click', async () => {
-        const text = button.parentElement.querySelector('code').textContent;
+        const text = pre.querySelector('code').textContent;
         try {
           await navigator.clipboard.writeText(text);
         } catch {
@@ -400,6 +514,7 @@
         button.textContent = 'Copied';
         setTimeout(() => (button.textContent = 'Copy'), 1600);
       });
+      pre.append(button);
     }
   </script>
 </body>

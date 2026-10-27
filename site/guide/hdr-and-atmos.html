@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HDR and Dolby Atmos · Flexarr guide</title>
+  <meta name="description" content="How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/hdr-and-atmos">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="HDR and Dolby Atmos · Flexarr guide">
+  <meta property="og:description" content="How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/hdr-and-atmos">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos" aria-current="page">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>HDR and Dolby Atmos</h1>
+        <p class="lede">How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#set-up-the-apple-tv-first">Set up the Apple TV first</a></li>
+            <li><a href="#hdr-what-reaches-your-tv">HDR: what reaches your TV</a></li>
+            <li><a href="#sound-atmos-truehd-and-dts">Sound: Atmos, TrueHD and DTS</a></li>
+            <li><a href="#watching-away-from-home">Watching away from home</a></li>
+            <li><a href="#other-screens">Other screens</a></li>
+            <li><a href="#checking-what-you-re-getting">Checking what you&#39;re getting</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>If you have a 4K HDR television and a soundbar or receiver, you want the picture and sound to arrive as they are in the file. Flexarr is built to do that on Apple TV, without converting anything. This page explains what reaches your TV, and the few settings on the Apple TV itself that make the difference.</p>
+<blockquote class="callout note"><p><strong>Note</strong> The Apple TV app isn&#39;t on the App Store yet. Until it is, you can <a href="/guide/apple-tv-xcode">install it from Xcode</a>.</p>
+</blockquote>
+<h2 id="set-up-the-apple-tv-first"><a class="anchor" href="#set-up-the-apple-tv-first" aria-hidden="true" tabindex="-1">#</a>Set up the Apple TV first</h2>
+<p>These are Apple&#39;s own settings, in the Apple TV&#39;s <strong>Settings › Video and Audio</strong>. They matter more than anything in Flexarr.</p>
+<ol>
+<li><strong>Format:</strong> set it to the best your television supports. Apple recommends <strong>4K SDR</strong> (or <strong>4K SDR 60Hz</strong>) when you turn on matching below, so menus look right and HDR switches on only for HDR films.</li>
+<li><strong>Match Content › Match Dynamic Range:</strong> turn this on. The Apple TV then switches the television into HDR10, HLG or Dolby Vision to suit each film, and back again afterwards.</li>
+<li><strong>Match Content › Match Frame Rate:</strong> turn this on too. Films shot at 24 frames a second then play at 24, without judder.</li>
+<li><strong>Audio Format:</strong> leave this on its automatic setting so the Apple TV sends Dolby Atmos to equipment that takes it. If Atmos isn&#39;t showing on your soundbar or receiver, check here that Dolby Atmos is available.</li>
+</ol>
+<p>Flexarr follows Match Content: when it&#39;s on, the Apple TV switches mode for each title Flexarr plays.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Without Match Dynamic Range, an Apple TV set to a fixed Dolby Vision output has no HDR10 mode. A plain HDR10 film may then be converted to SDR when it reaches the Apple TV as a stream from the server. Turning on Match Dynamic Range avoids this.</p>
+</blockquote>
+<h2 id="hdr-what-reaches-your-tv"><a class="anchor" href="#hdr-what-reaches-your-tv" aria-hidden="true" tabindex="-1">#</a>HDR: what reaches your TV</h2>
+<p>With <strong>Play files directly</strong> on (the default on Apple TV, iPhone and iPad), the Apple TV plays the file itself. HDR10, HLG and Dolby Vision reach the television untouched.</p>
+<figure><img src="/guide/img/tv-movie.webp" alt="Barbie&#39;s page on Apple TV, showing 1080p, its genres and the Play button" data-caption="A film&#39;s page on Apple TV" loading="lazy" decoding="async" class="device"></figure>
+<p>With <strong>Play files directly</strong> off, the server <a href="/guide/playback-and-transcoding">repackages</a> the original picture into a stream without re-encoding it. Here&#39;s what the television gets:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>In the file</th>
+<th>On the television</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>HDR10</td>
+<td>HDR10, as it is</td>
+</tr>
+<tr>
+<td>HLG</td>
+<td>HLG, as it is</td>
+</tr>
+<tr>
+<td>Dolby Vision profile 5</td>
+<td>Dolby Vision, on a Dolby Vision television</td>
+</tr>
+<tr>
+<td>Dolby Vision profile 8.1</td>
+<td>Dolby Vision on a Dolby Vision television, otherwise HDR10</td>
+</tr>
+<tr>
+<td>Dolby Vision profile 7 (UHD Blu-ray)</td>
+<td>Its HDR10 base layer</td>
+</tr>
+<tr>
+<td>HDR10+</td>
+<td>Played as HDR10. HDR10+ itself is on the <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" rel="noopener">roadmap</a>.</td>
+</tr>
+</tbody></table></div>
+<p>HDR is only converted to SDR when it has to be: when the television doesn&#39;t show HDR, when the stream is limited in size (see <strong>Limit each stream to</strong> in <a href="/guide/playback-and-transcoding">Playback and transcoding</a>), or when the video itself has to be converted.</p>
+<p>On iPhone and iPad, HDR shows on screens that support it.</p>
+<h2 id="sound-atmos-truehd-and-dts"><a class="anchor" href="#sound-atmos-truehd-and-dts" aria-hidden="true" tabindex="-1">#</a>Sound: Atmos, TrueHD and DTS</h2>
+<p>How the sound reaches your equipment depends on what&#39;s in the file.</p>
+<h3 id="dolby-atmos-in-dolby-digital-plus"><a class="anchor" href="#dolby-atmos-in-dolby-digital-plus" aria-hidden="true" tabindex="-1">#</a>Dolby Atmos in Dolby Digital Plus</h3>
+<p>This is the kind of Atmos you&#39;ll find on most streaming-service releases. It reaches the Apple TV intact and signalled as Atmos, ready for an Atmos receiver, soundbar or HomePods.</p>
+<h3 id="truehd-dts-hd-master-audio-and-pcm"><a class="anchor" href="#truehd-dts-hd-master-audio-and-pcm" aria-hidden="true" tabindex="-1">#</a>TrueHD, DTS-HD Master Audio and PCM</h3>
+<p>The Apple TV can&#39;t play these as they are, so Flexarr makes sure nothing is lost on the way.</p>
+<ul>
+<li><strong>Play files directly on, Lossless surround on:</strong> the app decodes the soundtrack and sends it as multichannel PCM over HDMI. Use this with a receiver or an eARC soundbar that accepts it.</li>
+<li><strong>Play files directly on, Lossless surround off:</strong> they&#39;re sent as Dolby Digital Plus, which any soundbar or receiver plays.</li>
+<li><strong>Play files directly off:</strong> the server sends them as lossless FLAC, up to 7.1, instead of squeezing them into 5.1.</li>
+</ul>
+<p>Plain DTS is decoded with nothing more lost on the way.</p>
+<blockquote class="callout note"><p><strong>Note</strong> TrueHD soundtracks with Atmos currently play as lossless surround without Atmos&#39;s height channels. Keeping them is on the <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" rel="noopener">roadmap</a>.</p>
+</blockquote>
+<h3 id="turning-on-lossless-surround"><a class="anchor" href="#turning-on-lossless-surround" aria-hidden="true" tabindex="-1">#</a>Turning on Lossless surround</h3>
+<p>On the Apple TV, open Flexarr&#39;s <strong>Settings › Playback</strong>. Under <strong>This Apple TV</strong>, turn on <strong>Play files directly</strong> if it&#39;s off, then <strong>Lossless surround</strong>. The same switches are in the iPhone and iPad app&#39;s <strong>Settings › Playback</strong>, for AirPlay or a connected display.</p>
+<p>Leave <strong>Lossless surround</strong> off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.</p>
+<h2 id="watching-away-from-home"><a class="anchor" href="#watching-away-from-home" aria-hidden="true" tabindex="-1">#</a>Watching away from home</h2>
+<p>With a quality limit set in <strong>Settings › Streaming</strong>, anything above it is converted down. Lossless sound becomes compressed and HDR becomes SDR, because neither fits through a small connection. See <a href="/guide/away-from-home">Away from home</a>.</p>
+<h2 id="other-screens"><a class="anchor" href="#other-screens" aria-hidden="true" tabindex="-1">#</a>Other screens</h2>
+<ul>
+<li><strong>iPhone and iPad:</strong> surround is mixed down for headphones and the speakers, and passed on over AirPlay.</li>
+<li><strong>Web browsers:</strong> fine for a quick watch, but use the Apple TV for HDR and surround.</li>
+<li><strong>Live TV:</strong> channels that broadcast Dolby Digital or Dolby Digital Plus come through as 5.1 on Apple TV, iPhone and iPad at home. See <a href="/guide/live-tv">Live TV and recording</a>.</li>
+</ul>
+<h2 id="checking-what-you-re-getting"><a class="anchor" href="#checking-what-you-re-getting" aria-hidden="true" tabindex="-1">#</a>Checking what you&#39;re getting</h2>
+<p>While something plays on the Apple TV, bring up the player&#39;s controls. The line in the corner says what&#39;s playing, for example &quot;Original HEVC (Dolby Vision), repackaged, lossless FLAC 7.1 sound&quot;, or the resolution and sound followed by &quot;Original&quot; for a file played as it is. Your television&#39;s and receiver&#39;s own info screens confirm what they&#39;re receiving.</p>
+<p>If HDR or Atmos isn&#39;t coming through, check the Apple TV&#39;s Match Content and Audio Format settings first, then <a href="/guide/troubleshooting">Troubleshooting</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/playback-and-transcoding"><span>Previous</span>Playback and transcoding</a>
+          <a class="next" href="/guide/subtitles-and-skipping"><span>Next</span>Subtitles, skipping and Up Next</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/hdr-and-atmos.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20HDR%20and%20Dolby%20Atmos">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

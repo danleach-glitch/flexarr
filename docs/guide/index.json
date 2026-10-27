@@ -1,0 +1,49 @@
+{
+  "sections": [
+    {
+      "title": "Getting started",
+      "pages": [
+        "what-you-need",
+        "install-macos",
+        "install-synology",
+        "install-unraid",
+        "install-docker",
+        "first-setup",
+        "connect-devices",
+        "apple-tv-xcode",
+        "updating"
+      ]
+    },
+    {
+      "title": "Your *arrs",
+      "pages": ["connect-arrs", "media-paths", "requests"]
+    },
+    {
+      "title": "Watching and listening",
+      "pages": [
+        "playback-and-transcoding",
+        "hdr-and-atmos",
+        "subtitles-and-skipping",
+        "music",
+        "podcasts",
+        "downloads",
+        "live-tv"
+      ]
+    },
+    {
+      "title": "Around the house",
+      "pages": [
+        "profiles",
+        "away-from-home",
+        "siri-and-shortcuts",
+        "notifications-and-widgets",
+        "home-assistant",
+        "assistant-mcp"
+      ]
+    },
+    {
+      "title": "Looking after it",
+      "pages": ["import-from-plex", "library-health", "backups", "logs-and-diagnostics", "troubleshooting", "faq"]
+    }
+  ]
+}

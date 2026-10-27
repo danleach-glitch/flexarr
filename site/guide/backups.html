@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backups · Flexarr guide</title>
+  <meta name="description" content="How Flexarr backs itself up every night, where backups are kept, and how to restore one or move your settings to another server.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/backups">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Backups · Flexarr guide">
+  <meta property="og:description" content="How Flexarr backs itself up every night, where backups are kept, and how to restore one or move your settings to another server.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/backups">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups" aria-current="page">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
+        <h1>Backups</h1>
+        <p class="lede">How Flexarr backs itself up every night, where backups are kept, and how to restore one or move your settings to another server.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-s-in-a-backup">What&#39;s in a backup</a></li>
+            <li><a href="#automatic-backups">Automatic backups</a></li>
+            <li><a href="#back-up-now">Back up now</a></li>
+            <li><a href="#where-backups-are-kept">Where backups are kept</a></li>
+            <li><a href="#download-a-backup">Download a backup</a></li>
+            <li><a href="#restore-a-backup">Restore a backup</a></li>
+            <li><a href="#restore-or-import-from-a-file">Restore or import from a file</a></li>
+            <li><a href="#moving-to-another-server">Moving to another server</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Your films, shows and music live on your own drives, and Flexarr can always scan them again. What it can&#39;t rebuild is everything you&#39;ve added on top: profiles, what everyone has watched, playlists, collections, settings and signed-in devices. That&#39;s what a backup holds.</p>
+<p>Everything here is in the web app under <strong>Settings › Backup and restore</strong>, as the main profile.</p>
+<figure><img src="/guide/img/backups.webp" alt="Settings › Backup and restore, listing two backups with download, restore and delete buttons, and the nightly backup switch" data-caption="Settings › Backup and restore" loading="lazy" decoding="async"></figure>
+<h2 id="what-s-in-a-backup"><a class="anchor" href="#what-s-in-a-backup" aria-hidden="true" tabindex="-1">#</a>What&#39;s in a backup</h2>
+<ul>
+<li>Profiles, with their PINs and pictures</li>
+<li>What every profile has watched, and where they stopped</li>
+<li>Playlists, collections, podcast follows and other per-profile data</li>
+<li>The server&#39;s settings and keys (<code>config.json</code>)</li>
+<li>Signed-in browsers, phones and TVs</li>
+</ul>
+<p>Artwork, subtitles and scrubbing previews are left out. They come back by themselves. Your media files and logs aren&#39;t included either.</p>
+<h2 id="automatic-backups"><a class="anchor" href="#automatic-backups" aria-hidden="true" tabindex="-1">#</a>Automatic backups</h2>
+<p>Flexarr makes a backup every night at half past three and keeps the last 7. If the server was off overnight, it catches up a few minutes after it next starts.</p>
+<p>It also makes one before an upgrade changes the database, and before a restore, so you can always go back. The last 3 of each of those are kept. Backups you make by hand are never deleted automatically.</p>
+<p>To stop the nightly backups, turn off <strong>Back up every night</strong> under <strong>Automatic backups</strong>. We don&#39;t recommend it.</p>
+<h2 id="back-up-now"><a class="anchor" href="#back-up-now" aria-hidden="true" tabindex="-1">#</a>Back up now</h2>
+<p>Choose <strong>Back up now</strong> at any time, for example before changing a lot of settings. Each backup in the list shows when it was made, why (<strong>Nightly</strong>, <strong>Made by hand</strong>, <strong>Before an upgrade</strong>, <strong>Before a restore</strong>), its size and the Flexarr version.</p>
+<h2 id="where-backups-are-kept"><a class="anchor" href="#where-backups-are-kept" aria-hidden="true" tabindex="-1">#</a>Where backups are kept</h2>
+<p>The list says where: <strong>Kept in</strong> and the folder. By default that&#39;s a <code>backups</code> folder inside Flexarr&#39;s data folder:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Install</th>
+<th>Default backups folder</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mac</td>
+<td><code>~/.flexarr/data/backups</code></td>
+</tr>
+<tr>
+<td>Docker</td>
+<td><code>/config/backups</code> inside the container, so wherever you mapped <code>/config</code></td>
+</tr>
+</tbody></table></div>
+<p>A backup on the same drive as Flexarr won&#39;t help if that drive fails. To keep them elsewhere, type another folder under <strong>Automatic backups › Folder</strong> and choose <strong>Save</strong>: a second drive, or a network share mounted on the server. In Docker, the folder has to be one you&#39;ve mapped into the container. Leave it empty to go back to the data folder.</p>
+<p>If the chosen folder isn&#39;t there when a backup is due (a drive that&#39;s unplugged, or a share that didn&#39;t mount), Flexarr says so on the page rather than quietly filling up its own drive.</p>
+<h2 id="download-a-backup"><a class="anchor" href="#download-a-backup" aria-hidden="true" tabindex="-1">#</a>Download a backup</h2>
+<p>Use the <strong>Download</strong> icon on a backup to save a copy to your computer. You can protect it with a passphrase of at least 8 characters. The file holds your server&#39;s keys and the passwords for Sonarr, Radarr and the like, so either set a passphrase or keep the file somewhere private.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Flexarr asks for the passphrase when you open the file later. Keep it in a password manager.</p>
+</blockquote>
+<h2 id="restore-a-backup"><a class="anchor" href="#restore-a-backup" aria-hidden="true" tabindex="-1">#</a>Restore a backup</h2>
+<p>Restoring puts the whole server back to how it was when the backup was made: profiles, what&#39;s been watched, settings, keys and sign-ins. Anything since is lost.</p>
+<ol>
+<li>Find the backup in the list and use its <strong>Restore</strong> icon. To restore a file you downloaded, use <strong>From a file</strong> further down the page instead (below).</li>
+<li>Read the warning, and enter the main profile&#39;s PIN if it has one.</li>
+<li>Choose <strong>Restore and restart</strong>.</li>
+</ol>
+<p>Flexarr first makes a copy of the server as it is now (it appears in the list as <strong>Before a restore</strong>), so you can change your mind. It then restarts to put the backup in place. Anyone watching is stopped. The page reloads when Flexarr is back.</p>
+<p>Before anything changes, the backup is checked. A damaged one, one made by a newer version of Flexarr, or a file that isn&#39;t a Flexarr backup is refused. This machine&#39;s own paths (ffmpeg and the cache) are kept as they are.</p>
+<blockquote class="callout important"><p><strong>Important</strong> Flexarr stops itself to finish a restore and relies on whatever runs it to start it again. The Mac install does this. In Docker, the container needs a restart policy such as <code>--restart unless-stopped</code> (or <code>restart: unless-stopped</code> in Compose). Without one, start the container again by hand within the hour, or the restore is dropped.</p>
+</blockquote>
+<h2 id="restore-or-import-from-a-file"><a class="anchor" href="#restore-or-import-from-a-file" aria-hidden="true" tabindex="-1">#</a>Restore or import from a file</h2>
+<p><strong>From a file</strong> takes either a downloaded backup or a settings file (below), from this server or another.</p>
+<ol>
+<li>Choose <strong>Choose a file…</strong> and pick the file.</li>
+<li>If it&#39;s protected, enter its passphrase and choose <strong>Open</strong>.</li>
+<li>Flexarr shows what&#39;s inside: when it was made, by which version, and how many profiles, libraries and titles it holds.</li>
+<li>For a backup, choose <strong>Restore…</strong> and carry on as above.</li>
+</ol>
+<p>If the backup came from a different Flexarr server, Flexarr points this out. Restoring it brings that server&#39;s keys and its signed-in browsers and devices, so only restore one you made yourself.</p>
+<h2 id="moving-to-another-server"><a class="anchor" href="#moving-to-another-server" aria-hidden="true" tabindex="-1">#</a>Moving to another server</h2>
+<p>Two ways, depending on what you want to take:</p>
+<ul>
+<li><strong>Everything, history included:</strong> download a backup on the old server and restore it on the new one with <strong>From a file</strong>. Mount your media at the same paths on the new machine, or fix up the library folders afterwards in <strong>Settings › Libraries</strong>.</li>
+<li><strong>Settings only:</strong> use <strong>Settings file › Export…</strong> on the old server, then <strong>From a file</strong> on the new one. A settings file holds libraries and the server&#39;s settings, without profiles or watch history.</li>
+</ul>
+<p>When you import a settings file, you choose which parts to take: <strong>Libraries</strong>, <strong>Connections</strong>, <strong>Live TV</strong>, <strong>Streaming</strong>, <strong>Home and Browse</strong>, <strong>Podcasts</strong>, <strong>Notifications</strong>, <strong>Access</strong>, <strong>This machine&#39;s paths</strong> and <strong>Server keys</strong>. Each library&#39;s folders can be changed to where they are on the new machine. <strong>This machine&#39;s paths</strong> and <strong>Server keys</strong> start unticked, and taking either of them, or <strong>Access</strong>, asks for the main profile&#39;s PIN.</p>
+<p>See also <a href="/guide/updating">Updating</a>, which makes its own backup before any upgrade that changes the database.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/library-health"><span>Previous</span>Library health</a>
+          <a class="next" href="/guide/logs-and-diagnostics"><span>Next</span>Logs and diagnostics</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/backups.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Backups">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

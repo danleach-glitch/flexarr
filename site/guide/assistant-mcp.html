@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Use an AI assistant · Flexarr guide</title>
+  <meta name="description" content="Connect Claude or another AI assistant to Flexarr over MCP, so it can search your library, see what&#39;s playing and play things on your TV.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/assistant-mcp">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Use an AI assistant · Flexarr guide">
+  <meta property="og:description" content="Connect Claude or another AI assistant to Flexarr over MCP, so it can search your library, see what&#39;s playing and play things on your TV.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/assistant-mcp">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp" aria-current="page">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
+        <h1>Use an AI assistant</h1>
+        <p class="lede">Connect Claude or another AI assistant to Flexarr over MCP, so it can search your library, see what&#39;s playing and play things on your TV.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#what-an-assistant-can-do">What an assistant can do</a></li>
+            <li><a href="#what-you-ll-need">What you&#39;ll need</a></li>
+            <li><a href="#claude-code">Claude Code</a></li>
+            <li><a href="#other-assistants">Other assistants</a></li>
+            <li><a href="#keep-it-safe">Keep it safe</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr is an MCP server. MCP (the <a href="https://modelcontextprotocol.io" rel="noopener">Model Context Protocol</a>) is a standard way for AI assistants such as Claude to use other apps. Connect one to Flexarr and you can ask it things like &quot;What am I in the middle of?&quot;, &quot;Put the next <em>Traitors</em> on the living room TV&quot; or &quot;Queue the new <em>Rest Is History</em> episodes&quot;.</p>
+<h2 id="what-an-assistant-can-do"><a class="anchor" href="#what-an-assistant-can-do" aria-hidden="true" tabindex="-1">#</a>What an assistant can do</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>search_library</code></td>
+<td>Finds films, shows and episodes by title.</td>
+</tr>
+<tr>
+<td><code>continue_watching</code></td>
+<td>What you&#39;re in the middle of, most recent first.</td>
+</tr>
+<tr>
+<td><code>next_up</code></td>
+<td>The episode to watch next in a show.</td>
+</tr>
+<tr>
+<td><code>list_devices</code></td>
+<td>The Apple TVs, iPhones and iPads signed in, whether Flexarr is open on each, and what each is playing.</td>
+</tr>
+<tr>
+<td><code>now_playing</code></td>
+<td>Everything playing right now on every screen: which device, whose profile, what, and how far in.</td>
+</tr>
+<tr>
+<td><code>play_on_device</code></td>
+<td>Plays a title on a device. A show plays the episode you&#39;re up to; it can shuffle a show or start from the beginning.</td>
+</tr>
+<tr>
+<td><code>control_device</code></td>
+<td>Pauses, resumes or stops a device.</td>
+</tr>
+<tr>
+<td><code>mark_watched</code></td>
+<td>Marks a film or episode watched or unwatched; a show or season marks every episode.</td>
+</tr>
+<tr>
+<td><code>podcasts</code></td>
+<td>The podcasts you follow, with how many episodes you haven&#39;t heard.</td>
+</tr>
+<tr>
+<td><code>new_podcast_episodes</code></td>
+<td>The newest episodes you haven&#39;t heard.</td>
+</tr>
+<tr>
+<td><code>podcast_up_next</code></td>
+<td>Your podcast Up Next queue.</td>
+</tr>
+<tr>
+<td><code>add_to_up_next</code></td>
+<td>Queues an episode, at the end or to play next.</td>
+</tr>
+<tr>
+<td><code>live_channels</code></td>
+<td>Live TV channels with what&#39;s on now and next.</td>
+</tr>
+<tr>
+<td><code>watch_channel_on_device</code></td>
+<td>Puts a channel on a device.</td>
+</tr>
+<tr>
+<td><code>record_programme</code></td>
+<td>Sets a programme, or every showing of a series, to record.</td>
+</tr>
+<tr>
+<td><code>recordings</code></td>
+<td>What&#39;s set to record, and what&#39;s been recorded.</td>
+</tr>
+</tbody></table></div>
+<p>The Live TV tools are only useful once Live TV is set up. See <a href="/guide/live-tv">Live TV</a>.</p>
+<p>As with Siri, a device only plays what it&#39;s told while Flexarr is open on it. If it isn&#39;t, the command waits two minutes for Flexarr to be opened there, and the assistant is told so.</p>
+<p>The assistant acts as the main profile, since it signs in with the API key. Its Continue Watching, podcasts and marks are the main profile&#39;s.</p>
+<h2 id="what-you-ll-need"><a class="anchor" href="#what-you-ll-need" aria-hidden="true" tabindex="-1">#</a>What you&#39;ll need</h2>
+<ul>
+<li>Your server&#39;s address, such as <code>http://mini.local:8383</code> or <code>http://192.168.1.20:8383</code>. The MCP address is that with <code>/api/v1/mcp</code> on the end.</li>
+<li>The API key, from <strong>Settings › Access</strong> in Flexarr, signed in as the main profile. Showing it asks for the main profile&#39;s PIN.</li>
+</ul>
+<h2 id="claude-code"><a class="anchor" href="#claude-code" aria-hidden="true" tabindex="-1">#</a>Claude Code</h2>
+<p>In a terminal, run:</p>
+<pre><code class="language-bash">claude mcp add --transport http flexarr http://mini.local:8383/api/v1/mcp --header &quot;X-Api-Key: &lt;your key&gt;&quot;
+</code></pre>
+<p>Change <code>mini.local</code> to your server&#39;s name or address, and <code>&lt;your key&gt;</code> to the API key. Then start Claude Code and ask it something about your library.</p>
+<h2 id="other-assistants"><a class="anchor" href="#other-assistants" aria-hidden="true" tabindex="-1">#</a>Other assistants</h2>
+<p>Any MCP client that can connect to a server over HTTP (sometimes called &quot;Streamable HTTP&quot;) and send a header can use Flexarr. Give it:</p>
+<ul>
+<li><strong>URL:</strong> <code>http://&lt;server&gt;:8383/api/v1/mcp</code></li>
+<li><strong>Header:</strong> <code>X-Api-Key</code> with your API key</li>
+</ul>
+<p>The exact place to enter these differs from app to app, so check your assistant&#39;s own help for adding an MCP server.</p>
+<p>Some apps, including Claude Desktop&#39;s configuration file, only start MCP servers as local programs. For those, a small bridge program that forwards to an HTTP server, such as <code>mcp-remote</code>, can connect them to Flexarr&#39;s address with the header. Follow the bridge&#39;s own instructions; note that some bridges insist on <code>https://</code> unless told otherwise.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Assistants that connect from the vendor&#39;s cloud, rather than from your own computer, can&#39;t reach a server on your home network. Use an assistant that runs on a computer at home or on your tailnet.</p>
+</blockquote>
+<h2 id="keep-it-safe"><a class="anchor" href="#keep-it-safe" aria-hidden="true" tabindex="-1">#</a>Keep it safe</h2>
+<blockquote class="callout important"><p><strong>Important</strong> The API key is full access to your server. Anything holding it can change settings, see what everyone watches and delete media through Sonarr and Radarr. Treat it like a password.</p>
+</blockquote>
+<ul>
+<li><strong>Keep the assistant on your network.</strong> Use Flexarr&#39;s home address, or its Tailscale address away from home (see <a href="/guide/away-from-home">Watch away from home</a>). Never put Flexarr on the internet over plain <code>http://</code> to reach it from an assistant.</li>
+<li><strong>Don&#39;t share configuration files</strong> that contain the key, or commit them to a code repository.</li>
+<li><strong>Prefer the header.</strong> Flexarr also accepts the key in the address as <code>?apikey=</code>, for tools that can&#39;t send headers, but addresses end up in logs and histories more easily.</li>
+<li><strong>If the key leaks</strong>, choose <strong>Make a new key</strong> in <strong>Settings › Access</strong>. Everything using the old key stops working until you give it the new one.</li>
+<li><strong>Check before it acts.</strong> An assistant can play, stop, mark things watched and set recordings. Most assistant apps ask before using a tool; leave that on if you&#39;d rather approve each one.</li>
+</ul>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/home-assistant"><span>Previous</span>Home Assistant</a>
+          <a class="next" href="/guide/import-from-plex"><span>Next</span>Bring your history over from Plex</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/assistant-mcp.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Use%20an%20AI%20assistant">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

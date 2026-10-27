@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Podcasts · Flexarr guide</title>
+  <meta name="description" content="Follow podcasts from Apple&#39;s directory or any feed, with Up Next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/podcasts">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Podcasts · Flexarr guide">
+  <meta property="og:description" content="Follow podcasts from Apple&#39;s directory or any feed, with Up Next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/podcasts">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts" aria-current="page">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Podcasts</h1>
+        <p class="lede">Follow podcasts from Apple&#39;s directory or any feed, with Up Next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#finding-shows">Finding shows</a></li>
+            <li><a href="#following-a-show">Following a show</a></li>
+            <li><a href="#listening">Listening</a></li>
+            <li><a href="#up-next">Up Next</a></li>
+            <li><a href="#settings">Settings</a></li>
+            <li><a href="#offline-on-iphone-and-ipad">Offline on iPhone and iPad</a></li>
+            <li><a href="#bringing-your-shows-over">Bringing your shows over</a></li>
+            <li><a href="#notifications-and-widgets">Notifications and widgets</a></li>
+            <li><a href="#siri">Siri</a></li>
+            <li><a href="#carplay">CarPlay</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Podcasts are built into Flexarr. There&#39;s no library to add and nothing to set up: they sit with your libraries, and each profile follows its own shows. They&#39;re on the web, iPhone and iPad. They aren&#39;t on the Apple TV.</p>
+<h2 id="finding-shows"><a class="anchor" href="#finding-shows" aria-hidden="true" tabindex="-1">#</a>Finding shows</h2>
+<p>Open <strong>Podcasts</strong> and choose <strong>Browse</strong>.</p>
+<figure><img src="/guide/img/phones-podcasts.webp" alt="The Podcasts screen with followed shows, Up Next and Continue listening, beside the now playing screen" data-caption="Podcasts and the player on iPhone" loading="lazy" decoding="async" class="device"></figure>
+<ul>
+<li><strong>Top charts</strong>, by category, come from Apple&#39;s podcast directory.</li>
+<li><strong>Search</strong> finds any show in that directory.</li>
+<li><strong>A feed&#39;s address</strong> works too: paste it into the search box to add a show Apple doesn&#39;t list, such as a private or members-only feed.</li>
+</ul>
+<p>Whose charts you see is set by the main profile in <strong>Settings › Libraries</strong>, under <strong>Podcasts › Charts and search</strong>. It starts as the server&#39;s own region.</p>
+<h2 id="following-a-show"><a class="anchor" href="#following-a-show" aria-hidden="true" tabindex="-1">#</a>Following a show</h2>
+<p>Choose <strong>Follow</strong> on a show. It joins the row of shows you follow on the Podcasts page, and its newest episodes you haven&#39;t heard appear there and in a <strong>New podcasts</strong> row on Home.</p>
+<p>Flexarr checks feeds by itself, more often for shows that publish often.</p>
+<p>On a show&#39;s page:</p>
+<ul>
+<li>Unplayed episodes come first.</li>
+<li><strong>Newest first</strong> or <strong>Oldest first</strong> sets the order. Oldest first suits shows heard in order, and Play then starts the oldest you haven&#39;t heard. A show you follow remembers its order.</li>
+<li><strong>Mark all as played</strong> clears a back catalogue in one go.</li>
+</ul>
+<h2 id="listening"><a class="anchor" href="#listening" aria-hidden="true" tabindex="-1">#</a>Listening</h2>
+<p>Episodes play in the same bar as music, and pick up where you left off on any device.</p>
+<ul>
+<li><strong>15 seconds back and 30 on</strong>, on screen and on the lock screen.</li>
+<li><strong>Speeds</strong> from 0.8× to 3×. Your profile&#39;s default is in <strong>Settings › Podcasts › Speed</strong>, and changing it in the player changes it there too.</li>
+<li><strong>Sleep timer:</strong> stop after a set time, or at the end of the episode.</li>
+<li>When an episode ends, the show&#39;s next one plays, or else the newest you haven&#39;t heard.</li>
+</ul>
+<p>Episodes play through your server rather than straight from the podcast&#39;s host. That means they work <a href="/guide/away-from-home">away from home</a> over Tailscale as they do at home, and podcast hosts don&#39;t see where each listener is.</p>
+<h2 id="up-next"><a class="anchor" href="#up-next" aria-hidden="true" tabindex="-1">#</a>Up Next</h2>
+<p>Up Next is your own queue of episodes, shared between the web and your phone. Use <strong>Play next</strong> or <strong>Add to Up Next</strong> on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up Next once it starts playing.</p>
+<h2 id="settings"><a class="anchor" href="#settings" aria-hidden="true" tabindex="-1">#</a>Settings</h2>
+<p>Podcast settings belong to each profile.</p>
+<p><strong>On the web</strong>, <strong>Settings › Podcasts</strong>:</p>
+<ul>
+<li><strong>Show in the sidebar</strong>: either way, Home has a New podcasts row.</li>
+<li><strong>Speed</strong>.</li>
+<li><strong>Download new episodes</strong> and <strong>Episodes to keep</strong>, for iPhone and iPad.</li>
+</ul>
+<p><strong>On iPhone and iPad</strong>, <strong>Settings › Podcasts</strong> has <strong>Auto-download new episodes</strong>, how many of the newest to keep, and <strong>Speed</strong>.</p>
+<h2 id="offline-on-iphone-and-ipad"><a class="anchor" href="#offline-on-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>Offline on iPhone and iPad</h2>
+<p>Download any episode to listen with no connection. Or turn on <strong>Auto-download new episodes</strong>: the newest unplayed episodes of every show you follow then download by themselves, and played ones are cleared away. Episodes you deleted yourself are never downloaded again by themselves.</p>
+<p>Automatic downloads wait for Wi-Fi, unless you turn off <strong>Automatic downloads on Wi-Fi only</strong> in <strong>Settings › Downloads</strong>. They never use Low Data Mode. An episode you download by hand comes over mobile data too. What you hear offline counts once you&#39;re back online.</p>
+<h3 id="the-episodes-folder-on-the-server"><a class="anchor" href="#the-episodes-folder-on-the-server" aria-hidden="true" tabindex="-1">#</a>The episodes folder on the server</h3>
+<p>To reach your phone, an episode is first fetched to your server, then the phone takes it and the server deletes its copy. It waits in the Podcasts <strong>Episodes folder</strong>, in <strong>Settings › Libraries</strong>. This starts as a folder in Flexarr&#39;s own data folder. If that&#39;s on a small drive, choose <strong>Change</strong> and pick a folder on your media drive instead.</p>
+<h2 id="bringing-your-shows-over"><a class="anchor" href="#bringing-your-shows-over" aria-hidden="true" tabindex="-1">#</a>Bringing your shows over</h2>
+<p>Most podcast apps can export the shows you follow as an OPML file. In Flexarr on the web, use <strong>Import</strong> on the Podcasts page and choose that file. <strong>Export</strong> gives you an OPML file of your shows to take elsewhere.</p>
+<h2 id="notifications-and-widgets"><a class="anchor" href="#notifications-and-widgets" aria-hidden="true" tabindex="-1">#</a>Notifications and widgets</h2>
+<p>On iPhone and iPad, Flexarr can tell you when a show you follow has a new episode, with buttons to play or download it. Turn this on in <strong>Settings › Notifications</strong>. There are widgets for <strong>Continue listening</strong> and <strong>Up Next</strong> too. See <a href="/guide/notifications-and-widgets">Notifications and widgets</a>.</p>
+<h2 id="siri"><a class="anchor" href="#siri" aria-hidden="true" tabindex="-1">#</a>Siri</h2>
+<p>Siri plays podcasts on iPhone and iPad: &quot;Play <em>The Rest Is History</em> in Flexarr&quot; plays the episode you&#39;d hear next. &quot;Play the latest …&quot;, &quot;What&#39;s new in my podcasts&quot;, &quot;Add … to Up Next&quot; and &quot;Play my Up Next&quot; work too. See <a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a>.</p>
+<h2 id="carplay"><a class="anchor" href="#carplay" aria-hidden="true" tabindex="-1">#</a>CarPlay</h2>
+<p>The iPhone app has a CarPlay view for podcasts, with Up Next, new episodes and your shows, plus speed and skips. It switches on once Apple approves Flexarr for CarPlay, which hasn&#39;t happened yet.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/music"><span>Previous</span>Music</a>
+          <a class="next" href="/guide/downloads"><span>Next</span>Downloads</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/podcasts.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Podcasts">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

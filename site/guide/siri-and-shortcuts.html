@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Siri and Shortcuts · Flexarr guide</title>
+  <meta name="description" content="Ask Siri on your iPhone or iPad to play a film, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/siri-and-shortcuts">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Siri and Shortcuts · Flexarr guide">
+  <meta property="og:description" content="Ask Siri on your iPhone or iPad to play a film, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/siri-and-shortcuts">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#apps">Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts" aria-current="page">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
+        <h1>Siri and Shortcuts</h1>
+        <p class="lede">Ask Siri on your iPhone or iPad to play a film, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#things-to-say">Things to say</a></li>
+            <li><a href="#playing-on-your-apple-tv">Playing on your Apple TV</a></li>
+            <li><a href="#the-shortcuts-app">The Shortcuts app</a></li>
+            <li><a href="#if-siri-doesn-t-understand">If Siri doesn&#39;t understand</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Once the Flexarr app on your iPhone or iPad has signed in to your server, Siri understands it. There&#39;s nothing to set up. Siri learns the titles in your library when the app signs in, so it knows what you mean by &quot;<em>The Traitors</em>&quot; or &quot;<em>Heat</em>&quot;.</p>
+<p>Every phrase needs the word <strong>Flexarr</strong> in it, so Siri knows which app you mean.</p>
+<h2 id="things-to-say"><a class="anchor" href="#things-to-say" aria-hidden="true" tabindex="-1">#</a>Things to say</h2>
+<h3 id="films-and-shows"><a class="anchor" href="#films-and-shows" aria-hidden="true" tabindex="-1">#</a>Films and shows</h3>
+<ul>
+<li>&quot;Play the next episode of <em>Curb Your Enthusiasm</em> in Flexarr&quot;</li>
+<li>&quot;Play <em>Heat</em> in Flexarr&quot; or &quot;Watch <em>Heat</em> in Flexarr&quot;</li>
+<li>&quot;Shuffle <em>Family Guy</em> in Flexarr&quot;</li>
+<li>&quot;Continue watching in Flexarr&quot;</li>
+</ul>
+<p>A show plays the episode you&#39;re up to. A film carries on from where you left off. Shuffle plays a show&#39;s episodes in a random order, one after another. Continue watching picks up whatever you were in the middle of most recently.</p>
+<h3 id="podcasts"><a class="anchor" href="#podcasts" aria-hidden="true" tabindex="-1">#</a>Podcasts</h3>
+<ul>
+<li>&quot;Play <em>The Rest Is History</em> in Flexarr&quot; plays the episode you&#39;d hear next</li>
+<li>&quot;Play the latest <em>The Rest Is History</em> in Flexarr&quot; plays the newest one you haven&#39;t heard</li>
+<li>&quot;What&#39;s new in my podcasts in Flexarr&quot; reads out the newest episodes, without opening anything</li>
+<li>&quot;Add <em>The Rest Is History</em> to Up Next in Flexarr&quot;</li>
+<li>&quot;Play my Up Next in Flexarr&quot;</li>
+</ul>
+<p>These work for podcasts the profile follows. See <a href="/guide/podcasts">Podcasts</a>.</p>
+<h3 id="controlling-what-s-playing"><a class="anchor" href="#controlling-what-s-playing" aria-hidden="true" tabindex="-1">#</a>Controlling what&#39;s playing</h3>
+<ul>
+<li>&quot;Pause Flexarr&quot;</li>
+<li>&quot;Resume Flexarr&quot;</li>
+<li>&quot;Stop Flexarr&quot;</li>
+</ul>
+<h2 id="playing-on-your-apple-tv"><a class="anchor" href="#playing-on-your-apple-tv" aria-hidden="true" tabindex="-1">#</a>Playing on your Apple TV</h2>
+<p>By default, what you ask for plays on the iPhone or iPad you asked. To send it to an Apple TV instead:</p>
+<ol>
+<li>On the iPhone or iPad, open Flexarr and go to <strong>Settings › Siri</strong>.</li>
+<li>Under <strong>Siri plays on</strong>, choose the Apple TV.</li>
+</ol>
+<p>Now &quot;Play the next episode of <em>Severance</em> in Flexarr&quot; starts it on the TV, and Siri tells you where it&#39;s playing. Pause, resume and stop go to the same TV.</p>
+<p>You can also name a device as you ask, for example &quot;… on the living room TV&quot;. The name is the one the device has in Flexarr&#39;s list of signed-in devices.</p>
+<blockquote class="callout important"><p><strong>Important</strong> The Apple TV only takes commands while Flexarr is open on it. If it isn&#39;t, Siri says so, and what you asked for starts if you open Flexarr on the TV within two minutes.</p>
+</blockquote>
+<p>Siri isn&#39;t limited to Apple TVs: any iPhone or iPad signed in to your server can be chosen in the same way, as long as Flexarr is open on it.</p>
+<h3 id="siri-on-the-apple-tv-itself"><a class="anchor" href="#siri-on-the-apple-tv-itself" aria-hidden="true" tabindex="-1">#</a>Siri on the Apple TV itself</h3>
+<p>The Apple TV app carries the same actions for the Siri Remote, but it hasn&#39;t been confirmed that tvOS passes these requests to apps like Flexarr. For now, the dependable way is to ask your iPhone or iPad.</p>
+<h2 id="the-shortcuts-app"><a class="anchor" href="#the-shortcuts-app" aria-hidden="true" tabindex="-1">#</a>The Shortcuts app</h2>
+<p>Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actions you can put together yourself or run from an automation. Search for Flexarr when adding an action. You&#39;ll find:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Action</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Play a film or show</strong></td>
+<td>Plays a film, or the next episode of a show. Can start from the beginning.</td>
+</tr>
+<tr>
+<td><strong>Shuffle a show</strong></td>
+<td>Plays a show&#39;s episodes in a random order.</td>
+</tr>
+<tr>
+<td><strong>Continue watching</strong></td>
+<td>Picks up what you were in the middle of.</td>
+</tr>
+<tr>
+<td><strong>Pause, resume or stop</strong></td>
+<td>Controls what Flexarr is playing.</td>
+</tr>
+<tr>
+<td><strong>Play a podcast&#39;s latest episode</strong></td>
+<td>The newest episode you haven&#39;t heard.</td>
+</tr>
+<tr>
+<td><strong>What&#39;s new in my podcasts</strong></td>
+<td>Says the newest episodes you haven&#39;t heard.</td>
+</tr>
+<tr>
+<td><strong>Add a podcast to Up Next</strong></td>
+<td>Puts the next episode at the end of Up Next.</td>
+</tr>
+<tr>
+<td><strong>Play Up Next</strong></td>
+<td>Plays your podcast queue from the start.</td>
+</tr>
+<tr>
+<td><strong>Search Flexarr</strong></td>
+<td>Opens the app on a search.</td>
+</tr>
+</tbody></table></div>
+<p>The play and control actions have an <strong>On</strong> setting, where you choose this device or another one signed in to your server. That&#39;s handy for a shortcut of your own. A &quot;Film night&quot; shortcut could use Apple&#39;s own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use <strong>Play a film or show</strong> with <strong>On</strong> set to that TV.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> A shortcut you make can have a phrase of its own. Name it, and Siri runs it when you say that name.</p>
+</blockquote>
+<h2 id="if-siri-doesn-t-understand"><a class="anchor" href="#if-siri-doesn-t-understand" aria-hidden="true" tabindex="-1">#</a>If Siri doesn&#39;t understand</h2>
+<ul>
+<li><strong>&quot;Open Flexarr and connect it to your server first.&quot;</strong> The app on this device isn&#39;t signed in. Open it and connect. See <a href="/guide/connect-devices">Connect your devices</a>.</li>
+<li><strong>&quot;Nothing in your library is called …&quot;</strong> Siri didn&#39;t recognise the title. Try saying it the way it&#39;s written in Flexarr. Siri learns titles when the app loads your profile, so open Flexarr once after adding something new.</li>
+<li><strong>&quot;… isn&#39;t signed in to the server any more.&quot;</strong> The device chosen in <strong>Settings › Siri</strong> was signed out. Choose another.</li>
+<li><strong>Siri opens a different app.</strong> Make sure &quot;Flexarr&quot; is in the phrase.</li>
+</ul>
+<p>Siri works on what the profile chosen on that iPhone or iPad sees: its libraries, its next episodes and its podcasts. See <a href="/guide/profiles">Profiles</a>.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/away-from-home"><span>Previous</span>Watch away from home</a>
+          <a class="next" href="/guide/notifications-and-widgets"><span>Next</span>Notifications and widgets</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/siri-and-shortcuts.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Siri%20and%20Shortcuts">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>
