@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.41.0 · 27 October 2026
 
 ### Sidebar (Apple TV)
 - The tabs along the top are now a sidebar down the left, like the Apple TV app's, so any number of libraries fits. Before, with more than five or six, the tab bar ran off the screen and took Search and Settings with it.
