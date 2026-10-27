@@ -2,14 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## 0.48.0 · 27 October 2026
+## Unreleased
 
 ### Setting up
 - A new server needs no API key: open it in a browser on your home network and choose **Set up Flexarr**, and that browser becomes its owner. Phones, tablets and TVs then connect with a code you enter there. If the iPhone app finds a server nobody has set up yet, it says to do that first, with the address to open. Servers that already exist aren't affected.
 
 ### iPhone
-- After you've finished a few films or episodes on more than one day, the iPhone app may ask whether you're enjoying Flexarr, using Apple's own star-rating box. It asks at most once a version, never during playback, and iOS limits it to three times a year.
-- **Settings › Rate Flexarr** opens the App Store so you can rate or review Flexarr whenever you like.
 - A fresh install opens with three short cards: what Flexarr is, that it needs your own Flexarr server running at home (completely free, and set up in less than a minute at flexarr.io), and how the app finds it on your Wi-Fi. Skip them if you already have a server.
 - While the connect screen hasn't found a server, it says what Flexarr needs and links to the setup guide, and its "can't see your server?" hint comes up sooner.
 - **Enter an address instead** connects with a code too; the API key is only offered for connecting from outside your home.
@@ -22,6 +20,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Web
 - **Settings › Access › Connect a TV** is now **Connect a device**, since iPhones and iPads connect there too.
 - Approving a device by its code talks about the device, not "your TV", since iPhones and iPads connect the same way. Opened on a browser that isn't signed in, the page says to enter the code on the computer where you set up Flexarr, instead of asking for the API key.
+
+## 0.48.0 · 27 October 2026
+
+### iPhone
+- After you've finished a few films or episodes on more than one day, the iPhone app may ask whether you're enjoying Flexarr, using Apple's own star-rating box. It asks at most once a version, never during playback, and iOS limits it to three times a year.
+- **Settings › Rate Flexarr** opens the App Store so you can rate or review Flexarr whenever you like.
 
 ## 0.47.1 · 27 October 2026
 
