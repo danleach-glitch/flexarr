@@ -221,6 +221,16 @@ public sealed class LiveTvTests : IDisposable
         Assert.False((await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("configured").GetBoolean());
     }
 
+    [Fact]
+    public async Task Settings_name_the_server_for_links_to_apps_at_localhost()
+    {
+        var settings = await Client().GetFromJsonAsync<JsonElement>(Api("settings"));
+
+        var name = settings.GetProperty("hostName").GetString();
+        Assert.False(string.IsNullOrEmpty(name));
+        Assert.DoesNotContain(".local", name, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData(null, Flexarr.Api.Security.NetworkZone.Local, false)]
     [InlineData(null, Flexarr.Api.Security.NetworkZone.Tailnet, true)]

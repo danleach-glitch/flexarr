@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ApiError, createProfile, deleteProfile, getAllLibraries, removeProfileImage, uploadProfileImage, getProfiles, updateProfile, type Library, type Profile } from '../../api/client'
-import { Crown } from '../../components/icons'
+import { AsyncButton, IconButton } from '../../components/AsyncButton'
+import { Crown, Pencil, Trash } from '../../components/icons'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
@@ -79,20 +80,15 @@ export function ProfilesSection() {
                 </span>
               </span>
               <span className="library-row-actions">
-                <button className="button quiet small" onClick={() => setEditing(p)}>
-                  Edit
-                </button>
+                <IconButton label="Edit" aria-label={`Edit ${p.name}`} icon={<Pencil />} onClick={() => setEditing(p)} />
                 {!p.isMain && (
-                  <button
-                    className="text-button danger-text"
-                    onClick={async () => {
-                      if (!confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`)) return
-                      await deleteProfile(p.id)
-                      reload()
-                    }}
-                  >
-                    Remove
-                  </button>
+                  <IconButton
+                    label="Remove"
+                    aria-label={`Remove ${p.name}`}
+                    icon={<Trash />}
+                    className="button quiet small icon danger-icon"
+                    onClick={() => confirm(`Remove ${p.name}’s profile? Their watch history goes with it.`) && deleteProfile(p.id).then(reload)}
+                  />
                 )}
               </span>
             </div>
@@ -144,6 +140,7 @@ function ProfileForm({
   const [apiKey, setApiKey] = useState<string>()
   const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (choosingPin || removePin)
   const [errors, setErrors] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -151,6 +148,7 @@ function ProfileForm({
       setErrors(['The two PINs don’t match. Type the same one in both.'])
       return
     }
+    setSaving(true)
     try {
       const confirmation = asksForCurrentPin ? (apiKey !== undefined ? { apiKey: apiKey.trim() } : { currentPin }) : {}
       const saved = profile
@@ -161,6 +159,8 @@ function ProfileForm({
       onDone()
     } catch (err) {
       setErrors(err instanceof ApiError && err.messages.length ? err.messages : [String(err)])
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -337,9 +337,9 @@ function ProfileForm({
         <button type="button" className="button quiet" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="button">
+        <AsyncButton type="submit" className="button" busy={saving}>
           {profile ? 'Save profile' : 'Add profile'}
-        </button>
+        </AsyncButton>
       </div>
     </form>
   )

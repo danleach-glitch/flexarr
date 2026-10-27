@@ -7,6 +7,7 @@ import { getTracks } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
+import { AsyncButton } from './AsyncButton'
 import { Check, More, Play } from './icons'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
 import { WatchedToggle } from './WatchedToggle'
@@ -157,18 +158,17 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
       overlay={
         music ? (
           // Hovering the artwork shows a play button, as on Spotify; the artwork itself still opens the page.
-          <button
-            type="button"
+          <AsyncButton
             className="card-play"
             aria-label={`Play ${item.title}`}
-            onClick={() => {
-              void getTracks(item.id).then((tracks) => {
+            onClick={() =>
+              getTracks(item.id).then((tracks) => {
                 if (tracks.length > 0) player.play(tracks, 0)
               })
-            }}
+            }
           >
             <Play />
-          </button>
+          </AsyncButton>
         ) : undefined
       }
       art={

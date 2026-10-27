@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError, getSignIns, renameSignIn, revokeSignIn, signOut, signOutOthers, type SignIn } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { relativeTime } from '../lib/format'
+import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Monitor, Tv } from './icons'
 
@@ -231,7 +232,7 @@ export function SignIns() {
                 ? `Sign out all ${asking.group.length.toLocaleString()} sign-ins of ${asking.group[0].name}?`
                 : 'Sign out every other browser and TV?'
           }
-          confirmLabel={busy ? 'Signing out…' : 'Sign out'}
+          confirmLabel="Sign out"
           cancelLabel="Keep signed in"
           danger
           busy={busy}
@@ -293,9 +294,9 @@ function RenameForm({ signIn, onDone }: { signIn: SignIn; onDone: (renamed: bool
         <button type="button" className="button quiet small" onClick={() => onDone(false)}>
           Cancel
         </button>
-        <button type="submit" className="button small" disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <AsyncButton type="submit" className="button small" busy={saving}>
+          Save
+        </AsyncButton>
       </div>
       {error && (
         <p className="error" role="alert">

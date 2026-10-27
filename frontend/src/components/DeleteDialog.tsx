@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, deleteItem, getDeletion, type ItemSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { AsyncButton } from './AsyncButton'
 import { episodeCode } from '../lib/format'
 
 /**
@@ -78,9 +79,9 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
           <button className="button quiet" onClick={onClose} disabled={busy} autoFocus>
             Keep it
           </button>
-          <button className="button danger" onClick={confirm} disabled={busy || !plan.data}>
-            {busy ? 'Deleting…' : `Delete ${what.noun}`}
-          </button>
+          <AsyncButton className="button danger" onClick={confirm} busy={busy} disabled={!plan.data}>
+            {`Delete ${what.noun}`}
+          </AsyncButton>
         </div>
       </div>
     </div>

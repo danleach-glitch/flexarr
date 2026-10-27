@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError, clearApiCache, saveProfileToken, selectProfile, signIn, UnauthorizedError, type Profile } from '../api/client'
+import { AsyncButton } from './AsyncButton'
 import { Crown } from './icons'
 
 export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'> & { image?: string | null }; size?: number }) {
@@ -173,9 +174,9 @@ export function ProfilePicker({
             <button type="button" className="button quiet" onClick={() => ask(asking)}>
               Back
             </button>
-            <button type="submit" className="button" disabled={checking}>
-              {checking ? 'Checking…' : 'Sign in'}
-            </button>
+            <AsyncButton type="submit" className="button" busy={checking}>
+              Sign in
+            </AsyncButton>
           </div>
         </form>
       ) : asking ? (
@@ -235,9 +236,9 @@ export function ProfilePicker({
             <button type="button" disabled={locked} onClick={() => press('0')}>
               0
             </button>
-            <button type="submit" disabled={pin.length < 4 || checking || locked}>
+            <AsyncButton type="submit" disabled={pin.length < 4 || locked} busy={checking}>
               Go
-            </button>
+            </AsyncButton>
           </div>
         </form>
       ) : (
@@ -246,7 +247,7 @@ export function ProfilePicker({
           <ul className="profile-choices">
             {profiles.map((p) => (
               <li key={p.id}>
-                <button onClick={() => void choose(p)} disabled={checking}>
+                <AsyncButton onClick={() => (p.hasPin ? ask(p) : choose(p))} disabled={checking}>
                   <span className="profile-choice-avatar">
                     <Avatar profile={p} size={112} />
                     {p.isMain && (
@@ -260,7 +261,7 @@ export function ProfilePicker({
                     {p.isMain && <span className="visually-hidden">, main profile</span>}
                   </span>
                   {p.hasPin && <span className="muted profile-locked">Needs a PIN</span>}
-                </button>
+                </AsyncButton>
               </li>
             ))}
           </ul>

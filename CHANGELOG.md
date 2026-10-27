@@ -2,6 +2,25 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Rename libraries
+- Settings › Libraries has a Rename button on each library. The new name shows in the sidebar and on every device straight away.
+- Renaming a library no longer rescans it. Adding a folder scans just that folder.
+- A library's buttons are now icons (rename, scan, refresh artwork and details, remove), named when you hover over them. Scan keeps spinning while the scan runs.
+
+### Times are right in every time zone
+- "Scanned 4 h ago" a moment after a scan, and other times like it, were out by your time zone's difference from UTC. They're now right wherever you are.
+
+### Buttons show they're working
+- Across the web app, a button that has to wait on the server (save, refresh channels, test a connection, delete and so on) now shows a spinner until it's done, instead of looking as though nothing happened.
+- Edit, remove, rename, delete and test are icons now, in Settings, on playlists and collections, and on recordings. Hover over one to see what it does.
+
+### Connections and Live TV settings
+- Each app's Open link is now an icon beside its name, and goes to the server by name (http://your-server:8989) rather than localhost, so it works from any computer at home.
+- Live TV has its own page in Settings for rewinding and recording. Connections keeps just Dispatcharr's address and login.
+- Changing a Live TV setting no longer fetches every channel and the whole guide again. That only happens when Dispatcharr's address or login changes.
+
 ## 0.41.0 · 27 October 2026
 
 ### Sidebar (Apple TV)

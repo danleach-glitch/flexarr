@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { imageUrl, imageWidths, type ItemSummary } from '../api/client'
 import { usePlay } from '../hooks/usePlay'
 import { episodeHeading, formatDuration, year } from '../lib/format'
+import { AsyncButton } from './AsyncButton'
 import { Info, Play } from './icons'
 
 const ROTATE_MS = 10_000
@@ -99,9 +100,9 @@ export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; 
         )}
         {overviews?.[item.id] && <p className="hero-overview">{overviews[item.id]}</p>}
         <div className="hero-actions">
-          <button className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
+          <AsyncButton className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
             <Play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
-          </button>
+          </AsyncButton>
           <Link className="button quiet" to={`/item/${item.id}`}>
             <Info /> More info
           </Link>

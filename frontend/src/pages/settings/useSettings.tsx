@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError, getSettings, saveSettings } from '../../api/client'
+import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 
 /** What went wrong, in the server's words when it gave some. */
@@ -7,7 +8,7 @@ export const errorText = (e: unknown) => (e instanceof ApiError && e.messages.le
 
 /** The server's settings, and saving them: what was saved, or why it wasn't. */
 export function useSettings() {
-  const { data, error, reload } = useApi(getSettings, [])
+  const { data, error, loading, reload } = useApi(getSettings, [])
   const [saved, setSaved] = useState<string>()
   const [saveError, setSaveError] = useState<string>()
   const save = async (update: Parameters<typeof saveSettings>[0], message = 'Saved') => {
@@ -29,9 +30,9 @@ export function useSettings() {
       <p className="error" role="alert">
         Couldn’t load the settings: {error.message}
       </p>
-      <button className="button quiet small" onClick={reload}>
+      <AsyncButton className="button quiet small" busy={loading} onClick={reload}>
         Try again
-      </button>
+      </AsyncButton>
     </div>
   ) : (
     <p className="muted">Loading…</p>

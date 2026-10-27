@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
+import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { More, Play, Radio } from '../components/icons'
@@ -257,15 +258,15 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
             <span>{albums.length === 1 ? '1 album' : `${albums.length} albums`}</span>
           </p>
           <div className="detail-actions">
-            <button className="button" onClick={() => void playAll(false)} disabled={albums.length === 0 || loading}>
+            <AsyncButton className="button" onClick={() => playAll(false)} disabled={albums.length === 0 || loading}>
               <Play /> Play
-            </button>
-            <button className="button quiet" onClick={() => void playAll(true)} disabled={albums.length === 0 || loading}>
+            </AsyncButton>
+            <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={albums.length === 0 || loading}>
               Shuffle
-            </button>
-            <button className="button quiet" onClick={() => void startRadio()} disabled={albums.length === 0 || loading}>
+            </AsyncButton>
+            <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={albums.length === 0 || loading}>
               <Radio /> Radio
-            </button>
+            </AsyncButton>
             <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id), item)} disabled={albums.length === 0} />
           </div>
         </div>

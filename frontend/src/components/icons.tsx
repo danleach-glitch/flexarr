@@ -302,3 +302,42 @@ export const SeriesDots = (p: IconProps) => (
     <circle cx="17" cy="12" r="4.5" opacity="0.55" />
   </svg>
 )
+/** Rename: a pencil. */
+export const Pencil = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+    <path d="m14.5 5.5 3 3" />
+  </svg>
+)
+/** Look again: two arrows chasing each other round. */
+export const Refresh = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" />
+    <path d="M4 4v4h4" />
+    <path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" />
+    <path d="M20 20v-4h-4" />
+  </svg>
+)
+/** Artwork: a picture with a mountain and the sun. */
+export const Picture = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="m21 16-5-5L5 20" />
+  </svg>
+)
+/** Remove: a bin. */
+export const Trash = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 7h16" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+    <path d="M9 7V4h6v3" />
+  </svg>
+)
+/** Stop: a square. */
+export const Stop = (p: IconProps) => (
+  <svg {...base} {...p} fill="currentColor" stroke="none">
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </svg>
+)

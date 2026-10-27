@@ -14,8 +14,9 @@ import {
   type ItemSummary,
   type PlaylistTrack,
 } from '../api/client'
+import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ChevronDown, ChevronUp, Close, Grip, More, Play } from '../components/icons'
+import { ChevronDown, ChevronUp, Close, Grip, More, Pencil, Play, Trash } from '../components/icons'
 import { Menu, type MenuPoint } from '../components/ItemMenu'
 import { PlaylistCard, PlaylistCover } from '../components/PlaylistCover'
 import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
@@ -29,17 +30,20 @@ export function PlaylistsPage() {
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
+  const [saving, setSaving] = useState(false)
   const navigate = useNavigate()
   useMusicPage()
 
   async function create(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
+    setSaving(true)
     try {
       const created = await createPlaylist(name.trim())
       navigate(`/playlist/${created.id}`)
     } catch (err) {
       setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setSaving(false)
     }
   }
 
@@ -56,9 +60,9 @@ export function PlaylistsPage() {
               <span className="visually-hidden">Playlist name</span>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name your playlist" autoFocus />
             </label>
-            <button className="button" type="submit" disabled={!name.trim()}>
+            <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
               Create
-            </button>
+            </AsyncButton>
             <button className="button quiet" type="button" onClick={() => setCreating(false)}>
               Cancel
             </button>
@@ -100,6 +104,7 @@ export function PlaylistPage() {
   const [order, setOrder] = useState<PlaylistTrack[]>()
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [message, setMessage] = useState<string>()
   const [dragging, setDragging] = useState<number | null>(null)
@@ -154,10 +159,11 @@ export function PlaylistPage() {
   function rename(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
+    setSaving(true)
     void act(async () => {
       await renamePlaylist(summary.id, name.trim())
       setRenaming(false)
-    })
+    }).finally(() => setSaving(false))
   }
 
   const dragStart = (at: number, track: ItemSummary) => (e: DragEvent) => {
@@ -218,9 +224,9 @@ export function PlaylistPage() {
                 <span className="visually-hidden">Playlist name</span>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
               </label>
-              <button className="button" type="submit" disabled={!name.trim()}>
+              <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
                 Save
-              </button>
+              </AsyncButton>
               <button className="button quiet" type="button" onClick={() => setRenaming(false)}>
                 Cancel
               </button>
@@ -239,18 +245,16 @@ export function PlaylistPage() {
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0)} disabled={tracks.length < 2}>
               Shuffle
             </button>
-            <button
-              className="button quiet"
+            <IconButton
+              label="Rename"
+              icon={<Pencil />}
+              className="button quiet icon"
               onClick={() => {
                 setName(summary.name)
                 setRenaming(true)
               }}
-            >
-              Rename
-            </button>
-            <button className="button quiet danger" onClick={() => setDeleting(true)}>
-              Delete
-            </button>
+            />
+            <IconButton label="Delete" icon={<Trash />} className="button quiet icon danger-icon" onClick={() => setDeleting(true)} />
             <MoreButton
               label={`More for ${summary.name}`}
               actions={[...queueActions(player, () => tracks), ...(summary.cover ? [{ label: 'Back to the mosaic cover', run: () => act(() => setPlaylistCover(summary.id, null)) }] : [])]}

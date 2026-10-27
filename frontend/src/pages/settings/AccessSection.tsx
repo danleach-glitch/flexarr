@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { getProfiles, getRemoteAccess, linkTailscale, revealApiKey, rotateApiKey, setTailscaleAccess, type RemoteAccess, type Settings } from '../../api/client'
+import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { Eye, EyeOff } from '../../components/icons'
 import { SignIns } from '../../components/SignIns'
@@ -91,9 +92,9 @@ function RemoteAccessGroups() {
           </span>
           {ts.running && (
             <span className="connection-actions">
-              <button className={ts.privateAccess ? 'button danger small' : 'button small'} disabled={busy} onClick={() => run(() => setTailscaleAccess(!ts.privateAccess))}>
-                {busy ? 'Working…' : ts.privateAccess ? 'Turn off' : 'Turn on'}
-              </button>
+              <AsyncButton className={ts.privateAccess ? 'button danger small' : 'button small'} disabled={busy} onClick={() => run(() => setTailscaleAccess(!ts.privateAccess))}>
+                {ts.privateAccess ? 'Turn off' : 'Turn on'}
+              </AsyncButton>
             </span>
           )}
         </div>
@@ -161,6 +162,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   const [auth, setAuth] = useState<Settings['authenticationRequired']>()
   // Replacing the key asks again first, and so does showing it when the main profile has a PIN (the server insists).
   const [ask, setAsk] = useState<'reveal' | 'rotate'>()
+  const [confirming, setConfirming] = useState(false)
   const profiles = useApi(getProfiles, [])
   const mainHasPin = profiles.data?.find((p) => p.isMain)?.hasPin ?? false
   const askForm = useRef<HTMLFormElement>(null)
@@ -191,6 +193,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
     const form = new FormData(event.currentTarget)
     const confirmation = { pin: form.get('pin')?.toString() || undefined, confirm: true }
     setKeyError(undefined)
+    setConfirming(true)
     try {
       if (ask === 'reveal') {
         setKey((await revealApiKey(confirmation)).apiKey)
@@ -205,6 +208,8 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
       requestAnimationFrame(() => keyArea.current?.querySelector<HTMLElement>('button')?.focus())
     } catch (e) {
       setKeyError(errorText(e))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -279,16 +284,15 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
         <div className="key-row" ref={keyArea}>
           <div className="secret-field">
             <code aria-label={key ? undefined : 'API key, hidden'}>{key ?? '•'.repeat(32)}</code>
-            <button
-              type="button"
+            <AsyncButton
               className="icon-button"
               aria-label={key ? 'Hide the API key' : 'Show the API key'}
               title={key ? 'Hide' : 'Show'}
-              onClick={(e) => void toggleKey(e.currentTarget)}
+              onClick={(e) => toggleKey(e.currentTarget)}
               disabled={ask !== undefined}
             >
               {key ? <EyeOff /> : <Eye />}
-            </button>
+            </AsyncButton>
           </div>
           {key && <CopyButton text={key} what="the API key" />}
           <button className="button quiet small" onClick={(e) => open('rotate', e.currentTarget)} disabled={ask !== undefined}>
@@ -329,9 +333,9 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
               <button type="button" className="button quiet small" onClick={cancel}>
                 Cancel
               </button>
-              <button type="submit" className="button small" aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
+              <AsyncButton type="submit" className="button small" busy={confirming} aria-describedby={mainHasPin ? undefined : 'key-confirm-help'}>
                 {ask === 'reveal' ? 'Show the key' : 'Replace the key'}
-              </button>
+              </AsyncButton>
             </div>
           </form>
         )}

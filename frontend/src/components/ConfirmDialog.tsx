@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { AsyncButton } from './AsyncButton'
 
 /**
- * Asks before doing something that can't easily be taken back. Escape and the backdrop close it (unless it's busy),
- * Tab stays inside it, and focus goes back to whatever opened it. The safe choice is focused first.
+ * Asks before doing something that can't easily be taken back. Escape and the backdrop close it (unless it's busy, or
+ * the promise `onConfirm` returned is still running), Tab stays inside it, and focus goes back to whatever opened it.
+ * The safe choice is focused first.
  */
 export function ConfirmDialog({
   title,
@@ -22,18 +24,20 @@ export function ConfirmDialog({
   danger?: boolean
   busy?: boolean
   error?: string
-  onConfirm: () => void
+  onConfirm: () => unknown
   onClose: () => void
 }) {
   const id = useId()
   const dialog = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
-  const busyNow = useRef(busy)
+  const [pending, setPending] = useState(false)
+  const working = busy || pending
+  const busyNow = useRef(working)
   // Whatever had the focus when it opened: read while rendering, before the safe choice takes the focus.
   const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null))
   useEffect(() => {
     close.current = onClose
-    busyNow.current = busy
+    busyNow.current = working
   })
 
   useEffect(() => {
@@ -64,8 +68,15 @@ export function ConfirmDialog({
     }
   }, [opener])
 
+  function confirm() {
+    const result = onConfirm()
+    if (!(result instanceof Promise)) return
+    setPending(true)
+    return result.finally(() => setPending(false))
+  }
+
   return (
-    <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
+    <div className="dialog-backdrop" onClick={() => !working && onClose()}>
       <div
         ref={dialog}
         className="panel confirm-dialog"
@@ -83,12 +94,12 @@ export function ConfirmDialog({
           </p>
         )}
         <div className="form-actions">
-          <button className="button quiet" onClick={onClose} disabled={busy} autoFocus>
+          <button className="button quiet" onClick={onClose} disabled={working} autoFocus>
             {cancelLabel}
           </button>
-          <button className={danger ? 'button danger' : 'button'} onClick={onConfirm} disabled={busy}>
+          <AsyncButton className={danger ? 'button danger' : 'button'} onClick={confirm} busy={working}>
             {confirmLabel}
-          </button>
+          </AsyncButton>
         </div>
       </div>
     </div>

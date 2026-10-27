@@ -4,6 +4,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Core.Podcasts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Flexarr.Core.Data;
 
@@ -52,7 +53,13 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         ArgumentNullException.ThrowIfNull(configurationBuilder);
         // Readable in the database and stable if enum members are reordered.
         configurationBuilder.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
+        // Every DateTime is stored as UTC, but SQLite hands them back without a kind, and they'd go out as local times
+        // ("scanned 4 h ago" a minute after a scan, for anyone east of UTC).
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<UtcDateTimeConverter>();
     }
+
+    private sealed class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -212,7 +219,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(c => c.Group).HasMaxLength(200);
             e.Property(c => c.LogoUrl).HasMaxLength(2048);
             e.Property(c => c.GuideId).HasMaxLength(200);
-            e.Property(c => c.UpdatedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<LiveProgramme>(e =>
@@ -225,9 +231,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(p => p.Subtitle).HasMaxLength(500);
             e.Property(p => p.Category).HasMaxLength(100);
             e.Property(p => p.ImageUrl).HasMaxLength(2048);
-            // Stored as UTC; SQLite hands them back without a kind, which would put the guide out by the time zone.
-            e.Property(p => p.Start).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-            e.Property(p => p.End).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<LiveFavourite>(e =>
@@ -247,7 +250,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.CreatedBy).HasMaxLength(64);
             // A series for one channel goes with it; one for any channel stays.
             e.HasOne<LiveChannel>().WithMany().HasForeignKey(r => r.ChannelId).OnDelete(DeleteBehavior.Cascade);
-            e.Property(r => r.CreatedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<Recording>(e =>
@@ -266,16 +268,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(r => new { r.State, r.Start });
             e.HasIndex(r => new { r.ChannelId, r.Start });
             e.HasIndex(r => r.RuleId);
-            foreach (var date in new[] { nameof(Recording.Start), nameof(Recording.End), nameof(Recording.CreatedAt) })
-            {
-                e.Property<DateTime>(date).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-            }
-
-            foreach (var date in new[] { nameof(Recording.StartedAt), nameof(Recording.FinishedAt) })
-            {
-                e.Property<DateTime?>(date).HasConversion(v => v, v => v == null ? null : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc));
-            }
-
             e.Ignore(r => r.IsActive);
         });
 
@@ -286,7 +278,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(l => l.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<LiveChannel>().WithMany().HasForeignKey(l => l.ChannelId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(l => l.ChannelId);
-            e.Property(l => l.WatchedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<NotificationDevice>(e =>
@@ -314,7 +305,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         {
             e.HasKey(c => c.Kind);
             e.Property(c => c.Kind).HasMaxLength(32);
-            e.Property(c => c.Through).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         });
 
         modelBuilder.Entity<PlaybackState>(e =>

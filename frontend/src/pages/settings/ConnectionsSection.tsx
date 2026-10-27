@@ -1,4 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useContext, useState, type FormEvent, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import {
   getArrStatus,
   getLiveTvStatus,
@@ -13,6 +14,8 @@ import {
   type LiveTvTest,
   type Settings,
 } from '../../api/client'
+import { AsyncButton, IconButton } from '../../components/AsyncButton'
+import { Check, Pencil, Refresh, Trash } from '../../components/icons'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
@@ -61,104 +64,112 @@ export function ConnectionsSection() {
   const nextKind: ArrKind = (['Sonarr', 'Radarr', 'Lidarr'] as const).find((k) => !settings.arr.some((a) => a.kind === k)) ?? 'Sonarr'
 
   return (
-    <section>
-      <SettingsHeader title="Connections">
-        Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Seerr adds Discover and requests,
-        and Dispatcharr Live TV.
-      </SettingsHeader>
+    <ServerName value={settings.hostName}>
+      <section>
+        <SettingsHeader title="Connections">
+          Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Seerr adds Discover and requests,
+          and Dispatcharr Live TV.
+        </SettingsHeader>
 
-      <SettingsGroup
-        title="Apps"
-        note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}
-        action={
-          open !== 'new' && (
-            <button className="button quiet small" onClick={() => setOpen('new')}>
-              Add a connection
-            </button>
-          )
-        }
-      >
-        {settings.arr.map((a, i) => (
-          <ArrRow
-            key={`${a.name}-${i}`}
-            connection={{ ...a, apiKey: '' }}
-            live={status.data?.find((s) => s.name === a.name)}
-            open={open === i}
-            onOpen={() => setOpen(i)}
-            onClose={() => setOpen(undefined)}
-            onSave={(c) => saveArr(i, c)}
-            onRemove={() => saveArr(i, null)}
-          />
-        ))}
-        {open === 'new' && (
-          <ArrRow
-            connection={{ name: nextKind, kind: nextKind, baseUrl: '', apiKey: '', hasApiKey: false }}
-            isNew
-            open
-            onOpen={() => undefined}
-            onClose={() => setOpen(undefined)}
-            onSave={(c) => saveArr('new', c)}
-          />
-        )}
-        <SeerrRow
-          seerr={settings.seerr}
-          status={seerrStatus.loading ? 'Checking…' : !seerrStatus.data?.configured ? 'Not set up' : seerrStatus.data.reachable ? 'Connected' : 'Can’t be reached, or the API key isn’t right'}
-          ok={seerrStatus.data?.configured ? seerrStatus.data.reachable : undefined}
-          open={open === 'seerr'}
-          onOpen={() => setOpen('seerr')}
-          onClose={() => setOpen(undefined)}
-          onSave={async (seerr) => {
-            if (await save({ seerr })) setOpen(undefined)
-          }}
-        />
-        <DispatcharrRow
-          liveTv={settings.liveTv ?? null}
-          status={
-            liveStatus.loading
-              ? 'Checking…'
-              : !liveStatus.data?.configured
-                ? 'Not set up'
-                : liveStatus.data.refreshing
-                  ? 'Bringing in the channels and guide…'
-                  : (liveStatus.data.error ?? `Live TV: ${liveStatus.data.channels.toLocaleString()} channels`)
+        <SettingsGroup
+          title="Apps"
+          note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}
+          action={
+            open !== 'new' && (
+              <button className="button quiet small" onClick={() => setOpen('new')}>
+                Add a connection
+              </button>
+            )
           }
-          ok={liveStatus.data?.configured ? !liveStatus.data.error : undefined}
-          refreshing={liveStatus.data?.refreshing ?? false}
-          open={open === 'livetv'}
-          onOpen={() => setOpen('livetv')}
-          onClose={() => setOpen(undefined)}
-          onSave={async (liveTv, message) => {
-            if (await save({ liveTv }, message)) setOpen(undefined)
-          }}
-          onRefresh={async () => {
-            await refreshLiveTv()
-            setTimeout(liveStatus.reload, 500)
-          }}
-        />
-      </SettingsGroup>
+        >
+          {settings.arr.map((a, i) => (
+            <ArrRow
+              key={`${a.name}-${i}`}
+              connection={{ ...a, apiKey: '' }}
+              live={status.data?.find((s) => s.name === a.name)}
+              open={open === i}
+              onOpen={() => setOpen(i)}
+              onClose={() => setOpen(undefined)}
+              onSave={(c) => saveArr(i, c)}
+              onRemove={() => saveArr(i, null)}
+            />
+          ))}
+          {open === 'new' && (
+            <ArrRow
+              connection={{ name: nextKind, kind: nextKind, baseUrl: '', apiKey: '', hasApiKey: false }}
+              isNew
+              open
+              onOpen={() => undefined}
+              onClose={() => setOpen(undefined)}
+              onSave={(c) => saveArr('new', c)}
+            />
+          )}
+          <SeerrRow
+            seerr={settings.seerr}
+            status={seerrStatus.loading ? 'Checking…' : !seerrStatus.data?.configured ? 'Not set up' : seerrStatus.data.reachable ? 'Connected' : 'Can’t be reached, or the API key isn’t right'}
+            ok={seerrStatus.data?.configured ? seerrStatus.data.reachable : undefined}
+            open={open === 'seerr'}
+            onOpen={() => setOpen('seerr')}
+            onClose={() => setOpen(undefined)}
+            onSave={async (seerr) => {
+              if (await save({ seerr })) setOpen(undefined)
+            }}
+          />
+          <DispatcharrRow
+            liveTv={settings.liveTv ?? null}
+            status={
+              liveStatus.loading
+                ? 'Checking…'
+                : !liveStatus.data?.configured
+                  ? 'Not set up'
+                  : liveStatus.data.refreshing
+                    ? 'Bringing in the channels and guide…'
+                    : (liveStatus.data.error ?? `Live TV: ${liveStatus.data.channels.toLocaleString()} channels`)
+            }
+            ok={liveStatus.data?.configured ? !liveStatus.data.error : undefined}
+            refreshing={liveStatus.data?.refreshing ?? false}
+            open={open === 'livetv'}
+            onOpen={() => setOpen('livetv')}
+            onClose={() => setOpen(undefined)}
+            onSave={async (liveTv, message) => {
+              if (await save({ liveTv }, message)) setOpen(undefined)
+            }}
+            onRefresh={async () => {
+              await refreshLiveTv()
+              // The button keeps spinning until the status (polled while refreshing) has had time to say it's under way.
+              await new Promise((done) => setTimeout(done, 500))
+              liveStatus.reload()
+            }}
+          />
+        </SettingsGroup>
 
-      <PathMappings mappings={settings.pathMappings} save={save} />
-      <Webhooks secret={settings.webhookSecret} />
-    </section>
+        <PathMappings mappings={settings.pathMappings} save={save} />
+        <Webhooks secret={settings.webhookSecret} />
+      </section>
+    </ServerName>
   )
 }
 
-/** A connection's line: whether it's reachable, its version, a link to it, and Edit, which opens the form under it. */
+/** The server's name on the network, for Open links to apps it reaches at localhost. */
+const ServerName = createContext<string | null | undefined>(undefined)
+
+/** A connection's line: whether it's reachable, its version, a link to it beside its name, and Edit, which opens the form under it. */
 function ConnectionLine({ kind, name, ok, status, baseUrl, open, onOpen }: { kind: keyof typeof appLogos; name: string; ok?: boolean; status: ReactNode; baseUrl: string; open: boolean; onOpen: () => void }) {
+  const host = useContext(ServerName)
   return (
     <div className="connection-line">
       <span className={ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
       <img className="app-logo" src={appLogos[kind]} alt="" />
       <span className="setting-text">
-        <strong>{name}</strong>
+        <strong className="connection-name">
+          {name}
+          {baseUrl && <OpenApp baseUrl={baseUrl} name={name} host={host} />}
+        </strong>
         <span className="muted">{status}</span>
       </span>
       <span className="connection-actions">
-        {baseUrl && <OpenApp baseUrl={baseUrl} name={name} />}
         {!open && (
-          <button className="button quiet small" onClick={onOpen} aria-label={`Edit ${name}`}>
-            Edit
-          </button>
+          <IconButton label="Edit" aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
         )}
       </span>
     </div>
@@ -186,6 +197,7 @@ function ArrRow({
 }) {
   const [draft, setDraft] = useState(connection)
   const [test, setTest] = useState<ArrStatus | 'testing'>()
+  const [saving, setSaving] = useState(false)
   const shown = test && test !== 'testing' ? test : live
   const update = (change: Partial<DraftConnection>) => setDraft((d) => ({ ...d, ...change }))
 
@@ -199,7 +211,8 @@ function ArrRow({
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    void onSave(draft)
+    setSaving(true)
+    void onSave(draft).finally(() => setSaving(false))
   }
 
   const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · version ${shown.version}` : shown ? shown.error : isNew ? 'New connection' : 'Checking…'
@@ -239,13 +252,12 @@ function ArrRow({
           </label>
           <div className="form-actions">
             {onRemove && (
-              <button type="button" className="button danger small form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && void onRemove()}>
-                Remove
-              </button>
+              <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<Trash />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
             )}
-            <button type="button" className="button quiet small" onClick={() => void runTest()}>
+            <AsyncButton className="button quiet small" onClick={() => runTest()}>
+              {test && test !== 'testing' && test.ok && <Check className="test-ok" />}
               Test
-            </button>
+            </AsyncButton>
             <button
               type="button"
               className="button quiet small"
@@ -257,9 +269,9 @@ function ArrRow({
             >
               Cancel
             </button>
-            <button type="submit" className="button small">
+            <AsyncButton type="submit" className="button small" busy={saving}>
               {isNew ? 'Add' : 'Save'}
-            </button>
+            </AsyncButton>
           </div>
         </form>
       )}
@@ -288,6 +300,7 @@ function SeerrRow({
 }) {
   const [baseUrl, setBaseUrl] = useState(seerr?.baseUrl ?? '')
   const [apiKey, setApiKey] = useState('')
+  const [saving, setSaving] = useState(false)
   return (
     <div className="connection">
       <ConnectionLine kind="Seerr" name="Seerr" ok={ok} status={status} baseUrl={seerr?.baseUrl ?? ''} open={open} onOpen={onOpen} />
@@ -297,7 +310,8 @@ function SeerrRow({
           aria-label="Edit Seerr"
           onSubmit={(e) => {
             e.preventDefault()
-            void onSave({ baseUrl, apiKey: apiKey || undefined })
+            setSaving(true)
+            void onSave({ baseUrl, apiKey: apiKey || undefined }).finally(() => setSaving(false))
           }}
         >
           <p className="muted">Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules.</p>
@@ -313,16 +327,20 @@ function SeerrRow({
           </div>
           <div className="form-actions">
             {seerr && (
-              <button type="button" className="button danger small form-actions-start" onClick={() => confirm('Remove Seerr? Discover and requests go with it.') && void onSave({ baseUrl: '' })}>
-                Remove
-              </button>
+              <IconButton
+                label="Remove"
+                aria-label="Remove Seerr"
+                icon={<Trash />}
+                className="button quiet small icon danger-icon form-actions-start"
+                onClick={() => confirm('Remove Seerr? Discover and requests go with it.') && onSave({ baseUrl: '' })}
+              />
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="button small">
+            <AsyncButton type="submit" className="button small" busy={saving}>
               Save
-            </button>
+            </AsyncButton>
           </div>
         </form>
       )}
@@ -332,14 +350,8 @@ function SeerrRow({
 
 /**
  * Dispatcharr, for Live TV: Flexarr signs in to its Xtream Codes API as a Dispatcharr user of its own, and the
- * channels and guide are the ones Dispatcharr gives that user. It's often reachable only on this server, so a
- * localhost address gets no Open link (a browser elsewhere couldn't follow it).
+ * channels and guide are the ones Dispatcharr gives that user.
  */
-/** A select's choices with the saved value among them (set elsewhere, it would otherwise be changed by saving). */
-function withSaved(choices: number[], saved: number | undefined) {
-  return saved === undefined || choices.includes(saved) ? choices : [...choices, saved].sort((a, b) => a - b)
-}
-
 function DispatcharrRow({
   liveTv,
   status,
@@ -364,19 +376,13 @@ function DispatcharrRow({
   const [baseUrl, setBaseUrl] = useState(liveTv?.baseUrl ?? '')
   const [username, setUsername] = useState(liveTv?.username ?? '')
   const [password, setPassword] = useState('')
-  const [rewind, setRewind] = useState(liveTv?.rewindMinutes ?? 60)
-  const [dvrFolder, setDvrFolder] = useState(liveTv?.dvrFolder ?? '')
-  const [before, setBefore] = useState(liveTv?.paddingBeforeMinutes ?? 1)
-  const [after, setAfter] = useState(liveTv?.paddingAfterMinutes ?? 5)
-  const [minFree, setMinFree] = useState(liveTv?.minFreeGigabytes ?? 100)
-  const [streams, setStreams] = useState(liveTv?.maxStreams ?? 0)
   const [test, setTest] = useState<LiveTvTest | 'testing'>()
-  const local = /^(localhost|127\.|\[::1\])/.test(hostOf(liveTv?.baseUrl))
+  const [saving, setSaving] = useState(false)
   const shown = test === 'testing' ? 'Testing…' : test ? (test.ok ? testSummary(test) : test.error) : status
 
   return (
     <div className="connection">
-      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={local ? '' : (liveTv?.baseUrl ?? '')} open={open} onOpen={onOpen} />
+      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={liveTv?.baseUrl ?? ''} open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
@@ -384,23 +390,18 @@ function DispatcharrRow({
           onSubmit={(e) => {
             e.preventDefault()
             setTest(undefined)
+            setSaving(true)
             void onSave({
               baseUrl: baseUrl.trim(),
               username: username.trim(),
               password: password || undefined,
-              rewindMinutes: rewind,
-              dvrFolder: dvrFolder.trim(),
-              paddingBeforeMinutes: before,
-              paddingAfterMinutes: after,
-              minFreeGigabytes: minFree,
-              maxStreams: streams,
-            })
+            }).finally(() => setSaving(false))
           }}
         >
           <p className="muted">
             TV channels and their guide. In Dispatcharr, add a user for Flexarr at Streamer level and give it a long random XC password: that works as
             Flexarr’s key, which can only list and play channels (never sign in to Dispatcharr or change it). The channels are the ones Dispatcharr gives
-            that user.
+            that user. Rewinding and recording are set in <Link to="/settings/livetv">Live TV</Link>.
           </p>
           <div className="field-row">
             <label className="grow">
@@ -422,91 +423,20 @@ function DispatcharrRow({
               />
             </label>
           </div>
-          <label className="field">
-            <span className="field-label">Rewind live TV up to</span>
-            <select value={rewind} onChange={(e) => setRewind(Number(e.target.value))}>
-              {[15, 30, 60, 120, 240].map((m) => (
-                <option key={m} value={m}>
-                  {m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`}
-                </option>
-              ))}
-            </select>
-            <span className="muted">Kept on this server while someone watches a channel, about 2 GB an hour for HD.</span>
-          </label>
-          <fieldset className="connection-fieldset">
-            <legend>Recordings</legend>
-            <label className="field">
-              <span className="field-label">Folder</span>
-              <input type="text" value={dvrFolder} placeholder={liveTv?.dvrFolderInUse ?? 'A DVR folder on the drive your TV library is on'} onChange={(e) => setDvrFolder(e.target.value)} />
-              <span className="muted">
-                {dvrFolder.trim() ? 'Recordings made from now on go here; earlier ones stay where they are.' : `Empty for the default${liveTv?.dvrFolderInUse ? `: ${liveTv.dvrFolderInUse}` : ''}.`}
-              </span>
-            </label>
-            <div className="field-row">
-              <label>
-                Start early
-                <select value={before} onChange={(e) => setBefore(Number(e.target.value))}>
-                  {withSaved([0, 1, 2, 5, 10], liveTv?.paddingBeforeMinutes).map((m) => (
-                    <option key={m} value={m}>
-                      {m === 0 ? 'On time' : `${m} min`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Run on
-                <select value={after} onChange={(e) => setAfter(Number(e.target.value))}>
-                  {withSaved([0, 2, 5, 10, 15, 30], liveTv?.paddingAfterMinutes).map((m) => (
-                    <option key={m} value={m}>
-                      {m === 0 ? 'No' : `${m} min`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Keep free
-                <select value={minFree} onChange={(e) => setMinFree(Number(e.target.value))}>
-                  {withSaved([10, 25, 50, 100, 250, 500], liveTv?.minFreeGigabytes).map((g) => (
-                    <option key={g} value={g}>
-                      {g} GB
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Channels at once
-                <select value={streams} onChange={(e) => setStreams(Number(e.target.value))}>
-                  <option value={0}>As Dispatcharr says</option>
-                  {withSaved([1, 2, 3, 4, 5], liveTv?.maxStreams ?? undefined).map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <span className="muted">
-              Broadcasts drift, so recordings start a little early and run on. No new recording starts when the drive has less than that free. Recordings and
-              live viewing share the channels your IPTV login allows (watching and recording the same channel counts once).
-            </span>
-          </fieldset>
           <div className="form-actions">
             {liveTv && (
-              <button
-                type="button"
-                className="button danger small form-actions-start"
-                onClick={() => confirm('Remove Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') && void onSave({ baseUrl: '' }, 'Live TV removed')}
-              >
-                Remove
-              </button>
+              <IconButton
+                label="Remove"
+                aria-label="Remove Dispatcharr"
+                icon={<Trash />}
+                className="button quiet small icon danger-icon form-actions-start"
+                onClick={() => confirm('Remove Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') && onSave({ baseUrl: '' }, 'Live TV removed')}
+              />
             )}
             {liveTv && (
-              <button type="button" className="button quiet small" disabled={refreshing} onClick={() => void onRefresh()}>
-                Refresh channels
-              </button>
+              <IconButton label="Refresh channels and guide" icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
             )}
-            <button
-              type="button"
+            <AsyncButton
               className="button quiet small"
               disabled={!baseUrl || !username}
               onClick={async () => {
@@ -518,27 +448,20 @@ function DispatcharrRow({
                 )
               }}
             >
+              {test && test !== 'testing' && test.ok && <Check className="test-ok" />}
               Test
-            </button>
+            </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="button small">
+            <AsyncButton type="submit" className="button small" busy={saving}>
               Save
-            </button>
+            </AsyncButton>
           </div>
         </form>
       )}
     </div>
   )
-}
-
-function hostOf(url: string | undefined) {
-  try {
-    return url ? new URL(url).host : ''
-  } catch {
-    return ''
-  }
 }
 
 function testSummary(t: LiveTvTest) {
@@ -566,9 +489,7 @@ function PathMappings({ mappings: saved, save }: { mappings: Settings['pathMappi
             Path on this server
             <input type="text" value={m.to} placeholder="/Volumes/Media/data" onChange={(e) => set(i, { to: e.target.value })} />
           </label>
-          <button type="button" className="text-button" onClick={() => setMappings(mappings.filter((_, j) => j !== i))}>
-            Remove
-          </button>
+          <IconButton label="Remove" aria-label={`Remove the mapping for ${m.from || 'this path'}`} icon={<Trash />} className="button quiet small icon danger-icon" onClick={() => setMappings(mappings.filter((_, j) => j !== i))} />
         </div>
       ))}
       <div className="form-actions">
@@ -580,9 +501,9 @@ function PathMappings({ mappings: saved, save }: { mappings: Settings['pathMappi
             <button type="button" className="button quiet small" onClick={() => setMappings(saved)}>
               Cancel
             </button>
-            <button type="button" className="button small" onClick={() => void save({ pathMappings: mappings })}>
+            <AsyncButton className="button small" onClick={() => save({ pathMappings: mappings })}>
               Save
-            </button>
+            </AsyncButton>
           </>
         )}
       </div>
@@ -646,10 +567,10 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
       {asking && (
         <ConfirmDialog
           title="Make a new webhook secret?"
-          confirmLabel={state.busy ? 'Making it…' : 'Make a new secret'}
+          confirmLabel="Make a new secret"
           busy={state.busy}
           error={state.error}
-          onConfirm={() => void rotate()}
+          onConfirm={() => rotate()}
           onClose={() => {
             setAsking(false)
             setState({})

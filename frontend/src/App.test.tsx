@@ -309,6 +309,29 @@ describe('Settings', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
   })
 
+  it('renames a library in place, keeping its folders', async () => {
+    let library = { ...movies, scan: null }
+    const sent: unknown[] = []
+    mockApi({
+      '/libraries': () => [library],
+      '/library-health': { score: null },
+      'PUT /libraries/lib-movies': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body))
+        sent.push(body)
+        library = { ...library, name: body.name }
+        return library
+      },
+    })
+
+    renderAt('/settings/libraries')
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename Movies' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name for Movies' }), { target: { value: '  Films ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('button', { name: 'Rename Films' })).toBeInTheDocument()
+    expect(sent).toEqual([{ name: 'Films', type: 'Movies', folders: ['/media/movies'] }])
+  })
+
   it('stays closed to a profile that isn’t the main one', async () => {
     mockApi({ '/libraries': [], '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null } })
 

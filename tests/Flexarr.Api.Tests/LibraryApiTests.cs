@@ -35,6 +35,28 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
     }
 
     [Fact]
+    public async Task UpdateLibrary_RenamesWithoutRescanning_AndScansOnlyAddedFolders()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "films-" + Guid.NewGuid())).FullName;
+        var extra = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "films-" + Guid.NewGuid())).FullName;
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/libraries", UriKind.Relative),
+            new { name = "Films", type = "Movies", folders = new[] { folder } })).Content.ReadFromJsonAsync<LibraryDto>(Json);
+        var before = factory.ScanQueue.Requests.Count;
+
+        var renamed = await Client().PutAsJsonAsync(new Uri($"/api/v1/libraries/{created!.Id}", UriKind.Relative),
+            new { name = "  Kids' films ", type = "Movies", folders = new[] { folder } });
+
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+        Assert.Equal("Kids' films", (await renamed.Content.ReadFromJsonAsync<LibraryDto>(Json))!.Name);
+        Assert.Equal(before, factory.ScanQueue.Requests.Count);
+
+        await Client().PutAsJsonAsync(new Uri($"/api/v1/libraries/{created.Id}", UriKind.Relative),
+            new { name = "Kids' films", type = "Movies", folders = new[] { folder, extra } });
+
+        Assert.Equal([extra], factory.ScanQueue.Requests.Skip(before).Select(r => r.Path));
+    }
+
+    [Fact]
     public async Task CreateLibrary_RejectsMissingAndOverlappingFolders()
     {
         var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "tv-" + Guid.NewGuid())).FullName;

@@ -15,8 +15,8 @@ const loopback = /^(localhost|127(\.\d+){3}|\[::1\])$/i
 
 /**
  * Where the browser opens an app at this address, or nothing if it isn't a web address. An app at localhost is only
- * localhost to this server, so the browser goes to the host it reached Flexarr on, at the app's port (as the links
- * on Coming soon do).
+ * localhost to this server, so the browser goes to the server by name (`here`, from the server: "Dans-Mac-Mini"), or
+ * failing that the host it reached Flexarr on, at the app's port.
  */
 export function appLink(baseUrl: string, here = window.location.hostname): string | undefined {
   let url: URL

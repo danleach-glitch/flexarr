@@ -238,6 +238,18 @@
   color: var(--usher);
 }
 
+/* A library's new name, in place of its title. */
+.library-rename {
+  display: grid;
+  gap: 8px;
+  max-width: 28rem;
+  margin-bottom: 4px;
+}
+
+.library-rename .form-actions {
+  justify-content: flex-start;
+}
+
 .library-row .folder,
 .panel .folder {
   display: block;
@@ -411,14 +423,26 @@
   flex: none;
 }
 
-.open-app {
+.connection-name {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+/* An app's own web page: an icon beside its name. */
+.open-app {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   flex: none;
   color: var(--usher);
-  font-weight: 600;
   text-decoration: none;
+}
+
+.open-app:hover {
+  background: color-mix(in srgb, var(--screen) 10%, transparent);
 }
 
 .open-app:hover {
@@ -440,6 +464,12 @@
 
 .status-dot.ok {
   background: #7fd1a0;
+}
+
+/* A test that worked: a green tick on its button. */
+.button .test-ok {
+  color: #7fd1a0;
+  stroke-width: 3;
 }
 
 .status-dot.bad {
@@ -1522,6 +1552,16 @@
 .settings .button.small {
   min-height: 32px;
   padding: 0 12px;
+}
+
+.settings .button.small.icon {
+  width: 32px;
+  padding: 0;
+}
+
+.settings .button.small.icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .settings input[type='text'],

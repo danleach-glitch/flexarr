@@ -14,6 +14,7 @@ import {
   type MediaFile,
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
+import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Facts } from '../components/Hero'
 import { Check, Film, More, Play, Shuffle } from '../components/icons'
@@ -152,9 +153,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <Film /> Trailer
               </button>
             )}
-            <button className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
+            <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
               <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
-            </button>
+            </AsyncButton>
             {more.length > 0 && (
               <button
                 className="button quiet icon"
@@ -252,7 +253,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
       </div>
       <div className="season-toolbar">
         <span className="muted">{season.data ? `${season.data.children.length} episodes` : ''}</span>
-        <button
+        <AsyncButton
           className="text-button"
           onClick={async () => {
             await setWatched(selected.id, !selected.userData.watched)
@@ -261,7 +262,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
           }}
         >
           {selected.userData.watched ? 'Mark season unwatched' : 'Mark season watched'}
-        </button>
+        </AsyncButton>
       </div>
       <ol className="episode-list">
         {season.data?.children.map((episode) => (
@@ -391,13 +392,13 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
         </div>
       ))}
       {kind === 'Episode' && (
-        <button
+        <AsyncButton
           className="text-button"
           disabled={queued}
           onClick={() => analyzeItem(itemId).then(() => setQueued(true))}
         >
           {queued ? 'Queued: intros and credits for this season will be re-detected shortly' : 'Re-detect intros and credits for this season'}
-        </button>
+        </AsyncButton>
       )}
     </details>
   )

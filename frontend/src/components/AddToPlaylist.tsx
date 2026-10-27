@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { addToPlaylist, ApiError, createPlaylist, getPlaylists, type PlaylistSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { AsyncButton } from './AsyncButton'
 import { describePlaylist, PlaylistCover } from './PlaylistCover'
 
 /** Asks for the Add to playlist dialog, from anywhere (a card's menu closes before it opens). */
@@ -32,7 +33,8 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
   const [version, setVersion] = useState(0)
   const playlists = useApi(getPlaylists, [version])
   const [name, setName] = useState('')
-  const [busy, setBusy] = useState(false)
+  // What's being added to: a playlist's id, or 'new'.
+  const [busy, setBusy] = useState<string>()
   const [message, setMessage] = useState<string>()
   const [error, setError] = useState<string>()
 
@@ -42,8 +44,8 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  async function run(work: () => Promise<string>) {
-    setBusy(true)
+  async function run(target: string, work: () => Promise<string>) {
+    setBusy(target)
     setError(undefined)
     try {
       setMessage(await work())
@@ -51,12 +53,12 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
     } catch (e) {
       setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
     } finally {
-      setBusy(false)
+      setBusy(undefined)
     }
   }
 
   const add = (p: PlaylistSummary) =>
-    run(async () => {
+    run(p.id, async () => {
       const { added } = await addToPlaylist(p.id, [item.id], true)
       return added === 0 ? `Already in ${p.name}.` : `Added to ${p.name}.`
     })
@@ -64,7 +66,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
   function create(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    void run(async () => {
+    void run('new', async () => {
       const created = await createPlaylist(name.trim(), [item.id])
       setName('')
       return `Made ${created.name} with it.`
@@ -80,7 +82,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
         <ul className="playlist-choices">
           {playlists.data?.map((p) => (
             <li key={p.id}>
-              <button className="playlist-choice" onClick={() => add(p)} disabled={busy}>
+              <AsyncButton className="playlist-choice" onClick={() => add(p)} disabled={!!busy} busy={busy === p.id}>
                 <span className="playlist-choice-art">
                   <PlaylistCover playlist={p} width={92} />
                 </span>
@@ -88,7 +90,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
                   <strong>{p.name}</strong>
                   <span className="muted">{describePlaylist(p)}</span>
                 </span>
-              </button>
+              </AsyncButton>
             </li>
           ))}
         </ul>
@@ -97,9 +99,9 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
             New playlist
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name it, then press Create" />
           </label>
-          <button className="button" type="submit" disabled={busy || !name.trim()}>
+          <AsyncButton className="button" type="submit" disabled={!!busy || !name.trim()} busy={busy === 'new'}>
             Create
-          </button>
+          </AsyncButton>
         </form>
         {message && (
           <p className="muted" role="status">

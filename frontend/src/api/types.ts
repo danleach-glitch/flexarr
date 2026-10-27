@@ -434,6 +434,8 @@ export interface Settings {
     paddingAfterMinutes: number
     minFreeGigabytes: number
   } | null
+  /** The server's name on the network, put in place of localhost in links to apps; none in a container. */
+  hostName?: string | null
 }
 
 export interface SettingsUpdate {

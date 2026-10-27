@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError, requestTitle, type ExternalTitle } from '../api/client'
+import { AsyncButton } from './AsyncButton'
 
 /** Request a title through Seerr, or say where it stands if it's already in hand. */
 export function RequestButton({ title, size = 'small' }: { title: Pick<ExternalTitle, 'mediaType' | 'tmdbId' | 'availability' | 'libraryItemId'>; size?: 'small' | 'large' }) {
@@ -21,9 +22,9 @@ export function RequestButton({ title, size = 'small' }: { title: Pick<ExternalT
   if (state === 'Requested' || state === 'PartlyAvailable') return <span className="external-state">{state === 'Requested' ? 'Requested' : 'Partly in your library'}</span>
   return (
     <>
-      <button className={size === 'small' ? 'button small quiet' : 'button'} onClick={request} disabled={state === 'sending'} title={message}>
-        {state === 'sending' ? 'Requesting…' : state === 'failed' ? 'Try again' : 'Request'}
-      </button>
+      <AsyncButton className={size === 'small' ? 'button small quiet' : 'button'} onClick={request} busy={state === 'sending'} title={message}>
+        {state === 'failed' ? 'Try again' : 'Request'}
+      </AsyncButton>
       {size === 'large' && state === 'failed' && message && (
         <span className="error" role="alert">
           {message}
