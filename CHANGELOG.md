@@ -2,6 +2,19 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Backup and restore
+- Settings › Backup and restore keeps backups of everything Flexarr can't rebuild from your media: profiles, what everyone's watched, playlists, collections, settings and signed-in devices. Artwork and previews are left out; they come back by themselves.
+- A backup is made every night at half past three (the last 7 are kept), and always before an upgrade changes the database. Back up now makes one whenever you like.
+- Backups can go in a folder of your choosing, such as a share on another drive. If that drive isn't connected, the page says so rather than filling this one.
+- Download a backup to keep it elsewhere, protected with a passphrase if you like. Restore one from the list or from a file: Flexarr keeps a copy of the server as it is first, then restarts with the backup.
+- A backup is checked before anything is restored. A damaged one, one from a newer Flexarr, or one that isn't Flexarr's own is refused, and one from another server is pointed out. This machine's paths (ffmpeg, the cache) are kept as they are.
+
+### Settings file
+- Export the server's settings and libraries to a file, and import them on this server or another. Choose which parts to take. Library folders can be changed to where they are on the new machine.
+- Server keys, access settings and this machine's paths start unticked, and taking them from a file asks for the main profile's PIN.
+
 ## 0.43.1 · 27 October 2026
 
 ### Discover (Apple TV)

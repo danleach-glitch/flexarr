@@ -6,6 +6,7 @@ import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { AboutSection } from './AboutSection'
 import { AccessSection } from './AccessSection'
+import { BackupSection } from './BackupSection'
 import { ConnectionsSection } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
 import { HealthSection } from './HealthSection'
@@ -46,6 +47,7 @@ const serverPages: Page[] = [
   { id: 'connections', label: 'Connections', render: () => <ConnectionsSection /> },
   { id: 'access', label: 'Access', render: () => <AccessSection /> },
   { id: 'tv', label: 'Connect a TV', render: () => <ConnectTvSection />, under: 'access' },
+  { id: 'backups', label: 'Backup and restore', render: () => <BackupSection /> },
   { id: 'about', label: 'About', render: () => <AboutSection /> },
 ]
 
