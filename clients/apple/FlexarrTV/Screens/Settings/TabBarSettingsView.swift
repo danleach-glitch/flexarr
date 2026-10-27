@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The order of the libraries and Live TV in the tab bar. Select one to pick it up, move it with up and down, and
+/// The order of the libraries and Live TV in the sidebar. Select one to pick it up, move it with up and down, and
 /// select again to put it down, as when arranging apps on the Apple TV's Home screen.
 struct TabBarSettingsView: View {
     @Environment(AppModel.self) private var model
@@ -12,7 +12,7 @@ struct TabBarSettingsView: View {
     private var entries: [TabBarEntry] { TabBarEntry.ordered(model: model, stored: stored) }
 
     var body: some View {
-        SettingsPage(title: "Tab bar", summary: "Home is always first, and Search and Settings last.") {
+        SettingsPage(title: "Sidebar", summary: "Home is always first, and Search and Settings last.") {
             SettingsGroupLabel("Between Home and Search")
             ForEach(entries) { entry in
                 SettingsRow(title: entry.title, symbol: entry.symbol, value: moving == entry.id ? "Move up or down" : nil,
@@ -27,7 +27,7 @@ struct TabBarSettingsView: View {
         .onChange(of: focused) { old, new in
             guard let picked = moving else { return }
             // Focus going to the next row up or down while one is picked up moves it there instead; anywhere else
-            // (the tab bar, Menu) puts it down where it is.
+            // (the sidebar, Menu) puts it down where it is.
             guard old == picked, let new, let to = entries.firstIndex(where: { $0.id == new }) else {
                 if new != picked { moving = nil }
                 return

@@ -37,8 +37,8 @@ struct SettingsView: View {
                 LibrarySettingsView()
             }
             if let first = TabBarEntry.ordered(model: model, stored: tabBarOrder).first {
-                SettingsLinkRow(title: "Tab bar", symbol: "menubar.rectangle", value: "\(first.title) first",
-                                help: "The order of your libraries and Live TV in the tab bar, between Home and Search.") {
+                SettingsLinkRow(title: "Sidebar", symbol: "sidebar.left", value: "\(first.title) first",
+                                help: "The order of your libraries and Live TV in the sidebar, between Home and Search.") {
                     TabBarSettingsView()
                 }
             }

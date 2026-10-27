@@ -2,6 +2,15 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Sidebar (Apple TV)
+- The tabs along the top are now a sidebar down the left, like the Apple TV app's, so any number of libraries fits. Before, with more than five or six, the tab bar ran off the screen and took Search and Settings with it.
+- Who's watching is at the top, with your profile picture: select it to switch. Then Home, your libraries and Live TV, and Search and Settings a little apart at the bottom.
+- Press left, or Menu, to bring the sidebar back from a screen. Moving through it doesn't change the screen until you select.
+- Flexarr's version is at the foot of the sidebar on tvOS 27, and still in Settings.
+- Settings › Tab bar is now Settings › Sidebar.
+
 ## 0.40.0 · 27 October 2026
 
 ### Notifications (iPhone and iPad)

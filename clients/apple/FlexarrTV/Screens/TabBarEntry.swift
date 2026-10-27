@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// A tab between Home and Search: a library, or Live TV once the server has it set up (Settings › Connections on
-/// the web). Their order is chosen in Settings › Tab bar and kept on this Apple TV; Home, Search and Settings stay put.
+/// the web). Their order is chosen in Settings › Sidebar and kept on this Apple TV; Home, Search and Settings stay put.
 enum TabBarEntry: Identifiable, Hashable {
     case library(Library)
     case liveTv
@@ -43,7 +43,7 @@ enum TabBarEntry: Identifiable, Hashable {
         }
     }
 
-    /// What's in the tab bar, in the server's order, then Live TV. Podcasts are on iPhone, iPad and the web, not here;
+    /// What's in the sidebar, in the server's order, then Live TV. Podcasts are on iPhone, iPad and the web, not here;
     /// recordings are in Live TV › Recordings, so their library has no tab of its own while Live TV has one.
     @MainActor
     static func available(model: AppModel) -> [TabBarEntry] {
