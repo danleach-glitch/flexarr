@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.46.0 · 27 October 2026
 
 ### Home Assistant
 - The Home Assistant integration has its own home: [flexarr-home-assistant](https://github.com/danleach-glitch/flexarr-home-assistant). Install it through HACS (add that address under Custom repositories), so Home Assistant offers its updates. Copied in by hand before, it keeps working; remove the old copy and install it through HACS to get updates.
