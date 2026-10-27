@@ -75,7 +75,7 @@ enum ErrorReports {
         SentrySDK.start { options in
             options.dsn = dsn
             options.releaseName = release
-            options.environment = "production"
+            options.environment = environment
             options.sendDefaultPii = false
             options.tracesSampleRate = 0
             options.enableAutoSessionTracking = false
@@ -103,6 +103,14 @@ enum ErrorReports {
     private static let platform = "tvos"
     #else
     private static let platform = "ios"
+    #endif
+
+    /// Debug and simulator builds report apart from shipped ones, so testing doesn't look like users' problems (a
+    /// paused debugger shows up as an app hang).
+    #if DEBUG || targetEnvironment(simulator)
+    private static let environment = "development"
+    #else
+    private static let environment = "production"
     #endif
 
     private static var release: String {

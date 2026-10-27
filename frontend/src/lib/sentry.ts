@@ -37,7 +37,8 @@ function start(s: Sentry, version: string) {
   s.init({
     dsn: DSN,
     release: `flexarr-web@${version}`,
-    environment: 'production',
+    // The Vite dev server reports apart from built releases.
+    environment: import.meta.env.DEV ? 'development' : 'production',
     // Sentry 11's form of sendDefaultPii: false, at its strictest: no user details, cookies, headers, bodies, query
     // strings, variables or source lines.
     dataCollection: {

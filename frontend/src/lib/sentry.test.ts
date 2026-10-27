@@ -70,7 +70,7 @@ describe('scrubEvent', () => {
       platform: 'javascript',
       level: 'error',
       release: 'flexarr-web@0.44.0',
-      environment: 'production',
+      environment: 'development', // vitest runs as the dev server
       message: 'Lost "Severance"',
       server_name: 'mini.local',
       request: { url: 'https://mini.local:8383/item/1', headers: { Cookie: 'flexarr_session=x' } },
@@ -151,7 +151,7 @@ describe('loading', () => {
     const options = sdk.init.mock.calls[0][0]
     expect(options).toMatchObject({
       release: 'flexarr-web@0.44.0',
-      environment: 'production',
+      environment: 'development', // vitest runs as the dev server
       defaultIntegrations: false,
       tracesSampleRate: 0,
       sendClientReports: false,
