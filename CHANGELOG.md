@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.49.0 · 27 October 2026
 
 ### Setting up
 - A new server needs no API key: open it in a browser on your home network and choose **Set up Flexarr**, and that browser becomes its owner. Phones, tablets and TVs then connect with a code you enter there. If the iPhone app finds a server nobody has set up yet, it says to do that first, with the address to open. Servers that already exist aren't affected.
