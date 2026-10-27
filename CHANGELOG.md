@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.40.0 · 27 October 2026
 
 ### Notifications (iPhone and iPad)
 - Get a notification when something new is ready: a film or show you haven't seen, new episodes, a podcast episode from a show you follow, or a recording that's finished. Turn them on, and choose which, in Settings › Notifications.
