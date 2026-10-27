@@ -59,9 +59,11 @@
     <h2>The apps collect nothing</h2>
     <p>The Flexarr apps don't collect, sell or share any personal data. They contain no analytics, advertising or
     tracking, and they don't contact the developer unless the server's owner turns on error reports (below).</p>
-    <p>The apps talk only to the Flexarr server you connect them to. That server belongs to you or to whoever invited
-    you, not to the Flexarr project. What you watch, your progress and your profiles are kept on that server, under its
-    owner's control.</p>
+    <p>The apps talk to the Flexarr server you connect them to. That server belongs to you or to whoever invited you,
+    not to the Flexarr project. What you watch, your progress and your profiles are kept on that server, under its
+    owner's control. So is its log: the apps send the server their warnings and errors, and their recent log when you
+    tap Send diagnostics, so its owner can see what went wrong. Keys and passwords are taken out first, and the log
+    never leaves that server.</p>
 
     <h2>What stays on your device</h2>
     <ul>
@@ -69,8 +71,10 @@
       <li>Your sign-in key, in the device's Keychain.</li>
       <li>Anything you download for offline, and what you played while offline until it's sent to your server.</li>
     </ul>
-    <p>Notifications of new podcast episodes are made on the device itself; there's no push server. Podcast searches
-    and episodes go through your server, so podcast hosts see your server rather than each listener. When you speak to Siri, Apple handles the speech under its own privacy policy.</p>
+    <p>If you turn on notifications on iPhone, your server sends each one through a small relay at flexarr.io, which
+    passes it to Apple to deliver. It's encrypted on your server and only your phone can read it, so the relay never sees
+    what it says, and it keeps nothing. Apple handles delivery under its own privacy policy. Podcast searches and episodes
+    go through your server, so podcast hosts see your server rather than each listener. When you speak to Siri, Apple handles the speech under its own privacy policy.</p>
     <p>Deleting the app removes them. The apps ask for local network access only to find and reach your server at home.</p>
 
     <h2>Optional error reports</h2>
