@@ -14,11 +14,16 @@ as the server's.
 
 ## Listing
 
-- **Subtitle:** Your media server, anywhere
+The listing pitches Flexarr as your own streaming service: everything you love, with no ads, tracking or
+subscription. The server requirement is put positively (it connects to your own free Flexarr server), never
+as what the app lacks.
+
+- **Name:** Flexarr: Personal Streaming. **Subtitle:** Films, TV, music and podcasts (en-US: Movies, TV,
+  music & podcasts). Listed in English (UK) and English (US).
 - **Category:** Entertainment. **Price:** free, every country except mainland China (which needs an ICP filing).
 - **Age rating:** 4+. The app has no content of its own; what's on the viewer's server is theirs.
-- **Keywords:** media server, home server, self-hosted, streaming, video player, movies, tv shows,
-  library, player, films. Never other apps' names: App Review rejects them.
+- **Keywords:** media server, home cinema (en-US: home theater), self-hosted, stream, movies, tv shows,
+  music, podcasts, offline, player, films. Never other apps' names: App Review rejects them.
 - **Support URL:** GitHub issues. **Marketing URL:** https://flexarr.io.
   **Privacy policy:** https://flexarr.io/privacy (`site/privacy.html`).
 
@@ -38,8 +43,6 @@ Elephants Dream, Sintel and Tears of Steel (with subtitles).
 - No \*arr or Seerr connections: Radarr was connected just long enough to fetch the films' details.
 - Reviewers sign in with a device sign-in for the "App Review" profile, which can browse and watch but
   not manage the server. The main profile has a PIN, so they can't switch to it.
-- Screenshots for the listing come from this server, never from a personal library: other people's
-  posters get apps rejected.
 
 Review notes:
 
@@ -48,7 +51,11 @@ Review notes:
 > (Blender Foundation, CC BY). On the Connect screen, tap "Enter an address instead", enter the
 > server address (the user name below) and the API key (the password below), then tap Connect.
 
-## Screenshots
+## Screenshots and preview
 
-6.9" iPhone (iPhone 17 Pro Max, 1320×2868) and 13" iPad (iPad Pro 13-inch, 2064×2752), from the UI test
-tour (`FlexarriOSUITests/ScreenshotTour.swift`) run against the demo server.
+6.9" iPhone (iPhone 17 Pro Max, 1320×2868) and 13" iPad (iPad Pro 13-inch, 2064×2752). The screens come
+from `FlexarriOSUITests/StoreTour.swift` run against a real library (the maintainer chose to show real
+artwork, accepting the risk under guideline 5.2), then are set in device frames with a headline over
+artwork-tinted backgrounds. Point the simulator at a local address (an SSH tunnel to `127.0.0.1` works):
+the app refuses plain http to anything else. The preview video is a simulator recording of
+`FlexarriOSUITests/PreviewTour.swift`.
