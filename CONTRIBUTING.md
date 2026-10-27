@@ -45,4 +45,4 @@ Versions follow [semantic versioning](https://semver.org). While Flexarr is 0.x,
 3. Commit, then tag the commit `v<version>` and push the tag. The Docker workflow publishes `ghcr.io/danleach-glitch/flexarr:<version>`, `:<major>.<minor>` and `:latest`.
 4. Make a GitHub release from the tag, with that version's changelog section as its notes.
 
-By contributing you agree that your contributions are licensed under the GPL-3.0-or-later.
+By contributing you agree that your contributions are licensed under the same terms as Flexarr ([PolyForm Noncommercial 1.0.0](LICENSE)), and that the maintainer may also license them to others under other terms, including commercially.

@@ -7,7 +7,7 @@
 <p align="center"><strong>Your entertainment. Every screen.</strong></p>
 
 <p align="center">
-  A free, open-source, self-hosted media server for your films, TV shows, music and podcasts, built to sit alongside <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>.<br>
+  A free, source-available, self-hosted media server for your films, TV shows, music and podcasts, built to sit alongside <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>.<br>
   Stream your library to the web, Apple TV, iPhone and iPad. No account. No cloud.
 </p>
 
@@ -15,7 +15,7 @@
   <a href="https://github.com/danleach-glitch/flexarr/releases"><img src="https://img.shields.io/github/v/release/danleach-glitch/flexarr?display_name=tag&color=a9c2ec&labelColor=1b1720" alt="Latest release"></a>
   <a href="https://github.com/danleach-glitch/flexarr/actions/workflows/ci.yml"><img src="https://github.com/danleach-glitch/flexarr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/danleach-glitch/flexarr/pkgs/container/flexarr"><img src="https://img.shields.io/badge/docker-ghcr.io%2Fdanleach--glitch%2Fflexarr-e8a0bf?labelColor=1b1720" alt="Docker image"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-f2eee7?labelColor=1b1720" alt="GPL-3.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-PolyForm_Noncommercial-f2eee7?labelColor=1b1720" alt="PolyForm Noncommercial 1.0.0"></a>
   <img src="https://img.shields.io/badge/.NET%2010%20%C2%B7%20React%20%C2%B7%20Swift-a39aae?labelColor=1b1720" alt=".NET 10, React, Swift">
 </p>
 
@@ -177,4 +177,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architect
 
 ## 📄 Licence
 
-Flexarr is licensed under the [GNU GPL v3.0 or later](LICENSE), like Sonarr, Radarr and Lidarr. The on-device playback engine in the Apple apps is [AetherEngine](https://github.com/superuser404notfound/AetherEngine), under the LGPL.
+Flexarr is free to use, change and share for any noncommercial purpose under the [PolyForm Noncommercial License 1.0.0](LICENSE). That covers personal use, home servers, and charities, schools and other noncommercial organisations. You may not sell Flexarr, or use it in a commercial product or service, without a separate licence from the author.
+
+Because it restricts commercial use, Flexarr is *source-available* rather than open source in the [OSI's sense](https://opensource.org/osd).
+
+## 🙏 Acknowledgements
+
+Flexarr is built on many other projects: the *arr apps it works with, FFmpeg, AetherEngine and more. They're all credited, with their licences, in [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
