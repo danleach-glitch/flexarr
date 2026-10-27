@@ -1,20 +1,24 @@
 # Architecture
 
 ```
-                    ┌──────────────── Clients ────────────────┐
-                    │  Web (React)   Apple TV / iOS (SwiftUI) │
-                    └───────────────────┬─────────────────────┘
-                                        │ REST /api/v1  +  HLS / direct streams
-┌──────────────┐  webhooks   ┌──────────▼───────────┐   ffprobe / ffmpeg   ┌───────────┐
-│ Sonarr       │────────────▶│                      │─────────────────────▶│  FFmpeg   │
-│ Radarr       │◀────────────│    Flexarr server    │                      └───────────┘
-│ Lidarr       │  REST API   │   (ASP.NET Core)     │   metadata agents    ┌───────────┐
-│ Prowlarr     │             │                      │─────────────────────▶│ TMDB/TVDB │
-└──────────────┘             └──────────┬───────────┘                      │ MusicBrainz│
-                                        │                                  └───────────┘
-                             ┌──────────▼───────────┐
-                             │ SQLite (default) /   │   + /config: artwork cache,
-                             │ PostgreSQL           │     transcodes, logs
+                    ┌──────────────────── Clients ─────────────────────┐
+                    │  Web (React)   Apple TV / iPhone / iPad (SwiftUI) │
+                    │  assistants (MCP)   Home Assistant                │
+                    └─────────────────────────┬────────────────────────┘
+                                              │ REST /api/v1, HLS / direct streams, SSE
+┌──────────────┐  webhooks   ┌────────────────▼─────┐   ffprobe / ffmpeg   ┌──────────────┐
+│ Sonarr       │────────────▶│                      │─────────────────────▶│ FFmpeg       │
+│ Radarr       │◀────────────│    Flexarr server    │                      └──────────────┘
+│ Lidarr       │  REST API   │   (ASP.NET Core)     │   cast, podcasts     ┌──────────────┐
+│ Seerr        │             │                      │─────────────────────▶│ TVmaze,      │
+│ Dispatcharr  │             │                      │                      │ podcast feeds│
+└──────────────┘             └──────────┬───────────┘                      └──────────────┘
+                                        │                    encrypted pushes ┌──────────────┐
+                             ┌──────────▼───────────┐       ────────────────▶│ flexarr.io   │
+                             │ SQLite               │                        │ relay → APNs │
+                             │ + /config: artwork,  │                        └──────────────┘
+                             │   transcodes, logs,  │
+                             │   backups            │
                              └──────────────────────┘
 ```
 
@@ -22,17 +26,17 @@
 
 - **C# / .NET for the server.** Sonarr, Radarr, Lidarr, Prowlarr (and Jellyfin) are all .NET. Sharing the language and conventions makes it easy for the \*arr community to contribute, and .NET gives us high-throughput async I/O for streaming, solid cross-platform support (Linux/Windows/macOS, x64/ARM) and single-binary publishing.
 - **React + TypeScript for the web client**, the same choice the \*arr apps made.
-- **Native SwiftUI for Apple platforms.** tvOS needs a native app to get AVPlayer, the focus engine, Top Shelf and proper HDR/Dolby support. Networking and models live in the `FlexarrKit` Swift package, shared by tvOS, iOS and macOS targets.
+- **Native SwiftUI for Apple platforms.** tvOS needs a native app to get AVPlayer, the focus engine, Top Shelf and proper HDR/Dolby support. Networking and models live in the `FlexarrKit` Swift package, shared by the tvOS and iOS apps, the Top Shelf, the widgets and the notification extension.
 - **FFmpeg** for probing and transcoding, with hardware acceleration (VAAPI, QSV, NVENC, VideoToolbox).
 
 ## Server projects
 
 | Project | Responsibility |
 | --- | --- |
-| `Flexarr.Api` | Host: HTTP API, auth, playback sessions, background workers (scanning, intro detection, scrubbing previews), static web client |
+| `Flexarr.Api` | Host: HTTP API, auth, playback sessions, live TV and the DVR, podcasts, backups, notifications, logs, MCP, background workers (scanning, intro detection, scrubbing previews), static web client |
 | `Flexarr.Core` | Domain and EF Core database (SQLite), parsing, scanning, ffprobe — no ASP.NET dependency |
 | `Flexarr.Metadata` | Metadata refresh from Sonarr/Radarr/TVmaze, image cache (resizing with ffmpeg), ambient colour extraction |
-| `Flexarr.Streaming` | Playback decisions, FFmpeg command building, HLS transcode sessions, subtitles, scrubbing previews, audio fingerprinting for intros/credits |
+| `Flexarr.Streaming` | Playback decisions, FFmpeg command building, HLS transcode sessions, live channel sessions, subtitles, scrubbing previews, audio fingerprinting for intros/credits |
 | `Flexarr.Integrations.Arr` | Sonarr/Radarr/Lidarr and Seerr API clients, webhook translation |
 
 ## Key flows
@@ -41,9 +45,11 @@
 
 **Metadata.** For each library, Flexarr fetches everything Radarr/Sonarr know (one call per app, plus episodes and credits) and matches items by folder path, then IMDb/TMDB/TVDB id. Titles the *arr apps don't manage are found through their lookup endpoints (which proxy TMDB/TVDB without keys). Artwork URLs are stored; images are fetched, resized and cached on first view, and an ambient colour is sampled from each.
 
-**Playback.** The client reports what it can play (from `canPlayType` in browsers). If the file fits, it's served as-is with range requests. Otherwise Flexarr creates a transcode session: a full VOD playlist of 6-second segments is returned immediately; each segment request starts (or reuses) an FFmpeg process positioned at that segment, with keyframes forced on segment boundaries and timestamps offset to match, so seeking anywhere is instant and segments from different runs line up. FFmpeg is paused (SIGSTOP) when it gets far ahead of the viewer. On macOS decode, scaling, HDR→SDR conversion and encode all run on the media engine.
+**Playback.** The client reports what it can play (from `canPlayType` in browsers). If the file fits, it's served as-is with range requests. Otherwise Flexarr creates a transcode session: a full VOD playlist of 6-second segments is returned immediately; each segment request starts (or reuses) an FFmpeg process positioned at that segment, with keyframes forced on segment boundaries and timestamps offset to match, so seeking anywhere is instant and segments from different runs line up. FFmpeg paces itself, running a little ahead and then at real time, so it never gets far ahead of the viewer; it's never paused with SIGSTOP, which on macOS stalls .NET's starting of every other process. On macOS decode, scaling, HDR→SDR conversion and encode all run on the media engine.
 
 **Live TV.** Channels and the guide come from Dispatcharr (Settings › Connections), through its Xtream Codes API, signed in as a Dispatcharr user of Flexarr's own: `player_api.php` for the channel list, `xmltv.php` for the guide (read as it downloads; a DOCTYPE is ignored, nothing external resolved), refreshed every six hours. Dispatcharr owns the line-up, names and logos; channels it drops leave Flexarr, with their guide and favourites. Every address carries the password, so that HTTP client's logging is off and errors are reported in words, without addresses. Logos are fetched only from Dispatcharr itself. Watching a channel (`POST /livetv/channels/{id}/watch`) probes its format once (kept for 12 hours) and starts one ffmpeg per channel, shared by everyone on it (`Flexarr.Streaming.Live`): H.264 is copied, anything else (interlaced, MPEG-2, HEVC) converted, sound made AAC unless it is. ffmpeg writes a rolling HLS playlist of 4-second segments that keeps the rewind window (an hour by default) and deletes older ones; a dropped source is restarted on the same playlist a few times. The viewer's random id in the playlist address is the capability, as with on-demand playback; players fetching it, or a heartbeat while paused, keep the viewer, and a channel nobody watches stops a minute later, or at once when another channel is wanted (providers often allow one connection). Favourites are per profile.
+
+**Recording.** The DVR (`Flexarr.Api/LiveTv/Dvr.cs`) records from the guide: a programme, or a series rule matched against each guide refresh. A recording is the channel copied as it comes (every video and sound track, nothing converted) into a DVR folder on the drive the TV library is on (or one chosen in Settings), starting a minute early and running five minutes on, then scanned into a Recordings library named like TV episodes. It shares the streams the IPTV login allows with live viewing (one per channel, however many are on it) and takes priority: live viewing of another channel is stopped to make room. Nothing new starts below a free-space floor (100 GB by default), and a recording under way when the server restarts carries on.
 
 **Playing on another device.** Every Apple TV, iPhone and iPad has a sign-in of its own, which is also its address: `GET /api/v1/devices` lists them, with whether Flexarr is open on each and what it's playing (playback sessions remember the sign-in that started them). While an app is in front it keeps `GET /api/v1/devices/commands` open, a server-sent-event stream its own token alone may open; `POST /api/v1/devices/{id}/play` (a title's id; a show's is resolved to the episode *that device's profile* is up to, so the answer can say what will play), `pause`, `resume` and `stop` go down that stream. A command to a device that isn't listening is kept for two minutes and handed over when it connects, so "play the next episode" said just before opening the app still plays. Only the API key and sign-ins the main profile made may send commands. Siri on an iPhone (App Intents, in `clients/apple/Shared/Intents`) and assistants over MCP are the two front doors to this.
 
@@ -53,13 +59,19 @@
 
 **Podcasts.** A Podcasts library holds shows rather than files: each is an item fed by its RSS feed (`PodcastFeed`), with an item per episode (`PodcastEpisode` holds where its sound file is), so watch state, downloads and artwork work as for everything else. Adding a show fetches its feed (from Apple's directory by id, or any feed address); following it is per profile (`PodcastSubscription`). A background worker refetches followed feeds, sending back the last ETag and Last-Modified, every 30 minutes for shows that published in the last fortnight and up to every 12 hours for quiet ones, backing off from hosts that fail; shows nobody follows go after a month. Episodes are played through the server (`/playback/{sid}/stream` relays the host's file, ranges and all, and remembers where its redirects led, so seeking doesn't walk them again), and downloaded to phones by way of the library's folder, from which each is deleted once the phone has it. Every podcast request goes through `PodcastFetcher`, which only connects to internet addresses: feeds are added by anyone signed in and name their own episode addresses, so neither may reach the home network or the machine itself.
 
+**Notifications.** New films, shows, episodes, podcast episodes, finished recordings and arrived requests reach iPhones and iPads through a relay at flexarr.io, encrypted with a key only the phone and its server hold. See [notifications.md](notifications.md).
+
+**Backups.** A backup is a zip of what can't be rebuilt from the media: a snapshot of the database, `config.json`, `devices.json` and profile pictures, with a manifest (`Flexarr.Api/Backups`). One is made nightly and before any migration changes the database. A restore is checked, staged in `restore-pending`, and put in place by the next start before anything opens the database, keeping a copy of what was there and this machine's own paths.
+
+**Logs.** Serilog writes a JSON line per entry to daily files under the data directory, which Settings › Logs reads back and follows live, with levels per area changeable at runtime, secrets scrubbed, and the apps' warnings and errors sent to the server. See [logging.md](logging.md).
+
 **Intros and credits.** For each season, the first 8 and last 5 minutes of audio of every episode are fingerprinted (32-bit sub-fingerprints every 8 ms from band-energy differences) and compared with neighbouring episodes: offset voting on exact matches finds the alignment, then the longest run with low bit error is the shared theme or credits. Chapter titles ("Intro", "Credits") take precedence. A background worker works through the library, prioritising what's being watched and giving way to viewers.
 
 ## Authentication
 
 The server has one API key, generated on first run and stored in `<DataDirectory>/config.json`. Send it \*arr-style, as `X-Api-Key: <key>` or `?apikey=<key>`. It is for setting things up, not for every device to keep:
 
-- **Browsers** sign in once with the key (`POST /session`) and get an HttpOnly cookie holding a random session token of their own. **Apple TVs** pair with a code, approved in the web app, and get a device token of their own (sent as `X-Api-Key`); TVs set up with the key itself swap it for one (`POST /session/device`). Only hashes of these tokens are kept, in `<DataDirectory>/devices.json`. Settings › Server lists them with Sign out; `DELETE /session` signs out the one asking. Browsers unused for six months are signed out. The key can be replaced from Settings without signing these out.
+- **Browsers** sign in once with the key (`POST /session`) and get an HttpOnly cookie holding a random session token of their own. **Apple TVs** pair with a code, approved in the web app, and get a device token of their own (sent as `X-Api-Key`); TVs set up with the key itself swap it for one (`POST /session/device`). Only hashes of these tokens are kept, in `<DataDirectory>/devices.json`. Settings › Access lists them with Sign out; `DELETE /session` signs out the one asking. Browsers unused for six months are signed out. The key can be replaced from Settings without signing these out.
 - **Pairing** only starts from the home network or tailnet, at most three waiting codes per address, and the approval page shows where the request came from.
 - **Profiles.** Only the main profile manages the server (settings, the API key, connecting TVs, deleting media). A browser or TV keeps the profile chosen on it on the server, so another profile there can't regain admin by dropping the `X-Flexarr-Profile` header; the main profile must be chosen again, with its PIN. The API key itself is always admin. PIN attempts are taken one at a time per profile; wrong ones lock out the caller for a while, doubling each time up to an hour, and only throttle the profile itself (one attempt every five seconds), so a guesser can't lock the owner out. Callers that may already manage the server skip that throttle. Callers without a sign-in are counted by address, except that a browser which has given a profile's right PIN before (known by its own random `flexarr.browser` cookie) keeps a count of its own for that profile. Half the strikes are forgotten after each half hour without a wrong PIN. PINs are 4 to 8 digits. Changing or removing the main profile's PIN takes its current PIN or the API key. A Tailscale account linked to another profile can't choose a main profile that has no PIN. Showing or replacing the API key asks for the main profile's PIN when it has one (otherwise an explicit confirmation); replacing it can also sign out every other browser and device. Before per-device sign-ins, browsers shared one cookie and profile tokens ignored the PIN; those are accepted until `legacySignInsUntil` (30 days after the first run of the upgrade).
 - **Webhooks** use their own secret (`?secret=`), which can only queue scans; `?apikey=` still works.

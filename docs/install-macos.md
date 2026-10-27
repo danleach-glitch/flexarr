@@ -48,7 +48,7 @@ The server listens on port **8383** on all interfaces: `http://<mac-name>.local:
 - **`legacySignInsUntil`**: written on first run; until then, browsers and profile choices from versions before per-device sign-ins keep working while they move over. After it, they sign in again.
 - **`knownHosts`**: extra names you reach Flexarr by on your network (split DNS, say). With `DisabledForLocalAddresses`, only requests addressed to IP addresses, `.local`-style names, this Mac's name and these sign in without a key.
 
-Over plain HTTP the API key and sign-ins cross the network unencrypted. Keep `http://` to a home network you trust; from anywhere else use Tailscale (Settings › Remote access), which encrypts the connection and gives Flexarr an HTTPS address.
+Over plain HTTP the API key and sign-ins cross the network unencrypted. Keep `http://` to a home network you trust; from anywhere else use Tailscale (Settings › Access), which encrypts the connection and gives Flexarr an HTTPS address.
 
 Restart after editing: `launchctl kickstart -k gui/$(id -u)/io.github.flexarr.server`.
 

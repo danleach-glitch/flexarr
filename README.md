@@ -7,7 +7,7 @@
 <p align="center"><strong>Your entertainment. Every screen.</strong></p>
 
 <p align="center">
-  A free, source-available, self-hosted media server for your films, TV shows, music and podcasts, built to sit alongside <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>.<br>
+  A free, source-available, self-hosted media server for your films, TV shows, music, podcasts and live TV, built to sit alongside <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>.<br>
   Stream your library to the web, Apple TV, iPhone and iPad. No account. No cloud.
 </p>
 
@@ -31,7 +31,7 @@
   <img src="site/shots/web-home.jpg" width="900" alt="The web app's Home page: a featured show with Resume and More info, and the Continue watching row beneath.">
 </p>
 
-Flexarr is a media server you run yourself. It organises your library, fetches artwork and details, and plays to your screens, as the file is when the device can manage it and converted on the fly when it can't. There's no account and no cloud in the middle. It's built for people who already run the \*arr stack, so Sonarr, Radarr, Lidarr and Seerr are where the metadata, the artwork and the requests come from. Running a real 12,000-file library day to day; see the [changelog](CHANGELOG.md) for what's new.
+Flexarr is a media server you run yourself. It organises your library, fetches artwork and details, and plays to your screens, as the file is when the device can manage it and converted on the fly when it can't. There's no account and no cloud in the middle. It's built for people who already run the \*arr stack, so Sonarr, Radarr, Lidarr and Seerr are where the metadata, the artwork and the requests come from, and Dispatcharr is where live channels come from. Running a real 12,000-file library day to day; see the [changelog](CHANGELOG.md) for what's new.
 
 ## ✨ Highlights
 
@@ -41,8 +41,10 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 | ⚡ **Plays files as they are** on the device (AV1, VC-1, XviD and all), with hardware transcoding on the server when needed | 🎵 **Music like a streaming app**: queue, playlists, lyrics, daily mixes, artist radio, gapless and crossfade |
 | 👨‍👩‍👧 **Profiles** with their own history, PINs and libraries, and a picker when Flexarr opens | 🗣️ **Siri**: "Play the next episode of *Curb Your Enthusiasm* in Flexarr", "Shuffle *Family Guy* in Flexarr" |
 | 📥 **Downloads** of films, episodes, albums and playlists on iPhone and iPad | 🌍 **Away from home over Tailscale**, no ports opened; the apps switch by themselves |
-| 🎙️ **Podcasts built in**: follow shows from Apple's directory or by feed address, Up Next shared across devices, speeds, sleep timer, OPML import | 🔔 **New episode alerts** and widgets for Continue listening and Up Next on iPhone and iPad |
-| 🔌 **Built on your \*arrs**: metadata from Sonarr, Radarr and Lidarr, requests through Seerr, no TMDB keys | 🤖 **An MCP server**, so Claude or any assistant can search, play and pause on your TV |
+| 🎙️ **Podcasts built in**: follow shows from Apple's directory or by feed address, Up Next shared across devices, speeds, sleep timer, OPML import | 🔔 **Notifications** on iPhone and iPad when a film, new episodes, a podcast or a recording is ready, or your request arrives |
+| 📡 **Live TV and recording** from Dispatcharr: a guide, rewind, favourites, and a DVR that records series | ✨ **Discover** what's trending and request it through Seerr, on the web and the Apple TV |
+| 🔌 **Built on your \*arrs**: metadata from Sonarr, Radarr and Lidarr, requests through Seerr, no TMDB keys | 🤖 **An MCP server** and **Home Assistant**, so Claude, any assistant or your automations can search, play, pause and follow what's on your TV |
+| 💾 **Nightly backups** of profiles, history and settings, restored in a click | 📜 **Logs** you can read and search in Settings, never sent anywhere unless you turn on error reports |
 
 ## 🍿 Watching
 
@@ -55,7 +57,8 @@ Flexarr is a media server you run yourself. It organises your library, fetches a
 ## 🔎 Finding something
 
 - 🏠 Home with Continue Watching, Top 10s, genre rows, "Because you watched" and new arrivals, every row movable or off
-- ⌘ **Search** across titles, episodes, people and genres, with person pages and Discover by genre
+- ⌘ **Search** across titles, episodes, people and genres, with person pages
+- ✨ **Discover**: what's trending, popular and coming to cinemas, with ratings, cast and more like it, each marked if you have it; anything you don't, request through Seerr
 - 🗂️ **Collections**: your own, smart ones that fill themselves from rules, and film series from Radarr
 - 🔀 **Shuffle** a show; 📅 **Coming soon** from Sonarr and Radarr; 🙋 **Requests** through Seerr in one click
 
@@ -81,18 +84,31 @@ Built in, with nothing to set up: Podcasts sits with your libraries, and each pr
 - 🔁 **Bring your shows over** from Pocket Casts, Overcast or most other apps with **OPML import**, and export them back
 - 🔒 Episodes play through your server, so they work over Tailscale and podcast hosts don't see each listener
 
+## 📡 Live TV and recording
+
+Connect [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr) in **Settings › Connections** and its channels and guide come in.
+
+- 📺 **On now** and a **Guide** grid, filtered by group, with current channel logos; **favourites** per profile, and a Live TV row on Home
+- ⏪ **Rewind** up to an hour, **Jump to live**, flip back to the last channel in one press, and the guide over the picture on the Apple TV
+- 🔊 Dolby Digital surround passed through to Apple TV, iPhone and iPad; at most 720p over Tailscale so it keeps up on hotel Wi-Fi
+- 👥 One connection to the provider per channel, shared by everyone watching it
+- ⏺️ **Record** a programme or a whole **series** from the guide, as it's broadcast with nothing converted; recordings play like any episode; clashes are flagged as you set them, and nothing starts recording on a full drive
+
 ## 🧰 Looking after your library
 
 - 📜 **Bring your history over from Plex**, matched by file, without touching Plex
 - 🩺 **Library health**: duplicates and the space they use, unreadable files, standard-definition titles with a "find a better copy" button
-- 🛠️ **Fix match** for a wrongly matched title, and **delete** through Sonarr and Radarr from a title's page
+- 🛠️ **Fix match** for a wrongly matched title, **rename** a library, and **delete** through Sonarr and Radarr from a title's page
+- 💾 **Backup and restore**: profiles, history, playlists, collections and settings backed up every night and before every upgrade, to a folder you choose; download one with a passphrase, or restore it in a click
+- 📦 **Export settings** and libraries to a file, and import them on this server or a new one
+- 📜 **Logs** in Settings, filtered, searchable and live, with **Download diagnostics** for a bug report; opt-in **error reports** with titles, names and keys taken out
 
 ## 📺 Apple TV, iPhone and iPad
 
 The Apple apps (in `clients/apple`) have Home, your libraries, search, title pages, profiles, music, podcasts (iPhone and iPad) and Flexarr's own player, with every setting following the profile from device to device.
 
-- 📺 **Apple TV:** Top Shelf with Continue Watching, a Now Playing tab while music plays, Settings and Switch profile under your picture
-- 📱 **iPhone and iPad:** Picture in Picture, AirPlay, lock-screen and Control Center, **Downloads** for offline, and **podcasts** with Up Next, widgets and new-episode notifications
+- 📺 **Apple TV:** a sidebar like the TV app's with your libraries in the order you choose, Discover, the Live TV guide, Top Shelf with Continue Watching as posters or wide artwork, and Settings for playback, Home and profiles
+- 📱 **iPhone and iPad:** Picture in Picture, AirPlay, lock-screen and Control Center, **Downloads** for offline, Live TV with the guide, **podcasts** with Up Next and widgets, and **notifications** for what's new (Settings › Notifications)
 - 🚗 **CarPlay** for podcasts (Up Next, New episodes and your shows), switched on once Apple approves Flexarr for CarPlay
 - 🔐 Both find your server on the home network; approve the code the app shows in **Settings › Connect a TV** on any signed-in device, and each device gets a sign-in of its own
 
@@ -117,11 +133,15 @@ Playback lands on the iPhone unless **Settings › Siri** names an Apple TV, or 
 
 ### 🤖 An assistant (MCP)
 
-Flexarr is an [MCP](https://modelcontextprotocol.io) server at `http://<server>:8383/api/v1/mcp`, signed in with the API key as an `X-Api-Key` header. An assistant can search the library, see Continue Watching and what's playing on every screen, play, pause or stop on any device with Flexarr open, and list your podcasts' new episodes, queue them in Up Next or play one. For Claude Code:
+Flexarr is an [MCP](https://modelcontextprotocol.io) server at `http://<server>:8383/api/v1/mcp`, signed in with the API key as an `X-Api-Key` header. An assistant can search the library, see Continue Watching and what's playing on every screen, play, pause or stop on any device with Flexarr open, list your podcasts' new episodes, queue them in Up Next or play one, see what's on every channel, put one on, and set programmes or series to record. For Claude Code:
 
 ```bash
 claude mcp add --transport http flexarr http://mini.local:8383/api/v1/mcp --header "X-Api-Key: <your key>"
 ```
+
+### 🏠 Home Assistant
+
+The [Flexarr integration for Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant) installs through HACS. Each Apple TV, iPhone and iPad becomes a media player, with triggers for started, paused, resumed, credits, ended and stopped, so the lights can dim when a film starts and come up at the credits. Other tools can follow the same events at `GET /api/v1/events`.
 
 ## 🚀 Quick start (Docker)
 
@@ -133,19 +153,19 @@ docker run -d --name flexarr \
   ghcr.io/danleach-glitch/flexarr:latest
 ```
 
-`latest` is the newest [release](https://github.com/danleach-glitch/flexarr/releases); pin a version such as `0.27` to upgrade when you choose.
+`latest` is the newest [release](https://github.com/danleach-glitch/flexarr/releases); pin a version such as `0.47` to upgrade when you choose.
 
-Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Server.
+Open <http://localhost:8383>. On first run Flexarr generates an API key and saves it to `/config/config.json`. Sign in with it once; each browser and Apple TV then gets a sign-in of its own, listed in Settings › Access.
 
-Plain `http://` is fine on a home network you trust. From anywhere else, use Tailscale (Settings › Remote access) or an HTTPS reverse proxy, listed in `trustedProxies` if it runs on another machine. Mount your media at the **same path** Sonarr, Radarr and Lidarr use, or add `pathMappings` to `config.json`. For podcast downloads to phones, choose a folder in **Settings › Podcasts** where episodes wait on their way (each is deleted once the phone has it).
+Plain `http://` is fine on a home network you trust. From anywhere else, use Tailscale (Settings › Access) or an HTTPS reverse proxy, listed in `trustedProxies` if it runs on another machine. Mount your media at the **same path** Sonarr, Radarr and Lidarr use, or add `pathMappings` to `config.json`. For podcast downloads to phones, choose a folder in **Settings › Libraries** where episodes wait on their way (each is deleted once the phone has it).
 
 🍎 **On a Mac**, run Flexarr natively for hardware transcoding: `make deploy DEPLOY_HOST=<ssh-host>`. See [docs/install-macos.md](docs/install-macos.md).
 
-## 🔌 Connect Sonarr, Radarr, Lidarr and Seerr
+## 🔌 Connect Sonarr, Radarr, Lidarr, Seerr and Dispatcharr
 
-Add each in **Settings › Connections** with its address and API key. Then, so new downloads appear the moment they land, add a webhook in each \*arr (**Settings → Connect → + → Webhook**):
+Add each in **Settings › Connections** with its address and API key (for Dispatcharr, a user of Flexarr's own). Then, so new downloads appear the moment they land, add a webhook in each \*arr (**Settings → Connect → + → Webhook**):
 
-- **URL:** `http://<flexarr-host>:8383/api/v1/webhooks/sonarr?secret=<webhook-secret>` (`radarr` or `lidarr` as appropriate; Settings › Server shows them filled in)
+- **URL:** `http://<flexarr-host>:8383/api/v1/webhooks/sonarr?secret=<webhook-secret>` (`radarr` or `lidarr` as appropriate; Settings › Connections shows them filled in)
 - **Method:** POST
 - **Triggers:** On Import, On Upgrade, On Rename, On Delete
 
@@ -165,15 +185,16 @@ make apple     # build the tvOS and iOS apps
 
 | Path | What |
 | --- | --- |
-| `src/Flexarr.Api` | ASP.NET Core server: REST API, playback sessions, podcast feeds, background workers |
+| `src/Flexarr.Api` | ASP.NET Core server: REST API, playback sessions, podcast feeds, recordings, backups, notifications, MCP, background workers |
 | `src/Flexarr.Core` | Domain model, database, parsing, library scanning |
 | `src/Flexarr.Metadata` | Metadata from Sonarr, Radarr, Lidarr and TVmaze, image cache |
-| `src/Flexarr.Streaming` | Playback decisions, FFmpeg/HLS, subtitles, previews, intro/credits detection |
+| `src/Flexarr.Streaming` | Playback decisions, FFmpeg/HLS, live TV, subtitles, previews, intro/credits detection |
 | `src/Flexarr.Integrations.Arr` | Sonarr, Radarr, Lidarr and Seerr clients and webhooks |
 | `frontend/` | Web client (React, TypeScript, Vite) |
-| `clients/apple/` | `FlexarrKit`, shared app code, and the tvOS and iOS apps |
+| `clients/apple/` | `FlexarrKit`, shared app code, the tvOS and iOS apps, Top Shelf, widgets and the notification extension |
+| `site/` | [flexarr.io](https://flexarr.io) and the notification relay |
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architecture.md). What's next is in the [roadmap](docs/roadmap.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/architecture.md](docs/architecture.md), [docs/notifications.md](docs/notifications.md) and [docs/logging.md](docs/logging.md). What's next is in the [roadmap](docs/roadmap.md).
 
 ## 📄 Licence
 
