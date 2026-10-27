@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -140,8 +150,7 @@ Heat (1995).en.forced.srt
 </ul>
 <h3 id="timing"><a class="anchor" href="#timing" aria-hidden="true" tabindex="-1">#</a>Timing</h3>
 <p>If subtitles come too early or too late, move them to match the speech. In the web player, use the subtitles menu, a quarter of a second at a time. On Apple TV, it&#39;s in the subtitles button in the player&#39;s bar. Each film or episode remembers its own timing. Timing can&#39;t be adjusted on iPhone or iPad yet.</p>
-<!-- screenshot: the Apple TV player's subtitles menu showing tracks, size and timing -->
-
+<figure><img src="/guide/img/tv-player.webp" alt="The Apple TV player paused, with skip buttons, the progress bar, and subtitle and audio buttons at the bottom right" data-caption="The Apple TV player, with subtitles and audio at the bottom right" loading="lazy" decoding="async" class="device"></figure>
 <h2 id="skipping-intros-recaps-and-credits"><a class="anchor" href="#skipping-intros-recaps-and-credits" aria-hidden="true" tabindex="-1">#</a>Skipping intros, recaps and credits</h2>
 <h3 id="how-flexarr-finds-them"><a class="anchor" href="#how-flexarr-finds-them" aria-hidden="true" tabindex="-1">#</a>How Flexarr finds them</h3>
 <p>Flexarr looks for intros, recaps and credits in two ways:</p>
@@ -174,7 +183,7 @@ Heat (1995).en.forced.srt
           <a class="prev" href="/guide/hdr-and-atmos"><span>Previous</span>HDR and Dolby Atmos</a>
           <a class="next" href="/guide/music"><span>Next</span>Music</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/subtitles-and-skipping.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Subtitles%2C%20skipping%20and%20Up%20Next">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/subtitles-and-skipping.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Subtitles%2C%20skipping%20and%20Up%20Next">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

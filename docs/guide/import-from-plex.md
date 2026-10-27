@@ -41,7 +41,7 @@ You need the main profile for this.
 4. If you have more than one Flexarr profile, choose one under **Into which Flexarr profile**. It starts on the main profile.
 5. Choose **Bring history over**.
 
-<!-- screenshot: Settings › Libraries › Bring over from Plex, with a Plex user and a Flexarr profile chosen and the summary line underneath -->
+![Bring over from Plex, showing where Plex was found, whose history to copy and into which Flexarr profile](../../site/guide/img/import.webp "Settings › Libraries › Bring over from Plex")
 
 When it's done, a summary says how many titles were matched, how many are now watched, and how many are ready to resume. It also says how many files Plex knows about that aren't in your Flexarr libraries.
 

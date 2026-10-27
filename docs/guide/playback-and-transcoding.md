@@ -74,6 +74,6 @@ On Apple TV, iPhone and iPad, these live in the app's **Settings › Playback** 
 - **Apple TV, iPhone and iPad:** with the player's controls showing, a line in the corner describes the stream. It ends in "Original" for a file played as it is, says "repackaged" when the original picture is copied, and gives a size and bitrate (such as "1080p H.264 at 10 Mbps") when it's converted.
 - **Settings › Overview:** under **Watching now**, each stream is tagged **Original file** or **Converting to …**.
 
-<!-- screenshot: Settings › Overview with two streams under Watching now, one tagged Original file and one Converting to 1080p H.264 -->
+![Settings › Streaming with Hardware acceleration set to Automatic and no stream limit](../../site/guide/img/streaming.webp "Settings › Streaming")
 
 If something is converting that you didn't expect, check whether **Limit each stream to** is set, whether **Play files directly** is off on that device, and whether picture-based subtitles are on in the web player (they have to be burned into the picture). For more, see [Troubleshooting](troubleshooting.md).

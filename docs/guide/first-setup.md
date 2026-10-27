@@ -25,7 +25,6 @@ If the page doesn't load, check that Flexarr is running (your install guide, lin
 
 A new server greets you with **Welcome to your Flexarr server** and one button, **Set up Flexarr**. Choose it, and this browser becomes the server's owner and is signed in. That's the whole sign-up.
 
-<!-- screenshot: the "Welcome to your Flexarr server" panel with the Set up Flexarr button -->
 
 A few things to know:
 
@@ -44,6 +43,8 @@ You're signed in as the server's **main profile**, the one that can change setti
 ## Add your libraries
 
 A library is a set of folders holding one kind of media. Go to **Settings › Libraries** and choose **Add library**.
+
+![Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below](../../site/guide/img/libraries.webp "Settings › Libraries")
 
 1. Pick the **Kind**: **Films**, **TV shows** or **Music**.
 2. Give it a **Name** if you like. Left blank, it's named after its kind. You can rename it later.

@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos" aria-current="page">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -129,6 +139,7 @@
 </blockquote>
 <h2 id="hdr-what-reaches-your-tv"><a class="anchor" href="#hdr-what-reaches-your-tv" aria-hidden="true" tabindex="-1">#</a>HDR: what reaches your TV</h2>
 <p>With <strong>Play files directly</strong> on (the default on Apple TV, iPhone and iPad), the Apple TV plays the file itself. HDR10, HLG and Dolby Vision reach the television untouched.</p>
+<figure><img src="/guide/img/tv-movie.webp" alt="Barbie&#39;s page on Apple TV, showing 1080p, its genres and the Play button" data-caption="A film&#39;s page on Apple TV" loading="lazy" decoding="async" class="device"></figure>
 <p>With <strong>Play files directly</strong> off, the server <a href="/guide/playback-and-transcoding">repackages</a> the original picture into a stream without re-encoding it. Here&#39;s what the television gets:</p>
 <div class="table"><table>
 <thead>
@@ -198,7 +209,7 @@
           <a class="prev" href="/guide/playback-and-transcoding"><span>Previous</span>Playback and transcoding</a>
           <a class="next" href="/guide/subtitles-and-skipping"><span>Next</span>Subtitles, skipping and Up Next</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/hdr-and-atmos.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20HDR%20and%20Dolby%20Atmos">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/hdr-and-atmos.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20HDR%20and%20Dolby%20Atmos">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

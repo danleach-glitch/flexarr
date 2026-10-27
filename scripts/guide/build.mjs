@@ -58,6 +58,12 @@ const pages = order.map(({ slug, section }) => {
         if (depth === 2) toc.push({ id, text: plain(html) });
         return `<h${depth} id="${id}"><a class="anchor" href="#${id}" aria-hidden="true" tabindex="-1">#</a>${html}</h${depth}>\n`;
       },
+      image({ href, title, text }) {
+        // Articles point at ../../site/... so the images show on GitHub too; the site serves them from its root.
+        const src = href.replace(/^(\.\.\/)+site\//, '/');
+        const device = /\/(tv-|phones-)|\/shots\//.test(src);
+        return `<img src="${escape(src)}" alt="${escape(text)}"${title ? ` data-caption="${escape(title)}"` : ''} loading="lazy" decoding="async"${device ? ' class="device"' : ''}>`;
+      },
       link({ href, title, tokens }) {
         const to = rewrite(href, file, missing);
         const external = /^https?:/.test(to) && !to.startsWith('https://flexarr.io');
@@ -67,6 +73,9 @@ const pages = order.map(({ slug, section }) => {
   });
   // Tables scroll sideways on a phone instead of widening the page.
   let html = marked.parse(body).replace(/<table>/g, '<div class="table"><table>').replace(/<\/table>/g, '</table></div>');
+  // An image on its own line becomes a figure, its title the caption.
+  html = html.replace(/<p>(<img [^>]*?)(?: data-caption="([^"]*)")?([^>]*)><\/p>/g,
+    (_, start, caption, end) => `<figure>${start}${end}>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`);
   // > **Tip** … becomes a callout.
   html = html.replace(/<blockquote>\s*<p><strong>(Tip|Note|Important)<\/strong>:?\s*/g,
     (_, kind) => `<blockquote class="callout ${kind.toLowerCase()}"><p><strong>${kind}</strong> `);
@@ -146,13 +155,15 @@ const sidebar = current => `<aside class="sidebar" aria-label="Guide">
         <details class="contents"${current ? '' : ' open'}>
           <summary>Guide contents</summary>
           <nav>
-${sections.map(s => `            <p class="section">${escape(s.title)}</p>
+${sections.map(s => `            <details class="section"${s.pages.includes(current) || !current ? ' open' : ''}>
+            <summary>${escape(s.title)}</summary>
             <ul>
 ${s.pages.map(slug => {
   const p = ready.find(r => r.slug === slug);
   return p ? `              <li><a href="/guide/${slug}"${slug === current ? ' aria-current="page"' : ''}>${escape(p.meta.nav || p.meta.title)}</a></li>` : '';
 }).filter(Boolean).join('\n')}
-            </ul>`).join('\n')}
+            </ul>
+            </details>`).join('\n')}
           </nav>
         </details>
       </aside>`;
@@ -186,7 +197,7 @@ ${p.html}
 ${prev ? `          <a class="prev" href="/guide/${prev.slug}"><span>Previous</span>${escape(prev.meta.title)}</a>` : '          <span></span>'}
 ${next ? `          <a class="next" href="/guide/${next.slug}"><span>Next</span>${escape(next.meta.title)}</a>` : ''}
         </nav>
-        <p class="edit"><a href="${repo}/blob/main/docs/guide/${p.slug}.md">Edit this page on GitHub</a> · <a href="${repo}/issues/new?title=${encodeURIComponent(`Guide: ${p.meta.title}`)}">Something wrong or missing?</a></p>
+        <p class="edit"><a href="${repo}/blob/main/docs/guide/${p.slug}.md">Edit this page on GitHub</a> <a href="${repo}/issues/new?title=${encodeURIComponent(`Guide: ${p.meta.title}`)}">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>
@@ -194,39 +205,39 @@ ${next ? `          <a class="next" href="/guide/${next.slug}"><span>Next</span>
 }
 
 const starts = [
-  ['what-you-need', 'New to this?', 'What Flexarr is, what it runs on, and whether you need Sonarr and Radarr.'],
-  ['first-setup', 'Got the app?', 'Your iPhone needs a Flexarr server at home. Set one up, then connect.'],
-  ['connect-arrs', 'Run the *arrs?', 'Point Flexarr at your media and add Sonarr, Radarr, Lidarr and Seerr.'],
+  ['what-you-need', 'New to running a server?'],
+  ['first-setup', 'Got the iPhone app and need a server?'],
+  ['connect-arrs', 'Already run Sonarr and Radarr?'],
 ];
 
 function indexPage() {
+  const title = slug => escape(ready.find(r => r.slug === slug)?.meta.title ?? slug);
   return `${head({ title: 'Guide · Flexarr', description: 'How to install Flexarr, connect your Apple TV and iPhone, and get the most from films, TV, music, podcasts and live TV.', url: '/guide' })}
 <body class="guide guide-home">
   ${header}
   <main id="main">
     <div class="wrap intro">
-      <p class="kicker">Guide</p>
-      <h1>Everything about Flexarr, step by step.</h1>
-      <p class="lede">Install the server, connect your Apple TV and iPhone, and get the most out of films, TV, music, podcasts and live TV.</p>
+      <h1>The Flexarr guide</h1>
+      <p class="lede">Set up your server, connect your screens, and get more out of everything on them.</p>
       ${search}
     </div>
-    <div class="wrap starts">
-${starts.map(([slug, kicker, text]) => {
-  const p = ready.find(r => r.slug === slug);
-  return p ? `      <a class="start" href="/guide/${slug}"><span class="kicker">${escape(kicker)}</span><strong>${escape(p.meta.title)}</strong><span>${escape(text)}</span></a>` : '';
-}).join('\n')}
-    </div>
-    <div class="wrap shelves">
-${sections.map(s => `      <section class="shelf">
-        <h2>${escape(s.title)}</h2>
-        <ul>
-${s.pages.map(slug => ready.find(r => r.slug === slug)).filter(Boolean).map(p => `          <li><a href="/guide/${p.slug}"><strong>${escape(p.meta.title)}</strong><span>${escape(p.meta.description)}</span></a></li>`).join('\n')}
-        </ul>
-      </section>`).join('\n')}
+    <nav class="wrap routes" aria-label="Where to start">
+${starts.map(([slug, question]) => `      <a class="route" href="/guide/${slug}"><span>${escape(question)}</span><strong>${title(slug)}</strong></a>`).join('\n')}
+    </nav>
+    <div class="wrap topics">
+      <h2>Every topic</h2>
+      <div class="columns">
+${sections.map(s => `        <section>
+          <h3>${escape(s.title)}</h3>
+          <ul>
+${s.pages.filter(slug => ready.some(r => r.slug === slug)).map(slug => `            <li><a href="/guide/${slug}">${title(slug)}</a></li>`).join('\n')}
+          </ul>
+        </section>`).join('\n')}
+      </div>
     </div>
     <div class="wrap help">
       <h2>Still stuck?</h2>
-      <p>Look through <a href="/guide/troubleshooting">Troubleshooting</a>, or <a href="${repo}/issues/new">open an issue on GitHub</a> with the zip from <strong>Settings › Server › Logs › Download diagnostics</strong> attached.</p>
+      <p>Look through <a href="/guide/troubleshooting">Troubleshooting</a>, or <a href="${repo}/issues/new">open an issue on GitHub</a> with the zip from <strong>Settings › Logs › Download diagnostics</strong> attached.</p>
     </div>
   </main>
   ${footer}`;

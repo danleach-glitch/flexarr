@@ -5,6 +5,8 @@ description: What Flexarr is, what kind of computer can run it, and whether you 
 
 Flexarr comes in two halves. The **server** runs on a computer in your home and keeps your films, TV shows, music and podcasts. The **apps** on your iPhone, iPad, Apple TV and web browser connect to it and play from it. There's no account and no cloud service in the middle: your library stays on your own disk.
 
+![Flexarr on an Apple TV and an iPhone](../../site/shots/hero.webp "Flexarr on Apple TV and iPhone, both playing from your own server")
+
 If you've installed the iPhone app and it sent you here, this is the part you're missing. Set up the server once, then connect your phone to it with a short code.
 
 Flexarr is free for personal and other noncommercial use under the [PolyForm Noncommercial licence](https://github.com/danleach-glitch/flexarr/blob/main/LICENSE).

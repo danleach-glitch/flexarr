@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section" open>
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting" aria-current="page">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -171,7 +181,7 @@
 <li><strong>Check the network.</strong> Wi-Fi a long way from the router struggles with 4K. A cable to the Apple TV helps most. Away from home, set <strong>Limit each stream to</strong> in <strong>Settings › Streaming</strong>: <strong>4 Mbps</strong> suits most connections.</li>
 <li><strong>Check the file.</strong> If one title fails and others play, the file may be damaged. <strong>Run health check</strong> in Library health, then <strong>Search again</strong>.</li>
 </ul>
-<p>If it still won&#39;t play, set the <strong>Playback</strong> area to Debug in <strong>Settings › Server › Logs</strong>, try again, and look for that playback&#39;s id. See <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>.</p>
+<p>If it still won&#39;t play, set the <strong>Playback</strong> area to Debug in <strong>Settings › Logs</strong>, try again, and look for that playback&#39;s id. See <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>.</p>
 <h3 id="hdr-looks-washed-out-or-dim"><a class="anchor" href="#hdr-looks-washed-out-or-dim" aria-hidden="true" tabindex="-1">#</a>HDR looks washed out or dim</h3>
 <ul>
 <li><strong>On Apple TV, turn on Match Content.</strong> In the Apple TV&#39;s own <strong>Settings › Video and Audio › Match Content</strong>, turn on <strong>Match Dynamic Range</strong>. Flexarr&#39;s player then asks the TV to switch to HDR or Dolby Vision for titles that have it, and back for ones that don&#39;t.</li>
@@ -207,7 +217,7 @@
 <li>Say what you did, what you expected, and what happened instead.</li>
 <li>Include your Flexarr version (<strong>Settings › About</strong>) and the device and app you were using.</li>
 <li>If it happened on an Apple TV, iPhone or iPad, use <strong>Send diagnostics</strong> in the app&#39;s <strong>Settings › Server</strong> right after it happens, with a short note.</li>
-<li>In the web app, open <strong>Settings › Server › Logs</strong> and choose <strong>Download diagnostics</strong>. Attach the zip to the issue.</li>
+<li>In the web app, open <strong>Settings › Logs</strong> and choose <strong>Download diagnostics</strong>. Attach the zip to the issue.</li>
 </ol>
 <p>Keys and passwords are taken out of the zip, but titles and file names stay in. See <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>.</p>
 <p>Ideas and feature requests go in <a href="https://github.com/danleach-glitch/flexarr/discussions/categories/ideas" rel="noopener">Discussions</a>.</p>
@@ -217,7 +227,7 @@
           <a class="prev" href="/guide/logs-and-diagnostics"><span>Previous</span>Logs and diagnostics</a>
           <a class="next" href="/guide/faq"><span>Next</span>Frequently asked questions</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/troubleshooting.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Troubleshooting">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/troubleshooting.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Troubleshooting">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

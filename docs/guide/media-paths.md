@@ -56,6 +56,8 @@ Sometimes you can't change the volumes, or the *arrs run in Docker and Flexarr r
 
 Go to **Settings › Connections** and find **Path mappings**.
 
+![Settings › Connections, with a path mapping from /data in the apps to /Volumes/Media/data on the server](../../site/guide/img/connections.webp "Path mappings sit at the bottom of Settings › Connections")
+
 1. Choose **Add a mapping**.
 2. In **Path in the app**, type the path the *arr app uses, such as `/tv`.
 3. In **Path on this server**, type where Flexarr sees the same folder, such as `/data/media/tv`.

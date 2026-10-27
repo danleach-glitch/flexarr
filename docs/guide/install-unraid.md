@@ -31,7 +31,6 @@ On Unraid, Flexarr runs as a Docker container. There's no Community Applications
    Change the media paths to match yours. The container path should be the one your \*arrs use inside their containers.
 5. Click **Apply**. Unraid downloads the image and starts Flexarr.
 
-<!-- screenshot: Unraid's Add Container form filled in for Flexarr, advanced view -->
 
 ### Why `--user 99:100`
 

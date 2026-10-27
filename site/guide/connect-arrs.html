@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section" open>
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs" aria-current="page">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -141,6 +151,7 @@
 <p>Films and shows that Radarr or Sonarr don&#39;t manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn&#39;t download.</p>
 <h2 id="add-a-connection"><a class="anchor" href="#add-a-connection" aria-hidden="true" tabindex="-1">#</a>Add a connection</h2>
 <p>You need two things for each app: its <strong>address</strong> and its <strong>API key</strong>.</p>
+<figure><img src="/guide/img/connections.webp" alt="Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with path mappings below" data-caption="Settings › Connections" loading="lazy" decoding="async"></figure>
 <ol>
 <li>In Flexarr, go to <strong>Settings › Connections</strong>.</li>
 <li>Under <strong>Apps</strong>, choose <strong>Add a connection</strong>.</li>
@@ -240,7 +251,7 @@ http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/lidarr?secret=&lt;webhook-secre
           <a class="prev" href="/guide/updating"><span>Previous</span>Updating Flexarr</a>
           <a class="next" href="/guide/media-paths"><span>Next</span>Media paths</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/connect-arrs.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Connect%20Sonarr%2C%20Radarr%2C%20Lidarr%20and%20Seerr">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/connect-arrs.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Connect%20Sonarr%2C%20Radarr%2C%20Lidarr%20and%20Seerr">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

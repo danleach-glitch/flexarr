@@ -101,7 +101,7 @@ On iPhone and iPad, yes: "Play the next episode of *Curb Your Enthusiasm* in Fle
 
 ### Where do I report a bug?
 
-On GitHub: [github.com/danleach-glitch/flexarr/issues](https://github.com/danleach-glitch/flexarr/issues). Say what happened and what you expected, and attach the zip from **Download diagnostics** in **Settings › Server › Logs**. See [Troubleshooting](troubleshooting.md#where-can-i-get-help).
+On GitHub: [github.com/danleach-glitch/flexarr/issues](https://github.com/danleach-glitch/flexarr/issues). Say what happened and what you expected, and attach the zip from **Download diagnostics** in **Settings › Logs**. See [Troubleshooting](troubleshooting.md#where-can-i-get-help).
 
 ### Where do I ask for a feature?
 

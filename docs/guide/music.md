@@ -26,7 +26,7 @@ Every artist, album and playlist has **Play** and **Shuffle**. An artist's Play 
 
 While music plays, a **Now Playing** entry appears in the sidebar, with the cover, controls and the queue. Play/pause on the remote works from anywhere in the app.
 
-<!-- screenshot: the Apple TV Now Playing screen with cover art, timed lyrics and the queue -->
+![Thriller playing on Apple TV, with the album art and the track list](../../site/guide/img/tv-now-playing.webp "Music on Apple TV")
 
 ## On iPhone and iPad
 

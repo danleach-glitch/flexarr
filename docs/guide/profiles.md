@@ -46,7 +46,7 @@ On the web, signed in as the main profile:
 4. Untick any libraries it shouldn't see.
 5. Choose **Add profile**.
 
-<!-- screenshot: Settings › Profiles on the web, with the edit form open showing picture, name, colour, PIN and the library switches -->
+![Settings › Profiles listing three profiles with edit and delete buttons](../../site/guide/img/profiles.webp "Settings › Profiles")
 
 If you bring your history over from Plex, your Plex Home profile pictures can come too. See [Import from Plex](import-from-plex.md).
 

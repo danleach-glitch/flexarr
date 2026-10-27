@@ -58,7 +58,6 @@ The Flexarr container doesn't read `PUID` or `PGID` settings. Instead you tell i
 
 Container Manager downloads the image and starts Flexarr. The project shows as running when it's ready.
 
-<!-- screenshot: Container Manager's Create project dialog with the name, path and compose file filled in -->
 
 ### About the media path
 

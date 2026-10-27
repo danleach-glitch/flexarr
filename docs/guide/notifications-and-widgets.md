@@ -14,7 +14,6 @@ Flexarr can tell your phone when something new arrives, keep podcasts on your Ho
 3. Under **Tell me about**, choose what you want to hear about.
 4. Tap **Send test notification** to check one arrives.
 
-<!-- screenshot: Settings › Notifications on iPhone, with the Tell me about toggles and Upcoming -->
 
 If iOS has notifications switched off for Flexarr, the page says so and offers **Open Settings** to allow them there first.
 

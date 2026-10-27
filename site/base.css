@@ -19,6 +19,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 24px; }
 body {
+  overflow-x: clip;
   margin: 0;
   background: var(--room);
   color: var(--screen);
@@ -46,12 +47,13 @@ code { font-family: var(--mono); font-size: 0.9em; }
 }
 
 /* Header */
-.site-header { padding-block: 22px; }
+/* A dimmed, blurred strip so the links stay readable over the posters behind the home page's hero. */
+.site-header { padding-block: 18px; background: linear-gradient(rgb(27 23 32 / 0.92), rgb(27 23 32 / 0.7)); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid rgb(242 238 231 / 0.06); }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--screen); font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1; }
 .wordmark img { width: 34px; height: 34px; }
 .site-nav { display: flex; gap: 4px; align-items: center; }
-.site-nav a { color: var(--usher); text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; }
+.site-nav a { color: #d9d3e0; text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; }
 .site-nav a:hover, .site-nav a[aria-current] { color: var(--screen); background: var(--seat); }
 .site-nav .github { color: var(--screen); border: 1px solid var(--aisle); }
 @media (max-width: 860px) {
@@ -84,6 +86,8 @@ pre code { font-size: inherit; }
   background: var(--seat-raised); border: 1px solid var(--aisle); border-radius: 8px; padding: 4px 10px; cursor: pointer;
 }
 .copy:hover { background: var(--aisle); }
+/* On a phone the button gets its own line above the code instead of covering it. */
+@media (max-width: 640px) { pre:has(> .copy) { padding-top: 48px; } }
 
 /* Footer */
 .site-footer { border-top: 1px solid var(--aisle); padding-block: 36px 48px; color: var(--usher); font-size: 0.95rem; }

@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section" open>
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -117,7 +127,7 @@
         <div class="prose">
 <p>Flexarr keeps a log of what the server and its apps do. When a film won&#39;t play, a scan stalls or Sonarr can&#39;t be reached, the log usually says why. It stays on your server: nothing in it is sent anywhere unless you download it and attach it to a bug report yourself.</p>
 <h2 id="reading-the-log"><a class="anchor" href="#reading-the-log" aria-hidden="true" tabindex="-1">#</a>Reading the log</h2>
-<p>Open <strong>Settings › Server › Logs</strong> in the web app, as the main profile. The newest entries are at the top. Select an entry to see its details.</p>
+<p>Open <strong>Settings › Logs</strong> in the web app, as the main profile. The newest entries are at the top. Select an entry to see its details.</p>
 <p>To narrow it down:</p>
 <ul>
 <li><strong>Minimum level</strong>: show only warnings and errors, say, or everything down to Debug.</li>
@@ -126,8 +136,7 @@
 <li><strong>Live</strong>: turn it on to watch new entries arrive as they happen. It&#39;s handy while you reproduce a problem.</li>
 </ul>
 <p><strong>Load older</strong> at the bottom goes further back.</p>
-<!-- screenshot: Settings › Server › Logs with the level, area and search filters, Live switched on, and one entry opened showing its details -->
-
+<figure><img src="/guide/img/logs.webp" alt="The Logs page with error reports switched on, the level, area and search filters, and recent log lines" data-caption="Settings › Logs" loading="lazy" decoding="async"></figure>
 <h2 id="following-one-playback"><a class="anchor" href="#following-one-playback" aria-hidden="true" tabindex="-1">#</a>Following one playback</h2>
 <p>Every time something starts playing it gets a short id, such as <code>3f9a1c07</code>. The server&#39;s lines about that playback show it as <code>#3f9a1c07</code>, and the Apple TV, iPhone and iPad apps attach the same id to what they report. Open an entry and select its <code>playbackId</code> to see only that playback: the whole story, from the server and the device, from start to finish.</p>
 <h2 id="turning-up-the-detail"><a class="anchor" href="#turning-up-the-detail" aria-hidden="true" tabindex="-1">#</a>Turning up the detail</h2>
@@ -248,7 +257,7 @@
           <a class="prev" href="/guide/backups"><span>Previous</span>Backups</a>
           <a class="next" href="/guide/troubleshooting"><span>Next</span>Troubleshooting</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/logs-and-diagnostics.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Logs%20and%20diagnostics">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/logs-and-diagnostics.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Logs%20and%20diagnostics">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

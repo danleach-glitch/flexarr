@@ -17,7 +17,7 @@ At home, your devices find Flexarr on the Wi-Fi. Away from home, they need a saf
 4. **On your iPhone or iPad**, install Tailscale from the App Store and sign in with the same account. Leave it connected.
 5. Open the Flexarr app once while you're at home, so it learns the private address.
 
-<!-- screenshot: Settings › Access on the web, with Tailscale on and the private address showing -->
+![Settings › Access with Tailscale on, the private address and its Copy button, and the people on the tailnet](../../site/guide/img/access.webp "Settings › Access, with Tailscale on")
 
 From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn't answer, they use the Tailscale one, and they go back to the home address when you're home again. There's nothing to change in the apps.
 

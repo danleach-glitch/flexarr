@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section" open>
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -169,8 +179,6 @@
 <li><p>Click <strong>Apply</strong>. Unraid downloads the image and starts Flexarr.</p>
 </li>
 </ol>
-<!-- screenshot: Unraid's Add Container form filled in for Flexarr, advanced view -->
-
 <h3 id="why-user-99-100"><a class="anchor" href="#why-user-99-100" aria-hidden="true" tabindex="-1">#</a>Why <code>--user 99:100</code></h3>
 <p>The Flexarr container runs as its own user rather than root, and doesn&#39;t read <code>PUID</code> or <code>PGID</code> variables. <code>--user 99:100</code> runs it as Unraid&#39;s usual <code>nobody:users</code>, the owner of files on your shares and in appdata, so it can write its settings and read your media. If your other containers use a different <code>PUID</code> and <code>PGID</code>, use those numbers instead.</p>
 <h3 id="media-paths"><a class="anchor" href="#media-paths" aria-hidden="true" tabindex="-1">#</a>Media paths</h3>
@@ -197,7 +205,7 @@
           <a class="prev" href="/guide/install-synology"><span>Previous</span>Install on a Synology NAS</a>
           <a class="next" href="/guide/install-docker"><span>Next</span>Install with Docker on Linux or Windows</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-unraid.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20on%20Unraid">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-unraid.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20on%20Unraid">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

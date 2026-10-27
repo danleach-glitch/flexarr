@@ -46,7 +46,7 @@ The search box at the top of Discover, **Search for any film or show**, looks be
 
 A film series collection lists the films you don't have under **Not in your library**, each with its own **Request** button.
 
-<!-- screenshot: the web Discover page with Trending this week and Request buttons under posters -->
+![The Discover page with Trending this week and a Request button under each poster](../../site/guide/img/web-discover.webp "Discover in the web app")
 
 ## On the Apple TV
 

@@ -9,6 +9,8 @@ Podcasts are built into Flexarr. There's no library to add and nothing to set up
 
 Open **Podcasts** and choose **Browse**.
 
+![The Podcasts screen with followed shows, Up Next and Continue listening, beside the now playing screen](../../site/guide/img/phones-podcasts.webp "Podcasts and the player on iPhone")
+
 - **Top charts**, by category, come from Apple's podcast directory.
 - **Search** finds any show in that directory.
 - **A feed's address** works too: paste it into the search box to add a show Apple doesn't list, such as a private or members-only feed.

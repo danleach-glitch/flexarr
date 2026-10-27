@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section" open>
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -128,8 +138,6 @@
 <p>If the page doesn&#39;t load, check that Flexarr is running (your install guide, linked from <a href="/guide/what-you-need">What you need</a>, shows how) and that you&#39;ve typed <code>http://</code>, not <code>https://</code>.</p>
 <h2 id="choose-set-up-flexarr"><a class="anchor" href="#choose-set-up-flexarr" aria-hidden="true" tabindex="-1">#</a>Choose Set up Flexarr</h2>
 <p>A new server greets you with <strong>Welcome to your Flexarr server</strong> and one button, <strong>Set up Flexarr</strong>. Choose it, and this browser becomes the server&#39;s owner and is signed in. That&#39;s the whole sign-up.</p>
-<!-- screenshot: the "Welcome to your Flexarr server" panel with the Set up Flexarr button -->
-
 <p>A few things to know:</p>
 <ul>
 <li><strong>It only works once.</strong> As soon as anyone signs in, setup closes for good. Every other phone, tablet, TV and browser then connects with a code that you approve from this browser. See <a href="/guide/connect-devices">Connect your devices</a>.</li>
@@ -143,6 +151,7 @@
 <p>You&#39;re signed in as the server&#39;s <strong>main profile</strong>, the one that can change settings. If other people will use Flexarr, it&#39;s worth giving the main profile a PIN, and making profiles for everyone else, in <strong>Settings › Profiles</strong>. See <a href="/guide/profiles">Profiles</a>.</p>
 <h2 id="add-your-libraries"><a class="anchor" href="#add-your-libraries" aria-hidden="true" tabindex="-1">#</a>Add your libraries</h2>
 <p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
+<figure><img src="/guide/img/libraries.webp" alt="Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below" data-caption="Settings › Libraries" loading="lazy" decoding="async"></figure>
 <ol>
 <li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong> or <strong>Music</strong>.</li>
 <li>Give it a <strong>Name</strong> if you like. Left blank, it&#39;s named after its kind. You can rename it later.</li>
@@ -200,7 +209,7 @@
           <a class="prev" href="/guide/install-docker"><span>Previous</span>Install with Docker on Linux or Windows</a>
           <a class="next" href="/guide/connect-devices"><span>Next</span>Connect your devices</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/first-setup.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20First%20setup">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/first-setup.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20First%20setup">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

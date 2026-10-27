@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding" aria-current="page">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -182,8 +192,7 @@
 <li><strong>Apple TV, iPhone and iPad:</strong> with the player&#39;s controls showing, a line in the corner describes the stream. It ends in &quot;Original&quot; for a file played as it is, says &quot;repackaged&quot; when the original picture is copied, and gives a size and bitrate (such as &quot;1080p H.264 at 10 Mbps&quot;) when it&#39;s converted.</li>
 <li><strong>Settings › Overview:</strong> under <strong>Watching now</strong>, each stream is tagged <strong>Original file</strong> or <strong>Converting to …</strong>.</li>
 </ul>
-<!-- screenshot: Settings › Overview with two streams under Watching now, one tagged Original file and one Converting to 1080p H.264 -->
-
+<figure><img src="/guide/img/streaming.webp" alt="Settings › Streaming with Hardware acceleration set to Automatic and no stream limit" data-caption="Settings › Streaming" loading="lazy" decoding="async"></figure>
 <p>If something is converting that you didn&#39;t expect, check whether <strong>Limit each stream to</strong> is set, whether <strong>Play files directly</strong> is off on that device, and whether picture-based subtitles are on in the web player (they have to be burned into the picture). For more, see <a href="/guide/troubleshooting">Troubleshooting</a>.</p>
 
         </div>
@@ -191,7 +200,7 @@
           <a class="prev" href="/guide/requests"><span>Previous</span>Requests</a>
           <a class="next" href="/guide/hdr-and-atmos"><span>Next</span>HDR and Dolby Atmos</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/playback-and-transcoding.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Playback%20and%20transcoding">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/playback-and-transcoding.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Playback%20and%20transcoding">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

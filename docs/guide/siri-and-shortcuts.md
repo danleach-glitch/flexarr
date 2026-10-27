@@ -41,7 +41,6 @@ By default, what you ask for plays on the iPhone or iPad you asked. To send it t
 1. On the iPhone or iPad, open Flexarr and go to **Settings › Siri**.
 2. Under **Siri plays on**, choose the Apple TV.
 
-<!-- screenshot: Settings › Siri on iPhone, with an Apple TV chosen under Siri plays on and the Try saying list beneath -->
 
 Now "Play the next episode of *Severance* in Flexarr" starts it on the TV, and Siri tells you where it's playing. Pause, resume and stop go to the same TV.
 

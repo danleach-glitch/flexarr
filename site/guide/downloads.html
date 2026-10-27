@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads" aria-current="page">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -128,8 +138,7 @@
 </ul>
 <p>Tap the button while a download is under way to stop or remove it. Downloads carry on with the app closed, and pick up where they left off if interrupted.</p>
 <p>Everything you&#39;ve downloaded is in the <strong>Downloads</strong> tab, where it plays with Skip Intro and the countdown to the next episode as usual.</p>
-<!-- screenshot: the iPhone Downloads tab with a film, a few episodes and an album, each with a green tick -->
-
+<figure><img src="/guide/img/phones-downloads.webp" alt="The Downloads tab on an iPhone with Ted Lasso episodes, an album and podcast episodes, beside a show page with its Download button" data-caption="Downloads on iPhone" loading="lazy" decoding="async" class="device"></figure>
 <h2 id="what-your-server-does-first"><a class="anchor" href="#what-your-server-does-first" aria-hidden="true" tabindex="-1">#</a>What your server does first</h2>
 <p>Your server gets each download ready before it&#39;s sent, one at a time. It converts a film or episode to a size and format the phone plays, or sends it as it is when it can. It does this quietly in the background and waits while anyone is watching something that&#39;s being converted, so a download never slows someone&#39;s film down.</p>
 <p>A prepared download that isn&#39;t collected within a week is deleted from the server.</p>
@@ -166,7 +175,7 @@
           <a class="prev" href="/guide/podcasts"><span>Previous</span>Podcasts</a>
           <a class="next" href="/guide/live-tv"><span>Next</span>Live TV and recording</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/downloads.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Downloads">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/downloads.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Downloads">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

@@ -26,6 +26,8 @@ Flexarr follows Match Content: when it's on, the Apple TV switches mode for each
 
 With **Play files directly** on (the default on Apple TV, iPhone and iPad), the Apple TV plays the file itself. HDR10, HLG and Dolby Vision reach the television untouched.
 
+![Barbie's page on Apple TV, showing 1080p, its genres and the Play button](../../site/guide/img/tv-movie.webp "A film's page on Apple TV")
+
 With **Play files directly** off, the server [repackages](playback-and-transcoding.md) the original picture into a stream without re-encoding it. Here's what the television gets:
 
 | In the file | On the television |

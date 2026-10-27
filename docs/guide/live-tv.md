@@ -47,7 +47,7 @@ Channel logos come from a community logo collection where it has a match, and fr
 - **On Apple TV**, the guide has categories down the left and channels with three hours across. What's on now plays; anything later shows what it is.
 - **On iPhone and iPad**, Live TV is a list of channels. The **Guide** button turns it into a grid, and **List** goes back.
 
-<!-- screenshot: the Apple TV Live TV guide with Favourites selected on the left -->
+![The live TV guide on Apple TV: channel groups on the left, and channels with programmes across the evening](../../site/guide/img/tv-guide.webp "The guide on Apple TV")
 
 In the player, previous and next change channel. The **Channels** button lists every channel over the picture, with **Last watched** at the top so flipping between two is one press. On Apple TV, the **Guide** button opens the guide over the picture while the channel carries on behind it.
 

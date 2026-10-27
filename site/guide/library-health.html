@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section" open>
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health" aria-current="page">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -119,8 +129,7 @@
         <div class="prose">
 <p>Library health is a check-up for your films and TV. It shows what&#39;s wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.</p>
 <p>Open it in the web app from <strong>Settings › Libraries › Library health</strong>, as the main profile. The <strong>Overview</strong> page in Settings links to it too.</p>
-<!-- screenshot: Library health with the health score at the top, the Health check panel, and the Spare copies group below -->
-
+<figure><img src="/guide/img/health.webp" alt="Library health with a score of 99, the health check and a film that only exists in standard definition" data-caption="Settings › Libraries › Library health" loading="lazy" decoding="async"></figure>
 <h2 id="the-health-score"><a class="anchor" href="#the-health-score" aria-hidden="true" tabindex="-1">#</a>The health score</h2>
 <p>At the top is a score out of 100: the share of your films and episodes with nothing wrong. Next to it is a breakdown of what&#39;s affecting the rest, such as spare copies, unreadable files or missing artwork.</p>
 <p>Groups with nothing in them are left out, and a line underneath says what&#39;s all clear (&quot;every title has a single copy&quot;, &quot;every film has an HD copy&quot;).</p>
@@ -179,7 +188,7 @@
           <a class="prev" href="/guide/import-from-plex"><span>Previous</span>Bring your history over from Plex</a>
           <a class="next" href="/guide/backups"><span>Next</span>Backups</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/library-health.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Library%20health">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/library-health.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Library%20health">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

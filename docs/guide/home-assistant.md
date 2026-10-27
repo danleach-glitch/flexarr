@@ -25,7 +25,6 @@ The easiest way is through [HACS](https://hacs.xyz), the community store for Hom
 
 The API key is in Flexarr under **Settings › Access**, signed in as the main profile. Showing it asks for the main profile's PIN.
 
-<!-- screenshot: Home Assistant's Flexarr setup dialog with the server address and API key fields -->
 
 > **Note**
 > If you copied the integration into `custom_components` by hand before it had its own repository, it keeps working. Remove the old copy and install it through HACS to get updates.

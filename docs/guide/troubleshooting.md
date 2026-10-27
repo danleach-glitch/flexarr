@@ -80,7 +80,7 @@ First, look at what the player says it's doing. The Apple TV, iPhone and iPad pl
 - **Check the network.** Wi-Fi a long way from the router struggles with 4K. A cable to the Apple TV helps most. Away from home, set **Limit each stream to** in **Settings › Streaming**: **4 Mbps** suits most connections.
 - **Check the file.** If one title fails and others play, the file may be damaged. **Run health check** in Library health, then **Search again**.
 
-If it still won't play, set the **Playback** area to Debug in **Settings › Server › Logs**, try again, and look for that playback's id. See [Logs and diagnostics](logs-and-diagnostics.md).
+If it still won't play, set the **Playback** area to Debug in **Settings › Logs**, try again, and look for that playback's id. See [Logs and diagnostics](logs-and-diagnostics.md).
 
 ### HDR looks washed out or dim
 
@@ -130,7 +130,7 @@ To help us fix it quickly:
 1. Say what you did, what you expected, and what happened instead.
 2. Include your Flexarr version (**Settings › About**) and the device and app you were using.
 3. If it happened on an Apple TV, iPhone or iPad, use **Send diagnostics** in the app's **Settings › Server** right after it happens, with a short note.
-4. In the web app, open **Settings › Server › Logs** and choose **Download diagnostics**. Attach the zip to the issue.
+4. In the web app, open **Settings › Logs** and choose **Download diagnostics**. Attach the zip to the issue.
 
 Keys and passwords are taken out of the zip, but titles and file names stay in. See [Logs and diagnostics](logs-and-diagnostics.md).
 

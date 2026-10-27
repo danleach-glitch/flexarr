@@ -46,7 +46,7 @@ Choose **Small**, **Standard**, **Large** or **Extra large**. It's your profile'
 
 If subtitles come too early or too late, move them to match the speech. In the web player, use the subtitles menu, a quarter of a second at a time. On Apple TV, it's in the subtitles button in the player's bar. Each film or episode remembers its own timing. Timing can't be adjusted on iPhone or iPad yet.
 
-<!-- screenshot: the Apple TV player's subtitles menu showing tracks, size and timing -->
+![The Apple TV player paused, with skip buttons, the progress bar, and subtitle and audio buttons at the bottom right](../../site/guide/img/tv-player.webp "The Apple TV player, with subtitles and audio at the bottom right")
 
 ## Skipping intros, recaps and credits
 

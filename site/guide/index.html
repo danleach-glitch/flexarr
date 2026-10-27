@@ -38,81 +38,83 @@
   </header>
   <main id="main">
     <div class="wrap intro">
-      <p class="kicker">Guide</p>
-      <h1>Everything about Flexarr, step by step.</h1>
-      <p class="lede">Install the server, connect your Apple TV and iPhone, and get the most out of films, TV, music, podcasts and live TV.</p>
+      <h1>The Flexarr guide</h1>
+      <p class="lede">Set up your server, connect your screens, and get more out of everything on them.</p>
       <div class="search" role="search">
           <label class="visually-hidden" for="guide-search">Search the guide</label>
           <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
           <ol id="guide-results" class="results" hidden></ol>
         </div>
     </div>
-    <div class="wrap starts">
-      <a class="start" href="/guide/what-you-need"><span class="kicker">New to this?</span><strong>What you need</strong><span>What Flexarr is, what it runs on, and whether you need Sonarr and Radarr.</span></a>
-      <a class="start" href="/guide/first-setup"><span class="kicker">Got the app?</span><strong>First setup</strong><span>Your iPhone needs a Flexarr server at home. Set one up, then connect.</span></a>
-      <a class="start" href="/guide/connect-arrs"><span class="kicker">Run the *arrs?</span><strong>Connect Sonarr, Radarr, Lidarr and Seerr</strong><span>Point Flexarr at your media and add Sonarr, Radarr, Lidarr and Seerr.</span></a>
-    </div>
-    <div class="wrap shelves">
-      <section class="shelf">
-        <h2>Getting started</h2>
-        <ul>
-          <li><a href="/guide/what-you-need"><strong>What you need</strong><span>What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.</span></a></li>
-          <li><a href="/guide/install-macos"><strong>Install on a Mac</strong><span>Build Flexarr from source and run it natively on a Mac as a background service, with hardware video conversion through VideoToolbox.</span></a></li>
-          <li><a href="/guide/install-synology"><strong>Install on a Synology NAS</strong><span>Run Flexarr on a Synology NAS as a Container Manager project, with its settings folder, your media and the right permissions.</span></a></li>
-          <li><a href="/guide/install-unraid"><strong>Install on Unraid</strong><span>Add Flexarr to Unraid as a Docker container by hand, with its appdata folder, your media share and the right user.</span></a></li>
-          <li><a href="/guide/install-docker"><strong>Install with Docker on Linux or Windows</strong><span>Run Flexarr&#39;s Docker image on a Linux machine, or on Windows through Docker Desktop and WSL 2, with docker run or Docker Compose.</span></a></li>
-          <li><a href="/guide/first-setup"><strong>First setup</strong><span>Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.</span></a></li>
-          <li><a href="/guide/connect-devices"><strong>Connect your devices</strong><span>Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.</span></a></li>
-          <li><a href="/guide/apple-tv-xcode"><strong>Install the Apple TV app with Xcode</strong><span>Build the Flexarr Apple TV app from source and install it on your own Apple TV with a Mac and Xcode, until it arrives on the App Store.</span></a></li>
-          <li><a href="/guide/updating"><strong>Updating Flexarr</strong><span>How to update the Flexarr server in Docker or on a Mac, what happens to your data when you do, and how to keep the apps up to date.</span></a></li>
-        </ul>
-      </section>
-      <section class="shelf">
-        <h2>Your *arrs</h2>
-        <ul>
-          <li><a href="/guide/connect-arrs"><strong>Connect Sonarr, Radarr, Lidarr and Seerr</strong><span>Add your *arr apps and Seerr to Flexarr for artwork, Coming soon, requests and instant imports, and set up webhooks so new downloads appear straight away.</span></a></li>
-          <li><a href="/guide/media-paths"><strong>Media paths</strong><span>Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.</span></a></li>
-          <li><a href="/guide/requests"><strong>Requests</strong><span>Find films and shows you don&#39;t have yet in Discover, and request them through Seerr from the web app or the Apple TV.</span></a></li>
-        </ul>
-      </section>
-      <section class="shelf">
-        <h2>Watching and listening</h2>
-        <ul>
-          <li><a href="/guide/playback-and-transcoding"><strong>Playback and transcoding</strong><span>How Flexarr plays a file as it is, repackages it, or converts it, and how to set up hardware acceleration on your server.</span></a></li>
-          <li><a href="/guide/hdr-and-atmos"><strong>HDR and Dolby Atmos</strong><span>How Flexarr gets HDR10, HLG, Dolby Vision, Atmos and lossless surround to your Apple TV, and the Apple TV settings that matter.</span></a></li>
-          <li><a href="/guide/subtitles-and-skipping"><strong>Subtitles, skipping and Up Next</strong><span>Subtitles of every kind, skipping intros, recaps and credits, the next-episode countdown and scrubbing previews.</span></a></li>
-          <li><a href="/guide/music"><strong>Music</strong><span>Music libraries with Lidarr&#39;s artwork and details, a queue, playlists, lyrics, daily mixes, artist radio and offline albums.</span></a></li>
-          <li><a href="/guide/podcasts"><strong>Podcasts</strong><span>Follow podcasts from Apple&#39;s directory or any feed, with Up Next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.</span></a></li>
-          <li><a href="/guide/downloads"><strong>Downloads</strong><span>Keep films, episodes, albums, playlists and podcasts on your iPhone or iPad to watch and listen with no connection.</span></a></li>
-          <li><a href="/guide/live-tv"><strong>Live TV and recording</strong><span>Watch TV channels in Flexarr with a guide, favourites and rewind, and record programmes and series, using Dispatcharr as the source.</span></a></li>
-        </ul>
-      </section>
-      <section class="shelf">
-        <h2>Around the house</h2>
-        <ul>
-          <li><a href="/guide/profiles"><strong>Profiles</strong><span>Give everyone in the house their own Continue Watching, history and settings, with an optional PIN, and choose which libraries each profile sees.</span></a></li>
-          <li><a href="/guide/away-from-home"><strong>Watch away from home</strong><span>Reach your Flexarr server from anywhere with Tailscale, with no ports opened on your router, or through an HTTPS reverse proxy.</span></a></li>
-          <li><a href="/guide/siri-and-shortcuts"><strong>Siri and Shortcuts</strong><span>Ask Siri on your iPhone or iPad to play a film, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.</span></a></li>
-          <li><a href="/guide/notifications-and-widgets"><strong>Notifications and widgets</strong><span>Get told on your iPhone or iPad when something new is ready, add podcast widgets to your Home Screen, and fill the Apple TV&#39;s Top Shelf.</span></a></li>
-          <li><a href="/guide/home-assistant"><strong>Home Assistant</strong><span>Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.</span></a></li>
-          <li><a href="/guide/assistant-mcp"><strong>Use an AI assistant</strong><span>Connect Claude or another AI assistant to Flexarr over MCP, so it can search your library, see what&#39;s playing and play things on your TV.</span></a></li>
-        </ul>
-      </section>
-      <section class="shelf">
-        <h2>Looking after it</h2>
-        <ul>
-          <li><a href="/guide/import-from-plex"><strong>Bring your history over from Plex</strong><span>Copy what each person has watched, and where they stopped, from Plex Media Server into Flexarr, matched by file and without changing Plex.</span></a></li>
-          <li><a href="/guide/library-health"><strong>Library health</strong><span>Find spare copies and the space they use, files that can&#39;t be read, standard-definition films and wrong matches, and fix them with Sonarr and Radarr.</span></a></li>
-          <li><a href="/guide/backups"><strong>Backups</strong><span>How Flexarr backs itself up every night, where backups are kept, and how to restore one or move your settings to another server.</span></a></li>
-          <li><a href="/guide/logs-and-diagnostics"><strong>Logs and diagnostics</strong><span>Read Flexarr&#39;s log, turn up the detail for one area, follow a single playback, collect diagnostics from the apps, and choose whether to send error reports.</span></a></li>
-          <li><a href="/guide/troubleshooting"><strong>Troubleshooting</strong><span>Fixes for the most common Flexarr problems, from an app that can&#39;t find your server to playback that won&#39;t start, HDR, sound and connecting away from home.</span></a></li>
-          <li><a href="/guide/faq"><strong>Frequently asked questions</strong><span>Short answers about Flexarr&#39;s cost and licence, what you need to run it, privacy, the apps, and how many people can use it.</span></a></li>
-        </ul>
-      </section>
+    <nav class="wrap routes" aria-label="Where to start">
+      <a class="route" href="/guide/what-you-need"><span>New to running a server?</span><strong>What you need</strong></a>
+      <a class="route" href="/guide/first-setup"><span>Got the iPhone app and need a server?</span><strong>First setup</strong></a>
+      <a class="route" href="/guide/connect-arrs"><span>Already run Sonarr and Radarr?</span><strong>Connect Sonarr, Radarr, Lidarr and Seerr</strong></a>
+    </nav>
+    <div class="wrap topics">
+      <h2>Every topic</h2>
+      <div class="columns">
+        <section>
+          <h3>Getting started</h3>
+          <ul>
+            <li><a href="/guide/what-you-need">What you need</a></li>
+            <li><a href="/guide/install-macos">Install on a Mac</a></li>
+            <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+            <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+            <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+            <li><a href="/guide/first-setup">First setup</a></li>
+            <li><a href="/guide/connect-devices">Connect your devices</a></li>
+            <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+            <li><a href="/guide/updating">Updating Flexarr</a></li>
+          </ul>
+        </section>
+        <section>
+          <h3>Your *arrs</h3>
+          <ul>
+            <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+            <li><a href="/guide/media-paths">Media paths</a></li>
+            <li><a href="/guide/requests">Requests</a></li>
+          </ul>
+        </section>
+        <section>
+          <h3>Watching and listening</h3>
+          <ul>
+            <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+            <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+            <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+            <li><a href="/guide/music">Music</a></li>
+            <li><a href="/guide/podcasts">Podcasts</a></li>
+            <li><a href="/guide/downloads">Downloads</a></li>
+            <li><a href="/guide/live-tv">Live TV and recording</a></li>
+          </ul>
+        </section>
+        <section>
+          <h3>Around the house</h3>
+          <ul>
+            <li><a href="/guide/profiles">Profiles</a></li>
+            <li><a href="/guide/away-from-home">Watch away from home</a></li>
+            <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+            <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+            <li><a href="/guide/home-assistant">Home Assistant</a></li>
+            <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+          </ul>
+        </section>
+        <section>
+          <h3>Looking after it</h3>
+          <ul>
+            <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+            <li><a href="/guide/library-health">Library health</a></li>
+            <li><a href="/guide/backups">Backups</a></li>
+            <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+            <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+            <li><a href="/guide/faq">Frequently asked questions</a></li>
+          </ul>
+        </section>
+      </div>
     </div>
     <div class="wrap help">
       <h2>Still stuck?</h2>
-      <p>Look through <a href="/guide/troubleshooting">Troubleshooting</a>, or <a href="https://github.com/danleach-glitch/flexarr/issues/new">open an issue on GitHub</a> with the zip from <strong>Settings › Server › Logs › Download diagnostics</strong> attached.</p>
+      <p>Look through <a href="/guide/troubleshooting">Troubleshooting</a>, or <a href="https://github.com/danleach-glitch/flexarr/issues/new">open an issue on GitHub</a> with the zip from <strong>Settings › Logs › Download diagnostics</strong> attached.</p>
     </div>
   </main>
   <footer class="site-footer">

@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section" open>
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home" aria-current="page">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -123,8 +133,7 @@
 <li><strong>On your iPhone or iPad</strong>, install Tailscale from the App Store and sign in with the same account. Leave it connected.</li>
 <li>Open the Flexarr app once while you&#39;re at home, so it learns the private address.</li>
 </ol>
-<!-- screenshot: Settings › Access on the web, with Tailscale on and the private address showing -->
-
+<figure><img src="/guide/img/access.webp" alt="Settings › Access with Tailscale on, the private address and its Copy button, and the people on the tailnet" data-caption="Settings › Access, with Tailscale on" loading="lazy" decoding="async"></figure>
 <p>From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn&#39;t answer, they use the Tailscale one, and they go back to the home address when you&#39;re home again. There&#39;s nothing to change in the apps.</p>
 <p>In a browser away from home, open the private address instead of the usual one.</p>
 <blockquote class="callout note"><p><strong>Note</strong> Flexarr needs the <code>tailscale</code> command on the same computer it runs on to turn this on. If <strong>Settings › Access</strong> says Tailscale isn&#39;t installed on the server even though you&#39;ve installed it, Flexarr probably runs in a container that can&#39;t see it. That&#39;s usually the case on a NAS or in Docker.</p>
@@ -180,7 +189,7 @@
           <a class="prev" href="/guide/profiles"><span>Previous</span>Profiles</a>
           <a class="next" href="/guide/siri-and-shortcuts"><span>Next</span>Siri and Shortcuts</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/away-from-home.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Watch%20away%20from%20home">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/away-from-home.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Watch%20away%20from%20home">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

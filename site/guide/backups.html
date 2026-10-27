@@ -46,7 +46,8 @@
         <details class="contents">
           <summary>Guide contents</summary>
           <nav>
-            <p class="section">Getting started</p>
+            <details class="section">
+            <summary>Getting started</summary>
             <ul>
               <li><a href="/guide/what-you-need">What you need</a></li>
               <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -58,13 +59,17 @@
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
             </ul>
-            <p class="section">Your *arrs</p>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
             <ul>
               <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
               <li><a href="/guide/media-paths">Media paths</a></li>
               <li><a href="/guide/requests">Requests</a></li>
             </ul>
-            <p class="section">Watching and listening</p>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
             <ul>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
@@ -74,7 +79,9 @@
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
             </ul>
-            <p class="section">Around the house</p>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
             <ul>
               <li><a href="/guide/profiles">Profiles</a></li>
               <li><a href="/guide/away-from-home">Watch away from home</a></li>
@@ -83,7 +90,9 @@
               <li><a href="/guide/home-assistant">Home Assistant</a></li>
               <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
             </ul>
-            <p class="section">Looking after it</p>
+            </details>
+            <details class="section" open>
+            <summary>Looking after it</summary>
             <ul>
               <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
               <li><a href="/guide/library-health">Library health</a></li>
@@ -92,6 +101,7 @@
               <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
               <li><a href="/guide/faq">Frequently asked questions</a></li>
             </ul>
+            </details>
           </nav>
         </details>
       </aside>
@@ -117,8 +127,7 @@
         <div class="prose">
 <p>Your films, shows and music live on your own drives, and Flexarr can always scan them again. What it can&#39;t rebuild is everything you&#39;ve added on top: profiles, what everyone has watched, playlists, collections, settings and signed-in devices. That&#39;s what a backup holds.</p>
 <p>Everything here is in the web app under <strong>Settings › Backup and restore</strong>, as the main profile.</p>
-<!-- screenshot: Settings › Backup and restore, with the list of backups and the Download, Restore and Delete icons on each -->
-
+<figure><img src="/guide/img/backups.webp" alt="Settings › Backup and restore, listing two backups with download, restore and delete buttons, and the nightly backup switch" data-caption="Settings › Backup and restore" loading="lazy" decoding="async"></figure>
 <h2 id="what-s-in-a-backup"><a class="anchor" href="#what-s-in-a-backup" aria-hidden="true" tabindex="-1">#</a>What&#39;s in a backup</h2>
 <ul>
 <li>Profiles, with their PINs and pictures</li>
@@ -192,7 +201,7 @@
           <a class="prev" href="/guide/library-health"><span>Previous</span>Library health</a>
           <a class="next" href="/guide/logs-and-diagnostics"><span>Next</span>Logs and diagnostics</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/backups.md">Edit this page on GitHub</a> · <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Backups">Something wrong or missing?</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/backups.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Backups">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

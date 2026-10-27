@@ -7,7 +7,7 @@ Flexarr keeps a log of what the server and its apps do. When a film won't play, 
 
 ## Reading the log
 
-Open **Settings › Server › Logs** in the web app, as the main profile. The newest entries are at the top. Select an entry to see its details.
+Open **Settings › Logs** in the web app, as the main profile. The newest entries are at the top. Select an entry to see its details.
 
 To narrow it down:
 
@@ -18,7 +18,7 @@ To narrow it down:
 
 **Load older** at the bottom goes further back.
 
-<!-- screenshot: Settings › Server › Logs with the level, area and search filters, Live switched on, and one entry opened showing its details -->
+![The Logs page with error reports switched on, the level, area and search filters, and recent log lines](../../site/guide/img/logs.webp "Settings › Logs")
 
 ## Following one playback
 

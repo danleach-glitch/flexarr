@@ -21,7 +21,7 @@ The app moves on by itself a moment later. If your household has several profile
 
 If Safari on the same phone is already signed in to Flexarr, **Approve in Safari instead** opens the approval page there, so you don't need the computer.
 
-<!-- screenshot: the iPhone's "Connect this iPhone" screen with its numbered steps and code -->
+![The Connect a device page with a box for the code shown on the TV, iPhone or iPad](../../site/guide/img/connect-device.webp "Settings › Access › Connect a device, where you type the code")
 
 ## Apple TV
 

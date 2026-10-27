@@ -57,7 +57,7 @@ function show(items, words) {
     ? items.map(({ page, anchor }) => {
         const href = `/guide/${page.slug}${anchor ? '#' + anchor[0] : ''}`;
         const where = anchor ? `${page.title} › ${anchor[1]}` : page.title;
-        return `<li><a href="${href}">${mark(where, words)}<small>${escape(page.section)} · ${mark(page.description, words)}</small></a></li>`;
+        return `<li><a href="${href}">${mark(where, words)}<small>${mark(page.description, words)}</small></a></li>`;
       }).join('')
     : '<li class="none">Nothing found. Try fewer words, or look in Troubleshooting.</li>';
   list.hidden = false;
