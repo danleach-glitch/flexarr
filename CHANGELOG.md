@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Discover (Apple TV)
+- A title you already have is marked with a gold play badge on its poster's top-left corner, in place of "In your library" under it.
+- After pressing Request, Menu goes back to Discover. Before, it left the app.
+
 ## 0.43.0 · 27 October 2026
 
 ### Discover (Apple TV)

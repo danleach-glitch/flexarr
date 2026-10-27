@@ -263,6 +263,9 @@ struct ExternalCard: View {
                 }
             }
             .frame(width: width, height: width * 1.5)
+            .overlay(alignment: .topLeading) {
+                if title.isInLibrary { LibraryBadge().padding(10) }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -281,10 +284,26 @@ struct ExternalCard: View {
 }
 
 extension ExternalTitle {
-    /// "In your library" or "Requested"; nil for something that's neither.
+    /// Ready to watch: the poster says so with a badge (see `LibraryBadge`).
+    var isInLibrary: Bool { libraryItemId != nil || availability == .available }
+
+    /// "Requested" or "Partly in your library", under the title; nil for something that's neither, or that's in.
     var state: String? {
-        if libraryItemId != nil { return "In your library" }
-        return availability.label
+        isInLibrary ? nil : availability.label
+    }
+}
+
+/// On a poster from Discover: it's in the library, ready to play. Gold, top-left, away from the watched tick's corner;
+/// a play mark rather than a tick, which on a poster means watched.
+private struct LibraryBadge: View {
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: 16, weight: .heavy))
+            .foregroundStyle(Color.room)
+            .offset(x: 1)
+            .frame(width: 36, height: 36)
+            .background(Circle().fill(Color.inLibrary))
+            .accessibilityLabel("In your library")
     }
 }
 
@@ -566,30 +585,43 @@ private struct RequestButton: View {
 
     var body: some View {
         HStack(spacing: 30) {
-            if sending == .sent || title.availability != .none {
-                Label(sending == .sent ? "Requested" : (title.availability.label ?? "Requested"),
-                      systemImage: title.availability == .available ? "checkmark" : "clock")
-                    .font(.system(size: 29, weight: .semibold))
+            // One button throughout, whatever it says: one that's taken away or disabled while it has focus leaves
+            // nothing on the page focused, and then Menu leaves the app rather than going back.
+            Button {
+                guard canRequest, sending != .sending else { return }
+                Task { await request() }
+            } label: {
+                Label(label, systemImage: symbol)
+            }
+            .buttonStyle(ActionButtonStyle(prominent: canRequest))
+            if let failure {
+                Text(failure)
+                    .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(Color.screen.opacity(0.85))
-                    .padding(.horizontal, 36)
-                    .frame(height: 76)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.screen.opacity(0.1)))
-            } else {
-                Button { Task { await request() } } label: {
-                    Label(sending == .sending ? "Requesting…" : (failure == nil ? "Request" : "Try again"), systemImage: "plus")
-                }
-                .buttonStyle(ActionButtonStyle(prominent: true))
-                .disabled(sending == .sending)
-                if let failure {
-                    Text(failure)
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(Color.screen.opacity(0.85))
-                        .lineLimit(2)
-                        .frame(maxWidth: 700, alignment: .leading)
-                }
+                    .lineLimit(2)
+                    .frame(maxWidth: 700, alignment: .leading)
             }
         }
         .focusSection()
+    }
+
+    /// Not asked for yet, here or anywhere else.
+    private var canRequest: Bool { sending != .sent && title.availability == .none }
+
+    private var label: String {
+        if sending == .sent { return "Requested" }
+        if let state = title.availability.label { return state }
+        if sending == .sending { return "Requesting…" }
+        return failure == nil ? "Request" : "Try again"
+    }
+
+    private var symbol: String {
+        if sending == .sent { return "clock" }
+        switch title.availability {
+        case .available: return "checkmark"
+        case .requested, .partlyAvailable: return "clock"
+        case .none: return "plus"
+        }
     }
 
     private var failure: String? {
