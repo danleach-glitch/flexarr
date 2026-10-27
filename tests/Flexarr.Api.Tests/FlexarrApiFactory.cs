@@ -31,6 +31,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        // appsettings.json never changes during a test; watching it would only use up Linux's file watchers.
+        builder.UseSetting("hostBuilder:reloadConfigOnChange", "false");
         builder.UseSetting("Flexarr:ApiKey", ApiKey);
         builder.UseSetting("Flexarr:DataDirectory", DataDirectory);
         builder.UseSetting("Flexarr:AuthenticationRequired", "Enabled");

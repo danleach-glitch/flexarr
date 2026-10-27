@@ -216,6 +216,9 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 var app = builder.Build();
+// config.json's watcher belongs to this server: let it go when the server stops (tests start many in one process, and
+// Linux allows only so many watchers).
+app.Lifetime.ApplicationStopped.Register(() => (userConfig as IDisposable)?.Dispose());
 
 // Materialise options at startup so a first-run API key is generated and logged immediately.
 Directory.CreateDirectory(app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value.DataDirectory);
