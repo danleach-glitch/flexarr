@@ -16,6 +16,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Connecting by code is a short numbered list: open the server's address on your computer, go to Settings › Access › Connect a device, and type in the code shown large underneath. Approve in Safari is a quiet link for when Safari on the phone is already signed in.
 - On a server with nothing added yet, Home says where to add your movies, shows and music instead of staying blank.
 
+### Apple TV
+- Connecting by code shows the same short numbered steps as the iPhone: open the server's address on your computer, go to Settings › Access › Connect a device, and type in the code. On a server nobody has set up yet, it says to do that first. The QR code is still there, smaller, for a phone that's already signed in.
+
 ### Web
 - **Settings › Access › Connect a TV** is now **Connect a device**, since iPhones and iPads connect there too.
 - Approving a device by its code talks about the device, not "your TV", since iPhones and iPads connect the same way. Opened on a browser that isn't signed in, the page says to enter the code on the computer where you set up Flexarr, instead of asking for the API key.
