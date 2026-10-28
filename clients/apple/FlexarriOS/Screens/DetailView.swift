@@ -22,6 +22,11 @@ struct DetailView: View {
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
     @State private var isVisible = false
+    /// Searching for subtitles for this file (its id), and what was saved, to say so.
+    @State private var subtitleSearchFile: SubtitleSearchFile?
+    @State private var savedSubtitles: String?
+    /// Said once the search has gone (an alert can't come up while the sheet is still leaving).
+    @State private var subtitlesJustSaved: String?
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
@@ -57,6 +62,22 @@ struct DetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .sheet(item: $subtitleSearchFile, onDismiss: {
+            savedSubtitles = subtitlesJustSaved
+            subtitlesJustSaved = nil
+        }) { file in
+            if let client = model.client, let item {
+                SubtitleSearchView(client: client, itemId: item.id, fileId: file.id, onDownloaded: { saved in
+                    subtitlesJustSaved = "\(saved.label) subtitles saved"
+                    subtitleSearchFile = nil
+                }, onClose: { subtitleSearchFile = nil })
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
+            Button("OK", role: .cancel) {}
+        }
         .task(id: model.refreshToken) {
             // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
             // changed here, or what's shown is old enough that something may have changed elsewhere.
@@ -190,6 +211,13 @@ struct DetailView: View {
                         Label("Show", systemImage: "rectangle.stack")
                     }
                     .accessibilityLabel("Go to show")
+                }
+
+                if detail?.canSearchSubtitles == true, let file = detail?.files.first {
+                    Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
+                        Label("Subtitles", systemImage: "captions.bubble")
+                    }
+                    .accessibilityLabel("Search for subtitles")
                 }
             }
             .buttonStyle(LabeledActionStyle())

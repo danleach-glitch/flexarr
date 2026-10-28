@@ -30,12 +30,18 @@ protocol PlayerScreenDelegate: AnyObject {
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float)
     /// The sleep timer was set, changed, asked, ran out or was woken from (`sleepHoldsEpisode` may have changed).
     func playerScreenSleepChanged(_ screen: PlayerViewController)
+    /// "Search for subtitles…" in the subtitles menu.
+    func playerScreenSearchSubtitles(_ screen: PlayerViewController)
+    /// "Re-sync to audio" for the subtitle file showing (its server key).
+    func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String)
 }
 
 extension PlayerScreenDelegate {
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {}
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {}
     func playerScreenSleepChanged(_ screen: PlayerViewController) {}
+    func playerScreenSearchSubtitles(_ screen: PlayerViewController) {}
+    func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String) {}
 }
 
 /// The player screen: the transport's picture full-bleed, our controls over it, and the remote (Apple TV) or touch
@@ -74,6 +80,9 @@ final class PlayerViewController: UIViewController {
     private var sleepWatch: Task<Void, Never>?
     /// The minutes left last shown in the sleep menu, so it's rebuilt only when that changes.
     private var sleepMinutesShown: Int?
+    /// Subtitles can be searched for (through the server's Bazarr), the keys of the subtitle files beside the video
+    /// (which can be re-synced), and whether a re-sync is running.
+    private var subtitleSearch: (available: Bool, files: Set<String>, resyncing: Bool) = (false, [], false)
     private var title_: (String, String?) = ("", nil)
     private var artwork: UIImage?
     #if os(iOS)
@@ -355,6 +364,20 @@ final class PlayerViewController: UIViewController {
         subtitleSize = size
         transport?.subtitleSize = size
         rebuildMenus()
+    }
+
+    /// Whether the subtitles menu offers searching and re-syncing: `files` are the keys of subtitle files beside the
+    /// video, the only ones that can be re-synced.
+    func setSubtitleSearch(available: Bool, files: Set<String>, resyncing: Bool) {
+        subtitleSearch = (available, files, resyncing)
+        rebuildMenus()
+    }
+
+    /// A moment's message in the middle of the picture ("Re-syncing subtitles…"), with the controls up.
+    func flash(_ message: String) {
+        guard isViewLoaded else { return }
+        showControls()
+        controls.flashMessage(message)
     }
 
     // MARK: Controls
@@ -788,6 +811,28 @@ final class PlayerViewController: UIViewController {
                     }
                 }
             }))
+        }
+        if subtitleSearch.available {
+            var finding: [UIMenuElement] = [
+                UIAction(title: "Search for subtitles…", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        self.delegate?.playerScreenSearchSubtitles(self)
+                    }
+                },
+            ]
+            let showing = subtitles.first { $0.id == transport.activeSubtitleTrack }?.key
+            if subtitleSearch.resyncing {
+                finding.append(UIAction(title: "Re-syncing…", attributes: .disabled) { _ in })
+            } else if let showing, subtitleSearch.files.contains(showing) {
+                finding.append(UIAction(title: "Re-sync to audio", image: UIImage(systemName: "waveform")) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        self.delegate?.playerScreen(self, resyncSubtitle: showing)
+                    }
+                })
+            }
+            items.append(UIMenu(options: .displayInline, children: finding))
         }
         controls.subtitlesButton.isHidden = items.isEmpty
         controls.subtitlesButton.menu = UIMenu(title: "Subtitles", children: items)

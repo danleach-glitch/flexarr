@@ -5,6 +5,7 @@ import {
   getArrStatus,
   getLiveTvStatus,
   getRequestStatus,
+  getSubtitleSearchStatus,
   refreshLiveTv,
   rotateWebhookSecret,
   testArr,
@@ -28,6 +29,9 @@ import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
 
+/** The connections with a form of their own, by the name the open row goes by. */
+type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv'
+
 interface DraftConnection {
   name: string
   kind: ArrKind
@@ -39,7 +43,7 @@ interface DraftConnection {
 type Save = ReturnType<typeof useSettings>['save']
 
 /**
- * Sonarr, Radarr and Lidarr, then Seerr and Dispatcharr (Live TV): a line each saying how it is, opened to change it. Below them, where the
+ * Sonarr, Radarr and Lidarr, then Seerr, Bazarr, TMDB and Dispatcharr (Live TV): a line each saying how it is, opened to change it. Below them, where the
  * apps' media folders are on this server, and the webhook addresses the apps call when something new arrives.
  */
 export function ConnectionsSection() {
@@ -47,12 +51,13 @@ export function ConnectionsSection() {
   // Asked once the settings are in (and again after a save), not also while they load.
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
+  const bazarrStatus = useApi((signal) => (settings ? getSubtitleSearchStatus(signal) : Promise.resolve(undefined)), [settings])
   const liveStatus = useApi((signal) => (settings ? getLiveTvStatus(signal) : Promise.resolve(undefined)), [settings])
   const folders = useApi((signal) => (settings?.arr.length ? getArrFolders(signal) : Promise.resolve(undefined)), [settings])
   // While the channels and guide come in (after a save, or Refresh), keep asking how it's going.
   usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
-  // Which one is open: an index into the list, 'new' for one being added, 'seerr', 'tmdb' or 'livetv'.
-  const [open, setOpen] = useState<number | 'new' | 'seerr' | 'tmdb' | 'livetv'>()
+  // Which one is open: an index into the list, 'new' for one being added, 'seerr', 'bazarr', 'tmdb' or 'livetv'.
+  const [open, setOpen] = useState<number | 'new' | OtherService>()
   if (!settings) return waiting
 
   const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
@@ -66,6 +71,18 @@ export function ConnectionsSection() {
     if (await save({ arr: list })) setOpen(undefined)
   }
 
+  // Each shows once it's set up, or while it's being added (picked from Add a connection's Kind).
+  const isSet: Record<OtherService, boolean> = { seerr: !!settings.seerr, bazarr: !!settings.bazarr, tmdb: settings.hasTmdbKey === true, livetv: !!settings.liveTv }
+  const shows = (service: OtherService) => isSet[service] || open === service
+  const others = (
+    [
+      { value: 'seerr', label: 'Seerr' },
+      { value: 'bazarr', label: 'Bazarr' },
+      { value: 'tmdb', label: 'TMDB' },
+      { value: 'livetv', label: 'Dispatcharr (Live TV)' },
+    ] as const
+  ).filter((o) => !isSet[o.value])
+
   const nextKind: ArrKind = (['Sonarr', 'Radarr', 'Lidarr'] as const).find((k) => !settings.arr.some((a) => a.kind === k)) ?? 'Sonarr'
 
   return (
@@ -73,7 +90,7 @@ export function ConnectionsSection() {
       <section>
         <SettingsHeader title="Connections">
           Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Without them, shows come from
-          TVmaze, and films from TMDB with a free key of your own. Seerr adds Discover and requests, and Dispatcharr Live TV.
+          TVmaze, and films from TMDB with a free key of your own. Seerr adds Discover and requests, Bazarr subtitles, and Dispatcharr Live TV.
         </SettingsHeader>
 
         <SettingsGroup
@@ -108,11 +125,19 @@ export function ConnectionsSection() {
               onOpen={() => undefined}
               onClose={() => setOpen(undefined)}
               onSave={(c) => saveArr('new', c)}
+              others={[...others]}
+              onPickOther={setOpen}
             />
           )}
-          <SeerrRow
-            seerr={settings.seerr}
-            status={seerrStatus.loading ? 'Checking…' : !seerrStatus.data?.configured ? 'Not set up' : seerrStatus.data.reachable ? 'Connected' : 'Can’t be reached, or the API key isn’t right'}
+          {shows('seerr') && (
+          <ServiceRow
+            kind="Seerr"
+            service={settings.seerr}
+            description="Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules."
+            placeholder="http://localhost:5055"
+            keyHint="In Seerr, under Settings › General"
+            removeWarning="Remove Seerr? Discover and requests go with it."
+            status={serviceStatus(seerrStatus)}
             ok={seerrStatus.data?.configured ? seerrStatus.data.reachable : undefined}
             open={open === 'seerr'}
             onOpen={() => setOpen('seerr')}
@@ -121,6 +146,26 @@ export function ConnectionsSection() {
               if (await save({ seerr })) setOpen(undefined)
             }}
           />
+          )}
+          {shows('bazarr') && (
+          <ServiceRow
+            kind="Bazarr"
+            service={settings.bazarr}
+            description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage. A title you search for gets Bazarr’s first languages profile if it has none, so Bazarr’s own schedule may then fetch subtitles for it too."
+            placeholder="http://localhost:6767"
+            keyHint="In Bazarr, under Settings › General"
+            removeWarning="Remove Bazarr? Searching for subtitles from the player goes with it."
+            status={serviceStatus(bazarrStatus)}
+            ok={bazarrStatus.data?.configured ? bazarrStatus.data.reachable : undefined}
+            open={open === 'bazarr'}
+            onOpen={() => setOpen('bazarr')}
+            onClose={() => setOpen(undefined)}
+            onSave={async (bazarr) => {
+              if (await save({ bazarr })) setOpen(undefined)
+            }}
+          />
+          )}
+          {shows('tmdb') && (
           <TmdbRow
             hasKey={settings.hasTmdbKey === true}
             hasRadarr={settings.arr.some((a) => a.kind === 'Radarr')}
@@ -131,6 +176,8 @@ export function ConnectionsSection() {
               if (await save({ tmdb: { apiKey } })) setOpen(undefined)
             }}
           />
+          )}
+          {shows('livetv') && (
           <DispatcharrRow
             liveTv={settings.liveTv ?? null}
             status={
@@ -157,6 +204,7 @@ export function ConnectionsSection() {
               liveStatus.reload()
             }}
           />
+          )}
         </SettingsGroup>
 
         <MediaFolders folders={folders.data} hasApps={settings.arr.length > 0} mappings={settings.pathMappings} save={save} />
@@ -231,6 +279,8 @@ function ArrRow({
   onClose,
   onSave,
   onRemove,
+  others = [],
+  onPickOther,
 }: {
   connection: DraftConnection
   live?: ArrStatus
@@ -242,6 +292,9 @@ function ArrRow({
   onClose: () => void
   onSave: (c: DraftConnection) => Promise<void>
   onRemove?: () => Promise<void>
+  /** A new connection's other choices: the apps with a form of their own (Seerr, Bazarr…) that aren't set up yet. */
+  others?: { value: OtherService; label: string }[]
+  onPickOther?: (service: OtherService) => void
 }) {
   const [draft, setDraft] = useState(connection)
   const [test, setTest] = useState<ArrStatus | 'testing'>()
@@ -295,10 +348,22 @@ function ArrRow({
             {isNew && (
               <label>
                 Kind
-                <select value={draft.kind} onChange={(e) => update({ kind: e.target.value as ArrKind, name: draft.name === draft.kind ? e.target.value : draft.name })}>
+                <select
+                  value={draft.kind}
+                  onChange={(e) => {
+                    const other = others.find((o) => o.value === e.target.value)
+                    if (other) onPickOther?.(other.value)
+                    else update({ kind: e.target.value as ArrKind, name: draft.name === draft.kind ? e.target.value : draft.name })
+                  }}
+                >
                   <option>Sonarr</option>
                   <option>Radarr</option>
                   <option>Lidarr</option>
+                  {others.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}
@@ -351,8 +416,14 @@ function ArrRow({
 
 const placeholderUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
 
-function SeerrRow({
-  seerr,
+/** A service with an address and an API key (Seerr, Bazarr); the key is never sent back, so the form only replaces it. */
+function ServiceRow({
+  kind,
+  service,
+  description,
+  placeholder,
+  keyHint,
+  removeWarning,
   status,
   ok,
   open,
@@ -360,49 +431,54 @@ function SeerrRow({
   onClose,
   onSave,
 }: {
-  seerr: Settings['seerr']
+  kind: 'Seerr' | 'Bazarr'
+  service: { baseUrl: string; hasApiKey: boolean } | null | undefined
+  description: string
+  placeholder: string
+  keyHint: string
+  removeWarning: string
   status: string
   ok?: boolean
   open: boolean
   onOpen: () => void
   onClose: () => void
-  onSave: (seerr: { baseUrl: string; apiKey?: string }) => Promise<void>
+  onSave: (service: { baseUrl: string; apiKey?: string }) => Promise<void>
 }) {
-  const [baseUrl, setBaseUrl] = useState(seerr?.baseUrl ?? '')
+  const [baseUrl, setBaseUrl] = useState(service?.baseUrl ?? '')
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
   return (
     <div className="connection">
-      <ConnectionLine kind="Seerr" name="Seerr" ok={ok} status={status} baseUrl={seerr?.baseUrl ?? ''} open={open} onOpen={onOpen} />
+      <ConnectionLine kind={kind} name={kind} ok={ok} status={status} baseUrl={service?.baseUrl ?? ''} open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
-          aria-label="Edit Seerr"
+          aria-label={`Edit ${kind}`}
           onSubmit={(e) => {
             e.preventDefault()
             setSaving(true)
             void onSave({ baseUrl, apiKey: apiKey || undefined }).finally(() => setSaving(false))
           }}
         >
-          <p className="muted">Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules.</p>
+          <p className="muted">{description}</p>
           <div className="field-row">
             <label className="grow">
               Address
-              <input type="url" value={baseUrl} placeholder="http://localhost:5055" onChange={(e) => setBaseUrl(e.target.value)} />
+              <input type="url" value={baseUrl} placeholder={placeholder} onChange={(e) => setBaseUrl(e.target.value)} />
             </label>
             <label className="grow">
               API key
-              <input type="password" value={apiKey} placeholder={seerr?.hasApiKey ? 'Saved; type to replace' : 'In Seerr, under Settings › General'} onChange={(e) => setApiKey(e.target.value)} />
+              <input type="password" value={apiKey} placeholder={service?.hasApiKey ? 'Saved; type to replace' : keyHint} onChange={(e) => setApiKey(e.target.value)} />
             </label>
           </div>
           <div className="form-actions">
-            {seerr && (
+            {service && (
               <IconButton
                 label="Remove"
-                aria-label="Remove Seerr"
+                aria-label={`Remove ${kind}`}
                 icon={<Trash />}
                 className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm('Remove Seerr? Discover and requests go with it.') && onSave({ baseUrl: '' })}
+                onClick={() => confirm(removeWarning) && onSave({ baseUrl: '' })}
               />
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
@@ -416,6 +492,11 @@ function SeerrRow({
       )}
     </div>
   )
+}
+
+/** How a service with an address and a key is: checking, not set up, connected, or not answering. */
+function serviceStatus(check: { loading: boolean; data?: { configured: boolean; reachable: boolean } }) {
+  return check.loading ? 'Checking…' : !check.data?.configured ? 'Not set up' : check.data.reachable ? 'Connected' : 'Can’t be reached, or the API key isn’t right'
 }
 
 /**

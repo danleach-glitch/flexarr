@@ -148,6 +148,10 @@
 <td><strong>Seerr</strong></td>
 <td><strong>Discover</strong> and requests. Seerr and Overseerr both work. See <a href="/guide/requests">Requests</a>.</td>
 </tr>
+<tr>
+<td><strong>Bazarr</strong></td>
+<td><strong>Search for subtitles</strong> from the player and a title&#39;s page, and re-syncing subtitles that are out of time. See <a href="/guide/subtitles-and-skipping#finding-subtitles">Finding subtitles</a>.</td>
+</tr>
 </tbody></table></div>
 <p>Films and shows that Radarr or Sonarr don&#39;t manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn&#39;t download.</p>
 <h2 id="add-a-connection"><a class="anchor" href="#add-a-connection" aria-hidden="true" tabindex="-1">#</a>Add a connection</h2>
@@ -188,6 +192,10 @@
 <td>Seerr</td>
 <td><code>http://&lt;host&gt;:5055</code></td>
 </tr>
+<tr>
+<td>Bazarr</td>
+<td><code>http://&lt;host&gt;:6767</code></td>
+</tr>
 </tbody></table></div>
 <p><code>localhost</code> only works if the app runs on the same machine as Flexarr <em>and</em> neither is in its own Docker container. Between containers, use the machine&#39;s IP address, or the container&#39;s name if they share a Docker network.</p>
 <h3 id="where-to-find-each-api-key"><a class="anchor" href="#where-to-find-each-api-key" aria-hidden="true" tabindex="-1">#</a>Where to find each API key</h3>
@@ -214,9 +222,15 @@
 <td>Seerr</td>
 <td><strong>Settings › General</strong></td>
 </tr>
+<tr>
+<td>Bazarr</td>
+<td><strong>Settings › General</strong>, under <strong>Security</strong></td>
+</tr>
 </tbody></table></div>
 <h3 id="seerr"><a class="anchor" href="#seerr" aria-hidden="true" tabindex="-1">#</a>Seerr</h3>
 <p>Seerr has its own row under <strong>Apps</strong>. Choose the pencil beside <strong>Seerr</strong>, type its <strong>Address</strong> and <strong>API key</strong>, and choose <strong>Save</strong>. Once it&#39;s connected, <strong>Discover</strong> fills with what&#39;s trending and popular, and you can request what you don&#39;t have. See <a href="/guide/requests">Requests</a>.</p>
+<h3 id="bazarr"><a class="anchor" href="#bazarr" aria-hidden="true" tabindex="-1">#</a>Bazarr</h3>
+<p>Bazarr has its own row too. Choose the pencil beside <strong>Bazarr</strong>, type its <strong>Address</strong> and <strong>API key</strong>, and choose <strong>Save</strong>. Bazarr needs Sonarr and Radarr connected on its side, at least one languages profile and some subtitle sites (providers); set those up in Bazarr itself. A title you search for gets Bazarr&#39;s first languages profile if it has none, so Bazarr&#39;s own schedule may then fetch subtitles for it too. See <a href="/guide/subtitles-and-skipping#finding-subtitles">Finding subtitles</a>.</p>
 <h2 id="webhooks-new-downloads-appear-straight-away"><a class="anchor" href="#webhooks-new-downloads-appear-straight-away" aria-hidden="true" tabindex="-1">#</a>Webhooks: new downloads appear straight away</h2>
 <p>Without webhooks, Flexarr finds new files on its own scan every 12 hours. With them, Sonarr, Radarr and Lidarr tell Flexarr the moment they import, upgrade, rename or delete something, and Flexarr rescans only that folder.</p>
 <p>The addresses to use are at the bottom of <strong>Settings › Connections</strong>, under <strong>Webhooks</strong>, already filled in with your server&#39;s address and its <strong>webhook secret</strong>. They look like this:</p>

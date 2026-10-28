@@ -159,8 +159,9 @@ struct LiveChannelPicker: View {
     #endif
 }
 
-/// A row: brighter when focused (Apple TV) or pressed, marked when it's the channel being watched.
-private struct PickerRowStyle: ButtonStyle {
+/// A row in a list over the picture: brighter when focused (Apple TV) or pressed, marked when it's the current one
+/// (the channel being watched). The subtitle search uses it too.
+struct PickerRowStyle: ButtonStyle {
     let current: Bool
 
     func makeBody(configuration: Configuration) -> some View {

@@ -99,6 +99,10 @@ builder.Services.AddHttpClient<ArrClient>(c => c.Timeout = TimeSpan.FromSeconds(
 builder.Services.AddHttpClient<SeerrClient>(c => c.Timeout = TimeSpan.FromSeconds(15))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
     .AddHttpMessageHandler(() => new SameHostRedirects());
+// Searching every subtitle provider, and re-syncing a film to its audio, can each take minutes.
+builder.Services.AddHttpClient<BazarrClient>(c => c.Timeout = TimeSpan.FromMinutes(10))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+    .AddHttpMessageHandler(() => new SameHostRedirects());
 builder.Services.AddHttpClient<TmdbClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
 // ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere.
@@ -223,6 +227,7 @@ builder.Services.AddSingleton<PlaybackSessions>();
 builder.Services.AddSingleton<MarkerQueue>();
 builder.Services.AddSingleton<TrickplayQueue>();
 builder.Services.AddSingleton<SubtitleCache>();
+builder.Services.AddSingleton<SubtitleSyncs>();
 builder.Services.AddSingleton<LyricsCache>();
 builder.Services.AddSingleton<LoudnessCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
@@ -358,6 +363,7 @@ app.MapGroup("/api/v1")
     .MapDvrEndpoints()
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
+    .MapSubtitleSearchEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()
     .MapDeviceEndpoints()

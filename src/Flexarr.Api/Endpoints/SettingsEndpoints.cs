@@ -36,7 +36,8 @@ public sealed record SettingsDto(
     PodcastSettingsDto? Podcasts = null,
     LiveTvSettingsDto? LiveTv = null,
     string? HostName = null,
-    bool HasTmdbKey = false);
+    bool HasTmdbKey = false,
+    BazarrConnectionDto? Bazarr = null);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
@@ -56,6 +57,12 @@ public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey);
 
 public sealed record SeerrConnectionUpdate(string BaseUrl, string? ApiKey);
 
+public sealed record BazarrConnectionDto(string BaseUrl, bool HasApiKey);
+
+/// <param name="BaseUrl">Empty to remove Bazarr.</param>
+/// <param name="ApiKey">Omitted to keep the saved one, which is only kept for the same server.</param>
+public sealed record BazarrConnectionUpdate(string BaseUrl, string? ApiKey);
+
 public sealed record SettingsUpdate(
     TranscodingOptions? Transcoding,
     AuthenticationRequired? AuthenticationRequired,
@@ -64,7 +71,8 @@ public sealed record SettingsUpdate(
     SeerrConnectionUpdate? Seerr = null,
     PodcastSettingsUpdate? Podcasts = null,
     LiveTvSettingsUpdate? LiveTv = null,
-    TmdbKeyUpdate? Tmdb = null);
+    TmdbKeyUpdate? Tmdb = null,
+    BazarrConnectionUpdate? Bazarr = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -122,6 +130,11 @@ public static class SettingsEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
             }
 
+            if (update.Bazarr is { BaseUrl.Length: > 0 } badBazarr && WebAddress(badBazarr.BaseUrl) is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bazarr"] = [$"“{badBazarr.BaseUrl}” isn't a valid http or https address."] });
+            }
+
             if (update.Podcasts is { Country: { Length: > 0 } country } && Podcasts.PodcastCountries.Known(country) is null)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["podcasts"] = [$"Apple has no podcast charts for “{country}”."] });
@@ -161,6 +174,16 @@ public static class SettingsEndpoints
                     {
                         ["baseUrl"] = seerr.BaseUrl.Trim(),
                         ["apiKey"] = string.IsNullOrWhiteSpace(seerr.ApiKey) ? savedKey : seerr.ApiKey.Trim(),
+                    };
+                }
+
+                if (update.Bazarr is { } bazarr)
+                {
+                    var savedKey = current.Bazarr is { } saved && SameServer(saved.BaseUrl, bazarr.BaseUrl) ? saved.ApiKey : "";
+                    config["bazarr"] = bazarr.BaseUrl.Length == 0 ? null : new JsonObject
+                    {
+                        ["baseUrl"] = bazarr.BaseUrl.Trim(),
+                        ["apiKey"] = string.IsNullOrWhiteSpace(bazarr.ApiKey) ? savedKey : bazarr.ApiKey.Trim(),
                     };
                 }
 
@@ -422,7 +445,8 @@ public static class SettingsEndpoints
                 l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes)
             : null,
         HostName(),
-        o.Tmdb?.ApiKey is { Length: > 0 });
+        o.Tmdb?.ApiKey is { Length: > 0 },
+        o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

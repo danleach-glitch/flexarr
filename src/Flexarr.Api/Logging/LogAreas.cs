@@ -17,7 +17,7 @@ public static class LogAreas
         new(General, "General", []),
         new("playback", "Playback", ["Flexarr.Streaming", "Flexarr.Api.Playback", "Flexarr.Api.Downloads"]),
         new("library", "Library scans", ["Flexarr.Core.Scanning", "Flexarr.Core.Probing", "Flexarr.Core.Libraries", "Flexarr.Api.Scanning", "Flexarr.Api.Import"]),
-        new("integrations", "Sonarr, Radarr and Seerr", ["Flexarr.Integrations", "System.Net.Http.HttpClient.ArrClient", "System.Net.Http.HttpClient.SeerrClient"]),
+        new("integrations", "Sonarr, Radarr, Seerr and Bazarr", ["Flexarr.Integrations", "System.Net.Http.HttpClient.ArrClient", "System.Net.Http.HttpClient.SeerrClient", "System.Net.Http.HttpClient.BazarrClient"]),
         new("metadata", "Metadata and artwork", ["Flexarr.Metadata"]),
         new("livetv", "Live TV", ["Flexarr.Api.LiveTv", "Flexarr.Core.LiveTv", "Flexarr.Streaming.Live"]),
         new("podcasts", "Podcasts", ["Flexarr.Api.Podcasts", "Flexarr.Core.Podcasts"]),

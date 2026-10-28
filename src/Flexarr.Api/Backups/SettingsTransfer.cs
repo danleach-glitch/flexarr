@@ -48,7 +48,7 @@ public static class SettingsTransfer
     /// <summary>The settings in each section, as config.json names them.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Sections = new Dictionary<string, string[]>
     {
-        ["connections"] = ["arr", "seerr", "pathMappings"],
+        ["connections"] = ["arr", "seerr", "bazarr", "pathMappings"],
         ["liveTv"] = ["liveTv"],
         ["streaming"] = ["transcoding"],
         ["layout"] = ["layout"],
@@ -380,7 +380,10 @@ public static class SettingsTransfer
     /// <summary>The server's own bookkeeping in config.json: when sign-ins from older versions stop working.</summary>
     private static readonly string[] ServerOwn = ["legacySignInsUntil"];
 
-    /// <summary>The web addresses in a config: each *arr's, Seerr's and the Live TV source's.</summary>
+    /// <summary>The single services a config can point at, by config.json name.</summary>
+    private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", "Live TV")];
+
+    /// <summary>The web addresses in a config: each *arr's, Seerr's, Bazarr's and the Live TV source's.</summary>
     private static IEnumerable<(string Name, string Address)> Addresses(JsonObject config)
     {
         foreach (var (key, value) in config)
@@ -395,10 +398,10 @@ public static class SettingsTransfer
                     }
                 }
             }
-            else if ((key.Equals("seerr", StringComparison.OrdinalIgnoreCase) || key.Equals("liveTv", StringComparison.OrdinalIgnoreCase))
+            else if (Services.FirstOrDefault(s => key.Equals(s.Key, StringComparison.OrdinalIgnoreCase)) is { Key: not null } named
                 && value is JsonObject service && Text(service, "baseUrl") is { Length: > 0 } address)
             {
-                yield return (key.Equals("seerr", StringComparison.OrdinalIgnoreCase) ? "Seerr" : "Live TV", address);
+                yield return (named.Value, address);
             }
         }
     }

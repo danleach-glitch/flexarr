@@ -222,6 +222,18 @@ final class PlayerControlsView: UIView {
         }
     }
 
+    /// A message in the middle of the picture for a couple of seconds ("Subtitles re-synced").
+    func flashMessage(_ message: String) {
+        hud.text = message
+        hudTask?.cancel()
+        hud.alpha = 1
+        hudTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            UIView.animate(withDuration: 0.3) { self?.hud.alpha = 0 }
+        }
+    }
+
     // MARK: Build
 
     private func build() {

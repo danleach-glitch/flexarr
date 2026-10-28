@@ -419,6 +419,11 @@
   border-top: 1px dashed var(--aisle);
 }
 
+/* In an open edit form, Remove is red from the start: it's the one thing there that can't be undone. */
+.connection-form .button.icon.danger-icon {
+  color: var(--danger);
+}
+
 .connection-form > p {
   margin: 0 0 8px;
 }

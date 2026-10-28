@@ -28,6 +28,21 @@ Subtitles come as **text** (SRT, WebVTT, ASS and the like) or **pictures** (PGS 
 > **Note**
 > Styled ASS subtitles show their words but not their fonts, colours or positions yet.
 
+### Finding subtitles
+
+When a film or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through [Bazarr](connect-arrs.md#bazarr). It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile can use it.
+
+1. In the player, open the subtitles menu and choose **Search for subtitles…**. On a title's page in the web app, it's under **⋯**.
+2. Wait while Bazarr asks its subtitle sites. It can take a minute.
+3. Choose one and **Download**, or **Pick the best for me**. Those marked **Matches your file** were made for your exact copy, so they should be in time.
+
+The subtitles are saved beside the video, so every app sees them. In the player, the title carries on where it was with them on.
+
+> **Note**
+> Bazarr only searches for a film or show that has a languages profile. If it has none, the first search from Flexarr gives it Bazarr's first profile; for an episode, that's the whole show. From then on Bazarr looks after it like anything else with a profile, so if Bazarr is set to search for missing subtitles on a schedule, it will fetch them for that title by itself. To keep Bazarr to what you ask for, go to **Settings › Scheduler** in Bazarr and set **Search for Missing Series Subtitles** and **Search for Missing Movies Subtitles** to **Never**.
+
+If subtitles beside the video drift out of time, choose them, then **Re-sync to audio**. Bazarr lines them up with the soundtrack, which takes a minute or so, and the player picks up the new timing when it's done. For an offset that's the same all the way through, **Timing** in the subtitles menu is quicker.
+
 ### Turning them on and off
 
 Choose a subtitle track, or **Off**, from the subtitles menu in the player. Flexarr remembers your choice for that film or show, so the next episode and the next sitting start the same way. That includes Off. The same goes for the audio track: pick another language once and the rest of the series follows.

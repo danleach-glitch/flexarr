@@ -23,6 +23,7 @@ import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
+import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
 import { useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
@@ -69,6 +70,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [matching, setMatching] = useState(false)
+  const [findingSubtitles, setFindingSubtitles] = useState(false)
+  const [subtitlesSaved, setSubtitlesSaved] = useState<string>()
   const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
   const { me } = useSession()
   const canDelete = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
@@ -86,6 +89,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
   if (progress !== null && !item.userData.watched) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
   if (item.kind === 'Movie' || item.kind === 'Series') more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+  if (detail.canSearchSubtitles) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
   if (canFixMatch) more.push({ label: 'Fix match…', run: () => setMatching(true) })
   if (canDelete) {
     if (more.length) more.push('divider')
@@ -180,6 +184,11 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {moreAt && <Menu label={`More for ${item.title}`} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
           </div>
+          {subtitlesSaved && (
+            <p className="muted" role="status">
+              {subtitlesSaved} subtitles saved. Choose them from the subtitles menu while it plays.
+            </p>
+          )}
           {progress !== null && (
             <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% watched`}>
               <span style={{ width: `${progress * 100}%` }} />
@@ -219,6 +228,17 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
         />
       )}
       {matching && <FixMatchDialog item={item} onFixed={onChange} onClose={() => setMatching(false)} />}
+      {findingSubtitles && (
+        <SubtitleSearchDialog
+          itemId={item.id}
+          title={item.title}
+          onDownloaded={(saved) => {
+            setFindingSubtitles(false)
+            setSubtitlesSaved(saved.label)
+          }}
+          onClose={() => setFindingSubtitles(false)}
+        />
+      )}
       {trailer && detail.trailerYouTubeId && <TrailerDialog videoId={detail.trailerYouTubeId} title={item.title} onClose={() => setTrailer(false)} />}
     </article>
   )

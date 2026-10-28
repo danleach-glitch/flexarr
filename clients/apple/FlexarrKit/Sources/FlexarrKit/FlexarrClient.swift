@@ -479,9 +479,12 @@ public struct FlexarrClient: Sendable {
         try await send(method, path, bodyData: JSONEncoder().encode(body))
     }
 
+    /// `racesAlternate`: false for a GET that is slow by nature (a subtitle search), so waiting on it never sends the
+    /// same work to the other address too.
     func send(_ method: String, _ path: String, query: [URLQueryItem] = [], bodyData: Data? = nil,
-              contentType: String = "application/json", timeout: TimeInterval = 20) async throws -> Data {
-        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout)
+              contentType: String = "application/json", timeout: TimeInterval = 20, racesAlternate: Bool = true) async throws -> Data {
+        let (data, http) = try await exchange(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout,
+                                              racesAlternate: racesAlternate)
 
         switch http.statusCode {
         case 204, 202:
@@ -531,7 +534,7 @@ public struct FlexarrClient: Sendable {
     /// wins; anything else only moves over once the first address has failed to connect, so a write is never sent
     /// twice. Whichever address answers is used from then on.
     private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?,
-                          contentType: String, timeout: TimeInterval) async throws -> Answer {
+                          contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
         let primary = addresses.current
         let first = request(method, path, query: query, bodyData: bodyData, at: primary, contentType: contentType, timeout: timeout)
         guard let alternate = addresses.alternate(to: primary) else {
@@ -541,7 +544,7 @@ public struct FlexarrClient: Sendable {
         let second = request(method, path, query: query, bodyData: bodyData, at: alternate, contentType: contentType, timeout: timeout)
         let answer: Answer
         let reached: URL
-        if method == "GET" {
+        if method == "GET", racesAlternate {
             (answer, reached) = try await race(first, at: primary, then: second, at: alternate)
         } else {
             do {
