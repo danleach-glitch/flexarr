@@ -75,10 +75,12 @@ struct WideCard: View {
     @Environment(AppModel.self) private var model
     let item: ItemSummary
     var width: CGFloat = Layout.wideWidth
+    /// Optional shared focus state so a row can steer focus to this card (by the item's id).
+    var focus: FocusState<String?>.Binding?
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: item.glowColor, action: action) {
+        ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             RemoteImage(url: model.client?.imageURL(stillPath, width: 780)) {
                 ZStack {
                     LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)

@@ -270,6 +270,10 @@ struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let row: HomeRow
+    @FocusState private var focusedCard: String?
+    /// The card focused here last, kept while it leaves the row (marked watched, unwatched or removed) so focus can
+    /// go to the one that takes its place rather than back to the row's start. Cleared when focus moves elsewhere.
+    @State private var lastFocused: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -287,7 +291,7 @@ struct HomeRowView: View {
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         switch row.style {
                         case .wide:
-                            WideCard(item: item) { model.play(item) }
+                            WideCard(item: item, focus: $focusedCard) { model.play(item) }
                                 .environment(\.inContinueWatching, row.id == "continue")
                         case .top10:
                             Top10Card(rank: index + 1, item: item) { router.push(.item(item)) }
@@ -295,7 +299,7 @@ struct HomeRowView: View {
                             // A row of tracks plays: the one pressed first, the rest of the row after it.
                             TrackCard(item: item) { model.playTracks(row.items, from: index) }
                         default:
-                            PosterCard(item: item) { router.push(.item(item)) }
+                            PosterCard(item: item, focus: $focusedCard) { router.push(.item(item)) }
                         }
                     }
                     if let library = linkedLibrary {
@@ -308,6 +312,20 @@ struct HomeRowView: View {
             }
             .scrollClipDisabled()
             .focusSection()
+        }
+        .onChange(of: focusedCard) { _, id in
+            if let id {
+                lastFocused = id
+            } else if let last = lastFocused, row.items.contains(where: { $0.id == last }) {
+                lastFocused = nil // moved out of the row, rather than the card going
+            }
+        }
+        .onChange(of: row.items.map(\.id)) { old, new in
+            guard let last = lastFocused, !new.contains(last), let index = old.firstIndex(of: last), !new.isEmpty else { return }
+            let next = new[min(index, new.count - 1)]
+            lastFocused = next
+            // Once the card that went is gone; set at once, tvOS's own pick (the row's start) wins.
+            Task { focusedCard = next }
         }
     }
 
