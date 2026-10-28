@@ -35,6 +35,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Website
 - **[flexarr.io/apps](https://flexarr.io/apps)** lists every Flexarr app and platform with its version and status, from what you can download today to the Android apps on the way, with a link to get each one.
+- **flexarr.io on a phone** is a third of the length: get the iPhone app and set up the server, right under the headline, with a button that sends the setup steps to your computer, then a swipe through what Flexarr does. **[flexarr.io/install](https://flexarr.io/install)** goes straight to the setup steps.
 
 ### Web
 - A new server's settings read **Main profile**, not "Main profile's profile".
