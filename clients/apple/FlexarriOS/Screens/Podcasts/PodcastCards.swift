@@ -187,6 +187,10 @@ struct PodcastEpisodeRow: View {
             Button { togglePlayed() } label: {
                 Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? "circle" : "checkmark.circle")
             }
+            // Part way through: unplayed forgets the place, so it leaves the listening list.
+            if episode.progress != nil {
+                Button { markUnplayed() } label: { Label("Mark as unplayed", systemImage: "circle") }
+            }
         }
         .sheet(isPresented: $showingNotes) {
             EpisodeSheet(episode: episode, setPlayed: setPlayed)
@@ -277,6 +281,14 @@ struct PodcastEpisodeRow: View {
             await model.setWatched(episode.summary, !episode.isPlayed)
             await downloads.reconcilePodcasts()
         }
+    }
+
+    private func markUnplayed() {
+        if let setPlayed {
+            setPlayed(false)
+            return
+        }
+        Task { await model.setWatched(episode.summary, false) }
     }
 }
 
@@ -455,6 +467,20 @@ struct EpisodeSheet: View {
                         Label(isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: isPlayed ? "circle" : "checkmark.circle")
                     }
                     .buttonStyle(RoundActionStyle())
+                    if shown.progress != nil, played == nil {
+                        // Part way through: forget the place without marking it played.
+                        Button {
+                            if let setPlayed {
+                                setPlayed(false)
+                            } else {
+                                Task { await model.setWatched(shown.summary, false) }
+                            }
+                            played = false
+                        } label: {
+                            Label("Mark as unplayed", systemImage: "circle")
+                        }
+                        .buttonStyle(RoundActionStyle())
+                    }
                     EpisodeDownloadButton(episode: shown)
                         .frame(width: 48, height: 48)
                         .background(Circle().fill(Color.screen.opacity(0.14)))

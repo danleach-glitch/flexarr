@@ -494,6 +494,14 @@ final class AppModel {
     func setWatched(_ item: ItemSummary, _ watched: Bool) async {
         guard let client else { return }
         try? await client.setWatched(item.id, watched: watched)
+        if !watched { player.offlineLibrary?.forgetPosition(itemId: item.id) }
+        invalidate()
+    }
+
+    func removeFromContinueWatching(_ item: ItemSummary) async {
+        guard let client else { return }
+        try? await client.removeFromContinueWatching(item.id)
+        player.offlineLibrary?.forgetPosition(itemId: item.id)
         invalidate()
     }
 

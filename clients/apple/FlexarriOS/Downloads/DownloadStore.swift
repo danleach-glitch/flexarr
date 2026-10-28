@@ -667,6 +667,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         Task { await catchUp() }
     }
 
+    func forgetPosition(itemId: String) {
+        guard let download = entry(for: itemId), download.finishedAt == nil else { return }
+        update(download.id) {
+            $0.position = 0
+            $0.unsent = nil
+        }
+    }
+
     func nextInfo(after info: PlaybackInfo) -> PlaybackInfo? {
         guard let next = info.next, let download = entry(for: next.id), download.isDownloaded else { return nil }
         return playbackInfo(for: download, preferences: info.preferences)
