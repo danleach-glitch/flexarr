@@ -39,8 +39,23 @@ public class FfprobeMediaProbeTests
     [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"Mastering display metadata"},{"side_data_type":"Content light level metadata"}]},{}]}""", false)]
     [InlineData("""{"frames":[]}""", false)]
     [InlineData("""{}""", false)]
-    public void HasHdr10Plus_ReadsTheFirstFramesSideData(string json, bool expected) =>
-        Assert.Equal(expected, FfprobeMediaProbe.HasHdr10Plus(json));
+    public void HasSideData_FindsHdr10PlusInTheFirstFrames(string json, bool expected) =>
+        Assert.Equal(expected, FfprobeMediaProbe.HasSideData(json, "2094-40"));
+
+    [Theory]
+    [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"ATSC A53 Part 4 Closed Captions"}]}]}""", true)]
+    [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"Mastering display metadata"}]},{}]}""", false)]
+    public void HasSideData_FindsClosedCaptionsInTheFirstFrames(string json, bool expected) =>
+        Assert.Equal(expected, FfprobeMediaProbe.HasSideData(json, "A53"));
+
+    [Theory]
+    [InlineData("h264", true)]
+    [InlineData("mpeg2video", true)]
+    [InlineData("hevc", true)]
+    [InlineData("av1", false)]
+    [InlineData(null, false)]
+    public void CanCarryCaptions_OnlyBroadcastCodecs(string? codec, bool expected) =>
+        Assert.Equal(expected, FfprobeMediaProbe.CanCarryCaptions(codec));
 
     [Fact]
     public void Parse_SkipsEmbeddedCoverArt()

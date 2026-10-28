@@ -60,6 +60,7 @@ final class EngineTransport: PlayerTransport {
         }
         engine.bind(view: surface)
         subtitleSize = info.preferences?.subtitleSize ?? .standard
+        subtitlePlacement = info.preferences?.subtitlePlacement ?? SubtitlePlacement()
     }
 
     /// Opens the file where playback starts, with the server's choice of audio track and the wanted subtitles (the
@@ -165,6 +166,8 @@ final class EngineTransport: PlayerTransport {
     private func trackID(forKey key: String?) -> Int? {
         guard let key else { return nil }
         if key.hasPrefix("e") { return Int(key.dropFirst()) }
+        // Captions in the video's frames: the engine lists them under an id of its own once it has seen some.
+        if key.hasPrefix("cc") { return AetherEngine.a53ClosedCaptionTrackID }
         return sidecarKeys.firstIndex(of: key).map { AetherEngine.externalSubtitleTrackIDBase + $0 }
     }
 
@@ -253,6 +256,8 @@ final class EngineTransport: PlayerTransport {
             if track.isExternal {
                 key = sidecarKeys.indices.contains(sidecar) ? sidecarKeys[sidecar] : "x\(sidecar)"
                 sidecar += 1
+            } else if track.id == AetherEngine.a53ClosedCaptionTrackID {
+                key = info.subtitles.first { $0.key.hasPrefix("cc") }?.key ?? "cc"
             } else {
                 key = "e\(track.id)"
             }
@@ -261,6 +266,16 @@ final class EngineTransport: PlayerTransport {
     }
 
     var activeSubtitleTrack: String? { engine.activeSubtitleTrackIndex.map(String.init) }
+
+    var showsTeletext: Bool {
+        guard let active = engine.activeSubtitleTrackIndex else { return false }
+        return engine.subtitleTracks.first { $0.id == active }?.codec.lowercased().contains("teletext") == true
+    }
+
+    var teletextPage: Int? {
+        get { engine.teletextPage }
+        set { engine.setTeletextPage(newValue) }
+    }
 
     func selectSubtitleTrack(_ id: String?) {
         if let id, let index = Int(id) {
@@ -280,12 +295,17 @@ final class EngineTransport: PlayerTransport {
         }
     }
 
-    /// Text subtitles the engine serves as renditions are drawn by the player layer, at the profile's size.
+    var subtitlePlacement = SubtitlePlacement() {
+        didSet {
+            overlay.placement = subtitlePlacement
+            applyNativeSubtitleSize()
+        }
+    }
+
+    /// Text subtitles the engine serves as renditions are drawn by the player layer, at the profile's size and position.
     private func applyNativeSubtitleSize() {
         guard let item = engine.currentAVPlayerItem else { return }
-        let percent = subtitleSize.percent
-        item.textStyleRules = percent == 100 ? nil
-            : AVTextStyleRule(textMarkupAttributes: [kCMTextMarkupAttribute_RelativeFontSize as String: percent]).map { [$0] }
+        item.textStyleRules = subtitleSize.textStyleRules(placement: subtitlePlacement)
     }
 
     private func selectInitialSubtitle(_ key: String?) {
@@ -303,6 +323,11 @@ final class EngineTransport: PlayerTransport {
             guard track.key.hasPrefix("x"), track.isText, let path = track.url, let url = client.url(for: path) else { return nil }
             return ExternalSubtitleTrack(url: url, name: track.label, language: track.language, isForced: track.isForced, isDefault: track.isDefault, formatHint: "webvtt")
         }
+    }
+
+    private static func isCaptions(_ codec: String) -> Bool {
+        let codec = codec.lowercased()
+        return codec.hasPrefix("eia_") || codec.hasPrefix("cea") || codec == "c608"
     }
 
     private static func isPicture(_ codec: String) -> Bool {
@@ -325,7 +350,10 @@ final class EngineTransport: PlayerTransport {
             .replacingOccurrences(of: "EAC3", with: "E-AC-3").replacingOccurrences(of: "AC3", with: "AC-3")
             .replacingOccurrences(of: "HDMV_PGS_SUBTITLE", with: "PGS").replacingOccurrences(of: "DVB_SUBTITLE", with: "DVB")
             .replacingOccurrences(of: "SUBRIP", with: "SRT").replacingOccurrences(of: "WEBVTT", with: "VTT")
-        var parts = [name]
+        var parts = [name.isEmpty && isCaptions(track.codec) ? "Closed captions" : name]
+        if isCaptions(track.codec), !name.isEmpty {
+            parts.append("CC")
+        }
         if track.channels > 0 {
             parts.append([track.isAtmos ? "\(codec) Atmos" : codec, channels].filter { !$0.isEmpty }.joined(separator: " "))
         } else if isPicture(track.codec) || track.isForced || track.isHearingImpaired {

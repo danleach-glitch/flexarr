@@ -18,7 +18,7 @@ import {
   type PlaybackInfo,
   type PlaybackPreferences,
 } from '../api/client'
-import type { SubtitleSize } from '../api/client'
+import type { SubtitlePosition, SubtitleSize } from '../api/client'
 import {
   Back,
   Captions,
@@ -42,6 +42,8 @@ import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
+import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
+import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
@@ -75,6 +77,7 @@ const defaultPreferences: PlaybackPreferences = { autoPlayNext: true, skipIntros
 
 /** How much bigger than standard each subtitle size draws (player.css scales ::cue by --cue-scale). */
 export const subtitleScale: Record<SubtitleSize, number> = { Small: 0.8, Standard: 1, Large: 1.25, ExtraLarge: 1.5 }
+const subtitlePositions: SubtitlePosition[] = ['Bottom', 'Raised', 'Higher', 'Top']
 const subtitleSizes: { value: SubtitleSize; label: string }[] = [
   { value: 'Small', label: 'Small' },
   { value: 'Standard', label: 'Standard' },
@@ -186,6 +189,8 @@ export function PlayerPage() {
   // Bumped when a subtitle file changes on the server (a re-sync), so the track is fetched again.
   const [subtitleVersion, setSubtitleVersion] = useState(0)
   const scale = subtitleScale[preferences.subtitleSize ?? 'Standard']
+  const position = preferences.subtitlePosition ?? 'Bottom'
+  const blackBars = preferences.subtitlesInBlackBars ?? false
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
   const preparing = useRef<{ itemId: string } | null>(null)
@@ -486,9 +491,10 @@ export function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info, upNextCancelled])
 
-  // Subtitles sit clear of the bottom edge, and rise above the controls while they're showing. Cues are placed by
-  // their top edge as a percentage of the video's height (Chrome ignores lineAlign), so each cue's own height (its
-  // lines at the ::cue font size in player.css) is allowed for and multi-line cues grow upwards. A track's cues (a
+  // Subtitles sit where the profile put them over the picture (or in the black bar below it), and rise above the
+  // controls while they're showing. Cues are placed by their top edge as a percentage of the video's height (Chrome
+  // ignores lineAlign), so each cue's own height (its lines at the ::cue font size in player.css) is allowed for and
+  // multi-line cues grow upwards. A track's cues (a
   // film has a thousand or two) are all placed once, when they've loaded or the space changes; after that each
   // cuechange touches only the cues on screen.
   const controls = useRef<HTMLElement>(null)
@@ -498,9 +504,11 @@ export function PlayerPage() {
     if (!el || !tracks || typeof VTTCue === 'undefined') return
     let placed = new WeakSet<TextTrack>()
     const place = () => {
-      const height = el.getBoundingClientRect().height || innerHeight
-      const lift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : height * 0.08
+      const box = el.getBoundingClientRect()
+      const height = box.height || innerHeight
       const linePx = Math.min(32, Math.max(17.6, innerWidth * 0.024)) * scale * 1.3 + 2
+      const controlsLift = chrome && controls.current ? controls.current.getBoundingClientRect().height + 20 : 0
+      const { top, picture, bar } = pictureIn(box.width || innerWidth, height, el.videoWidth, el.videoHeight)
       for (const track of Array.from(el.textTracks)) {
         if (track.mode !== 'showing' || !track.cues) continue
         const cues = placed.has(track) ? track.activeCues : track.cues
@@ -510,7 +518,7 @@ export function PlayerPage() {
           const lines = cue.text.split('\n').length
           cue.snapToLines = false
           cue.lineAlign = 'start'
-          cue.line = Math.max(5, 100 - ((lift + lines * linePx) / height) * 100)
+          cue.line = cueLine({ height, top, picture, bar, cueHeight: lines * linePx, controlsLift, position, blackBars })
         }
       }
     }
@@ -525,13 +533,52 @@ export function PlayerPage() {
       place()
     }
     window.addEventListener('resize', onResize)
+    // The picture's shape is known once the video has loaded, and can change with the stream (a new quality).
+    el.addEventListener('resize', onResize)
     return () => {
       for (const track of Array.from(tracks)) track.removeEventListener('cuechange', place)
       tracks.removeEventListener('addtrack', onAdd)
       tracks.removeEventListener('change', place)
       window.removeEventListener('resize', onResize)
+      el.removeEventListener('resize', onResize)
     }
-  }, [chrome, subtitleKey, scale])
+  }, [chrome, subtitleKey, scale, position, blackBars])
+
+  // Styled subtitles (ASS/SSA) are drawn as authored, with their fonts, over the video, rather than as plain cues. If
+  // that can't start (a browser without WebGL or WebAssembly), the plain version shows instead.
+  const [styledFailed, setStyledFailed] = useState<string>()
+  const styled = useRef<StyledSubtitles | null>(null)
+  const latestDelay = useRef(subtitleDelay)
+  const styledTrack = info?.subtitles.find((s) => s.key === subtitleKey && s.styledUrl && `${info.sessionId}:${s.key}` !== styledFailed)
+  const styledSource = styledTrack?.styledUrl ? `${styledTrack.styledUrl}${subtitleVersion ? `?v=${subtitleVersion}` : ''}` : undefined
+  const sessionId = info?.sessionId
+  const fontsUrl = info?.fontsUrl
+  useEffect(() => {
+    const el = video.current
+    if (!el || !styledSource || !sessionId) return
+    const failed = `${sessionId}:${subtitleKey}`
+    const abort = new AbortController()
+    drawStyled(el, styledSource, fontsUrl, latestDelay.current, abort.signal).then(
+      (drawn) => {
+        styled.current = drawn
+        drawn.delay = latestDelay.current
+        setSubtitleStatus('idle')
+      },
+      () => {
+        if (!abort.signal.aborted) setStyledFailed(failed)
+      },
+    )
+    return () => {
+      abort.abort()
+      styled.current?.destroy()
+      styled.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styledSource, sessionId, fontsUrl])
+  useEffect(() => {
+    latestDelay.current = subtitleDelay
+    if (styled.current) styled.current.delay = subtitleDelay
+  }, [subtitleDelay])
 
   // Show the chosen text subtitle track (the <track> is swapped when the choice changes).
   useEffect(() => {
@@ -881,6 +928,12 @@ export function PlayerPage() {
     void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
   }
 
+  function choosePlacement(change: Pick<PlaybackPreferences, 'subtitlePosition'> | Pick<PlaybackPreferences, 'subtitlesInBlackBars'>) {
+    const next = { ...preferences, ...change }
+    setPreferences(next)
+    void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
+  }
+
   /** Turns one of the profile's playback preferences on or off, here and for its other devices. */
   function togglePreference(key: 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits') {
     const next = { ...preferences, [key]: !preferences[key] }
@@ -968,7 +1021,8 @@ export function PlayerPage() {
   const item = info?.item
   const series = info?.ancestors[0]
   const accent = item?.accentColor ?? series?.accentColor
-  const selectedText = info?.subtitles.find((s) => s.key === subtitleKey && s.isText && s.url)
+  // Styled subtitles drawn as authored have no plain track as well.
+  const selectedText = styledTrack ? undefined : info?.subtitles.find((s) => s.key === subtitleKey && s.isText && s.url)
   // The server shifts the cues; a new address (with the delay in it) fetches them again.
   const textUrl = selectedText?.url ? `${selectedText.url}${selectedText.url.includes('?') ? '&' : '?'}delay=${subtitleDelay}${subtitleVersion ? `&v=${subtitleVersion}` : ''}` : undefined
   const selectedTrack = info?.subtitles.find((s) => s.key === subtitleKey)
@@ -1000,8 +1054,19 @@ export function PlayerPage() {
             srcLang={selectedText.language ?? 'und'}
             label={selectedText.key}
             default
-            onLoad={() => setSubtitleStatus('idle')}
-            onError={() => setSubtitleStatus('failed')}
+            // React doesn't pass on a <track>'s load and error events, so they're listened for here.
+            ref={(el) => {
+              if (!el) return
+              const loaded = () => setSubtitleStatus('idle')
+              const failed = () => setSubtitleStatus('failed')
+              el.addEventListener('load', loaded)
+              el.addEventListener('error', failed)
+              if (el.readyState === HTMLTrackElement.LOADED) loaded()
+              return () => {
+                el.removeEventListener('load', loaded)
+                el.removeEventListener('error', failed)
+              }
+            }}
           />
         )}
       </video>
@@ -1223,6 +1288,15 @@ export function PlayerPage() {
                         {s.label}
                       </MenuItem>
                     ))}
+                    <h3>Position</h3>
+                    {subtitlePositions.map((p) => (
+                      <MenuItem key={p} selected={position === p} onClick={() => choosePlacement({ subtitlePosition: p })}>
+                        {p}
+                      </MenuItem>
+                    ))}
+                    <MenuItem selected={blackBars} onClick={() => choosePlacement({ subtitlesInBlackBars: !blackBars })}>
+                      In the black bars
+                    </MenuItem>
                   </div>
                 )}
                 {info.audioTracks.length > 0 && (

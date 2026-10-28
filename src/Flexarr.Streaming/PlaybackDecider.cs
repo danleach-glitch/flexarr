@@ -16,10 +16,28 @@ public enum PlaybackMethod
 /// <summary>A subtitle the player can show: an embedded stream or a sidecar file next to the video.</summary>
 public sealed record SubtitleTrack(string Key, int? StreamIndex, string? ExternalPath, string Codec, string? Language, string? Title, bool IsDefault, bool IsForced)
 {
-    private static readonly HashSet<string> TextCodecs = new(StringComparer.OrdinalIgnoreCase) { "subrip", "srt", "ass", "ssa", "webvtt", "mov_text", "text" };
+    private static readonly HashSet<string> TextCodecs = new(StringComparer.OrdinalIgnoreCase) { "subrip", "srt", "ass", "ssa", "webvtt", "mov_text", "text", "eia_608" };
 
-    /// <summary>Text subtitles are converted to WebVTT; image subtitles (PGS, VobSub) must be burned into the video.</summary>
-    public bool IsText => TextCodecs.Contains(Codec);
+    /// <summary>
+    /// Text subtitles are converted to WebVTT; image subtitles (PGS, VobSub) must be burned into the video. Teletext is
+    /// text when this server's FFmpeg can read it.
+    /// </summary>
+    public bool IsText => TextCodecs.Contains(Codec) || (IsTeletext && TeletextReadable);
+
+    /// <summary>Styled subtitles (ASS/SSA): fonts, colours, positions and karaoke a player can draw as authored.</summary>
+    public bool IsStyled => Codec is "ass" or "ssa";
+
+    /// <summary>DVB teletext, as European broadcasts carry subtitles.</summary>
+    public bool IsTeletext => Codec == "dvb_teletext";
+
+    /// <summary>This server's FFmpeg has a teletext decoder (libzvbi), so the track converts to WebVTT.</summary>
+    public bool TeletextReadable { get; init; }
+
+    /// <summary>
+    /// Closed captions carried in the video's own frames (<see cref="StreamIndex"/> is then the video stream's), rather
+    /// than in a stream of their own.
+    /// </summary>
+    public bool InVideo { get; init; }
 }
 
 public sealed record PlaybackOptions(int? AudioStreamIndex = null, string? SubtitleKey = null, long? MaxBitrate = null, int? MaxHeight = null, bool ForceTranscode = false,

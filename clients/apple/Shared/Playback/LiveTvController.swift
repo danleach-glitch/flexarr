@@ -338,4 +338,5 @@ extension LiveTvController: PlayerScreenDelegate {
     func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??) {}
     func playerScreen(_ screen: PlayerViewController, subtitleDelay seconds: Double) {}
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize) {}
+    func playerScreen(_ screen: PlayerViewController, subtitlePlacement placement: SubtitlePlacement) {}
 }

@@ -167,10 +167,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 }
 
                 // Files ffprobe couldn't read are tried again when they change (or when asked), not on every scan. HDR
-                // files from before HDR10+ was looked for are read again once.
+                // files from before HDR10+ was looked for, and videos from before closed captions were, are read again once.
                 if (match is not null && match.Size == file.Length && match.ModifiedAt == file.LastWriteTimeUtc
                     && (match.ProbeError is null || !retryFailedProbes)
-                    && !(match.Hdr10Plus is null && match.ProbeError is null && match.VideoRange is VideoRange.Hdr10 or VideoRange.DolbyVision))
+                    && !(match.Hdr10Plus is null && match.ProbeError is null && match.VideoRange is VideoRange.Hdr10 or VideoRange.DolbyVision)
+                    && !(match.ClosedCaptions is null && match.ProbeError is null && FfprobeMediaProbe.CanCarryCaptions(match.VideoCodec)))
                 {
                     unchanged++;
                 }
@@ -476,6 +477,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.Bitrate = result.Bitrate;
         target.VideoRange = result.VideoRange;
         target.Hdr10Plus = result.Hdr10Plus;
+        target.ClosedCaptions = result.ClosedCaptions;
         target.Streams.AddRange(result.Streams);
 
         var video = result.Streams.FirstOrDefault(s => s.Type == StreamType.Video);

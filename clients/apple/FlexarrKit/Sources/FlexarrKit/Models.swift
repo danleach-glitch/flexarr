@@ -646,14 +646,25 @@ public struct PlaybackPreferences: Codable, Sendable, Hashable {
     public var skipCredits: Bool
     /// Absent from servers before subtitle sizes; left out when saving, the server keeps the profile's own.
     public var subtitleSize: SubtitleSize?
+    /// How high subtitles sit over the picture. Absent from servers before 0.53; left out when saving, it's kept.
+    public var subtitlePosition: SubtitlePosition?
+    /// In films wider than the screen, subtitles go in the black bar below the picture. Absent from servers before 0.53.
+    public var subtitlesInBlackBars: Bool?
 
     public init(autoPlayNext: Bool = true, skipIntros: Bool = false, skipRecaps: Bool = false, skipCredits: Bool = false,
-                subtitleSize: SubtitleSize? = nil) {
+                subtitleSize: SubtitleSize? = nil, subtitlePosition: SubtitlePosition? = nil, subtitlesInBlackBars: Bool? = nil) {
         self.autoPlayNext = autoPlayNext
         self.skipIntros = skipIntros
         self.skipRecaps = skipRecaps
         self.skipCredits = skipCredits
         self.subtitleSize = subtitleSize
+        self.subtitlePosition = subtitlePosition
+        self.subtitlesInBlackBars = subtitlesInBlackBars
+    }
+
+    /// Where this profile wants subtitles drawn.
+    public var subtitlePlacement: SubtitlePlacement {
+        SubtitlePlacement(position: subtitlePosition ?? .bottom, inBlackBars: subtitlesInBlackBars ?? false)
     }
 
     /// What a profile starts with, and what's assumed from a server that doesn't say.
@@ -947,6 +958,44 @@ struct DevicePlayBody: Codable, Sendable {
 }
 
 // MARK: - Subtitles
+
+/// Where subtitles sit: at the foot of the picture, raised a little or a lot, or at the top.
+public enum SubtitlePosition: String, ForwardCompatibleEnum, CaseIterable {
+    case bottom = "Bottom", raised = "Raised", higher = "Higher", top = "Top", unknown
+
+    public static var allCases: [SubtitlePosition] { [.bottom, .raised, .higher, .top] }
+
+    public var label: String {
+        switch self {
+        case .bottom, .unknown: "Bottom"
+        case .raised: "Raised"
+        case .higher: "Higher"
+        case .top: "Top"
+        }
+    }
+
+    /// How far above the picture's foot the bottom of a subtitle sits, as a share of the picture's height (as the web
+    /// player places them); nil at the top.
+    public var lift: Double? {
+        switch self {
+        case .bottom, .unknown: 0.08
+        case .raised: 0.16
+        case .higher: 0.26
+        case .top: nil
+        }
+    }
+}
+
+/// Where a profile wants subtitles: its position, and whether wide films put them in the black bar below the picture.
+public struct SubtitlePlacement: Sendable, Hashable {
+    public var position: SubtitlePosition
+    public var inBlackBars: Bool
+
+    public init(position: SubtitlePosition = .bottom, inBlackBars: Bool = false) {
+        self.position = position
+        self.inBlackBars = inBlackBars
+    }
+}
 
 /// How big subtitles are drawn: one setting per profile, followed by every device.
 public enum SubtitleSize: String, ForwardCompatibleEnum, CaseIterable {

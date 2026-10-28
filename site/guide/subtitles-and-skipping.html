@@ -111,7 +111,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
         <h1>Subtitles, skipping and Up Next</h1>
         <p class="lede">Subtitles of every kind, skipping intros, recaps and credits, the next-episode countdown and scrubbing previews.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -125,9 +125,10 @@
 <p>Flexarr&#39;s own player on Apple TV, iPhone and iPad, and the web player, share the same features for subtitles and getting through a series. Your choices belong to your <a href="/guide/profiles">profile</a>, so they follow you from the TV to your phone.</p>
 <h2 id="subtitles"><a class="anchor" href="#subtitles" aria-hidden="true" tabindex="-1">#</a>Subtitles</h2>
 <h3 id="what-flexarr-finds"><a class="anchor" href="#what-flexarr-finds" aria-hidden="true" tabindex="-1">#</a>What Flexarr finds</h3>
-<p>Flexarr picks up two kinds of subtitles:</p>
+<p>Flexarr picks up these kinds of subtitles:</p>
 <ul>
 <li><strong>Embedded:</strong> tracks inside the video file, as most MKV files have.</li>
+<li><strong>Closed captions</strong> carried inside the video itself, as American TV recordings have them. They&#39;re listed as <strong>CC</strong>. Flexarr checks for them when it scans a file.</li>
 <li><strong>Sidecar files:</strong> <code>.srt</code>, <code>.vtt</code>, <code>.ass</code> or <code>.ssa</code> files beside the video, named after it. Add a language and, if you like, <code>forced</code> or <code>sdh</code> before the extension:</li>
 </ul>
 <pre><code class="language-text">Heat (1995).mkv
@@ -137,8 +138,13 @@ Heat (1995).en.forced.srt
 </code></pre>
 <p>Sonarr, Radarr and most subtitle tools name files this way already.</p>
 <p>Subtitles come as <strong>text</strong> (SRT, WebVTT, ASS and the like) or <strong>pictures</strong> (PGS from Blu-rays, VobSub from DVDs, DVB from broadcasts). Text subtitles are drawn by the player at the size you choose. Picture subtitles are drawn by the app on Apple TV, iPhone and iPad when <strong>Play files directly</strong> is on. In a web browser they have to be burned into the picture, which means the server converts the video while they&#39;re on.</p>
-<blockquote class="callout note"><p><strong>Note</strong> Styled ASS subtitles show their words but not their fonts, colours or positions yet.</p>
-</blockquote>
+<h3 id="styled-subtitles"><a class="anchor" href="#styled-subtitles" aria-hidden="true" tabindex="-1">#</a>Styled subtitles</h3>
+<p>ASS and SSA subtitles, as most anime has, can carry their own fonts, colours, positions, signs and karaoke. The web player draws them exactly as they were made, with the fonts attached to the file. On Apple TV, iPhone and iPad they keep their colours and go where they were placed, such as a sign at the top of the picture, in your caption style&#39;s font.</p>
+<h3 id="closed-captions-and-teletext"><a class="anchor" href="#closed-captions-and-teletext" aria-hidden="true" tabindex="-1">#</a>Closed captions and teletext</h3>
+<ul>
+<li><strong>Closed captions</strong> carried inside the video, as American TV recordings have them, are listed as <strong>CC</strong> and work on every device. Flexarr looks for them when it scans a file.</li>
+<li><strong>Teletext</strong> subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with <strong>Play files directly</strong> on. The subtitles menu there has a <strong>Teletext page</strong> choice for channels that don&#39;t use the usual page, such as 888 in the UK or 150 and 777 in Germany. In a web browser, teletext shows only when the server&#39;s FFmpeg can read it, as the Docker image&#39;s can; a server on a Mac can&#39;t.</li>
+</ul>
 <h3 id="finding-subtitles"><a class="anchor" href="#finding-subtitles" aria-hidden="true" tabindex="-1">#</a>Finding subtitles</h3>
 <p>When a film or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through <a href="/guide/connect-arrs#bazarr">Bazarr</a>. It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile can use it.</p>
 <ol>
@@ -160,6 +166,8 @@ Heat (1995).en.forced.srt
 <li>On Apple TV, in <strong>Settings › Playback › Subtitle size</strong>, or the player.</li>
 <li>On iPhone and iPad, in <strong>Settings › Playback</strong>.</li>
 </ul>
+<h3 id="position"><a class="anchor" href="#position" aria-hidden="true" tabindex="-1">#</a>Position</h3>
+<p>Subtitles sit at the bottom of the picture. If they cover text in the picture, or your TV cuts off its edges, choose <strong>Raised</strong> or <strong>Higher</strong>, or <strong>Top</strong>. With <strong>Subtitles in the black bars</strong> on, films wider than the screen get their subtitles in the black bar below the picture instead of over it, whenever they fit there. Both are your profile&#39;s settings on every device, in <strong>Settings › Playback</strong> and the player&#39;s subtitles menu. Styled subtitles that place themselves keep their own places.</p>
 <h3 id="timing"><a class="anchor" href="#timing" aria-hidden="true" tabindex="-1">#</a>Timing</h3>
 <p>If subtitles come too early or too late, move them to match the speech. In the web player, use the subtitles menu, a quarter of a second at a time. On Apple TV, it&#39;s in the subtitles button in the player&#39;s bar. Each film or episode remembers its own timing. Timing can&#39;t be adjusted on iPhone or iPad yet.</p>
 <figure><img src="/guide/img/tv-player.webp" alt="The Apple TV player paused, with skip buttons, the progress bar, and subtitle and audio buttons at the bottom right" data-caption="The Apple TV player, with subtitles and audio at the bottom right" loading="lazy" decoding="async" class="device"></figure>

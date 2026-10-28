@@ -25,13 +25,17 @@ public sealed record PlaybackRequest(
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 
 /// <param name="IsExternal">A subtitle file beside the video, which Bazarr can re-sync, rather than one inside it.</param>
+/// <param name="StyledUrl">Styled subtitles (ASS/SSA) as authored, for players that draw them with their fonts and positions.</param>
 public sealed record SubtitleTrackDto(string Key, string Label, string Codec, string? Language, bool IsForced, bool IsDefault, bool IsText, string? Url,
-    bool IsExternal = false);
+    bool IsExternal = false, string? StyledUrl = null);
 
 public sealed record MarkerDto(MarkerType Type, double Start, double End);
 
 /// <summary>The subtitles the viewer picked in the player: a track's key, or "off".</summary>
 public sealed record SubtitleChoiceRequest(string Key);
+
+/// <summary>The fonts a file's styled subtitles use (attached to it, as MKVs carry them), by name.</summary>
+public sealed record SubtitleFontDto(string Name, string Url);
 
 public sealed record PlaybackInfoDto(
     string SessionId,
@@ -58,7 +62,8 @@ public sealed record PlaybackInfoDto(
     double AudioDelaySeconds = 0,
     bool AudioDelayInStream = false,
     double? Speed = null,
-    bool CanSearchSubtitles = false)
+    bool CanSearchSubtitles = false,
+    string? FontsUrl = null)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the
@@ -68,8 +73,11 @@ public sealed record PlaybackInfoDto(
 }
 
 /// <summary>How this profile likes to watch: auto-play the next episode, and what to skip without asking.</summary>
-/// <param name="SubtitleSize">Left out (an older app saving its toggles), the profile's size is kept.</param>
-public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, bool SkipRecaps, bool SkipCredits, SubtitleSize? SubtitleSize = null);
+/// <param name="SubtitleSize">Left out (an older app saving its toggles), the profile's size is kept; the same for the rest.</param>
+/// <param name="SubtitlePosition">How high subtitles sit over the picture.</param>
+/// <param name="SubtitlesInBlackBars">In films wider than the screen, subtitles go in the black bar below the picture.</param>
+public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, bool SkipRecaps, bool SkipCredits, SubtitleSize? SubtitleSize = null,
+    SubtitlePosition? SubtitlePosition = null, bool? SubtitlesInBlackBars = null);
 
 /// <summary>Subtitles shown later (positive) or earlier (negative), in seconds.</summary>
 public sealed record SubtitleDelayRequest(double Seconds);

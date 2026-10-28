@@ -213,6 +213,22 @@ public sealed class PlaybackPreferencesTests : IDisposable
     }
 
     [Fact]
+    public async Task SubtitlePlacement_StartsAtTheBottomOverThePicture_AndIsKeptWhenAnOlderAppSavesItsToggles()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var uri = new Uri("/api/v1/me/playback-preferences", UriKind.Relative);
+        var first = await client.GetFromJsonAsync<JsonElement>(uri);
+        Assert.Equal(("Bottom", false), (first.GetProperty("subtitlePosition").GetString(), first.GetProperty("subtitlesInBlackBars").GetBoolean()));
+
+        (await client.PutAsJsonAsync(uri, new { autoPlayNext = true, skipIntros = false, skipRecaps = false, skipCredits = false, subtitlePosition = "Higher", subtitlesInBlackBars = true })).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync(uri, new { autoPlayNext = true, skipIntros = false, skipRecaps = false, skipCredits = false, subtitleSize = "Small" })).EnsureSuccessStatusCode();
+
+        var saved = await client.GetFromJsonAsync<JsonElement>(uri);
+        Assert.Equal(("Higher", true, "Small"), (saved.GetProperty("subtitlePosition").GetString(), saved.GetProperty("subtitlesInBlackBars").GetBoolean(), saved.GetProperty("subtitleSize").GetString()));
+    }
+
+    [Fact]
     public async Task SubtitleDelay_IsRememberedForTheTitle_WithinAMinute()
     {
         var client = _factory.CreateClient();
