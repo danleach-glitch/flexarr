@@ -47,6 +47,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security
+- A Mac server only installs an update by itself when the update is signed by Flexarr's release key, so a release slipped onto GitHub by someone else can't install itself overnight. Updating with the install script still works as before.
 - A profile kept out of a library no longer sees what's playing from it on the household's other screens. The device shows as playing **Something private**, with no title or artwork, in the device list, Home Assistant events and the AI assistant.
 - A phone, tablet or TV that hasn't been used for a year is signed out, so one that was lost, sold or given away stops working. Signing it in again takes a new code.
 - Phones signed in with the server's API key can't change or test each other's notifications when more than one of them is set up.

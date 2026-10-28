@@ -135,10 +135,18 @@ public sealed partial class MacUpdater(
         var build = release.MacBuild(RuntimeInformation.OSArchitecture)
             ?? throw new UpdateException($"Flexarr {release.Version} has no Mac build to install. Update with the install script instead.");
         var sums = release.Checksums ?? throw new UpdateException($"Flexarr {release.Version} has no checksums, so its Mac build can't be checked.");
+        var signature = release.Signature
+            ?? throw new UpdateException($"Flexarr {release.Version} isn't signed, so it wasn't installed. Update with the install script instead.");
         LogStarting(release.Version.ToString());
 
         var http = clients.CreateClient(UpdateChecker.DownloadClientName);
-        var expected = ChecksumFor(await http.GetStringAsync(sums.Url, ct), build.Name)
+        var sumsBytes = await http.GetByteArrayAsync(sums.Url, ct);
+        if (!UpdateSignature.Verify(sumsBytes, await http.GetByteArrayAsync(signature.Url, ct)))
+        {
+            throw new UpdateException($"Flexarr {release.Version}'s signature doesn't match, so it wasn't installed. Update with the install script instead.");
+        }
+
+        var expected = ChecksumFor(System.Text.Encoding.UTF8.GetString(sumsBytes), build.Name)
             ?? throw new UpdateException($"Flexarr {release.Version}'s checksums don't include {build.Name}.");
 
         var stage = Path.Combine(root, "update");

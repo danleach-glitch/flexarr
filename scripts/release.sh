@@ -4,7 +4,9 @@
 #   scripts/release.sh prepare minor|patch|<x.y.z>   check main's CI, bump the version everywhere, commit, tag, push
 #   scripts/release.sh publish v<x.y.z>               wait for that commit's CI, the tag's Docker image and Mac
 #                                                     builds, then publish the GitHub release with the changelog
-#                                                     section as notes and the Mac builds attached
+#                                                     section as notes and the Mac builds attached, their
+#                                                     SHA256SUMS signed with the update signing key
+#   scripts/release.sh signing-key                    make that key, once (see UpdateSignature.cs)
 #
 # Run it from a clean checkout of main (the /release skill makes a throwaway worktree for it). Never release a red build:
 # every job's result is printed, and anything but success or skipped stops the script.
@@ -33,6 +35,10 @@ wait_for_run() {
   [ "$conclusion" = 0 ] || die "$workflow run $id is not green: https://github.com/danleach-glitch/flexarr/actions/runs/$id"
   run_id="$id"
 }
+
+# The key that signs SHA256SUMS, which Mac servers check before installing an update. Kept on the releasing Mac (and
+# in 1Password), never in CI: a stolen GitHub token can publish a release but can't sign it.
+signing_key="${FLEXARR_SIGNING_KEY:-$HOME/.flexarr-release/update-signing-key.pem}"
 
 current_version() { sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' Directory.Build.props; }
 
@@ -98,16 +104,32 @@ publish() {
     [ -f "$builds/flexarr-$version-$rid.tar.gz" ] || die "the Mac builds have no flexarr-$version-$rid.tar.gz"
   done
   (cd "$builds" && shasum -a 256 -c SHA256SUMS) || die "the Mac builds don't match their SHA256SUMS"
+  [ -f "$signing_key" ] || die "no update signing key at $signing_key (restore it from 1Password, or see $0 signing-key)"
+  openssl dgst -sha256 -sign "$signing_key" -out "$builds/SHA256SUMS.sig" "$builds/SHA256SUMS" || die "couldn't sign SHA256SUMS"
   # The changelog section for this version, without its heading.
   notes=$(awk -v v="$version" '$0 ~ "^## " v " " {on=1; next} /^## / {if (on) exit} on' CHANGELOG.md)
   [ -n "$notes" ] || die "no CHANGELOG.md section for $version"
-  gh release create "$tag" --title "$version" --notes "$notes" --verify-tag "$builds"/flexarr-*.tar.gz "$builds/SHA256SUMS"
+  gh release create "$tag" --title "$version" --notes "$notes" --verify-tag "$builds"/flexarr-*.tar.gz "$builds/SHA256SUMS" "$builds/SHA256SUMS.sig"
   rm -rf "$builds"
   echo "==> Released $version: https://github.com/danleach-glitch/flexarr/releases/tag/$tag"
+}
+
+# Makes the update signing key once (P-256), owner-only, and prints its public half for UpdateSignature.cs. Keep a copy
+# of the private key in 1Password: without it no release can be installed by Mac servers.
+signing_key_create() {
+  if [ -f "$signing_key" ]; then
+    echo "==> $signing_key is already there; its public key:"
+  else
+    mkdir -p "$(dirname "$signing_key")" && chmod 700 "$(dirname "$signing_key")"
+    (umask 077 && openssl ecparam -name prime256v1 -genkey -noout -out "$signing_key") || die "couldn't make the key"
+    echo "==> Made $signing_key. Save it in 1Password now. Its public key, for src/Flexarr.Api/Updates/UpdateSignature.cs:"
+  fi
+  openssl ec -in "$signing_key" -pubout 2>/dev/null
 }
 
 case "${1:-}" in
   prepare) shift; prepare "$@" ;;
   publish) shift; publish "$@" ;;
-  *) echo "usage: $0 prepare minor|patch|<x.y.z>  |  $0 publish v<x.y.z>" >&2; exit 2 ;;
+  signing-key) signing_key_create ;;
+  *) echo "usage: $0 prepare minor|patch|<x.y.z>  |  $0 publish v<x.y.z>  |  $0 signing-key" >&2; exit 2 ;;
 esac
