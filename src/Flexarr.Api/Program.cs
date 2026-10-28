@@ -186,6 +186,7 @@ builder.Services.AddSingleton<FranchiseSync>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FranchiseSync>());
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
 builder.Services.AddScoped<MetadataRefresher>();
+builder.Services.AddScoped<PathMappingFinder>();
 
 builder.Services.AddDbContext<FlexarrDbContext>((sp, db) =>
 {

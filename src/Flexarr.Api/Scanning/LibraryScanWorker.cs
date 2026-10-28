@@ -1,3 +1,4 @@
+using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Paths;
@@ -164,6 +165,20 @@ public sealed partial class LibraryScanWorker(
                 result.Unmatched, result.ProbeFailures, seconds);
         }
 
+        // A whole library was scanned (at startup, twice a day, after the connections change): first save any mapping its
+        // titles make certain, so the refresh below can link them to Sonarr, Radarr or Lidarr.
+        if (targets.Any(t => t.Library.Folders.Any(f => PathComparison.IsUnder(f.Path, t.Scope))))
+        {
+            try
+            {
+                await scope.ServiceProvider.GetRequiredService<PathMappingFinder>().ApplyCertainAsync(ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                LogMappingsFailed(ex);
+            }
+        }
+
         foreach (var library in targets.Select(t => t.Library).DistinctBy(l => l.Id))
         {
             // A scan of one folder (a webhook) also refreshes the films or series in it, so new episodes get their
@@ -184,6 +199,9 @@ public sealed partial class LibraryScanWorker(
         // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't work out path mappings before refreshing metadata")]
+    private partial void LogMappingsFailed(Exception ex);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Scanning {Library}: {Path} ({Reason})")]
     private partial void LogScanStarted(string library, string path, string reason);

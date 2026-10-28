@@ -94,6 +94,9 @@ public sealed class FlexarrOptions
     /// <summary>Rewrites paths received from *arr apps (typically running in Docker) to local paths.</summary>
     public List<PathMapping> PathMappings { get; set; } = [];
 
+    /// <summary>The <see cref="PathMapping.From"/> of each mapping Flexarr worked out and saved itself, so it's only saved once.</summary>
+    public List<string> PathMappingsDetected { get; set; } = [];
+
     public LayoutOptions Layout { get; set; } = new();
 
     public PodcastOptions Podcasts { get; set; } = new();
