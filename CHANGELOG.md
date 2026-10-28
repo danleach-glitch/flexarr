@@ -5,6 +5,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
+- Live TV channels that need converting share the server's limit on conversions with films and episodes, so a busy evening can't overload it. A channel played as it is doesn't count.
+- A download being converted for your phone stops when someone starts watching, and carries on once they've finished, instead of competing with them.
 - HDR films converted for an SDR screen no longer look grey and washed out on Docker and Linux servers, on NVIDIA and Intel Quick Sync graphics, or with subtitles burned in.
 - When the graphics card won't convert a video (busy, or not passed in to Docker), Flexarr converts it in software instead of failing every time you press Play. The log says when it does. (The Mac app has no software converter, so there it still fails.)
 - Burned-in picture subtitles (Blu-ray PGS, DVD) fit the picture: they stay in frame on films cropped to widescreen, and are full size in 4K instead of small in a corner.

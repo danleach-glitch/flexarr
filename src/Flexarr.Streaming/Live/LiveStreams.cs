@@ -7,7 +7,8 @@ namespace Flexarr.Streaming.Live;
 /// The channels being watched, one <see cref="LiveSession"/> each, started by their first viewer and stopped a little
 /// after their last leaves (so flicking away and back doesn't lose the rewind window).
 /// </summary>
-public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory loggers) : IAsyncDisposable
+/// <param name="transcoding">How many films and episodes are being converted, for the server's one transcode limit.</param>
+public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? transcoding = null) : IAsyncDisposable
 {
     /// <summary>Segments a new channel has before its first viewer is given it: enough not to stall straight away.</summary>
     private const int SegmentsToStart = 2;
@@ -83,6 +84,14 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
             if (running is null)
             {
                 await StopIdleAsync().ConfigureAwait(false);
+                // A channel that has to be converted takes a slot like a film does; copying the stream as it is costs
+                // next to nothing and doesn't.
+                var limit = settings().MaxConcurrentTranscodes;
+                if (!made!.CopyVideo && limit > 0 && ConvertingCount + (transcoding?.Invoke() ?? 0) >= limit)
+                {
+                    throw new LiveStreamException("Flexarr is busy playing on other screens. Try again when one of them finishes.");
+                }
+
                 running = new LiveSession(channelKey, source, made!, rewind, settings(), _logger);
                 running.Start();
                 _sessions[channelKey] = running;
@@ -107,6 +116,9 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
             throw;
         }
     }
+
+    /// <summary>Channels converting video (not just copying it), which count towards the server's transcode limit.</summary>
+    public int ConvertingCount => _sessions.Values.Count(s => !s.Plan.CopyVideo && !s.Failed && !s.Ended);
 
     /// <summary>Stops the channels nobody is watching (call with the starting lock held).</summary>
     private async Task StopIdleAsync()

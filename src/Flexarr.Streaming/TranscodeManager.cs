@@ -9,7 +9,8 @@ public sealed class TranscodeLimitException(string? message = null)
     : Exception(message ?? "Flexarr is busy playing on other screens. Try again when one of them finishes.");
 
 /// <summary>Owns all transcode sessions: creation, lookup, throttling and cleanup.</summary>
-public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers) : IAsyncDisposable
+/// <param name="otherWork">Live TV channels being converted, which take slots of the same limit but can't be taken over.</param>
+public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? otherWork = null) : IAsyncDisposable
 {
     private static readonly TimeSpan StopAfterIdle = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan ReleaseAfterIdle = TimeSpan.FromMinutes(30);
@@ -66,7 +67,8 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         lock (_createLock)
         {
             var active = _sessions.Values.Where(s => s.IsActive).ToList();
-            if (limit > 0 && active.Count >= limit)
+            var others = otherWork?.Invoke() ?? 0;
+            if (limit > 0 && active.Count + others >= limit)
             {
                 if (restarting)
                 {
@@ -84,7 +86,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                 var (candidates, reason) = mine.Count >= share
                     ? (mine, TakenOverBySameProfile)
                     : (active.GroupBy(s => s.ProfileId).Where(g => g.Count() > share).SelectMany(g => g).ToList(), TakenOverByOtherProfile);
-                var needed = active.Count - limit + 1;
+                var needed = active.Count + others - limit + 1;
                 if (candidates.Count < needed)
                 {
                     throw new TranscodeLimitException();
@@ -126,7 +128,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         var limit = settings().MaxConcurrentTranscodes;
         lock (_createLock)
         {
-            if (limit > 0 && _sessions.Values.Count(s => s != session && s.IsActive) >= limit)
+            if (limit > 0 && _sessions.Values.Count(s => s != session && s.IsActive) + (otherWork?.Invoke() ?? 0) >= limit)
             {
                 throw new TranscodeLimitException();
             }
