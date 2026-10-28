@@ -57,7 +57,7 @@ struct ServerMenu: View {
             NSApp.activate()
             NSApp.orderFrontStandardAboutPanel(nil)
         }
-        Button("Donate to Flexarr") { NSWorkspace.shared.open(URL(string: "https://flexarr.io/donate")!) }
+        Button("flexarr.io") { NSWorkspace.shared.open(URL(string: "https://flexarr.io")!) }
         Divider()
         Button("Quit Flexarr") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
