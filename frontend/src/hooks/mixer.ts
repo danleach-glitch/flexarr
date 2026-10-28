@@ -15,17 +15,28 @@ export interface Mixer {
   channel(el: HTMLMediaElement): Channel
   /** Lets sound through again after the browser has paused the audio clock: called from the user's own gesture. */
   resume(): void
+  /** What everything sounds like together, for the visualiser; null until a channel is made, or without Web Audio. */
+  analyser(): AnalyserNode | null
 }
 
 export function createMixer(): Mixer {
   const channels = new Map<HTMLMediaElement, Channel>()
   let context: AudioContext | null | undefined
+  // Every channel feeds one bus, so the visualiser hears the mix (both tracks, mid-crossfade) after their levels.
+  let bus: AnalyserNode | null = null
 
   // Made on first use rather than at startup: browsers only let an AudioContext run once the page has been touched.
   const audioContext = () => {
     if (context !== undefined) return context
     try {
       context = typeof AudioContext === 'undefined' ? null : new AudioContext()
+      if (context) {
+        bus = context.createAnalyser()
+        bus.fftSize = 2048
+        // The visualiser does its own smoothing, with a quicker attack than release.
+        bus.smoothingTimeConstant = 0
+        bus.connect(context.destination)
+      }
     } catch {
       context = null
     }
@@ -36,7 +47,7 @@ export function createMixer(): Mixer {
     try {
       const gain = ctx.createGain()
       ctx.createMediaElementSource(el).connect(gain)
-      gain.connect(ctx.destination)
+      gain.connect(bus ?? ctx.destination)
       return {
         set(value) {
           gain.gain.cancelScheduledValues(ctx.currentTime)
@@ -74,5 +85,6 @@ export function createMixer(): Mixer {
     resume() {
       if (context?.state === 'suspended') void context.resume().catch(() => undefined)
     },
+    analyser: () => bus,
   }
 }

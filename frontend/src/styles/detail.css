@@ -664,6 +664,310 @@
   object-fit: cover;
 }
 
+button.now-playing-cover {
+  position: relative;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+/* Hovering the cover says it opens something bigger. */
+.now-playing-expand {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.now-playing-expand svg {
+  width: 20px;
+  height: 20px;
+}
+
+button.now-playing-cover:hover .now-playing-expand,
+button.now-playing-cover:focus-visible .now-playing-expand {
+  opacity: 1;
+}
+
+/* ---------- Now Playing over the whole window, with the visualiser behind ---------- */
+
+.np-view {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  overflow: hidden;
+  background: #07060a;
+  color: #fff;
+  animation: np-view-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes np-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.985);
+  }
+}
+
+/* Drawn small and scaled up: the blur turns its few pixels into soft light, and overscan hides the blurred edge. */
+.aurora {
+  position: absolute;
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  filter: blur(36px) saturate(1.2);
+}
+
+.np-view-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 45%, transparent 35%, rgb(0 0 0 / 0.5) 100%),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.15), transparent 30%, transparent 70%, rgb(0 0 0 / 0.35));
+  pointer-events: none;
+}
+
+.np-view-close {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  color: rgb(255 255 255 / 0.8);
+  background: rgb(0 0 0 / 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.np-view-close:hover {
+  color: #fff;
+  background: rgb(255 255 255 / 0.16);
+}
+
+.np-view-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 560px);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(36px, 6vw, 110px);
+  padding: 64px clamp(24px, 6vw, 96px);
+}
+
+.np-view-cover {
+  width: min(60vh, 42vw, 640px);
+  aspect-ratio: 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.06);
+  box-shadow:
+    0 40px 120px rgb(0 0 0 / 0.55),
+    0 0 160px -30px var(--glow);
+}
+
+.np-view-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.np-view-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-shadow: 0 2px 24px rgb(0 0 0 / 0.35);
+}
+
+.np-view-title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--display);
+  font-size: clamp(40px, 5.4vw, 88px);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-decoration: none;
+  text-wrap: balance;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.np-view-artist {
+  margin-top: 14px;
+  overflow: hidden;
+  font-size: clamp(18px, 1.6vw, 24px);
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.72);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.np-view-title:hover,
+a.np-view-artist:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.12em;
+}
+
+.np-view-seek {
+  margin-top: clamp(28px, 4vh, 48px);
+}
+
+.np-view-seek input {
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.np-view-seek input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #fff var(--progress), rgb(255 255 255 / 0.22) var(--progress));
+}
+
+.np-view-seek input::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #fff var(--progress), rgb(255 255 255 / 0.22) var(--progress));
+}
+
+.np-view-seek input::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+  appearance: none;
+}
+
+.np-view-seek input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+}
+
+.np-view-seek input:is(:hover, :focus-visible)::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.np-view-seek input:is(:hover, :focus-visible)::-moz-range-thumb {
+  opacity: 1;
+}
+
+.np-view-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.np-view-controls {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-top: clamp(20px, 3vh, 36px);
+}
+
+.np-view-skip {
+  width: 56px;
+  height: 56px;
+  color: #fff;
+}
+
+.np-view-skip svg {
+  width: 30px;
+  height: 30px;
+}
+
+.np-view-skip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.np-view-toggle {
+  width: 80px;
+  height: 80px;
+  background: #fff;
+  color: #0b0a0e;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.35), 0 0 50px -10px var(--glow);
+  transition: transform 0.15s;
+}
+
+.np-view-toggle:hover {
+  background: #fff;
+  transform: scale(1.05);
+}
+
+.np-view-toggle svg {
+  width: 32px;
+  height: 32px;
+}
+
+.np-view-next {
+  margin: clamp(28px, 5vh, 56px) 0 0;
+  overflow: hidden;
+  font-size: 15px;
+  color: rgb(255 255 255 / 0.7);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-view-next span {
+  margin-right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+@media (max-width: 760px) {
+  .np-view-stage {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-content: center;
+    gap: 32px;
+    padding: 72px 24px calc(32px + env(safe-area-inset-bottom));
+  }
+
+  .np-view-cover {
+    width: min(80vw, 44vh);
+  }
+
+  .np-view-info {
+    width: 100%;
+    align-items: center;
+    text-align: center;
+  }
+
+  .np-view-info .np-view-seek {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-view {
+    animation: none;
+  }
+}
+
 .now-playing-text {
   display: flex;
   flex-direction: column;
