@@ -1023,7 +1023,8 @@ describe('Player', () => {
     // are slow), so wait for the text rather than the dialog.
     await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent(takenOver), { timeout: 5000 })
     expect(requests).toHaveLength(1)
-  })
+    // Longer than the wait inside it, which on a slow runner otherwise ran into the test's own 5 s limit.
+  }, 15_000)
 
   it('tells the server when subtitles are switched in the browser, so the choice holds next time', async () => {
     const choices: unknown[] = []
