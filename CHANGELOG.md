@@ -18,7 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - HLG videos that the Apple TV can't draw itself play from the server instead of showing black.
 
 ### Requests
-- Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. With a TV library each, Claire's requests can go to Claire's Shows while everyone else's go to TV Shows. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
+- Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. When two people have a TV library each, the shows each of them asks for land in their own. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
 
 ### Playback
 - When you've chosen a language, the soundtrack in it is picked over a commentary or audio description track, and the file's default track wins among the rest.
