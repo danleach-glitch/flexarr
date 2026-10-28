@@ -65,7 +65,7 @@ function subtitle(item: ItemSummary): string | null {
  * `playLabel` is for artwork that plays rather than opens; when the artwork opens the same page as the title link,
  * it's left out of the tab order and hidden from screen readers so each card has one link to its page.
  */
-function CardShell({ item, to, className, art, playLabel, onOpen, overlay, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; onOpen?: () => void; overlay?: ReactNode; children?: ReactNode }) {
+function CardShell({ item, to, className, art, playLabel, onOpen, overlay, continueWatching, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; onOpen?: () => void; overlay?: ReactNode; continueWatching?: boolean; children?: ReactNode }) {
   const [menuAt, setMenuAt] = useState<MenuPoint | null>(null)
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
   const menu = hasMenu(item)
@@ -118,7 +118,7 @@ function CardShell({ item, to, className, art, playLabel, onOpen, overlay, child
           <More />
         </button>
       )}
-      {menuAt && <ItemMenu item={item} at={menuAt} onClose={() => setMenuAt(null)} />}
+      {menuAt && <ItemMenu item={item} at={menuAt} onClose={() => setMenuAt(null)} continueWatching={continueWatching} />}
     </div>
   )
 }
@@ -195,8 +195,8 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
   )
 })
 
-/** 16:9 card for episodes and Continue Watching: the still (or backdrop) with the show's name beneath. */
-export function WideCard({ item, showSeries = true }: { item: ItemSummary; showSeries?: boolean }) {
+/** 16:9 card for episodes and Continue Watching (`continueWatching`): the still (or backdrop) with the show's name beneath. */
+export function WideCard({ item, showSeries = true, continueWatching = false }: { item: ItemSummary; showSeries?: boolean; continueWatching?: boolean }) {
   const image = item.artwork.thumb ?? item.artwork.backdrop
   const isEpisode = item.kind === 'Episode'
   return (
@@ -205,6 +205,7 @@ export function WideCard({ item, showSeries = true }: { item: ItemSummary; showS
       to={isEpisode || item.kind === 'Movie' ? `/play/${item.id}` : itemLink(item)}
       playLabel={isEpisode || item.kind === 'Movie' ? `${progressOf(item) !== null ? 'Resume' : 'Play'} ${cardLabel(item)}` : undefined}
       className="wide-card"
+      continueWatching={continueWatching}
       art={
         <div className="card-frame">
           <Artwork src={image} fallback={item.artwork.backdrop} title={item.title} width={500} shape="wide" accent={item.accentColor} />

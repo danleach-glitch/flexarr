@@ -460,6 +460,8 @@ export const getLoudness = (id: string, signal?: AbortSignal) =>
 export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/radio`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
+/** Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until another is played. */
+export const removeFromContinueWatching = (id: string) => request<void>('DELETE', `/home/continue/${id}`)
 const deleted = new Set<string>()
 /** What deleting a title does: Radarr or Sonarr delete it, or when neither manages it, Flexarr deletes these files. */
 export interface DeletionPlan {

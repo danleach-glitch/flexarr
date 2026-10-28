@@ -88,6 +88,43 @@ describe('App', () => {
     expect(marked).toEqual([{ watched: true }])
   })
 
+  it('marks a half-watched episode unwatched, and removes a show’s next episode, from Continue Watching', async () => {
+    const userData = { positionSeconds: 0, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null }
+    const started = summary({ id: 'e5', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 5, seriesTitle: 'Severance', seriesId: 's1', durationSeconds: 3000, userData: { ...userData, positionSeconds: 600 } })
+    const next = summary({ id: 'f2', kind: 'Episode', title: 'Two', seasonNumber: 1, episodeNumber: 2, seriesTitle: 'Slow Horses', seriesId: 's2', durationSeconds: 3000, userData })
+    let row = [started, next]
+    const calls: string[] = []
+    mockApi({
+      '/system/status': status,
+      '/libraries': [movies],
+      '/home': () => ({ featured: [], overviews: {}, rows: [{ id: 'continue', title: 'Continue watching', style: 'wide', items: row, link: null }], upcoming: [], downloading: 0 }),
+      'POST /items/e5/watched': (init?: RequestInit) => {
+        calls.push(`watched ${JSON.parse(String(init?.body)).watched}`)
+        row = row.filter((i) => i.id !== 'e5')
+      },
+      'DELETE /home/continue/f2': () => {
+        calls.push('removed f2')
+        row = row.filter((i) => i.id !== 'f2')
+      },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S01E05' }))
+    let menu = screen.getByRole('menu')
+    // Part way through: either way. Not next up, so no Remove.
+    expect(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove from Continue Watching' })).not.toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as unwatched' }))
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Severance S01E05' })).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Slow Horses S01E02' }))
+    menu = screen.getByRole('menu')
+    expect(within(menu).queryByRole('menuitem', { name: 'Mark episode as unwatched' })).not.toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue Watching' }))
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Slow Horses S01E02' })).not.toBeInTheDocument())
+    expect(calls).toEqual(['watched false', 'removed f2'])
+  })
+
   it('toggles watched from the tick on a poster', async () => {
     const posted: unknown[] = []
     mockApi({
