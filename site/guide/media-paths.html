@@ -162,15 +162,16 @@
 <h2 id="when-the-paths-can-t-match-path-mappings"><a class="anchor" href="#when-the-paths-can-t-match-path-mappings" aria-hidden="true" tabindex="-1">#</a>When the paths can&#39;t match: path mappings</h2>
 <p>Sometimes you can&#39;t change the volumes, or the *arrs run in Docker and Flexarr runs natively on a Mac. Then add a <strong>path mapping</strong>: &quot;what Sonarr calls <em>this</em>, Flexarr calls <em>that</em>&quot;.</p>
 <h3 id="in-settings"><a class="anchor" href="#in-settings" aria-hidden="true" tabindex="-1">#</a>In Settings</h3>
-<p>Go to <strong>Settings › Connections</strong> and find <strong>Path mappings</strong>.</p>
-<figure><img src="/guide/img/connections.webp" alt="Settings › Connections, with a path mapping from /data in the apps to /Volumes/Media/data on the server" data-caption="Path mappings sit at the bottom of Settings › Connections" loading="lazy" decoding="async"></figure>
-<ol>
-<li>Choose <strong>Add a mapping</strong>.</li>
-<li>In <strong>Path in the app</strong>, type the path the *arr app uses, such as <code>/tv</code>.</li>
-<li>In <strong>Path on this server</strong>, type where Flexarr sees the same folder, such as <code>/data/media/tv</code>.</li>
-<li>Choose <strong>Save</strong>.</li>
-</ol>
-<p>Add one mapping for each folder that differs. Mappings apply straight away.</p>
+<p>Go to <strong>Settings › Connections</strong> and find <strong>Media folders</strong>. Each of Sonarr, Radarr and Lidarr&#39;s root folders has a line saying where it is on this server.</p>
+<p>Usually Flexarr works this out by itself. It compares the folders Sonarr, Radarr and Lidarr keep their shows, films and artists in with the folders Flexarr found the same titles in. Sonarr&#39;s <code>/tv/Severance (2022)</code> and Flexarr&#39;s <code>/data/media/tv/Severance (2022)</code> mean <code>/tv</code> is <code>/data/media/tv</code>. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.</p>
+<p>When it&#39;s less sure, the line is amber:</p>
+<ul>
+<li><strong>Use this</strong> saves the folder Flexarr suggests.</li>
+<li><strong>Choose another</strong> or <strong>Choose folder</strong> lets you pick the folder on the server yourself.</li>
+</ul>
+<p>The app&#39;s line under <strong>Apps</strong> also says when one of its folders isn&#39;t found.</p>
+<p>To write a mapping yourself, choose <strong>Edit by hand</strong> (or <strong>Add one by hand</strong>). In <strong>Path in the app</strong>, type the path the *arr app uses, such as <code>/tv</code>. In <strong>Path on this server</strong>, type where Flexarr sees the same folder, such as <code>/data/media/tv</code>. Then choose <strong>Save</strong>. Mappings apply straight away, and titles that weren&#39;t linked to Sonarr, Radarr or Lidarr are matched again.</p>
+<p>If you take out a mapping Flexarr saved itself, it doesn&#39;t add it back.</p>
 <h3 id="in-config-json"><a class="anchor" href="#in-config-json" aria-hidden="true" tabindex="-1">#</a>In config.json</h3>
 <p>The same mappings are kept in the server&#39;s <code>config.json</code> (in <code>/config</code> in Docker, <code>~/.flexarr/data</code> on a Mac) as <code>pathMappings</code>:</p>
 <pre><code class="language-json">{

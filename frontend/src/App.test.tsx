@@ -669,7 +669,7 @@ describe('Settings', () => {
     renderAt('/settings/connections')
 
     expect(await screen.findByText(/folder isn’t at that path on this server/)).toBeInTheDocument()
-    expect(screen.getByText(/Both titles you have in both put it at/)).toBeInTheDocument()
+    expect(screen.getByText(/Not at that path here, but the 2 shows in both are in/)).toBeInTheDocument()
     expect(screen.getByText('At the same path on this server')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Use this' }))
     await vi.waitFor(() => expect(saved).toEqual({ pathMappings: [{ from: '/tv', to: '/Volumes/Media/TV' }] }))

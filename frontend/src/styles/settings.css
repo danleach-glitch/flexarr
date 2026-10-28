@@ -490,20 +490,13 @@
   color: inherit;
 }
 
-/* Under a media folder: the mappings saved, which can be edited by hand. */
+/* Under the media folders: the mappings saved, opened to edit them by hand. */
 .saved-mappings {
   padding: 14px 0;
 }
 
 .connection + .saved-mappings {
   border-top: 1px solid var(--aisle);
-}
-
-.settings-minor-head {
-  margin: 0;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--usher);
 }
 
 .mapping {
@@ -701,6 +694,13 @@
 
   .connection-actions {
     margin-left: 22px;
+  }
+
+  /* A media folder's paths are long: they wrap within their column, beside the dot and logo, not under them. */
+  .media-folder .setting-text {
+    flex: 1 1 calc(100% - 60px);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .library-row {

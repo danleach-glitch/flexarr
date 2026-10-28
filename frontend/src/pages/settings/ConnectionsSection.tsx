@@ -545,7 +545,7 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
       >
         {folders?.map((f) => (
           <div key={`${f.app}:${f.path}`} className="connection">
-            <div className="connection-line">
+            <div className="connection-line media-folder">
               <span className={f.state === 'Found' || f.state === 'Mapped' ? 'status-dot ok' : 'status-dot warn'} aria-hidden="true" />
               <img className="app-logo" src={appLogos[f.kind]} alt="" />
               <span className="setting-text">
@@ -602,8 +602,9 @@ function FolderState({ folder: f }: { folder: ArrFolder }) {
     case 'Suggested':
       return (
         <>
-          Not at that path here.{' '}
-          {f.agreeing > 0 ? `${titlesAgreeing(f.agreeing, f.compared)} at ` : 'Perhaps '}
+          {f.agreeing > 0
+            ? `Not at that path here, but ${titlesAgreeing(f.kind, f.agreeing, f.compared)} in both ${f.compared === 1 ? 'is' : 'are'} in `
+            : 'Not at that path here. Perhaps '}
           <code>{f.suggested?.to}</code>
           {f.agreeing === 0 && ', which has the same name'}
         </>
@@ -613,22 +614,49 @@ function FolderState({ folder: f }: { folder: ArrFolder }) {
   }
 }
 
-const titlesAgreeing = (agreeing: number, compared: number) =>
-  agreeing < compared
-    ? `${agreeing.toLocaleString()} of the ${compared.toLocaleString()} titles you have in both put it`
-    : compared === 1
-      ? 'The one title you have in both puts it'
-      : `${compared === 2 ? 'Both' : `All ${compared.toLocaleString()}`} titles you have in both put it`
+const titleWords: Record<ArrKind, [string, string]> = { Sonarr: ['show', 'shows'], Radarr: ['film', 'films'], Lidarr: ['artist', 'artists'] }
 
-/** The mappings saved (worked out, taken from a suggestion, or written by hand), which can be changed. Saved together, once changed. */
+/** "the 2 artists", "all 120 shows", "110 of the 120 films": the titles behind a suggestion. */
+function titlesAgreeing(kind: ArrKind, agreeing: number, compared: number) {
+  const [one, many] = titleWords[kind]
+  if (compared === 1) return `the one ${one}`
+  if (agreeing < compared) return `${agreeing.toLocaleString()} of the ${compared.toLocaleString()} ${many}`
+  return compared < 5 ? `the ${compared} ${many}` : `all ${compared.toLocaleString()} ${many}`
+}
+
+/**
+ * The mappings saved (worked out, taken from a suggestion, or written by hand): a line saying how many, opened to edit
+ * them by hand. Saved together, once changed.
+ */
 function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMappings']; save: Save }) {
+  const [editing, setEditing] = useState(false)
   const [mappings, setMappings] = useState(saved)
   const changed = JSON.stringify(mappings) !== JSON.stringify(saved)
   const set = (i: number, change: Partial<Settings['pathMappings'][number]>) => setMappings(mappings.map((x, j) => (j === i ? { ...x, ...change } : x)))
 
+  if (!editing)
+    return (
+      <div className="saved-mappings connection-line">
+        <span className="setting-text">
+          <span className="muted">
+            {saved.length === 0 ? 'No mappings saved' : saved.length === 1 ? '1 mapping saved' : `${saved.length} mappings saved`}
+          </span>
+        </span>
+        <button
+          type="button"
+          className="button quiet small"
+          onClick={() => {
+            setMappings(saved.length ? saved : [{ from: '', to: '' }])
+            setEditing(true)
+          }}
+        >
+          {saved.length ? 'Edit by hand' : 'Add one by hand'}
+        </button>
+      </div>
+    )
+
   return (
     <div className="saved-mappings">
-      {mappings.length > 0 && <h4 className="settings-minor-head">Saved mappings</h4>}
       {mappings.map((m, i) => (
         <div key={i} className="field-row mapping">
           <label className="grow">
@@ -644,18 +672,14 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
       ))}
       <div className="form-actions">
         <button type="button" className="button quiet small form-actions-start" onClick={() => setMappings([...mappings, { from: '', to: '' }])}>
-          Add a mapping by hand
+          Add a mapping
         </button>
-        {changed && (
-          <>
-            <button type="button" className="button quiet small" onClick={() => setMappings(saved)}>
-              Cancel
-            </button>
-            <AsyncButton className="button small" onClick={() => save({ pathMappings: mappings })}>
-              Save
-            </AsyncButton>
-          </>
-        )}
+        <button type="button" className="button quiet small" onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+        <AsyncButton className="button small" disabled={!changed} onClick={() => save({ pathMappings: mappings })}>
+          Save
+        </AsyncButton>
       </div>
     </div>
   )
