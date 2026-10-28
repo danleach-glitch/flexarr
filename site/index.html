@@ -132,15 +132,6 @@
     .tag { display: inline-block; vertical-align: middle; margin-left: 10px; padding: 3px 10px; border-radius: 999px; background: rgb(169 194 236 / 0.16); color: var(--silver); font-family: var(--text); font-size: 0.8rem; font-weight: 700; letter-spacing: 0; line-height: 1.4; }
     @media (max-width: 860px) { .step { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 22px; } }
 
-    /* Questions */
-    .faq { max-width: 860px; margin: 36px auto 0; display: grid; gap: 10px; }
-    .faq details { background: var(--seat); border: 1px solid var(--aisle); border-radius: 14px; }
-    .faq summary { cursor: pointer; list-style: none; padding: 18px 22px; font-weight: 700; display: flex; justify-content: space-between; gap: 16px; }
-    .faq summary::-webkit-details-marker { display: none; }
-    .faq summary::after { content: "+"; color: var(--silver); font-size: 1.4rem; line-height: 1; }
-    .faq details[open] summary::after { content: "–"; }
-    .faq details p { margin: 0; padding: 0 22px 18px; color: var(--usher); }
-
     .closing { text-align: center; }
     .closing .actions { margin-top: 28px; }
   </style>
@@ -420,41 +411,6 @@
             </div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section id="questions">
-      <div class="wrap">
-        <div class="center">
-          <h2>Good to know.</h2>
-        </div>
-        <div class="faq">
-          <details>
-            <summary>Is it really free?</summary>
-            <p>Yes, for personal and other noncommercial use, under the PolyForm Noncommercial License. There's no account, no subscription and nothing to unlock. The source is on GitHub.</p>
-          </details>
-          <details>
-            <summary>Do I need Sonarr, Radarr and Lidarr?</summary>
-            <p>They're recommended, not required. Flexarr takes artwork and details for films and shows from Radarr and Sonarr, so without them your files still play but look plain. Music works well without Lidarr, from your files' own tags and cover art. <a href="/guide/what-you-need">More on what you need</a>.</p>
-          </details>
-          <details>
-            <summary>What do I need to run it?</summary>
-            <p>A computer at home that stays on and can see your media: a NAS, a Linux or Windows machine with Docker, or a Mac. The Docker image runs on Intel, AMD and ARM 64-bit processors. A Mac can also use its own hardware to convert video quickly.</p>
-          </details>
-          <details>
-            <summary>Does anything leave my home?</summary>
-            <p>Your files and what you watch stay on your server. A few things are sent only if you use them: notifications to your phone pass through flexarr.io on their way to Apple, and error reports are off unless you turn them on. <a href="/privacy">Read the privacy policy</a>.</p>
-          </details>
-          <details>
-            <summary>Can I watch away from home?</summary>
-            <p>Yes. Tailscale connects your phone to your server from anywhere without opening ports on your router, and the apps switch over by themselves. <a href="/guide/away-from-home">How to set it up</a>.</p>
-          </details>
-          <details>
-            <summary>When is the Apple TV app on the App Store?</summary>
-            <p>Soon. Until then you can install it on your own Apple TV from a Mac with Xcode. <a href="/guide/apple-tv-xcode">Here's how</a>. An Android app is in development (<a href="/apps">see every app and what's coming</a>), and until then the web app works in any browser.</p>
-          </details>
-        </div>
-        <p class="center" style="margin-top: 28px"><a class="more" href="/guide/faq">More questions and answers</a></p>
       </div>
     </section>
 
