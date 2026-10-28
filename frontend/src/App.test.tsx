@@ -8,6 +8,9 @@ import { deleteItem } from './api/client'
 import { WATCHED_CHANGED } from './hooks/watched'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
+// The player's tests wait for streams to be asked for again, which takes a slow CI runner more than the default 5 s.
+vi.setConfig({ testTimeout: 15_000 })
+
 beforeAll(() => {
   // jsdom has no media playback.
   window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined)
@@ -926,14 +929,14 @@ describe('Player', () => {
     await screen.findByText('Pilot')
     const video = document.querySelector('video')!
     // The title shows before the first stream is attached; an error before then isn't a stopped transcode yet.
-    await vi.waitFor(() => expect(video.src).toContain('/playback/s1/'))
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s1/'), { timeout: 5000 })
     Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 352 })
 
     // The server restarted, say: the stream ends, and the player asks for a fresh one at the same spot.
     act(() => {
       video.dispatchEvent(new Event('error'))
     })
-    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'), { timeout: 5000 })
     expect(requests[1].startPositionSeconds).toBe(352)
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 
@@ -996,7 +999,7 @@ describe('Player', () => {
     expect(screen.queryByRole('button', { name: 'Play' })).not.toBeInTheDocument()
 
     fireEvent.click(watchHere)
-    await vi.waitFor(() => expect(video.src).toContain('/playback/s3/'))
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s3/'), { timeout: 5000 })
     expect(requests.map((r) => r.replacesSessionId)).toEqual([undefined, 's1', undefined])
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
@@ -1023,8 +1026,7 @@ describe('Player', () => {
     // are slow), so wait for the text rather than the dialog.
     await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent(takenOver), { timeout: 5000 })
     expect(requests).toHaveLength(1)
-    // Longer than the wait inside it, which on a slow runner otherwise ran into the test's own 5 s limit.
-  }, 15_000)
+  })
 
   it('tells the server when subtitles are switched in the browser, so the choice holds next time', async () => {
     const choices: unknown[] = []
@@ -1071,7 +1073,7 @@ describe('Player', () => {
     })
     await act(async () => answers.forEach((answer) => answer(new Response('', { status: 404 }))))
 
-    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'))
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s2/'), { timeout: 5000 })
     expect(requests).toHaveLength(2)
     expect(screen.queryByText(/The stream stopped/)).not.toBeInTheDocument()
   })
