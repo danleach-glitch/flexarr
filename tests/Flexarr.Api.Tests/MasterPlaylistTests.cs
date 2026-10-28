@@ -67,7 +67,7 @@ public class MasterPlaylistTests
 
         var playlist = PlaybackService.MasterPlaylist(session, includeSubtitles: true);
 
-        Assert.Contains("#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"English\",LANGUAGE=\"eng\",DEFAULT=YES,AUTOSELECT=YES,CHANNELS=\"16/JOC\"\n", playlist, StringComparison.Ordinal);
+        Assert.Contains("#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"English\",LANGUAGE=\"en\",DEFAULT=YES,AUTOSELECT=YES,CHANNELS=\"16/JOC\"\n", playlist, StringComparison.Ordinal);
         var variant = playlist.Split('\n').Single(l => l.StartsWith("#EXT-X-STREAM-INF:", StringComparison.Ordinal));
         Assert.Contains("AVERAGE-BANDWIDTH=", variant, StringComparison.Ordinal);
         Assert.Contains("CODECS=\"hvc1.2.4.L153.90,ec-3\"", variant, StringComparison.Ordinal);

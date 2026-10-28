@@ -388,11 +388,25 @@ final class EngineTransport: PlayerTransport {
 
     private func showCues(at seconds: Double) {
         overlay.videoSize = videoSize
-        let active = decodedCues.filter { $0.startTime <= seconds && seconds < $0.endTime }
+        // A rewind can decode a stretch again under new ids: the same line twice is drawn once.
+        var seen = Set<String>()
+        let active = decodedCues.filter { cue in
+            guard cue.startTime <= seconds && seconds < cue.endTime else { return false }
+            guard let text = Self.text(of: cue) else { return true }
+            return seen.insert("\(cue.startTime)|\(cue.endTime)|\(text)").inserted
+        }
         let ids = active.map(\.id)
         guard ids != shownCueIDs else { return }
         shownCueIDs = ids
         overlay.show(active)
+    }
+
+    private static func text(of cue: SubtitleCue) -> String? {
+        switch cue.body {
+        case .text(let string): string
+        case .richText(let runs): runs.map(\.text).joined()
+        case .image: nil
+        }
     }
 
     // MARK: Observation

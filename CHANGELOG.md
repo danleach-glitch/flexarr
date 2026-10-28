@@ -2,6 +2,18 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Apple TV and iPhone
+- The screensaver no longer comes on in the middle of a film, whatever format it's in. It still comes on when you pause.
+- A film that won't open within a minute plays from the server instead of leaving the spinner up for ever.
+- Subtitles follow your caption style from the system's Accessibility settings (font, size, colours and background), as Apple's own player does, on top of your profile's subtitle size.
+- A subtitle line no longer shows twice after you rewind.
+- On Apple TV, the sidebar no longer stops responding when music starts or stops while you're browsing.
+
+### Playback
+- When you've chosen a language, the soundtrack in it is picked over a commentary or audio description track, and the file's default track wins among the rest.
+
 ## 0.52.0 · 28 October 2026
 
 ### Playback
