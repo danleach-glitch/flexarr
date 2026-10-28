@@ -49,7 +49,7 @@ targets:
         NSLocalNetworkUsageDescription: Flexarr Server shares your media with the Flexarr apps and browsers on your network.
         ITSAppUsesNonExemptEncryption: false
     postBuildScripts:
-      # The .NET server (Tools/publish-server.sh) goes in Contents/Helpers, each binary signed to inherit the app's
+      # The .NET server (Tools/publish-server.sh) goes in Contents/Helpers and Resources/Server, each binary signed to inherit the app's
       # sandbox, before Xcode signs the app around it.
       - name: Embed the server
         script: '"$SRCROOT/Tools/embed-server.sh"'

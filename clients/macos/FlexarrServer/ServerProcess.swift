@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Runs the server bundled in Contents/Helpers/Server as a child process, which inherits the app's sandbox and the
+/// Runs the server bundled in Contents/Helpers as a child process, which inherits the app's sandbox and the
 /// media folders it has open. Restarts it if it stops on its own.
 @MainActor
 @Observable
@@ -41,16 +41,19 @@ final class ServerProcess {
 
     func start() {
         guard process == nil else { return }
-        let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Server/Flexarr")
+        // The executable and its libraries are in Contents/Helpers; its settings and the web app in Resources/Server.
+        let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Flexarr")
+        let content = Bundle.main.resourceURL!.appending(path: "Server")
         let data = root.appending(path: "data")
         try? FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
 
         let process = Process()
         process.executableURL = executable
-        process.currentDirectoryURL = executable.deletingLastPathComponent()
+        process.currentDirectoryURL = content
         var environment = ProcessInfo.processInfo.environment
         environment["ASPNETCORE_ENVIRONMENT"] = "Production"
+        environment["ASPNETCORE_CONTENTROOT"] = content.path
         environment["Urls"] = "http://*:\(port)"
         environment["Flexarr__DataDirectory"] = data.path
         environment["Flexarr__Logs__Directory"] = logDirectory.path

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Builds the web app and publishes the server self-contained for the Mac app, into clients/macos/build/server.
+# Builds the web app and publishes the server for the Mac app into clients/macos/build/server, split the way the
+# app bundle needs it: bin/ holds only Mach-O code (Contents/Helpers), content/ everything else (Contents/Resources).
 # Usage: Tools/publish-server.sh [osx-arm64|osx-x64]
 set -euo pipefail
 
@@ -11,8 +12,16 @@ export PATH="$HOME/.dotnet:$PATH"
 
 (cd "$repo/frontend" && npm ci --silent && npm run build --silent)
 rm -rf "$out"
-# Self-contained: the sandbox can't reach a .NET install elsewhere on the Mac, and App Review wants nothing installed.
+# Self-contained, since the sandbox can't use a .NET install elsewhere on the Mac. A single file, because macOS
+# treats everything in Contents/Helpers as code and the assemblies aren't Mach-O; native libraries stay beside it.
 dotnet publish "$repo/src/Flexarr.Api" --disable-build-servers -c Release -r "$rid" --self-contained \
-  -p:UseAppHost=true -o "$out" --nologo -v quiet
-cp -R "$repo/frontend/dist" "$out/wwwroot"
+  -p:PublishSingleFile=true -p:DebugType=none -p:GenerateDocumentationFile=false \
+  -o "$out/publish" --nologo -v quiet
+
+mkdir -p "$out/bin" "$out/content"
+mv "$out/publish/Flexarr" "$out/publish/"*.dylib "$out/bin/"
+rm -f "$out/publish/createdump" "$out/publish/appsettings.Development.json"
+mv "$out/publish/"* "$out/content/"
+rmdir "$out/publish"
+cp -R "$repo/frontend/dist" "$out/content/wwwroot"
 echo "Published $rid to $out"
