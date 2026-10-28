@@ -1,9 +1,25 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { ApiError, createProfile, deleteProfile, getAllLibraries, removeProfileImage, uploadProfileImage, getProfiles, updateProfile, type Library, type Profile } from '../../api/client'
+import {
+  ApiError,
+  createProfile,
+  deleteProfile,
+  getAllLibraries,
+  getRequestDestinations,
+  removeProfileImage,
+  setRequestLibraries,
+  uploadProfileImage,
+  getProfiles,
+  updateProfile,
+  type Library,
+  type Profile,
+  type RequestDestination,
+} from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
 import { Crown, Pencil, Trash } from '../../components/icons'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
+import { requestChoices, requestRows } from '../../lib/requestLibraries'
+import { RequestLibrarySelect } from './RequestsSection'
 import { SettingsHeader } from './shared'
 
 const profileColours = [
@@ -26,6 +42,8 @@ export function ProfilesSection() {
   const [version, setVersion] = useState(0)
   const { data } = useApi(getProfiles, [version])
   const libraries = useApi(getAllLibraries, []).data ?? []
+  // Seerr being away only takes the request choices out of the form.
+  const destinations = useApi(getRequestDestinations, []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
   const reload = () => {
     setEditing(undefined)
@@ -48,7 +66,7 @@ export function ProfilesSection() {
       </SettingsHeader>
       <div className="panel profile-list">
         {editing === 'new' && (
-          <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} onDone={reload} onCancel={() => setEditing(undefined)} />
+          <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} destinations={destinations} onDone={reload} onCancel={() => setEditing(undefined)} />
         )}
         {data?.map((p) =>
           // The form takes the profile's place in the list, rather than showing it twice.
@@ -59,6 +77,7 @@ export function ProfilesSection() {
               profile={editing}
               defaultColour={freeColour(data)}
               libraries={libraries}
+              destinations={destinations}
               onDone={reload}
               onCancel={() => setEditing(undefined)}
             />
@@ -115,17 +134,25 @@ function ProfileForm({
   profile,
   defaultColour,
   libraries,
+  destinations,
   onDone,
   onCancel,
 }: {
   profile?: Profile
   defaultColour: string
   libraries: Library[]
+  destinations: RequestDestination[]
   onDone: () => void
   onCancel: () => void
 }) {
   const [name, setName] = useState(profile?.name ?? '')
   const [hidden, setHidden] = useState<string[]>(profile?.hiddenLibraryIds ?? [])
+  const [requestLibraries, setRequestLibraryIds] = useState({
+    requestShowsLibraryId: profile?.requestShowsLibraryId ?? null,
+    requestFilmsLibraryId: profile?.requestFilmsLibraryId ?? null,
+  })
+  // Only kinds with a choice left once the hidden libraries are taken out.
+  const requestFields = requestRows.map((r) => ({ ...r, choices: requestChoices(destinations, r.mediaType, hidden) })).filter((r) => r.choices.length > 1)
   const [picture, setPicture] = useState<File | null>()
   const preview = usePreviewUrl(picture)
   const shownImage = picture === null ? null : (preview ?? profile?.image ?? null)
@@ -154,6 +181,9 @@ function ProfileForm({
       const saved = profile
         ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden, ...confirmation })
         : await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden })
+      const { requestShowsLibraryId: showsLibraryId, requestFilmsLibraryId: filmsLibraryId } = requestLibraries
+      if (showsLibraryId !== (profile?.requestShowsLibraryId ?? null) || filmsLibraryId !== (profile?.requestFilmsLibraryId ?? null))
+        await setRequestLibraries(saved.id, { showsLibraryId, filmsLibraryId })
       if (picture) await uploadProfileImage(saved.id, picture)
       else if (picture === null && profile?.image) await removeProfileImage(saved.id)
       onDone()
@@ -321,6 +351,23 @@ function ProfileForm({
                   checked={!hidden.includes(l.id)}
                   onChange={(e) => setHidden(e.target.checked ? hidden.filter((id) => id !== l.id) : [...hidden, l.id])}
                 />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {requestFields.length > 0 && (
+        <fieldset className="profile-section profile-libraries">
+          <legend className="visually-hidden">Requests</legend>
+          <span className="setting-text">
+            <strong>Where {profile ? `${profile.name}’s` : 'this profile’s'} requests go</strong>
+            <span className="muted">The library shows and films requested from Discover are added to. They can change it in their own Settings too.</span>
+          </span>
+          <div className="profile-library-list">
+            {requestFields.map((r) => (
+              <label key={r.key} className="profile-library">
+                <span>{r.label}</span>
+                <RequestLibrarySelect choices={r.choices} value={requestLibraries[r.key]} onChange={(id) => setRequestLibraryIds({ ...requestLibraries, [r.key]: id })} />
               </label>
             ))}
           </div>

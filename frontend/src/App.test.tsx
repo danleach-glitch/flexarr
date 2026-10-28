@@ -463,12 +463,18 @@ describe('Settings', () => {
     expect(sent).toEqual([{ name: 'Films', type: 'Movies', folders: ['/media/movies'] }])
   })
 
-  it('stays closed to a profile that isn’t the main one', async () => {
-    mockApi({ '/libraries': [], '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null } })
+  it('sends a profile that isn’t the main one from a server page to its own', async () => {
+    mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null },
+      '/profiles': [{ id: 'c1', name: 'Claire', isMain: false, hasPin: false, isCurrent: true }],
+      '/me/playback-preferences': { autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Standard' },
+    })
 
     renderAt('/settings/server')
 
-    expect(await screen.findByText(/The server’s settings are for the main profile/)).toBeInTheDocument()
+    expect(await screen.findByRole('switch', { name: /Skip intros/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Server/)).not.toBeInTheDocument()
   })
 
   it('gives another profile its own pages, and nothing of the server’s', async () => {
@@ -485,7 +491,8 @@ describe('Settings', () => {
     expect(screen.getByRole('heading', { name: 'Claire’s profile' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Playback' })).toHaveClass('active')
     expect(screen.queryByRole('link', { name: 'Libraries' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Manage the server' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Server' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Manage the server' })).not.toBeInTheDocument()
   })
 
   it('doesn’t call a new server’s main profile “Main profile’s profile”', async () => {

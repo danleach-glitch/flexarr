@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { askForProfile, getMe, getUpdates, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
+import { askForProfile, getMe, getRequestDestinations, getUpdates, signIn, UnauthorizedError, getProfiles, type Profile } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
+import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
 import { AccessSection } from './AccessSection'
 import { BackupSection } from './BackupSection'
@@ -18,6 +19,7 @@ import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
 import { PodcastsSection } from './PodcastsSection'
 import { ProfilesSection } from './ProfilesSection'
+import { RequestsSection } from './RequestsSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
 import { UpdatesSection } from './UpdatesSection'
@@ -35,6 +37,9 @@ const profilePages: Page[] = [
   { id: 'playback', label: 'Playback', render: () => <PlaybackSection /> },
   { id: 'podcasts', label: 'Podcasts', render: () => <PodcastsSection /> },
 ]
+
+/** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */
+const requestsPage: Page = { id: 'requests', label: 'Requests', render: () => <RequestsSection /> }
 
 /** The server's, for the main profile only. */
 const serverPages: Page[] = [
@@ -62,11 +67,15 @@ export function SettingsPage() {
   const { section } = useParams()
   const me = useApi(getMe, [])
   const { profiles } = useSession()
-  const name = profiles?.find((p) => p.isCurrent)?.name
-  // Settings for the server are the main profile's. Another profile chosen on this browser has its own pages, and a
-  // way back to the main one (with its PIN) for the rest. Older servers have no /me: everything, as before.
+  const current = profiles?.find((p) => p.isCurrent)
+  const name = current?.name
+  const destinations = useApi(getRequestDestinations, [])
+  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
+  // Settings for the server are the main profile's: another profile chosen on this browser has only its own pages. The
+  // owner over Tailscale is the exception, with one page saying how to prove it's them. Older servers have no /me:
+  // everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
-  const ownerOverTailscale = me.data?.method === 'tailscale' && me.data.profileId === 'owner'
+  const ownerOverTailscale = !isAdmin && me.data?.method === 'tailscale' && me.data.profileId === 'owner'
   // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.
   const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
   const badges: Record<string, string | undefined> = { updates: updates.data?.available ? `Flexarr ${updates.data.latest?.version} is available` : undefined }
@@ -75,8 +84,11 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = profilePages.find((p) => p.id === section)
+  const profilePage = [...profilePages, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
+  // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
+  if (!profilePage && me.loading) return null
+  if (!profilePage && !isAdmin && !ownerOverTailscale) return <Navigate to="/settings/playback" replace />
   const lit = serverPage?.under ?? section
 
   const link = (p: Page) => (
@@ -93,21 +105,21 @@ export function SettingsPage() {
         <nav aria-label="Settings">
           <div className="settings-nav-group">
             <h2>{profileHeading(name)}</h2>
-            {profilePages.map(link)}
+            {ownPages.map(link)}
           </div>
-          <div className="settings-nav-group">
-            <h2>Server</h2>
-            {isAdmin ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: 'Manage the server', render: () => null })}
-          </div>
+          {(isAdmin || ownerOverTailscale) && (
+            <div className="settings-nav-group">
+              <h2>Server</h2>
+              {isAdmin ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: 'Manage the server', render: () => null })}
+            </div>
+          )}
         </nav>
       </aside>
       <div className="settings-content">
         {profilePage
           ? profilePage.render()
-          : !isAdmin
-            ? ownerOverTailscale
-              ? <TailscaleAdminNote />
-              : <MainProfileNote />
+          : ownerOverTailscale
+            ? <TailscaleAdminNote />
             : serverPage
               ? serverPage.render()
               : <p className="muted">There’s no such page in Settings.</p>}
@@ -127,44 +139,6 @@ function profileHeading(name: string | undefined) {
 function switchToMainProfile(main: Profile | undefined) {
   askForProfile(main?.id)
   window.location.reload()
-}
-
-/** Another profile is chosen on this browser: the way back to the main one, and to this page. */
-function MainProfileNote() {
-  const { profiles } = useSession()
-  const main = profiles?.find((p) => p.isMain)
-  const [refused, setRefused] = useState(false)
-
-  return (
-    <div className="page-message">
-      <p className="muted">The server’s settings are for the main profile.</p>
-      {refused ? (
-        <p className="muted">Ask whoever manages Flexarr to give the main profile a PIN.</p>
-      ) : (
-        <p>
-          <AsyncButton
-            className="button"
-            onClick={async () => {
-              if (main && !main.hasPin) {
-                // Nothing to ask for: switch straight to it, unless the server won't (over Tailscale, without a PIN).
-                try {
-                  await selectProfile(main.id)
-                  sessionStorage.setItem('flexarr.profileChosen', '1')
-                  window.location.reload()
-                } catch {
-                  setRefused(true)
-                }
-                return
-              }
-              switchToMainProfile(main)
-            }}
-          >
-            Switch to the main profile
-          </AsyncButton>
-        </p>
-      )}
-    </div>
-  )
 }
 
 /**

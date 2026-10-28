@@ -126,18 +126,6 @@ describe('Settings for another profile', () => {
     expect(window.location.pathname).toBe('/settings/playback')
     expect(screen.getByRole('link', { name: 'Playback' })).toHaveClass('active')
   })
-
-  it('offers a button to switch to the main profile', async () => {
-    mockApi({ '/libraries': [], '/me': { profileId: 'c1', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null }, '/profiles': [main, kids] })
-    const reload = vi.fn()
-    vi.stubGlobal('location', { ...window.location, reload })
-
-    renderAt('/settings/server')
-    fireEvent.click(await screen.findByRole('button', { name: 'Switch to the main profile' }))
-
-    expect(sessionStorage.getItem('flexarr.pickProfileFor')).toBe('owner')
-    expect(reload).toHaveBeenCalled()
-  })
 })
 
 describe('Profile menu', () => {

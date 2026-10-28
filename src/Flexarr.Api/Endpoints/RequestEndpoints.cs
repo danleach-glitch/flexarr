@@ -37,6 +37,11 @@ public sealed record ExternalRowDto(string Id, string Title, IReadOnlyList<Exter
 
 public sealed record TitleRequest(string MediaType, int TmdbId);
 
+/// <summary>A library requests can be added to, for the "new shows go to" setting.</summary>
+/// <param name="MediaType">"movie" or "tv".</param>
+/// <param name="IsDefault">Where Seerr adds them when a profile hasn't chosen.</param>
+public sealed record RequestDestinationDto(Guid Id, string Name, string MediaType, bool IsDefault);
+
 public sealed record ExternalPersonDto(string Name, string? Character, string? Image);
 
 /// <summary>Everything worth knowing about a film or show you don't have, from Seerr (which gets it from TMDB).</summary>
@@ -87,6 +92,26 @@ public static class RequestEndpoints
         {
             var instance = options.CurrentValue.Seerr?.Instance;
             return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct) };
+        });
+
+        // The libraries this profile's requests could go to (every one, for the admin choosing for others).
+        group.MapGet("/destinations", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (options.CurrentValue.Seerr?.Instance is not { } instance)
+            {
+                return Results.Ok(Array.Empty<RequestDestinationDto>());
+            }
+
+            try
+            {
+                var libraries = current.IsAdmin ? db.Libraries.IgnoreQueryFilters() : db.Libraries;
+                var destinations = await RequestDestinations.ListAsync(seerr, instance, options.CurrentValue.PathMappings, libraries, ct);
+                return Results.Ok(destinations.Select(d => new RequestDestinationDto(d.LibraryId, d.Name, d.Kind == MediaKind.Movie ? "movie" : "tv", d.IsDefault)).ToList());
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.Problem($"Seerr didn't say where it can add requests ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
+            }
         });
 
         group.MapGet("/discover", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
@@ -190,9 +215,10 @@ public static class RequestEndpoints
 
             try
             {
-                await seerr.RequestAsync(instance, request.MediaType, request.TmdbId, ct);
-                // Remembered here (Seerr only knows Flexarr asked), so whoever asked hears when it's in.
                 var kind = KindOf(request.MediaType);
+                var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.CurrentValue.PathMappings, db, current.Id, kind, ct);
+                await seerr.RequestAsync(instance, request.MediaType, request.TmdbId, to, ct);
+                // Remembered here (Seerr only knows Flexarr asked), so whoever asked hears when it's in.
                 if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == current.Id && r.Kind == kind && r.TmdbId == request.TmdbId && r.FulfilledAt == null, ct))
                 {
                     db.MediaRequests.Add(new MediaRequest { ProfileId = current.Id, Kind = kind, TmdbId = request.TmdbId });

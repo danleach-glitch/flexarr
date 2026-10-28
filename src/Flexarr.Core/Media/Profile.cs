@@ -54,6 +54,12 @@ public sealed class Profile
     /// <summary>Podcasts has a place in the web app's sidebar, among the libraries.</summary>
     public bool PodcastsInSidebar { get; set; } = true;
 
+    /// <summary>The TV library shows this profile requests are added to; null, wherever Seerr adds them by default.</summary>
+    public Guid? RequestShowsLibraryId { get; set; }
+
+    /// <summary>The film library films this profile requests are added to; null, wherever Seerr adds them by default.</summary>
+    public Guid? RequestFilmsLibraryId { get; set; }
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
