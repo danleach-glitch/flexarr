@@ -16,6 +16,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Privacy and security
 - An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
+- When Flexarr plays, downloads or scans a video, it only reads the file itself. A file that's really a playlist in disguise can no longer make it fetch addresses on your network.
 
 ## 0.51.1 · 28 October 2026
 

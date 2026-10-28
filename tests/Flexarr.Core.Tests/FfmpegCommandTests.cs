@@ -12,7 +12,7 @@ public class FfmpegCommandTests
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 10, "/out", Settings(HardwareAcceleration.VideoToolbox)));
 
         Assert.Contains("-hwaccel videotoolbox -hwaccel_output_format videotoolbox_vld", args, StringComparison.Ordinal);
-        Assert.Contains("-ss 60 -i /in.mkv", args, StringComparison.Ordinal);
+        Assert.Contains("-ss 60 -protocol_whitelist file -i /in.mkv", args, StringComparison.Ordinal);
         Assert.Contains("scale_vt=w=1920:h=1080:color_matrix=bt709:color_primaries=bt709:color_transfer=bt709", args, StringComparison.Ordinal);
         Assert.Contains("-c:v h264_videotoolbox", args, StringComparison.Ordinal);
         Assert.Contains("-output_ts_offset 60", args, StringComparison.Ordinal);
@@ -27,7 +27,7 @@ public class FfmpegCommandTests
         var args = string.Join(' ', FfmpegCommand.M4a("/in.ogg", 1, 6, "/out/x.part.m4a"));
 
         Assert.Contains("-progress pipe:1", args, StringComparison.Ordinal);
-        Assert.Contains("-i /in.ogg -map 0:1 -vn", args, StringComparison.Ordinal);
+        Assert.Contains("-protocol_whitelist file -i /in.ogg -map 0:1 -vn", args, StringComparison.Ordinal);
         Assert.Contains("-c:a aac -ac 2 -b:a 256k", args, StringComparison.Ordinal);
         Assert.EndsWith("-f ipod /out/x.part.m4a", args, StringComparison.Ordinal);
         Assert.DoesNotContain("-c:v", args, StringComparison.Ordinal);

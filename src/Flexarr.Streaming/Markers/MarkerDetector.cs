@@ -99,7 +99,7 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
     /// <summary>Markers from chapter titles alone (used for movies, and first for episodes).</summary>
     public async Task<List<DetectedMarker>> ChapterMarkersAsync(string path, CancellationToken ct)
     {
-        var json = await RunAsync(ffprobePath, ["-v", "error", "-print_format", "json", "-show_chapters", path], ct).ConfigureAwait(false);
+        var json = await RunAsync(ffprobePath, ["-v", "error", .. FfmpegCommand.LocalFile, "-print_format", "json", "-show_chapters", path], ct).ConfigureAwait(false);
         return json is null ? [] : FromChapters(json);
     }
 
@@ -163,7 +163,7 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
         string[] seek = fromEnd ? ["-sseof", $"-{window}"] : ["-ss", "0"];
         var start = new ProcessStartInfo(ffmpegPath) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in QuietArgs.Concat(seek).Concat(
-                     ["-i", path, "-t", window, "-map", "0:a:0", "-vn", "-sn", "-ac", "1", "-ar", AudioFingerprint.SampleRate.ToString(CultureInfo.InvariantCulture), "-f", "s16le", "-"]))
+                     [.. FfmpegCommand.LocalFile, "-i", path, "-t", window, "-map", "0:a:0", "-vn", "-sn", "-ac", "1", "-ar", AudioFingerprint.SampleRate.ToString(CultureInfo.InvariantCulture), "-f", "s16le", "-"]))
         {
             start.ArgumentList.Add(arg);
         }
