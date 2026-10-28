@@ -21,6 +21,8 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 | [SQLite](https://sqlite.org) | The database | Public domain |
 | [Scalar](https://github.com/scalar/scalar) | API reference pages | MIT |
 | [MCP C# SDK](https://github.com/modelcontextprotocol/csharp-sdk) | The MCP endpoint | Apache-2.0 / MIT |
+| [Serilog](https://serilog.net) | Logs | Apache-2.0 |
+| [Sentry for .NET](https://github.com/getsentry/sentry-dotnet) | Error reports, only when turned on | MIT |
 | [FFmpeg](https://ffmpeg.org) | Transcoding, remuxing, previews, audio fingerprints | LGPL-2.1+ / GPL-2.0+ depending on the build. Flexarr runs it as a separate program and doesn't include it, except in the Docker image, which installs Debian's package, and the Mac app (in development), which includes an LGPL-2.1+ build of the unmodified [FFmpeg 9.0.2 source](https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz), configured by [clients/macos/Tools/build-ffmpeg.sh](clients/macos/Tools/build-ffmpeg.sh). |
 
 ## Web app
@@ -30,6 +32,7 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 | [React](https://react.dev) | The interface | MIT |
 | [React Router](https://reactrouter.com) | Navigation | MIT |
 | [hls.js](https://github.com/video-dev/hls.js) | Streaming playback | Apache-2.0 |
+| [Sentry for React](https://github.com/getsentry/sentry-javascript) | Error reports, only when turned on | MIT |
 | [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) by the Braille Institute, via [Fontsource](https://fontsource.org) | Body text | SIL OFL 1.1 |
 | [Big Shoulders Display](https://github.com/xotypeco/big_shoulders) by Patric King, via Fontsource | Display type | SIL OFL 1.1 |
 
@@ -42,6 +45,7 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 | [LibDovi](https://github.com/superuser404notfound/LibDovi), around [dovi_tool](https://github.com/quietvoid/dovi_tool) | Dolby Vision metadata | MIT |
 | [LibTrueHD](https://github.com/superuser404notfound/LibTrueHD), around [truehd](https://github.com/truehdd/truehdd) | Dolby TrueHD and Atmos decoding | MIT |
 | [SMBClient](https://github.com/kishikawakatsumi/SMBClient) by Kishikawa Katsumi | Reading files from network shares | MIT |
+| [Sentry for Apple platforms](https://github.com/getsentry/sentry-cocoa) | Error and crash reports, only when turned on | MIT |
 | [XcodeGen](https://github.com/yonaskolb/XcodeGen) | Generating the Xcode project | MIT |
 
 ## Development
@@ -50,13 +54,15 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 
 ## Data and services
 
-- **[TMDB](https://www.themoviedb.org).** Film and TV artwork comes from TMDB's image service. This product uses the TMDB API but is not endorsed or certified by TMDB.
+- **[TMDB](https://www.themoviedb.org).** Film and TV artwork comes from TMDB's image service, and films Radarr doesn't know can be looked up with your own free TMDB key. This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **[TheTVDB](https://thetvdb.com).** TV metadata and artwork, by way of Sonarr.
-- **[TVmaze](https://www.tvmaze.com).** TV schedules and episode details, from its [API](https://www.tvmaze.com/api), under CC BY-SA 4.0.
+- **[TVmaze](https://www.tvmaze.com).** TV schedules, cast and episode details, and shows Sonarr doesn't know, from its [API](https://www.tvmaze.com/api), under CC BY-SA 4.0.
 - **[fanart.tv](https://fanart.tv).** Logos and artwork, by way of the *arr apps.
 - **[MusicBrainz](https://musicbrainz.org).** Music metadata, by way of Lidarr.
 - **[Apple's iTunes Search API](https://performance-partners.apple.com/search-api).** Finding podcasts.
 - **[Podcast Index](https://podcastindex.org).** Its podcast namespace adds chapters, transcripts and more to feeds.
+- **[Kodi](https://kodi.tv)'s `.nfo` format.** Flexarr reads the `.nfo` files and artwork that Kodi, Jellyfin, Emby and tinyMediaManager write beside your files.
+- **[Sentry](https://sentry.io).** Receives error reports, only if a server's owner turns them on in Settings › Logs.
 
 ## Demo and screenshots
 
