@@ -208,7 +208,7 @@ public sealed class PlaybackService(
             audioStreams.Select(a => new AudioTrackDto(a.Index, Languages.Label(a.Language, a.Title, false), a.Codec, a.Language, a.Channels, a.IsDefault)).ToList(),
             decision.Audio?.Index,
             subtitles.Select(s => new SubtitleTrackDto(s.Key, Languages.Label(s.Language, s.Title, s.IsForced), s.Codec, s.Language, s.IsForced, s.IsDefault, s.IsText,
-                s.IsText ? $"{basePath}/subtitles/{s.Key}.vtt" : null)).ToList(),
+                s.IsText ? $"{basePath}/subtitles/{s.Key}.vtt" : null, s.ExternalPath is not null)).ToList(),
             decision.Subtitle?.Key,
             burned,
             file.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList(),
@@ -222,7 +222,9 @@ public sealed class PlaybackService(
             before is null ? null : await db.MediaItems.Where(i => i.Id == before.Id).Summaries(profile.Id).FirstAsync(ct),
             file.AudioDelaySeconds,
             decision.Transcode?.AudioDelaySeconds is not (null or 0),
-            speed);
+            speed,
+            // Bazarr finds subtitles for what Sonarr and Radarr manage.
+            options.CurrentValue.Bazarr?.Instance is not null && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null);
     }
 
     /// <summary>

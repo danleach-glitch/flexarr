@@ -24,7 +24,9 @@ public sealed record PlaybackRequest(
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 
-public sealed record SubtitleTrackDto(string Key, string Label, string Codec, string? Language, bool IsForced, bool IsDefault, bool IsText, string? Url);
+/// <param name="IsExternal">A subtitle file beside the video, which Bazarr can re-sync, rather than one inside it.</param>
+public sealed record SubtitleTrackDto(string Key, string Label, string Codec, string? Language, bool IsForced, bool IsDefault, bool IsText, string? Url,
+    bool IsExternal = false);
 
 public sealed record MarkerDto(MarkerType Type, double Start, double End);
 
@@ -55,7 +57,8 @@ public sealed record PlaybackInfoDto(
     ItemSummaryDto? Previous = null,
     double AudioDelaySeconds = 0,
     bool AudioDelayInStream = false,
-    double? Speed = null)
+    double? Speed = null,
+    bool CanSearchSubtitles = false)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the
