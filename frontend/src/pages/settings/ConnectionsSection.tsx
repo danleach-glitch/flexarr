@@ -29,6 +29,9 @@ import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
 
+/** The connections with a form of their own, by the name the open row goes by. */
+type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv'
+
 interface DraftConnection {
   name: string
   kind: ArrKind
@@ -54,7 +57,7 @@ export function ConnectionsSection() {
   // While the channels and guide come in (after a save, or Refresh), keep asking how it's going.
   usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
   // Which one is open: an index into the list, 'new' for one being added, 'seerr', 'bazarr', 'tmdb' or 'livetv'.
-  const [open, setOpen] = useState<number | 'new' | 'seerr' | 'bazarr' | 'tmdb' | 'livetv'>()
+  const [open, setOpen] = useState<number | 'new' | OtherService>()
   if (!settings) return waiting
 
   const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
@@ -67,6 +70,18 @@ export function ConnectionsSection() {
     else list.splice(index, 1)
     if (await save({ arr: list })) setOpen(undefined)
   }
+
+  // Each shows once it's set up, or while it's being added (picked from Add a connection's Kind).
+  const isSet: Record<OtherService, boolean> = { seerr: !!settings.seerr, bazarr: !!settings.bazarr, tmdb: settings.hasTmdbKey === true, livetv: !!settings.liveTv }
+  const shows = (service: OtherService) => isSet[service] || open === service
+  const others = (
+    [
+      { value: 'seerr', label: 'Seerr' },
+      { value: 'bazarr', label: 'Bazarr' },
+      { value: 'tmdb', label: 'TMDB' },
+      { value: 'livetv', label: 'Dispatcharr (Live TV)' },
+    ] as const
+  ).filter((o) => !isSet[o.value])
 
   const nextKind: ArrKind = (['Sonarr', 'Radarr', 'Lidarr'] as const).find((k) => !settings.arr.some((a) => a.kind === k)) ?? 'Sonarr'
 
@@ -110,8 +125,11 @@ export function ConnectionsSection() {
               onOpen={() => undefined}
               onClose={() => setOpen(undefined)}
               onSave={(c) => saveArr('new', c)}
+              others={[...others]}
+              onPickOther={setOpen}
             />
           )}
+          {shows('seerr') && (
           <ServiceRow
             kind="Seerr"
             service={settings.seerr}
@@ -128,6 +146,8 @@ export function ConnectionsSection() {
               if (await save({ seerr })) setOpen(undefined)
             }}
           />
+          )}
+          {shows('bazarr') && (
           <ServiceRow
             kind="Bazarr"
             service={settings.bazarr}
@@ -144,6 +164,8 @@ export function ConnectionsSection() {
               if (await save({ bazarr })) setOpen(undefined)
             }}
           />
+          )}
+          {shows('tmdb') && (
           <TmdbRow
             hasKey={settings.hasTmdbKey === true}
             hasRadarr={settings.arr.some((a) => a.kind === 'Radarr')}
@@ -154,6 +176,8 @@ export function ConnectionsSection() {
               if (await save({ tmdb: { apiKey } })) setOpen(undefined)
             }}
           />
+          )}
+          {shows('livetv') && (
           <DispatcharrRow
             liveTv={settings.liveTv ?? null}
             status={
@@ -180,6 +204,7 @@ export function ConnectionsSection() {
               liveStatus.reload()
             }}
           />
+          )}
         </SettingsGroup>
 
         <MediaFolders folders={folders.data} hasApps={settings.arr.length > 0} mappings={settings.pathMappings} save={save} />
@@ -254,6 +279,8 @@ function ArrRow({
   onClose,
   onSave,
   onRemove,
+  others = [],
+  onPickOther,
 }: {
   connection: DraftConnection
   live?: ArrStatus
@@ -265,6 +292,9 @@ function ArrRow({
   onClose: () => void
   onSave: (c: DraftConnection) => Promise<void>
   onRemove?: () => Promise<void>
+  /** A new connection's other choices: the apps with a form of their own (Seerr, Bazarr…) that aren't set up yet. */
+  others?: { value: OtherService; label: string }[]
+  onPickOther?: (service: OtherService) => void
 }) {
   const [draft, setDraft] = useState(connection)
   const [test, setTest] = useState<ArrStatus | 'testing'>()
@@ -318,10 +348,22 @@ function ArrRow({
             {isNew && (
               <label>
                 Kind
-                <select value={draft.kind} onChange={(e) => update({ kind: e.target.value as ArrKind, name: draft.name === draft.kind ? e.target.value : draft.name })}>
+                <select
+                  value={draft.kind}
+                  onChange={(e) => {
+                    const other = others.find((o) => o.value === e.target.value)
+                    if (other) onPickOther?.(other.value)
+                    else update({ kind: e.target.value as ArrKind, name: draft.name === draft.kind ? e.target.value : draft.name })
+                  }}
+                >
                   <option>Sonarr</option>
                   <option>Radarr</option>
                   <option>Lidarr</option>
+                  {others.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}
