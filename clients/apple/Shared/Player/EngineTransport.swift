@@ -77,6 +77,9 @@ final class EngineTransport: PlayerTransport {
         // Surround as lossy Dolby Digital Plus (which any TV or bar takes), or lossless FLAC as multichannel PCM for a
         // receiver or eARC soundbar that takes it: the viewer's choice in Settings, else what the output takes.
         options.audioBridgeMode = PlaybackController.losslessAudio ? .lossless : .surroundCompat
+        // The file's sound out of sync (the household's fix, kept by the server): moved here, unless the server's
+        // stream has it moved already.
+        options.audioDelaySeconds = info.audioDelayInStream == true ? 0 : info.audioDelaySeconds ?? 0
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
@@ -206,6 +209,17 @@ final class EngineTransport: PlayerTransport {
     func setRate(_ rate: Float) {
         self.rate = max(0.25, min(rate, maxRate))
         engine.setRate(self.rate)
+    }
+
+    var volume: Float {
+        get { engine.volume }
+        set { engine.volume = newValue }
+    }
+
+    /// Moves the file's sound later (earlier when negative) while it plays: the engine brings the change to the
+    /// playhead at once, with a moment's hold of the picture.
+    func setAudioDelay(_ seconds: Double) {
+        engine.setAudioDelay(seconds)
     }
 
     func stop() {

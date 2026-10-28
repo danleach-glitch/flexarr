@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 
 /// Our controls over the video: the title, previous and next episode, skip back and forward, play/pause, the
-/// timeline, and menus for audio, subtitles and speed; the Skip Intro / Next Episode pill above the timeline. The
+/// timeline, and menus for audio, subtitles, speed and the sleep timer; the Skip Intro / Next Episode pill above the timeline. The
 /// controls sit on translucent glass so they read over any picture. On Apple TV the buttons are focusable and the
 /// timeline takes the remote's swipes; on iPhone and iPad they're tapped.
 final class PlayerControlsView: UIView {
@@ -34,6 +34,7 @@ final class PlayerControlsView: UIView {
     let audioButton: UIButton
     let subtitlesButton: UIButton
     let speedButton: UIButton
+    let sleepButton: UIButton
     let channelsButton: UIButton
     let guideButton: UIButton
     let promptButton: UIButton
@@ -86,6 +87,7 @@ final class PlayerControlsView: UIView {
         audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
         subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
         speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
+        sleepButton = Self.button("moon.zzz", size: Self.symbolSize * 0.8, menu: true)
         channelsButton = Self.button("list.bullet.rectangle", size: Self.symbolSize * 0.8)
         guideButton = Self.button("calendar", size: Self.symbolSize * 0.8)
         promptButton = Self.pill(filled: true)
@@ -193,6 +195,20 @@ final class PlayerControlsView: UIView {
 
     var promptShown: Bool { promptButton.alpha > 0 }
 
+    /// "1.25×" beside the speed button's gauge while it isn't playing at normal speed.
+    func setSpeedBadge(_ text: String?) {
+        guard speedButton.configuration?.title != text else { return }
+        speedButton.configuration?.title = text
+        speedButton.accessibilityValue = text
+    }
+
+    /// The moon filled while a sleep timer runs.
+    func setSleepActive(_ active: Bool) {
+        sleepButton.configuration?.image = UIImage(systemName: active ? "moon.zzz.fill" : "moon.zzz")
+        sleepButton.accessibilityValue = active ? "On" : nil
+        sleepButton.setNeedsUpdateConfiguration()
+    }
+
     /// A moment's "+15 s" in the middle of the picture after a skip.
     func flashSkip(_ seconds: Double) {
         hud.text = (seconds > 0 ? "+" : "−") + "\(Int(abs(seconds))) s"
@@ -272,16 +288,28 @@ final class PlayerControlsView: UIView {
         guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
         guideButton.accessibilityLabel = "Guide"
         guideButton.isHidden = true
-        for button in [audioButton, subtitlesButton, speedButton] {
+        for button in [audioButton, subtitlesButton, speedButton, sleepButton] {
             button.showsMenuAsPrimaryAction = true
             button.isHidden = true
+        }
+        audioButton.accessibilityLabel = "Audio"
+        subtitlesButton.accessibilityLabel = "Subtitles"
+        speedButton.accessibilityLabel = "Speed"
+        sleepButton.accessibilityLabel = "Sleep timer"
+        // The speed's badge: small type beside the gauge.
+        speedButton.configuration?.imagePadding = 6
+        let badgeFont = UIFont.monospacedDigitSystemFont(ofSize: Self.symbolSize * 0.6, weight: .bold)
+        speedButton.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = badgeFont
+            return attributes
         }
         skipSeconds = 30
         #if os(tvOS)
         scrubber.onSwipeUp = { [weak self] in
             guard let self else { return }
             // Live: up to the buttons just above the timeline (the first of them); otherwise up to play.
-            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton].first { !$0.isHidden }
+            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton].first { !$0.isHidden }
             focusNext = isLive ? menu ?? playButton : playButton
             setNeedsFocusUpdate()
             updateFocusIfNeeded()
@@ -318,7 +346,7 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 36
-        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 8
@@ -398,7 +426,7 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 18
-        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 0
@@ -441,7 +469,7 @@ final class PlayerControlsView: UIView {
     var focusNext: UIView?
     #endif
 
-    private static func button(_ symbol: String, size: CGFloat, menu: Bool = false) -> UIButton {
+    static func button(_ symbol: String, size: CGFloat, menu: Bool = false) -> UIButton {
         var configuration = UIButton.Configuration.plain()
         configuration.image = UIImage(systemName: symbol)
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)
@@ -502,8 +530,9 @@ final class PlayerControlsView: UIView {
         }
     }
 
-    /// The Skip Intro / Next Episode pill (filled, in the app's colours) and Cancel beside it.
-    private static func pill(filled: Bool) -> UIButton {
+    /// The Skip Intro / Next Episode pill (filled, in the app's colours) and Cancel beside it; the player's other
+    /// panels use them too.
+    static func pill(filled: Bool) -> UIButton {
         var configuration = UIButton.Configuration.filled()
         configuration.baseBackgroundColor = filled ? UIColor(Color.screen).withAlphaComponent(0.95) : UIColor.black.withAlphaComponent(0.55)
         configuration.baseForegroundColor = filled ? UIColor(Color.room) : .white

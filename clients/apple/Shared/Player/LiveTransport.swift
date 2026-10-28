@@ -97,6 +97,11 @@ final class LiveTransport: NSObject, PlayerTransport {
 
     func setRate(_ rate: Float) {}
 
+    var volume: Float {
+        get { player.volume }
+        set { player.volume = newValue }
+    }
+
     func stop() {
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }

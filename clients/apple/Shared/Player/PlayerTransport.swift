@@ -54,6 +54,8 @@ protocol PlayerTransport: AnyObject {
     func seek(to seconds: Double)
     func setRate(_ rate: Float)
     func stop()
+    /// The sound's level, 0 to 1 (the sleep timer fades it out).
+    var volume: Float { get set }
 
     var audioTracks: [TransportTrack] { get }
     var activeAudioTrack: String? { get }

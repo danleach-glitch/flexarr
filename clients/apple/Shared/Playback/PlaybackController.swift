@@ -68,6 +68,11 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var viewerSubtitleKey: String??
     /// Where downloaded files' watching goes, and their next episodes come from (set by the iOS app).
     @ObservationIgnored weak var offlineLibrary: OfflineLibrary?
+    /// Saving a nudge (and, for the server's stream, opening it again with the sound moved), once the nudging stops.
+    @ObservationIgnored private var audioDelaySave: Task<Void, Never>?
+    /// The speed the title was playing at when its stream was opened again (another audio track, moved sound, a
+    /// recovery), to carry on at.
+    @ObservationIgnored private var carriedRate: Float?
 
     /// The file played as it is on the device (AetherEngine demuxes it, the device decodes it): the normal way files
     /// play. Off (Settings, or the launch argument `-FlexarrEngine NO`), the server sends a stream instead. Both
@@ -129,6 +134,7 @@ final class PlaybackController: NSObject {
         self.client = client
         shuffling = shuffle
         trail = []
+        carriedRate = nil
         viewerSubtitleKey = subtitleKey.map { .some($0) }
         var request = request(for: itemId, startAt: startAt)
         if let subtitleKey { request.subtitleKey = subtitleKey }
@@ -141,6 +147,7 @@ final class PlaybackController: NSObject {
         onWillStart?()
         shuffling = false
         trail = []
+        carriedRate = nil
         viewerSubtitleKey = nil
         do {
             try present(info)
@@ -288,6 +295,12 @@ final class PlaybackController: NSObject {
         screen.previews = client.flatMap { info.isOffline ? nil : TrickplayPreviews(client: $0, sessionId: info.sessionId) }
         screen.setSubtitleOptions(delay: info.isOffline || info.subtitleBurnedIn || transport is EngineTransportMarker ? nil : (info.subtitleDelaySeconds ?? 0),
                                   size: preferences.subtitleSize ?? .standard)
+        // Audio sync needs the server (which keeps the offset for the household); a download plays as it was made.
+        screen.setAudioSync(seconds: info.isOffline || !info.hasPlayerControls ? nil : info.audioDelaySeconds ?? 0,
+                            offersRestOfSeason: info.item.kind == .episode)
+        screen.episodeEnd = info.item.kind == .episode
+            ? .init(credits: info.markers.first(where: { $0.type == .credits })?.start, stopsAtCredits: preferences.skipCredits && info.next != nil)
+            : nil
         updateEpisodeNavigation()
         loadArtwork(for: info, into: screen)
     }
@@ -313,6 +326,7 @@ final class PlaybackController: NSObject {
     private func fallBackFromEngine(_ info: PlaybackInfo, reason: String) {
         log.warning("Engine fell back to the server for \(info.item.title): \(reason)", ["playbackId": info.playbackId])
         engineSuppressedItem = info.item.id
+        carriedRate = transport?.rate
         transport?.stop()
         transport = nil
         guard let client else { return }
@@ -358,9 +372,52 @@ final class PlaybackController: NSObject {
         }
     }
 
+    /// Moves the file's sound later (earlier when negative) for everyone, and for the rest of the season if asked.
+    /// The engine moves it at once and the server is told once the nudging stops; the server's stream has it moved
+    /// there, so it's opened again where it was once the nudging has settled.
+    func setAudioDelay(_ seconds: Double, restOfSeason: Bool) {
+        guard let client, let current = info, !current.isOffline, current.hasPlayerControls else { return }
+        let seconds = max(-2, min(2, (seconds * 1000).rounded() / 1000))
+        let itemId = current.item.id
+        audioDelaySave?.cancel()
+        #if canImport(AetherEngine)
+        if let engine = transport as? EngineTransport, current.audioDelayInStream != true {
+            engine.setAudioDelay(seconds)
+            audioDelaySave = Task {
+                if !restOfSeason { guard (try? await Task.sleep(for: .milliseconds(500))) != nil else { return } }
+                do {
+                    try await client.setAudioDelay(itemId: itemId, seconds: seconds, restOfSeason: restOfSeason)
+                } catch {
+                    log.warning("Couldn't save the audio sync", error: error, ["playbackId": current.playbackId])
+                }
+            }
+            return
+        }
+        #endif
+        audioDelaySave = Task {
+            if !restOfSeason { guard (try? await Task.sleep(for: .seconds(1))) != nil else { return } }
+            do {
+                try await client.setAudioDelay(itemId: itemId, seconds: seconds, restOfSeason: restOfSeason)
+            } catch {
+                log.warning("Couldn't save the audio sync", error: error, ["playbackId": current.playbackId])
+                return
+            }
+            // Another audio track or a recovery may be opening meanwhile: once it's open, it's the one to redo.
+            while isRecovering {
+                guard (try? await Task.sleep(for: .milliseconds(200))) != nil else { return }
+            }
+            guard !Task.isCancelled, let now = self.info, now.item.id == itemId, !isRecovering else { return }
+            let inStream = now.audioDelayInStream == true ? now.audioDelaySeconds ?? 0 : 0
+            guard abs(inStream - seconds) > 0.0005 else { return }
+            log.info("Opening the stream again with the sound moved \(seconds)s", ["playbackId": now.playbackId])
+            reopen(reopenRequest(now), replacing: now)
+        }
+    }
+
     /// Opens the current title again with `request` (another audio track, moved subtitles) in the same screen.
     private func reopen(_ request: PlaybackRequest, replacing current: PlaybackInfo) {
         guard let client, let screen else { return }
+        carriedRate = transport?.rate
         isRecovering = true
         Task {
             defer { isRecovering = false }
@@ -396,8 +453,10 @@ final class PlaybackController: NSObject {
             skip(to: end)
             return
         }
+        // The sleep timer stops this episode at its end (or has run out): it doesn't go on to the next by itself.
+        let sleepHolds = screen?.sleepHoldsEpisode == true
         // Skip credits: the episode is over as soon as they start.
-        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing,
+        if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing, !sleepHolds,
            let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
             transport?.pause()
             report(paused: true, ended: true)
@@ -408,7 +467,7 @@ final class PlaybackController: NSObject {
             prompt = next
             updatePrompt()
             // The credits started: get the next episode ready. Back out of them: let it go.
-            if next == .nextEpisode { prepareNext() } else if !isFinishing { dropPrepared() }
+            if next == .nextEpisode { if !sleepHolds { prepareNext() } } else if !isFinishing { dropPrepared() }
         }
         if Date().timeIntervalSince(lastReport) >= Self.reportInterval, transport?.phase == .playing {
             report(paused: false)
@@ -419,6 +478,7 @@ final class PlaybackController: NSObject {
         guard let info else { return }
         switch phase {
         case .playing:
+            if !hasPlayed { applyStartingRate(info) }
             hasPlayed = true
             if reportedPaused { report(paused: false) }
         case .paused:
@@ -440,6 +500,15 @@ final class PlaybackController: NSObject {
         default:
             break
         }
+    }
+
+    /// Once the title is playing: the speed it was at before its stream was opened again, or the show's remembered one.
+    private func applyStartingRate(_ info: PlaybackInfo) {
+        let rate = carriedRate ?? info.speed.map(Float.init)
+        carriedRate = nil
+        guard let rate, rate != 1, let screen else { return }
+        log.info("Playing at \(rate)×", ["playbackId": info.playbackId])
+        screen.applyRate(rate)
     }
 
     private func report(paused: Bool, ended: Bool = false) {
@@ -510,6 +579,7 @@ final class PlaybackController: NSObject {
                         try? await client.stopPlayback(sessionId: info.sessionId)
                         return
                     }
+                    carriedRate = transport?.rate
                     transport?.stop()
                     try attach(info, to: screen)
                     return
@@ -654,7 +724,8 @@ final class PlaybackController: NSObject {
             switch prompt {
             case .none: nil
             case .skip(let type, _): type == .recap ? "Skip Recap" : "Skip Intro"
-            case .nextEpisode: nextTitle
+            // Not over the sleep timer's question, or for an episode it's stopping at the end of.
+            case .nextEpisode: screen?.sleepHoldsEpisode == true ? nil : nextTitle
             }
         }
         screen?.setPrompt(title, countingDown: isFinishing && countdown != nil)
@@ -679,6 +750,11 @@ final class PlaybackController: NSObject {
     /// there's nothing next or Cancel was chosen.
     private func itemEnded() {
         report(paused: true, ended: true)
+        // The sleep timer stops here: the screen stays up, dimmed, on the end of this episode.
+        if let screen, screen.sleepHoldsEpisode {
+            screen.sleepAtEndOfEpisode()
+            return
+        }
         if info?.next != nil, !nextCancelled {
             beginFinishing()
         } else {
@@ -728,6 +804,7 @@ final class PlaybackController: NSObject {
         report(paused: false, ended: leavingTrail && isPastCredits(current))
         if recordsHistory, isPastCredits(current) { onWatchedToEnd?(false) }
         let finished = current.sessionId
+        carriedRate = nil
         Task {
             defer { isAdvancing = false }
             try? await client.stopPlayback(sessionId: finished)
@@ -929,6 +1006,27 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize) {
         setSubtitleSize(size)
+    }
+
+    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double, restOfSeason: Bool) {
+        setAudioDelay(seconds, restOfSeason: restOfSeason)
+    }
+
+    /// A speed chosen during an episode is kept for its show (for this profile); a film's is for this time only.
+    func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {
+        guard let client, let info, !info.isOffline, info.hasPlayerControls, info.item.kind == .episode else { return }
+        let playbackId = info.playbackId
+        Task {
+            do {
+                try await client.setPlaybackSpeed(itemId: info.item.id, speed: Double(rate))
+            } catch {
+                log.warning("Couldn't remember the show's speed", error: error, ["playbackId": playbackId])
+            }
+        }
+    }
+
+    func playerScreenSleepChanged(_ screen: PlayerViewController) {
+        updatePrompt()
     }
 }
 

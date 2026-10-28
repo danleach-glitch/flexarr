@@ -105,6 +105,11 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         if player.rate > 0 { player.rate = self.rate }
     }
 
+    var volume: Float {
+        get { player.volume }
+        set { player.volume = newValue }
+    }
+
     func stop() {
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }

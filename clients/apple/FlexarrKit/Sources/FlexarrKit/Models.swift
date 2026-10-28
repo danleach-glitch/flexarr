@@ -397,6 +397,11 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
     public var hlg: Bool?
     /// The player demuxes the file itself (AetherEngine): any audio track, and picture subtitles drawn by it.
     public var selectsTracksItself: Bool?
+    /// The player can play a file's sound later (`delaysAudio`) or earlier (`advancesAudio`) than its picture by itself,
+    /// so the server leaves a file's audio offset to it. Otherwise the server's stream moves the sound. Servers before
+    /// 0.53 ignore them.
+    public var delaysAudio: Bool? = nil
+    public var advancesAudio: Bool? = nil
 
     public init(client: String, containers: [String], videoCodecs: [String], audioCodecs: [String],
                 hdr: Bool, maxHeight: Int, maxAudioChannels: Int, maxBitrate: Int, fmp4: Bool? = nil, dolbyVision: Bool? = nil,
@@ -439,7 +444,7 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
     /// What AetherEngine plays as it is on the device (experimental): the common containers, every codec it decodes
     /// in hardware or software, and every audio codec it carries, so the server sends the file rather than a stream.
     public static func engine(client: String, hdr: Bool, dolbyVision: Bool, hdr10: Bool?, hlg: Bool?) -> DeviceProfile {
-        DeviceProfile(
+        var profile = DeviceProfile(
             client: client,
             containers: ["mp4", "m4v", "mov", "mkv", "webm", "avi", "mpegts", "ts", "wmv", "flv"],
             videoCodecs: ["h264", "hevc", "av1", "vp9", "mpeg4", "mpeg2video", "vc1", "msmpeg4v3", "wmv3", "h263"],
@@ -454,6 +459,10 @@ public struct DeviceProfile: Codable, Sendable, Hashable {
             hlg: hlg,
             selectsTracksItself: true
         )
+        // The engine moves the sound either way itself (up to two seconds), so the file comes as it is.
+        profile.delaysAudio = true
+        profile.advancesAudio = true
+        return profile
     }
 
     /// What AVPlayer on iPhone and iPad can direct play: the same formats as Apple TV (AVPlayer mixes surround
@@ -564,6 +573,17 @@ public struct PlaybackInfo: Codable, Sendable {
     /// A short one-way hash of `sessionId`, for logs: the same playback can be found in the app's and the server's
     /// logs without either holding the session id, which is the stream URLs' credential. Absent from older servers.
     public var playbackId: String? = nil
+    /// The file's sound is out of sync by this much: played this many seconds later (earlier when negative), for the
+    /// whole household. Absent from servers before 0.53 (which can't move it).
+    public var audioDelaySeconds: Double? = nil
+    /// The server's stream already has the sound moved by `audioDelaySeconds`, so the player mustn't move it again.
+    /// Absent from servers before 0.53.
+    public var audioDelayInStream: Bool? = nil
+    /// The speed this profile watches the show at (nil: normal). Absent from servers before 0.53.
+    public var speed: Double? = nil
+
+    /// The server keeps audio offsets and show speeds (0.53 and later).
+    public var hasPlayerControls: Bool { audioDelaySeconds != nil }
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.
@@ -934,4 +954,13 @@ public enum SubtitleSize: String, ForwardCompatibleEnum, CaseIterable {
 
 struct SubtitleDelayBody: Codable, Sendable {
     let seconds: Double
+}
+
+struct AudioDelayBody: Codable, Sendable {
+    let seconds: Double
+    let restOfSeason: Bool
+}
+
+struct PlaybackSpeedBody: Codable, Sendable {
+    let speed: Double
 }
