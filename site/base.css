@@ -55,7 +55,7 @@ code { font-family: var(--mono); font-size: 0.9em; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--screen); font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1; }
 .wordmark img { width: 34px; height: 34px; }
 .site-nav { display: flex; gap: 4px; align-items: center; }
-.site-nav a { color: #d9d3e0; text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; }
+.site-nav a { color: #d9d3e0; text-decoration: none; font-weight: 500; padding: 8px 12px; border-radius: 10px; white-space: nowrap; }
 .site-nav a:hover, .site-nav a[aria-current] { color: var(--screen); background: var(--seat); }
 .site-nav .github { display: inline-flex; align-items: center; gap: 8px; color: var(--screen); border: 1px solid var(--aisle); }
 .site-nav .github svg { width: 18px; height: 18px; flex: none; }
@@ -64,6 +64,7 @@ code { font-family: var(--mono); font-size: 0.9em; }
 }
 /* On a phone the GitHub button keeps only its mark, so Apps and Guide fit beside the wordmark. */
 @media (max-width: 480px) {
+  .site-nav a { padding-inline: 9px; }
   .site-nav .github { font-size: 0; gap: 0; padding-inline: 10px; }
 }
 
