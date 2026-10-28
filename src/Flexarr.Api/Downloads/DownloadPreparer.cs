@@ -399,9 +399,18 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
             await process.WaitForExitAsync(ct);
         }
-        catch (OperationCanceledException)
+        catch
         {
-            process.Kill(entireProcessTree: true);
+            // Stopped, or something else went wrong (a database that's busy, say): ffmpeg mustn't carry on alone.
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // Finished meanwhile.
+            }
+
             throw;
         }
 

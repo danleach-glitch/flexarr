@@ -50,26 +50,40 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
     {
         ArgumentNullException.ThrowIfNull(plan);
         LiveSession session;
-        await _starting.WaitAsync(ct).ConfigureAwait(false);
-        try
+        LivePlan? made = null;
+        while (true)
         {
-            if (_sessions.TryGetValue(channelKey, out var running) && (running.Failed || running.Ended))
+            await _starting.WaitAsync(ct).ConfigureAwait(false);
+            try
             {
-                await StopAsync(running).ConfigureAwait(false);
-                running = null;
-            }
-
-            if (running is null)
-            {
-                // A channel nobody watches only lingers for a quick return; it gives way to one somebody wants, as
-                // the provider may allow a single connection.
-                foreach (var idle in _sessions.Values.Where(s => s.ViewerCount == 0).ToList())
+                if (await UsableAsync(channelKey).ConfigureAwait(false) is not null || made is not null)
                 {
-                    await StopAsync(idle).ConfigureAwait(false);
+                    break; // Still holding the lock.
                 }
 
-                var made = await plan(ct).ConfigureAwait(false);
-                running = new LiveSession(channelKey, source, made, rewind, settings(), _logger);
+                // A channel nobody watches only lingers for a quick return; it gives way to one somebody wants, as the
+                // provider may allow a single connection, which working out how to play this one needs.
+                await StopIdleAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                _starting.Release();
+                throw;
+            }
+
+            // That can mean a long probe of the stream: not while holding up everyone joining channels that are already
+            // playing. Whoever starts this channel first meanwhile wins, and this plan goes unused.
+            _starting.Release();
+            made = await plan(ct).ConfigureAwait(false);
+        }
+
+        try
+        {
+            var running = await UsableAsync(channelKey).ConfigureAwait(false);
+            if (running is null)
+            {
+                await StopIdleAsync().ConfigureAwait(false);
+                running = new LiveSession(channelKey, source, made!, rewind, settings(), _logger);
                 running.Start();
                 _sessions[channelKey] = running;
             }
@@ -92,6 +106,35 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
             await LeaveAsync(session, viewer).ConfigureAwait(false);
             throw;
         }
+    }
+
+    /// <summary>Stops the channels nobody is watching (call with the starting lock held).</summary>
+    private async Task StopIdleAsync()
+    {
+        foreach (var idle in _sessions.Values.Where(s => s.ViewerCount == 0).ToList())
+        {
+            await StopAsync(idle).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// The channel's session if it can be joined. One that failed, or whose stream ended while nobody watched, is stopped
+    /// and forgotten (call with the starting lock held).
+    /// </summary>
+    private async Task<LiveSession?> UsableAsync(string channelKey)
+    {
+        if (!_sessions.TryGetValue(channelKey, out var running))
+        {
+            return null;
+        }
+
+        if (running.Failed || running.Ended)
+        {
+            await StopAsync(running).ConfigureAwait(false);
+            return null;
+        }
+
+        return running;
     }
 
     /// <summary>Stops a channel now, whoever's watching (a recording needs its stream).</summary>
