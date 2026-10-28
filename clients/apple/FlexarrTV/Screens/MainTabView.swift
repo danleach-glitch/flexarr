@@ -30,6 +30,9 @@ struct MainTabView: View {
     /// tab bar selects what it focuses (tvOS 18 shows one when the sidebar is collapsed), take the selection back to
     /// Home with the title hidden on the other tab.
     @State private var linkHold: (tab: TabID, until: Date)?
+    /// As the app opens, Home's Play takes focus from the sidebar, so the sidebar closes and Home is ready to browse.
+    /// Not when a link opens a title, or once another tab is chosen.
+    @State private var startFocus = true
     @AppStorage(TabBarEntry.storageKey) private var tabBarOrder = ""
 
     var body: some View {
@@ -44,7 +47,9 @@ struct MainTabView: View {
             }
             Tab(value: TabID.home) {
                 TabStack(router: homeRouter, opensLinks: linkTab == .home) {
-                    HomeView().environment(\.opensTitlesOnLibraryTab, true)
+                    HomeView()
+                        .environment(\.opensTitlesOnLibraryTab, true)
+                        .environment(\.focusesContent, $startFocus)
                 }
             } label: {
                 Label("Home", systemImage: "house")
@@ -129,6 +134,7 @@ struct MainTabView: View {
                 selection = old
                 return
             }
+            if tab != .home { startFocus = false }
             guard let hold = linkHold, tab != hold.tab else { return }
             if Date() < hold.until { selection = hold.tab } else { linkHold = nil }
         }
@@ -153,6 +159,7 @@ struct MainTabView: View {
         }
         linkTab = tab
         selection = tab
+        startFocus = false
         linkHold = (tab, Date().addingTimeInterval(1.5))
     }
 }
