@@ -243,7 +243,8 @@ struct NowPlayingView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: music.sleep.setting == nil ? "moon.zzz" : "moon.zzz.fill")
+                Image(systemName: "zzz")
+                    .foregroundStyle(music.sleep.setting == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
                 if let end = music.sleep.endsAt {
                     // Minutes left, counting down.
                     TimelineView(.periodic(from: .now, by: 1)) { context in

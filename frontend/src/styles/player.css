@@ -148,7 +148,7 @@
   color: var(--ambient);
 }
 
-/* Minutes left on the sleep timer, on the moon. */
+/* Minutes left on the sleep timer, on its icon. */
 .player-sleep-count {
   position: absolute;
   top: 2px;

@@ -5,7 +5,7 @@ import { podcastSpeeds, useAudioPlayer, useAudioTime, type AudioPlayer } from '.
 import { formatClock } from '../lib/format'
 import { speedLabel } from '../lib/podcasts'
 import { minutesLeft, sleepChoices, sleepLabel } from '../lib/sleepTimer'
-import { Close, Forward30, Moon, Next, Pause, Play, Queue, Replay15 } from './icons'
+import { Close, Forward30, Next, Pause, Play, Queue, Replay15, Sleep } from './icons'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { QueuePanel } from './QueuePanel'
 
@@ -189,7 +189,7 @@ function PodcastTools({ player }: { player: AudioPlayer }) {
         aria-expanded={open?.menu === 'sleep'}
         onClick={toggle('sleep')}
       >
-        <Moon />
+        <Sleep />
         {left !== null && <span className="now-playing-count" aria-hidden="true">{left}</span>}
       </button>
       {open?.menu === 'speed' && (

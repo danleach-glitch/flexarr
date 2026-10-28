@@ -23,13 +23,13 @@ import {
   ExitFullscreen,
   Forward10,
   Fullscreen,
-  Moon,
   Muted,
   Next,
   Pause,
   Play,
   Replay10,
   Reset,
+  Sleep,
   Volume,
 } from '../components/icons'
 import { MAX_AUDIO_DELAY_SECONDS, useDelayedSound } from '../hooks/delayedSound'
@@ -553,6 +553,20 @@ export function PlayerPage() {
 
   const chromeShown = chrome || !playing || menu !== null || !!error
 
+  // An open menu closes at a press anywhere outside it. A press on the picture only closes it (it doesn't pause too);
+  // another control goes on to do its own thing, opening its menu instead, say.
+  const closedByPress = useRef(false)
+  useEffect(() => {
+    if (menu === null) return
+    const onPress = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest('.player-menu, .menu-anchor > button[aria-expanded="true"]')) return
+      closedByPress.current = e.target === video.current
+      setMenu(null)
+    }
+    document.addEventListener('pointerdown', onPress)
+    return () => document.removeEventListener('pointerdown', onPress)
+  }, [menu])
+
   // ---------- Actions
 
   const toggle = () => {
@@ -911,7 +925,10 @@ export function PlayerPage() {
       className={chromeShown ? 'player' : 'player chrome-hidden'}
       style={{ ...(accent ? { '--ambient': accent } : {}), '--cue-scale': scale } as CSSProperties}
       onMouseMove={wake}
-      onClick={(e) => !error && e.target === video.current && toggle()}
+      onClick={(e) => {
+        if (closedByPress.current) closedByPress.current = false
+        else if (!error && e.target === video.current) toggle()
+      }}
     >
       <video
         ref={video}
@@ -1198,44 +1215,6 @@ export function PlayerPage() {
 
           <div className="menu-anchor">
             <button
-              className={sleep ? 'icon-button player-sleep active' : 'icon-button player-sleep'}
-              aria-expanded={menu === 'sleep'}
-              aria-label={sleepLabel(sleep, clock, sleepWhat)}
-              title={sleepLabel(sleep, clock, sleepWhat)}
-              onClick={() => setMenu(menu === 'sleep' ? null : 'sleep')}
-            >
-              <Moon />
-              {minutesLeft(sleep, clock) !== null && (
-                <span className="player-sleep-count" aria-hidden="true">
-                  {minutesLeft(sleep, clock)}
-                </span>
-              )}
-            </button>
-            {menu === 'sleep' && (
-              <div className="player-menu" role="menu">
-                <div className="player-menu-column">
-                  <h3>Sleep timer</h3>
-                  {sleepChoices(sleepWhat).map((choice) => (
-                    <MenuItem
-                      key={choice.label}
-                      selected={choice.label.startsWith('At the end') ? !!sleep && 'endOfEpisode' in sleep : false}
-                      onClick={() => chooseSleep(choice.start())}
-                    >
-                      {choice.label}
-                    </MenuItem>
-                  ))}
-                  {sleep && (
-                    <button className="player-menu-item" onClick={() => chooseSleep(null)}>
-                      Turn off
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="menu-anchor">
-            <button
               className="player-quality"
               aria-expanded={menu === 'quality'}
               aria-label={`Quality: ${quality === 'auto' ? (info?.method === 'DirectPlay' ? 'Original' : 'Auto') : `${quality}p`}`}
@@ -1267,6 +1246,44 @@ export function PlayerPage() {
                   <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
                     Skip credits
                   </MenuItem>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="menu-anchor">
+            <button
+              className={sleep ? 'icon-button player-sleep active' : 'icon-button player-sleep'}
+              aria-expanded={menu === 'sleep'}
+              aria-label={sleepLabel(sleep, clock, sleepWhat)}
+              title={sleepLabel(sleep, clock, sleepWhat)}
+              onClick={() => setMenu(menu === 'sleep' ? null : 'sleep')}
+            >
+              <Sleep />
+              {minutesLeft(sleep, clock) !== null && (
+                <span className="player-sleep-count" aria-hidden="true">
+                  {minutesLeft(sleep, clock)}
+                </span>
+              )}
+            </button>
+            {menu === 'sleep' && (
+              <div className="player-menu" role="menu">
+                <div className="player-menu-column">
+                  <h3>Sleep timer</h3>
+                  {sleepChoices(sleepWhat).map((choice) => (
+                    <MenuItem
+                      key={choice.label}
+                      selected={choice.label.startsWith('At the end') ? !!sleep && 'endOfEpisode' in sleep : false}
+                      onClick={() => chooseSleep(choice.start())}
+                    >
+                      {choice.label}
+                    </MenuItem>
+                  ))}
+                  {sleep && (
+                    <button className="player-menu-item" onClick={() => chooseSleep(null)}>
+                      Turn off
+                    </button>
+                  )}
                 </div>
               </div>
             )}
