@@ -286,6 +286,9 @@ public struct ItemDetail: Codable, Sendable {
     public let files: [MediaFile]
     /// Overviews of `children`, keyed by child id (seasons carry their episodes' overviews here).
     public let childOverviews: [String: String?]
+    /// Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
+    /// file), for `files.first`, the copy playback picks. Absent from servers before 0.53.
+    public var canSearchSubtitles: Bool? = nil
 }
 
 public struct PersonCredit: Codable, Sendable, Hashable {

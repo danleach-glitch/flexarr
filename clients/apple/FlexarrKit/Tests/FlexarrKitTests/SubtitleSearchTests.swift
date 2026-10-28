@@ -24,6 +24,22 @@ struct SubtitleSearchTests {
         #expect(info.subtitles.map(\.isExternal) == [false, true, nil])
     }
 
+    @Test func detailFromAnOlderServerHasNoSubtitleSearch() throws {
+        let detail = try Fixture.decode(ItemDetail.self, "item-movie")
+
+        #expect(detail.canSearchSubtitles == nil)
+    }
+
+    @Test func detailSaysWhenSubtitlesCanBeSearched() throws {
+        var json = try #require(try JSONSerialization.jsonObject(with: Fixture.data("item-movie")) as? [String: Any])
+        json["canSearchSubtitles"] = true
+
+        let detail = try FlexarrClient.decoder.decode(ItemDetail.self, from: JSONSerialization.data(withJSONObject: json))
+
+        #expect(detail.canSearchSubtitles == true)
+        #expect(detail.files.first?.id != nil, "the search is for the first file, the one playback picks")
+    }
+
     @Test func searchAsksForTheFileAndDecodesResultsInOrder() async throws {
         let body = """
         {"results":[

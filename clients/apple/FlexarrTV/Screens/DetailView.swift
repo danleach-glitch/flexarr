@@ -20,6 +20,12 @@ struct DetailView: View {
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
     @State private var isVisible = false
+    /// The More menu's choices, searching for subtitles for this file (its id), and what was saved, to say so.
+    @State private var showingMore = false
+    @State private var subtitleSearchFile: SubtitleSearchFile?
+    @State private var savedSubtitles: String?
+    /// Said once the search has gone (an alert can't come up while the search is still leaving).
+    @State private var subtitlesJustSaved: String?
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focusedSeason: String?
     @FocusState private var focusedEpisode: String?
@@ -65,6 +71,21 @@ struct DetailView: View {
             }
         }
         .ignoresSafeArea(edges: [.top, .horizontal])
+        .fullScreenCover(item: $subtitleSearchFile, onDismiss: {
+            savedSubtitles = subtitlesJustSaved
+            subtitlesJustSaved = nil
+        }) { file in
+            if let client = model.client, let item {
+                SubtitleSearchView(client: client, itemId: item.id, fileId: file.id, onDownloaded: { saved in
+                    subtitlesJustSaved = "\(saved.label) subtitles saved"
+                    subtitleSearchFile = nil
+                }, onClose: { subtitleSearchFile = nil })
+                .presentationBackground(Color.black.opacity(0.45))
+            }
+        }
+        .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
+            Button("OK", role: .cancel) {}
+        }
         .task(id: model.refreshToken) {
             // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
             // changed here, or what's shown is old enough that something may have changed elsewhere.
@@ -179,6 +200,18 @@ struct DetailView: View {
                     Label("Go to show", systemImage: "rectangle.stack")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
+            }
+
+            // Things done now and then, out of the way of the row above.
+            if detail?.canSearchSubtitles == true, let file = detail?.files.first {
+                Button { showingMore = true } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .buttonStyle(ActionButtonStyle(ambient: ambient))
+                .accessibilityLabel("More")
+                .confirmationDialog(item.title, isPresented: $showingMore) {
+                    Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+                }
             }
         }
         .focusSection()

@@ -1,9 +1,10 @@
 import FlexarrKit
 import SwiftUI
 
-/// Subtitles Bazarr can find for the file being played, over the picture: Best match first (Flexarr picks), then
-/// every result, best first. Choosing one saves it beside the file; the player then opens again with it on. A panel
-/// down the right on Apple TV, a sheet on iPhone and iPad.
+/// Subtitles Bazarr can find for a file: Best match first (Flexarr picks), then every result, best first. Choosing
+/// one saves it beside the file and hands it to `onDownloaded` (the player opens again with it on; a title page says
+/// it's saved). A panel down the right on Apple TV, a sheet on iPhone and iPad. Opened from the player or a title page,
+/// so its words fit both.
 struct SubtitleSearchView: View {
     let client: FlexarrClient
     let itemId: String
@@ -176,4 +177,9 @@ struct SubtitleSearchView: View {
     private let rowSpacing: CGFloat = 2, horizontalPadding: CGFloat = 12, rowPadding: CGFloat = 8
     private let titleFont = Font.body.weight(.semibold), detailFont = Font.caption
     #endif
+}
+
+/// The file a title page searches subtitles for (its first, the copy playback picks), for presenting the search.
+struct SubtitleSearchFile: Identifiable, Hashable {
+    let id: String
 }
