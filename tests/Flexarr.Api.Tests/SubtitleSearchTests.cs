@@ -21,7 +21,7 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
         this.factory = factory;
         // Bazarr's queued work is checked on quickly, and given up on soon.
         Flexarr.Api.Playback.SubtitleSearchEndpoints.PollEvery = TimeSpan.FromMilliseconds(20);
-        Flexarr.Api.Playback.SubtitleSearchEndpoints.DownloadWait = TimeSpan.FromSeconds(5);
+        Flexarr.Api.Playback.SubtitleSearchEndpoints.DownloadWait = TimeSpan.FromSeconds(30);
     }
 
     private const string Results = """
@@ -120,13 +120,15 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
             }
         };
         using var app = bazarr.Serve(factory);
+        var client = Client(app);
+        await client.GetAsync(new Uri("/api/v1/subtitles/status", UriKind.Relative)); // the server is up before the clock starts
         var started = DateTime.UtcNow;
 
-        var response = await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { });
+        var response = await client.PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { });
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Contains("didn't save the subtitles", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(4)); // not the whole wait
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(15)); // not the whole 30-second wait
     }
 
     [Fact]
