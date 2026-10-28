@@ -27,6 +27,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security
+- If a Sonarr, Radarr or Seerr address redirects to another site, Flexarr no longer follows it, so their API keys aren't passed along. Redirects on the same server (to https, say) still work.
+- Podcast feeds can no longer reach your home network through IPv6 addresses that carry a home network address inside them (NAT64, 6to4).
+- A device can send diagnostics six times an hour, and diagnostics have their own 100 MB of space, so they can't crowd out the server's own log.
 - **A new server asks for its setup code.** Setting up Flexarr in a browser now needs the eight-character code the server writes in its log as it starts (`docker logs flexarr` with Docker; the Mac app shows it in its menu). Behind some reverse proxies and Docker Desktop, visitors from the internet can look as though they're on your home network, and the code makes sure only whoever has the server can claim it. After ten wrong tries the code changes. The iPhone and Apple TV apps say to type it in when the server asks for one.
 - An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
 - When Flexarr plays, downloads or scans a video, it only reads the file itself. A file that's really a playlist in disguise can no longer make it fetch addresses on your network.

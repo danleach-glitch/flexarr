@@ -35,13 +35,22 @@ public sealed partial class LogJanitor(LogPaths paths, IOptionsMonitor<FlexarrOp
         var logs = paths.LogFiles();
         var current = logs.Count > 0 ? logs[0] : null;
         var uploads = new DirectoryInfo(paths.UploadsDirectory);
-        var files = logs.Skip(1)
-            .Concat(uploads.Exists ? uploads.EnumerateFiles() : [])
-            .OrderBy(f => f.LastWriteTimeUtc)
-            .ToList();
-
-        var total = files.Sum(f => f.Length) + (current?.Length ?? 0);
         var limit = Math.Max(10, settings.MaxSizeMb) * 1024L * 1024;
+        // The server's log and the apps' diagnostics are kept apart, so diagnostics can never push out the server's
+        // own record; they have their own budget besides (ClientLogs.UploadsBudgetBytes).
+        var removed = Trim([.. logs.Skip(1).OrderBy(f => f.LastWriteTimeUtc)], (current?.Length ?? 0), limit, cutoff)
+            + Trim(uploads.Exists ? [.. uploads.EnumerateFiles().OrderBy(f => f.LastWriteTimeUtc)] : [], 0, ClientLogs.UploadsBudgetBytes, cutoff);
+
+        if (removed > 0)
+        {
+            LogTidied(removed);
+        }
+    }
+
+    /// <summary>Deletes the oldest of <paramref name="files"/> while any is past <paramref name="cutoff"/> or they're over <paramref name="limit"/>.</summary>
+    private int Trim(List<FileInfo> files, long alsoKept, long limit, DateTime cutoff)
+    {
+        var total = files.Sum(f => f.Length) + alsoKept;
         var removed = 0;
         foreach (var file in files)
         {
@@ -66,10 +75,7 @@ public sealed partial class LogJanitor(LogPaths paths, IOptionsMonitor<FlexarrOp
             }
         }
 
-        if (removed > 0)
-        {
-            LogTidied(removed);
-        }
+        return removed;
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Count} old log files")]

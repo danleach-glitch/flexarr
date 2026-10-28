@@ -30,6 +30,15 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     /// <summary>Per device, per minute. A browser stuck in a render loop mustn't fill the disk.</summary>
     private const int MaxPerMinute = 300;
 
+    /// <summary>Diagnostics from one device in an hour: plenty for someone sending them by hand.</summary>
+    public const int MaxUploadsPerHour = 6;
+
+    /// <summary>
+    /// All diagnostics together. They're cleared oldest first to stay under it, apart from the server's own log, so
+    /// uploads can't push out the record of what the server did.
+    /// </summary>
+    public const long UploadsBudgetBytes = 100L * 1024 * 1024;
+
     private const int MaxText = 8 * 1024;
     private const int MaxProperties = 20;
 
@@ -39,6 +48,7 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly ConcurrentDictionary<string, (long Minute, int Count)> _rates = new();
+    private readonly ConcurrentDictionary<string, (long Hour, int Count)> _uploadRates = new();
 
     /// <summary>Reports go through the server's own logging, so they're filtered, redacted and stored like the rest.</summary>
     private readonly ILogger _log = loggers.CreateLogger(LogAreas.ClientSource);
@@ -87,9 +97,19 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         return true;
     }
 
+    /// <summary>Counts an upload against the device's hourly allowance; false when it's used up.</summary>
+    public bool TryStartUpload(ClientIdentity who)
+    {
+        ArgumentNullException.ThrowIfNull(who);
+        var hour = clock.GetUtcNow().ToUnixTimeSeconds() / 3600;
+        var rate = _uploadRates.AddOrUpdate(who.Key, _ => (hour, 1), (_, r) => r.Hour == hour ? (hour, r.Count + 1) : (hour, 1));
+        return rate.Count <= MaxUploadsPerHour;
+    }
+
     public async Task<ClientUpload> SaveUploadAsync(ClientIdentity who, string platform, string? appVersion, string? note, Stream body, CancellationToken ct)
     {
         Directory.CreateDirectory(paths.UploadsDirectory);
+        MakeRoomForUpload();
         var now = clock.GetUtcNow();
         var id = $"{now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..24];
         var path = Path.Combine(paths.UploadsDirectory, id + ".log");
@@ -118,6 +138,30 @@ public sealed partial class ClientLogs(LogPaths paths, TimeProvider clock, ILogg
         await File.WriteAllTextAsync(Path.Combine(paths.UploadsDirectory, id + ".json"), JsonSerializer.Serialize(upload, Json), ct);
         LogUploaded(_log, who.Device, upload.Platform, upload.SizeBytes / 1024);
         return upload;
+    }
+
+    /// <summary>Deletes the oldest diagnostics until a new one fits in <see cref="UploadsBudgetBytes"/>.</summary>
+    private void MakeRoomForUpload()
+    {
+        var files = new DirectoryInfo(paths.UploadsDirectory).EnumerateFiles().OrderBy(f => f.LastWriteTimeUtc).ToList();
+        var total = files.Sum(f => f.Length);
+        foreach (var file in files)
+        {
+            if (total + MaxUploadBytes <= UploadsBudgetBytes)
+            {
+                return;
+            }
+
+            try
+            {
+                file.Delete();
+                total -= file.Length;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Tried again before the next upload.
+            }
+        }
     }
 
     public IReadOnlyList<ClientUpload> Uploads()

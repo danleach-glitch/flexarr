@@ -187,6 +187,21 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task ADevice_SendsDiagnosticsAFewTimesAnHour_NotWithoutEnd()
+    {
+        var device = await DeviceAsync("Chatty TV");
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i <= ClientLogs.MaxUploadsPerHour; i++)
+        {
+            using var body = new StringContent("hello\n", Encoding.UTF8, "text/plain");
+            statuses.Add((await device.PostAsync(Api("/logs/client/diagnostics?platform=tvos"), body)).StatusCode);
+        }
+
+        Assert.All(statuses.Take(ClientLogs.MaxUploadsPerHour), s => Assert.Equal(HttpStatusCode.Created, s));
+        Assert.Equal(HttpStatusCode.TooManyRequests, statuses[^1]);
+    }
+
+    [Fact]
     public async Task AreaLevelsChangeOneAtATime()
     {
         var admin = Admin();
