@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flexarr apps: Apple TV, iPhone, iPad, web and Android</title>
+  <meta name="description" content="Every Flexarr app and platform, with its version and status: what you can download today, what&#39;s coming soon and what&#39;s on the way.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/apps">
+  <link rel="alternate" type="application/json" href="/apps.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Flexarr apps: Apple TV, iPhone, iPad, web and Android">
+  <meta property="og:description" content="Every Flexarr app and platform, with its version and status: what you can download today, what&#39;s coming soon and what&#39;s on the way.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/apps">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <style>
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .hero { padding-block: clamp(32px, 6vw, 72px) 0; }
+    .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 12px; }
+    .hero h1 { font-size: clamp(2.8rem, 9vw, 5.5rem); font-weight: 900; }
+    .lede { max-width: 680px; margin: 18px 0 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.25rem); }
+
+    /* At a glance */
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 36px 0 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
+    .table { margin-top: 12px; overflow-x: auto; border: 1px solid var(--aisle); border-radius: 16px; background: var(--seat); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 13px 18px; text-align: left; border-top: 1px solid var(--aisle); white-space: nowrap; }
+    thead th { border-top: 0; color: var(--usher); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    tbody th { font-weight: 500; }
+    tbody th a { color: var(--screen); text-decoration: none; }
+    tbody th a:hover { color: var(--silver); text-decoration: underline; }
+    td { color: var(--usher); }
+    .mark { width: 1%; padding-right: 0; font-size: 1.1rem; }
+    .version { font-variant-numeric: tabular-nums; color: var(--screen); }
+    .none { color: var(--usher); opacity: 0.7; }
+    /* On a phone the icon column carries the status, so the table fits without scrolling. */
+    @media (max-width: 640px) {
+      th, td { padding: 12px 14px; white-space: normal; }
+      th:nth-child(3), td:nth-child(3) { display: none; }
+    }
+
+    /* Each platform */
+    .group { padding-block: clamp(48px, 7vw, 88px) 0; }
+    .group h2 { font-size: clamp(2.2rem, 5vw, 3.3rem); }
+    .intro { color: var(--usher); margin: 12px 0 0; font-size: 1.05rem; }
+    .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 32px; margin-top: 20px; }
+    .app { padding: 24px 0 8px; border-top: 1px solid var(--aisle); display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 96px; }
+    .app:target .app-icon { outline: 2px solid var(--silver); outline-offset: 3px; }
+    .app-head { display: flex; align-items: center; gap: 14px; }
+    .app h3 { font-size: 1.9rem; }
+    .app-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; background: rgb(169 194 236 / 0.14); color: var(--silver); }
+    .app:nth-child(3n+2) .app-icon { background: rgb(232 160 191 / 0.14); color: var(--rose); }
+    .app:nth-child(3n) .app-icon { background: rgb(242 238 231 / 0.1); color: var(--screen); }
+    .app-icon svg { width: 22px; height: 22px; }
+    .app p { margin: 0; color: var(--usher); }
+    .app .meta { margin-top: 4px; font-size: 0.95rem; }
+    .status { color: var(--screen); font-weight: 500; }
+    .dot { margin: 0 4px; }
+    .note { font-size: 0.95rem; }
+    .requires { font-size: 0.92rem; }
+    .requires span { color: var(--screen); font-weight: 700; margin-right: 4px; }
+    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 4px; }
+    .links .button { min-height: 44px; padding: 0 18px; font-size: 0.95rem; }
+    .links .button.primary { box-shadow: none; }
+    .links .button svg { width: 18px; height: 18px; }
+    .more { font-weight: 700; text-decoration: none; }
+    .more:hover { text-decoration: underline; }
+
+    .closing { padding-block: clamp(56px, 8vw, 96px); color: var(--usher); }
+    .closing p { margin: 0; max-width: 680px; }
+    .closing p + p { margin-top: 10px; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the content</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a class="keep" href="/apps" aria-current="page">Apps</a>
+        <a href="/#setup">Set up</a>
+        <a class="keep" href="/guide">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      <div class="hero">
+        <p class="kicker">Apps</p>
+        <h1>Flexarr on every screen.</h1>
+        <p class="lede">What you can download today, what's coming soon and what's on the way. Every app connects to your own Flexarr server at home.</p>
+      </div>
+
+      <section aria-label="Every platform at a glance">
+        <ul class="legend">
+          <li><span aria-hidden="true">✅</span> Available</li>
+          <li><span aria-hidden="true">🧪</span> Beta</li>
+          <li><span aria-hidden="true">🔜</span> Coming soon</li>
+          <li><span aria-hidden="true">🛠️</span> In development</li>
+          <li><span aria-hidden="true">🗓️</span> Planned</li>
+        </ul>
+        <div class="table"><table>
+          <thead><tr><th scope="col"><span class="visually-hidden">Status</span></th><th scope="col">Platform</th><th scope="col">Status</th><th scope="col">Version</th></tr></thead>
+          <tbody>
+            <tr><td class="mark" aria-hidden="true">✅</td><th scope="row"><a href="#iphone">iPhone and iPad</a></th><td>Available</td><td><span class="version">0.49.0</span></td></tr>
+            <tr><td class="mark" aria-hidden="true">🔜</td><th scope="row"><a href="#apple-tv">Apple TV</a></th><td>Coming soon</td><td><span class="version">0.49.0</span></td></tr>
+            <tr><td class="mark" aria-hidden="true">✅</td><th scope="row"><a href="#web">Web</a></th><td>Available</td><td><span class="version">0.49.3</span></td></tr>
+            <tr><td class="mark" aria-hidden="true">🛠️</td><th scope="row"><a href="#android">Android phone and tablet</a></th><td>In development</td><td><span class="none">Not yet</span></td></tr>
+            <tr><td class="mark" aria-hidden="true">🗓️</td><th scope="row"><a href="#android-tv">Android TV, Google TV and Fire TV</a></th><td>Planned</td><td><span class="none">Not yet</span></td></tr>
+            <tr><td class="mark" aria-hidden="true">✅</td><th scope="row"><a href="#server">Flexarr server</a></th><td>Available</td><td><span class="version">0.49.3</span></td></tr>
+            <tr><td class="mark" aria-hidden="true">✅</td><th scope="row"><a href="#home-assistant">Home Assistant</a></th><td>Available</td><td><span class="version">0.1.1</span></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="group" aria-labelledby="group-apps">
+        <h2 id="group-apps">Watch and listen</h2>
+        <p class="intro">Connect each app to your server once with a short code.</p>
+        <div class="apps">
+          <article class="app" id="iphone">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span>
+              <div>
+                <h3>iPhone and iPad</h3>
+                <p class="meta"><span class="status available"><span aria-hidden="true">✅</span> Available</span> <span class="dot" aria-hidden="true">·</span> Version <span class="version">0.49.0</span></p>
+              </div>
+            </div>
+            <p>Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.</p>
+            <p class="requires"><span>Needs</span> iOS or iPadOS 18.2 or later</p>
+            <div class="links"><a class="button primary" href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>Download on the App Store</a></div>
+          </article>
+          <article class="app" id="apple-tv">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg></span>
+              <div>
+                <h3>Apple TV</h3>
+                <p class="meta"><span class="status coming"><span aria-hidden="true">🔜</span> Coming soon</span> <span class="dot" aria-hidden="true">·</span> Version <span class="version">0.49.0</span></p>
+              </div>
+            </div>
+            <p>Your libraries, music and live TV from the sofa, with Continue Watching in the Top Shelf and a player built for HDR and Atmos.</p>
+            <p class="note">With Apple for review. Until it&#39;s on the App Store you can install it from a Mac.</p>
+            <p class="requires"><span>Needs</span> tvOS 18.2 or later</p>
+            <div class="links"><a class="button quiet" href="/guide/apple-tv-xcode">Install it from Xcode</a></div>
+          </article>
+          <article class="app" id="web">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3Z"/></svg></span>
+              <div>
+                <h3>Web</h3>
+                <p class="meta"><span class="status available"><span aria-hidden="true">✅</span> Available</span> <span class="dot" aria-hidden="true">·</span> Version <span class="version">0.49.3</span></p>
+              </div>
+            </div>
+            <p>Built into the server, nothing to install. Open your server&#39;s address on a computer, tablet or phone.</p>
+            <p class="requires"><span>Needs</span> Any up-to-date browser</p>
+            <div class="links"><a class="button quiet" href="/#setup">Included with the server</a></div>
+          </article>
+          <article class="app" id="android">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span>
+              <div>
+                <h3>Android phone and tablet</h3>
+                <p class="meta"><span class="status development"><span aria-hidden="true">🛠️</span> In development</span></p>
+              </div>
+            </div>
+            <p>A native Android app for phones and tablets. Until it&#39;s ready, the web app works in your phone&#39;s browser.</p>
+          </article>
+          <article class="app" id="android-tv">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg></span>
+              <div>
+                <h3>Android TV, Google TV and Fire TV</h3>
+                <p class="meta"><span class="status planned"><span aria-hidden="true">🗓️</span> Planned</span></p>
+              </div>
+            </div>
+            <p>Flexarr on the big screen for TVs and streaming sticks that run Android.</p>
+          </article>
+        </div>
+      </section>
+      <section class="group" aria-labelledby="group-server">
+        <h2 id="group-server">Run it at home</h2>
+        <p class="intro">One server holds your libraries and serves every app.</p>
+        <div class="apps">
+          <article class="app" id="server">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="7" rx="2"/><rect x="3" y="13.5" width="18" height="7" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></span>
+              <div>
+                <h3>Flexarr server</h3>
+                <p class="meta"><span class="status available"><span aria-hidden="true">✅</span> Available</span> <span class="dot" aria-hidden="true">·</span> Version <span class="version">0.49.3</span></p>
+              </div>
+            </div>
+            <p>Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. Free for personal use.</p>
+            <p class="requires"><span>Needs</span> Docker on Linux, Windows, Synology or Unraid (64-bit Intel, AMD or ARM), or a Mac</p>
+            <div class="links"><a class="button primary" href="/#setup">Set up your server</a><a class="more" href="https://github.com/danleach-glitch/flexarr/releases" rel="noopener">What&#39;s new</a></div>
+          </article>
+        </div>
+      </section>
+      <section class="group" aria-labelledby="group-integrations">
+        <h2 id="group-integrations">Works with</h2>
+        <p class="intro">Flexarr in the other things you use at home.</p>
+        <div class="apps">
+          <article class="app" id="home-assistant">
+            <div class="app-head">
+              <span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5.5h4V20"/></svg></span>
+              <div>
+                <h3>Home Assistant</h3>
+                <p class="meta"><span class="status available"><span aria-hidden="true">✅</span> Available</span> <span class="dot" aria-hidden="true">·</span> Version <span class="version">0.1.1</span></p>
+              </div>
+            </div>
+            <p>Every Apple TV, iPhone and iPad becomes a media player, so your home can react to what you&#39;re watching: lights down when a film starts.</p>
+            <p class="requires"><span>Needs</span> Home Assistant with HACS, and Flexarr 0.45.0 or later</p>
+            <div class="links"><a class="button quiet" href="https://github.com/danleach-glitch/flexarr-home-assistant" rel="noopener">Get it on GitHub</a><a class="more" href="/guide/home-assistant">How to set it up</a></div>
+          </article>
+        </div>
+      </section>
+
+      <div class="closing">
+        <p>Want Flexarr somewhere else? <a href="https://github.com/danleach-glitch/flexarr/issues">Tell us on GitHub</a>.</p>
+        <p>This list is also at <a href="/apps.json">flexarr.io/apps.json</a>, and its source is <a href="https://github.com/danleach-glitch/flexarr/blob/main/site/apps.json">site/apps.json</a> on GitHub.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

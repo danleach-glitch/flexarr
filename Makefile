@@ -1,4 +1,4 @@
-.PHONY: guide apple-install ios-install ios-upload ios-dsyms tv-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: guide apps apple-install ios-install ios-upload ios-dsyms tv-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -100,6 +100,9 @@ ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
 
 guide: ## Build flexarr.io/guide (site/guide) from docs/guide
 	cd scripts/guide && npm ci --silent && node build.mjs
+
+apps: ## Build flexarr.io/apps (site/apps.html) from site/apps.json
+	node scripts/apps/build.mjs
 
 # Archive the tvOS app and upload it to App Store Connect. Pass the iOS app's bundle ID to ship both on one
 # listing (universal purchase); the Top Shelf extension becomes <bundle id>.topshelf.

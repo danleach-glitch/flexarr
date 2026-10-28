@@ -27,6 +27,7 @@ jobs:
       web: ${{ steps.diff.outputs.web }}
       apple: ${{ steps.diff.outputs.apple }}
       guide: ${{ steps.diff.outputs.guide }}
+      apps: ${{ steps.diff.outputs.apps }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,6 +47,7 @@ jobs:
           echo "web=$(has '^(frontend/|\.nvmrc)')" >>"$GITHUB_OUTPUT"
           echo "apple=$(has '^clients/apple/')" >>"$GITHUB_OUTPUT"
           echo "guide=$(has '^(docs/guide/|scripts/guide/|site/guide/)')" >>"$GITHUB_OUTPUT"
+          echo "apps=$(has '^(site/apps\.|scripts/apps/)')" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   server:
@@ -101,6 +103,19 @@ jobs:
       - run: npm ci
       - run: node build.mjs --check
 
+  # flexarr.io/apps is built from site/apps.json and committed; this fails when someone forgot `make apps`.
+  apps:
+    name: Apps page
+    needs: changes
+    if: needs.changes.outputs.apps == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/apps/build.mjs --check
+
   apple:
     name: Apple (${{ matrix.name }})
     needs: changes
@@ -148,7 +163,7 @@ jobs:
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, guide, apple]
+    needs: [changes, server, web, guide, apps, apple]
     if: always()
     runs-on: ubuntu-latest
     steps:
