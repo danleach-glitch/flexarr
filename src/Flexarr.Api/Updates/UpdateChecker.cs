@@ -17,6 +17,9 @@ public sealed record LatestRelease(ReleaseVersion Version, string Notes, Uri Pag
 
     /// <summary>The SHA-256 of every build, one "&lt;hash&gt;  &lt;name&gt;" line each.</summary>
     public ReleaseAsset? Checksums => Assets.FirstOrDefault(a => a.Name == "SHA256SUMS");
+
+    /// <summary>The signature over <see cref="Checksums"/> (see <see cref="UpdateSignature"/>); absent before 0.52.</summary>
+    public ReleaseAsset? Signature => Assets.FirstOrDefault(a => a.Name == UpdateSignature.FileName);
 }
 
 /// <summary>
