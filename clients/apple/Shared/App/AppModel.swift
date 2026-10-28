@@ -431,6 +431,12 @@ final class AppModel {
     /// Plays a podcast episode from where it was left, at the profile's speed.
     func playEpisode(_ episode: ItemSummary) {
         guard let client else { return }
+        // Already the one playing (or paused): carry on from where it is. Starting it again would go back to the place
+        // in `episode`, which may be from when the screen loaded.
+        if music.current?.id == episode.id {
+            if !music.isPlaying { music.togglePlayPause() }
+            return
+        }
         music.playPodcast(episode, speed: podcastPreferences?.speed, client: client)
     }
 

@@ -17,6 +17,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 
 ### iPhone and Apple TV
+- On iPhone, tapping an episode in Home's **New podcasts** opens it (its notes, Play and download) instead of playing it straight away.
+- Playing a podcast episode that's already playing or paused carries on from where it is, instead of going back to where it was when the screen opened.
 - Downloads on your iPhone are kept through app updates: if the app can't read one saved download, it keeps the rest instead of starting with an empty list.
 - Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
 
