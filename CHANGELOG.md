@@ -5,6 +5,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- Download progress shows for everything Sonarr and Radarr are fetching, not just the first 200.
+- Episodes in **Coming soon** that Sonarr gives only a date for now show on the right day wherever you are.
+- Finding intros and credits carries on when one file can't be read, such as one on a network share that stopped answering, instead of stopping for good.
+- A title or its show being removed by a scan while you open it no longer shows an error.
 - Watching a long film no longer fills the disk: the server keeps the last 10 minutes of what's been converted for rewinding and deletes the rest as playback moves on. Films whose video is copied rather than converted also take half the space they did.
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 

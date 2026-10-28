@@ -22,6 +22,9 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
     private const double MinCredits = 15;
     private static readonly string[] QuietArgs = ["-hide_banner", "-v", "error", "-nostdin"];
 
+    /// <summary>Longest one ffmpeg or ffprobe run may take: a stalled network share mustn't stop detection for good.</summary>
+    private static readonly TimeSpan RunLimit = TimeSpan.FromMinutes(5);
+
     /// <summary>Markers for each file of one season, in episode order. Files with nothing found map to an empty list.</summary>
     public async Task<Dictionary<Guid, List<DetectedMarker>>> DetectSeasonAsync(IReadOnlyList<MediaFile> episodes, CancellationToken ct)
     {
@@ -170,16 +173,19 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
 
         using var process = Process.Start(start)!;
         using var buffer = new MemoryStream();
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(RunLimit);
         try
         {
-            var drainErrors = process.StandardError.ReadToEndAsync(ct);
-            await process.StandardOutput.BaseStream.CopyToAsync(buffer, ct).ConfigureAwait(false);
-            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            var drainErrors = process.StandardError.ReadToEndAsync(limit.Token);
+            await process.StandardOutput.BaseStream.CopyToAsync(buffer, limit.Token).ConfigureAwait(false);
+            await process.WaitForExitAsync(limit.Token).ConfigureAwait(false);
             await drainErrors.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             ProcessSignals.KillTree(process);
+            ThrowIfTimedOut(path, ct);
             throw;
         }
 
@@ -198,19 +204,31 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
         }
 
         using var process = Process.Start(start)!;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(RunLimit);
         try
         {
             // Read both at once: a process blocked writing a full stderr pipe would never finish its stdout.
-            var output = process.StandardOutput.ReadToEndAsync(ct);
-            var errors = process.StandardError.ReadToEndAsync(ct);
+            var output = process.StandardOutput.ReadToEndAsync(limit.Token);
+            var errors = process.StandardError.ReadToEndAsync(limit.Token);
             await Task.WhenAll(output, errors).ConfigureAwait(false);
-            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            await process.WaitForExitAsync(limit.Token).ConfigureAwait(false);
             return process.ExitCode == 0 ? await output.ConfigureAwait(false) : null;
         }
         catch (OperationCanceledException)
         {
             ProcessSignals.KillTree(process);
+            ThrowIfTimedOut(args[^1], ct);
             throw;
+        }
+    }
+
+    /// <summary>Cancelled by <see cref="RunLimit"/> rather than by the caller: a failure for this file, not a shutdown.</summary>
+    private static void ThrowIfTimedOut(string path, CancellationToken ct)
+    {
+        if (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Reading {Path.GetFileName(path)} took more than {RunLimit.TotalMinutes} minutes");
         }
     }
 

@@ -130,8 +130,20 @@ public sealed class ArrClient(HttpClient httpClient)
     public async Task<IReadOnlyList<ArrQueueItem>> GetQueueAsync(ArrInstance instance, CancellationToken ct = default)
     {
         var include = instance.Kind == ArrKind.Radarr ? "includeMovie=true" : "includeSeries=true&includeEpisode=true";
-        var page = await GetAsync<ArrPage<ArrQueueItem>>(instance, $"queue?pageSize=200&{include}", ct).ConfigureAwait(false);
-        return page.Records;
+        // A page at a time, up to a sane cap: a big backlog would otherwise lose everything past the first page.
+        const int PageSize = 200, MaxPages = 10;
+        var records = new List<ArrQueueItem>();
+        for (var number = 1; number <= MaxPages; number++)
+        {
+            var page = await GetAsync<ArrPage<ArrQueueItem>>(instance, $"queue?page={number}&pageSize={PageSize}&{include}", ct).ConfigureAwait(false);
+            records.AddRange(page.Records);
+            if (page.Records.Count < PageSize || records.Count >= page.TotalRecords)
+            {
+                break;
+            }
+        }
+
+        return records;
     }
 
     /// <summary>

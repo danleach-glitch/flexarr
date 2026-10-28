@@ -113,13 +113,22 @@ public static class ItemEndpoints
             return null;
         }
 
-        var entity = await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == id, ct);
+        if (await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstOrDefaultAsync(i => i.Id == id, ct) is not { } entity)
+        {
+            return null;
+        }
 
         var ancestors = new List<ItemSummaryDto>();
         for (var parentId = entity.ParentId; parentId is { } pid;)
         {
-            ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstAsync(ct));
-            parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
+            // A scan may take a parent away mid-request: the trail stops there instead of failing.
+            if (await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstOrDefaultAsync(ct) is not { } parent)
+            {
+                break;
+            }
+
+            ancestors.Insert(0, parent);
+            parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstOrDefaultAsync(ct);
         }
 
         // An artist's albums read newest first; everything else in its natural order.
