@@ -235,10 +235,23 @@ public static class CollectionEndpoints
     /// <summary>Rows for Home: collections this profile has chosen to show there, in layout order.</summary>
     public static async Task<List<HomeRowDto>> HomeRowsAsync(FlexarrDbContext db, CurrentProfile profile, int rowSize, CancellationToken ct)
     {
+        var shown = await Visible(db, profile).Where(c => c.ShowOnHome && !c.Hidden).OrderBy(c => c.Name).ToListAsync(ct);
+
+        // Every hand-picked collection's titles in two queries, rather than two for each collection. Smart ones are
+        // queries of their own.
+        var manual = shown.Where(c => c.Kind != CollectionKind.Smart).Select(c => c.Id).ToList();
+        var entries = await db.CollectionItems.Where(i => manual.Contains(i.CollectionId) && i.MediaItem != null).OrderBy(i => i.Position)
+            .Select(i => new { i.CollectionId, i.MediaItemId }).ToListAsync(ct);
+        var firsts = entries.GroupBy(e => e.CollectionId).ToDictionary(g => g.Key, g => g.Select(e => e.MediaItemId).Take(rowSize).ToList());
+        var wanted = firsts.Values.SelectMany(ids => ids).Distinct().ToList();
+        var summaries = await db.MediaItems.Where(i => wanted.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
+
         var rows = new List<HomeRowDto>();
-        foreach (var c in await Visible(db, profile).Where(c => c.ShowOnHome && !c.Hidden).OrderBy(c => c.Name).ToListAsync(ct))
+        foreach (var c in shown)
         {
-            var items = await ItemsAsync(db, profile, c, rowSize, ct);
+            var items = c.Kind == CollectionKind.Smart
+                ? await ItemsAsync(db, profile, c, rowSize, ct)
+                : [.. firsts.GetValueOrDefault(c.Id, []).Where(summaries.ContainsKey).Select(id => summaries[id])];
             rows.Add(new HomeRowDto($"collection-{c.Id}", c.Name, "poster", items, $"/collection/{c.Id}"));
         }
 
