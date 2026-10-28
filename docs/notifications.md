@@ -100,7 +100,8 @@ Categories and their buttons:
 
 ## Relay API
 
-`POST https://push.flexarr.io/api/push`
+`POST https://push.flexarr.io/api/push`, with `Content-Type: application/json` (anything else gets `415`, so a web
+page can't send through its visitors' browsers).
 
 Servers from before 0.51.0 post to `https://www.flexarr.io/api/push`, which the site passes on to the relay.
 
@@ -116,9 +117,12 @@ The relay sends Apple:
 ```
 
 It answers `200 {"ok":true}`, `410 {"reason":"Unregistered"}` or `400 {"reason":"BadDeviceToken"}` (the server forgets
-the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited, or `502` with Apple's reason.
+the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited (120 requests a minute from one address, 12 a minute to one phone), or `502`
+with Apple's reason.
 
 The relay needs these environment variables on the flexarr-push Vercel project: `APNS_KEY` (the .p8 file's contents),
-`APNS_KEY_ID`, `APNS_TEAM_ID` (`KZRA8PTJ5Z`) and `APNS_TOPIC` (`com.danleach.flexarr.ios`). Make the key in the Apple
+`APNS_KEY_ID`, `APNS_TEAM_ID` (the Apple developer team's ID) and `APNS_TOPIC` (the iPhone app's bundle ID).
+`KV_REST_API_URL` and `KV_REST_API_TOKEN` are optional: with an Upstash Redis store connected (Vercel's marketplace
+sets both), the per-phone limit is counted across every instance of the relay rather than by each one alone. Make the key in the Apple
 Developer site under Certificates, Identifiers & Profiles › Keys, with Apple Push Notifications service enabled. The
 app ID needs the Push Notifications capability.

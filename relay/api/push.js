@@ -2,6 +2,8 @@
 // it to Apple. We never see what's inside: the phone decrypts it. See docs/notifications.md ("Relay API").
 //
 // Environment: APNS_KEY (the .p8 file's contents), APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC (the app's bundle id).
+// Optional: KV_REST_API_URL and KV_REST_API_TOKEN (an Upstash Redis store, as Vercel's marketplace sets them), so the
+// per-phone limit holds across every instance; without them each warm instance counts on its own.
 
 const crypto = require('node:crypto');
 const http2 = require('node:http2');
@@ -11,6 +13,10 @@ const HOSTS = { production: 'https://api.push.apple.com', sandbox: 'https://api.
 const MAX_PAYLOAD = 2800;
 const TIMEOUT_MS = 10_000;
 const RATE_LIMIT = 120; // requests per minute per IP
+// Per phone: a household's server sends a handful a minute at most (a season arriving). More is someone else's server,
+// or someone who has the phone's token, filling it with alerts.
+const TOKEN_LIMIT = 12; // per minute per device token
+const KV_TIMEOUT_MS = 1500;
 
 // --- Provider token: Apple wants it refreshed between 20 and 60 minutes.
 
@@ -91,6 +97,35 @@ function limited(ip, now = Date.now()) {
   return ++entry.count > RATE_LIMIT;
 }
 
+// --- Per phone, across instances when there's a store. A store that's down or slow lets the send through: the
+// limit is there for floods, and every phone missing its notifications would be worse.
+
+const tokenHits = new Map();
+
+async function tokenLimited(token, now = Date.now()) {
+  const minute = Math.floor(now / 60_000);
+  const key = `push:${crypto.createHash('sha256').update(token).digest('hex').slice(0, 32)}:${minute}`;
+  const { KV_REST_API_URL, KV_REST_API_TOKEN } = process.env;
+  if (KV_REST_API_URL && KV_REST_API_TOKEN) {
+    try {
+      const response = await fetch(`${KV_REST_API_URL}/pipeline`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${KV_REST_API_TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify([['INCR', key], ['EXPIRE', key, '120']]),
+        signal: AbortSignal.timeout(KV_TIMEOUT_MS),
+      });
+      const [incr] = await response.json();
+      if (response.ok && typeof incr?.result === 'number') return incr.result > TOKEN_LIMIT;
+    } catch {
+      // Fall back to this instance's own count.
+    }
+  }
+  if (tokenHits.size > 10_000) tokenHits.clear();
+  const count = (tokenHits.get(key) || 0) + 1;
+  tokenHits.set(key, count);
+  return count > TOKEN_LIMIT;
+}
+
 // --- The handler.
 
 function reply(res, status, body) {
@@ -117,6 +152,11 @@ module.exports = async (req, res) => {
     return reply(res, 405, { reason: 'MethodNotAllowed' });
   }
 
+  // JSON only. A form or text/plain post is one any web page can make from its visitors' browsers without asking.
+  if (!String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
+    return reply(res, 415, { reason: 'UnsupportedMediaType' });
+  }
+
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
   if (limited(ip)) return reply(res, 429, { reason: 'TooManyRequests' });
 
@@ -134,6 +174,8 @@ module.exports = async (req, res) => {
       (typeof collapseId !== 'string' || collapseId.length === 0 || Buffer.byteLength(collapseId) > 64)) {
     return reply(res, 400, { reason: 'BadCollapseId' });
   }
+
+  if (await tokenLimited(token)) return reply(res, 429, { reason: 'TooManyRequests' });
 
   const { APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC } = process.env;
   if (!APNS_KEY || !APNS_KEY_ID || !APNS_TEAM_ID || !APNS_TOPIC) return reply(res, 503, { reason: 'NotConfigured' });
@@ -163,3 +205,4 @@ module.exports = async (req, res) => {
 };
 
 module.exports._jwt = jwt;
+module.exports._tokenLimited = tokenLimited;
