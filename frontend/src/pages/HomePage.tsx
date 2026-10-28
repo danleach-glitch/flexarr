@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { getHome, getNewEpisodes } from '../api/client'
+import { getHome, getNewEpisodes, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
@@ -41,12 +41,15 @@ export function HomePage() {
     </Row>
   )
   const afterContinue = data.rows.some((row) => row.id === 'continue')
+  // Libraries set up but nothing in them recognised yet: say so, above whatever else Home has (Coming soon, channels).
+  const media = libraries.filter((l) => l.type !== 'Podcasts')
+  const empty = data.featured.length === 0 && media.every((l) => l.itemCount === 0)
 
   return (
     <>
-      <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />
+      {empty ? <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />}
       {/* No hero (only Live TV so far): the rows start below the top bar. */}
-      <div className={data.featured.length > 0 ? 'rows' : 'rows rows-unheaded'}>
+      <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
         {!afterContinue && newEpisodes}
         {data.rows.flatMap((row) => [
@@ -66,4 +69,58 @@ export function HomePage() {
       </div>
     </>
   )
+}
+
+const kinds: Record<Library['type'], string> = { Movies: 'films', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts' }
+
+/** Libraries are there but hold nothing Flexarr recognised: still scanning, or nothing found in their folders. */
+function EmptyLibraries({ libraries }: { libraries: Library[] }) {
+  const names = list(libraries.map((l) => l.name))
+  const wanted = list([...new Set(libraries.map((l) => kinds[l.type]))])
+  const folders = libraries.flatMap((l) => l.folders)
+  const scanning = libraries.filter((l) => l.scan)
+  if (scanning.length > 0) {
+    const total = scanning.reduce((sum, l) => sum + l.scan!.total, 0)
+    const done = scanning.reduce((sum, l) => sum + l.scan!.processed, 0)
+    return (
+      <section className="welcome">
+        <h1>Looking through your library</h1>
+        <p>
+          Flexarr is reading the files in {names}
+          {total > 0 && ` (${done} of ${total})`}. Your {wanted} appear here as they’re recognised.
+        </p>
+      </section>
+    )
+  }
+  return (
+    <section className="welcome">
+      <h1>Your library is empty</h1>
+      <p>
+        {names} {libraries.length > 1 ? 'are' : 'is'} set up, but Flexarr hasn’t found any {wanted} in {folders.length > 1 ? 'its folders' : 'its folder'} yet.
+        Add some there, or connect Sonarr or Radarr so what they download lands there, then scan again.
+      </p>
+      {folders.length > 0 && (
+        <ul className="welcome-folders" aria-label="Folders">
+          {folders.map((folder) => (
+            <li key={folder}>
+              <code>{folder}</code>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="welcome-actions">
+        <Link className="button" to="/settings/libraries">
+          Check libraries
+        </Link>
+        <Link className="button quiet" to="/settings/connections">
+          Connect Sonarr or Radarr
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+/** "Films", "Films and TV", "Films, TV and Music". */
+function list(names: string[]) {
+  return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }

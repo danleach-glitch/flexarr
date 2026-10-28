@@ -187,3 +187,33 @@ struct TrickplayManifestTests {
         #expect(TrickplayManifest(interval: 0, width: 1, height: 1, columns: 1, rows: 1, count: 0, sheets: 0).thumbnail(at: 5) == nil)
     }
 }
+
+struct EmptyHomeMessageTests {
+    private func library(_ name: String, _ type: LibraryType, items: Int = 0, folders: [String] = ["/media"], scan: ScanStatus? = nil) -> Library {
+        Library(id: name, name: name, type: type, folders: folders, itemCount: items, lastScannedAt: nil, scan: scan)
+    }
+
+    @Test func saysNothingWhileALibraryHasTitles() {
+        #expect(EmptyHomeMessage(libraries: [library("Movies", .movies, items: 3), library("TV", .tvShows)]) == nil)
+    }
+
+    @Test func asksForALibraryWhenThereIsOnlyPodcasts() throws {
+        let message = try #require(EmptyHomeMessage(libraries: [library("Podcasts", .podcasts)]))
+        #expect(message.title == "Nothing to watch yet")
+        #expect(message.folders.isEmpty)
+    }
+
+    @Test func saysALibraryIsEmptyAndWhereItLooked() throws {
+        let message = try #require(EmptyHomeMessage(libraries: [library("Films", .movies, folders: ["/media/films"]), library("TV", .tvShows, folders: ["/media/tv"])]))
+        #expect(message.title == "Your library is empty")
+        #expect(message.body.hasPrefix("Films and TV are set up, but Flexarr hasn’t found any films and shows in its folders yet."))
+        #expect(message.body.contains("connect Sonarr or Radarr"))
+        #expect(message.folders == ["/media/films", "/media/tv"])
+    }
+
+    @Test func saysAFirstScanIsUnderWay() throws {
+        let message = try #require(EmptyHomeMessage(libraries: [library("Films", .movies, scan: ScanStatus(path: "/media/films", total: 10, processed: 4))]))
+        #expect(message.title == "Looking through your library")
+        #expect(message.body == "Flexarr is reading the files in Films (4 of 10). Your films appear here as they’re recognised.")
+    }
+}

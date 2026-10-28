@@ -54,6 +54,36 @@ describe('App', () => {
     expect(screen.getByText('Number 1: The Nice Guys')).toBeInTheDocument()
   })
 
+  it('says a library is empty when nothing in its folders was recognised, and keeps Coming soon', async () => {
+    const upcoming = { id: 'u1', kind: 'Movie', title: 'Dune: Part Three', seriesTitle: null, seasonNumber: null, episodeNumber: null, date: '2026-12-18', when: 'Dec 18', overview: null, poster: null, still: null, libraryItemId: null, available: false, download: null }
+    mockApi({
+      '/system/status': status,
+      '/libraries': [{ ...movies, itemCount: 0, scan: null }],
+      '/home': { featured: [], overviews: {}, rows: [{ id: 'upcoming', title: 'Coming soon', style: 'upcoming', items: [], link: null }], upcoming: [upcoming], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Your library is empty' })).toBeInTheDocument()
+    expect(screen.getByText(/Movies is set up, but Flexarr hasn’t found any films in its folder yet/)).toBeInTheDocument()
+    expect(screen.getByText('/media/movies')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Connect Sonarr or Radarr' })).toHaveAttribute('href', '/settings/connections')
+    expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeInTheDocument()
+  })
+
+  it('says an empty library is still being looked through during its first scan', async () => {
+    mockApi({
+      '/system/status': status,
+      '/libraries': [{ ...movies, itemCount: 0 }],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Looking through your library' })).toBeInTheDocument()
+    expect(screen.getByText(/reading the files in Movies \(4 of 10\)/)).toBeInTheDocument()
+  })
+
   it('marks an episode watched from its card menu, and Continue Watching drops it', async () => {
     const episode = summary({ id: 'e5', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 5, seriesTitle: 'Severance', seriesId: 's1', durationSeconds: 3000, userData: { positionSeconds: 600, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null } })
     let watched = false
