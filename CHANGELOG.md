@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.51.1 · 28 October 2026
 
 ### Web
 - Right after a library's first scan, Home shows what it found instead of saying the library is empty, and the rows under that message no longer overlap its buttons.
