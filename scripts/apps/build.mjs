@@ -40,14 +40,13 @@ const stores = {
 function load() {
   const data = JSON.parse(fs.readFileSync(source, 'utf8'));
   const problems = [];
-  const groups = new Set((data.groups ?? []).map(g => g.id));
   const ids = new Set();
   for (const [i, p] of (data.platforms ?? []).entries()) {
     const at = `platforms[${i}]${p.id ? ` (${p.id})` : ''}`;
-    for (const key of ['id', 'group', 'name', 'icon', 'status', 'summary']) if (!p[key]) problems.push(`${at}: needs "${key}"`);
+    for (const key of ['id', 'name', 'icon', 'status', 'summary']) if (!p[key]) problems.push(`${at}: needs "${key}"`);
     if (ids.has(p.id)) problems.push(`${at}: id used twice`);
     ids.add(p.id);
-    if (p.group && !groups.has(p.group)) problems.push(`${at}: no group "${p.group}"`);
+    if (p.runsOn && !(Array.isArray(p.runsOn) && p.runsOn.every(r => typeof r === 'string'))) problems.push(`${at}: runsOn must be a list of names`);
     if (p.icon && !icons[p.icon]) problems.push(`${at}: icon must be one of ${Object.keys(icons).join(', ')}`);
     if (p.status && !statuses[p.status]) problems.push(`${at}: status must be one of ${Object.keys(statuses).join(', ')}`);
     if (['available', 'beta', 'coming'].includes(p.status) && !p.version) problems.push(`${at}: a ${p.status} app needs a version`);
@@ -78,41 +77,48 @@ if (serverVersion) {
 
 const data = load();
 
-const version = p => (p.version ? `<span class="version">${escape(p.version)}</span>` : '<span class="none">Not yet</span>');
-const status = p => `<span class="status ${p.status}"><span aria-hidden="true">${statuses[p.status].icon}</span> ${statuses[p.status].label}</span>`;
-const link = (l, first) => {
-  const external = /^https:/.test(l.href);
-  const kind = l.store || l.primary ? 'button primary' : first ? 'button quiet' : 'more';
-  return `<a class="${kind}" href="${escape(l.href)}"${external ? ' rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
+const external = href => /^https:/.test(href);
+const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
+const pill = p => `<span class="pill ${p.status}">${statuses[p.status].label}</span>`;
+const button = (l, i) => {
+  const kind = l.store || l.primary ? 'button primary' : i === 0 ? 'button quiet' : 'more';
+  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
 };
 
+// At a glance: one row each, with the first link as the way to get it.
+const get = p => {
+  const l = p.links?.[0];
+  if (!l) return '<span class="none">Not yet</span>';
+  return `<a class="get${l.store || l.primary ? ' ready' : ''}" href="${escape(l.href)}"${external(l.href) ? ' rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.short || l.label)}${external(l.href) ? arrow : ''}</a>`;
+};
+const row = p => `            <tr>
+              <td class="mark" aria-hidden="true">${statuses[p.status].icon}</td>
+              <th scope="row"><a href="#${escape(p.id)}">${escape(p.name)}</a>${p.version ? `<span class="sub">${escape(p.version)}</span>` : ''}</th>
+              <td class="state">${statuses[p.status].label}</td>
+              <td class="ver">${p.version ? `<span class="version">${escape(p.version)}</span>` : '<span class="none">–</span>'}</td>
+              <td class="go">${get(p)}</td>
+            </tr>`;
 const table = `<div class="table"><table>
-          <thead><tr><th scope="col"><span class="visually-hidden">Status</span></th><th scope="col">Platform</th><th scope="col">Status</th><th scope="col">Version</th></tr></thead>
+          <thead><tr><th scope="col"><span class="visually-hidden">Status icon</span></th><th scope="col">Platform</th><th scope="col" class="state">Status</th><th scope="col" class="ver">Version</th><th scope="col" class="go">Get it</th></tr></thead>
           <tbody>
-${data.platforms.map(p => `            <tr><td class="mark" aria-hidden="true">${statuses[p.status].icon}</td><th scope="row"><a href="#${escape(p.id)}">${escape(p.name)}</a></th><td>${statuses[p.status].label}</td><td>${version(p)}</td></tr>`).join('\n')}
+${data.platforms.map(row).join('\n')}
           </tbody>
         </table></div>`;
 
-const card = p => `<article class="app" id="${escape(p.id)}">
-            <div class="app-head">
-              <span class="app-icon">${icons[p.icon]}</span>
-              <div>
-                <h3>${escape(p.name)}</h3>
-                <p class="meta">${status(p)}${p.version ? ` <span class="dot" aria-hidden="true">·</span> Version ${version(p)}` : ''}</p>
-              </div>
+const card = p => `<article class="card${p.runsOn ? ' wide' : ''}" id="${escape(p.id)}">
+            <div class="card-body">
+              <div class="card-top"><span class="app-icon">${icons[p.icon]}</span>${pill(p)}</div>
+              <h3>${escape(p.name)}</h3>
+${p.version ? `              <p class="version-line">Version <span class="version">${escape(p.version)}</span></p>\n` : ''}              <p class="summary">${escape(p.summary)}</p>
+${p.note ? `              <p class="note">${escape(p.note)}</p>\n` : ''}${p.requires ? `              <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.links?.length ? `              <div class="links">${p.links.map(button).join('')}</div>\n` : ''}            </div>
+${p.runsOn ? `            <div class="runs-on">
+              <p>Runs on</p>
+              <ul>${p.runsOn.map(r => `<li>${escape(r)}</li>`).join('')}</ul>
             </div>
-            <p>${escape(p.summary)}</p>
-${p.note ? `            <p class="note">${escape(p.note)}</p>\n` : ''}${p.requires ? `            <p class="requires"><span>Needs</span> ${escape(p.requires)}</p>\n` : ''}${p.links?.length ? `            <div class="links">${p.links.map((l, i) => link(l, i === 0)).join('')}</div>\n` : ''}          </article>`;
+` : ''}          </article>`;
 
-const groups = data.groups.map(g => {
-  const members = data.platforms.filter(p => p.group === g.id);
-  return members.length ? `<section class="group" aria-labelledby="group-${escape(g.id)}">
-        <h2 id="group-${escape(g.id)}">${escape(g.title)}</h2>
-${g.intro ? `        <p class="intro">${escape(g.intro)}</p>\n` : ''}        <div class="apps">
-          ${members.map(card).join('\n          ')}
-        </div>
-      </section>` : '';
-}).filter(Boolean).join('\n      ');
+const now = data.platforms.filter(p => ['available', 'beta'].includes(p.status));
+const soon = data.platforms.filter(p => !['available', 'beta'].includes(p.status));
 
 const title = 'Flexarr apps: Apple TV, iPhone, iPad, web and Android';
 const description = 'Every Flexarr app and platform, with its version and status: what you can download today, what\'s coming soon and what\'s on the way.';
@@ -141,61 +147,110 @@ const html = `<!doctype html>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/base.css">
   <style>
+    :root { --mint: #9fdcb4; }
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    .hero { padding-block: clamp(32px, 6vw, 72px) 0; }
-    .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 12px; }
-    .hero h1 { font-size: clamp(2.8rem, 9vw, 5.5rem); font-weight: 900; }
-    .lede { max-width: 680px; margin: 18px 0 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.25rem); }
+    .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
+    section { padding-top: clamp(64px, 9vw, 112px); }
+    section > h2, .section-head h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
+
+    /* Hero: the headline, then the devices straight on the page. */
+    .hero { padding-top: clamp(40px, 7vw, 88px); text-align: center; }
+    .hero h1 { font-size: clamp(3rem, 11vw, 7rem); font-weight: 900; }
+    .hero .lede { max-width: 620px; margin: 22px auto 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.3rem); text-wrap: balance; }
+    .hero picture { display: block; margin-top: clamp(32px, 6vw, 64px); }
+    .hero img { width: 100%; }
 
     /* At a glance */
-    .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 36px 0 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
-    .table { margin-top: 12px; overflow-x: auto; border: 1px solid var(--aisle); border-radius: 16px; background: var(--seat); }
+    .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 32px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
+    .table { margin-top: 28px; border: 1px solid var(--aisle); border-radius: 22px; background: linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.55)); overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 13px 18px; text-align: left; border-top: 1px solid var(--aisle); white-space: nowrap; }
-    thead th { border-top: 0; color: var(--usher); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-    tbody th { font-weight: 500; }
+    th, td { padding: 18px 22px; text-align: left; border-top: 1px solid var(--aisle); vertical-align: middle; }
+    thead th { border-top: 0; padding-block: 16px; color: var(--usher); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    tbody tr { transition: background 0.15s; }
+    tbody tr:hover { background: rgb(242 238 231 / 0.03); }
+    tbody th { font-weight: 700; font-size: 1.05rem; }
     tbody th a { color: var(--screen); text-decoration: none; }
-    tbody th a:hover { color: var(--silver); text-decoration: underline; }
+    tbody th a:hover { color: var(--silver); }
     td { color: var(--usher); }
-    .mark { width: 1%; padding-right: 0; font-size: 1.1rem; }
+    .mark { width: 1%; padding-right: 0; font-size: 1.15rem; }
     .version { font-variant-numeric: tabular-nums; color: var(--screen); }
-    .none { color: var(--usher); opacity: 0.7; }
-    /* On a phone the icon column carries the status, so the table fits without scrolling. */
-    @media (max-width: 640px) {
-      th, td { padding: 12px 14px; white-space: normal; }
-      th:nth-child(3), td:nth-child(3) { display: none; }
+    .none { color: var(--usher); opacity: 0.6; }
+    .sub { display: none; }
+    th.go, td.go { text-align: right; }
+    .get { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--aisle); color: var(--screen); font-size: 0.92rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .get:hover { border-color: var(--usher); background: var(--seat-raised); }
+    .get.ready { background: var(--screen); border-color: var(--screen); color: var(--room); }
+    .get.ready:hover { background: #fff; }
+    .get svg { width: 15px; height: 15px; flex: none; }
+    .get .arrow { width: 13px; height: 13px; opacity: 0.7; }
+    @media (max-width: 720px) {
+      th, td { padding: 14px 14px; }
+      .state, .ver { display: none; }
+      .sub { display: block; margin-top: 2px; color: var(--usher); font-weight: 400; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+      .mark { padding-right: 4px; }
+      td.go { padding-left: 4px; }
+      .get { padding: 6px 11px; font-size: 0.85rem; gap: 5px; }
+      .get .arrow { display: none; }
     }
 
-    /* Each platform */
-    .group { padding-block: clamp(48px, 7vw, 88px) 0; }
-    .group h2 { font-size: clamp(2.2rem, 5vw, 3.3rem); }
-    .intro { color: var(--usher); margin: 12px 0 0; font-size: 1.05rem; }
-    .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 32px; margin-top: 20px; }
-    .app { padding: 24px 0 8px; border-top: 1px solid var(--aisle); display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 96px; }
-    .app:target .app-icon { outline: 2px solid var(--silver); outline-offset: 3px; }
-    .app-head { display: flex; align-items: center; gap: 14px; }
-    .app h3 { font-size: 1.9rem; }
-    .app-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; background: rgb(169 194 236 / 0.14); color: var(--silver); }
-    .app:nth-child(3n+2) .app-icon { background: rgb(232 160 191 / 0.14); color: var(--rose); }
-    .app:nth-child(3n) .app-icon { background: rgb(242 238 231 / 0.1); color: var(--screen); }
-    .app-icon svg { width: 22px; height: 22px; }
-    .app p { margin: 0; color: var(--usher); }
-    .app .meta { margin-top: 4px; font-size: 0.95rem; }
-    .status { color: var(--screen); font-weight: 500; }
-    .dot { margin: 0 4px; }
-    .note { font-size: 0.95rem; }
-    .requires { font-size: 0.92rem; }
-    .requires span { color: var(--screen); font-weight: 700; margin-right: 4px; }
-    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 4px; }
-    .links .button { min-height: 44px; padding: 0 18px; font-size: 0.95rem; }
+    /* Cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
+    .card { position: relative; display: grid; border: 1px solid var(--aisle); border-radius: 24px; overflow: hidden; scroll-margin-top: 100px;
+      background: radial-gradient(420px 260px at 0% 0%, rgb(var(--accent) / 0.14), transparent 70%), linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.4)); }
+    .card:target { border-color: rgb(var(--accent) / 0.7); }
+    .card-body { display: flex; flex-direction: column; gap: 12px; padding: clamp(24px, 3vw, 34px); }
+    .card { --accent: 169 194 236; }
+    .card:nth-child(3n+2) { --accent: 232 160 191; }
+    .card:nth-child(3n) { --accent: 241 194 125; }
+    .card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .app-icon { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; flex: none; background: rgb(var(--accent) / 0.16); color: rgb(var(--accent)); }
+    .app-icon svg { width: 26px; height: 26px; }
+    .card h3 { font-size: clamp(2rem, 3.4vw, 2.6rem); }
+    .card p { margin: 0; }
+    .version-line { color: var(--usher); font-size: 0.95rem; margin-top: -4px !important; }
+    .summary { color: #cfc8d8; }
+    .note, .requires { color: var(--usher); font-size: 0.93rem; }
+    .requires::before { content: "Needs "; color: var(--screen); font-weight: 700; }
+    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: auto; padding-top: 10px; }
+    .links .button { min-height: 46px; padding: 0 20px; font-size: 0.95rem; }
     .links .button.primary { box-shadow: none; }
     .links .button svg { width: 18px; height: 18px; }
     .more { font-weight: 700; text-decoration: none; }
     .more:hover { text-decoration: underline; }
 
-    .closing { padding-block: clamp(56px, 8vw, 96px); color: var(--usher); }
-    .closing p { margin: 0; max-width: 680px; }
-    .closing p + p { margin-top: 10px; font-size: 0.95rem; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); }
+    .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .pill.available { --c: var(--mint); }
+    .pill.beta { --c: var(--rose); }
+    .pill.coming { --c: var(--amber); }
+    .pill.development { --c: var(--silver); }
+    .pill.planned { --c: var(--usher); }
+
+    /* The server spans the row, with what it runs on beside it. */
+    .card.wide { grid-column: 1 / -1; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+    .runs-on { padding: clamp(24px, 3vw, 34px); border-left: 1px solid var(--aisle); background: rgb(27 23 32 / 0.35); display: flex; flex-direction: column; justify-content: center; }
+    .runs-on p { margin: 0 0 14px; color: var(--usher); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .runs-on ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .runs-on li { padding: 12px 16px; border-radius: 14px; background: var(--seat-raised); border: 1px solid var(--aisle); font-weight: 700; text-align: center; }
+    @media (max-width: 760px) {
+      .card.wide { grid-template-columns: minmax(0, 1fr); }
+      .runs-on { border-left: 0; border-top: 1px solid var(--aisle); }
+      .runs-on ul { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .runs-on li { padding: 10px 6px; font-size: 0.92rem; }
+    }
+
+    /* On the way: lighter, dashed. */
+    .soon .card { background: transparent; border-style: dashed; }
+    .soon .card h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
+    /* A slim strip across the row, after the cards. */
+    .card.ask { grid-column: 1 / -1; }
+    .card.ask .card-body { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-block: 24px; }
+    .card.ask h3 { font-size: clamp(1.7rem, 3vw, 2.1rem); }
+    .card.ask p { color: var(--usher); margin-top: 4px; }
+    .card.ask .links { margin: 0; padding: 0; }
+
+    .source { margin: clamp(56px, 8vw, 96px) 0 clamp(48px, 6vw, 72px); color: var(--usher); font-size: 0.92rem; text-align: center; }
   </style>
 </head>
 <body>
@@ -219,22 +274,41 @@ const html = `<!doctype html>
       <div class="hero">
         <p class="kicker">Apps</p>
         <h1>Flexarr on every screen.</h1>
-        <p class="lede">What you can download today, what's coming soon and what's on the way. Every app connects to your own Flexarr server at home.</p>
+        <p class="lede">One server at home, and an app for every screen in it. Here's what you can get today and what's on the way.</p>
+        <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp"><img src="/shots/screens.webp" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
       </div>
 
-      <section aria-label="Every platform at a glance">
-        <ul class="legend">
-${Object.values(statuses).map(s => `          <li><span aria-hidden="true">${s.icon}</span> ${s.label}</li>`).join('\n')}
-        </ul>
+      <section aria-labelledby="glance">
+        <div class="section-head">
+          <h2 id="glance">At a glance</h2>
+          <ul class="legend">
+${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s.icon}</span> ${s.label}</li>`).join('\n')}
+          </ul>
+        </div>
         ${table}
       </section>
 
-      ${groups}
+      <section aria-labelledby="now">
+        <h2 id="now">Available now</h2>
+        <div class="cards">
+          ${now.map(card).join('\n          ')}
+        </div>
+      </section>
 
-      <div class="closing">
-        <p>Want Flexarr somewhere else? <a href="${repo}/issues">Tell us on GitHub</a>.</p>
-        <p>This list is also at <a href="/apps.json">flexarr.io/apps.json</a>, and its source is <a href="${repo}/blob/main/site/apps.json">site/apps.json</a> on GitHub.</p>
-      </div>
+      <section class="soon" aria-labelledby="soon">
+        <h2 id="soon">On the way</h2>
+        <div class="cards">
+          ${soon.map(card).join('\n          ')}
+          <article class="card ask">
+            <div class="card-body">
+              <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
+              <div class="links"><a class="button quiet" href="${repo}/issues" rel="noopener">Ask on GitHub</a></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <p class="source">This list is also at <a href="/apps.json">flexarr.io/apps.json</a>, built from <a href="${repo}/blob/main/site/apps.json">site/apps.json</a>.</p>
     </div>
   </main>
 

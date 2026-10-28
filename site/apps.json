@@ -1,14 +1,23 @@
 {
-  "$comment": "Every Flexarr app and platform, shown at flexarr.io/apps and served as flexarr.io/apps.json. Edit this file, then run `make apps`. status: available | beta | coming | development | planned. Entries with \"release\": \"server\" get the server's version from scripts/release.sh; set the others by hand when a store build goes live.",
-  "groups": [
-    { "id": "apps", "title": "Watch and listen", "intro": "Connect each app to your server once with a short code." },
-    { "id": "server", "title": "Run it at home", "intro": "One server holds your libraries and serves every app." },
-    { "id": "integrations", "title": "Works with", "intro": "Flexarr in the other things you use at home." }
-  ],
+  "$comment": "Every Flexarr app and platform, shown at flexarr.io/apps (in this order) and served as flexarr.io/apps.json. Edit this file, then run `make apps`. status: available | beta | coming | development | planned. The first link is the one the table shows, by its short label. Entries with \"release\": \"server\" get the server's version from scripts/release.sh; set the others by hand when a store build goes live.",
   "platforms": [
     {
+      "id": "server",
+      "name": "Flexarr server",
+      "icon": "server",
+      "status": "available",
+      "version": "0.49.3",
+      "release": "server",
+      "requires": "A computer at home that stays on: 64-bit Intel, AMD or ARM",
+      "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],
+      "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. Free for personal use.",
+      "links": [
+        { "label": "Set up your server", "href": "/#setup", "primary": true, "short": "Set up" },
+        { "label": "What's new", "href": "https://github.com/danleach-glitch/flexarr/releases" }
+      ]
+    },
+    {
       "id": "iphone",
-      "group": "apps",
       "name": "iPhone and iPad",
       "icon": "phone",
       "status": "available",
@@ -16,12 +25,11 @@
       "requires": "iOS or iPadOS 18.2 or later",
       "summary": "Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.",
       "links": [
-        { "label": "Download on the App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple" }
+        { "label": "Download on the App Store", "href": "https://apps.apple.com/app/flexarr/id6826618084", "store": "apple", "short": "App Store" }
       ]
     },
     {
       "id": "apple-tv",
-      "group": "apps",
       "name": "Apple TV",
       "icon": "tv",
       "status": "coming",
@@ -30,12 +38,11 @@
       "summary": "Your libraries, music and live TV from the sofa, with Continue Watching in the Top Shelf and a player built for HDR and Atmos.",
       "note": "With Apple for review. Until it's on the App Store you can install it from a Mac.",
       "links": [
-        { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode" }
+        { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode", "short": "Install with Xcode" }
       ]
     },
     {
       "id": "web",
-      "group": "apps",
       "name": "Web",
       "icon": "web",
       "status": "available",
@@ -44,12 +51,24 @@
       "requires": "Any up-to-date browser",
       "summary": "Built into the server, nothing to install. Open your server's address on a computer, tablet or phone.",
       "links": [
-        { "label": "Included with the server", "href": "/#setup" }
+        { "label": "Included with the server", "href": "/#setup", "short": "Included" }
+      ]
+    },
+    {
+      "id": "home-assistant",
+      "name": "Home Assistant",
+      "icon": "home",
+      "status": "available",
+      "version": "0.1.1",
+      "requires": "Home Assistant with HACS, and Flexarr 0.45.0 or later",
+      "summary": "Every Apple TV, iPhone and iPad becomes a media player, so your home can react to what you're watching: lights down when a film starts.",
+      "links": [
+        { "label": "Get it on GitHub", "href": "https://github.com/danleach-glitch/flexarr-home-assistant", "short": "HACS" },
+        { "label": "How to set it up", "href": "/guide/home-assistant" }
       ]
     },
     {
       "id": "android",
-      "group": "apps",
       "name": "Android phone and tablet",
       "icon": "phone",
       "status": "development",
@@ -58,41 +77,11 @@
     },
     {
       "id": "android-tv",
-      "group": "apps",
       "name": "Android TV, Google TV and Fire TV",
       "icon": "tv",
       "status": "planned",
       "summary": "Flexarr on the big screen for TVs and streaming sticks that run Android.",
       "links": []
-    },
-    {
-      "id": "server",
-      "group": "server",
-      "name": "Flexarr server",
-      "icon": "server",
-      "status": "available",
-      "version": "0.49.3",
-      "release": "server",
-      "requires": "Docker on Linux, Windows, Synology or Unraid (64-bit Intel, AMD or ARM), or a Mac",
-      "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. Free for personal use.",
-      "links": [
-        { "label": "Set up your server", "href": "/#setup", "primary": true },
-        { "label": "What's new", "href": "https://github.com/danleach-glitch/flexarr/releases" }
-      ]
-    },
-    {
-      "id": "home-assistant",
-      "group": "integrations",
-      "name": "Home Assistant",
-      "icon": "home",
-      "status": "available",
-      "version": "0.1.1",
-      "requires": "Home Assistant with HACS, and Flexarr 0.45.0 or later",
-      "summary": "Every Apple TV, iPhone and iPad becomes a media player, so your home can react to what you're watching: lights down when a film starts.",
-      "links": [
-        { "label": "Get it on GitHub", "href": "https://github.com/danleach-glitch/flexarr-home-assistant" },
-        { "label": "How to set it up", "href": "/guide/home-assistant" }
-      ]
     }
   ]
 }
