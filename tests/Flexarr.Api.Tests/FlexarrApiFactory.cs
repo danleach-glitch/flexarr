@@ -53,6 +53,7 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             // Tests never reach TVmaze or TMDB: they know no titles unless a test says otherwise.
             services.AddHttpClient<Flexarr.Metadata.TvMazeClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
             services.AddHttpClient<Flexarr.Metadata.TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
+            services.AddHttpClient<Flexarr.Api.Logging.ErrorReportTunnel>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
         });
     }
 

@@ -6,6 +6,7 @@ import type { ErrorReports } from '../api/client'
  * switch is checked again as each report leaves, so turning it off stops them at once.
  */
 
+/** The web app's project; the server only passes reports on for this one (ErrorReportTunnel.WebDsn). */
 const DSN = 'https://6e5a389d7a7c54800f54ebb0ad0e92ed@o4512326167232512.ingest.de.sentry.io/4512326210027600'
 
 type Sentry = typeof import('./sentrySdk')
@@ -36,6 +37,10 @@ function start(s: Sentry, version: string) {
   const contexts = deviceContexts(navigator.userAgent)
   s.init({
     dsn: DSN,
+    // Through the server: its content security policy keeps the page to this origin, and Sentry never sees the
+    // viewer's address. The header is the server's request-forgery check.
+    tunnel: '/api/v1/error-reports/web',
+    transportOptions: { headers: { 'X-Requested-With': 'flexarr' } },
     release: `flexarr-web@${version}`,
     // The Vite dev server reports apart from built releases.
     environment: import.meta.env.DEV ? 'development' : 'production',
