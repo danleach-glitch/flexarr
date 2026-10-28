@@ -189,10 +189,10 @@ public sealed partial class LibraryScanWorker(
 
             var started = TimeProvider.System.GetTimestamp();
             var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
-            if (refreshed.FromArr + refreshed.FromLookup + refreshed.Unmatched > 0)
+            if (refreshed.FromArr + refreshed.FromLookup + refreshed.FromLocal + refreshed.Unmatched > 0)
             {
                 var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
-                LogMetadataRefreshed(library.Name, refreshed.FromArr, refreshed.FromLookup, refreshed.Unmatched, seconds);
+                LogMetadataRefreshed(library.Name, refreshed.FromArr, refreshed.FromLookup, refreshed.FromLocal, refreshed.Unmatched, seconds);
             }
         }
 
@@ -209,8 +209,8 @@ public sealed partial class LibraryScanWorker(
     [LoggerMessage(Level = LogLevel.Information, Message = "Scanned {Library}: {Path} — {Added} added, {Updated} updated, {Missing} newly missing, {Removed} removed, {Unchanged} unchanged, {Unmatched} unmatched, {Failures} probe failures in {Seconds:F1}s")]
     private partial void LogScanFinished(string library, string path, int added, int updated, int missing, int removed, int unchanged, int unmatched, int failures, double seconds);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Refreshed metadata for {Library}: {FromArr} from *arr, {FromLookup} looked up, {Unmatched} unmatched in {Seconds:F1}s")]
-    private partial void LogMetadataRefreshed(string library, int fromArr, int fromLookup, int unmatched, double seconds);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Refreshed metadata for {Library}: {FromArr} from *arr, {FromLookup} looked up, {FromLocal} from local files, {Unmatched} unmatched in {Seconds:F1}s")]
+    private partial void LogMetadataRefreshed(string library, int fromArr, int fromLookup, int fromLocal, int unmatched, double seconds);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignoring scan request for {Path} ({Reason}): no library contains it")]
     private partial void LogNoLibrary(string path, string reason);

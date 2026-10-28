@@ -99,8 +99,8 @@ public static class ImageEndpoints
 
     /// <summary>
     /// Walks up to the series for seasons and episodes that lack their own artwork. Metadata sources only supply
-    /// https artwork, or artwork held by a configured *arr (Lidarr's); files on disk are only used for music, where
-    /// the scanner found them.
+    /// https artwork, or artwork held by a configured *arr (Lidarr's); files on disk are only ever ones Flexarr found
+    /// beside the media itself (a cover.jpg, a poster.jpg, an episode's -thumb.jpg).
     /// </summary>
     /// <returns>Null if there's no such item; otherwise its artwork (null if it has none) and its ?v= version.</returns>
     private static async Task<ImageSource?> ResolveAsync(FlexarrDbContext db, Guid id, string kind, CancellationToken ct)
@@ -127,7 +127,7 @@ public static class ImageEndpoints
                 "thumb" => item.ThumbUrl,
                 _ => null,
             };
-            if (url is not null && !ArtworkUrl.IsHttps(url) && !ArtworkUrl.IsArr(url) && !(ArtworkUrl.IsLocal(url) && item.Kind is MediaKind.Artist or MediaKind.Album or MediaKind.Track))
+            if (url is not null && !ArtworkUrl.IsHttps(url) && !ArtworkUrl.IsArr(url) && !ArtworkUrl.IsLocal(url))
             {
                 return new ImageSource(null, version);
             }

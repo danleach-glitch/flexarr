@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Libraries
+- **Films and shows without Sonarr or Radarr get artwork and details** from the files beside them. Flexarr reads the `.nfo` files that Kodi, Jellyfin, Emby and tinyMediaManager write (title, year, plot, genres, rating, age rating), and artwork such as `poster.jpg`, `folder.jpg`, `fanart.jpg`, `clearlogo.png`, `season01-poster.jpg` and an episode's `-thumb.jpg`. Folders kept for Plex or Jellyfin show up in Flexarr looking the same.
+- **What's in your folders wins**: a poster or `.nfo` you've put beside a film or show is used over Sonarr's and Radarr's. The IDs in a `.nfo` also help Flexarr find the right title in them. Flexarr only reads these files and never changes them.
+
 ### Connections
 - **Media folders** replaces Path mappings in **Settings › Connections**. Each of Sonarr, Radarr and Lidarr's folders has a line saying where it is on this server. When the apps run in Docker and see your media under other paths, Flexarr usually works out where it is by comparing the titles both sides have, and saves it on the next library scan, so there's nothing to type.
 - When Flexarr isn't sure, the folder's line suggests one (**Use this**) or lets you pick it with **Choose folder**. The app's own line says when one of its folders hasn't been found.

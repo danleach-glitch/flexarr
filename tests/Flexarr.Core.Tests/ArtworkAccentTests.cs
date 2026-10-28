@@ -51,7 +51,7 @@ public sealed class ArtworkAccentTests : IAsyncLifetime
         await Refresher(radarr).RefreshLibraryAsync(_library, force: true, default);
 
         var item = await _db.MediaItems.AsNoTracking().SingleAsync();
-        Assert.Equal($"{scheme}{cover}", item.PosterUrl); // kept, never served (ImageEndpoints)
+        Assert.Null(item.PosterUrl); // dropped: local artwork is served, so only what Flexarr found itself may be
         Assert.Null(item.AccentColor);
         Assert.False(Directory.Exists(Path.Combine(_dir, "images")) && Directory.EnumerateFiles(Path.Combine(_dir, "images"), "*", SearchOption.AllDirectories).Any());
     }

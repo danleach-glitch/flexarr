@@ -73,7 +73,7 @@ How long it takes depends on the size of your library and how fast the disks are
 
 After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.
 
-> **Tip** Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, films and episodes still play, named from their files, but have no artwork. Music reads the tags and cover images in your files, and Lidarr adds more.
+> **Tip** Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, films and episodes still play, named from their files, with artwork and details from any `.nfo` files and images (`poster.jpg`, `fanart.jpg`) beside them. Music reads the tags and cover images in your files, and Lidarr adds more.
 
 ## The API key
 
