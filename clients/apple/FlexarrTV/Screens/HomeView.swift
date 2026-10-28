@@ -48,6 +48,9 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 30) {
                 if !home.featured.isEmpty {
                     HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)
+                } else if let message = EmptyHomeMessage(libraries: model.libraries) {
+                    // Above whatever else Home has (Coming soon, channels).
+                    EmptyHome(message: message)
                 }
                 // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
                 ForEach(home.rows.filter(\.hasContent)) { row in
@@ -66,6 +69,8 @@ struct HomeView: View {
         let token = model.refreshToken
         do {
             let loaded = try await client.home()
+            // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
+            if loaded.featured.isEmpty { await model.loadLibraries() }
             home = loaded
             loadedToken = token
             loadedAt = Date()
@@ -73,6 +78,38 @@ struct HomeView: View {
         } catch {
             if home == nil { self.error = ConnectionError(error).message }
         }
+    }
+}
+
+/// Home with nothing to show: no library yet, a first scan under way, or libraries with nothing recognised in them.
+private struct EmptyHome: View {
+    let message: EmptyHomeMessage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Image(systemName: "film.stack")
+                .font(.system(size: 76, weight: .semibold))
+                .foregroundStyle(Color.silver)
+            Text(message.title)
+                .font(.marquee(64, weight: .black))
+                .foregroundStyle(Color.screen)
+            Text(message.body)
+                .font(.title3)
+                .foregroundStyle(Color.usher)
+                .fixedSize(horizontal: false, vertical: true)
+            if !message.folders.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(message.folders, id: \.self) { folder in
+                        Text(folder)
+                            .font(.callout.monospaced())
+                            .foregroundStyle(Color.screen)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: 1100, alignment: .leading)
+        .padding(.top, 160)
+        .padding(.horizontal, Layout.edge)
     }
 }
 

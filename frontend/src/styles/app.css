@@ -358,6 +358,32 @@ kbd {
   font-size: var(--step-1);
 }
 
+.welcome-folders {
+  list-style: none;
+  margin: -12px 0 28px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.welcome-folders code {
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+  color: var(--screen);
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Rows (Coming soon, channels) under the empty-library message. */
+.rows-after-welcome {
+  margin-top: 0;
+  padding-top: 56px;
+}
+
 .connect {
   max-width: 440px;
   margin: 16vh auto;

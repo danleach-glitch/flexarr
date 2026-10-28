@@ -6,6 +6,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Home
 - **One Latest unwatched row for each kind**: with more than one film or TV library (say **TV** and **Anime**, or **Films** and **Films in 4K**), Home now shows one **Latest unwatched films** row and one **Latest unwatched shows** row covering all of them, instead of a row for each library. A title in two libraries shows once. This is on by default, on the web, iPhone, iPad and Apple TV. To give each library its own row again, turn off **Combine libraries of the same kind** in **Settings › Home and Browse**.
+- **An empty library says so**: when you've added a library but Flexarr hasn't found anything in its folders, Home now says **Your library is empty**, shows the folders it looked in, and suggests adding films or shows there or connecting Sonarr or Radarr. Before, Home was just blank. During a library's first scan it says Flexarr is still looking through the files instead. This is on the web, iPhone, iPad and Apple TV.
 
 ### Continue Watching
 - **Mark as unwatched** works on anything you're part way through, on the web, iPhone, iPad and Apple TV: it forgets your place without marking it watched, so it leaves Continue Watching and starts from the beginning next time. **Mark as watched** is still there beside it.

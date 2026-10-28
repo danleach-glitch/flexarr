@@ -273,3 +273,55 @@ public enum SubtitleMatch {
         return code?.identifier(.alpha2) ?? code?.identifier ?? language.lowercased()
     }
 }
+
+/// What Home says when it has nothing to show: no library yet, a first scan under way, or libraries whose folders
+/// hold nothing Flexarr recognised. Libraries are added and connected in a browser, so the wording points there.
+public struct EmptyHomeMessage: Sendable, Hashable {
+    public let title: String
+    public let body: String
+    /// The folders looked in, when the libraries are there but empty.
+    public let folders: [String]
+
+    /// Nil while some library has something in it; podcasts come built in, so they don't count.
+    public init?(libraries: [Library]) {
+        let media = libraries.filter { $0.type != .podcasts }
+        guard media.allSatisfy({ $0.itemCount == 0 }) else { return nil }
+        guard !media.isEmpty else {
+            title = "Nothing to watch yet"
+            body = "Add your movies, shows and music on the computer where you set up Flexarr: open Flexarr in a browser and go to Settings › Libraries. They appear here once they’re added."
+            folders = []
+            return
+        }
+        let names = Self.list(media.map(\.name))
+        let wanted = Self.list(media.map { Self.kind($0.type) }.reduce(into: []) { kinds, kind in
+            if !kinds.contains(kind) { kinds.append(kind) }
+        })
+        let scanning = media.compactMap(\.scan)
+        if !scanning.isEmpty {
+            let total = scanning.reduce(0) { $0 + $1.total }, done = scanning.reduce(0) { $0 + $1.processed }
+            title = "Looking through your library"
+            body = "Flexarr is reading the files in \(names)\(total > 0 ? " (\(done) of \(total))" : ""). Your \(wanted) appear here as they’re recognised."
+            folders = []
+            return
+        }
+        folders = media.flatMap(\.folders)
+        title = "Your library is empty"
+        body = "\(names) \(media.count > 1 ? "are" : "is") set up, but Flexarr hasn’t found any \(wanted) in \(folders.count > 1 ? "its folders" : "its folder") yet. Add some there, or connect Sonarr or Radarr in Flexarr’s settings on the web."
+    }
+
+    private static func kind(_ type: LibraryType) -> String {
+        switch type {
+        case .movies: "films"
+        case .tvShows: "shows"
+        case .music: "music"
+        case .podcasts: "podcasts"
+        case .unknown: "titles"
+        }
+    }
+
+    /// "Films", "Films and TV", "Films, TV and Music".
+    private static func list(_ names: [String]) -> String {
+        guard let last = names.last else { return "" }
+        return names.count == 1 ? last : "\(names.dropLast().joined(separator: ", ")) and \(last)"
+    }
+}

@@ -4,31 +4,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var home: Home?
-    /// A server with nothing in it yet, usually just set up: say where the films and shows get added.
-private struct EmptyHome: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Image(systemName: "film.stack")
-                .font(.system(size: 44, weight: .semibold))
-                .foregroundStyle(Color.silver)
-            Text("Nothing to watch yet")
-                .font(.marquee(34, weight: .black))
-                .foregroundStyle(Color.screen)
-            Text("Add your movies, shows and music on the computer where you set up Flexarr: open Flexarr in a browser and go to Settings › Libraries. They appear here once they’re added.")
-                .font(.body)
-                .foregroundStyle(Color.usher)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Pull down to refresh.")
-                .font(.footnote)
-                .foregroundStyle(Color.usher)
-        }
-        .padding(.horizontal, 24)
-        .frame(maxWidth: 520, alignment: .leading)
-        .frame(maxWidth: .infinity)
-    }
-}
-
-/// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
+    /// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
     @State private var newEpisodes: [PodcastEpisode] = []
     @State private var error: String?
     @State private var featuredIndex = 0
@@ -87,9 +63,15 @@ private struct EmptyHome: View {
 
     private func content(_ home: Home) -> some View {
         ScrollView(.vertical) {
-            if home.featured.isEmpty && newEpisodes.isEmpty && !home.rows.contains(where: \.hasContent) {
-                EmptyHome()
-                    .containerRelativeFrame(.vertical)
+            // Above whatever else Home has (Coming soon, channels); the whole screen when there's nothing else.
+            if home.featured.isEmpty, let message = EmptyHomeMessage(libraries: model.libraries) {
+                if newEpisodes.isEmpty && !home.rows.contains(where: \.hasContent) {
+                    EmptyHome(message: message)
+                        .containerRelativeFrame(.vertical)
+                } else {
+                    EmptyHome(message: message)
+                        .padding(.top, 72)
+                }
             }
             LazyVStack(alignment: .leading, spacing: 28) {
                 if !home.featured.isEmpty {
@@ -118,6 +100,8 @@ private struct EmptyHome: View {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
             async let episodes = client.newPodcastEpisodes(unplayed: true, take: 20)
             let loaded = try await client.home()
+            // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
+            if loaded.featured.isEmpty { await model.loadLibraries() }
             home = loaded
             newEpisodes = (try? await episodes) ?? []
             loadedToken = token
@@ -297,5 +281,42 @@ struct HomeRowView: View {
         guard let library = model.libraries.first(where: { $0.id == id }) else { return nil }
         let sort = components.queryItems?.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
         return (library, sort)
+    }
+}
+
+/// Home with nothing to show: no library yet, a first scan under way, or libraries with nothing recognised in them.
+private struct EmptyHome: View {
+    let message: EmptyHomeMessage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "film.stack")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(Color.silver)
+            Text(message.title)
+                .font(.marquee(34, weight: .black))
+                .foregroundStyle(Color.screen)
+            Text(message.body)
+                .font(.body)
+                .foregroundStyle(Color.usher)
+                .fixedSize(horizontal: false, vertical: true)
+            if !message.folders.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(message.folders, id: \.self) { folder in
+                        Text(folder)
+                            .font(.footnote.monospaced())
+                            .foregroundStyle(Color.screen)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Folders: \(message.folders.joined(separator: ", "))")
+            }
+            Text("Pull down to refresh.")
+                .font(.footnote)
+                .foregroundStyle(Color.usher)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: .infinity)
     }
 }
