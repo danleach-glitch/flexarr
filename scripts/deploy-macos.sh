@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Build Flexarr and install/upgrade it as a LaunchAgent on a Mac reachable over SSH.
 #
-#   scripts/deploy-macos.sh <ssh-host>      e.g. scripts/deploy-macos.sh mini
+#   scripts/deploy-macos.sh <ssh-host> [--force]      e.g. scripts/deploy-macos.sh mini
+#
+# Only main (as origin has it) or a release tag, with nothing uncommitted: a branch's database migration may not be
+# the one that lands, and the target's database can't take it back. --force deploys whatever is checked out.
 #
 # A checkout of a release tag deploys as that version. Anything else (main between releases) deploys as a build of
 # the next minor version, e.g. 0.51.0-dev.1a2b3c4d, so the server never claims to be a release it isn't.
@@ -15,7 +18,8 @@
 #                     (warnings and crashes on standard output, for when the server can't start)
 set -euo pipefail
 
-host="${1:?usage: $0 <ssh-host>}"
+host="${1:?usage: $0 <ssh-host> [--force]}"
+force="${2:-}"
 label="io.github.flexarr.server"
 # The repo's path with each folder's real capitalisation. macOS paths are case-insensitive, but Roslyn matches
 # .editorconfig sections case-sensitively: building from ~/projects when the folder is ~/Projects makes the
@@ -30,6 +34,20 @@ print(path)
 PY
 )"
 out="$repo/artifacts/deploy"
+
+if [ "$force" != "--force" ]; then
+  git -C "$repo" fetch --quiet origin main
+  head="$(git -C "$repo" rev-parse HEAD)"
+  if [ -n "$(git -C "$repo" status --porcelain)" ]; then
+    echo "There are uncommitted changes. Commit them, or deploy anyway with --force." >&2
+    exit 1
+  fi
+  if [ "$head" != "$(git -C "$repo" rev-parse origin/main)" ] && ! git -C "$repo" describe --tags --exact-match --match 'v*' HEAD >/dev/null 2>&1; then
+    echo "Only main (as on origin) or a release tag deploys: this is $(git -C "$repo" rev-parse --abbrev-ref HEAD) at ${head:0:8}." >&2
+    echo "Pull main, check out a tag, or deploy anyway with --force." >&2
+    exit 1
+  fi
+fi
 
 case "$(ssh "$host" uname -m)" in
   arm64) rid=osx-arm64 ;;

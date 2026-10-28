@@ -23,7 +23,7 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 | [MCP C# SDK](https://github.com/modelcontextprotocol/csharp-sdk) | The MCP endpoint | Apache-2.0 / MIT |
 | [Serilog](https://serilog.net) | Logs | Apache-2.0 |
 | [Sentry for .NET](https://github.com/getsentry/sentry-dotnet) | Error reports, only when turned on | MIT |
-| [FFmpeg](https://ffmpeg.org) | Transcoding, remuxing, previews, audio fingerprints | LGPL-2.1+ / GPL-2.0+ depending on the build. Flexarr runs it as a separate program and doesn't include it, except in the Docker image, which installs Debian's package, and the Mac app (in development), which includes an LGPL-2.1+ build of the unmodified [FFmpeg 9.0.2 source](https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz), configured by [clients/macos/Tools/build-ffmpeg.sh](clients/macos/Tools/build-ffmpeg.sh). |
+| [FFmpeg](https://ffmpeg.org) | Transcoding, remuxing, previews, audio fingerprints | LGPL-2.1+ / GPL-2.0+ depending on the build. Flexarr runs it as a separate program and doesn't include it, except in the Docker image, which installs the FFmpeg package of the Linux distribution its .NET base image is built on (a GPL-2.0+ build; its source is in that distribution's archive, `apt-get source ffmpeg`), along with that distribution's VA-API drivers (on amd64, Intel's media driver from its non-free section), and the Mac app (in development), which includes an LGPL-2.1+ build of the unmodified [FFmpeg 9.0.2 source](https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz), configured by [clients/macos/Tools/build-ffmpeg.sh](clients/macos/Tools/build-ffmpeg.sh). |
 
 ## Web app
 

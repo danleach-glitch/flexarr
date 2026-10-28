@@ -5,6 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- The Docker image has a health check, so Docker, Compose and NAS apps show when the server has stopped answering.
 - **Coming soon**, requests and notifications find titles faster in big libraries.
 - Very large Sonarr and Radarr libraries over a slow connection no longer time out while Flexarr reads them.
 - A live TV channel whose stream stopped while nobody was watching starts afresh for the next viewer, instead of opening frozen.
