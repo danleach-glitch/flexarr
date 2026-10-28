@@ -9,6 +9,7 @@ using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -156,6 +157,46 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task WithoutSonarr_FixMatch_ChoosesFromTvMaze_AndKeepsTheChoice()
+    {
+        var tvmaze = new FakeTvMaze();
+        var app = factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient<TvMazeClient>().ConfigurePrimaryHttpMessageHandler(() => tvmaze);
+            services.AddHttpClient<ImageCache>().ConfigurePrimaryHttpMessageHandler(() => new NotFoundHandler());
+        }));
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: false);
+
+        var candidates = await Client(app).GetFromJsonAsync<List<MatchCandidateDto>>(new Uri($"/api/v1/items/{id}/match?q=Shogun", UriKind.Relative));
+        var response = await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 60600 });
+
+        Assert.Equal([(60600, "Shōgun", 2024, "TVmaze"), (1980, "Shogun", 1980, "TVmaze")], candidates!.Select(c => (c.Id, c.Title, c.Year!.Value, c.Source)));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var item = await ItemAsync(app, id);
+        Assert.Equal(("Shōgun", 2024, "60600", true, MetadataRefresher.TvMaze), (item.Title, item.Year, item.TvMazeId, item.MatchLocked, item.MetadataSource));
+    }
+
+    [Fact]
+    public async Task WithoutRadarr_FixingAFilm_NeedsATmdbKey()
+    {
+        Guid id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            var film = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Heat", SortTitle = "HEAT", Path = "/Volumes/Media/data/films/Heat" };
+            db.AddRange(library, film);
+            await db.SaveChangesAsync();
+            id = film.Id;
+        }
+
+        var response = await Client(factory).GetAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("TMDB key", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
     private WebApplicationFactory<Program> WithSonarr(FakeSonarr sonarr) => factory.WithWebHostBuilder(b =>
     {
         b.UseSetting("Flexarr:Arr:0:Name", "Sonarr");
@@ -215,6 +256,22 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         copy["path"] = path;
         copy["qualityProfileId"] = 3;
         return copy;
+    }
+
+    /// <summary>TVmaze's search for "Shogun", and the 2024 show.</summary>
+    private sealed class FakeTvMaze : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.RequestUri!.PathAndQuery switch
+            {
+                "/search/shows?q=Shogun" => """[{"score":0.9,"show":{"id":60600,"name":"Shōgun","premiered":"2024-02-27"}},{"score":0.8,"show":{"id":1980,"name":"Shogun","premiered":"1980-09-15"}}]""",
+                "/shows/60600" => """{"id":60600,"name":"Shōgun","premiered":"2024-02-27","summary":"<p>Japan, 1600.</p>"}""",
+                _ => null,
+            };
+            return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+        }
     }
 
     private sealed class NotFoundHandler : HttpMessageHandler

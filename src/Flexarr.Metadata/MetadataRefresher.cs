@@ -1152,6 +1152,8 @@ public sealed partial class MetadataRefresher(
                 // A tenth of the way in, past a fade from black, but no further than a minute.
                 video.ThumbUrl = ArtworkUrl.Frame(file.Path, Math.Min(60, (file.DurationSeconds ?? 0) / 10));
             }
+
+            video.MetadataUpdatedAt = DateTime.UtcNow; // the still's ?v=, so a new one isn't hidden by a cached old one
         }
 
         foreach (var season in seasons)

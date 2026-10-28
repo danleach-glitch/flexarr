@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Without Sonarr and Radarr · Flexarr guide</title>
+  <meta name="description" content="Artwork and details for films and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/without-arrs">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Without Sonarr and Radarr · Flexarr guide">
+  <meta property="og:description" content="Artwork and details for films and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/without-arrs">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section" open>
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/without-arrs" aria-current="page">Without Sonarr and Radarr</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
+        <h1>Without Sonarr and Radarr</h1>
+        <p class="lede">Artwork and details for films and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#artwork-and-nfo-files-in-your-folders">Artwork and .nfo files in your folders</a></li>
+            <li><a href="#shows-from-tvmaze">Shows from TVmaze</a></li>
+            <li><a href="#films-from-tmdb">Films from TMDB</a></li>
+            <li><a href="#when-the-match-is-wrong">When the match is wrong</a></li>
+            <li><a href="#home-videos">Home videos</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Flexarr works best alongside Sonarr and Radarr, but it doesn&#39;t need them. Films and shows they don&#39;t manage, or every film and show if you don&#39;t run them, get their artwork and details in three ways, best first:</p>
+<ol>
+<li><strong>What&#39;s in their folders.</strong> A <code>.nfo</code> file and artwork beside a film or show always win, even over Sonarr&#39;s and Radarr&#39;s.</li>
+<li><strong>TVmaze, for shows.</strong> It needs no account or key.</li>
+<li><strong>TMDB, for films</strong>, with a free key of your own.</li>
+</ol>
+<p>Anything none of these find still plays, named from its folder and files.</p>
+<h2 id="artwork-and-nfo-files-in-your-folders"><a class="anchor" href="#artwork-and-nfo-files-in-your-folders" aria-hidden="true" tabindex="-1">#</a>Artwork and .nfo files in your folders</h2>
+<p>If you&#39;ve used Kodi, Jellyfin, Emby, Plex or tinyMediaManager, your folders may already hold everything Flexarr needs. Flexarr reads:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>What</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Details (title, year, plot, genres, rating, age rating, IDs)</td>
+<td><code>movie.nfo</code> (or <code>Film name.nfo</code>) beside a film, <code>tvshow.nfo</code> in a show&#39;s folder, <code>Episode name.nfo</code> beside an episode</td>
+</tr>
+<tr>
+<td>Poster</td>
+<td><code>poster.jpg</code>, <code>folder.jpg</code> or <code>cover.jpg</code></td>
+</tr>
+<tr>
+<td>Background</td>
+<td><code>fanart.jpg</code>, <code>backdrop.jpg</code> or <code>background.jpg</code></td>
+</tr>
+<tr>
+<td>Logo</td>
+<td><code>clearlogo.png</code> or <code>logo.png</code></td>
+</tr>
+<tr>
+<td>Season poster</td>
+<td><code>season01-poster.jpg</code> (or <code>season-specials-poster.jpg</code>) in the show&#39;s folder, or <code>poster.jpg</code> in the season&#39;s folder</td>
+</tr>
+<tr>
+<td>Episode still</td>
+<td><code>Episode name-thumb.jpg</code> or <code>Episode name.jpg</code> beside the episode</td>
+</tr>
+</tbody></table></div>
+<p>A film on its own in the library&#39;s folder, rather than in a folder of its own, uses the same names with its file name in front: <code>Heat (1995)-poster.jpg</code>, <code>Heat (1995)-fanart.jpg</code>.</p>
+<p>Images can be JPEG, PNG or WebP. Flexarr only reads these files: it never writes or changes anything in your media folders.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> The IDs in a <code>.nfo</code> file (TMDB, IMDb or TheTVDB) help Flexarr find exactly the right title, in Sonarr and Radarr as well as online. A <code>.nfo</code> that holds only a link to the title&#39;s IMDb or TMDB page works too.</p>
+</blockquote>
+<h2 id="shows-from-tvmaze"><a class="anchor" href="#shows-from-tvmaze" aria-hidden="true" tabindex="-1">#</a>Shows from TVmaze</h2>
+<p>Shows Sonarr doesn&#39;t know are looked up on <a href="https://www.tvmaze.com" rel="noopener">TVmaze</a>, by the show&#39;s folder name (and its IDs, when there are any). They get a poster, background, overview, genres, rating and cast, with episode titles, descriptions and stills. There&#39;s nothing to set up.</p>
+<h2 id="films-from-tmdb"><a class="anchor" href="#films-from-tmdb" aria-hidden="true" tabindex="-1">#</a>Films from TMDB</h2>
+<p>For films Radarr doesn&#39;t know, Flexarr can ask <a href="https://www.themoviedb.org" rel="noopener">TMDB</a>, using a key of your own:</p>
+<ol>
+<li>Sign up at <a href="https://www.themoviedb.org/signup" rel="noopener">themoviedb.org</a> (it&#39;s free) and open <strong>Settings › API</strong> to ask for a key.</li>
+<li>In Flexarr, open <strong>Settings › Connections</strong>, choose <strong>Edit</strong> on <strong>TMDB</strong>, and paste the <strong>API key</strong> or the <strong>API read access token</strong>.</li>
+<li>Choose <strong>Test</strong>, then <strong>Save</strong>.</li>
+</ol>
+<p>Films that weren&#39;t matched are looked up again straight away. They get a poster, background, logo, overview, genres, age rating, rating, trailer and cast.</p>
+<h2 id="when-the-match-is-wrong"><a class="anchor" href="#when-the-match-is-wrong" aria-hidden="true" tabindex="-1">#</a>When the match is wrong</h2>
+<p>A title search can pick the wrong one: a remake, or an older show of the same name. Titles matched by searching are listed under <strong>Check these matches</strong> in <a href="/guide/library-health">Library health</a>. To choose the right one, open the title, choose <strong>Fix match…</strong> in its <strong>⋯</strong> menu, and search. Without Sonarr and Radarr, the search is TVmaze&#39;s (shows) or TMDB&#39;s (films), and your choice is kept in Flexarr through every refresh. Fixing a film&#39;s match without Radarr needs a TMDB key.</p>
+<h2 id="home-videos"><a class="anchor" href="#home-videos" aria-hidden="true" tabindex="-1">#</a>Home videos</h2>
+<p>For videos of your own, add a library of the kind <strong>Home videos</strong> in <strong>Settings › Libraries</strong>. Nothing in it is looked up online. Flexarr arranges it by folder:</p>
+<ul>
+<li>Each folder in the library&#39;s folder is shown like a show.</li>
+<li>The folders inside that are its seasons, named after the folders. Any folders deeper down are part of the season they&#39;re in.</li>
+<li>Each video is an episode, named after its file.</li>
+</ul>
+<p>Folders and videos are in name order, with numbers counted as numbers, so <code>Part 2</code> comes before <code>Part 10</code>. Name them by date (<code>2019-07 Cornwall</code>) to keep them in date order. Videos straight in a show&#39;s folder come first, and videos straight in the library&#39;s folder make a show named after the library&#39;s folder.</p>
+<p>Each video gets a still from a little way in. A <code>poster.jpg</code> or <code>folder.jpg</code> in a folder, or a <code>-thumb.jpg</code> beside a video, is used instead, and a folder without a poster shows its first video&#39;s still.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/first-setup"><span>Previous</span>First setup</a>
+          <a class="next" href="/guide/connect-devices"><span>Next</span>Connect your devices</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/without-arrs.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Without%20Sonarr%20and%20Radarr">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

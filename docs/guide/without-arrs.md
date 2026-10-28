@@ -46,7 +46,7 @@ Films that weren't matched are looked up again straight away. They get a poster,
 
 ## When the match is wrong
 
-A title search can pick the wrong one: a remake, or an older show of the same name. Titles matched by searching are listed under **Check these matches** in [Library health](library-health.md). To choose the right one, open the title, choose **More › Fix match…** and search. Without Sonarr and Radarr, the search is TVmaze's (shows) or TMDB's (films), and your choice is kept in Flexarr through every refresh. Fixing a film's match without Radarr needs a TMDB key.
+A title search can pick the wrong one: a remake, or an older show of the same name. Titles matched by searching are listed under **Check these matches** in [Library health](library-health.md). To choose the right one, open the title, choose **Fix match…** in its **⋯** menu, and search. Without Sonarr and Radarr, the search is TVmaze's (shows) or TMDB's (films), and your choice is kept in Flexarr through every refresh. Fixing a film's match without Radarr needs a TMDB key.
 
 ## Home videos
 

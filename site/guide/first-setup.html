@@ -55,6 +55,7 @@
               <li><a href="/guide/install-unraid">Install on Unraid</a></li>
               <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
               <li><a href="/guide/first-setup" aria-current="page">First setup</a></li>
+              <li><a href="/guide/without-arrs">Without Sonarr and Radarr</a></li>
               <li><a href="/guide/connect-devices">Connect your devices</a></li>
               <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
               <li><a href="/guide/updating">Updating Flexarr</a></li>
@@ -155,7 +156,7 @@
 <p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
 <figure><img src="/guide/img/libraries.webp" alt="Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below" data-caption="Settings › Libraries" loading="lazy" decoding="async"></figure>
 <ol>
-<li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong> or <strong>Music</strong>.</li>
+<li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong>, <strong>Music</strong> or <strong>Home videos</strong> (videos of your own, arranged by folder; see <a href="/guide/without-arrs#home-videos">Without Sonarr and Radarr</a>).</li>
 <li>Give it a <strong>Name</strong> if you like. Left blank, it&#39;s named after its kind. You can rename it later.</li>
 <li>Under <strong>Folders</strong>, browse the server&#39;s disks and choose <strong>Use this folder</strong> on the folder that holds that media. Add more than one folder if your films are spread across drives.</li>
 <li>Choose <strong>Add library</strong>.</li>
@@ -170,7 +171,7 @@
 <p>Adding a library starts a scan straight away. You&#39;ll see its progress in <strong>Settings › Libraries</strong>, and titles appear on Home and in the sidebar as they&#39;re found.</p>
 <p>How long it takes depends on the size of your library and how fast the disks are, and artwork keeps arriving for a while after the files are found. You can start watching as soon as something shows up.</p>
 <p>After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.</p>
-<blockquote class="callout tip"><p><strong>Tip</strong> Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, <a href="/guide/connect-arrs">connect them</a> next. Without them, films and episodes still play, named from their files, with artwork and details from any <code>.nfo</code> files and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) beside them. Music reads the tags and cover images in your files, and Lidarr adds more.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, <a href="/guide/connect-arrs">connect them</a> next. Without them, films and episodes still play, named from their files, with artwork and details from any <code>.nfo</code> files and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) beside them, from TVmaze for shows, and from TMDB for films if you add a free key. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Music reads the tags and cover images in your files, and Lidarr adds more.</p>
 </blockquote>
 <h2 id="the-api-key"><a class="anchor" href="#the-api-key" aria-hidden="true" tabindex="-1">#</a>The API key</h2>
 <p>Flexarr still has an API key. You won&#39;t need it for everyday use at home, but it&#39;s there for:</p>
@@ -210,7 +211,7 @@
         </div>
         <nav class="pager" aria-label="More of the guide">
           <a class="prev" href="/guide/install-docker"><span>Previous</span>Install with Docker on Linux or Windows</a>
-          <a class="next" href="/guide/connect-devices"><span>Next</span>Connect your devices</a>
+          <a class="next" href="/guide/without-arrs"><span>Next</span>Without Sonarr and Radarr</a>
         </nav>
         <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/first-setup.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20First%20setup">Report something wrong or missing</a></p>
       </article>
