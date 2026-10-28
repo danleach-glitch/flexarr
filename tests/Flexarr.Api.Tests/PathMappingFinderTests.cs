@@ -73,6 +73,29 @@ public sealed class PathMappingFinderTests
     }
 
     [Fact]
+    public async Task Folders_IsCertainOfAFewTitles_WhenTheyLeadToALibraryFolder()
+    {
+        using var server = new FlexarrApiFactory();
+        var arr = Arr(server, out var tv);
+        using var app = arr.Serve(server);
+        await AddShowsAsync(app, tv, Shows[..2]);
+
+        var folders = await Client(app).GetFromJsonAsync<List<ArrFolderDto>>("/api/v1/arr/folders", Json);
+        Assert.True(Assert.Single(folders!, f => f.App == "Sonarr").Certain);
+
+        // The same two titles, in a folder that isn't a library's: only a suggestion.
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.LibraryFolders.RemoveRange(db.LibraryFolders);
+            await db.SaveChangesAsync();
+        }
+
+        folders = await Client(app).GetFromJsonAsync<List<ArrFolderDto>>("/api/v1/arr/folders", Json);
+        Assert.False(Assert.Single(folders!, f => f.App == "Sonarr").Certain);
+    }
+
+    [Fact]
     public async Task Folders_SaysAMappedFolderIsMapped()
     {
         using var server = new FlexarrApiFactory();
@@ -100,13 +123,13 @@ public sealed class PathMappingFinderTests
         return arr;
     }
 
-    private static async Task AddShowsAsync(WebApplicationFactory<Program> app, string tv)
+    private static async Task AddShowsAsync(WebApplicationFactory<Program> app, string tv, string[]? shows = null)
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var library = new Library { Name = "TV", Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = tv }] };
         db.Add(library);
-        db.AddRange(Shows.Select(s => new MediaItem
+        db.AddRange((shows ?? Shows).Select(s => new MediaItem
         {
             LibraryId = library.Id, Kind = MediaKind.Series, Title = s, SortTitle = s, Path = Path.Combine(tv, s),
             MetadataSource = "Sonarr lookup", MetadataUpdatedAt = DateTime.UtcNow,

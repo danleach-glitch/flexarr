@@ -76,8 +76,10 @@ public sealed partial class PathMappingFinder(FlexarrDbContext db, ArrClient arr
                 var detected = titles is { } t ? PathMappingDetector.Infer(root, t.Theirs, t.Ours) : null;
                 if (detected is not null && Directory.Exists(detected.To))
                 {
+                    // A few titles are enough when they all agree and lead to one of the libraries' folders.
+                    var certain = detected.Certain || (detected.Agreeing == detected.Compared && await IsLibraryFolderAsync(detected.To, ct));
                     found.Add(new(instance.Name, instance.Kind, root, ArrFolderState.Suggested, null, new PathMapping { From = detected.From, To = detected.To },
-                        detected.Agreeing, detected.Compared, detected.Certain));
+                        detected.Agreeing, detected.Compared, certain));
                 }
                 else if (await SameNamedFolderAsync(root, ct) is { } folder)
                 {
@@ -188,6 +190,9 @@ public sealed partial class PathMappingFinder(FlexarrDbContext db, ArrClient arr
             return null;
         }
     }
+
+    private async Task<bool> IsLibraryFolderAsync(string path, CancellationToken ct) =>
+        (await db.LibraryFolders.Select(f => f.Path).ToListAsync(ct)).Any(f => PathComparison.Key(f) == PathComparison.Key(path));
 
     /// <summary>The one library folder with the same name as the app's (/tv and /Volumes/Media/TV), for an empty root.</summary>
     private async Task<string?> SameNamedFolderAsync(string root, CancellationToken ct)
