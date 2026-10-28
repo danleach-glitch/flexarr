@@ -445,11 +445,19 @@ struct EpisodeSheet: View {
                     }
                 }
                 HStack(spacing: 12) {
+                    // The episode that's playing pauses here, and carries on when paused, rather than starting again.
+                    let isCurrent = model.music.current?.id == shown.id
+                    let isPlaying = isCurrent && model.music.isPlaying
                     Button {
-                        model.playEpisode(shown.summary)
-                        dismiss()
+                        if isCurrent {
+                            model.music.togglePlayPause()
+                        } else {
+                            model.playEpisode(shown.summary)
+                            dismiss()
+                        }
                     } label: {
-                        Label(shown.progress != nil ? "Resume" : "Play", systemImage: "play.fill")
+                        Label(isPlaying ? "Pause" : isCurrent || shown.progress != nil ? "Resume" : "Play",
+                              systemImage: isPlaying ? "pause.fill" : "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: podcastGlow(shown.accentColor), prominent: true))
                     let isPlayed = played ?? shown.isPlayed
