@@ -296,8 +296,7 @@ final class PlaybackController: NSObject {
         screen.setSubtitleOptions(delay: info.isOffline || info.subtitleBurnedIn || transport is EngineTransportMarker ? nil : (info.subtitleDelaySeconds ?? 0),
                                   size: preferences.subtitleSize ?? .standard)
         // Audio sync needs the server (which keeps the offset for the household); a download plays as it was made.
-        screen.setAudioSync(seconds: info.isOffline || !info.hasPlayerControls ? nil : info.audioDelaySeconds ?? 0,
-                            offersRestOfSeason: info.item.kind == .episode)
+        screen.setAudioSync(seconds: info.isOffline || !info.hasPlayerControls ? nil : info.audioDelaySeconds ?? 0)
         screen.episodeEnd = info.item.kind == .episode
             ? .init(credits: info.markers.first(where: { $0.type == .credits })?.start, stopsAtCredits: preferences.skipCredits && info.next != nil)
             : nil
@@ -372,10 +371,10 @@ final class PlaybackController: NSObject {
         }
     }
 
-    /// Moves the file's sound later (earlier when negative) for everyone, and for the rest of the season if asked.
+    /// Moves the file's sound later (earlier when negative) for everyone.
     /// The engine moves it at once and the server is told once the nudging stops; the server's stream has it moved
     /// there, so it's opened again where it was once the nudging has settled.
-    func setAudioDelay(_ seconds: Double, restOfSeason: Bool) {
+    func setAudioDelay(_ seconds: Double) {
         guard let client, let current = info, !current.isOffline, current.hasPlayerControls else { return }
         let seconds = max(-2, min(2, (seconds * 1000).rounded() / 1000))
         let itemId = current.item.id
@@ -384,9 +383,9 @@ final class PlaybackController: NSObject {
         if let engine = transport as? EngineTransport, current.audioDelayInStream != true {
             engine.setAudioDelay(seconds)
             audioDelaySave = Task {
-                if !restOfSeason { guard (try? await Task.sleep(for: .milliseconds(500))) != nil else { return } }
+                guard (try? await Task.sleep(for: .milliseconds(500))) != nil else { return }
                 do {
-                    try await client.setAudioDelay(itemId: itemId, seconds: seconds, restOfSeason: restOfSeason)
+                    try await client.setAudioDelay(itemId: itemId, seconds: seconds)
                 } catch {
                     log.warning("Couldn't save the audio sync", error: error, ["playbackId": current.playbackId])
                 }
@@ -395,9 +394,9 @@ final class PlaybackController: NSObject {
         }
         #endif
         audioDelaySave = Task {
-            if !restOfSeason { guard (try? await Task.sleep(for: .seconds(1))) != nil else { return } }
+            guard (try? await Task.sleep(for: .seconds(1))) != nil else { return }
             do {
-                try await client.setAudioDelay(itemId: itemId, seconds: seconds, restOfSeason: restOfSeason)
+                try await client.setAudioDelay(itemId: itemId, seconds: seconds)
             } catch {
                 log.warning("Couldn't save the audio sync", error: error, ["playbackId": current.playbackId])
                 return
@@ -1008,8 +1007,8 @@ extension PlaybackController: PlayerScreenDelegate {
         setSubtitleSize(size)
     }
 
-    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double, restOfSeason: Bool) {
-        setAudioDelay(seconds, restOfSeason: restOfSeason)
+    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {
+        setAudioDelay(seconds)
     }
 
     /// A speed chosen during an episode is kept for its show (for this profile); a film's is for this time only.

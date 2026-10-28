@@ -10,8 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flexarr.Api.Tests;
 
 /// <summary>
-/// The player's audio sync and speed: an episode's sound offset is the household's and can go to the rest of its
-/// season, and a show's speed is kept for each profile's next episodes.
+/// The player's audio sync and speed: a file's sound offset is the household's and is the file's alone, and a show's
+/// speed is kept for each profile's next episodes.
 /// </summary>
 public class PlayerControlsTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
 {
@@ -25,17 +25,16 @@ public class PlayerControlsTests(FlexarrApiFactory factory) : IClassFixture<Flex
     }
 
     [Fact]
-    public async Task AnEpisodesSoundOffset_GoesToTheRestOfItsSeason_WhenAsked_AndPlaybackCarriesIt()
+    public async Task AnEpisodesSoundOffset_IsItsOwn_AndPlaybackCarriesIt()
     {
         var (_, episodes) = await AddShowAsync(3);
         var client = Client();
 
-        // Fixed on the second episode for it alone, then for it and the ones after.
+        // Fixed on the second episode: the others are left as they are.
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync(Api($"/items/{episodes[1]}/audio-delay"), new { seconds = 0.2 })).StatusCode);
         Assert.Equal(new[] { 0, 0.2, 0 }, await DelaysAsync(episodes));
-        Assert.Equal(HttpStatusCode.NoContent,
-            (await client.PutAsJsonAsync(Api($"/items/{episodes[1]}/audio-delay"), new { seconds = -0.35, restOfSeason = true })).StatusCode);
-        Assert.Equal(new[] { 0, -0.35, -0.35 }, await DelaysAsync(episodes));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync(Api($"/items/{episodes[2]}/audio-delay"), new { seconds = -0.35 })).StatusCode);
+        Assert.Equal(new[] { 0, 0.2, -0.35 }, await DelaysAsync(episodes));
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api($"/items/{episodes[0]}/audio-delay"), new { seconds = 2.5 })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync(Api($"/items/{Guid.NewGuid()}/audio-delay"), new { seconds = 0.1 })).StatusCode);

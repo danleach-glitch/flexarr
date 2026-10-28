@@ -71,11 +71,8 @@ public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, 
 /// <summary>Subtitles shown later (positive) or earlier (negative), in seconds.</summary>
 public sealed record SubtitleDelayRequest(double Seconds);
 
-/// <summary>
-/// A file's sound played later (positive) or earlier (negative), in seconds, for everyone. With
-/// <paramref name="RestOfSeason"/>, an episode's offset also goes to the episodes after it in its season.
-/// </summary>
-public sealed record AudioDelayRequest(double Seconds, bool RestOfSeason = false);
+/// <summary>A file's sound played later (positive) or earlier (negative), in seconds, for everyone.</summary>
+public sealed record AudioDelayRequest(double Seconds);
 
 /// <summary>The speed to play a show at from now on: 1 forgets it.</summary>
 public sealed record PlaybackSpeedRequest(double Speed);

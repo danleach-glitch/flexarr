@@ -24,9 +24,8 @@ protocol PlayerScreenDelegate: AnyObject {
     func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??)
     func playerScreen(_ screen: PlayerViewController, subtitleDelay seconds: Double)
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize)
-    /// The viewer nudged the file's sound (seconds later, earlier when negative); `restOfSeason`: for the episodes
-    /// after this one in its season too.
-    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double, restOfSeason: Bool)
+    /// The viewer nudged the file's sound (seconds later, earlier when negative).
+    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double)
     /// The viewer chose a speed in the menu.
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float)
     /// The sleep timer was set, changed, asked, ran out or was woken from (`sleepHoldsEpisode` may have changed).
@@ -34,7 +33,7 @@ protocol PlayerScreenDelegate: AnyObject {
 }
 
 extension PlayerScreenDelegate {
-    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double, restOfSeason: Bool) {}
+    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {}
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {}
     func playerScreenSleepChanged(_ screen: PlayerViewController) {}
 }
@@ -64,8 +63,8 @@ final class PlayerViewController: UIViewController {
     private var holdTask: Task<Void, Never>?
     #endif
     private var subtitleSize: SubtitleSize = .standard
-    /// The file's audio offset and whether it can go to the rest of the season (nil: not adjustable here).
-    private var audioSync: (seconds: Double, offersRestOfSeason: Bool)?
+    /// The file's audio offset (nil: not adjustable here).
+    private var audioSync: Double?
     private let audioSyncPanel = AudioSyncPanel()
     private var audioSyncOpen: Bool { !audioSyncPanel.isHidden }
     /// The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode.
@@ -321,10 +320,10 @@ final class PlayerViewController: UIViewController {
 
     /// The file's audio offset for the audio menu's Audio sync (nil: not adjustable here, as for a download or an older
     /// server). Left alone while the panel is open: the viewer's nudges there are newer.
-    func setAudioSync(seconds: Double?, offersRestOfSeason: Bool) {
-        audioSync = seconds.map { (audioSyncOpen ? audioSyncPanel.seconds : $0, offersRestOfSeason) }
+    func setAudioSync(seconds: Double?) {
+        audioSync = seconds.map { audioSyncOpen ? audioSyncPanel.seconds : $0 }
         if seconds == nil { closeAudioSync() }
-        if !audioSyncOpen, let seconds { audioSyncPanel.configure(seconds: seconds, offersRestOfSeason: offersRestOfSeason) }
+        if !audioSyncOpen, let seconds { audioSyncPanel.configure(seconds: seconds) }
         rebuildMenus()
     }
 
@@ -736,7 +735,7 @@ final class PlayerViewController: UIViewController {
             let sync = UIAction(title: "Audio sync", image: UIImage(systemName: "waveform.badge.magnifyingglass")) { [weak self] _ in
                 MainActor.assumeIsolated { self?.openAudioSync() }
             }
-            sync.subtitle = audioSync.seconds == 0 ? "As the file is" : AudioSyncPanel.label(audioSync.seconds)
+            sync.subtitle = audioSync == 0 ? "As the file is" : AudioSyncPanel.label(audioSync)
             audioItems.append(UIMenu(options: .displayInline, children: [sync]))
         }
         controls.audioButton.isHidden = audioItems.isEmpty
@@ -869,14 +868,10 @@ final class PlayerViewController: UIViewController {
 
     private func wirePanels() {
         audioSyncPanel.onChange = { [weak self] seconds in
-            guard let self, let current = audioSync else { return }
-            audioSync = (seconds, current.offersRestOfSeason)
-            delegate?.playerScreen(self, audioDelay: seconds, restOfSeason: false)
+            guard let self, audioSync != nil else { return }
+            audioSync = seconds
+            delegate?.playerScreen(self, audioDelay: seconds)
             rebuildMenus()
-        }
-        audioSyncPanel.onRestOfSeason = { [weak self] in
-            guard let self, let current = audioSync else { return }
-            delegate?.playerScreen(self, audioDelay: current.seconds, restOfSeason: true)
         }
         audioSyncPanel.onDone = { [weak self] in self?.closeAudioSync() }
         sleepPrompt.onMore = { [weak self] in self?.extendSleep() }
@@ -885,7 +880,7 @@ final class PlayerViewController: UIViewController {
 
     private func openAudioSync() {
         guard let audioSync else { return }
-        audioSyncPanel.configure(seconds: audioSync.seconds, offersRestOfSeason: audioSync.offersRestOfSeason)
+        audioSyncPanel.configure(seconds: audioSync)
         audioSyncPanel.alpha = 0
         audioSyncPanel.isHidden = false
         UIView.animate(withDuration: 0.2) { self.audioSyncPanel.alpha = 1 }

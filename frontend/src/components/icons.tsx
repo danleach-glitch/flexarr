@@ -21,6 +21,12 @@ export const Info = (p: IconProps) => (
     <path d="M12 11v5M12 8h.01" />
   </svg>
 )
+export const Reset = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.34-5.66" />
+    <path d="M4 4v4.5h4.5" />
+  </svg>
+)
 export const Check = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="m5 12.5 4.5 4.5L19 7.5" />

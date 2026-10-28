@@ -350,6 +350,21 @@
   background: rgb(255 255 255 / 0.18);
 }
 
+.player-menu-stepper button svg {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+
+.player-menu-stepper button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.player-menu-stepper button:disabled:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
 /* What a menu's choice does beyond this screen ("For everyone who plays this file"). */
 .player-menu-note {
   max-width: 220px;

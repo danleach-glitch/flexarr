@@ -277,10 +277,9 @@ public struct FlexarrClient: Sendable {
     }
 
     /// Plays a file's sound `seconds` later (earlier when negative, up to two seconds either way), for everyone in the
-    /// household. `restOfSeason`: an episode's later episodes in its season take the same offset. Servers before 0.53
-    /// answer 404.
-    public func setAudioDelay(itemId: String, seconds: Double, restOfSeason: Bool = false) async throws {
-        _ = try await send("PUT", "items/\(itemId)/audio-delay", body: AudioDelayBody(seconds: seconds, restOfSeason: restOfSeason))
+    /// household. Servers before 0.53 answer 404.
+    public func setAudioDelay(itemId: String, seconds: Double) async throws {
+        _ = try await send("PUT", "items/\(itemId)/audio-delay", body: AudioDelayBody(seconds: seconds))
     }
 
     /// Remembers `speed` for the show an episode belongs to, for this profile (1 forgets it). A film's isn't kept.

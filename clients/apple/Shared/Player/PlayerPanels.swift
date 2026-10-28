@@ -1,12 +1,11 @@
 import UIKit
 
 /// Nudging a file's sound earlier or later when it's out of step with the picture: a glass panel over the bottom of
-/// the picture, opened from the audio menu. Each press moves it 50 ms (up to two seconds either way); an episode's
-/// offset can go to the rest of its season too. The value is the household's, kept by the server.
+/// the picture, opened from the audio menu. Each press moves it 50 ms (up to two seconds either way). The value is the
+/// household's, kept by the server.
 final class AudioSyncPanel: UIView {
     /// The offset was nudged (or reset): seconds the sound plays later, earlier when negative.
     var onChange: ((Double) -> Void)?
-    var onRestOfSeason: (() -> Void)?
     var onDone: (() -> Void)?
 
     static let step = 0.05
@@ -19,7 +18,6 @@ final class AudioSyncPanel: UIView {
     let earlierButton: UIButton
     let laterButton: UIButton
     private let resetButton = PlayerControlsView.pill(filled: false)
-    private let seasonButton = PlayerControlsView.pill(filled: false)
     private let doneButton = PlayerControlsView.pill(filled: true)
 
     override init(frame: CGRect) {
@@ -36,10 +34,8 @@ final class AudioSyncPanel: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    /// Shows `seconds`, and Rest of season for an episode.
-    func configure(seconds: Double, offersRestOfSeason: Bool) {
+    func configure(seconds: Double) {
         self.seconds = seconds
-        seasonButton.isHidden = !offersRestOfSeason
         showValue()
     }
 
@@ -94,16 +90,10 @@ final class AudioSyncPanel: UIView {
         earlierButton.accessibilityLabel = "Sound earlier"
         laterButton.accessibilityLabel = "Sound later"
         resetButton.configuration?.title = "Reset"
-        seasonButton.configuration?.title = "Rest of season"
         doneButton.configuration?.title = "Done"
         earlierButton.addAction(UIAction { [weak self] _ in self?.nudge(-Self.step) }, for: .primaryActionTriggered)
         laterButton.addAction(UIAction { [weak self] _ in self?.nudge(Self.step) }, for: .primaryActionTriggered)
         resetButton.addAction(UIAction { [weak self] _ in self?.nudge(nil) }, for: .primaryActionTriggered)
-        seasonButton.addAction(UIAction { [weak self] _ in
-            guard let self else { return }
-            onRestOfSeason?()
-            captionLabel.text = "Set for the rest of the season"
-        }, for: .primaryActionTriggered)
         doneButton.addAction(UIAction { [weak self] _ in self?.onDone?() }, for: .primaryActionTriggered)
 
         let value = UIStackView(arrangedSubviews: [valueLabel, captionLabel])
@@ -118,7 +108,7 @@ final class AudioSyncPanel: UIView {
         nudges.axis = .horizontal
         nudges.alignment = .center
         nudges.spacing = spacing
-        let actions = UIStackView(arrangedSubviews: [resetButton, seasonButton, doneButton])
+        let actions = UIStackView(arrangedSubviews: [resetButton, doneButton])
         actions.axis = .horizontal
         actions.alignment = .center
         actions.spacing = spacing / 2

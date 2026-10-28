@@ -958,7 +958,6 @@ struct SubtitleDelayBody: Codable, Sendable {
 
 struct AudioDelayBody: Codable, Sendable {
     let seconds: Double
-    let restOfSeason: Bool
 }
 
 struct PlaybackSpeedBody: Codable, Sendable {

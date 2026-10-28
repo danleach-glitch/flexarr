@@ -29,6 +29,7 @@ import {
   Pause,
   Play,
   Replay10,
+  Reset,
   Volume,
 } from '../components/icons'
 import { MAX_AUDIO_DELAY_SECONDS, useDelayedSound } from '../hooks/delayedSound'
@@ -740,17 +741,6 @@ export function PlayerPage() {
   }
   useEffect(() => () => window.clearTimeout(syncTimer.current), [])
 
-  /** The same offset for this episode's later ones in its season: a bad batch tends to be out the same way. */
-  function soundForRestOfSeason() {
-    const itemId = playingItem.current
-    if (!itemId) return
-    window.clearTimeout(syncTimer.current)
-    void setAudioDelay(itemId, audioDelay, true).then(
-      () => setNotice('The rest of the season will play with this timing'),
-      () => setNotice('The sound couldn’t be moved just now'),
-    )
-  }
-
   // ---------- Speed
 
   useEffect(() => {
@@ -1172,20 +1162,10 @@ export function PlayerPage() {
                       <button aria-label="Play the sound later" onClick={() => nudgeSound(0.05)}>
                         +
                       </button>
+                      <button aria-label="Reset sync" title="Reset sync" disabled={audioDelay === 0} onClick={() => nudgeSound(0)}>
+                        <Reset />
+                      </button>
                     </div>
-                    {audioDelay !== 0 && (
-                      <>
-                        <button className="player-menu-item" onClick={() => nudgeSound(0)}>
-                          Reset sync
-                        </button>
-                        {info.item.kind === 'Episode' && (
-                          <button className="player-menu-item" onClick={soundForRestOfSeason}>
-                            Use for the rest of the season
-                          </button>
-                        )}
-                      </>
-                    )}
-                    <p className="player-menu-note muted">For everyone who plays this file.</p>
                   </div>
                 )}
               </div>

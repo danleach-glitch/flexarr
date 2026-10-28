@@ -25,7 +25,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Playback
 - When you've chosen a language, the soundtrack in it is picked over a commentary or audio description track, and the file's default track wins among the rest.
-- **Audio sync:** when a file's sound and picture drift apart, move the sound earlier or later in 50 ms steps from the player's audio menu, on the web, Apple TV, iPhone and iPad. It's fixed for everyone in the household, and for an episode you can use the same timing for the rest of its season.
+- **Audio sync:** when a file's sound and picture drift apart, move the sound earlier or later in 50 ms steps from the player's audio menu, on the web, Apple TV, iPhone and iPad. It's fixed for everyone in the household.
 - **Sleep timer for films and episodes:** stop in 15, 30, 45 or 60 minutes, or at the end of this episode. In the last minute the picture dims and asks "Still watching?", and any button adds 15 minutes (on iPhone, a tap or a shake). Otherwise the sound fades out and playback pauses.
 - **Speed in the web player,** from half speed to double. The speed you choose for a show's episode is kept for its other episodes, on every device.
 

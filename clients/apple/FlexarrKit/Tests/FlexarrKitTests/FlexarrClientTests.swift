@@ -356,17 +356,17 @@ struct SubtitleChoiceTests {
 }
 
 struct PlayerControlsTests {
-    @Test func movesAFilesSoundForTheRestOfTheSeason() async throws {
+    @Test func movesAFilesSound() async throws {
         let (client, host) = stubbedClient(.init(status: 204, body: Data()))
 
-        try await client.setAudioDelay(itemId: "ep", seconds: -0.15, restOfSeason: true)
+        try await client.setAudioDelay(itemId: "ep", seconds: -0.15)
 
         let request = try #require(StubProtocol.recorded(host: host).first)
         #expect(request.httpMethod == "PUT")
         #expect(request.url?.path == "/api/v1/items/ep/audio-delay")
         let json = try #require(try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
         #expect(json["seconds"] as? Double == -0.15)
-        #expect(json["restOfSeason"] as? Bool == true)
+        #expect(json["restOfSeason"] == nil)
     }
 
     @Test func remembersAShowsSpeed() async throws {
