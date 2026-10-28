@@ -14,7 +14,8 @@ public sealed record RowChoiceDto(string Id, string Label, bool Enabled);
 /// <param name="Combinable">Whether there are two film libraries or two TV ones, so combining them changes anything.</param>
 public sealed record LayoutDto(IReadOnlyList<RowChoiceDto> Home, IReadOnlyList<RowChoiceDto> Movies, IReadOnlyList<RowChoiceDto> Shows, bool CombineLibraries, bool Combinable);
 
-public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows, bool CombineLibraries = true);
+/// <param name="CombineLibraries">Left out (by apps from before it), the setting stays as it is.</param>
+public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows, bool? CombineLibraries = null);
 
 /// <summary>Choosing which rows Home and Browse show, and in what order (Settings › Home and Browse).</summary>
 public static class LayoutEndpoints
@@ -31,9 +32,10 @@ public static class LayoutEndpoints
         // Answers with the layout as saved: config.json reloads a moment later, and combining changes which rows there are.
         group.MapPut("/", (LayoutUpdate update, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
+            var combine = update.CombineLibraries ?? options.CurrentValue.Layout.CombineLibraries;
             ServerConfigStore.Update(options.CurrentValue.DataDirectory, config =>
-                config["layout"] = JsonSerializer.SerializeToNode(new { home = update.Home, movies = update.Movies, shows = update.Shows, combineLibraries = update.CombineLibraries }, Json));
-            var saved = new LayoutOptions { Home = [.. update.Home], Movies = [.. update.Movies], Shows = [.. update.Shows], CombineLibraries = update.CombineLibraries };
+                config["layout"] = JsonSerializer.SerializeToNode(new { home = update.Home, movies = update.Movies, shows = update.Shows, combineLibraries = combine }, Json));
+            var saved = new LayoutOptions { Home = [.. update.Home], Movies = [.. update.Movies], Shows = [.. update.Shows], CombineLibraries = combine };
             return LayoutAsync(db, options.CurrentValue, saved, profile.Id, ct);
         });
 

@@ -63,6 +63,12 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     /// <summary>Browsers signed in with the main profile's PIN are signed out after this long unused.</summary>
     public static readonly TimeSpan PinSignInIdleLimit = TimeSpan.FromDays(14);
 
+    /// <summary>
+    /// A phone, tablet or TV unused this long is signed out, so one that was lost, sold or given away stops working in
+    /// time. Long enough for a TV in a holiday home.
+    /// </summary>
+    public static readonly TimeSpan DeviceIdleLimit = TimeSpan.FromDays(365);
+
     /// <summary>How stale the saved "last used" may get before it's written again (it's kept exactly in memory).</summary>
     private static readonly TimeSpan LastUsedPrecision = TimeSpan.FromHours(1);
 
@@ -336,9 +342,12 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         return byHash;
     }
 
-    /// <summary>A browser left unused for six months (two weeks, if it signed in with the PIN) is signed out.</summary>
+    /// <summary>
+    /// A browser left unused for six months (two weeks, if it signed in with the PIN) is signed out, and a device left
+    /// unused for a year.
+    /// </summary>
     private static bool Expired(SignIn signIn, DateTime now) =>
-        signIn.Kind == SignInKind.Browser && now - signIn.LastUsedAt > (signIn.PinVerified ? PinSignInIdleLimit : BrowserIdleLimit);
+        now - signIn.LastUsedAt > (signIn.Kind != SignInKind.Browser ? DeviceIdleLimit : signIn.PinVerified ? PinSignInIdleLimit : BrowserIdleLimit);
 
     private bool _keepAsideBeforeSaving;
 

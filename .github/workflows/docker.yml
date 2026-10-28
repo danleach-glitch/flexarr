@@ -49,6 +49,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ github.ref_type == 'tag' && steps.meta.outputs.version || '' }}
+          # What's inside the image (an SBOM, so anyone can check its FFmpeg and drivers) and how it was built, kept
+          # with it in the registry.
+          sbom: true
+          provenance: mode=max
           # In the registry rather than the Actions cache, which is kept per tag and so would start empty for every
           # release. mode=min keeps only the final image's layers (the ffmpeg install above all, slow under arm64
           # emulation); mode=max took longer to save than the build itself.

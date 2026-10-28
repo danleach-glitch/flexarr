@@ -48,5 +48,9 @@ ENV Flexarr__DataDirectory=/config \
 RUN mkdir /config && chown $APP_UID:$APP_UID /config
 VOLUME /config
 EXPOSE 8383
+# Lets Docker, Compose and NAS apps see a server that's stopped answering. The image has no curl, so bash asks /health
+# itself, on the port the server listens on (the first, if several are set).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD ["bash", "-c", "port=${ASPNETCORE_HTTP_PORTS%%[;,]*}; exec 3<>/dev/tcp/127.0.0.1/${port:-8383} && printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q ' 200 '"]
 # Starts as root only to hand /config to PUID:PGID (1654 unless set), then runs Flexarr as that user. --user skips it.
 ENTRYPOINT ["flexarr-entrypoint"]

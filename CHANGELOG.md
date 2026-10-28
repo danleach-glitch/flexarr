@@ -5,6 +5,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- The Docker image has a health check, so Docker, Compose and NAS apps show when the server has stopped answering.
+- **Coming soon**, requests and notifications find titles faster in big libraries.
+- Very large Sonarr and Radarr libraries over a slow connection no longer time out while Flexarr reads them.
 - A live TV channel whose stream stopped while nobody was watching starts afresh for the next viewer, instead of opening frozen.
 - Big library scans finish sooner and use less memory once the files have been read and the details are being fetched.
 - Download progress shows for everything Sonarr and Radarr are fetching, not just the first 200.
@@ -15,10 +18,16 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 
 ### iPhone and Apple TV
+- Where you got to in a film or episode is saved even when you leave the app straight after stopping.
+- Signing out of the iPhone app sends anything watched offline that hadn't reached the server yet before the downloads are removed.
+- On iPhone, tapping an episode in Home's **New podcasts** opens it (its notes, Play and download) instead of playing it straight away.
+- Playing a podcast episode that's already playing or paused carries on from where it is, instead of going back to where it was when the screen opened.
 - Downloads on your iPhone are kept through app updates: if the app can't read one saved download, it keeps the rest instead of starting with an empty list.
 - Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
 
 ### Web
+- Dialogs (Fix match, Delete, Add to playlist or collection, the collection editor, trailers) keep the keyboard inside them while they're open, and put it back where it was when they close.
+- **Settings › Logs** stays smooth while lines arrive quickly in the live view.
 - A song or podcast episode that won't play is tried once more from where it stopped. If it still won't play, Flexarr says so in the player bar and moves on to the next one, instead of stopping silently.
 - A video that keeps failing to decode now says so, instead of trying again for ever.
 - Going from one title to another (a Similar title, say) no longer briefly shows the previous title's details and Play button.
@@ -27,6 +36,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security
+- A phone, tablet or TV that hasn't been used for a year is signed out, so one that was lost, sold or given away stops working. Signing it in again takes a new code.
+- Phones signed in with the server's API key can't change or test each other's notifications when more than one of them is set up.
+- One podcast import (OPML) runs at a time on a server.
+- If a Sonarr, Radarr or Seerr address redirects to another site, Flexarr no longer follows it, so their API keys aren't passed along. Redirects on the same server (to https, say) still work.
+- Podcast feeds can no longer reach your home network through IPv6 addresses that carry a home network address inside them (NAT64, 6to4).
+- A device can send diagnostics six times an hour, and diagnostics have their own 100 MB of space, so they can't crowd out the server's own log.
 - **A new server asks for its setup code.** Setting up Flexarr in a browser now needs the eight-character code the server writes in its log as it starts (`docker logs flexarr` with Docker; the Mac app shows it in its menu). Behind some reverse proxies and Docker Desktop, visitors from the internet can look as though they're on your home network, and the code makes sure only whoever has the server can claim it. After ten wrong tries the code changes. The iPhone and Apple TV apps say to type it in when the server asks for one.
 - An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
 - When Flexarr plays, downloads or scans a video, it only reads the file itself. A file that's really a playlist in disguise can no longer make it fetch addresses on your network.

@@ -315,7 +315,17 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
         var output = process.StandardOutput.ReadToEndAsync(ct);
         _ = process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The player gave up (it left, or asked again): ffprobe stops with it.
+            ProcessSignals.KillTree(process);
+            throw;
+        }
+
         return process.ExitCode == 0 ? await output.ConfigureAwait(false) : null;
     }
 

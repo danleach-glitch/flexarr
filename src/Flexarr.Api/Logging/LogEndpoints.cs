@@ -155,7 +155,14 @@ public static class LogEndpoints
                 return Results.Problem("Diagnostics are limited to 5 MB.", statusCode: StatusCodes.Status413PayloadTooLarge);
             }
 
-            var upload = await clients.SaveUploadAsync(await IdentifyAsync(http, signIns, profile, db, ct), platform, appVersion, note, http.Request.Body, ct);
+            var who = await IdentifyAsync(http, signIns, profile, db, ct);
+            if (!clients.TryStartUpload(who))
+            {
+                return Results.Problem($"This device has sent diagnostics {ClientLogs.MaxUploadsPerHour} times this hour. Try again later.",
+                    statusCode: StatusCodes.Status429TooManyRequests);
+            }
+
+            var upload = await clients.SaveUploadAsync(who, platform, appVersion, note, http.Request.Body, ct);
             return Results.Created($"/api/v1/logs/uploads/{upload.Id}", new { upload.Id });
         });
 

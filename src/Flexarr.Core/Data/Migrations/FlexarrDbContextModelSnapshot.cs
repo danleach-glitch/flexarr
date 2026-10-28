@@ -757,9 +757,15 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("AddedAt");
 
+                    b.HasIndex("ImdbId");
+
                     b.HasIndex("ParentId");
 
                     b.HasIndex("Path");
+
+                    b.HasIndex("TmdbId");
+
+                    b.HasIndex("TvdbId");
 
                     b.HasIndex("LibraryId", "ParentId", "SortTitle");
 

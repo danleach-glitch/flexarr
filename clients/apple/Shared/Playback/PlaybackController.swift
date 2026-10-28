@@ -47,6 +47,8 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var screen: PlayerViewController?
     @ObservationIgnored private var transport: PlayerTransport?
     @ObservationIgnored private var lastReport = Date.distantPast
+    /// The last progress report or stop sent: each waits for the one before, so the server hears them in order.
+    @ObservationIgnored private var reporting: Task<Void, Never>?
     /// The last report said paused, so playing again is reported straight away (automations follow it).
     @ObservationIgnored private var reportedPaused = false
     @ObservationIgnored private var prompt: PlaybackPrompt = .none
@@ -434,7 +436,19 @@ final class PlaybackController: NSObject {
         lastReport = Date()
         reportedPaused = paused && !ended
         let position = self.position
-        Task { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
+        send { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
+    }
+
+    /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
+    /// meanwhile: leaving mid-film would otherwise suspend the app before the last position reached the server.
+    private func send(_ request: @escaping @Sendable () async -> Void) {
+        let previous = reporting
+        let background = BackgroundTime(named: "Playback progress")
+        reporting = Task {
+            await previous?.value
+            await request()
+            background.end()
+        }
     }
 
     /// A stream that was playing stopped: the server restarted, say, or forgot a transcode. Ask for a fresh session
@@ -755,7 +769,7 @@ final class PlaybackController: NSObject {
             let position = self.position
             let sessionId = info.sessionId
             let record = recordsHistory
-            Task {
+            send {
                 if record {
                     try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: true)
                 }
@@ -891,5 +905,26 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize) {
         setSubtitleSize(size)
+    }
+}
+
+/// A little time from iOS to finish something after the app leaves the screen. Ended when the work is done, or by
+/// iOS when the time runs out.
+@MainActor
+private final class BackgroundTime {
+    private var id = UIBackgroundTaskIdentifier.invalid
+
+    init(named name: String) {
+        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    nonisolated func end() {
+        Task { @MainActor in
+            guard self.id != .invalid else { return }
+            UIApplication.shared.endBackgroundTask(self.id)
+            self.id = .invalid
+        }
     }
 }

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ApiError, deleteItem, getDeletion, type ItemSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { episodeCode } from '../lib/format'
+import { useModal } from '../hooks/useModal'
 
 /**
  * Confirms deleting a film, show or episode for good. Radarr or Sonarr delete the files from disk when they manage it;
@@ -13,11 +14,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
   const [error, setError] = useState<string>()
   const plan = useApi((signal) => getDeletion(item.id, signal), [item.id])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [busy, onClose])
+  const dialog = useModal<HTMLDivElement>(onClose, !busy)
 
   const what =
     item.kind === 'Movie'
@@ -44,7 +41,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
 
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
-      <div className="panel confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-detail" onClick={(e) => e.stopPropagation()}>
+      <div className="panel confirm-dialog" ref={dialog} role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-detail" onClick={(e) => e.stopPropagation()}>
         <h2 id="delete-title">Delete {what.name}?</h2>
         <div id="delete-detail" className="confirm-dialog-detail">
           {plan.loading && !plan.data && <p>Checking how to delete it…</p>}

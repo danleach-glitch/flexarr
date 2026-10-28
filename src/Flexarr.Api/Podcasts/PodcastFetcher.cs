@@ -67,6 +67,14 @@ public sealed class PodcastFetcher(HttpClient http)
         IPNetwork.Parse("198.18.0.0/15"), IPNetwork.Parse("224.0.0.0/3"),
         IPNetwork.Parse("::/127"), IPNetwork.Parse("fc00::/7"), IPNetwork.Parse("fe80::/10"), IPNetwork.Parse("ff00::/8"),
         IPNetwork.Parse("64:ff9b:1::/48"), IPNetwork.Parse("2001:db8::/32"),
+        // Teredo hides the address it tunnels to; nothing a podcast needs.
+        IPNetwork.Parse("2001::/32"),
+    ];
+
+    /// <summary>IPv6 ranges with an IPv4 address inside, which is checked in its place: NAT64, 6to4, IPv4-compatible.</summary>
+    private static readonly (IPNetwork Range, int Offset)[] CarryIPv4 =
+    [
+        (IPNetwork.Parse("64:ff9b::/96"), 12), (IPNetwork.Parse("2002::/16"), 2), (IPNetwork.Parse("::/96"), 12),
     ];
 
     /// <summary>
@@ -79,6 +87,15 @@ public sealed class PodcastFetcher(HttpClient http)
         if (address.IsIPv4MappedToIPv6)
         {
             address = address.MapToIPv4();
+        }
+
+        // On an IPv6-only network with NAT64, 64:ff9b::c0a8:101 is 192.168.1.1.
+        foreach (var (range, offset) in CarryIPv4)
+        {
+            if (range.Contains(address))
+            {
+                return IsPublic(new IPAddress(address.GetAddressBytes().AsSpan(offset, 4)));
+            }
         }
 
         return !NotInternet.Any(n => n.Contains(address));

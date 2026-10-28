@@ -634,6 +634,11 @@ public sealed class PodcastTests : IDisposable
     [InlineData("fd7a:115c:a1e0::1", false)]
     [InlineData("::ffff:192.168.1.1", false)]
     [InlineData("0.0.0.0", false)]
+    [InlineData("64:ff9b::c0a8:101", false)] // NAT64 to 192.168.1.1
+    [InlineData("64:ff9b::808:808", true)] // NAT64 to 8.8.8.8
+    [InlineData("2002:c0a8:101::1", false)] // 6to4 from 192.168.1.1
+    [InlineData("::c0a8:101", false)] // IPv4-compatible
+    [InlineData("2001:0:4136:e378::1", false)] // Teredo
     public void OnlyTheInternet_IsFetchedFrom(string address, bool allowed) =>
         Assert.Equal(allowed, PodcastFetcher.IsPublic(IPAddress.Parse(address)));
 }

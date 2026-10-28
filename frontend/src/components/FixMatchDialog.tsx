@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { ApiError, fixMatch, getItem, imageUrl, resetMatch, searchMatches, type MatchCandidate } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
+import { useModal } from '../hooks/useModal'
 
 interface Props {
   item: { id: string; title: string; kind: string }
@@ -32,11 +33,7 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
   const paths = detail.data ? (item.kind === 'Movie' && detail.data.files.length > 0 ? detail.data.files.map((f) => f.path) : [detail.data.path].filter((p) => !!p)) : []
   const locked = detail.data?.matchLocked === true
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [busy, onClose])
+  const dialog = useModal<HTMLDivElement>(onClose, !busy)
 
   function search(e: FormEvent) {
     e.preventDefault()
@@ -62,7 +59,7 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
 
   return (
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
-      <div className="panel fix-match" role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
+      <div className="panel fix-match" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="fix-match-title">Fix match</h2>
         <p className="muted">
           Which {noun} is this? The one you choose stays matched{managed ? `, and ${arr} manages it` : `, with details from ${source}`}.

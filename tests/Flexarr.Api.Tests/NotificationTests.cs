@@ -133,6 +133,21 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task WithTheApiKey_APhoneManagesItsRegistration_OnlyWhileItsTheOnlyOneSignedInThatWay()
+    {
+        // The key gives no sign-in of its own: with two phones on it, either registration could be someone else's.
+        var keyPhone = Admin();
+        Assert.Equal(HttpStatusCode.OK, (await RegisterAsync(keyPhone, "cd34")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await keyPhone.GetAsync(Api("/notifications/device"))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await RegisterAsync(Admin(), "ef56")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await keyPhone.GetAsync(Api("/notifications/device"))).StatusCode);
+        await keyPhone.DeleteAsync(Api("/notifications/device"));
+        Assert.Equal(2, await _server.Services.CreateScope().ServiceProvider.GetRequiredService<FlexarrDbContext>().NotificationDevices.CountAsync(d => d.SignInId == null));
+    }
+
+    [Fact]
     public async Task OnePhone_HearsAboutOneProfile_TheOneItWasOn()
     {
         var sam = await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = "Sam" })).Content.ReadFromJsonAsync<JsonElement>();

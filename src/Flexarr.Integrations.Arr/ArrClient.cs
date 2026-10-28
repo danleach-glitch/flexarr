@@ -166,13 +166,22 @@ public sealed class ArrClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>
+    /// How long a response may take to arrive once it's started. The client's own timeout covers only until it starts:
+    /// every film or show in a big library, over a slow link, can take longer than that to come down, and is read as it
+    /// arrives rather than held in memory first.
+    /// </summary>
+    private static readonly TimeSpan BodyTimeout = TimeSpan.FromMinutes(3);
+
     private async Task<T> GetAsync<T>(ArrInstance instance, string path, CancellationToken ct)
     {
         using var request = Request(instance, HttpMethod.Get, path);
-        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<T>(Json, ct).ConfigureAwait(false)
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        reading.CancelAfter(BodyTimeout);
+        return await response.Content.ReadFromJsonAsync<T>(Json, reading.Token).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"{instance.Name} returned an empty response for {path}.");
     }
 

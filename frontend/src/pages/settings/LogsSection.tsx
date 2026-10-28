@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
   diagnosticsUrl,
   getLogs,
@@ -31,6 +31,8 @@ const areaKeys = ['general', 'playback', 'library', 'integrations', 'metadata', 
 const PAGE_SIZE = 200
 /** Most entries kept in the list; the oldest go first. */
 export const MAX_ENTRIES = 2000
+/** How often lines arriving live are added to the list, in milliseconds. */
+const LIVE_FLUSH_MS = 250
 const SEARCH_DELAY_MS = 300
 
 /** Whether a streamed entry matches the search, as the server's would: anywhere in it, any case. */
@@ -60,11 +62,24 @@ function useDebounced<T>(value: T, ms: number) {
 }
 
 /** One line; opened, its exception and what it was about. */
-function LogRow({ entry, areaName, open, onToggle, onFilter }: { entry: LogEntry; areaName: string; open: boolean; onToggle: () => void; onFilter: (q: string) => void }) {
+/** One line; memoised, so a new line arriving live doesn't redraw the hundreds below it. */
+const LogRow = memo(function LogRow({
+  entry,
+  areaName,
+  open,
+  onToggle,
+  onFilter,
+}: {
+  entry: LogEntry
+  areaName: string
+  open: boolean
+  onToggle: (id: string) => void
+  onFilter: (q: string) => void
+}) {
   const properties = Object.entries(entry.properties)
   return (
     <li className={`log-entry level-${entry.level.toLowerCase()}`}>
-      <button type="button" className="log-line" aria-expanded={open} onClick={onToggle}>
+      <button type="button" className="log-line" aria-expanded={open} onClick={() => onToggle(entry.id)}>
         <time dateTime={entry.timestamp} title={new Date(entry.timestamp).toLocaleString()}>
           {stamp(entry.timestamp)}
         </time>
@@ -97,7 +112,7 @@ function LogRow({ entry, areaName, open, onToggle, onFilter }: { entry: LogEntry
       )}
     </li>
   )
-}
+})
 
 /** The log itself: newest first, filtered on the server, with older pages on request and new lines as they're written. */
 function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
@@ -138,6 +153,19 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
   useEffect(() => {
     if (!live || typeof EventSource === 'undefined') return
     const source = new EventSource(logStreamUrl({ level, area }))
+    // A busy server sends dozens of lines a second: they're gathered and added a few times a second, not one by one.
+    let waiting: LogEntry[] = []
+    let flush: number | undefined
+    const addWaiting = () => {
+      flush = undefined
+      const arrived = waiting
+      waiting = []
+      setEntries((list) => {
+        const ids = new Set(list.map((e) => e.id))
+        const fresh = arrived.filter((e) => !ids.has(e.id) && ids.add(e.id)).reverse()
+        return fresh.length ? [...fresh, ...list].slice(0, MAX_ENTRIES) : list
+      })
+    }
     source.onopen = () => setStreamState('open')
     source.onerror = () => setStreamState('reconnecting')
     source.onmessage = (event: MessageEvent<string>) => {
@@ -148,9 +176,11 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
         return
       }
       if (!matches(entry, search.current)) return
-      setEntries((list) => (list.some((e) => e.id === entry.id) ? list : [entry, ...list].slice(0, MAX_ENTRIES)))
+      waiting.push(entry)
+      flush ??= window.setTimeout(addWaiting, LIVE_FLUSH_MS)
     }
     return () => {
+      window.clearTimeout(flush)
       source.close()
       setStreamState(undefined)
     }
@@ -172,13 +202,13 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
     }
   }
 
-  function toggle(id: string) {
+  const toggle = useCallback((id: string) => {
     setOpen((was) => {
       const next = new Set(was)
       if (!next.delete(id)) next.add(id)
       return next
     })
-  }
+  }, [])
 
   return (
     <div className="settings-group">
@@ -221,7 +251,7 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
                 entry={entry}
                 areaName={areaNames[entry.area] ?? entry.area}
                 open={open.has(entry.id)}
-                onToggle={() => toggle(entry.id)}
+                onToggle={toggle}
                 onFilter={setText}
               />
             ))}

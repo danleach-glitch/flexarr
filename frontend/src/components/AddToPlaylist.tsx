@@ -3,6 +3,7 @@ import { addToPlaylist, ApiError, createPlaylist, getPlaylists, type PlaylistSum
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { describePlaylist, PlaylistCover } from './PlaylistCover'
+import { useModal } from '../hooks/useModal'
 
 /** Asks for the Add to playlist dialog, from anywhere (a card's menu closes before it opens). */
 const OPEN = 'flexarr:add-to-playlist'
@@ -38,11 +39,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
   const [message, setMessage] = useState<string>()
   const [error, setError] = useState<string>()
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const dialog = useModal<HTMLDivElement>(onClose)
 
   async function run(target: string, work: () => Promise<string>) {
     setBusy(target)
@@ -75,7 +72,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="panel add-to-playlist" role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a playlist`} onClick={(e) => e.stopPropagation()}>
+      <div className="panel add-to-playlist" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a playlist`} onClick={(e) => e.stopPropagation()}>
         <h2>Add {item.title} to a playlist</h2>
         {playlists.error && <p className="error">{playlists.error.message}</p>}
         {playlists.data?.length === 0 && <p className="muted">No playlists yet. Start one below.</p>}

@@ -60,6 +60,10 @@ public class CombinedLibrariesTests(FlexarrApiFactory factory) : IClassFixture<F
 
         Assert.Equal([$"recent-{films}", $"recent-{uhd}"], own.Select(r => r.GetProperty("id").GetString()));
         Assert.All(own, r => Assert.StartsWith("Latest unwatched films in ", r.GetProperty("title").GetString(), StringComparison.Ordinal));
+
+        // An app from before the setting sends the rows without it: the setting stays off.
+        var withoutIt = await client.PutAsJsonAsync(Api("/settings/layout"), new { home = rows2, movies = Array.Empty<object>(), shows = Array.Empty<object>() });
+        Assert.False((await withoutIt.EnsureSuccessStatusCode().Content.ReadFromJsonAsync<JsonElement>()).GetProperty("combineLibraries").GetBoolean());
     }
 
     private async Task<(Guid Films, Guid Uhd, Guid Older, Guid Newer, Guid Other)> SeedAsync()

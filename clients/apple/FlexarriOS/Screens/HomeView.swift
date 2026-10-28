@@ -113,11 +113,12 @@ struct HomeView: View {
     }
 }
 
-/// The newest unplayed episodes of the podcasts followed: square artwork, the episode and its show. Tapping plays it.
+/// The newest unplayed episodes of the podcasts followed: square artwork, the episode and its show. Tapping opens the
+/// episode (its notes, Play, its download), as everywhere else episodes are listed.
 struct NewEpisodesRow: View {
-    @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
     let episodes: [PodcastEpisode]
+    @State private var opened: PodcastEpisode?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -125,7 +126,7 @@ struct NewEpisodesRow: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(episodes) { episode in
-                        Button { model.playEpisode(episode.summary) } label: {
+                        Button { opened = episode } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor, imageWidth: 342)
                                     .overlay(alignment: .bottom) {
@@ -146,12 +147,17 @@ struct NewEpisodesRow: View {
                         }
                         .buttonStyle(CardButtonStyle())
                         .accessibilityLabel("\(episode.title), \(episode.podcastTitle)")
-                        .accessibilityHint("Plays")
+                        .accessibilityHint("Shows the episode")
                     }
                 }
                 .padding(.horizontal, Layout.edge)
             }
             .scrollIndicators(.hidden)
+        }
+        .sheet(item: $opened) { episode in
+            EpisodeSheet(episode: episode)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Color.room)
         }
     }
 }
