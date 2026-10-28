@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Donate to Flexarr: what it costs to keep going</title>
-  <meta name="description" content="Flexarr is free. Here's exactly what it costs to build and run each month, how much has come in so far, and how to chip in from a dollar if you'd like to.">
+  <meta name="description" content="Flexarr is free. Here's exactly what it costs to build and run each month, and how to chip in from a dollar if you'd like to.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <link rel="canonical" href="https://flexarr.io/donate">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Donate to Flexarr: what it costs to keep going">
-  <meta property="og:description" content="Flexarr is free. Here's exactly what it costs to build and run each month, and how much has come in so far.">
+  <meta property="og:description" content="Flexarr is free. Here's exactly what it costs to build and run each month.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/donate">
   <meta name="twitter:card" content="summary_large_image">
@@ -32,18 +32,8 @@
     .hero h1 { font-size: clamp(3rem, 11vw, 6rem); font-weight: 900; }
     .hero .lede { margin: 22px 0 0; font-size: clamp(1.1rem, 2.4vw, 1.3rem); }
 
-    /* The meter: this month's gifts against this month's costs. */
-    .meter { margin-top: clamp(32px, 5vw, 48px); padding: clamp(22px, 4vw, 32px); border-radius: 20px; background: var(--seat); border: 1px solid var(--aisle); }
-    .meter h2 { font-family: var(--text); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--usher); }
-    .meter .figure { margin: 10px 0 0; font-family: var(--display); font-weight: 800; font-size: clamp(2.2rem, 6vw, 3rem); line-height: 1; }
-    .meter .figure small { font-family: var(--text); font-weight: 500; font-size: 1rem; color: var(--usher); }
-    .track { position: relative; height: 14px; margin-top: 18px; border-radius: 99px; background: var(--room); border: 1px solid var(--aisle); overflow: hidden; }
-    .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--silver), var(--rose)); transition: width 1.2s cubic-bezier(.2, .8, .2, 1); }
-    .meter.full .fill { background: linear-gradient(90deg, var(--mint), var(--silver)); }
-    .meter .note { margin: 14px 0 0; color: #d9d3e0; }
-    .meter.waiting .figure, .meter.waiting .track { display: none; }
 
-    .give { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+    .give { display: flex; flex-wrap: wrap; gap: 12px; margin-top: clamp(28px, 4vw, 40px); }
     .give .button { flex: 1 1 220px; }
     .give-note { margin: 12px 0 0; color: var(--usher); font-size: 0.95rem; }
 
@@ -62,7 +52,6 @@
     .qa h3 { font-family: var(--text); font-weight: 700; font-size: 1.1rem; margin: 26px 0 6px; }
     .qa p { margin: 0; color: #d9d3e0; }
 
-    @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
   </style>
 </head>
 <body>
@@ -90,14 +79,6 @@
         and here's exactly how much. If you'd like to chip in towards it, that's lovely. If not, go and enjoy a film.
         That's what it's for.</p>
 
-        <!-- Costs total comes from the table below; the page fills in the rest from /api/donations. -->
-        <div class="meter waiting" id="meter" aria-live="polite">
-          <h2 id="meter-month">This month</h2>
-          <p class="figure"><span id="meter-given">$0</span> <small>of <span id="meter-cost">$0</span> covered</small></p>
-          <div class="track" role="progressbar" aria-labelledby="meter-month" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="meter-bar"><div class="fill" id="meter-fill"></div></div>
-          <p class="note" id="meter-note">The meter's still warming up. Check back soon.</p>
-        </div>
-
         <div class="give">
           <a class="button primary" href="https://github.com/sponsors/danleach-glitch" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35 10.55 20C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54Z"/></svg>Sponsor on GitHub</a>
           <a class="button quiet" href="https://www.paypal.com/donate/?hosted_button_id=REPLACE_ME" target="_blank" rel="noopener">Give with PayPal</a>
@@ -108,17 +89,17 @@
       <section aria-labelledby="bill">
         <h2 id="bill">The monthly bill</h2>
         <p>Everything Flexarr costs to make and run, worked out per month. Yearly bills are divided by twelve.</p>
-        <table class="bill" id="costs">
+        <table class="bill">
           <thead><tr><th scope="col">What</th><th scope="col">Per month</th></tr></thead>
           <tbody>
-            <tr data-cents="20000"><td>AI coding help<span>Claude does a lot of the typing. A human does the deciding.</span></td><td>$200.00</td></tr>
-            <tr data-cents="825"><td>Apple Developer Program<span>$99 a year, so the iPhone and Apple TV apps can be on the App Store.</span></td><td>$8.25</td></tr>
-            <tr data-cents="500"><td>flexarr.io<span>The domain you're reading this on.</span></td><td>$5.00</td></tr>
-            <tr data-cents="300"><td>The test server's electricity<span>A Mac Mini at home that runs every build before you get it.</span></td><td>$3.00</td></tr>
-            <tr data-cents="0"><td>Website and notification relay<span>Vercel's free plan, for now.</span></td><td>$0.00</td></tr>
-            <tr data-cents="0"><td>Crash reports<span>Sentry's free plan, only for servers that turn it on.</span></td><td>$0.00</td></tr>
+            <tr><td>AI coding help<span>Claude does a lot of the typing. A human does the deciding.</span></td><td>$200.00</td></tr>
+            <tr><td>Apple Developer Program<span>$99 a year, so the iPhone and Apple TV apps can be on the App Store.</span></td><td>$8.25</td></tr>
+            <tr><td>flexarr.io<span>The domain you're reading this on.</span></td><td>$5.00</td></tr>
+            <tr><td>The test server's electricity<span>A Mac Mini at home that runs every build before you get it.</span></td><td>$3.00</td></tr>
+            <tr><td>Website and notification relay<span>Vercel's free plan, for now.</span></td><td>$0.00</td></tr>
+            <tr><td>Crash reports<span>Sentry's free plan, only for servers that turn it on.</span></td><td>$0.00</td></tr>
           </tbody>
-          <tfoot><tr><td>Total</td><td id="costs-total">$216.25</td></tr></tfoot>
+          <tfoot><tr><td>Total</td><td>$216.25</td></tr></tfoot>
         </table>
         <p class="muted">Rounded, in US dollars, and updated when something changes. Last checked October 2026.</p>
       </section>
@@ -165,43 +146,5 @@
       </nav>
     </div>
   </footer>
-  <script>
-    // The meter. Costs come from the table; gifts from /api/donations. Add ?meter=<dollars> to try a total.
-    (async () => {
-      const meter = document.getElementById('meter');
-      const dollars = (cents) => '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: cents % 100 ? 2 : 0, minimumFractionDigits: cents % 100 ? 2 : 0 });
-      const cost = [...document.querySelectorAll('#costs tbody tr')].reduce((sum, row) => sum + Number(row.dataset.cents), 0);
-      document.getElementById('meter-month').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-      let given = null;
-      const trial = new URLSearchParams(location.search).get('meter');
-      if (trial !== null) given = Math.round(Number(trial) * 100);
-      else {
-        try {
-          const res = await fetch('/api/donations');
-          if (res.ok) given = (await res.json()).totalCents;
-        } catch { /* stays warming up */ }
-      }
-      if (given === null || Number.isNaN(given)) return;
-
-      const exact = (given / cost) * 100;
-      const pct = Math.min(100, Math.round(exact));
-      const notes = [
-        [100, 'All covered this month. Thank you! Anything extra rolls into next month.'],
-        [75, 'Nearly there. You can almost hear the popcorn.'],
-        [50, 'Over halfway. The App Store fee and the domain are well taken care of.'],
-        [10, 'Off the ground. Thank you to everyone who has chipped in.'],
-        [0.01, 'The first few dollars are in. Every one of them counts.'],
-        [0, "Nothing in yet this month. No pressure. Honestly."],
-      ];
-      document.getElementById('meter-given').textContent = dollars(given);
-      document.getElementById('meter-cost').textContent = dollars(cost);
-      document.getElementById('meter-note').textContent = notes.find(([min]) => exact >= min)[1];
-      document.getElementById('meter-bar').setAttribute('aria-valuenow', pct);
-      meter.classList.remove('waiting');
-      meter.classList.toggle('full', pct >= 100);
-      requestAnimationFrame(() => requestAnimationFrame(() => { document.getElementById('meter-fill').style.width = pct + '%'; }));
-    })();
-  </script>
 </body>
 </html>
