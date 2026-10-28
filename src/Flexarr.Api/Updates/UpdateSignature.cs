@@ -14,7 +14,8 @@ public static class UpdateSignature
     /// <summary>The public half of the update signing key (P-256), from scripts/release.sh signing-key.</summary>
     internal const string PublicKey = """
         -----BEGIN PUBLIC KEY-----
-        REPLACE-WITH-THE-KEY-FROM-release.sh-signing-key
+        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmsHy0ODzQcCbdlUlKp9Z5NfhFr+e
+        2FPlOeEjQiK1Gh8rFo6ZT0ZItELOQmjUEa1jnT0IRGNzPYU815b1UlBb6g==
         -----END PUBLIC KEY-----
         """;
 
