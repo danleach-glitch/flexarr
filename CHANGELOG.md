@@ -8,6 +8,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Mark as unwatched** works on anything you're part way through, on the web, iPhone, iPad and Apple TV: it forgets your place without marking it watched, so it leaves Continue Watching and starts from the beginning next time. **Mark as watched** is still there beside it.
 - **Remove from Continue Watching** on a show's next episode in that row takes the show out of it until you play another episode. An episode you were part way through and marked unwatched does the same, so the show doesn't come straight back.
 - **Podcasts**: **Mark as unplayed** on an episode you're part way through forgets your place and takes it off the listening list, on the web and iPhone. It stays in Up Next. A downloaded episode on the iPhone starts from the beginning too.
+- **Mark [show] as watched** on an episode's long-press menu on iPhone, iPad and Apple TV marks every episode of the show, as the web's card menu already could.
 - On Apple TV, when a title leaves a Home row (marked watched or unwatched, or removed), focus moves to the one that takes its place instead of jumping back to the start of the row.
 - Assistants connected over MCP can do both: `mark_watched` with unwatched forgets the place, and `remove_from_continue_watching` is new.
 

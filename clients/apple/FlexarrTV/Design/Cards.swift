@@ -258,6 +258,14 @@ struct ItemContextMenu: View {
                 Label("Remove from Continue Watching", systemImage: "minus.circle")
             }
         }
+        if item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.setShowWatched(of: item) }
+            } label: {
+                Label("Mark \(show) as watched", systemImage: "checkmark.circle.fill")
+            }
+        }
     }
 
     private func goToDetails() {
