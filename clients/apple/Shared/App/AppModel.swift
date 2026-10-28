@@ -498,6 +498,13 @@ final class AppModel {
         invalidate()
     }
 
+    /// Every episode of an episode's show watched.
+    func setShowWatched(of episode: ItemSummary) async {
+        guard let client, let show = episode.seriesId else { return }
+        try? await client.setWatched(show, watched: true)
+        invalidate()
+    }
+
     func removeFromContinueWatching(_ item: ItemSummary) async {
         guard let client else { return }
         try? await client.removeFromContinueWatching(item.id)

@@ -270,6 +270,13 @@ struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let row: HomeRow
+    @FocusState private var focusedCard: String?
+    /// The card focused here last, kept while it leaves the row (finished, say) so focus can go to the one that takes
+    /// its place rather than back to the row's start. Cleared when focus moves elsewhere.
+    @State private var lastFocused: String?
+    /// The card whose long-press menu was just used to mark or remove it (see `leavesRow`). Noted then, because by
+    /// the time the row reloads tvOS may already have moved focus on to a neighbour.
+    @State private var leaving: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -287,7 +294,7 @@ struct HomeRowView: View {
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         switch row.style {
                         case .wide:
-                            WideCard(item: item) { model.play(item) }
+                            WideCard(item: item, focus: $focusedCard) { model.play(item) }
                                 .environment(\.inContinueWatching, row.id == "continue")
                         case .top10:
                             Top10Card(rank: index + 1, item: item) { router.push(.item(item)) }
@@ -295,7 +302,7 @@ struct HomeRowView: View {
                             // A row of tracks plays: the one pressed first, the rest of the row after it.
                             TrackCard(item: item) { model.playTracks(row.items, from: index) }
                         default:
-                            PosterCard(item: item) { router.push(.item(item)) }
+                            PosterCard(item: item, focus: $focusedCard) { router.push(.item(item)) }
                         }
                     }
                     if let library = linkedLibrary {
@@ -308,6 +315,28 @@ struct HomeRowView: View {
             }
             .scrollClipDisabled()
             .focusSection()
+            .environment(\.leavesRow) { leaving = $0 }
+        }
+        .onChange(of: focusedCard) { _, id in
+            if let id {
+                lastFocused = id
+            } else if let last = lastFocused, row.items.contains(where: { $0.id == last }) {
+                lastFocused = nil // moved out of the row, rather than the card going
+            }
+        }
+        .onChange(of: row.items.map(\.id)) { old, new in
+            let gone = [leaving, lastFocused].compactMap(\.self).first { old.contains($0) && !new.contains($0) }
+            leaving = nil
+            guard let gone, let index = old.firstIndex(of: gone), !new.isEmpty else { return }
+            // The card that slid into its place, or the new last one.
+            let next = new[min(index, new.count - 1)]
+            lastFocused = next
+            Task {
+                focusedCard = next
+                // tvOS moves focus to a neighbour of the card that went, sometimes after this; set it again once settled.
+                try? await Task.sleep(for: .milliseconds(200))
+                if focusedCard != next { focusedCard = next }
+            }
         }
     }
 

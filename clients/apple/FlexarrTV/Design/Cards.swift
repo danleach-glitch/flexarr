@@ -75,10 +75,12 @@ struct WideCard: View {
     @Environment(AppModel.self) private var model
     let item: ItemSummary
     var width: CGFloat = Layout.wideWidth
+    /// Optional shared focus state so a row can steer focus to this card (by the item's id).
+    var focus: FocusState<String?>.Binding?
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: item.glowColor, action: action) {
+        ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             RemoteImage(url: model.client?.imageURL(stillPath, width: 780)) {
                 ZStack {
                     LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -213,6 +215,7 @@ struct ItemContextMenu: View {
     @Environment(Router.self) private var router
     @Environment(\.opensTitlesOnLibraryTab) private var opensOnLibraryTab
     @Environment(\.inContinueWatching) private var inContinueWatching
+    @Environment(\.leavesRow) private var leavesRow
     let item: ItemSummary
     var showsDetails = false
 
@@ -233,17 +236,34 @@ struct ItemContextMenu: View {
             }
         }
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
-        Button { Task { await model.setWatched(item, !watched) } } label: {
+        Button {
+            leavesRow?(item.id)
+            Task { await model.setWatched(item, !watched) }
+        } label: {
             Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if item.isResumable && !watched {
-            Button { Task { await model.setWatched(item, false) } } label: {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.setWatched(item, false) }
+            } label: {
                 Label("Mark as unwatched", systemImage: "eye.slash")
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
-            Button { Task { await model.removeFromContinueWatching(item) } } label: {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.removeFromContinueWatching(item) }
+            } label: {
                 Label("Remove from Continue Watching", systemImage: "minus.circle")
+            }
+        }
+        if item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.setShowWatched(of: item) }
+            } label: {
+                Label("Mark \(show) as watched", systemImage: "checkmark.circle.fill")
             }
         }
     }
