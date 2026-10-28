@@ -129,5 +129,19 @@ No demo server is needed: the reviewer runs the server. Review notes:
 > this server automatically on the same network.
 >
 > Connections to other library tools are optional, and the app works fully without them.
+>
+> Why the app needs com.apple.security.network.server: the app is a server. Its menu bar process starts the bundled
+> server, Contents/Helpers/Flexarr, as a sandboxed child (com.apple.security.inherit), so the server runs with the
+> app's entitlements. That server listens for incoming connections on TCP port 8383, on every network interface. Over
+> it, it serves the Flexarr web interface to browsers ("Open Flexarr"), and streams the library to the Flexarr apps on
+> the iPhone and Apple TV in the home. It also answers multicast DNS on UDP port 5353, announcing itself as a
+> "_flexarr._tcp" Bonjour service so those apps find it without an address being typed. The menu bar app listens too,
+> on a loopback-only port, for the server's requests to show the folder chooser. To see it: launch the app, then open
+> http://<this Mac's name>.local:8383 from another device on the same network ("Copy Address" in the menu gives it),
+> or run `lsof -nP -iTCP:8383 -sTCP:LISTEN`. The listening code is in the bundled helper, not the main executable,
+> which may be why an automated scan didn't find it.
+
+Apple's automated check once rejected the build for the server entitlement, because the listening code lives in the
+helper rather than the main executable. The paragraph above answers it: paste it as the reply in App Store Connect too.
 
 Blender moves its downloads now and then: check the link, and walk these steps on a clean install, before submitting a version that changes first-run or Add library.
