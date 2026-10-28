@@ -18,6 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Apple TV
 - **Enter an address instead** connects with a code, like a server found on your network, so there's no API key to type with the remote. The key is still there behind **Connecting from outside your home? Use an API key**.
+- The app opens on Home with the sidebar closed and **Play** on the featured title ready to press, rather than in the sidebar.
 
 ### iPhone and iPad
 - Settings › Server and the sign-in error point to **Settings › Access** on the web, where remote access and the API key are now.
