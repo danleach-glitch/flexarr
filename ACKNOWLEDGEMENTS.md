@@ -21,7 +21,7 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 | [SQLite](https://sqlite.org) | The database | Public domain |
 | [Scalar](https://github.com/scalar/scalar) | API reference pages | MIT |
 | [MCP C# SDK](https://github.com/modelcontextprotocol/csharp-sdk) | The MCP endpoint | Apache-2.0 / MIT |
-| [FFmpeg](https://ffmpeg.org) | Transcoding, remuxing, previews, audio fingerprints | LGPL-2.1+ / GPL-2.0+ depending on the build. Flexarr runs it as a separate program and doesn't include it, except in the Docker image, which installs Debian's package. |
+| [FFmpeg](https://ffmpeg.org) | Transcoding, remuxing, previews, audio fingerprints | LGPL-2.1+ / GPL-2.0+ depending on the build. Flexarr runs it as a separate program and doesn't include it, except in the Docker image, which installs Debian's package, and the Mac app (in development), which includes an LGPL-2.1+ build of the unmodified [FFmpeg 9.0.2 source](https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz), configured by [clients/macos/Tools/build-ffmpeg.sh](clients/macos/Tools/build-ffmpeg.sh). |
 
 ## Web app
 

@@ -72,6 +72,9 @@ final class ServerProcess {
         environment["Flexarr__DataDirectory"] = data.path
         environment["Flexarr__Logs__Directory"] = logDirectory.path
         environment["Flexarr__Logs__ConsoleLevel"] = "Warning"
+        // The app's own FFmpeg (Tools/build-ffmpeg.sh), beside the server.
+        environment["Flexarr__FfmpegPath"] = executable.deletingLastPathComponent().appending(path: "ffmpeg").path
+        environment["Flexarr__FfprobePath"] = executable.deletingLastPathComponent().appending(path: "ffprobe").path
         environment["Flexarr__MacApp__Port"] = String(requestsPort)
         environment["Flexarr__MacApp__Token"] = requests.token
         process.environment = environment
