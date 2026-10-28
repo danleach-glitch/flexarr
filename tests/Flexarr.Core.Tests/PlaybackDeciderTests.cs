@@ -61,6 +61,26 @@ public class PlaybackDeciderTests
     }
 
     [Fact]
+    public void SoundOutOfSync_IsMovedByThePlayer_WhenItCan_AndInTheServersStreamWhenItCant()
+    {
+        var file = File("mp4", "h264", "aac", 2);
+        var browser = Chrome with { DelaysAudio = true, AdvancesAudio = false };
+
+        // A browser plays the sound later itself, but can't play it earlier.
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, browser, [], new PlaybackOptions(AudioDelaySeconds: 0.4)).Method);
+        var earlier = PlaybackDecider.Decide(file, browser, [], new PlaybackOptions(AudioDelaySeconds: -0.4));
+        Assert.Equal(["The sound is moved earlier to match the picture"], earlier.Reasons);
+        Assert.Equal(-0.4, earlier.Transcode!.AudioDelaySeconds);
+
+        // An older app doesn't say, and can't either way.
+        Assert.Contains("The sound is moved later to match the picture", PlaybackDecider.Decide(file, Chrome, [], new PlaybackOptions(AudioDelaySeconds: 0.4)).Reasons);
+
+        // Converted for other reasons, the stream carries the offset whatever the player could do.
+        var converted = PlaybackDecider.Decide(file, browser, [], new PlaybackOptions(ForceTranscode: true, AudioDelaySeconds: 0.4));
+        Assert.Equal(0.4, converted.Transcode!.AudioDelaySeconds);
+    }
+
+    [Fact]
     public void Mp4H264Aac_DirectPlaysInChrome()
     {
         var decision = PlaybackDecider.Decide(File("mp4", "h264", "aac", 2), Chrome, [], new PlaybackOptions());

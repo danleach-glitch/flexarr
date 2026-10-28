@@ -80,10 +80,14 @@ public static class FfmpegCommand
         }
 
         args.AddRange([.. Pacing, "-ss", start, .. LocalFile, "-i", input]);
+        var inputs = 1;
         if (burn?.ExternalPath is { } subtitleFile)
         {
             args.AddRange(["-ss", start, .. LocalFile, "-i", subtitleFile]);
+            inputs++;
         }
+
+        var audioInput = AddShiftedAudioInput(args, input, plan, startSegment * SegmentSeconds, copyTs: false, inputs);
 
         // ---- Video
         if (!audioOnly)
@@ -91,7 +95,7 @@ public static class FfmpegCommand
             AddVideo(args, plan, burn, hw, settings);
         }
 
-        AddAudioAndOutput(args, plan, start, startSegment, outputDirectory);
+        AddAudioAndOutput(args, plan, audioInput, start, startSegment, outputDirectory);
         return args;
     }
 
@@ -102,8 +106,10 @@ public static class FfmpegCommand
     /// </summary>
     private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory)
     {
-        var start = repackage.SegmentStarts[Math.Clamp(startSegment, 0, repackage.SegmentStarts.Count - 1)].ToString("0.###", CultureInfo.InvariantCulture);
+        var startSeconds = repackage.SegmentStarts[Math.Clamp(startSegment, 0, repackage.SegmentStarts.Count - 1)];
+        var start = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
         List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing, "-ss", start, .. LocalFile, "-i", input];
+        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: true, inputs: 1);
         args.AddRange(["-map", $"0:{plan.VideoStreamIndex}", "-c:v", "copy", "-tag:v", repackage.CodecTag]);
         if (repackage.StripDolbyVision)
         {
@@ -113,7 +119,7 @@ public static class FfmpegCommand
         // Keep the file's own timeline (from its start), so fragments from any run line up with the index; "unofficial"
         // lets the MP4 muxer write the Dolby Vision configuration box.
         args.AddRange(["-copyts", "-start_at_zero", "-avoid_negative_ts", "disabled", "-strict", "unofficial"]);
-        AddAudio(args, plan);
+        AddAudio(args, plan, audioInput);
         args.AddRange([
             "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
             "-max_muxing_queue_size", "4096",
@@ -311,9 +317,32 @@ public static class FfmpegCommand
         args.AddRange(["-force_key_frames", $"expr:gte(t,n_forced*{SegmentSeconds})", "-g", "1000", "-keyint_min", "1"]);
     }
 
-    private static void AddAudioAndOutput(List<string> args, TranscodePlan plan, string start, int startSegment, string outputDirectory)
+    /// <summary>
+    /// With the sound out of sync (<see cref="TranscodePlan.AudioDelaySeconds"/>), adds the file again as an input of its
+    /// own for the sound, read from <c>delay</c> seconds before the picture's start. Its timestamps already line up
+    /// when each input starts from zero; with the file's own timeline kept (<paramref name="copyTs"/>) they're moved
+    /// by the delay. Returns the input the sound comes from: 0, the picture's, when it's in sync.
+    /// </summary>
+    private static int AddShiftedAudioInput(List<string> args, string input, TranscodePlan plan, double startSeconds, bool copyTs, int inputs)
     {
-        AddAudio(args, plan);
+        var delay = plan.AudioDelaySeconds;
+        if (delay == 0 || plan.AudioStreamIndex is null || plan.VideoStreamIndex < 0)
+        {
+            return 0;
+        }
+
+        var seek = Math.Max(0, startSeconds - delay);
+        var offset = copyTs ? delay : Math.Max(0, delay - startSeconds);
+        args.AddRange([
+            "-itsoffset", offset.ToString("0.###", CultureInfo.InvariantCulture),
+            .. Pacing, "-ss", seek.ToString("0.###", CultureInfo.InvariantCulture), .. LocalFile, "-i", input,
+        ]);
+        return inputs;
+    }
+
+    private static void AddAudioAndOutput(List<string> args, TranscodePlan plan, int audioInput, string start, int startSegment, string outputDirectory)
+    {
+        AddAudio(args, plan, audioInput);
 
         // Fragmented MP4: the MP4 muxer starts each run's timestamps at zero unless told every fragment may jump, so
         // segments from a run started mid-film line up with the rest.
@@ -337,12 +366,12 @@ public static class FfmpegCommand
         ]);
     }
 
-    private static void AddAudio(List<string> args, TranscodePlan plan)
+    private static void AddAudio(List<string> args, TranscodePlan plan, int input = 0)
     {
         if (plan.AudioStreamIndex is { } audioIndex)
         {
             var channels = plan.AudioChannels.ToString(CultureInfo.InvariantCulture);
-            args.AddRange(["-map", $"0:{audioIndex}"]);
+            args.AddRange(["-map", $"{input}:{audioIndex}"]);
             if (plan.CopyAudio)
             {
                 args.AddRange(["-c:a", "copy"]);

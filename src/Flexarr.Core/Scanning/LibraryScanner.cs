@@ -457,6 +457,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.Size = file.Length;
         target.ModifiedAt = file.LastWriteTimeUtc;
         target.ProbeError = error;
+        target.AudioDelaySeconds = 0; // A new copy of the file needn't be out of sync the way the old one was.
         target.Streams.Clear();
 
         if (result is null)

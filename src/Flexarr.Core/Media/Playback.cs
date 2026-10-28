@@ -44,6 +44,14 @@ public sealed class MediaMarker
     public required string Source { get; set; }
 }
 
+/// <summary>The playback speed a profile watches a show at, kept for its next episodes. One row per profile and show.</summary>
+public sealed class ShowPlaybackSpeed
+{
+    public string ProfileId { get; set; } = PlaybackState.DefaultUser;
+    public Guid SeriesId { get; set; }
+    public double Speed { get; set; } = 1;
+}
+
 /// <summary>
 /// A show taken out of someone's Continue Watching row: its next episode stays out until they play (or mark) an
 /// episode of it after <see cref="DismissedAt"/>. One row per profile and show.

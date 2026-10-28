@@ -52,7 +52,10 @@ public sealed record PlaybackInfoDto(
     bool Shuffle = false,
     PlaybackPreferencesDto? Preferences = null,
     double SubtitleDelaySeconds = 0,
-    ItemSummaryDto? Previous = null)
+    ItemSummaryDto? Previous = null,
+    double AudioDelaySeconds = 0,
+    bool AudioDelayInStream = false,
+    double? Speed = null)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the
@@ -67,6 +70,15 @@ public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, 
 
 /// <summary>Subtitles shown later (positive) or earlier (negative), in seconds.</summary>
 public sealed record SubtitleDelayRequest(double Seconds);
+
+/// <summary>
+/// A file's sound played later (positive) or earlier (negative), in seconds, for everyone. With
+/// <paramref name="RestOfSeason"/>, an episode's offset also goes to the episodes after it in its season.
+/// </summary>
+public sealed record AudioDelayRequest(double Seconds, bool RestOfSeason = false);
+
+/// <summary>The speed to play a show at from now on: 1 forgets it.</summary>
+public sealed record PlaybackSpeedRequest(double Speed);
 
 public sealed record ProgressRequest(double PositionSeconds, bool Paused = false, bool Ended = false);
 

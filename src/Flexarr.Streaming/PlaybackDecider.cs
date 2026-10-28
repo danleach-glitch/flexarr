@@ -22,7 +22,8 @@ public sealed record SubtitleTrack(string Key, int? StreamIndex, string? Externa
     public bool IsText => TextCodecs.Contains(Codec);
 }
 
-public sealed record PlaybackOptions(int? AudioStreamIndex = null, string? SubtitleKey = null, long? MaxBitrate = null, int? MaxHeight = null, bool ForceTranscode = false);
+public sealed record PlaybackOptions(int? AudioStreamIndex = null, string? SubtitleKey = null, long? MaxBitrate = null, int? MaxHeight = null, bool ForceTranscode = false,
+    double AudioDelaySeconds = 0);
 
 public sealed record TranscodePlan(
     int VideoStreamIndex,
@@ -40,6 +41,9 @@ public sealed record TranscodePlan(
     bool LosslessAudio = false,
     bool HighResolutionAudio = false)
 {
+    /// <summary>Seconds the sound is played later (negative: earlier) than the picture, to match a file that's out of sync.</summary>
+    public double AudioDelaySeconds { get; init; }
+
     /// <summary>The video is copied as it is (repackaged), cut at <see cref="Repackage.SegmentStarts"/>; null when it's converted.</summary>
     public Repackage? Repackage { get; init; }
 
@@ -245,6 +249,13 @@ public static class PlaybackDecider
             reasons.Add("Picture-based subtitles have to be burned in");
         }
 
+        // The file's sound is out of sync and the player can't move it that way itself: the server's stream moves it.
+        var delay = video is null || audio is null ? 0 : options.AudioDelaySeconds;
+        if (delay != 0 && (delay > 0 ? profile.DelaysAudio : profile.AdvancesAudio) != true)
+        {
+            reasons.Add($"The sound is moved {(delay > 0 ? "later" : "earlier")} to match the picture");
+        }
+
         if (reasons.Count == 0)
         {
             return new PlaybackDecision(PlaybackMethod.DirectPlay, reasons, audio, subtitle, null);
@@ -306,7 +317,10 @@ public static class PlaybackDecider
             fmp4,
             video.Codec,
             lossless,
-            HighResolutionAudio: lossless && IsLossless(audio!));
+            HighResolutionAudio: lossless && IsLossless(audio!))
+        {
+            AudioDelaySeconds = delay,
+        };
 
         return new PlaybackDecision(PlaybackMethod.Transcode, reasons, audio, subtitle, plan);
     }

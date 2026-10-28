@@ -14,6 +14,9 @@ namespace Flexarr.Api.Playback;
 
 public static partial class PlaybackEndpoints
 {
+    /// <summary>How far a file's sound can be moved either way: as far as AetherEngine moves it.</summary>
+    public const double MaxAudioDelaySeconds = 2;
+
     /// <summary>Starting playback, watch state and Continue Watching (authenticated).</summary>
     public static RouteGroupBuilder MapPlaybackEndpoints(this RouteGroupBuilder api)
     {
@@ -84,6 +87,80 @@ public static partial class PlaybackEndpoints
             }
 
             state.SubtitleDelaySeconds = Math.Round(request.Seconds, 3);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        }).WithTags("Playback");
+
+        // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone. A bad batch of
+        // episodes tends to be out the same way, so the rest of the season can take the same offset.
+        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > MaxAudioDelaySeconds)
+            {
+                return Results.Problem("The sound can be moved up to two seconds either way.", statusCode: 400);
+            }
+
+            if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is not { } item)
+            {
+                return Results.NotFound();
+            }
+
+            var items = new List<Guid> { id };
+            if (request.RestOfSeason && item is { Kind: MediaKind.Episode, ParentId: { } season })
+            {
+                var from = item.EpisodeNumber ?? 0;
+                items.AddRange(await db.MediaItems.Where(e => e.ParentId == season && e.Kind == MediaKind.Episode && e.EpisodeNumber > from)
+                    .Select(e => e.Id).ToListAsync(ct));
+            }
+
+            var seconds = Math.Round(request.Seconds, 3);
+            await db.MediaFiles.Where(f => items.Contains(f.MediaItemId))
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.AudioDelaySeconds, seconds), ct);
+            return Results.NoContent();
+        }).WithTags("Playback");
+
+        // Each profile's own, kept for the show an episode belongs to.
+        api.MapPut("/items/{id:guid}/playback-speed", async (Guid id, PlaybackSpeedRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (!double.IsFinite(request.Speed) || request.Speed is < 0.25 or > 4)
+            {
+                return Results.Problem("Speeds go from a quarter to four times.", statusCode: 400);
+            }
+
+            if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is not { } item)
+            {
+                return Results.NotFound();
+            }
+
+            var series = item.Kind switch
+            {
+                MediaKind.Series => item.Id,
+                MediaKind.Season => item.ParentId,
+                MediaKind.Episode => await db.MediaItems.Where(s => s.Id == item.ParentId).Select(s => s.ParentId).FirstOrDefaultAsync(ct),
+                _ => null,
+            };
+            if (series is not { } seriesId)
+            {
+                return Results.NoContent(); // Only shows keep a speed; a film's is for that time.
+            }
+
+            var kept = await db.ShowPlaybackSpeeds.FirstOrDefaultAsync(s => s.ProfileId == profile.Id && s.SeriesId == seriesId, ct);
+            if (Math.Abs(request.Speed - 1) < 0.001)
+            {
+                if (kept is not null)
+                {
+                    db.ShowPlaybackSpeeds.Remove(kept);
+                }
+            }
+            else if (kept is null)
+            {
+                db.ShowPlaybackSpeeds.Add(new ShowPlaybackSpeed { ProfileId = profile.Id, SeriesId = seriesId, Speed = request.Speed });
+            }
+            else
+            {
+                kept.Speed = request.Speed;
+            }
+
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).WithTags("Playback");
