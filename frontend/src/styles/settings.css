@@ -835,6 +835,11 @@
   opacity: 0.3;
 }
 
+/* A switch over the whole list (combining libraries), set apart from the rows it changes. */
+.row-list > .setting-rows {
+  margin-bottom: 12px;
+}
+
 .health-check {
   display: grid;
   gap: 14px;

@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { getLayout, saveLayout, type Layout, type RowChoice } from '../../api/client'
 import { ChevronDown, ChevronUp, Grip } from '../../components/icons'
 import { useApi } from '../../hooks/useApi'
-import { SaveStatus, SettingsHeader } from './shared'
+import { SaveStatus, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
 export function LayoutSection() {
@@ -17,24 +17,52 @@ export function LayoutSection() {
   if (error) return <p className="error">{error.message}</p>
   if (!layout) return <p className="muted">Loading…</p>
 
-  const change = (key: keyof Layout, rows: RowChoice[]) => {
+  const save = (next: Layout) =>
+    saveLayout(next).then(
+      () => setStatus({ saved: 'Saved. Home and Browse show it next time they load.' }),
+      (e: unknown) => setStatus({ error: errorText(e) }),
+    )
+  const change = (key: 'home' | 'movies' | 'shows', rows: RowChoice[]) => {
     const next = { ...layout, [key]: rows }
     setDraft(next)
     setStatus({})
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      saveLayout(next).then(
-        () => setStatus({ saved: 'Saved. Home and Browse show it next time they load.' }),
-        (e: unknown) => setStatus({ error: errorText(e) }),
-      )
-    }, 600)
+    timer.current = setTimeout(() => void save(next), 600)
+  }
+  // Straight away, and Home's rows redrawn from the answer: combining swaps the libraries' rows for one of each kind.
+  const combine = (on: boolean) => {
+    clearTimeout(timer.current)
+    const next = { ...layout, combineLibraries: on }
+    setDraft(next)
+    setStatus({})
+    saveLayout(next).then(
+      (saved) => {
+        setDraft(saved)
+        setStatus({ saved: 'Saved. Home and Browse show it next time they load.' })
+      },
+      (e: unknown) => {
+        setDraft(layout)
+        setStatus({ error: errorText(e) })
+      },
+    )
   }
 
   return (
     <section>
       <SettingsHeader title="Home and Browse">Which rows Home and each library’s Browse show, for every profile. Drag a row to move it.</SettingsHeader>
       <SaveStatus {...status} />
-      <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)} />
+      <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)}>
+        {layout.combinable && (
+          <div className="panel setting-rows">
+            <ToggleRow
+              label="Combine libraries of the same kind"
+              help="One Latest unwatched row for all your film libraries and one for all your TV ones. A title in more than one library shows once."
+              checked={layout.combineLibraries}
+              onChange={combine}
+            />
+          </div>
+        )}
+      </RowList>
       <RowList title="Film libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
       <RowList title="TV libraries" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
     </section>
@@ -45,7 +73,7 @@ export function LayoutSection() {
  * A list of rows to turn on or off and put in order: dragged by the grip, or moved with the arrows (from the keyboard,
  * or on a touch screen, where dragging doesn't work).
  */
-function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; onChange: (rows: RowChoice[]) => void }) {
+function RowList({ title, rows, onChange, children }: { title: string; rows: RowChoice[]; onChange: (rows: RowChoice[]) => void; children?: ReactNode }) {
   const listId = useId()
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
@@ -83,6 +111,7 @@ function RowList({ title, rows, onChange }: { title: string; rows: RowChoice[]; 
   return (
     <fieldset className="settings-group row-list">
       <legend className="settings-subhead">{title}</legend>
+      {children}
       <ol className="panel">
         {rows.map((row, i) => (
           <li

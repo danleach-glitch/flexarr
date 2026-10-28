@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Home
+- **One Latest unwatched row for each kind**: with more than one film or TV library (say **TV** and **Anime**, or **Films** and **Films in 4K**), Home now shows one **Latest unwatched films** row and one **Latest unwatched shows** row covering all of them, instead of a row for each library. A title in two libraries shows once. This is on by default, on the web, iPhone, iPad and Apple TV. To give each library its own row again, turn off **Combine libraries of the same kind** in **Settings › Home and Browse**.
+
 ### Continue Watching
 - **Mark as unwatched** works on anything you're part way through, on the web, iPhone, iPad and Apple TV: it forgets your place without marking it watched, so it leaves Continue Watching and starts from the beginning next time. **Mark as watched** is still there beside it.
 - **Remove from Continue Watching** on a show's next episode in that row takes the show out of it until you play another episode. An episode you were part way through and marked unwatched does the same, so the show doesn't come straight back.
