@@ -10,6 +10,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Subtitles follow your caption style from the system's Accessibility settings (font, size, colours and background), as Apple's own player does, on top of your profile's subtitle size.
 - A subtitle line no longer shows twice after you rewind.
 - On Apple TV, the sidebar no longer stops responding when music starts or stops while you're browsing.
+- Coming back to the Apple TV app after leaving it mid-film picks up where you were, playing if it was playing, instead of a black screen.
+- Skipping or scrubbing to the very end of a film counts as finishing it: it's marked watched and the next episode comes up.
+- The spinner stays until the picture is actually on screen, so a film no longer starts on a black screen.
+- The next episode starts sooner, as its opening is fetched during the credits.
+- Lossless surround is on by itself when the Apple TV is connected to a receiver or soundbar that takes it, which keeps 4K films with TrueHD sound from stuttering. Settings › Playback still turns it off.
+- HLG videos that the Apple TV can't draw itself play from the server instead of showing black.
 
 ### Playback
 - When you've chosen a language, the soundtrack in it is picked over a commentary or audio description track, and the file's default track wins among the rest.

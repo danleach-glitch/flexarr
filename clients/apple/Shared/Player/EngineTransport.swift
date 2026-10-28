@@ -28,6 +28,18 @@ final class EngineTransport: PlayerTransport {
     private(set) var rate: Float = 1
     /// How long opening the file may take before the server's stream is used instead.
     private static let openDeadlineSeconds: Double = 60
+    /// Until the first picture is on screen the spinner stays up, even once the engine says it's playing.
+    private var showingPicture = false
+    /// Paused on the last frame without the engine ending (scrubbed or skipped there): as good as ended, and the
+    /// engine's Play would start the title again from the top.
+    private var parkedAtEnd = false
+    /// Whether the viewer had it playing when the app last went to the background. The engine's own state can't say:
+    /// the system pauses it on the way out.
+    private var playingWhenActive = false
+    private var backgroundedAt: Date?
+    /// The engine let its picture go in the background and the title was paused then: it's rebuilt on the next Play.
+    private var restoreOnPlay = false
+    private var lifecycleObservers: [NSObjectProtocol] = []
 
     init(info: PlaybackInfo, client: FlexarrClient) throws {
         self.info = info
@@ -61,9 +73,10 @@ final class EngineTransport: PlayerTransport {
         options.prepareNativeSubtitles = true   // text subtitles as renditions too: Picture in Picture and AirPlay keep them
         options.serveIFramePlaylist = true
         options.externalSubtitles = sidecars()
+        options.initialSubtitleTrackID = trackID(forKey: subtitleKey ?? info.selectedSubtitleKey)
         // Surround as lossy Dolby Digital Plus (which any TV or bar takes), or lossless FLAC as multichannel PCM for a
-        // receiver or eARC soundbar that takes it: the viewer's choice in Settings.
-        options.audioBridgeMode = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless") ? .lossless : .surroundCompat
+        // receiver or eARC soundbar that takes it: the viewer's choice in Settings, else what the output takes.
+        options.audioBridgeMode = PlaybackController.losslessAudio ? .lossless : .surroundCompat
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
@@ -117,11 +130,39 @@ final class EngineTransport: PlayerTransport {
                 }
             }
             #endif
-            self.selectInitialSubtitle(subtitleKey ?? self.info.selectedSubtitleKey)
+            // HLG drawn by the software route comes out black: the server's stream plays it instead.
+            if self.engine.videoRoute == .software, self.engine.sourceVideoFormat == .hlg {
+                log.warning("HLG on the software route; handing it to the server", ["playbackId": self.info.playbackId])
+                self.engine.stop()
+                self.phase = .failed("HLG video can't be shown on this route.")
+                return
+            }
+            // The engine chose the subtitles as it opened; one it couldn't name by id is chosen by key now.
+            if self.engine.activeSubtitleTrackIndex == nil { self.selectInitialSubtitle(subtitleKey ?? self.info.selectedSubtitleKey) }
             self.engine.play()
             self.updatePhase()
             self.delegate?.transportTracksChanged(self)
+            await self.waitForPicture()
         }
+    }
+
+    /// Keeps the spinner up until the picture is on screen, for a few seconds at most (a title with no video, or one
+    /// whose frames the engine can't count, shows none to wait for).
+    private func waitForPicture() async {
+        for _ in 0..<50 where !showingPicture {
+            if await engine.hasRenderedVideoFrame() { break }
+            guard (try? await Task.sleep(for: .milliseconds(100))) != nil else { return }
+        }
+        showingPicture = true
+        updatePhase()
+    }
+
+    /// The engine's id for the subtitles the server knows by `key`: an embedded track's stream index, or a sidecar's
+    /// place among the files handed to the engine, counted from the engine's base for them.
+    private func trackID(forKey key: String?) -> Int? {
+        guard let key else { return nil }
+        if key.hasPrefix("e") { return Int(key.dropFirst()) }
+        return sidecarKeys.firstIndex(of: key).map { AetherEngine.externalSubtitleTrackIDBase + $0 }
     }
 
     var currentTime: Double { engine.clock.currentTime }
@@ -140,11 +181,21 @@ final class EngineTransport: PlayerTransport {
 
     // MARK: Transport
 
-    func play() { engine.play() }
+    func play() {
+        guard !parkedAtEnd else { return }
+        if restoreOnPlay {
+            restoreOnPlay = false
+            Task { await restore(thenPlay: true) }
+            return
+        }
+        engine.play()
+    }
+
     func pause() { engine.pause() }
 
     func seek(to seconds: Double) {
         let target = max(0, min(seconds, duration))
+        parkedAtEnd = false
         Task { [weak self] in
             guard let self else { return }
             await self.engine.seek(to: target)
@@ -158,6 +209,8 @@ final class EngineTransport: PlayerTransport {
     }
 
     func stop() {
+        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        lifecycleObservers = []
         cancellables.removeAll()
         engine.stop()
         engine.unbind(view: surface)
@@ -412,6 +465,15 @@ final class EngineTransport: PlayerTransport {
     // MARK: Observation
 
     private func observe() {
+        let center = NotificationCenter.default
+        lifecycleObservers = [
+            center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.backgroundedAt = Date() }
+            },
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.becameActive() }
+            },
+        ]
         engine.$playbackPhase
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updatePhase() }
@@ -447,19 +509,81 @@ final class EngineTransport: PlayerTransport {
 
     private func updatePhase() {
         if case .failed = phase { return }
+        defer {
+            // What the viewer meant, as of the last moment the app was in front: the system pauses it on the way out.
+            if UIApplication.shared.applicationState == .active, !restoreOnPlay { playingWhenActive = isPlaying }
+        }
+        if parkedAtEnd { phase = .ended; return }
         switch engine.playbackPhase {
         case .idle, .loading:
             phase = loading ? .loading : phase
         case .playing:
-            phase = .playing
+            phase = showingPicture ? .playing : .loading
         case .paused:
+            // Paused within a second of the end, not by the viewer's own pause button earlier: the end of the title.
+            if !loading, duration > 0, currentTime >= duration - 1 {
+                log.info("Parked at the end; treating it as ended", ["playbackId": info.playbackId])
+                parkedAtEnd = true
+                phase = .ended
+                return
+            }
             phase = .paused
         case .seeking, .rebuffering, .stalled:
             phase = engine.state == .paused ? .paused : .buffering
         case .ended:
             phase = .ended
         case .error(let message):
+            if let error = engine.errorInfo {
+                log.error("Engine error \(error.kind.rawValue)", ["playbackId": info.playbackId, "domain": error.underlyingDomain, "code": error.underlyingCode.map(String.init)])
+            }
             phase = .failed(message)
+        }
+    }
+
+    // MARK: Background and foreground
+
+    /// Back in front. The engine lets its picture go when the app leaves (tvOS takes the decoder and the connection
+    /// away), and leaves rebuilding it to us: playing, it's rebuilt now; paused, on the next Play.
+    private func becameActive() {
+        let away = backgroundedAt.map { Date().timeIntervalSince($0) }
+        backgroundedAt = nil
+        guard engine.needsForegroundVideoRestore, !loading else { return }
+        log.info("Back after \(Int(away ?? 0))s; picture needs rebuilding (\(playingWhenActive ? "was playing" : "was paused"))", ["playbackId": info.playbackId])
+        if playingWhenActive {
+            Task { await restore(thenPlay: true, after: away) }
+        } else {
+            restoreOnPlay = true
+        }
+    }
+
+    /// Rebuilds the session where it was. The engine needs about 3.5 seconds to let the old connections go, so a quick
+    /// return waits that out first; a rebuild that hangs (the server gone quiet after a long sleep) is tried once more,
+    /// then handed to the controller as a failure, which reopens the title from the server.
+    private func restore(thenPlay: Bool, after away: TimeInterval? = nil) async {
+        if let away, away < 3.5 { try? await Task.sleep(for: .seconds(3.5 - away)) }
+        phase = .buffering
+        for attempt in 1...2 {
+            do {
+                try await withDeadline(seconds: 20) { try await self.engine.reloadAtCurrentPosition() }
+                if thenPlay { engine.play() }
+                updatePhase()
+                return
+            } catch {
+                log.warning("Rebuild \(attempt) failed", error: error, ["playbackId": info.playbackId])
+            }
+        }
+        phase = .failed("Playback couldn't pick up where it left off.")
+    }
+
+    private func withDeadline(seconds: Double, _ work: @escaping @MainActor @Sendable () async throws -> Void) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await work() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw URLError(.timedOut)
+            }
+            try await group.next()
+            group.cancelAll()
         }
     }
 }

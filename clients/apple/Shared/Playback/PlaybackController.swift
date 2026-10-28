@@ -1,3 +1,6 @@
+#if canImport(AetherEngine)
+import AetherEngine
+#endif
 import AVFoundation
 import FlexarrKit
 import Observation
@@ -78,6 +81,19 @@ final class PlaybackController: NSObject {
         set { UserDefaults.standard.set(newValue, forKey: engineKey) }
     }
     private static let engineKey = "FlexarrEngine"
+
+    /// TrueHD, DTS-HD and FLAC sent as multichannel PCM, rather than converted to Dolby Digital Plus. Until the viewer
+    /// chooses, on when what the device is plugged into takes six channels or more of PCM (a receiver, an eARC
+    /// soundbar): the conversion can't keep up with a 4K film's lossless soundtrack on some Apple TVs.
+    static var losslessAudio: Bool {
+        get {
+            let defaults = UserDefaults.standard
+            if defaults.object(forKey: losslessKey) != nil { return defaults.bool(forKey: losslessKey) }
+            return AVAudioSession.sharedInstance().maximumOutputNumberOfChannels >= 6
+        }
+        set { UserDefaults.standard.set(newValue, forKey: losslessKey) }
+    }
+    private static let losslessKey = "FlexarrEngineLossless"
     /// A title the engine couldn't play: its server stream instead, until the next title.
     @ObservationIgnored private var engineSuppressedItem: String?
     /// Playing a show on shuffle: each next episode is a random one.
@@ -546,11 +562,9 @@ final class PlaybackController: NSObject {
     }
 
     /// Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
-    /// server says no, and then it starts the usual way.
+    /// server says no, and then it starts the usual way. A file the engine will play has its opening bytes fetched
+    /// too, so the engine starts on them rather than waiting for the server.
     private func prepareNext() {
-        #if canImport(AetherEngine)
-        if transport is EngineTransport { return } // the next file opens in a moment through the engine; nothing to get ready
-        #endif
         guard let client, let current = info, !current.isOffline, let next = current.next, !nextCancelled,
               prepared?.info.item.id != next.id, preparing == nil else { return }
         var request = nextRequest(next, after: current)
@@ -566,6 +580,13 @@ final class PlaybackController: NSObject {
             }
             log.info("Next episode ready: \(ready.item.title)", ["playbackId": ready.playbackId])
             prepared = (request, ready)
+            #if canImport(AetherEngine)
+            // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
+            if Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
+                let report = await AetherEngine.prewarm(url: url)
+                log.debug("Next episode warmed: \(report.retainedBytes) bytes\(report.declined.map { " (\($0))" } ?? "")", ["playbackId": ready.playbackId])
+            }
+            #endif
         }
     }
 
@@ -573,6 +594,9 @@ final class PlaybackController: NSObject {
     private func dropPrepared() {
         preparing?.cancel()
         preparing = nil
+        #if canImport(AetherEngine)
+        AetherEngine.discardPrewarmedSources()
+        #endif
         guard let prepared, let client else { self.prepared = nil; return }
         self.prepared = nil
         Task { try? await client.stopPlayback(sessionId: prepared.info.sessionId) }

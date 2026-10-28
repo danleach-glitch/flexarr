@@ -9,7 +9,7 @@ struct PlaybackSettingsView: View {
     @State private var saveFailed = false
     @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var playsFilesDirectly = PlaybackController.usesEngine
-    @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
+    @State private var losslessAudio = PlaybackController.losslessAudio
 
     var body: some View {
         SettingsPage(title: "Playback", summary: saveFailed ? "That change couldn't be saved on the server, so it's been put back." : nil) {
@@ -64,9 +64,9 @@ struct PlaybackSettingsView: View {
             }
             if playsFilesDirectly {
                 SettingsRow.toggle("Lossless surround", isOn: losslessAudio, symbol: "hifispeaker.2",
-                                   help: "TrueHD, DTS-HD and FLAC go as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they go as Dolby Digital Plus, which anything plays.") {
+                                   help: "TrueHD, DTS-HD and FLAC go as multichannel PCM over HDMI, for a receiver or eARC soundbar that takes it. Off, they go as Dolby Digital Plus, which anything plays. Until you choose, it's on when the Apple TV is connected to something that takes it.") {
                     losslessAudio.toggle()
-                    UserDefaults.standard.set(losslessAudio, forKey: "FlexarrEngineLossless")
+                    PlaybackController.losslessAudio = losslessAudio
                 }
             }
         }
