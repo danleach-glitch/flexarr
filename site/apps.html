@@ -70,6 +70,7 @@
     }
 
     /* Cards */
+    .cards + .cards { margin-top: 20px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
     .card { position: relative; display: grid; border: 1px solid var(--aisle); border-radius: 24px; overflow: hidden; scroll-margin-top: 100px;
       background: radial-gradient(420px 260px at 0% 0%, rgb(var(--accent) / 0.14), transparent 70%), linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.4)); }
@@ -169,7 +170,7 @@
           <tbody>
             <tr>
               <td class="mark" aria-hidden="true">✅</td>
-              <th scope="row"><a href="#server">Flexarr server</a><span class="sub">0.49.3</span></th>
+              <th scope="row"><a href="#server">Server + Web Player</a><span class="sub">0.49.3</span></th>
               <td class="state">Available</td>
               <td class="ver"><span class="version">0.49.3</span></td>
               <td class="go"><a class="get ready" href="/#setup">Set up</a></td>
@@ -187,13 +188,6 @@
               <td class="state">Coming soon</td>
               <td class="ver"><span class="version">0.49.0</span></td>
               <td class="go"><a class="get" href="/guide/apple-tv-xcode">Install with Xcode</a></td>
-            </tr>
-            <tr>
-              <td class="mark" aria-hidden="true">✅</td>
-              <th scope="row"><a href="#web">Web</a><span class="sub">0.49.3</span></th>
-              <td class="state">Available</td>
-              <td class="ver"><span class="version">0.49.3</span></td>
-              <td class="go"><a class="get" href="/#setup">Included</a></td>
             </tr>
             <tr>
               <td class="mark" aria-hidden="true">✅</td>
@@ -226,9 +220,9 @@
           <article class="card wide" id="server">
             <div class="card-body">
               <div class="card-top"><span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="7" rx="2"/><rect x="3" y="13.5" width="18" height="7" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></span><span class="pill available">Available</span></div>
-              <h3>Flexarr server</h3>
+              <h3>Server + Web Player</h3>
               <p class="version-line">Version <span class="version">0.49.3</span></p>
-              <p class="summary">Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. Free for personal use.</p>
+              <p class="summary">Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server&#39;s address in any browser. Free for personal use.</p>
               <p class="requires">A computer at home that stays on: 64-bit Intel, AMD or ARM</p>
               <div class="links"><a class="button primary" href="/#setup">Set up your server</a><a class="more" href="https://github.com/danleach-glitch/flexarr/releases" rel="noopener">What&#39;s new</a></div>
             </div>
@@ -237,6 +231,8 @@
               <ul><li>Docker</li><li>Synology</li><li>Unraid</li><li>Linux</li><li>Windows</li><li>Mac</li></ul>
             </div>
           </article>
+        </div>
+        <div class="cards">
           <article class="card" id="iphone">
             <div class="card-body">
               <div class="card-top"><span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span><span class="pill available">Available</span></div>
@@ -245,16 +241,6 @@
               <p class="summary">Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.</p>
               <p class="requires">iOS or iPadOS 18.2 or later</p>
               <div class="links"><a class="button primary" href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>Download on the App Store</a></div>
-            </div>
-          </article>
-          <article class="card" id="web">
-            <div class="card-body">
-              <div class="card-top"><span class="app-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3Z"/></svg></span><span class="pill available">Available</span></div>
-              <h3>Web</h3>
-              <p class="version-line">Version <span class="version">0.49.3</span></p>
-              <p class="summary">Built into the server, nothing to install. Open your server&#39;s address on a computer, tablet or phone.</p>
-              <p class="requires">Any up-to-date browser</p>
-              <div class="links"><a class="button quiet" href="/#setup">Included with the server</a></div>
             </div>
           </article>
           <article class="card" id="home-assistant">

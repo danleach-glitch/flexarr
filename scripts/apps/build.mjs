@@ -195,6 +195,7 @@ const html = `<!doctype html>
     }
 
     /* Cards */
+    .cards + .cards { margin-top: 20px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
     .card { position: relative; display: grid; border: 1px solid var(--aisle); border-radius: 24px; overflow: hidden; scroll-margin-top: 100px;
       background: radial-gradient(420px 260px at 0% 0%, rgb(var(--accent) / 0.14), transparent 70%), linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.4)); }
@@ -291,7 +292,10 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
       <section aria-labelledby="now">
         <h2 id="now">Available now</h2>
         <div class="cards">
-          ${now.map(card).join('\n          ')}
+          ${now.filter(p => p.runsOn).map(card).join('\n          ')}
+        </div>
+        <div class="cards">
+          ${now.filter(p => !p.runsOn).map(card).join('\n          ')}
         </div>
       </section>
 

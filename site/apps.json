@@ -3,14 +3,14 @@
   "platforms": [
     {
       "id": "server",
-      "name": "Flexarr server",
+      "name": "Server + Web Player",
       "icon": "server",
       "status": "available",
       "version": "0.49.3",
       "release": "server",
       "requires": "A computer at home that stays on: 64-bit Intel, AMD or ARM",
       "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],
-      "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. Free for personal use.",
+      "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server's address in any browser. Free for personal use.",
       "links": [
         { "label": "Set up your server", "href": "/#setup", "primary": true, "short": "Set up" },
         { "label": "What's new", "href": "https://github.com/danleach-glitch/flexarr/releases" }
@@ -39,19 +39,6 @@
       "note": "With Apple for review. Until it's on the App Store you can install it from a Mac.",
       "links": [
         { "label": "Install it from Xcode", "href": "/guide/apple-tv-xcode", "short": "Install with Xcode" }
-      ]
-    },
-    {
-      "id": "web",
-      "name": "Web",
-      "icon": "web",
-      "status": "available",
-      "version": "0.49.3",
-      "release": "server",
-      "requires": "Any up-to-date browser",
-      "summary": "Built into the server, nothing to install. Open your server's address on a computer, tablet or phone.",
-      "links": [
-        { "label": "Included with the server", "href": "/#setup", "short": "Included" }
       ]
     },
     {
