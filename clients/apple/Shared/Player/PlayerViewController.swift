@@ -500,7 +500,9 @@ final class PlayerViewController: UIViewController {
         #endif
     }
 
-    /// The controls go after a few seconds of playing untouched (never while paused, loading or scrubbing).
+    /// The controls go after a few seconds of playing untouched (never while paused, loading or scrubbing). Held up
+    /// (loading after a seek, a menu open, scrubbing), it keeps checking and goes once they're done: giving up there left
+    /// the controls on screen for good, as nothing else would ask again while it played on.
     private func scheduleHide() {
         hideTask?.cancel()
         #if DEBUG
@@ -513,8 +515,15 @@ final class PlayerViewController: UIViewController {
             #else
             try? await Task.sleep(for: .seconds(3))
             #endif
-            guard !Task.isCancelled, let self, let transport, transport.isPlaying, !controls.scrubber.isScrubbing, !menuOpen, !audioSyncOpen else { return }
-            hideControls()
+            while !Task.isCancelled {
+                guard let self, controlsVisible else { return }
+                if let transport, transport.isPlaying, !controls.scrubber.isScrubbing, !menuOpen, !audioSyncOpen {
+                    return hideControls()
+                }
+                // Paused, it waits for Play, which asks again (see phaseChanged); anything else, a moment.
+                if transport?.phase == .paused { hideTask = nil; return }
+                try? await Task.sleep(for: .seconds(1))
+            }
         }
     }
 
@@ -558,6 +567,9 @@ final class PlayerViewController: UIViewController {
             super.pressesBegan(presses, with: event)
             return
         }
+        // An open menu takes the remote's presses for itself, so one reaching the player means none is open, whatever
+        // the last word was: a menu that went without saying so mustn't keep the controls up for good.
+        menuOpen = false
         // Ran out: any button wakes the screen, and only that. Asked "Still watching?": any button but the edges
         // (which move between its two) is a yes; Select on a button is that button's.
         switch sleepPhase {

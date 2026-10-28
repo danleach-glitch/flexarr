@@ -16,6 +16,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The next episode starts sooner, as its opening is fetched during the credits.
 - Lossless surround is on by itself when the Apple TV is connected to a receiver or soundbar that takes it, which keeps 4K films with TrueHD sound from stuttering. Settings › Playback still turns it off.
 - HLG videos that the Apple TV can't draw itself play from the server instead of showing black.
+- The player's controls no longer sometimes stay on screen while a film plays; they fade away a few seconds after you stop using the remote, as they should.
 
 ### Requests
 - Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. When two people have a TV library each, the shows each of them asks for land in their own. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
