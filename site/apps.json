@@ -4,7 +4,7 @@
     {
       "id": "server",
       "name": "Server + Web Player",
-      "icon": "server",
+      "icon": "flexarr",
       "status": "available",
       "version": "0.49.3",
       "release": "server",
@@ -19,7 +19,7 @@
     {
       "id": "iphone",
       "name": "iPhone and iPad",
-      "icon": "phone",
+      "icon": "apple",
       "status": "available",
       "version": "0.49.0",
       "requires": "iOS or iPadOS 18.2 or later",
@@ -31,7 +31,7 @@
     {
       "id": "apple-tv",
       "name": "Apple TV",
-      "icon": "tv",
+      "icon": "apple",
       "status": "coming",
       "version": "0.49.0",
       "requires": "tvOS 18.2 or later",
@@ -44,7 +44,7 @@
     {
       "id": "home-assistant",
       "name": "Home Assistant",
-      "icon": "home",
+      "icon": "home-assistant",
       "status": "available",
       "version": "0.1.1",
       "requires": "Home Assistant with HACS, and Flexarr 0.45.0 or later",
@@ -57,7 +57,7 @@
     {
       "id": "android",
       "name": "Android phone and tablet",
-      "icon": "phone",
+      "icon": "android",
       "status": "development",
       "summary": "A native Android app for phones and tablets. Until it's ready, the web app works in your phone's browser.",
       "links": []
@@ -65,7 +65,7 @@
     {
       "id": "android-tv",
       "name": "Android TV, Google TV and Fire TV",
-      "icon": "tv",
+      "icon": "android",
       "status": "planned",
       "summary": "Flexarr on the big screen for TVs and streaming sticks that run Android.",
       "links": []
