@@ -4,6 +4,7 @@ import AetherEngine
 import AVFoundation
 import FlexarrKit
 import Observation
+import SwiftUI
 import UIKit
 
 private let log = FlexarrLog("playback")
@@ -119,6 +120,8 @@ final class PlaybackController: NSObject {
     /// The next episode's session, started during the credits so it opens at once, and the request for it.
     @ObservationIgnored private var prepared: (request: PlaybackRequest, info: PlaybackInfo)?
     @ObservationIgnored private var preparing: Task<Void, Never>?
+    /// A re-sync of the file's subtitles being followed: which title and file, and the polling.
+    @ObservationIgnored private var subtitleSync: (itemId: String, fileId: String, task: Task<Void, Never>)?
     private static let countdownSeconds = 5
     private static let reportInterval: TimeInterval = 10
     private static let takenOverMessage = "Someone started watching on another screen, so this one had to stop."
@@ -300,6 +303,7 @@ final class PlaybackController: NSObject {
         screen.episodeEnd = info.item.kind == .episode
             ? .init(credits: info.markers.first(where: { $0.type == .credits })?.start, stopsAtCredits: preferences.skipCredits && info.next != nil)
             : nil
+        updateSubtitleSearch()
         updateEpisodeNavigation()
         loadArtwork(for: info, into: screen)
     }
@@ -432,6 +436,133 @@ final class PlaybackController: NSObject {
                 dismissPlayer { self.show(error, retry: request) }
             }
         }
+    }
+
+    // MARK: Finding and re-syncing subtitles
+
+    /// What the subtitles menu offers: searching (a server with Bazarr, a title it manages, streamed rather than
+    /// downloaded), and re-syncing the subtitle files beside the video.
+    private func updateSubtitleSearch() {
+        guard let screen else { return }
+        let available = info.map { !$0.isOffline && $0.canSearchSubtitles == true } ?? false
+        let files = Set(info?.subtitles.filter { $0.isExternal == true }.map(\.key) ?? [])
+        let resyncing = subtitleSync.map { $0.itemId == info?.item.id && $0.fileId == info?.fileId } ?? false
+        screen.setSubtitleSearch(available: available, files: files, resyncing: resyncing)
+    }
+
+    /// The search over the picture, paused meanwhile. Subtitles chosen there are saved beside the file, and the title
+    /// opens again where it was with them on.
+    private func searchSubtitles() {
+        guard let client, let current = info, !current.isOffline, let screen, screen.presentedViewController == nil else { return }
+        let wasPlaying = transport?.isPlaying ?? false
+        transport?.pause()
+        weak var host: UIViewController?
+        let search = SubtitleSearchView(client: client, itemId: current.item.id, fileId: current.fileId, onDownloaded: { [weak self] saved in
+            log.info("Subtitles downloaded: \(saved.label) (\(saved.key))", ["playbackId": current.playbackId])
+            host?.dismiss(animated: true)
+            guard let self, self.info?.sessionId == current.sessionId, !self.isRecovering else { return }
+            self.viewerSubtitleKey = .some(saved.key)
+            self.reopen(self.reopenRequest(current), replacing: current)
+        }, onClose: { [weak self] in
+            host?.dismiss(animated: true)
+            if wasPlaying, self?.info?.sessionId == current.sessionId { self?.transport?.play() }
+        })
+        let controller = UIHostingController(rootView: search)
+        #if os(tvOS)
+        controller.modalPresentationStyle = .overFullScreen
+        controller.view.backgroundColor = .clear
+        #else
+        controller.modalPresentationStyle = .pageSheet
+        controller.sheetPresentationController?.detents = [.medium(), .large()]
+        controller.sheetPresentationController?.prefersGrabberVisible = true
+        // Closed with Done (not swiped away), so playing carries on through `onClose`.
+        controller.isModalInPresentation = true
+        #endif
+        host = controller
+        screen.present(controller, animated: true)
+    }
+
+    /// Asks the server to line the subtitle file `key` up with the audio, then follows it: when it's done the title
+    /// opens again where it is (the file has changed), when it fails the viewer is told why. Playing carries on.
+    private func resyncSubtitles(key: String) {
+        guard let client, let current = info, !current.isOffline else { return }
+        let itemId = current.item.id
+        let fileId = current.fileId
+        if let running = subtitleSync {
+            // Already following this file's; one for a title played earlier is let go.
+            if running.itemId == itemId, running.fileId == fileId { return }
+            cancelSubtitleSync()
+        }
+        log.info("Re-syncing subtitles \(key)", ["playbackId": current.playbackId])
+        let task = Task { [weak self] in
+            do {
+                try await client.startSubtitleSync(itemId: itemId, fileId: fileId, key: key)
+            } catch FlexarrClientError.http(status: 409, _) {
+                // One is already running for this file: follow that.
+            } catch {
+                self?.endSubtitleSync(failure: error.localizedDescription)
+                return
+            }
+            self?.screen?.flash("Re-syncing subtitles…")
+            var misses = 0
+            // A film's re-sync takes a minute or more; given up on after half an hour.
+            for _ in 0..<600 {
+                guard (try? await Task.sleep(for: .seconds(3))) != nil else { return }
+                let status: SubtitleSyncStatus
+                do {
+                    status = try await client.subtitleSync(itemId: itemId, fileId: fileId)
+                    misses = 0
+                } catch {
+                    misses += 1
+                    if misses >= 5 { self?.endSubtitleSync(failure: error.localizedDescription); return }
+                    continue
+                }
+                switch status.state {
+                case .running, .unknown:
+                    continue
+                case .done:
+                    self?.endSubtitleSync(doneWith: status.key ?? key)
+                    return
+                case .failed:
+                    self?.endSubtitleSync(failure: status.error ?? "The subtitles couldn't be re-synced.")
+                    return
+                case .idle:
+                    self?.endSubtitleSync(failure: "The re-sync stopped before it finished.")
+                    return
+                }
+            }
+            self?.endSubtitleSync(failure: "The re-sync is taking too long. Try again later.")
+        }
+        subtitleSync = (itemId, fileId, task)
+        updateSubtitleSearch()
+    }
+
+    /// The re-sync finished: still watching that file, it opens again where it is with the re-synced subtitles on.
+    private func endSubtitleSync(doneWith key: String) {
+        guard let sync = subtitleSync else { return }
+        subtitleSync = nil
+        updateSubtitleSearch()
+        guard let current = info, current.item.id == sync.itemId, current.fileId == sync.fileId, !isRecovering else { return }
+        log.info("Subtitles re-synced", ["playbackId": current.playbackId])
+        screen?.flash("Subtitles re-synced")
+        viewerSubtitleKey = .some(key)
+        reopen(reopenRequest(current), replacing: current)
+    }
+
+    private func endSubtitleSync(failure message: String) {
+        guard let sync = subtitleSync else { return }
+        subtitleSync = nil
+        updateSubtitleSearch()
+        log.warning("Subtitles weren't re-synced: \(message)", ["playbackId": info?.playbackId])
+        guard let current = info, current.item.id == sync.itemId, let screen, screen.presentedViewController == nil else { return }
+        let alert = UIAlertController(title: "Couldn't re-sync subtitles", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        screen.present(alert, animated: true)
+    }
+
+    private func cancelSubtitleSync() {
+        subtitleSync?.task.cancel()
+        subtitleSync = nil
     }
 
     // MARK: Progress
@@ -891,6 +1022,7 @@ final class PlaybackController: NSObject {
     }
 
     private func dismissPlayer(then completion: (() -> Void)? = nil) {
+        cancelSubtitleSync()
         stop()
         guard let screen else { completion?(); return }
         self.screen = nil
@@ -1026,6 +1158,14 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreenSleepChanged(_ screen: PlayerViewController) {
         updatePrompt()
+    }
+
+    func playerScreenSearchSubtitles(_ screen: PlayerViewController) {
+        searchSubtitles()
+    }
+
+    func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String) {
+        resyncSubtitles(key: key)
     }
 }
 

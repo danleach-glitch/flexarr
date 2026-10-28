@@ -528,6 +528,9 @@ public struct SubtitleTrack: Codable, Sendable, Hashable {
     public let isDefault: Bool
     public let isText: Bool
     public let url: String?
+    /// A subtitle file beside the video (rather than one inside it): only these can be re-synced. Absent from servers
+    /// before 0.53.
+    public var isExternal: Bool? = nil
 }
 
 public struct Marker: Codable, Sendable, Hashable {
@@ -584,6 +587,10 @@ public struct PlaybackInfo: Codable, Sendable {
 
     /// The server keeps audio offsets and show speeds (0.53 and later).
     public var hasPlayerControls: Bool { audioDelaySeconds != nil }
+
+    /// The server can find subtitles for this title (through Bazarr), and re-sync the ones beside its file. Absent from
+    /// servers before 0.53.
+    public var canSearchSubtitles: Bool? = nil
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.
