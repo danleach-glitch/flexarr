@@ -75,7 +75,9 @@ prepare() {
     || die "VersionTests failed; nothing was committed (git checkout . to undo the edits)"
 
   git commit -qam "release: $version"
-  git tag "v$version"
+  # Signed (with the SSH key git is set to sign with), so GitHub shows the release as Verified and a tag nobody made here
+  # stands out.
+  git tag -s -m "Flexarr $version" "v$version" || die "couldn't sign the tag; set git's gpg.format and user.signingkey (see CONTRIBUTING.md)"
   # Main and exactly this one tag: pushing several tags at once starts no workflows.
   git push -q origin HEAD:main "v$version"
   echo "==> Pushed release: $version and v$version. Next: $0 publish v$version"
