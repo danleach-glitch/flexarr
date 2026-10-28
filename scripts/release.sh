@@ -64,6 +64,8 @@ prepare() {
   # Quoted: VersionTests only reads the quoted form.
   sed -i '' -E "s|MARKETING_VERSION: \"?[0-9.]+\"?|MARKETING_VERSION: \"$version\"|" clients/apple/project.yml
   (cd frontend && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
+  # flexarr.io/apps shows the server and web app's version.
+  node scripts/apps/build.mjs --server-version "$version" >/dev/null
 
   echo "==> Checking the version is the same everywhere"
   dotnet test tests/Flexarr.Api.Tests --disable-build-servers --nologo -v quiet --filter 'FullyQualifiedName~VersionTests' \

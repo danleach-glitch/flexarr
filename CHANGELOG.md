@@ -23,6 +23,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPhone and iPad
 - Settings › Server and the sign-in error point to **Settings › Access** on the web, where remote access and the API key are now.
 
+### Website
+- **[flexarr.io/apps](https://flexarr.io/apps)** lists every Flexarr app and platform with its version and status, from what you can download today to the Android apps on the way, with a link to get each one.
+
 ### Web
 - A new server's settings read **Main profile**, not "Main profile's profile".
 

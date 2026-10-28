@@ -132,15 +132,6 @@
     .tag { display: inline-block; vertical-align: middle; margin-left: 10px; padding: 3px 10px; border-radius: 999px; background: rgb(169 194 236 / 0.16); color: var(--silver); font-family: var(--text); font-size: 0.8rem; font-weight: 700; letter-spacing: 0; line-height: 1.4; }
     @media (max-width: 860px) { .step { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 22px; } }
 
-    /* Questions */
-    .faq { max-width: 860px; margin: 36px auto 0; display: grid; gap: 10px; }
-    .faq details { background: var(--seat); border: 1px solid var(--aisle); border-radius: 14px; }
-    .faq summary { cursor: pointer; list-style: none; padding: 18px 22px; font-weight: 700; display: flex; justify-content: space-between; gap: 16px; }
-    .faq summary::-webkit-details-marker { display: none; }
-    .faq summary::after { content: "+"; color: var(--silver); font-size: 1.4rem; line-height: 1; }
-    .faq details[open] summary::after { content: "–"; }
-    .faq details p { margin: 0; padding: 0 22px 18px; color: var(--usher); }
-
     .closing { text-align: center; }
     .closing .actions { margin-top: 28px; }
   </style>
@@ -153,10 +144,10 @@
       <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
       <nav class="site-nav" aria-label="Main">
         <a href="#features">Features</a>
-        <a href="#apps">Apps</a>
-        <a href="#setup">Set up</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a href="#setup">Install</a>
         <a class="keep" href="/guide">Guide</a>
-        <a class="github keep" href="https://github.com/danleach-glitch/flexarr"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
       </nav>
     </div>
   </header>
@@ -168,13 +159,13 @@
       <p class="lede">Your own streaming service for the <strong>films, TV, music and podcasts you already have</strong>, on Apple TV, iPhone, iPad and the web. Built for Sonarr, Radarr and Lidarr. No ads, no account, no subscription.</p>
       <div class="actions">
         <a class="button primary" href="#setup">Set up your server</a>
-        <a class="button quiet" href="https://apps.apple.com/app/flexarr/id6826618084">
+        <a class="button quiet" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>
           Get it for iPhone and iPad
         </a>
       </div>
       <ul class="facts"><li>Free for personal use</li><li>Your files never leave home</li><li>Docker, NAS or Mac</li><li>Apple TV app coming to the App Store</li></ul>
-      <div class="stage"><picture><source media="(max-width: 640px)" srcset="/shots/hero-m.webp"><img class="shot" src="/shots/hero.webp" srcset="/shots/hero-1000.webp 1000w, /shots/hero.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr on an Apple TV showing Ted Lasso's page, with Resume S3 E8 and the seasons, and an iPhone beside it showing Home with Only Murders in the Building and Continue watching." fetchpriority="high"></picture></div>
+      <div class="stage"><picture><source media="(max-width: 640px)" srcset="/shots/hero-m.webp" width="1100" height="902"><img class="shot" src="/shots/hero.webp" width="2000" height="1069" srcset="/shots/hero-1000.webp 1000w, /shots/hero.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr on an Apple TV showing Ted Lasso's page, with Resume S3 E8 and the seasons, and an iPhone beside it showing Home with Only Murders in the Building and Continue watching." fetchpriority="high"></picture></div>
 
       <div class="newcomer">
         <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></div>
@@ -200,7 +191,7 @@
             </ul>
             <a class="more" href="/guide/hdr-and-atmos">Getting the best picture and sound</a>
           </div>
-          <img class="shot" src="/shots/watch.webp" srcset="/shots/watch-1000.webp 900w, /shots/watch.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Brooklyn Nine-Nine paused in Flexarr's Apple TV player, with skip and scrub controls, beside Barbie's page on an iPhone.">
+          <img class="shot" src="/shots/watch.webp" width="1600" height="1316" srcset="/shots/watch-1000.webp 900w, /shots/watch.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Brooklyn Nine-Nine paused in Flexarr's Apple TV player, with skip and scrub controls, beside Barbie's page on an iPhone.">
         </div>
 
         <div class="row flip">
@@ -215,7 +206,7 @@
             </ul>
             <a class="more" href="/guide/podcasts">How podcasts work</a>
           </div>
-          <img class="shot" src="/shots/listen.webp" srcset="/shots/listen-1000.webp 900w, /shots/listen.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Michael Jackson's Thriller playing on Apple TV, with an iPhone in front showing the Podcasts screen: followed shows, Up Next and Continue listening.">
+          <img class="shot" src="/shots/listen.webp" width="1600" height="1316" srcset="/shots/listen-1000.webp 900w, /shots/listen.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Michael Jackson's Thriller playing on Apple TV, with an iPhone in front showing the Podcasts screen: followed shows, Up Next and Continue listening.">
         </div>
 
         <div class="row">
@@ -229,7 +220,7 @@
             </ul>
             <a class="more" href="/guide/live-tv">Setting up live TV</a>
           </div>
-          <img class="shot" src="/shots/live.webp" srcset="/shots/live-1000.webp 900w, /shots/live.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Flexarr's live TV guide on an Apple TV, with channel groups down the side and programmes across the evening, and the channel list on an iPhone.">
+          <img class="shot" src="/shots/live.webp" width="1600" height="1316" srcset="/shots/live-1000.webp 900w, /shots/live.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Flexarr's live TV guide on an Apple TV, with channel groups down the side and programmes across the evening, and the channel list on an iPhone.">
         </div>
 
         <div class="row flip">
@@ -243,7 +234,7 @@
             </ul>
             <a class="more" href="/guide/away-from-home">Watching away from home</a>
           </div>
-          <img class="shot" src="/shots/offline.webp" srcset="/shots/offline-1000.webp 900w, /shots/offline.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="The Downloads screen on an iPad and an iPhone, with Ted Lasso episodes, an album and podcast episodes ready to play offline.">
+          <img class="shot" src="/shots/offline.webp" width="1600" height="1708" srcset="/shots/offline-1000.webp 900w, /shots/offline.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="The Downloads screen on an iPad and an iPhone, with Ted Lasso episodes, an album and podcast episodes ready to play offline.">
         </div>
       </div>
     </section>
@@ -332,12 +323,12 @@
           <h2>On Apple TV, iPhone, iPad and the web.</h2>
           <p class="intro">Connect each app once with a short code, and every setting follows your profile from screen to screen.</p>
         </div>
-        <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp"><img class="shot wide" src="/shots/screens.webp" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" loading="lazy" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page."></picture>
+        <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp" width="1100" height="902"><img class="shot wide" src="/shots/screens.webp" width="2000" height="1206" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" loading="lazy" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page."></picture>
         <div class="apps">
           <div class="app">
             <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span>iPhone and iPad</h3>
             <p>Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.</p>
-            <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>Download on the App Store</a>
+            <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>Download on the App Store</a>
           </div>
           <div class="app">
             <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg></span>Apple TV</h3>
@@ -351,6 +342,7 @@
             <a class="badge ready" href="#setup">Included with the server</a>
           </div>
         </div>
+        <p class="center"><a class="more" href="/apps">Every app, its version, and Android on the way</a></p>
       </div>
     </section>
 
@@ -422,41 +414,6 @@
       </div>
     </section>
 
-    <section id="questions">
-      <div class="wrap">
-        <div class="center">
-          <h2>Good to know.</h2>
-        </div>
-        <div class="faq">
-          <details>
-            <summary>Is it really free?</summary>
-            <p>Yes, for personal and other noncommercial use, under the PolyForm Noncommercial License. There's no account, no subscription and nothing to unlock. The source is on GitHub.</p>
-          </details>
-          <details>
-            <summary>Do I need Sonarr, Radarr and Lidarr?</summary>
-            <p>They're recommended, not required. Flexarr takes artwork and details for films and shows from Radarr and Sonarr, so without them your files still play but look plain. Music works well without Lidarr, from your files' own tags and cover art. <a href="/guide/what-you-need">More on what you need</a>.</p>
-          </details>
-          <details>
-            <summary>What do I need to run it?</summary>
-            <p>A computer at home that stays on and can see your media: a NAS, a Linux or Windows machine with Docker, or a Mac. The Docker image runs on Intel, AMD and ARM 64-bit processors. A Mac can also use its own hardware to convert video quickly.</p>
-          </details>
-          <details>
-            <summary>Does anything leave my home?</summary>
-            <p>Your files and what you watch stay on your server. A few things are sent only if you use them: notifications to your phone pass through flexarr.io on their way to Apple, and error reports are off unless you turn them on. <a href="/privacy">Read the privacy policy</a>.</p>
-          </details>
-          <details>
-            <summary>Can I watch away from home?</summary>
-            <p>Yes. Tailscale connects your phone to your server from anywhere without opening ports on your router, and the apps switch over by themselves. <a href="/guide/away-from-home">How to set it up</a>.</p>
-          </details>
-          <details>
-            <summary>When is the Apple TV app on the App Store?</summary>
-            <p>Soon. Until then you can install it on your own Apple TV from a Mac with Xcode. <a href="/guide/apple-tv-xcode">Here's how</a>. There isn't an Android app yet, but the web app works in any browser.</p>
-          </details>
-        </div>
-        <p class="center" style="margin-top: 28px"><a class="more" href="/guide/faq">More questions and answers</a></p>
-      </div>
-    </section>
-
     <section class="closing">
       <div class="wrap">
         <h2>Your own streaming service, tonight.</h2>
@@ -473,10 +430,11 @@
       <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
       <nav aria-label="Project">
         <a href="/guide">Guide</a>
-        <a href="https://github.com/danleach-glitch/flexarr">GitHub</a>
-        <a href="https://github.com/danleach-glitch/flexarr/releases">Releases</a>
-        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md">Changelog</a>
-        <a href="https://github.com/danleach-glitch/flexarr/issues">Report a problem</a>
+        <a href="/apps">Apps</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
         <a href="/privacy">Privacy</a>
       </nav>
     </div>

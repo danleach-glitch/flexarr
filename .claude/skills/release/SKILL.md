@@ -16,7 +16,7 @@ Only run this because the user asked for a release in this conversation. Feature
 5. **Tell the user the version in one line**, then offer, in this order:
    - `/deploy v<x.y.z>` to put the release on the Mini,
    - `/devices` with that version for the Apple TV, iPhone and TestFlight, if anything under `clients/apple` changed since the last release,
-   - an App Store submission (the user does this in App Store Connect).
+   - an App Store submission (the user does this in App Store Connect). When a store build goes live, set its `version` (and `status`) in `site/apps.json`, run `make apps`, and land that: flexarr.io/apps shows it. The server and web versions there are already updated by `prepare`.
 6. **Clean up:** `git worktree remove <scratchpad>/release`.
 
 If another session may be releasing too, check `git log origin/main -3` and the tags before starting.
