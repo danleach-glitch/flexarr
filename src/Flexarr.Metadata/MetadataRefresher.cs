@@ -11,12 +11,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Metadata;
 
-public sealed record MetadataRefreshResult(int FromArr, int FromLookup, int Unmatched);
+/// <param name="FromLocal">Matched by neither Radarr nor Sonarr, but filled in from the .nfo and artwork beside it.</param>
+public sealed record MetadataRefreshResult(int FromArr, int FromLookup, int Unmatched, int FromLocal = 0);
 
 /// <summary>
 /// Fills in titles, artwork, overviews, genres, ratings, trailers and cast for a library.
 /// Radarr and Sonarr are the primary source (they already hold metadata for everything they manage, with no
 /// API keys needed); items they don't manage are looked up through their search endpoints; TV cast comes from TVmaze.
+/// What neither of them finds is looked up on TVmaze (shows) and, with a key, TMDB (films). A .nfo and artwork beside a
+/// film or show (Kodi's, Jellyfin's, Plex's) win over all of them.
 /// </summary>
 public sealed partial class MetadataRefresher(
     FlexarrDbContext db,
@@ -24,7 +27,8 @@ public sealed partial class MetadataRefresher(
     TvMazeClient tvmaze,
     ImageCache images,
     IMetadataSettings settings,
-    ILogger<MetadataRefresher> logger)
+    ILogger<MetadataRefresher> logger,
+    TmdbClient? tmdb = null)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
@@ -35,6 +39,15 @@ public sealed partial class MetadataRefresher(
 
     /// <summary>The source of an artist's or album's details when nothing but its files' tags supplied them.</summary>
     public const string Tags = "Tags";
+
+    /// <summary>The source of a film's or show's details when only the .nfo and artwork beside it supplied them.</summary>
+    public const string Local = "Local files";
+
+    /// <summary>The source of a film's details when TMDB had them, and a show's when TVmaze did, found by an id.</summary>
+    public const string Tmdb = "TMDB", TvMaze = "TVmaze";
+
+    /// <summary>The same, found by searching for the title (which can pick the wrong one, so these are worth a look).</summary>
+    public const string TmdbSearch = "TMDB search", TvMazeSearch = "TVmaze search";
 
     private Dictionary<string, Genre>? _genres;
     private Dictionary<string, Person>? _peopleByTmdb;
@@ -64,6 +77,7 @@ public sealed partial class MetadataRefresher(
             LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, tmdbId, ct).ConfigureAwait(false),
             LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, tvdbId, ct).ConfigureAwait(false),
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, within, ct).ConfigureAwait(false),
+            LibraryType.HomeVideos => await RefreshHomeVideosAsync(library.Id, force, within, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
     }
@@ -126,7 +140,7 @@ public sealed partial class MetadataRefresher(
         var byPath = Index(known, k => MapPath(k.Movie.Path));
         var byImdb = Index(known, k => k.Movie.ImdbId);
         var byTmdb = Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null);
-        int fromArr = 0, fromLookup = 0, unmatched = 0;
+        int fromArr = 0, fromLookup = 0, unmatched = 0, fromLocal = 0;
 
         foreach (var item in items)
         {
@@ -136,7 +150,9 @@ public sealed partial class MetadataRefresher(
                 {
                     case true: fromArr++; break;
                     case false: fromLookup++; break;
-                    default: unmatched++; break;
+                    default:
+                        if (item.MetadataSource == Local) { fromLocal++; } else { unmatched++; }
+                        break;
                 }
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
@@ -146,11 +162,11 @@ public sealed partial class MetadataRefresher(
             }
 
             item.MetadataUpdatedAt = DateTime.UtcNow;
-            await SaveEveryAsync(fromArr + fromLookup + unmatched, ct).ConfigureAwait(false);
+            await SaveEveryAsync(fromArr + fromLookup + unmatched + fromLocal, ct).ConfigureAwait(false);
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        return new MetadataRefreshResult(fromArr, fromLookup, unmatched);
+        return new MetadataRefreshResult(fromArr, fromLookup, unmatched, fromLocal);
     }
 
     /// <returns>true when matched in Radarr, false when found by lookup, null when unmatched.</returns>
@@ -163,13 +179,21 @@ public sealed partial class MetadataRefresher(
         bool force,
         CancellationToken ct)
     {
+        // A .nfo's ids find the film in Radarr (or its search) when the folder alone wouldn't.
+        var local = item.Path is { } path ? LocalFiles.ForMovie(path) : LocalArt.None;
+        if (!item.MatchLocked && local.Nfo?.Ids is { } ids)
+        {
+            item.TmdbId = ids.TmdbId ?? item.TmdbId;
+            item.ImdbId = ids.ImdbId ?? item.ImdbId;
+        }
+
         // A match fixed by hand is found by its TMDB id only: the folder may be one Radarr has as a different film.
         var hit = item.MatchLocked
             ? Find(byTmdb, item.TmdbId)
             : Find(byPath, item.Path) ?? Find(byImdb, item.ImdbId) ?? Find(byTmdb, item.TmdbId);
         if (hit is (var instance, var movie))
         {
-            await ApplyMovieAsync(item, movie, instance, ct).ConfigureAwait(false);
+            await ApplyMovieAsync(item, movie, instance, local, ct).ConfigureAwait(false);
             if (force || item.Credits.Count == 0)
             {
                 await ApplyMovieCreditsAsync(item, instance, movie.Id, ct).ConfigureAwait(false);
@@ -180,10 +204,17 @@ public sealed partial class MetadataRefresher(
 
         if (radarrs.Count > 0 && await LookupMovieAsync(radarrs[0], item, ct).ConfigureAwait(false) is { } found)
         {
-            await ApplyMovieAsync(item, found, null, ct).ConfigureAwait(false);
+            await ApplyMovieAsync(item, found, null, local, ct).ConfigureAwait(false);
             return false;
         }
 
+        if (settings.TmdbApiKey is { Length: > 0 } key && await FindOnTmdbAsync(key, item, ct).ConfigureAwait(false) is ({ } film, var searched))
+        {
+            await ApplyTmdbMovieAsync(item, film, searched, local, force, ct).ConfigureAwait(false);
+            return false;
+        }
+
+        await ApplyLocalOnlyAsync(item, local, ct).ConfigureAwait(false);
         return null;
     }
 
@@ -205,7 +236,7 @@ public sealed partial class MetadataRefresher(
         }
     }
 
-    private async Task ApplyMovieAsync(MediaItem item, RadarrMovie movie, ArrInstance? instance, CancellationToken ct)
+    private async Task ApplyMovieAsync(MediaItem item, RadarrMovie movie, ArrInstance? instance, LocalArt local, CancellationToken ct)
     {
         item.Title = movie.Title;
         item.SortTitle = SortTitle.For(movie.Title);
@@ -225,8 +256,9 @@ public sealed partial class MetadataRefresher(
         item.TmdbId = movie.TmdbId > 0 ? movie.TmdbId.ToString(CultureInfo.InvariantCulture) : item.TmdbId;
         item.ArrId = instance is null ? null : movie.Id;
         item.MetadataSource = instance?.Name ?? RadarrLookup;
-        await ApplyImagesAsync(item, movie.Images, movie.RemotePoster, ct).ConfigureAwait(false);
-        await SetGenresAsync(item, movie.Genres, ct).ConfigureAwait(false);
+        ApplyNfo(item, local.Nfo);
+        await ApplyImagesAsync(item, movie.Images, movie.RemotePoster, local, ct).ConfigureAwait(false);
+        await SetGenresAsync(item, NfoGenres(item, local) ?? movie.Genres, ct).ConfigureAwait(false);
     }
 
     private async Task ApplyMovieCreditsAsync(MediaItem item, ArrInstance radarr, int movieId, CancellationToken ct)
@@ -572,7 +604,7 @@ public sealed partial class MetadataRefresher(
         var byPath = Index(known, k => MapPath(k.Series.Path));
         var byTvdb = Index(known, k => k.Series.TvdbId > 0 ? k.Series.TvdbId.ToString(CultureInfo.InvariantCulture) : null);
         var byImdb = Index(known, k => k.Series.ImdbId);
-        int fromArr = 0, fromLookup = 0, unmatched = 0;
+        int fromArr = 0, fromLookup = 0, unmatched = 0, fromLocal = 0;
 
         foreach (var item in items)
         {
@@ -582,7 +614,9 @@ public sealed partial class MetadataRefresher(
                 {
                     case true: fromArr++; break;
                     case false: fromLookup++; break;
-                    default: unmatched++; break;
+                    default:
+                        if (item.MetadataSource == Local) { fromLocal++; } else { unmatched++; }
+                        break;
                 }
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
@@ -592,11 +626,11 @@ public sealed partial class MetadataRefresher(
             }
 
             item.MetadataUpdatedAt = DateTime.UtcNow;
-            await SaveEveryAsync(fromArr + fromLookup + unmatched, ct).ConfigureAwait(false);
+            await SaveEveryAsync(fromArr + fromLookup + unmatched + fromLocal, ct).ConfigureAwait(false);
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        return new MetadataRefreshResult(fromArr, fromLookup, unmatched);
+        return new MetadataRefreshResult(fromArr, fromLookup, unmatched, fromLocal);
     }
 
     /// <returns>true when matched in Sonarr, false when found by lookup, null when unmatched.</returns>
@@ -610,22 +644,41 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         bool? result = null;
+        var local = item.Path is { } path ? LocalFiles.ForSeries(path) : LocalArt.None;
+        if (!item.MatchLocked && local.Nfo?.Ids is { } ids)
+        {
+            item.TvdbId = ids.TvdbId ?? item.TvdbId;
+            item.TmdbId = ids.TmdbId ?? item.TmdbId;
+            item.ImdbId = ids.ImdbId ?? item.ImdbId;
+        }
+
         // A match fixed by hand is found by its TVDB id only: the folder may be one Sonarr has as a different show.
         var hit = item.MatchLocked
             ? Find(byTvdb, item.TvdbId)
             : Find(byPath, item.Path) ?? Find(byTvdb, item.TvdbId) ?? Find(byImdb, item.ImdbId);
         if (hit is (var instance, var series))
         {
-            await ApplySeriesAsync(item, series, instance, ct).ConfigureAwait(false);
+            await ApplySeriesAsync(item, series, instance, local, ct).ConfigureAwait(false);
             await ApplyEpisodesAsync(item, series, instance, ct).ConfigureAwait(false);
             result = true;
         }
         else if (sonarrs.Count > 0 && await LookupSeriesAsync(sonarrs[0], item, ct).ConfigureAwait(false) is { } found)
         {
-            await ApplySeriesAsync(item, found, null, ct).ConfigureAwait(false);
+            await ApplySeriesAsync(item, found, null, local, ct).ConfigureAwait(false);
             await ApplySeasonsAsync(item, found, ct).ConfigureAwait(false);
             result = false;
         }
+        else if (await FindOnTvMazeAsync(item, ct).ConfigureAwait(false) is ({ } show, var searched))
+        {
+            await ApplyTvMazeShowAsync(item, show, searched, local, ct).ConfigureAwait(false);
+            result = false;
+        }
+        else
+        {
+            await ApplyLocalOnlyAsync(item, local, ct).ConfigureAwait(false);
+        }
+
+        await ApplyLocalSeasonsAsync(item, ct).ConfigureAwait(false);
 
         if (force || item.Credits.Count == 0)
         {
@@ -650,7 +703,7 @@ public sealed partial class MetadataRefresher(
         }
     }
 
-    private async Task ApplySeriesAsync(MediaItem item, SonarrSeries series, ArrInstance? instance, CancellationToken ct)
+    private async Task ApplySeriesAsync(MediaItem item, SonarrSeries series, ArrInstance? instance, LocalArt local, CancellationToken ct)
     {
         // TheTVDB tells shows apart with a year in the title ("Archer (2009)"); that's not what anyone says or
         // searches for, so it goes in the year field.
@@ -671,8 +724,9 @@ public sealed partial class MetadataRefresher(
         item.TvMazeId = series.TvMazeId > 0 ? series.TvMazeId.ToString(CultureInfo.InvariantCulture) : item.TvMazeId;
         item.ArrId = instance is null ? null : series.Id;
         item.MetadataSource = instance?.Name ?? SonarrLookup;
-        await ApplyImagesAsync(item, series.Images, series.RemotePoster, ct).ConfigureAwait(false);
-        await SetGenresAsync(item, series.Genres, ct).ConfigureAwait(false);
+        ApplyNfo(item, local.Nfo);
+        await ApplyImagesAsync(item, series.Images, series.RemotePoster, local, ct).ConfigureAwait(false);
+        await SetGenresAsync(item, NfoGenres(item, local) ?? series.Genres, ct).ConfigureAwait(false);
     }
 
     private async Task<List<MediaItem>> ApplySeasonsAsync(MediaItem series, SonarrSeries arrSeries, CancellationToken ct)
@@ -681,7 +735,7 @@ public sealed partial class MetadataRefresher(
         foreach (var season in seasons)
         {
             var arrSeason = arrSeries.Seasons.FirstOrDefault(s => s.SeasonNumber == season.SeasonNumber);
-            season.PosterUrl = arrSeason?.Images?.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl ?? series.PosterUrl;
+            season.PosterUrl = arrSeason?.Images?.FirstOrDefault(i => i.CoverType == "poster" && ArtworkUrl.IsHttps(i.RemoteUrl))?.RemoteUrl ?? series.PosterUrl;
             season.BackdropUrl = series.BackdropUrl;
             season.AccentColor = series.AccentColor;
             season.MetadataUpdatedAt = DateTime.UtcNow;
@@ -737,7 +791,7 @@ public sealed partial class MetadataRefresher(
             episode.Overview = NullIfEmpty(match.Overview);
             episode.ReleaseDate = match.AirDate is { } airDate && DateOnly.TryParse(airDate, CultureInfo.InvariantCulture, out var d) ? d : null;
             episode.RuntimeMinutes = match.Runtime > 0 ? match.Runtime : series.RuntimeMinutes;
-            episode.ThumbUrl = match.Images.FirstOrDefault(i => i.CoverType == "screenshot")?.RemoteUrl;
+            episode.ThumbUrl = match.Images.FirstOrDefault(i => i.CoverType == "screenshot" && ArtworkUrl.IsHttps(i.RemoteUrl))?.RemoteUrl;
             episode.BackdropUrl = series.BackdropUrl;
             episode.AccentColor = series.AccentColor;
             episode.ArrId = match.Id;
@@ -787,24 +841,433 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ Shared
 
-    private async Task ApplyImagesAsync(MediaItem item, IReadOnlyList<ArrImage> arrImages, string? remotePoster, CancellationToken ct)
+    /// <summary>Radarr's or Sonarr's artwork, unless there's some beside the film or show.</summary>
+    private Task ApplyImagesAsync(MediaItem item, IReadOnlyList<ArrImage> arrImages, string? remotePoster, LocalArt local, CancellationToken ct)
     {
-        string? Url(string type) => arrImages.FirstOrDefault(i => i.CoverType == type && !string.IsNullOrEmpty(i.RemoteUrl))?.RemoteUrl;
+        // Only https: a file:// URL from Radarr or Sonarr isn't read off disk.
+        string? Url(string type) => arrImages.FirstOrDefault(i => i.CoverType == type && ArtworkUrl.IsHttps(i.RemoteUrl))?.RemoteUrl;
 
-        var backdrop = Url("fanart");
-        var poster = Url("poster") ?? remotePoster;
+        var poster = local.Poster ?? Url("poster") ?? (ArtworkUrl.IsHttps(remotePoster) ? remotePoster : null);
+        return SetArtworkAsync(item, poster, local.Backdrop ?? Url("fanart"), local.Logo ?? Url("clearlogo"), ct);
+    }
+
+    /// <param name="item">The film or show.</param>
+    /// <param name="poster">An https URL, or a file:// one from <see cref="LocalFiles"/>; the same for the others.</param>
+    /// <param name="backdrop">The backdrop.</param>
+    /// <param name="logo">The logo.</param>
+    /// <param name="ct">Stops the refresh.</param>
+    private async Task SetArtworkAsync(MediaItem item, string? poster, string? backdrop, string? logo, CancellationToken ct)
+    {
         var changed = backdrop != item.BackdropUrl || poster != item.PosterUrl;
 
         item.PosterUrl = poster;
         item.BackdropUrl = backdrop;
-        item.LogoUrl = Url("clearlogo");
+        item.LogoUrl = logo;
 
-        // Only from artwork fetched over https: a file:// or embedded:// URL from Radarr or Sonarr isn't read off disk.
-        var httpsPoster = ArtworkUrl.IsHttps(poster) ? poster : null;
-        if ((changed || item.AccentColor is null) && (ArtworkUrl.IsHttps(backdrop) ? backdrop : httpsPoster) is { } source)
+        if ((changed || item.AccentColor is null) && (backdrop ?? poster) is { } source)
         {
             item.AccentColor = await images.AccentColorAsync(source, ct).ConfigureAwait(false)
-                ?? (httpsPoster is not null && httpsPoster != source ? await images.AccentColorAsync(httpsPoster, ct).ConfigureAwait(false) : null);
+                ?? (poster is not null && poster != source ? await images.AccentColorAsync(poster, ct).ConfigureAwait(false) : null);
+        }
+    }
+
+    // ------------------------------------------------------------------ TMDB and TVmaze
+
+    /// <summary>The film on TMDB: by the id it has (one fixed by hand above all), its IMDb id, or its title and year.</summary>
+    /// <returns>The film, and whether it was found by its title.</returns>
+    private async Task<(TmdbMovie? Film, bool Searched)> FindOnTmdbAsync(string key, MediaItem item, CancellationToken ct)
+    {
+        var client = tmdb ?? throw new InvalidOperationException("TMDB isn't available.");
+        try
+        {
+            var id = int.TryParse(item.TmdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var known) ? known : 0;
+            var searched = false;
+            if (id == 0 && item.ImdbId is { } imdb && await client.FindByImdbAsync(key, imdb, ct).ConfigureAwait(false) is { } byImdb)
+            {
+                id = byImdb.Id;
+            }
+
+            if (id == 0 && !item.MatchLocked)
+            {
+                var results = await client.SearchMoviesAsync(key, item.Title, item.Year, ct).ConfigureAwait(false);
+                if (results.Count == 0 && item.Year is not null)
+                {
+                    results = await client.SearchMoviesAsync(key, item.Title, null, ct).ConfigureAwait(false);
+                }
+
+                id = BestByTitle(results, item, r => r.Title ?? "", r => r.Year)?.Id ?? 0;
+                searched = true;
+            }
+
+            return (id == 0 ? null : await client.GetMovieAsync(key, id, ct).ConfigureAwait(false), searched);
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex, ct) || ex is System.Text.Json.JsonException)
+        {
+            LogLookupFailed($"TMDB: {item.Title}", ex.Message);
+            return (null, false);
+        }
+    }
+
+    private async Task ApplyTmdbMovieAsync(MediaItem item, TmdbMovie movie, bool searched, LocalArt local, bool force, CancellationToken ct)
+    {
+        var title = NullIfEmpty(movie.Title) ?? item.Title;
+        item.Title = title;
+        item.SortTitle = SortTitle.For(title);
+        item.OriginalTitle = movie.OriginalTitle is { Length: > 0 } original && original != title ? original : null;
+        item.Year = movie.Year > 0 ? movie.Year : item.Year;
+        item.Overview = NullIfEmpty(movie.Overview);
+        item.ContentRating = Certification(movie.ReleaseDates);
+        item.Studio = movie.ProductionCompanies is [var studio, ..] ? studio.Name : null;
+        item.RuntimeMinutes = movie.Runtime > 0 ? movie.Runtime : null;
+        item.Status = movie.Status;
+        item.ReleaseDate = DateOnly.TryParse(movie.ReleaseDate, CultureInfo.InvariantCulture, out var released) ? released : null;
+        item.CommunityRating = movie.VoteAverage > 0 ? Math.Round(movie.VoteAverage, 1) : null;
+        item.Popularity = movie.Popularity;
+        item.TrailerYouTubeId = movie.Videos?.Results.Where(v => v.Site == "YouTube" && v.Type == "Trailer" && v.Key is { Length: > 0 })
+            .OrderByDescending(v => v.Official).Select(v => v.Key).FirstOrDefault();
+        item.TmdbId = movie.Id.ToString(CultureInfo.InvariantCulture);
+        item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
+        item.ArrId = null;
+        item.MetadataSource = searched ? TmdbSearch : Tmdb;
+        ApplyNfo(item, local.Nfo);
+
+        // TMDB keeps some logos as SVG, which the image cache can't read; the PNGs are the ones to use.
+        var logo = movie.Images?.Logos.Where(l => !l.FilePath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(l => l.Iso6391 == "en").ThenByDescending(l => l.VoteAverage).FirstOrDefault()?.FilePath;
+        await SetArtworkAsync(item, local.Poster ?? TmdbClient.ImageUrl(movie.PosterPath), local.Backdrop ?? TmdbClient.ImageUrl(movie.BackdropPath),
+            local.Logo ?? TmdbClient.ImageUrl(logo), ct).ConfigureAwait(false);
+        await SetGenresAsync(item, NfoGenres(item, local) ?? movie.Genres?.Select(g => g.Name).ToList() ?? [], ct).ConfigureAwait(false);
+
+        if ((force || item.Credits.Count == 0) && movie.Credits is { } credits)
+        {
+            await ApplyTmdbCreditsAsync(item, credits, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>The age rating for the US cinema release, or any release with one.</summary>
+    private static string? Certification(TmdbReleases? releases)
+    {
+        var all = releases?.Results ?? [];
+        return (all.FirstOrDefault(r => r.Iso31661 == "US")?.ReleaseDates ?? [])
+            .Concat(all.SelectMany(r => r.ReleaseDates))
+            .Select(r => NullIfEmpty(r.Certification)).FirstOrDefault(c => c is not null);
+    }
+
+    private async Task ApplyTmdbCreditsAsync(MediaItem item, TmdbCredits credits, CancellationToken ct)
+    {
+        var wanted = credits.Cast.OrderBy(c => c.Order).Take(MaxCast)
+            .Select(c => (c.Id, c.Name, c.ProfilePath, Role: CreditRole.Actor, Character: NullIfEmpty(c.Character)))
+            .Concat(credits.Crew.Select(c => (c.Id, c.Name, c.ProfilePath, Role: c.Job switch
+            {
+                "Director" => CreditRole.Director,
+                "Screenplay" or "Writer" => CreditRole.Writer,
+                _ => (CreditRole?)null,
+            }, Character: (string?)null)).Where(c => c.Role is not null).Select(c => (c.Id, c.Name, c.ProfilePath, Role: c.Role!.Value, c.Character)))
+            .DistinctBy(c => (c.Id, c.Role))
+            .ToList();
+
+        var people = await PeopleAsync(tmdb: true, ct).ConfigureAwait(false);
+
+        db.Credits.RemoveRange(item.Credits);
+        item.Credits.Clear();
+        var order = 0;
+        foreach (var (id, name, profile, role, character) in wanted)
+        {
+            var tmdbId = id.ToString(CultureInfo.InvariantCulture);
+            if (!people.TryGetValue(tmdbId, out var person))
+            {
+                person = new Person { Name = name, TmdbId = tmdbId };
+                db.People.Add(person);
+                people[tmdbId] = person;
+            }
+
+            person.ImageUrl = TmdbClient.ImageUrl(profile) ?? person.ImageUrl;
+            item.Credits.Add(new Credit { PersonId = person.Id, Role = role, Character = character, Order = order++ });
+        }
+    }
+
+    /// <summary>The show on TVmaze: by the id it has, its TVDB or IMDb id, or its title (and year).</summary>
+    /// <returns>The show, and whether it was found by its title.</returns>
+    private async Task<(TvMazeShow? Show, bool Searched)> FindOnTvMazeAsync(MediaItem item, CancellationToken ct)
+    {
+        try
+        {
+            // An id a title search found isn't trusted over the folder's: the search runs again.
+            if (int.TryParse(item.TvMazeId, NumberStyles.None, CultureInfo.InvariantCulture, out var known) && (item.MetadataSource != TvMazeSearch || item.MatchLocked)
+                && await tvmaze.GetShowAsync(known, ct).ConfigureAwait(false) is { } show)
+            {
+                return (show, false);
+            }
+
+            if (int.TryParse(item.TvdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var tvdb) && await tvmaze.LookupByTvdbAsync(tvdb, ct).ConfigureAwait(false) is { } byTvdb)
+            {
+                return (byTvdb, false);
+            }
+
+            if (item.ImdbId is { } imdb && await tvmaze.LookupByImdbAsync(imdb, ct).ConfigureAwait(false) is { } byImdb)
+            {
+                return (byImdb, false);
+            }
+
+            if (item.MatchLocked)
+            {
+                return (null, false);
+            }
+
+            var results = await tvmaze.SearchAsync(item.Title, ct).ConfigureAwait(false);
+            return (BestByTitle(results.Select(r => r.Show).ToList(), item, s => s.Name, s => s.Year), true);
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex, ct) || ex is System.Text.Json.JsonException)
+        {
+            LogLookupFailed($"TVmaze: {item.Title}", ex.Message);
+            return (null, false);
+        }
+    }
+
+    private async Task ApplyTvMazeShowAsync(MediaItem item, TvMazeShow show, bool searched, LocalArt local, CancellationToken ct)
+    {
+        item.Title = show.Name;
+        item.SortTitle = SortTitle.For(show.Name);
+        item.OriginalTitle = null;
+        item.Year = show.Year > 0 ? show.Year : item.Year;
+        item.Overview = PlainText(show.Summary);
+        item.Studio = show.Network?.Name ?? show.WebChannel?.Name;
+        item.RuntimeMinutes = show.Runtime ?? show.AverageRuntime;
+        item.Status = show.Status;
+        item.ReleaseDate = DateOnly.TryParse(show.Premiered, CultureInfo.InvariantCulture, out var premiered) ? premiered : null;
+        item.CommunityRating = show.Rating?.Average is > 0 and var rating ? rating : null;
+        item.TvMazeId = show.Id.ToString(CultureInfo.InvariantCulture);
+        item.TvdbId = show.Externals?.Thetvdb is > 0 and var tvdb ? tvdb.ToString(CultureInfo.InvariantCulture) : item.TvdbId;
+        item.ImdbId = NullIfEmpty(show.Externals?.Imdb) ?? item.ImdbId;
+        item.ArrId = null;
+        item.MetadataSource = searched ? TvMazeSearch : TvMaze;
+        ApplyNfo(item, local.Nfo);
+
+        var images = await tvmaze.GetImagesAsync(show.Id, ct).ConfigureAwait(false);
+        var backdrop = images.Where(i => i.Type == "background").OrderByDescending(i => i.Main).Select(i => i.Resolutions.Original?.Url).FirstOrDefault(u => u is not null);
+        await SetArtworkAsync(item, local.Poster ?? show.Image?.Original ?? show.Image?.Medium, local.Backdrop ?? backdrop, local.Logo, ct).ConfigureAwait(false);
+        await SetGenresAsync(item, NfoGenres(item, local) ?? show.Genres ?? [], ct).ConfigureAwait(false);
+
+        // Seasons and episodes: Sonarr's would come from it; these are TVmaze's.
+        var seasons = await db.MediaItems.Where(i => i.ParentId == item.Id && i.Kind == MediaKind.Season).ToListAsync(ct).ConfigureAwait(false);
+        var tvSeasons = await tvmaze.GetSeasonsAsync(show.Id, ct).ConfigureAwait(false);
+        foreach (var season in seasons)
+        {
+            var image = tvSeasons.FirstOrDefault(s => s.Number == season.SeasonNumber)?.Image;
+            season.PosterUrl = image?.Original ?? image?.Medium ?? item.PosterUrl;
+            season.BackdropUrl = item.BackdropUrl;
+            season.AccentColor = item.AccentColor;
+            season.MetadataUpdatedAt = DateTime.UtcNow;
+        }
+
+        var seasonIds = seasons.Select(s => s.Id).ToList();
+        var episodes = await db.MediaItems.Where(i => i.ParentId != null && seasonIds.Contains(i.ParentId.Value)).ToListAsync(ct).ConfigureAwait(false);
+        if (episodes.Count == 0)
+        {
+            return;
+        }
+
+        var tvEpisodes = await tvmaze.GetEpisodesAsync(show.Id, ct).ConfigureAwait(false);
+        // TVmaze numbers specials by date rather than within season 0, so they're only matched by date.
+        var byNumber = tvEpisodes.Where(e => e.Season is not null && e.Number is not null).GroupBy(e => (e.Season!.Value, e.Number!.Value)).ToDictionary(g => g.Key, g => g.First());
+        var byDate = tvEpisodes.Where(e => e.Airdate is { Length: > 0 }).GroupBy(e => e.Airdate!).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        foreach (var episode in episodes)
+        {
+            var match = episode.AirDate is { } date
+                ? byDate.GetValueOrDefault(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+                : byNumber.GetValueOrDefault((episode.SeasonNumber ?? 0, episode.EpisodeNumber ?? 0));
+            if (match is null)
+            {
+                continue;
+            }
+
+            if (NullIfEmpty(match.Name) is { } name && name != "TBA")
+            {
+                var end = episode.EpisodeNumberEnd is { } last && match.Season is { } s && match.Number is { } n
+                    ? Enumerable.Range(n + 1, Math.Max(0, last - n)).Select(more => byNumber.GetValueOrDefault((s, more))?.Name).Where(t => !string.IsNullOrWhiteSpace(t))
+                    : [];
+                episode.Title = string.Join(" / ", end.Prepend(name).Distinct());
+            }
+
+            episode.Overview = PlainText(match.Summary);
+            episode.ReleaseDate = DateOnly.TryParse(match.Airdate, CultureInfo.InvariantCulture, out var aired) ? aired : null;
+            episode.RuntimeMinutes = match.Runtime ?? item.RuntimeMinutes;
+            episode.ThumbUrl = match.Image?.Original ?? match.Image?.Medium;
+            episode.BackdropUrl = item.BackdropUrl;
+            episode.AccentColor = item.AccentColor;
+            episode.ArrId = null;
+            episode.MetadataSource = TvMaze;
+            episode.MetadataUpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>TVmaze's summaries are HTML ("&lt;p&gt;A &lt;b&gt;show&lt;/b&gt;…&lt;/p&gt;").</summary>
+    public static string? PlainText(string? html) =>
+        html is null ? null : NullIfEmpty(System.Net.WebUtility.HtmlDecode(HtmlTag().Replace(html.Replace("</p>", "\n\n", StringComparison.OrdinalIgnoreCase), string.Empty)).Trim());
+
+    [System.Text.RegularExpressions.GeneratedRegex("<[^>]*>")]
+    private static partial System.Text.RegularExpressions.Regex HtmlTag();
+
+    // ------------------------------------------------------------------ Home videos
+
+    /// <summary>
+    /// Home videos are never looked up: what's beside them (a poster.jpg, a .nfo, an episode's -thumb.jpg) is used, and
+    /// a frame from the video stands in for whatever isn't there.
+    /// </summary>
+    private async Task<MetadataRefreshResult> RefreshHomeVideosAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
+        var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).ToListAsync(ct).ConfigureAwait(false);
+        var fromLocal = 0;
+        foreach (var item in items)
+        {
+            var local = item.Path is { } path ? LocalFiles.ForSeries(path) : LocalArt.None;
+            await ApplyLocalOnlyAsync(item, local, ct).ConfigureAwait(false);
+            await ApplyLocalSeasonsAsync(item, ct).ConfigureAwait(false);
+            await ApplyFramesAsync(item, ct).ConfigureAwait(false);
+            fromLocal += local.IsEmpty ? 0 : 1;
+            item.MetadataUpdatedAt = DateTime.UtcNow;
+            await SaveEveryAsync(items.IndexOf(item) + 1, ct).ConfigureAwait(false);
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return new MetadataRefreshResult(0, 0, 0, fromLocal);
+    }
+
+    /// <summary>
+    /// A frame a little way into each video without a still of its own, and the first video's for a folder (season)
+    /// or show without a poster.
+    /// </summary>
+    private async Task ApplyFramesAsync(MediaItem series, CancellationToken ct)
+    {
+        var seasons = await db.MediaItems.Where(i => i.ParentId == series.Id && i.Kind == MediaKind.Season).OrderBy(i => i.SeasonNumber).ToListAsync(ct).ConfigureAwait(false);
+        var seasonIds = seasons.Select(s => s.Id).ToList();
+        var videos = await db.MediaItems.Where(i => i.ParentId != null && seasonIds.Contains(i.ParentId.Value)).OrderBy(i => i.EpisodeNumber).ToListAsync(ct).ConfigureAwait(false);
+        var videoIds = videos.Select(v => v.Id).ToList();
+        var files = (await db.MediaFiles.Where(f => videoIds.Contains(f.MediaItemId)).Select(f => new { f.MediaItemId, f.Path, f.DurationSeconds }).ToListAsync(ct).ConfigureAwait(false))
+            .GroupBy(f => f.MediaItemId).ToDictionary(g => g.Key, g => g.OrderBy(f => f.Path, StringComparer.Ordinal).First());
+
+        foreach (var video in videos)
+        {
+            if (files.TryGetValue(video.Id, out var file) && (video.ThumbUrl is null || ArtworkUrl.TryParseFrame(video.ThumbUrl, out _, out _)))
+            {
+                // A tenth of the way in, past a fade from black, but no further than a minute.
+                video.ThumbUrl = ArtworkUrl.Frame(file.Path, Math.Min(60, (file.DurationSeconds ?? 0) / 10));
+            }
+
+            video.MetadataUpdatedAt = DateTime.UtcNow; // the still's ?v=, so a new one isn't hidden by a cached old one
+        }
+
+        foreach (var season in seasons)
+        {
+            season.PosterUrl ??= videos.FirstOrDefault(v => v.ParentId == season.Id)?.ThumbUrl;
+            season.MetadataUpdatedAt = DateTime.UtcNow;
+        }
+
+        if (series.PosterUrl is null && seasons.Select(s => s.PosterUrl).FirstOrDefault(p => p is not null) is { } first)
+        {
+            await SetArtworkAsync(series, first, series.BackdropUrl ?? first, series.LogoUrl, ct).ConfigureAwait(false);
+        }
+    }
+
+    // ------------------------------------------------------------------ Local files
+
+    /// <summary>
+    /// A film or show neither Radarr nor Sonarr matched: what's beside it fills it in. Artwork they gave before stays
+    /// (they may only be out of reach for now); local artwork that's since been deleted goes.
+    /// </summary>
+    private async Task ApplyLocalOnlyAsync(MediaItem item, LocalArt local, CancellationToken ct)
+    {
+        ApplyNfo(item, local.Nfo);
+        if (NfoGenres(item, local) is { } genres)
+        {
+            await SetGenresAsync(item, genres, ct).ConfigureAwait(false);
+        }
+
+        await SetArtworkAsync(item, local.Poster ?? NotLocal(item.PosterUrl), local.Backdrop ?? NotLocal(item.BackdropUrl), local.Logo ?? NotLocal(item.LogoUrl), ct)
+            .ConfigureAwait(false);
+        if (item.MetadataSource is null || item.MetadataSource == Local)
+        {
+            item.MetadataSource = local.IsEmpty ? null : Local;
+        }
+    }
+
+    /// <summary>
+    /// What a .nfo says wins over Radarr and Sonarr: someone wrote it for this copy. A match fixed by hand wins over the
+    /// .nfo, which was likely what got it wrong.
+    /// </summary>
+    private static void ApplyNfo(MediaItem item, NfoInfo? nfo)
+    {
+        if (nfo is null || item.MatchLocked)
+        {
+            return;
+        }
+
+        if (nfo.Title is { } title)
+        {
+            item.Title = title;
+            item.SortTitle = SortTitle.For(title);
+        }
+
+        item.OriginalTitle = nfo.OriginalTitle is { } original ? (original != item.Title ? original : null) : item.OriginalTitle;
+        item.Year = nfo.Year ?? item.Year;
+        item.Overview = nfo.Plot ?? item.Overview;
+        item.ContentRating = nfo.ContentRating ?? item.ContentRating;
+        item.Studio = nfo.Studio ?? item.Studio;
+        item.RuntimeMinutes = nfo.RuntimeMinutes ?? item.RuntimeMinutes;
+        item.ReleaseDate = nfo.Premiered ?? item.ReleaseDate;
+        item.CommunityRating = nfo.Rating ?? item.CommunityRating;
+    }
+
+    private static IReadOnlyList<string>? NfoGenres(MediaItem item, LocalArt local) =>
+        !item.MatchLocked && local.Nfo is { Genres.Count: > 0 } nfo ? nfo.Genres : null;
+
+    private static string? NotLocal(string? url) => ArtworkUrl.IsLocal(url) ? null : url;
+
+    /// <summary>Season posters, and episodes' .nfo files and stills, from beside them; over Sonarr's.</summary>
+    private async Task ApplyLocalSeasonsAsync(MediaItem series, CancellationToken ct)
+    {
+        if (series.Path is not { } folder || !Directory.Exists(folder))
+        {
+            return;
+        }
+
+        var seasons = await db.MediaItems.Where(i => i.ParentId == series.Id && i.Kind == MediaKind.Season).ToListAsync(ct).ConfigureAwait(false);
+        foreach (var season in seasons)
+        {
+            // Without a poster of its own, a season shows the show's. A home video's "season" is a folder of its own.
+            var own = season.Path is { } seasonFolder && seasonFolder != folder ? LocalFiles.FolderPoster(seasonFolder) : null;
+            season.PosterUrl = own ?? (season.Path is null ? LocalFiles.SeasonPoster(folder, season.SeasonNumber ?? 0) : null)
+                ?? (ArtworkUrl.IsLocal(season.PosterUrl) && season.PosterUrl != series.PosterUrl ? null : season.PosterUrl);
+        }
+
+        var seasonIds = seasons.Select(s => s.Id).ToList();
+        var episodes = await db.MediaItems.Where(i => i.ParentId != null && seasonIds.Contains(i.ParentId.Value)).ToListAsync(ct).ConfigureAwait(false);
+        var episodeIds = episodes.Select(e => e.Id).ToList();
+        var files = (await db.MediaFiles.Where(f => episodeIds.Contains(f.MediaItemId)).Select(f => new { f.MediaItemId, f.Path }).ToListAsync(ct).ConfigureAwait(false))
+            .GroupBy(f => f.MediaItemId).ToDictionary(g => g.Key, g => g.Select(f => f.Path).Order(StringComparer.Ordinal).First());
+        var listings = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        foreach (var episode in episodes)
+        {
+            if (!files.TryGetValue(episode.Id, out var file) || Path.GetDirectoryName(file) is not { } directory)
+            {
+                continue;
+            }
+
+            if (!listings.TryGetValue(directory, out var listing))
+            {
+                listing = listings[directory] = LocalFiles.Listing(directory);
+            }
+
+            var (nfo, thumb) = LocalFiles.ForEpisode(file, listing);
+            episode.ThumbUrl = thumb ?? NotLocal(episode.ThumbUrl);
+            if (nfo is not null)
+            {
+                episode.Title = nfo.Title ?? episode.Title;
+                episode.Overview = nfo.Plot ?? episode.Overview;
+                episode.ReleaseDate = nfo.Premiered ?? episode.ReleaseDate;
+                episode.RuntimeMinutes = nfo.RuntimeMinutes ?? episode.RuntimeMinutes;
+            }
         }
     }
 
@@ -861,7 +1324,8 @@ public sealed partial class MetadataRefresher(
         // folder is refreshed straight away.
         return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
             && (force || also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff
-                || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup || i.MetadataSource == Tags) && !i.MatchLocked))
+                || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup || i.MetadataSource == TmdbSearch
+                        || i.MetadataSource == TvMazeSearch || i.MetadataSource == Tags) && !i.MatchLocked))
                     && i.MetadataUpdatedAt < retryCutoff)));
     }
 
@@ -903,7 +1367,7 @@ public sealed partial class MetadataRefresher(
     /// </summary>
     private static Func<MediaItem, string?> Hinted(List<Guid> within, int? hint, Func<MediaItem, string?> own) =>
         hint is > 0 && within.Count == 1
-            ? i => i.Id == within[0] && (own(i) is null || (i.MetadataSource is RadarrLookup or SonarrLookup && !i.MatchLocked))
+            ? i => i.Id == within[0] && (own(i) is null || (i.MetadataSource is RadarrLookup or SonarrLookup or TmdbSearch or TvMazeSearch && !i.MatchLocked))
                 ? hint.Value.ToString(CultureInfo.InvariantCulture)
                 : own(i)
             : own;

@@ -11,4 +11,5 @@ public sealed class MetadataSettings(IOptionsMonitor<FlexarrOptions> options) : 
     public IReadOnlyList<PathMapping> PathMappings => options.CurrentValue.PathMappings;
     public string CacheDirectory => options.CurrentValue.ResolvedCacheDirectory;
     public string FfmpegPath => options.CurrentValue.FfmpegPath;
+    public string? TmdbApiKey => options.CurrentValue.Tmdb?.ApiKey is { Length: > 0 } key ? key : null;
 }

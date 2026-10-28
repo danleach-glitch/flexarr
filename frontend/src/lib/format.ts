@@ -39,15 +39,19 @@ export function formatChannels(channels: number | null): string | null {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** "S01E06", "S01E06–E07", or the air date for daily shows. */
-export function episodeCode(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'>): string {
+type EpisodeNumbers = Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'> & { homeVideo?: boolean; title?: string }
+
+/** "S01E06", "S01E06–E07", or the air date for daily shows. Nothing for a home video, which goes by its name. */
+export function episodeCode(item: EpisodeNumbers): string {
+  if (item.homeVideo) return ''
   if (item.airDate) return item.airDate
   const code = `S${pad(item.seasonNumber ?? 0)}E${pad(item.episodeNumber ?? 0)}`
   return item.episodeNumberEnd ? `${code}–E${pad(item.episodeNumberEnd)}` : code
 }
 
-/** "Season 01 | Episode 10" for buttons and headings on a show's pages (dated shows give the date). */
-export function episodeHeading(item: Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'>): string {
+/** "Season 01 | Episode 10" for buttons and headings on a show's pages (dated shows give the date; a home video its name). */
+export function episodeHeading(item: EpisodeNumbers): string {
+  if (item.homeVideo) return item.title ?? ''
   if (item.airDate) return new Date(item.airDate).toLocaleDateString(undefined, { dateStyle: 'long' })
   const season = item.seasonNumber === 0 ? 'Specials' : `Season ${pad(item.seasonNumber ?? 0)}`
   const episode = item.episodeNumberEnd ? `Episodes ${pad(item.episodeNumber ?? 0)}–${pad(item.episodeNumberEnd)}` : `Episode ${pad(item.episodeNumber ?? 0)}`
@@ -81,4 +85,7 @@ export function progressOf(item: ItemSummary): number | null {
   return Math.min(1, item.userData.positionSeconds / duration)
 }
 
-export const libraryTypeLabel = { Movies: 'Movies', TvShows: 'TV Shows', Music: 'Music', Podcasts: 'Podcasts' } as const
+export const libraryTypeLabel = { Movies: 'Movies', TvShows: 'TV Shows', Music: 'Music', Podcasts: 'Podcasts', HomeVideos: 'Home Videos' } as const
+
+/** What an episode is called where it is: a home video's is just its name. */
+export const episodeName = (item: ItemSummary) => (item.homeVideo || !item.seriesTitle ? item.title : `${item.seriesTitle} ${episodeCode(item)}`)

@@ -91,6 +91,9 @@ public sealed class FlexarrOptions
     /// <summary>Optional Seerr/Overseerr/Jellyseerr server for "not in your library" discovery and requests.</summary>
     public SeerrOptions? Seerr { get; set; }
 
+    /// <summary>The owner's own TMDB key, for films Radarr doesn't have (or when there's no Radarr).</summary>
+    public TmdbOptions? Tmdb { get; set; }
+
     /// <summary>Rewrites paths received from *arr apps (typically running in Docker) to local paths.</summary>
     public List<PathMapping> PathMappings { get; set; } = [];
 
@@ -215,6 +218,11 @@ public sealed class NotificationOptions
 {
     public bool Enabled { get; set; } = true;
     public string RelayUrl { get; set; } = "https://push.flexarr.io/api/push";
+}
+
+public sealed class TmdbOptions
+{
+    public string ApiKey { get; set; } = "";
 }
 
 public sealed class SeerrOptions

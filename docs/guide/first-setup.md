@@ -50,7 +50,7 @@ A library is a set of folders holding one kind of media. Go to **Settings › Li
 
 ![Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below](../../site/guide/img/libraries.webp "Settings › Libraries")
 
-1. Pick the **Kind**: **Films**, **TV shows** or **Music**.
+1. Pick the **Kind**: **Films**, **TV shows**, **Music** or **Home videos** (videos of your own, arranged by folder; see [Without Sonarr and Radarr](without-arrs.md#home-videos)).
 2. Give it a **Name** if you like. Left blank, it's named after its kind. You can rename it later.
 3. Under **Folders**, browse the server's disks and choose **Use this folder** on the folder that holds that media. Add more than one folder if your films are spread across drives.
 4. Choose **Add library**.
@@ -73,7 +73,7 @@ How long it takes depends on the size of your library and how fast the disks are
 
 After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.
 
-> **Tip** Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, films and episodes still play, named from their files, but have no artwork. Music reads the tags and cover images in your files, and Lidarr adds more.
+> **Tip** Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, films and episodes still play, named from their files, with artwork and details from any `.nfo` files and images (`poster.jpg`, `fanart.jpg`) beside them, from TVmaze for shows, and from TMDB for films if you add a free key. See [Without Sonarr and Radarr](without-arrs.md). Music reads the tags and cover images in your files, and Lidarr adds more.
 
 ## The API key
 

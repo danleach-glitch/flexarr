@@ -254,7 +254,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
             onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
           >
-            {s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
+            {s.homeVideo ? s.title : s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
             {s.userData.watched && <Check aria-label="watched" />}
           </button>
         ))}

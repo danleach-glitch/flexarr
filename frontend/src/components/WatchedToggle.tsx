@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { setWatched, type ItemSummary } from '../api/client'
-import { episodeCode } from '../lib/format'
+import { episodeName } from '../lib/format'
 import { Check } from './icons'
 import { announceWatched } from '../hooks/watched'
 
@@ -11,7 +11,7 @@ import { announceWatched } from '../hooks/watched'
  */
 export function WatchedToggle({ item, onChanged }: { item: ItemSummary; onChanged?: () => void }) {
   const [watched, setLocal] = useState(item.userData.watched)
-  const name = item.kind === 'Episode' && item.seriesTitle ? `${item.seriesTitle} ${episodeCode(item)}` : item.title
+  const name = item.kind === 'Episode' ? episodeName(item) : item.title
 
   async function toggle() {
     const next = !watched

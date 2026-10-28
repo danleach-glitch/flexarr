@@ -59,7 +59,7 @@ struct LibraryViewSwitch: View {
     static let topInset: CGFloat = 150
 
     var body: some View {
-        ViewSwitch(choices: [(.browse, "Browse"), (.all, library.type == .tvShows ? "All shows" : "All films")], selection: $view,
+        ViewSwitch(choices: [(.browse, "Browse"), (.all, library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All films")], selection: $view,
                    focusChanged: focusChanged)
     }
 }

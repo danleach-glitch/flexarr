@@ -481,7 +481,7 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
 /** What a held folder's missing files are, by the kind of library: "4 films". */
 function heldNoun(f: HeldFolder) {
   const one = f.missing === 1
-  return f.libraryType === 'Movies' ? (one ? 'film' : 'films') : f.libraryType === 'TvShows' ? (one ? 'episode' : 'episodes') : f.libraryType === 'Music' ? (one ? 'track' : 'tracks') : one ? 'file' : 'files'
+  return f.libraryType === 'Movies' ? (one ? 'film' : 'films') : f.libraryType === 'TvShows' ? (one ? 'episode' : 'episodes') : f.libraryType === 'HomeVideos' ? (one ? 'video' : 'videos') : f.libraryType === 'Music' ? (one ? 'track' : 'tracks') : one ? 'file' : 'files'
 }
 
 /** In place of a search button: Sonarr or Radarr already have a new copy on the way. */

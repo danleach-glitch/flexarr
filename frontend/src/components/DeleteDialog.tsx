@@ -25,7 +25,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
       : item.kind === 'Series'
         ? { name: item.title, noun: 'show', detail: 'Sonarr deletes the files of every episode from disk and stops tracking the show.' }
         : {
-            name: `${item.seriesTitle ?? ''} ${episodeCode(item)} ${item.title}`.trim(),
+            name: [item.seriesTitle, episodeCode(item), item.title].filter(Boolean).join(' '),
             noun: 'episode',
             detail: 'Sonarr deletes this episode’s file from disk and stops downloading it.',
           }

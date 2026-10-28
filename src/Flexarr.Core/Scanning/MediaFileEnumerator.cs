@@ -25,7 +25,11 @@ public static partial class MediaFileEnumerator
     /// <param name="root">The library folder.</param>
     /// <param name="scope">A folder or file under <paramref name="root"/> to limit the walk to; null for everything.</param>
     /// <param name="audio">Find audio files (music libraries) instead of video.</param>
-    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false)
+    /// <param name="everything">
+    /// Keep samples, trailers and extras folders too: in home videos, "Trailer.mp4" or a folder called Bonus is just
+    /// what someone called their own video.
+    /// </param>
+    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false, bool everything = false)
     {
         scope ??= root;
         var extensions = audio ? AudioExtensions : VideoExtensions;
@@ -34,14 +38,14 @@ public static partial class MediaFileEnumerator
             return IsMedia(scope, extensions) ? [new FileInfo(scope)] : [];
         }
 
-        return Directory.Exists(scope) ? Walk(root, scope, extensions) : [];
+        return Directory.Exists(scope) ? Walk(root, scope, extensions, everything) : [];
     }
 
-    private static IEnumerable<FileInfo> Walk(string root, string directory, IReadOnlySet<string> extensions)
+    private static IEnumerable<FileInfo> Walk(string root, string directory, IReadOnlySet<string> extensions, bool everything)
     {
         foreach (var file in Directory.EnumerateFiles(directory, "*", Options))
         {
-            if (IsMedia(file, extensions) && !IsSample(file))
+            if (IsMedia(file, extensions) && (everything || !IsSample(file)))
             {
                 yield return new FileInfo(file);
             }
@@ -51,12 +55,12 @@ public static partial class MediaFileEnumerator
         {
             // Depth 1 is the movie/series folder itself — a show can legitimately be called "Extras".
             var depth = Path.GetRelativePath(root, child).Count(c => c == Path.DirectorySeparatorChar) + 1;
-            if (depth > 1 && ExtrasFolder().IsMatch(Path.GetFileName(child)))
+            if (!everything && depth > 1 && ExtrasFolder().IsMatch(Path.GetFileName(child)))
             {
                 continue;
             }
 
-            foreach (var file in Walk(root, child, extensions))
+            foreach (var file in Walk(root, child, extensions, everything))
             {
                 yield return file;
             }

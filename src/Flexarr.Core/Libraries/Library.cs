@@ -8,6 +8,12 @@ public enum LibraryType
 
     /// <summary>Shows people subscribe to by feed. Its folder only holds episodes on their way to a phone.</summary>
     Podcasts,
+
+    /// <summary>
+    /// Videos of people's own, organised only by folder: each folder in the library's folder is shown as a show, the
+    /// folders in it as its seasons, and the videos as episodes named after their files. Nothing is looked up online.
+    /// </summary>
+    HomeVideos,
 }
 
 /// <summary>A named collection of root folders that share a media type, e.g. "Movies" at /data/movies.</summary>

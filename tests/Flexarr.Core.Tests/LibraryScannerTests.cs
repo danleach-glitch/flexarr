@@ -637,6 +637,54 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal("Mark Knopfler", trackArtists["Skateaway"]);
     }
 
+    [Fact]
+    public async Task HomeVideos_FoldersAreShows_TheirFoldersSeasons_InNameOrder()
+    {
+        var root = Touch(
+            "home/Family Holidays/2021 Lakes/Walk.mp4",
+            "home/Family Holidays/2019 Cornwall/Boat trip.mov",
+            "home/Family Holidays/2019 Cornwall/Beach day.mp4",
+            "home/Family Holidays/2019 Cornwall/Day 2/Part 10.mp4",
+            "home/Family Holidays/2019 Cornwall/Day 2/Part 2.mp4",
+            "home/Family Holidays/Trailer.mp4",
+            "home/Kids' plays/Nativity 2022.mp4",
+            "home/Loose clip.mkv");
+        var library = await AddLibrary(LibraryType.HomeVideos, Path.Combine(root, "home"));
+
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(8, result.Added);
+        var items = await _db.MediaItems.ToListAsync();
+        Assert.Equal(["Family Holidays", "home", "Kids' plays"], items.Where(i => i.Kind == MediaKind.Series).Select(i => i.Title).Order(StringComparer.OrdinalIgnoreCase));
+        var holidays = items.Single(i => i.Kind == MediaKind.Series && i.Title == "Family Holidays");
+        // Videos straight in the show's folder first, as a "season" named after the show; then its folders by name.
+        Assert.Equal([(1, "Family Holidays"), (2, "2019 Cornwall"), (3, "2021 Lakes")],
+            items.Where(i => i.ParentId == holidays.Id).OrderBy(i => i.SeasonNumber).Select(i => (i.SeasonNumber!.Value, i.Title)));
+        var cornwall = items.Single(i => i.Title == "2019 Cornwall");
+        // Deeper folders join their season, and numbers in names count as numbers.
+        Assert.Equal(["Beach day", "Boat trip", "Part 2", "Part 10"],
+            items.Where(i => i.ParentId == cornwall.Id).OrderBy(i => i.EpisodeNumber).Select(i => i.Title));
+        Assert.All(items.Where(i => i.ParentId == cornwall.Id), e => Assert.Equal(2, e.SeasonNumber));
+    }
+
+    [Fact]
+    public async Task HomeVideos_ANewFolder_KeepsTheOthersAndTheirVideos()
+    {
+        var root = Touch("home/Holidays/2021/Walk.mp4", "home/Holidays/2023/Swim.mp4");
+        var library = await AddLibrary(LibraryType.HomeVideos, Path.Combine(root, "home"));
+        await Scanner().ScanAsync(library, null, default);
+        var walk = await _db.MediaItems.SingleAsync(i => i.Title == "Walk");
+
+        Touch("home/Holidays/2022/Picnic.mp4");
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal(1, result.Added);
+        var seasons = await _db.MediaItems.Where(i => i.Kind == MediaKind.Season).OrderBy(i => i.SeasonNumber).Select(i => i.Title).ToListAsync();
+        Assert.Equal(["2021", "2022", "2023"], seasons);
+        Assert.Equal(walk.Id, (await _db.MediaItems.SingleAsync(i => i.Title == "Walk")).Id);
+        Assert.Equal(3, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
+    }
+
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
 
     private async Task<Library> AddLibrary(LibraryType type, string folder)

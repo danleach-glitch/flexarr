@@ -3,6 +3,7 @@ using System.Text;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -99,8 +100,10 @@ public static class ImageEndpoints
 
     /// <summary>
     /// Walks up to the series for seasons and episodes that lack their own artwork. Metadata sources only supply
-    /// https artwork, or artwork held by a configured *arr (Lidarr's); files on disk are only used for music, where
-    /// the scanner found them.
+    /// https artwork, or artwork held by a configured *arr (Lidarr's); files on disk are only ever ones Flexarr found
+    /// beside the media itself (a cover.jpg, a poster.jpg, an episode's -thumb.jpg, a frame of a home video). However a
+    /// file:// URL got there, one outside the item's own library folders is never read, and art inside a media file
+    /// (embedded://) is only taken from music.
     /// </summary>
     /// <returns>Null if there's no such item; otherwise its artwork (null if it has none) and its ?v= version.</returns>
     private static async Task<ImageSource?> ResolveAsync(FlexarrDbContext db, Guid id, string kind, CancellationToken ct)
@@ -109,7 +112,7 @@ public static class ImageEndpoints
         for (Guid? current = id; current is { } itemId;)
         {
             var item = await db.MediaItems.AsNoTracking().Where(i => i.Id == itemId)
-                .Select(i => new { i.ParentId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt })
+                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt })
                 .FirstOrDefaultAsync(ct);
             if (item is null)
             {
@@ -127,7 +130,12 @@ public static class ImageEndpoints
                 "thumb" => item.ThumbUrl,
                 _ => null,
             };
-            if (url is not null && !ArtworkUrl.IsHttps(url) && !ArtworkUrl.IsArr(url) && !(ArtworkUrl.IsLocal(url) && item.Kind is MediaKind.Artist or MediaKind.Album or MediaKind.Track))
+            if (url is not null && !ArtworkUrl.IsHttps(url) && !ArtworkUrl.IsArr(url) && !ArtworkUrl.IsLocal(url))
+            {
+                return new ImageSource(null, version);
+            }
+
+            if (ArtworkUrl.IsLocal(url) && !await InLibraryAsync(db, item.LibraryId, item.Kind, url!, ct))
             {
                 return new ImageSource(null, version);
             }
@@ -144,6 +152,23 @@ public static class ImageEndpoints
     }
 
     private sealed record ImageSource(string? Url, string? Version);
+
+    /// <summary>Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's).</summary>
+    private static async Task<bool> InLibraryAsync(FlexarrDbContext db, Guid libraryId, MediaKind kind, string url, CancellationToken ct)
+    {
+        if (url.StartsWith("embedded://", StringComparison.Ordinal) && kind is not (MediaKind.Artist or MediaKind.Album or MediaKind.Track))
+        {
+            return false;
+        }
+
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        {
+            return false;
+        }
+
+        var folders = await db.LibraryFolders.AsNoTracking().Where(f => f.LibraryId == libraryId).Select(f => f.Path).ToListAsync(ct);
+        return folders.Any(folder => PathComparison.IsUnder(path, folder));
+    }
 
     /// <summary>
     /// Where an item's artwork comes from. A page of posters asks for each one; remember where they come from rather

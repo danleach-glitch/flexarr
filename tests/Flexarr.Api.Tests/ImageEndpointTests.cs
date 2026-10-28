@@ -60,6 +60,8 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     [InlineData(MediaKind.Movie, "file:///etc/hosts")]
     [InlineData(MediaKind.Movie, "embedded:///etc/hosts")]
     [InlineData(MediaKind.Series, "http://image.tmdb.org/t/p/original/a.jpg")]
+    [InlineData(MediaKind.Series, "frame:///etc/hosts#1")]
+    [InlineData(MediaKind.Movie, "file:///media/../etc/hosts")]
     public async Task ArtworkFromMetadata_IsNeverALocalFile(MediaKind kind, string poster)
     {
         Guid id;

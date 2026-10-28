@@ -50,7 +50,17 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IStartupFilter, PeerFromHeader>();
             services.AddSingleton<ITailnetWhois>(Whois);
             services.AddSingleton<Flexarr.Api.Backups.IServerRestart>(Restart);
+            // Tests never reach TVmaze or TMDB: they know no titles unless a test says otherwise.
+            services.AddHttpClient<Flexarr.Metadata.TvMazeClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
+            services.AddHttpClient<Flexarr.Metadata.TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
         });
+    }
+
+    /// <summary>A web service that knows nothing.</summary>
+    private sealed class Offline : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
     }
 
     protected override void Dispose(bool disposing)

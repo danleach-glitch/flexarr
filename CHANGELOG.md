@@ -4,6 +4,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Libraries
+- **Films and shows without Sonarr or Radarr get artwork and details** from the files beside them. Flexarr reads the `.nfo` files that Kodi, Jellyfin, Emby and tinyMediaManager write (title, year, plot, genres, rating, age rating), and artwork such as `poster.jpg`, `folder.jpg`, `fanart.jpg`, `clearlogo.png`, `season01-poster.jpg` and an episode's `-thumb.jpg`. Folders kept for Plex or Jellyfin show up in Flexarr looking the same.
+- **What's in your folders wins**: a poster or `.nfo` you've put beside a film or show is used over Sonarr's and Radarr's. The IDs in a `.nfo` also help Flexarr find the right title in them. Flexarr only reads these files and never changes them.
+- **Shows Sonarr doesn't know are looked up on TVmaze**, with no account or key: posters, backgrounds, overviews, genres, ratings and cast, and episode titles, descriptions and stills.
+- **Films Radarr doesn't know can come from TMDB**: paste a free TMDB key under **Settings › Connections › TMDB** and films that weren't matched are looked up straight away, with posters, logos, overviews, genres, age ratings, trailers and cast.
+- **Fix match works without Sonarr and Radarr**: it searches TVmaze for shows and TMDB for films (with a key), and keeps your choice in Flexarr. Titles matched by a TVmaze or TMDB search are listed under **Check these matches** in Library health.
+- **Home videos**: a new kind of library for videos of your own, arranged by folder and never looked up online. Each folder shows like a show, the folders in it as its seasons, and each video as an episode named after its file, in name order. Videos get a still from a little way in, unless there's a `-thumb.jpg` or a `poster.jpg` beside them. Home videos don't get Skip intro, so videos in a folder aren't mistaken for episodes with a shared opening. They show on the web, iPhone, iPad and Apple TV.
+- The guide has a new page, **Without Sonarr and Radarr**.
+
 ### Connections
 - **Media folders** replaces Path mappings in **Settings › Connections**. Each of Sonarr, Radarr and Lidarr's folders has a line saying where it is on this server. When the apps run in Docker and see your media under other paths, Flexarr usually works out where it is by comparing the titles both sides have, and saves it on the next library scan, so there's nothing to type.
 - When Flexarr isn't sure, the folder's line suggests one (**Use this**) or lets you pick it with **Choose folder**. The app's own line says when one of its folders hasn't been found.

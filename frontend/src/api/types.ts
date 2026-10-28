@@ -1,4 +1,4 @@
-export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts'
+export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts' | 'HomeVideos'
 export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track' | 'Podcast' | 'PodcastEpisode'
 export type VideoRange = 'Sdr' | 'Hdr10' | 'Hlg' | 'DolbyVision'
 export type StreamType = 'Video' | 'Audio' | 'Subtitle'
@@ -98,6 +98,8 @@ export interface ItemSummary {
   albumType?: AlbumType | null
   /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
   trackArtist?: string | null
+  /** In a home video library: a "show" is a folder, its "seasons" folders in it, and its "episodes" videos, all shown by name. */
+  homeVideo?: boolean
   /**
    * Not from the server: where the player starts this queue entry, for a podcast episode played from the start rather
    * than from where it was left.
@@ -420,6 +422,8 @@ export interface Settings {
   pathMappings: { from: string; to: string }[]
   arr: ArrConnection[]
   seerr: { baseUrl: string; hasApiKey: boolean } | null
+  /** Whether there's a TMDB key (it's never sent back), for films Radarr doesn't have. */
+  hasTmdbKey?: boolean
   dataDirectory: string
   ffmpegPath: string
   ffprobePath: string
@@ -457,6 +461,8 @@ export interface SettingsUpdate {
   podcasts?: { country: string }
   /** An empty address removes the source; an omitted password keeps the saved one (for the same server). */
   liveTv?: LiveTvSettingsUpdate
+  /** An empty key removes it. */
+  tmdb?: { apiKey: string }
 }
 
 export interface ArrStatus {

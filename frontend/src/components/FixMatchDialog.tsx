@@ -12,7 +12,8 @@ interface Props {
 
 /**
  * Choose which show or film a library folder really is, from Sonarr's or Radarr's search. Titles they don't manage
- * yet are added to them from the folder, unmonitored and with no search, so nothing is downloaded.
+ * yet are added to them from the folder, unmonitored and with no search, so nothing is downloaded. Without them, the
+ * search is TMDB's (films) or TVmaze's (shows), and the choice is only kept in Flexarr.
  */
 export function FixMatchDialog({ item, onFixed, onClose }: Props) {
   const arr = item.kind === 'Movie' ? 'Radarr' : 'Sonarr'
@@ -23,6 +24,9 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const results = useApi((signal) => searchMatches(item.id, query, signal), [item.id, query])
+  // Whose search this is: Sonarr's or Radarr's, which then manage the choice, or TMDB's or TVmaze's.
+  const source = results.data?.[0]?.source || arr
+  const managed = source === arr
   // Where it is on disk, so it's clear what's being matched: a film's files, or a show's folder.
   const detail = useApi((signal) => getItem(item.id, signal), [item.id])
   const paths = detail.data ? (item.kind === 'Movie' && detail.data.files.length > 0 ? detail.data.files.map((f) => f.path) : [detail.data.path].filter((p) => !!p)) : []
@@ -60,7 +64,9 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match" role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="fix-match-title">Fix match</h2>
-        <p className="muted">Which {noun} is this? The one you choose stays matched, and {arr} manages it.</p>
+        <p className="muted">
+          Which {noun} is this? The one you choose stays matched{managed ? `, and ${arr} manages it` : `, with details from ${source}`}.
+        </p>
         <ul className="fix-match-paths" aria-label={item.kind === 'Movie' ? 'Files' : 'Folder'}>
           {paths.map((p) => (
             <li key={p}>
@@ -70,14 +76,14 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
         </ul>
 
         <form className="fix-match-search" onSubmit={search} role="search">
-          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Search ${arr}`} autoFocus disabled={busy} />
+          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Search ${source}`} autoFocus disabled={busy} />
           <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
             <Search /> Search
           </AsyncButton>
         </form>
 
         <div className="fix-match-results" aria-busy={results.loading}>
-          {results.loading && !results.data && <p className="muted">Searching {arr}…</p>}
+          {results.loading && !results.data && <p className="muted">Searching…</p>}
           {searchError && <p className="error">{searchError}</p>}
           {results.data?.length === 0 && <p className="muted">Nothing found. Try the title as it was first released, or add the year.</p>}
           <ul role="listbox" aria-label="Results">
@@ -100,7 +106,9 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
                     {c.network && <span className="muted">{c.network}</span>}
                     {c.overview && <span className="fix-match-overview">{c.overview}</span>}
                   </span>
-                  <span className={c.current ? 'tag keep' : 'tag'}>{c.current ? 'Current match' : c.managedBy ? `In ${c.managedBy}` : `Adds to ${arr}`}</span>
+                  {(c.current || managed) && (
+                    <span className={c.current ? 'tag keep' : 'tag'}>{c.current ? 'Current match' : c.managedBy ? `In ${c.managedBy}` : `Adds to ${arr}`}</span>
+                  )}
                 </button>
               </li>
             ))}
@@ -109,9 +117,11 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
 
         {chosen && (
           <p className="fix-match-note" role="status">
-            {chosen.managedBy
-              ? `${chosen.managedBy} already has ${chosen.title}${chosen.managedPath ? ` (in ${chosen.managedPath})` : ''}. Flexarr takes its details from there.`
-              : `${arr} will manage ${chosen.title} from this folder: added unmonitored and without a search, so nothing is downloaded.`}
+            {!managed
+              ? `Flexarr takes ${chosen.title}’s details from ${source}, and nothing is added anywhere.`
+              : chosen.managedBy
+                ? `${chosen.managedBy} already has ${chosen.title}${chosen.managedPath ? ` (in ${chosen.managedPath})` : ''}. Flexarr takes its details from there.`
+                : `${arr} will manage ${chosen.title} from this folder: added unmonitored and without a search, so nothing is downloaded.`}
           </p>
         )}
         {error && (

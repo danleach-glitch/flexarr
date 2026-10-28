@@ -59,7 +59,7 @@ Titles with no poster or details are listed under **Missing artwork**. Artwork c
 2. Search for the right title. Try the title as it was first released, or add the year.
 3. Pick it. Each result says whether it's the **Current match**, already in Sonarr or Radarr, or would be added to them.
 
-Flexarr keeps your choice through every later refresh. If the title wasn't in Sonarr or Radarr, fixing the match adds it there using the folder it's already in, so they manage it from then on. Fixing a match needs Sonarr (for shows) or Radarr (for films) connected.
+Flexarr keeps your choice through every later refresh. If the title wasn't in Sonarr or Radarr, fixing the match adds it there using the folder it's already in, so they manage it from then on. Without Sonarr, the search is TVmaze's; without Radarr, it's TMDB's, which needs a TMDB key (see [Without Sonarr and Radarr](without-arrs.md)). Then your choice is kept in Flexarr, and nothing is added anywhere.
 
 > **Note** If Sonarr or Radarr already use that folder for a different title, Flexarr won't change it for you. Remove that title in Sonarr or Radarr (keeping its files), then fix the match again.
 

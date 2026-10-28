@@ -52,9 +52,44 @@ public static partial class ArtworkUrl
     /// <summary>Artwork from a metadata source (Sonarr, Radarr, TVmaze, Seerr): only ever fetched over https.</summary>
     public static bool IsHttps(string? url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
 
-    /// <summary>Artwork the library scanner found on disk: a folder's cover.jpg, or art embedded in a track.</summary>
+    /// <summary>
+    /// Artwork Flexarr found on disk: a folder's cover.jpg or poster.jpg, art embedded in a track, or a frame of a home
+    /// video (see <see cref="Frame"/>).
+    /// </summary>
     public static bool IsLocal(string? url) =>
-        url is not null && (url.StartsWith("file://", StringComparison.Ordinal) || url.StartsWith("embedded://", StringComparison.Ordinal));
+        url is not null && (url.StartsWith("file://", StringComparison.Ordinal) || url.StartsWith("embedded://", StringComparison.Ordinal)
+            || url.StartsWith(FrameScheme, StringComparison.Ordinal));
+
+    /// <summary>The file a local artwork URL reads (the image, the track, or the video); null for any other URL.</summary>
+    public static string? LocalPath(string? url) =>
+        TryParseFrame(url, out var video, out _) ? video
+        : url?.StartsWith("file://", StringComparison.Ordinal) == true ? url["file://".Length..]
+        : url?.StartsWith("embedded://", StringComparison.Ordinal) == true ? url["embedded://".Length..]
+        : null;
+
+    private const string FrameScheme = "frame://";
+
+    /// <summary>A still from a video, <paramref name="seconds"/> in: <c>frame://{path}#{seconds}</c>.</summary>
+    public static string Frame(string path, double seconds)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        return $"{FrameScheme}{path}#{Math.Max(0, seconds).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}";
+    }
+
+    public static bool TryParseFrame(string? url, out string path, out double seconds)
+    {
+        path = "";
+        seconds = 0;
+        var hash = url?.LastIndexOf('#') ?? -1;
+        if (url is null || !url.StartsWith(FrameScheme, StringComparison.Ordinal) || hash < FrameScheme.Length
+            || !double.TryParse(url.AsSpan(hash + 1), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds))
+        {
+            return false;
+        }
+
+        path = url[FrameScheme.Length..hash];
+        return path.Length > 0;
+    }
 
     private const string ArrScheme = "arr://";
 

@@ -46,9 +46,9 @@ extension ItemSummary {
 
     public var isResumable: Bool { progress != nil }
 
-    /// "S2 E3", "S1 E1–E2", or nil for non-episodes.
+    /// "S2 E3", "S1 E1–E2", or nil for non-episodes and home videos (which go by their names).
     public var episodeCode: String? {
-        guard kind == .episode, let episodeNumber else { return nil }
+        guard kind == .episode, homeVideo != true, let episodeNumber else { return nil }
         let season = seasonNumber.map { "S\($0) " } ?? ""
         if let end = episodeNumberEnd, end > episodeNumber { return "\(season)E\(episodeNumber)–E\(end)" }
         return "\(season)E\(episodeNumber)"
@@ -78,9 +78,15 @@ extension ItemSummary {
         if let releaseYear { facts.append(String(releaseYear)) }
         switch kind {
         case .series:
-            if childCount > 0 { facts.append(childCount == 1 ? "1 season" : "\(childCount) seasons") }
+            if childCount > 0 {
+                let noun = homeVideo == true ? "folder" : "season"
+                facts.append(childCount == 1 ? "1 \(noun)" : "\(childCount) \(noun)s")
+            }
         case .season:
-            if childCount > 0 { facts.append(childCount == 1 ? "1 episode" : "\(childCount) episodes") }
+            if childCount > 0 {
+                let noun = homeVideo == true ? "video" : "episode"
+                facts.append(childCount == 1 ? "1 \(noun)" : "\(childCount) \(noun)s")
+            }
         case .artist:
             if childCount > 0 { facts.append(childCount == 1 ? "1 album" : "\(childCount) albums") }
         case .album:
@@ -315,6 +321,7 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         case .tvShows: "shows"
         case .music: "music"
         case .podcasts: "podcasts"
+        case .homeVideos: "home videos"
         case .unknown: "titles"
         }
     }

@@ -627,6 +627,9 @@ export const liveHeartbeat = (viewer: string) => request<void>('POST', `/livetv/
 export const stopLiveChannel = (viewer: string) => request<void>('DELETE', `/livetv/watch/${viewer}/`)
 export const refreshLiveTv = () => request<void>('POST', '/livetv/refresh')
 export const setFavouriteChannel = (id: string, favourite: boolean) => request<void>(favourite ? 'PUT' : 'DELETE', `/livetv/channels/${id}/favourite`)
+/** An empty key tests the saved one. */
+export const testTmdb = (apiKey: string) => request<{ ok: boolean; error: string | null }>('POST', '/settings/tmdb/test', { apiKey })
+
 export const testLiveTv = (source: { baseUrl: string; username: string; password?: string }) => request<LiveTvTest>('POST', '/settings/livetv/test', source)
 
 // ---------- Podcasts
@@ -994,6 +997,8 @@ export interface MatchCandidate {
   /** The Sonarr or Radarr instance that already has it, and its folder there; null if it would be added. */
   managedBy: string | null
   managedPath: string | null
+  /** Whose search it came from: Sonarr or Radarr, or without them TMDB (films) or TVmaze (shows). */
+  source: string
 }
 
 export const searchMatches = (itemId: string, q: string, signal?: AbortSignal) =>

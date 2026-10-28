@@ -302,6 +302,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             <option value="Movies">Films</option>
             <option value="TvShows">TV shows</option>
             <option value="Music">Music</option>
+            <option value="HomeVideos">Home videos</option>
           </select>
         </label>
         <label>

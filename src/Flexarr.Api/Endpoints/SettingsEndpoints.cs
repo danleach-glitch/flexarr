@@ -11,6 +11,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
+using Flexarr.Metadata;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -34,7 +35,8 @@ public sealed record SettingsDto(
     string? WebhookSecret = null,
     PodcastSettingsDto? Podcasts = null,
     LiveTvSettingsDto? LiveTv = null,
-    string? HostName = null);
+    string? HostName = null,
+    bool HasTmdbKey = false);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
@@ -61,7 +63,13 @@ public sealed record SettingsUpdate(
     IReadOnlyList<ArrConnectionUpdate>? Arr,
     SeerrConnectionUpdate? Seerr = null,
     PodcastSettingsUpdate? Podcasts = null,
-    LiveTvSettingsUpdate? LiveTv = null);
+    LiveTvSettingsUpdate? LiveTv = null,
+    TmdbKeyUpdate? Tmdb = null);
+
+/// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
+public sealed record TmdbKeyUpdate(string ApiKey);
+
+public sealed record TmdbTestDto(bool Ok, string? Error);
 
 /// <param name="Country">A two-letter country code; empty for the server's region.</param>
 public sealed record PodcastSettingsUpdate(string? Country);
@@ -156,6 +164,11 @@ public static class SettingsEndpoints
                     };
                 }
 
+                if (update.Tmdb is { } tmdb)
+                {
+                    config["tmdb"] = tmdb.ApiKey.Trim() is { Length: > 0 } key ? new JsonObject { ["apiKey"] = key } : null;
+                }
+
                 if (update.LiveTv is { } live)
                 {
                     var savedPassword = current.LiveTv is { } saved && SameServer(saved.BaseUrl, live.BaseUrl) ? saved.Password : "";
@@ -216,9 +229,18 @@ public static class SettingsEndpoints
                 liveTvRefresh.Request();
             }
 
+            // A new TMDB key can find films nothing else did: look them up again after the scan below.
+            var newTmdbKey = update.Tmdb?.ApiKey.Trim() is { Length: > 0 } tmdbKey && tmdbKey != current.Tmdb?.ApiKey;
+            if (newTmdbKey)
+            {
+                await db.MediaItems.Where(i => i.Kind == MediaKind.Movie && !i.MatchLocked
+                        && (i.MetadataSource == null || i.MetadataSource == MetadataRefresher.Local || i.MetadataSource == MetadataRefresher.RadarrLookup || i.MetadataSource == MetadataRefresher.TmdbSearch))
+                    .ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, (DateTime?)null), ct);
+            }
+
             // A new mapping or connection can link titles that weren't: refresh those, after a scan (which also saves any
             // mapping the titles make certain).
-            if ((update.PathMappings is { } newMappings && !SameMappings(newMappings, current.PathMappings)) || update.Arr is not null)
+            if ((update.PathMappings is { } newMappings && !SameMappings(newMappings, current.PathMappings)) || update.Arr is not null || newTmdbKey)
             {
                 await PathMappingFinder.RematchAsync(db, ct);
                 foreach (var folder in await db.LibraryFolders.Select(f => f.Path).ToListAsync(ct))
@@ -290,6 +312,27 @@ public static class SettingsEndpoints
             }
 
             return Results.Ok(await StatusAsync(client, new ArrInstance { Name = connection.Name, Kind = connection.Kind, BaseUrl = url, ApiKey = key }, ct));
+        }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        api.MapPost("/settings/tmdb/test", async (TmdbKeyUpdate? connection, IOptionsMonitor<FlexarrOptions> options, TmdbClient client, CancellationToken ct) =>
+        {
+            // An empty key tests the saved one.
+            var key = connection?.ApiKey.Trim() is { Length: > 0 } typed ? typed : options.CurrentValue.Tmdb?.ApiKey;
+            if (string.IsNullOrEmpty(key))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["tmdb"] = ["Paste your TMDB API key or read access token."] });
+            }
+
+            try
+            {
+                return Results.Ok(await client.CheckKeyAsync(key, ct)
+                    ? new TmdbTestDto(true, null)
+                    : new TmdbTestDto(false, "TMDB didn't accept that key. Copy it again from themoviedb.org › Settings › API."));
+            }
+            catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+            {
+                return Results.Ok(new TmdbTestDto(false, "Couldn't reach TMDB from the server."));
+            }
         }).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapPost("/settings/livetv/test", async (LiveTvSettingsUpdate connection, IOptionsMonitor<FlexarrOptions> options, LiveTv.XtreamClient client,
@@ -378,7 +421,8 @@ public static class SettingsEndpoints
             ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes, l.DvrFolder, dvrFolder, l.MaxStreams,
                 l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes)
             : null,
-        HostName());
+        HostName(),
+        o.Tmdb?.ApiKey is { Length: > 0 });
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

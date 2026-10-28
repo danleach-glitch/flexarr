@@ -26,6 +26,10 @@ public static class ItemQueries
                 SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.ParentId
                     : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.ParentId : null,
                 PodcastDuration = i.Enclosure != null ? i.Enclosure.DurationSeconds : null,
+                // Part of a home video library: its folders and videos are kept by their paths, a show's seasons and
+                // episodes never are. They're shown by name, not as S01E02.
+                HomeVideo = i.Kind == MediaKind.Series ? i.Children.Any(s => s.Path != null)
+                    : (i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode) && i.Path != null,
                 State = i.PlaybackStates.Where(p => p.UserId == profileId)
                     .Select(p => new { p.PositionSeconds, p.Watched, p.PlayCount, p.LastPlayedAt }).FirstOrDefault(),
                 Unwatched = i.Kind == MediaKind.Series
@@ -59,5 +63,6 @@ public static class ItemQueries
                 x.Item.TrackNumber,
                 x.SeriesId,
                 x.Item.AlbumType,
-                x.Item.TrackArtist));
+                x.Item.TrackArtist,
+                x.HomeVideo));
 }
