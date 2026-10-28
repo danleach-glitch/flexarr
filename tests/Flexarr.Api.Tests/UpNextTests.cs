@@ -74,6 +74,44 @@ public class UpNextTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.True(!plain.TryGetProperty("season", out var none) || none.ValueKind == JsonValueKind.Null);
     }
 
+    [Fact]
+    public async Task MarkingAHalfWatchedEpisodeUnwatched_TakesTheShowOutOfContinueWatching()
+    {
+        var show = await SeedAsync(("S01E01", 1, 1, null), ("S01E02", 1, 2, null), ("S01E03", 1, 3, null));
+        await WatchAsync(show.Episodes["S01E01"], DateTime.UtcNow.AddDays(-2));
+        await StartAsync(show.Episodes["S01E02"], DateTime.UtcNow.AddDays(-1));
+        Assert.Equal(["S01E02"], await ContinueWatchingAsync(show.Library));
+
+        (await Client().PostAsJsonAsync(new Uri($"/api/v1/items/{show.Episodes["S01E02"]}/watched", UriKind.Relative), new { watched = false })).EnsureSuccessStatusCode();
+
+        // Its place is forgotten, and the show doesn't come straight back offering the same episode as Up Next.
+        Assert.Empty(await ContinueWatchingAsync(show.Library));
+        using var scope = factory.Services.CreateScope();
+        var state = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.FindAsync(PlaybackState.DefaultUser, show.Episodes["S01E02"]);
+        Assert.Equal((0d, false), (state!.PositionSeconds, state.Watched));
+    }
+
+    [Fact]
+    public async Task RemovingUpNext_HidesTheShowUntilAnotherEpisodeIsPlayed()
+    {
+        var show = await SeedAsync(("S01E01", 1, 1, null), ("S01E02", 1, 2, null), ("S01E03", 1, 3, null));
+        await WatchAsync(show.Episodes["S01E01"], DateTime.UtcNow.AddDays(-2));
+        Assert.Equal(["S01E02"], await ContinueWatchingAsync(show.Library));
+
+        (await Client().DeleteAsync(new Uri($"/api/v1/home/continue/{show.Episodes["S01E02"]}", UriKind.Relative))).EnsureSuccessStatusCode();
+        Assert.Empty(await ContinueWatchingAsync(show.Library));
+
+        (await Client().PostAsJsonAsync(new Uri($"/api/v1/items/{show.Episodes["S01E02"]}/watched", UriKind.Relative), new { watched = true })).EnsureSuccessStatusCode();
+        Assert.Equal(["S01E03"], await ContinueWatchingAsync(show.Library));
+    }
+
+    [Fact]
+    public async Task RemovingAnUnknownTitle_IsNotFound()
+    {
+        var response = await Client().DeleteAsync(new Uri($"/api/v1/home/continue/{Guid.NewGuid()}", UriKind.Relative));
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private HttpClient Client()
     {
         var client = factory.CreateClient();
@@ -101,6 +139,14 @@ public class UpNextTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = episode, Watched = true, PlayCount = 1, LastPlayedAt = at });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task StartAsync(Guid episode, DateTime at)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = episode, PositionSeconds = 600, DurationSeconds = 2400, LastPlayedAt = at });
         await db.SaveChangesAsync();
     }
 

@@ -251,6 +251,12 @@ public sealed class PodcastTests : IDisposable
         var again = await (await client.PostAsJsonAsync(Api("playback"), new { itemId = episode, profile = new { } })).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(12, again.GetProperty("startPositionSeconds").GetDouble());
 
+        // Marking it unplayed forgets the place, so it leaves the listening list and starts from the top.
+        (await client.PostAsJsonAsync(Api($"items/{episode}/watched"), new { watched = false })).EnsureSuccessStatusCode();
+        Assert.Empty((await GetAsync(client, "podcasts/continue")).EnumerateArray());
+        again = await (await client.PostAsJsonAsync(Api("playback"), new { itemId = episode, profile = new { } })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, again.GetProperty("startPositionSeconds").GetDouble());
+
         // Marking the show played marks every episode.
         (await client.PostAsJsonAsync(Api($"items/{id}/watched"), new { watched = true })).EnsureSuccessStatusCode();
         Assert.Equal(0, (await GetAsync(client, $"podcasts/{id}")).GetProperty("unplayedCount").GetInt32());
