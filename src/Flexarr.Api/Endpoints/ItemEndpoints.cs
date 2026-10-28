@@ -173,5 +173,6 @@ public static class ItemEndpoints
         f.AudioCodec, f.AudioChannels, f.ProbeError,
         f.Streams.OrderBy(s => s.Index)
             .Select(s => new StreamDto(s.Index, s.Type, s.Codec, s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height, s.Channels))
-            .ToList());
+            .ToList(),
+        f.Hdr10Plus == true);
 }

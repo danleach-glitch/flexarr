@@ -87,6 +87,7 @@ struct DecodingTests {
         let file = try #require(detail.files.first)
         #expect(file.container == "mkv")
         #expect(file.videoRange == .sdr)
+        #expect(file.hdr10Plus == nil)
         #expect(file.size > 1_000_000_000)
         #expect(file.streams.contains { $0.type == .audio && $0.channels == 6 })
     }

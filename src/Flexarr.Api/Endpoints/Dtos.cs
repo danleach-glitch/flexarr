@@ -61,7 +61,7 @@ public sealed record StreamDto(int Index, StreamType Type, string Codec, string?
 
 public sealed record FileDto(Guid Id, string Path, long Size, string? Container, double? DurationSeconds, long? Bitrate,
     string? VideoCodec, int? Width, int? Height, VideoRange VideoRange, string? AudioCodec, int? AudioChannels,
-    string? ProbeError, IReadOnlyList<StreamDto> Streams);
+    string? ProbeError, IReadOnlyList<StreamDto> Streams, bool Hdr10Plus);
 
 public sealed record CreditDto(Guid PersonId, string Name, CreditRole Role, string? Character, string? Image);
 

@@ -23,6 +23,15 @@ extension VideoRange {
     }
 }
 
+extension MediaFile {
+    /// "HDR10+", "Dolby Vision, HDR10+"; nil for SDR.
+    var pictureLabel: String? {
+        guard videoRange != .sdr, videoRange != .unknown else { return nil }
+        guard hdr10Plus == true else { return videoRange.label }
+        return videoRange == .dolbyVision ? "Dolby Vision, HDR10+" : "HDR10+"
+    }
+}
+
 extension Bundle {
     var shortVersion: String {
         (infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""

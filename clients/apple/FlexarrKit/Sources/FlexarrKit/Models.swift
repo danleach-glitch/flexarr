@@ -258,6 +258,8 @@ public struct MediaFile: Codable, Sendable, Hashable, Identifiable {
     public let audioChannels: Int?
     public let probeError: String?
     public let streams: [MediaStream]
+    /// HDR10+ scene-by-scene metadata on top of the HDR10. Absent from servers before 0.53.
+    public var hdr10Plus: Bool? = nil
 }
 
 public struct Credit: Codable, Sendable, Hashable {

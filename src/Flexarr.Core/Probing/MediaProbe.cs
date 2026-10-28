@@ -17,6 +17,9 @@ public sealed record ProbeResult(
 
     /// <summary>The file carries embedded artwork (e.g. album art in an MP3).</summary>
     public bool HasCoverArt { get; init; }
+
+    /// <summary>The video carries HDR10+ scene-by-scene metadata (SMPTE ST 2094-40) alongside its HDR10.</summary>
+    public bool Hdr10Plus { get; init; }
 }
 
 public interface IMediaProbe
@@ -26,12 +29,35 @@ public interface IMediaProbe
 
 public sealed class MediaProbeException(string message) : Exception(message);
 
-/// <summary>Reads container and stream details with <c>ffprobe -show_format -show_streams</c>.</summary>
+/// <summary>Reads container and stream details with <c>ffprobe -show_format -show_streams</c>, and HDR10+ from the first frames.</summary>
 public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaProbe
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
+    private static readonly string[] Output = ["-v", "error", "-protocol_whitelist", "file", "-print_format", "json"];
+    private static readonly string[] Streams = ["-show_format", "-show_streams"];
+    private static readonly string[] FirstFrames = ["-select_streams", "v:0", "-read_intervals", "%+#5", "-show_frames"];
 
     public async Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken)
+    {
+        var result = Parse(await RunAsync(Streams, path, cancellationToken).ConfigureAwait(false));
+        if (result.VideoRange is not (VideoRange.Hdr10 or VideoRange.DolbyVision))
+        {
+            return result;
+        }
+
+        // HDR10+ isn't in the stream details, only in the frames themselves: the first few are enough.
+        try
+        {
+            var frames = await RunAsync(FirstFrames, path, cancellationToken).ConfigureAwait(false);
+            return result with { Hdr10Plus = HasHdr10Plus(frames) };
+        }
+        catch (MediaProbeException)
+        {
+            return result; // Still plays as HDR10; the label is all that's missing.
+        }
+    }
+
+    private async Task<string> RunAsync(string[] show, string path, CancellationToken cancellationToken)
     {
         var start = new ProcessStartInfo(ffprobePath)
         {
@@ -40,7 +66,7 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
             UseShellExecute = false,
         };
         // -i, so a file named like an option is still read as a file; local files only, whatever the file points at.
-        foreach (var arg in new[] { "-v", "error", "-protocol_whitelist", "file", "-print_format", "json", "-show_format", "-show_streams", "-i", path })
+        foreach (var arg in Output.Concat(show).Append("-i").Append(path))
         {
             start.ArgumentList.Add(arg);
         }
@@ -60,13 +86,25 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
                 throw new MediaProbeException((await stderr.ConfigureAwait(false)).Trim() is { Length: > 0 } error ? error : $"ffprobe exited with {process.ExitCode}");
             }
 
-            return Parse(await stdout.ConfigureAwait(false));
+            return await stdout.ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             process.Kill(entireProcessTree: true);
             throw new MediaProbeException($"ffprobe timed out after {Timeout.TotalSeconds}s");
         }
+    }
+
+    /// <summary>
+    /// Reads <c>-show_frames</c> output: ffprobe names the metadata "HDR Dynamic Metadata SMPTE2094-40 (HDR10+)". Not
+    /// <c>-show_entries</c>, whose names for side data differ between FFmpeg versions and drop its fields when wrong.
+    /// </summary>
+    internal static bool HasHdr10Plus(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("frames", out var frames)
+            && frames.EnumerateArray().Any(f => f.TryGetProperty("side_data_list", out var side)
+                && side.EnumerateArray().Any(d => Str(d, "side_data_type")?.Contains("2094-40", StringComparison.Ordinal) == true));
     }
 
     internal static ProbeResult Parse(string json)

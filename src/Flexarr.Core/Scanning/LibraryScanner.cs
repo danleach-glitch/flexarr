@@ -166,9 +166,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     match.MissingSince = null;
                 }
 
-                // Files ffprobe couldn't read are tried again when they change (or when asked), not on every scan.
+                // Files ffprobe couldn't read are tried again when they change (or when asked), not on every scan. HDR
+                // files from before HDR10+ was looked for are read again once.
                 if (match is not null && match.Size == file.Length && match.ModifiedAt == file.LastWriteTimeUtc
-                    && (match.ProbeError is null || !retryFailedProbes))
+                    && (match.ProbeError is null || !retryFailedProbes)
+                    && !(match.Hdr10Plus is null && match.ProbeError is null && match.VideoRange is VideoRange.Hdr10 or VideoRange.DolbyVision))
                 {
                     unchanged++;
                 }
@@ -454,10 +456,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
     private static void Apply(MediaFile target, FileInfo file, ProbeResult? result, string? error)
     {
+        if (target.Size != file.Length || target.ModifiedAt != file.LastWriteTimeUtc)
+        {
+            target.AudioDelaySeconds = 0; // A new copy of the file needn't be out of sync the way the old one was.
+        }
+
         target.Size = file.Length;
         target.ModifiedAt = file.LastWriteTimeUtc;
         target.ProbeError = error;
-        target.AudioDelaySeconds = 0; // A new copy of the file needn't be out of sync the way the old one was.
         target.Streams.Clear();
 
         if (result is null)
@@ -469,6 +475,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.DurationSeconds = result.DurationSeconds;
         target.Bitrate = result.Bitrate;
         target.VideoRange = result.VideoRange;
+        target.Hdr10Plus = result.Hdr10Plus;
         target.Streams.AddRange(result.Streams);
 
         var video = result.Streams.FirstOrDefault(s => s.Type == StreamType.Video);

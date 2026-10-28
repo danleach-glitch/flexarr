@@ -37,7 +37,7 @@ import {
   formatDuration,
   formatSize,
   progressOf,
-  rangeLabel,
+  pictureLabel,
 } from '../lib/format'
 
 export function ItemPage() {
@@ -144,7 +144,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             item={item}
             extra={[
               item.resolution,
-              best ? rangeLabel[best.videoRange] : null,
+              best ? pictureLabel(best) : null,
               item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(undefined, { dateStyle: 'medium' }) : null,
             ]}
           />
@@ -404,7 +404,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
           {file.probeError && <p className="error">This file couldn't be read: {file.probeError}</p>}
           <dl>
             <dt>Video</dt>
-            <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, rangeLabel[file.videoRange]].filter(Boolean).join(', ') || 'None'}</dd>
+            <dd>{[file.videoCodec?.toUpperCase(), file.width && `${file.width}×${file.height}`, pictureLabel(file)].filter(Boolean).join(', ') || 'None'}</dd>
             <dt>Audio</dt>
             <dd>{[file.audioCodec?.toUpperCase(), formatChannels(file.audioChannels)].filter(Boolean).join(', ') || 'None'}</dd>
             <dt>File</dt>

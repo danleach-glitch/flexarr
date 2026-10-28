@@ -37,7 +37,9 @@ With **Play files directly** off, the server [repackages](playback-and-transcodi
 | Dolby Vision profile 5 | Dolby Vision, on a Dolby Vision television |
 | Dolby Vision profile 8.1 | Dolby Vision on a Dolby Vision television, otherwise HDR10 |
 | Dolby Vision profile 7 (UHD Blu-ray) | Its HDR10 base layer |
-| HDR10+ | Played as HDR10. HDR10+ itself is on the [roadmap](https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md). |
+| HDR10+ | HDR10, with its HDR10+ scene-by-scene metadata kept for televisions that use it |
+
+A film's details say **HDR10+** when its file carries HDR10+, and **Dolby Vision, HDR10+** when it has both.
 
 HDR is only converted to SDR when it has to be: when the television doesn't show HDR, when the stream is limited in size (see **Limit each stream to** in [Playback and transcoding](playback-and-transcoding.md)), or when the video itself has to be converted.
 

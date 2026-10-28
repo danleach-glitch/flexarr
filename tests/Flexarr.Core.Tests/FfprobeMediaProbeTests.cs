@@ -34,6 +34,14 @@ public class FfprobeMediaProbeTests
         Assert.Equal("mkv", result.Container);
     }
 
+    [Theory]
+    [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"Mastering display metadata"},{"side_data_type":"HDR Dynamic Metadata SMPTE2094-40 (HDR10+)","application_version":1}]}]}""", true)]
+    [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"Mastering display metadata"},{"side_data_type":"Content light level metadata"}]},{}]}""", false)]
+    [InlineData("""{"frames":[]}""", false)]
+    [InlineData("""{}""", false)]
+    public void HasHdr10Plus_ReadsTheFirstFramesSideData(string json, bool expected) =>
+        Assert.Equal(expected, FfprobeMediaProbe.HasHdr10Plus(json));
+
     [Fact]
     public void Parse_SkipsEmbeddedCoverArt()
     {

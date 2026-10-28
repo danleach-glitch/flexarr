@@ -1,4 +1,4 @@
-import type { ItemSummary, VideoRange } from '../api/types'
+import type { ItemSummary, MediaFile, VideoRange } from '../api/types'
 
 export function formatDuration(seconds: number | null | undefined): string | null {
   if (!seconds) return null
@@ -58,11 +58,17 @@ export function episodeHeading(item: EpisodeNumbers): string {
   return `${season} | ${episode}`
 }
 
-export const rangeLabel: Record<VideoRange, string | null> = {
+const rangeLabel: Record<VideoRange, string | null> = {
   Sdr: null,
   Hdr10: 'HDR10',
   Hlg: 'HLG',
   DolbyVision: 'Dolby Vision',
+}
+
+/** "HDR10+", "Dolby Vision, HDR10+"; null for SDR. Servers before HDR10+ was looked for leave it out. */
+export function pictureLabel(file: Pick<MediaFile, 'videoRange' | 'hdr10Plus'>): string | null {
+  if (!file.hdr10Plus) return rangeLabel[file.videoRange] ?? null
+  return file.videoRange === 'DolbyVision' ? 'Dolby Vision, HDR10+' : 'HDR10+'
 }
 
 export function relativeTime(iso: string | null): string {
