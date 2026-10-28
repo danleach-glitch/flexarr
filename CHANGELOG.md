@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Server
+- A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
+
 ### Privacy and security
 - An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
 
