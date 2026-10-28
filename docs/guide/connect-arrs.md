@@ -13,6 +13,7 @@ Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't d
 | **Sonarr** | Show and episode details and artwork. Upcoming episodes in **Coming soon**. Deleting a show or episode goes through Sonarr. |
 | **Lidarr** | Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart. |
 | **Seerr** | **Discover** and requests. Seerr and Overseerr both work. See [Requests](requests.md). |
+| **Bazarr** | **Search for subtitles** from the player and a title's page, and re-syncing subtitles that are out of time. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles). |
 
 Films and shows that Radarr or Sonarr don't manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn't download.
 
@@ -42,6 +43,7 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 | Radarr | `http://<host>:7878` |
 | Lidarr | `http://<host>:8686` |
 | Seerr | `http://<host>:5055` |
+| Bazarr | `http://<host>:6767` |
 
 `localhost` only works if the app runs on the same machine as Flexarr *and* neither is in its own Docker container. Between containers, use the machine's IP address, or the container's name if they share a Docker network.
 
@@ -53,10 +55,15 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 | Radarr | **Settings › General**, under **Security** |
 | Lidarr | **Settings › General**, under **Security** |
 | Seerr | **Settings › General** |
+| Bazarr | **Settings › General**, under **Security** |
 
 ### Seerr
 
 Seerr has its own row under **Apps**. Choose the pencil beside **Seerr**, type its **Address** and **API key**, and choose **Save**. Once it's connected, **Discover** fills with what's trending and popular, and you can request what you don't have. See [Requests](requests.md).
+
+### Bazarr
+
+Bazarr has its own row too. Choose the pencil beside **Bazarr**, type its **Address** and **API key**, and choose **Save**. Bazarr needs Sonarr and Radarr connected on its side, at least one language profile and some subtitle sites (providers); set those up in Bazarr itself. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles).
 
 ## Webhooks: new downloads appear straight away
 

@@ -111,7 +111,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
         <h1>Subtitles, skipping and Up Next</h1>
         <p class="lede">Subtitles of every kind, skipping intros, recaps and credits, the next-episode countdown and scrubbing previews.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -139,6 +139,15 @@ Heat (1995).en.forced.srt
 <p>Subtitles come as <strong>text</strong> (SRT, WebVTT, ASS and the like) or <strong>pictures</strong> (PGS from Blu-rays, VobSub from DVDs, DVB from broadcasts). Text subtitles are drawn by the player at the size you choose. Picture subtitles are drawn by the app on Apple TV, iPhone and iPad when <strong>Play files directly</strong> is on. In a web browser they have to be burned into the picture, which means the server converts the video while they&#39;re on.</p>
 <blockquote class="callout note"><p><strong>Note</strong> Styled ASS subtitles show their words but not their fonts, colours or positions yet.</p>
 </blockquote>
+<h3 id="finding-subtitles"><a class="anchor" href="#finding-subtitles" aria-hidden="true" tabindex="-1">#</a>Finding subtitles</h3>
+<p>When a film or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through <a href="/guide/connect-arrs#bazarr">Bazarr</a>. It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile can use it.</p>
+<ol>
+<li>In the player, open the subtitles menu and choose <strong>Search for subtitles…</strong>. On a title&#39;s page in the web app, it&#39;s under <strong>⋯</strong>.</li>
+<li>Wait while Bazarr asks its subtitle sites. It can take a minute.</li>
+<li>Choose one and <strong>Download</strong>, or <strong>Pick the best for me</strong>. Those marked <strong>Matches your file</strong> were made for your exact copy, so they should be in time.</li>
+</ol>
+<p>The subtitles are saved beside the video, so every app sees them. In the player, the title carries on where it was with them on.</p>
+<p>If subtitles beside the video drift out of time, choose them, then <strong>Re-sync to audio</strong>. Bazarr lines them up with the soundtrack, which takes a minute or so, and the player picks up the new timing when it&#39;s done. For an offset that&#39;s the same all the way through, <strong>Timing</strong> in the subtitles menu is quicker.</p>
 <h3 id="turning-them-on-and-off"><a class="anchor" href="#turning-them-on-and-off" aria-hidden="true" tabindex="-1">#</a>Turning them on and off</h3>
 <p>Choose a subtitle track, or <strong>Off</strong>, from the subtitles menu in the player. Flexarr remembers your choice for that film or show, so the next episode and the next sitting start the same way. That includes Off. The same goes for the audio track: pick another language once and the rest of the series follows.</p>
 <p><strong>Forced</strong> subtitles, the ones that translate the odd line of foreign dialogue, come on by themselves when they match the soundtrack&#39;s language. They don&#39;t count as you choosing subtitles, so the full subtitles won&#39;t switch themselves on next time.</p>

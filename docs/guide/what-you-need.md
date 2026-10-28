@@ -49,6 +49,7 @@ You can run Flexarr without them, but what you get differs by library.
 | TV shows | Sonarr supplies show and episode details and artwork. Flexarr adds cast from TVmaze. | Episodes are found and play, organised from names like `S01E02`. Artwork and details come from any `tvshow.nfo`, episode `.nfo` files and images (`poster.jpg`, `season01-poster.jpg`, `-thumb.jpg`) beside them, or from TVmaze, which needs no setup. |
 | Music | Lidarr adds artist pictures, album details and sorts albums, EPs and singles apart. | Works well: Flexarr reads the tags in your files and uses `cover.jpg` or `folder.jpg` images, or art embedded in the files. |
 | Requests | Seerr lets you search for and request films and shows from the web app and the Apple TV. | No requests. |
+| Subtitles | Bazarr lets you search for subtitles from the player, and re-sync ones that are out of time. | Subtitles in or beside your files only. |
 
 A few other things depend on the \*arrs too:
 
