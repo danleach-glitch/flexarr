@@ -240,7 +240,7 @@ public static class FlexarrTools
         var list = new List<McpNowPlaying>();
         foreach (var session in sessions.Active.Where(s => DateTime.UtcNow - s.LastSeen < TimeSpan.FromMinutes(15)).OrderByDescending(s => s.LastSeen))
         {
-            if (await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries(session.ProfileId).FirstOrDefaultAsync(ct) is { } item)
+            if (await LibraryVisibility.PlayingAsync(db, session.ItemId, session.ProfileId, ct) is { } item)
             {
                 list.Add(new McpNowPlaying(session.SignInId is { } id && devices.TryGetValue(id, out var device) ? device : "A browser or script",
                     names.GetValueOrDefault(session.ProfileId, "Main"), McpTitle.From(item), session.LastPosition, session.DurationSeconds, session.Paused));

@@ -1,3 +1,4 @@
+using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -47,6 +48,34 @@ public static class LibraryVisibility
         // Home videos are never upcoming or requested, so they don't keep TV that is from being hidden.
         var libraries = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type != LibraryType.HomeVideos).Select(l => new { l.Id, l.Type }).ToListAsync(ct);
         return libraries.GroupBy(l => l.Type).Where(g => g.All(l => hidden.Contains(l.Id))).Select(g => g.Key).ToHashSet();
+    }
+
+    /// <summary>What a profile is told about a title from a library hidden from it, playing on another screen.</summary>
+    public const string PrivateTitle = "Something private";
+
+    /// <summary>
+    /// <paramref name="item"/> as a profile that can't see its library is shown it in the household's now playing:
+    /// that something is playing, and nothing about what (no title, ids, artwork or ratings).
+    /// </summary>
+    public static ItemSummaryDto Private(this ItemSummaryDto item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return item with
+        {
+            Id = Guid.Empty, LibraryId = Guid.Empty, ParentId = null, Title = PrivateTitle, Year = null, SeasonNumber = null, EpisodeNumber = null,
+            EpisodeNumberEnd = null, AirDate = null, Resolution = null, Artwork = new ArtworkDto(null, null, null, null), AccentColor = null,
+            CommunityRating = null, CriticRating = null, ContentRating = null, ReleaseDate = null, SeriesTitle = null, DiscNumber = null,
+            TrackNumber = null, SeriesId = null, AlbumType = null, TrackArtist = null,
+        };
+    }
+
+    /// <summary>A title on another screen, as this context's profile may be shown it (see <see cref="Private"/>); null when it's gone.</summary>
+    public static async Task<ItemSummaryDto?> PlayingAsync(FlexarrDbContext db, Guid itemId, string playingProfile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var item = await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == itemId && i.MissingSince == null)
+            .Summaries(playingProfile).FirstOrDefaultAsync(ct);
+        return item is not null && db.HiddenLibraryIds.Contains(item.LibraryId) ? item.Private() : item;
     }
 
     public static bool Hides(this IReadOnlySet<LibraryType> types, MediaKind kind) => kind switch

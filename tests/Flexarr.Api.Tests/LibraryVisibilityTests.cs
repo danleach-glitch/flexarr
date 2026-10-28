@@ -70,6 +70,24 @@ public class LibraryVisibilityTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task SomethingPlayingFromAHiddenLibrary_ShowsAsPlaying_ButNotWhatItIs()
+    {
+        var (films, _, film, show) = await SeedAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        db.HiddenLibraryIds = [films];
+
+        var hidden = await Profiles.LibraryVisibility.PlayingAsync(db, film, "owner", CancellationToken.None);
+        var visible = await Profiles.LibraryVisibility.PlayingAsync(db, show, "owner", CancellationToken.None);
+
+        Assert.NotNull(hidden);
+        Assert.Equal(Profiles.LibraryVisibility.PrivateTitle, hidden.Title);
+        Assert.Equal(Guid.Empty, hidden.Id);
+        Assert.Null(hidden.Artwork.Poster);
+        Assert.Equal("Visibility Show", visible?.Title);
+    }
+
+    [Fact]
     public async Task AnAssistantOverMcp_DoesntFindTitlesInHiddenLibraries()
     {
         var (films, _, film, show) = await SeedAsync();
