@@ -1,0 +1,56 @@
+# The Flexarr server as a Mac app, for the Mac App Store. In development: not built by CI or released yet.
+# Generate the Xcode project with: xcodegen generate (Tools/build.sh does it). The .xcodeproj is not committed.
+name: FlexarrServer
+options:
+  bundleIdPrefix: io.github.flexarr
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.50.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Tools/build.sh sets it from FLEXARR_MAC_BUNDLE_ID.
+    FLEXARR_MAC_BUNDLE_ID: io.github.flexarr.server
+targets:
+  FlexarrServer:
+    type: application
+    platform: macOS
+    sources: [FlexarrServer]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(FLEXARR_MAC_BUNDLE_ID)
+        PRODUCT_NAME: Flexarr Server
+        # Sign to run locally until the App Store record exists; Tools/build.sh can pass a team.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: NO
+        GENERATE_INFOPLIST_FILE: NO
+    entitlements:
+      path: FlexarrServer/FlexarrServer.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # The server listens for the apps and browsers on the network, and calls out to Sonarr, Radarr and metadata.
+        com.apple.security.network.server: true
+        com.apple.security.network.client: true
+        # Media folders are chosen in an open panel and remembered as security-scoped bookmarks.
+        com.apple.security.files.user-selected.read-only: true
+        com.apple.security.files.bookmarks.app-scope: true
+    info:
+      path: FlexarrServer/Info.plist
+      properties:
+        CFBundleDisplayName: Flexarr Server
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.entertainment
+        # A menu bar app: no Dock icon or main window.
+        LSUIElement: true
+        NSLocalNetworkUsageDescription: Flexarr Server shares your media with the Flexarr apps and browsers on your network.
+        ITSAppUsesNonExemptEncryption: false
+    postBuildScripts:
+      # The .NET server (Tools/publish-server.sh) goes in Contents/Helpers, each binary signed to inherit the app's
+      # sandbox, before Xcode signs the app around it.
+      - name: Embed the server
+        script: '"$SRCROOT/Tools/embed-server.sh"'
+        basedOnDependencyAnalysis: false

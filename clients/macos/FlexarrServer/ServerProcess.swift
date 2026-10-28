@@ -1,0 +1,135 @@
+import Foundation
+import Observation
+
+/// Runs the server bundled in Contents/Helpers/Server as a child process, which inherits the app's sandbox and the
+/// media folders it has open. Restarts it if it stops on its own.
+@MainActor
+@Observable
+final class ServerProcess {
+    enum Status: Equatable, CustomStringConvertible {
+        case stopped, starting, running
+        case failed(String)
+
+        var description: String {
+            switch self {
+            case .stopped: "Flexarr is stopped"
+            case .starting: "Flexarr is starting…"
+            case .running: "Flexarr is running"
+            case .failed(let reason): "Flexarr stopped: \(reason)"
+            }
+        }
+    }
+
+    private(set) var status = Status.stopped
+    private let folders: MediaFolders
+    private var process: Process?
+    private var stopping = false
+    private var quickExits = 0
+
+    /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
+    let port: Int = UserDefaults.standard.integer(forKey: "Port").nonZero ?? 8383
+    var address: URL { URL(string: "http://localhost:\(port)")! }
+
+    /// Application Support inside the app's container.
+    private let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appending(path: "Flexarr")
+    var logDirectory: URL { root.appending(path: "logs") }
+
+    init(folders: MediaFolders) {
+        self.folders = folders
+    }
+
+    func start() {
+        guard process == nil else { return }
+        let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Server/Flexarr")
+        let data = root.appending(path: "data")
+        try? FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+
+        let process = Process()
+        process.executableURL = executable
+        process.currentDirectoryURL = executable.deletingLastPathComponent()
+        var environment = ProcessInfo.processInfo.environment
+        environment["ASPNETCORE_ENVIRONMENT"] = "Production"
+        environment["Urls"] = "http://*:\(port)"
+        environment["Flexarr__DataDirectory"] = data.path
+        environment["Flexarr__Logs__Directory"] = logDirectory.path
+        environment["Flexarr__Logs__ConsoleLevel"] = "Warning"
+        process.environment = environment
+
+        let console = logDirectory.appending(path: "console.log")
+        if !FileManager.default.fileExists(atPath: console.path) {
+            FileManager.default.createFile(atPath: console.path, contents: nil)
+        }
+        if let handle = try? FileHandle(forWritingTo: console) {
+            handle.seekToEndOfFile()
+            process.standardOutput = handle
+            process.standardError = handle
+        }
+
+        let started = Date()
+        process.terminationHandler = { [weak self] ended in
+            let code = ended.terminationStatus
+            Task { @MainActor in self?.ended(code: code, after: Date().timeIntervalSince(started)) }
+        }
+
+        do {
+            try process.run()
+        } catch {
+            status = .failed(error.localizedDescription)
+            return
+        }
+        self.process = process
+        status = .starting
+        Task { await waitUntilAnswering() }
+    }
+
+    func stop() {
+        guard let process else { return }
+        stopping = true
+        process.terminate()
+        process.waitUntilExit()
+        self.process = nil
+        stopping = false
+        status = .stopped
+    }
+
+    func restart() {
+        stop()
+        quickExits = 0
+        start()
+    }
+
+    private func ended(code: Int32, after seconds: TimeInterval) {
+        guard !stopping else { return }
+        process = nil
+        // Give up after a few exits in a row within seconds of starting: something's wrong that a restart won't fix.
+        quickExits = seconds < 30 ? quickExits + 1 : 0
+        if quickExits >= 3 {
+            status = .failed("it exited with code \(code). See the logs.")
+            return
+        }
+        status = .starting
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            start()
+        }
+    }
+
+    private func waitUntilAnswering() async {
+        let health = address.appending(path: "health")
+        for _ in 0..<120 {
+            guard process != nil else { return }
+            if let (_, response) = try? await URLSession.shared.data(from: health),
+               (response as? HTTPURLResponse)?.statusCode == 200 {
+                status = .running
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+    }
+}
+
+private extension Int {
+    var nonZero: Int? { self == 0 ? nil : self }
+}
