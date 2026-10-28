@@ -18,6 +18,7 @@ using Flexarr.Api.Podcasts;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
 using Flexarr.Api.Security;
+using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
 using Flexarr.Core.Probing;
 using Flexarr.Core.Scanning;
@@ -134,6 +135,19 @@ builder.Services.AddSingleton<BackupStore>();
 builder.Services.AddSingleton<BackupUploads>();
 builder.Services.AddSingleton<IServerRestart, ServerRestart>();
 builder.Services.AddHostedService<BackupWorker>();
+// New releases from GitHub (Settings › Updates), and installing them on a Mac. The release lookup is small; a build is
+// tens of megabytes.
+builder.Services.AddHttpClient(UpdateChecker.ClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient(UpdateChecker.DownloadClientName, c =>
+{
+    c.Timeout = TimeSpan.FromMinutes(30);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr (+https://github.com/danleach-glitch/flexarr)");
+});
+builder.Services.AddSingleton<IInstallEnvironment, InstallEnvironment>();
+builder.Services.AddSingleton<UpdateChecker>();
+builder.Services.AddSingleton<MacUpdater>();
+builder.Services.AddSingleton<ServerActivity>();
+builder.Services.AddHostedService<UpdateWorker>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
@@ -311,6 +325,7 @@ app.MapGroup("/api/v1")
     .MapSettingsEndpoints()
     .MapImportEndpoints()
     .MapBackupEndpoints()
+    .MapUpdateEndpoints()
     .MapUpcomingEndpoints()
     .MapHealthEndpoints()
     .MapMatchEndpoints()
