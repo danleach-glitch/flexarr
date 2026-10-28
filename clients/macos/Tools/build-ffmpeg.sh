@@ -1,15 +1,27 @@
 #!/bin/bash
 # Builds the FFmpeg the Mac app bundles: ffmpeg and ffprobe, LGPL (no GPL or non-free parts, so no libx264: the app
 # encodes with VideoToolbox), linked only against macOS's own libraries. Cached in clients/macos/build/ffmpeg.
-# Usage: Tools/build-ffmpeg.sh [arm64|x86_64]
+# Usage: Tools/build-ffmpeg.sh [arm64|x86_64]   (with neither, builds both and joins them in <version>-universal)
 set -euo pipefail
 
 version=9.0.2
 # The release tarball's SHA-256. Its signature was checked against FFmpeg's release signing key
 # (FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676 58D8) when this version was pinned.
 sha256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
-arch="${1:-$(uname -m)}"
 here="$(cd "$(dirname "$0")/.." && pwd)"
+
+if [ -z "${1:-}" ]; then
+  universal="$here/build/ffmpeg/$version-universal"
+  "$0" arm64
+  "$0" x86_64
+  mkdir -p "$universal"
+  for tool in ffmpeg ffprobe; do
+    lipo -create "$here/build/ffmpeg/$version-arm64/$tool" "$here/build/ffmpeg/$version-x86_64/$tool" -output "$universal/$tool"
+  done
+  echo "FFmpeg $version (arm64 and x86_64) in $universal"
+  exit 0
+fi
+arch="$1"
 out="$here/build/ffmpeg/$version-$arch"
 
 if [ -x "$out/ffmpeg" ] && [ -x "$out/ffprobe" ]; then
