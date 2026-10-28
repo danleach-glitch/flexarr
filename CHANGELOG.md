@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.52.0 · 28 October 2026
 
 ### Playback
 - Live TV channels that need converting share the server's limit on conversions with films and episodes, so a busy evening can't overload it. A channel played as it is doesn't count.
