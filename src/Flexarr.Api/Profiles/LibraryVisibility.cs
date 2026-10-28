@@ -13,14 +13,21 @@ public static class LibraryVisibility
     {
         group.AddEndpointFilter(async (context, next) =>
         {
-            var services = context.HttpContext.RequestServices;
-            var profileId = services.GetRequiredService<CurrentProfile>().Id;
-            var db = services.GetRequiredService<FlexarrDbContext>();
-            db.HiddenLibraryIds = await db.Profiles.Where(p => p.Id == profileId).Select(p => p.HiddenLibraryIds)
-                .FirstOrDefaultAsync(context.HttpContext.RequestAborted) ?? [];
+            await ApplyAsync(context.HttpContext.RequestServices, context.HttpContext.RequestAborted);
             return await next(context);
         });
         return group;
+    }
+
+    /// <summary>
+    /// Applies the current profile's hidden libraries to the database context in <paramref name="services"/>. For
+    /// requests outside the <c>/api/v1</c> group, such as the assistant's tool calls at <c>/api/v1/mcp</c>.
+    /// </summary>
+    public static async Task ApplyAsync(IServiceProvider services, CancellationToken ct)
+    {
+        var profileId = services.GetRequiredService<CurrentProfile>().Id;
+        var db = services.GetRequiredService<FlexarrDbContext>();
+        db.HiddenLibraryIds = await db.Profiles.Where(p => p.Id == profileId).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct) ?? [];
     }
 
     /// <summary>

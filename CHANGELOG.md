@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Privacy and security
+- An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
+
 ## 0.51.1 · 28 October 2026
 
 ### Web
