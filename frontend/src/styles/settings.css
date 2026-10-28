@@ -441,8 +441,24 @@
   color: var(--usher);
 }
 
-.tmdb-credit {
+/* Small print under a connection's field: where a key comes from, and credits. */
+.connection-form .field-hint {
+  margin: 6px 0 0;
   font-size: var(--step--1);
+}
+
+.connection-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--step--1);
+}
+
+.connection-ok svg {
+  width: 16px;
+  height: 16px;
+  color: #7fd1a0;
 }
 
 .app-logo-icon svg {

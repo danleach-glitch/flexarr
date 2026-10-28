@@ -77,7 +77,7 @@ export function ConnectionsSection() {
         </SettingsHeader>
 
         <SettingsGroup
-          title="Apps"
+          title="Apps & Integrations"
           note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}
           action={
             open !== 'new' && (
@@ -455,37 +455,39 @@ function TmdbRow({
           }}
         >
           <p className="muted">
-            {hasRadarr ? 'Details and artwork for films Radarr doesn’t have.' : 'Details, artwork and cast for your films, which Radarr would otherwise supply.'}{' '}
-            The key is free: sign up at{' '}
+            {hasRadarr ? 'Details, artwork and cast for films Radarr doesn’t have.' : 'Details, artwork and cast for your films.'} Shows come from TVmaze and
+            need no key.
+          </p>
+          <div className="field-row">
+            <label className="grow">
+              API key
+              <input
+                type="password"
+                value={apiKey}
+                autoComplete="off"
+                placeholder={hasKey ? 'Saved; paste to replace' : 'API key or read access token'}
+                onChange={(e) => {
+                  setApiKey(e.target.value)
+                  setTest(undefined)
+                }}
+              />
+            </label>
+          </div>
+          <p className="muted field-hint">
+            Free from{' '}
             <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">
               themoviedb.org
-            </a>
-            , and in Settings › API register an application for personal use (your own media server; any name will do). Then copy the API key or
-            read access token. Shows don’t need one: they come from TVmaze. See{' '}
+            </a>{' '}
+            by registering an app for personal use.{' '}
             <a href="https://flexarr.io/guide/without-arrs#films-from-tmdb" target="_blank" rel="noreferrer">
-              how to get a key
+              How to get a key
             </a>
-            .
           </p>
-          <label>
-            API key
-            <input
-              type="password"
-              value={apiKey}
-              autoComplete="off"
-              placeholder={hasKey ? 'Saved; paste to replace' : 'API key or read access token'}
-              onChange={(e) => {
-                setApiKey(e.target.value)
-                setTest(undefined)
-              }}
-            />
-          </label>
           {test?.ok && (
-            <p className="muted" role="status">
+            <p className="connection-ok" role="status">
               <Check /> TMDB accepted the key.
             </p>
           )}
-          <p className="muted tmdb-credit">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
           <div className="form-actions">
             {hasKey && (
               <IconButton
@@ -506,6 +508,7 @@ function TmdbRow({
               Save
             </AsyncButton>
           </div>
+          <p className="muted field-hint">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
         </form>
       )}
     </div>
