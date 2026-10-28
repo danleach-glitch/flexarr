@@ -65,14 +65,16 @@ The server's firewall must let other devices reach port **8383**. On a Mac with 
 
 ### Servers that don't announce themselves
 
-Finding the server by itself works when Flexarr runs natively on a Mac. In Docker, including on a Synology or Unraid server, the container usually can't announce itself to the network, so the app won't list it. Enter the address instead (below).
+Flexarr announces itself to the network wherever it runs, but in Docker, including on a Synology or Unraid server, only when the container shares the computer's network. Docker's own network (the usual `-p 8383:8383`) doesn't pass the announcement on, so the app won't list the server. Run the container on the host's network (see [Install with Docker](install-docker.md#found-on-your-network)), or enter the address instead (below).
+
+The announcement uses UDP port **5353** (mDNS). A firewall on the server needs to let it through as well as port 8383.
 
 ## Enter an address instead
 
 Every app has **Enter an address instead** under the list of servers.
 
 - **iPhone and iPad:** type the server's address, such as `http://192.168.1.20:8383`, and choose **Connect**. You get a code to approve, as above. Away from home, **Connecting from outside your home? Use an API key** asks for the [API key](first-setup.md#the-api-key) instead.
-- **Apple TV:** type the address and the **API key**. The key isn't needed if the address is the server's Tailscale address.
+- **Apple TV:** the same as iPhone: type the address and choose **Connect** to get a code, or **Connecting from outside your home? Use an API key** away from home.
 
 Use the server's IP address and port. You'll find the IP address in your router's list of devices, or on the server itself.
 

@@ -377,6 +377,19 @@ describe('Settings', () => {
     expect(screen.getByRole('link', { name: 'Manage the server' })).toBeInTheDocument()
   })
 
+  it('doesn’t call a new server’s main profile “Main profile’s profile”', async () => {
+    mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null },
+      '/profiles': [{ id: 'owner', name: 'Main profile', isMain: true, hasPin: false, isCurrent: true }],
+    })
+
+    renderAt('/settings/playback')
+
+    expect(await screen.findByRole('heading', { name: 'Main profile' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Main profile’s profile' })).not.toBeInTheDocument()
+  })
+
   it('saves Home’s rows in the order they’re dragged into', async () => {
     let saved: { home: { id: string }[] } | undefined
     const row = (id: string) => ({ id, label: id, enabled: true })
@@ -460,6 +473,30 @@ describe('Settings', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Sign out Living room?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sign-ins/s1') && init?.method === 'DELETE')).toBe(true))
+  })
+
+  it('in Docker, says Tailscale can’t be turned on rather than asking to install it', async () => {
+    mockApi({
+      '/libraries': [],
+      '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null },
+      '/sign-ins': [],
+      '/remote': {
+        yourConnection: 'Local',
+        yourTailscaleLogin: null,
+        tailscale: { installed: false, running: false, dnsName: null, ownerLogin: null, privateAccess: false, publicAccess: false, people: [], problem: 'Tailscale isn’t installed on the server.', url: null },
+        links: [],
+        cloudflareTunnelRunning: false,
+        mainProfileHasPin: false,
+        inContainer: true,
+      },
+    })
+
+    renderAt('/settings/access')
+
+    expect(await screen.findByText('Not available in Docker')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Watch away from home' })).toHaveAttribute('href', 'https://flexarr.io/guide/away-from-home')
+    expect(screen.queryByText(/Install Tailscale on the server/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument()
   })
 
   it('says how many were signed out with a new key', async () => {

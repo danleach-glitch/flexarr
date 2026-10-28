@@ -86,7 +86,7 @@ export function SettingsPage() {
         <h1>Settings</h1>
         <nav aria-label="Settings">
           <div className="settings-nav-group">
-            <h2>{name ? `${name}’s profile` : 'Your profile'}</h2>
+            <h2>{profileHeading(name)}</h2>
             {profilePages.map(link)}
           </div>
           <div className="settings-nav-group">
@@ -110,6 +110,12 @@ export function SettingsPage() {
   )
 }
 
+
+/** "Claire’s profile", but a name that already says profile (a new server's "Main profile") stays as it is. */
+function profileHeading(name: string | undefined) {
+  if (!name) return 'Your profile'
+  return /\bprofile$/i.test(name.trim()) ? name : `${name}’s profile`
+}
 
 /** Asks for the main profile (its PIN, if it has one), then comes back to this page of Settings. */
 function switchToMainProfile(main: Profile | undefined) {

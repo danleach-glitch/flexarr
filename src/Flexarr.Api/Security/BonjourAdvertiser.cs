@@ -6,8 +6,9 @@ namespace Flexarr.Api.Security;
 
 /// <summary>
 /// Announces Flexarr on the local network (Bonjour, "_flexarr._tcp") so apps can list it instead of asking for an
-/// address. The TXT record carries the address to use. Uses the system's own tools: dns-sd on macOS, avahi-publish on
-/// Linux when installed; elsewhere apps fall back to typing the address.
+/// address. The TXT record carries the address to use. Uses the system's own tools when there are some (dns-sd on
+/// macOS, avahi-publish on Linux), and otherwise answers itself (<see cref="MdnsResponder"/>): in Docker, on Linux
+/// without Avahi, and on Windows.
 /// </summary>
 public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLifetime lifetime, ILogger<BonjourAdvertiser> logger) : BackgroundService
 {
@@ -37,6 +38,7 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
             : null;
         if (command is null)
         {
+            await RespondAsync(new MdnsService(name, ServiceType, host, port.Value, url), stoppingToken);
             return;
         }
 
@@ -72,6 +74,21 @@ public sealed partial class BonjourAdvertiser(IServer server, IHostApplicationLi
             }
 
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+    }
+
+    /// <summary>No system tool to announce with: answer mDNS queries here. If port 5353 can't be had, apps fall back to typing the address.</summary>
+    private async Task RespondAsync(MdnsService service, CancellationToken ct)
+    {
+        try
+        {
+            using var responder = new MdnsResponder(service, logger);
+            LogAdvertising(service.InstanceName, service.Url);
+            await responder.RunAsync(ct);
+        }
+        catch (System.Net.Sockets.SocketException ex)
+        {
+            LogUnavailable(ex.Message);
         }
     }
 

@@ -136,16 +136,15 @@
 <ul>
 <li><strong>Name</strong>: <code>flexarr</code></li>
 <li><strong>Repository</strong>: <code>ghcr.io/danleach-glitch/flexarr:latest</code></li>
-<li><strong>Network Type</strong>: <code>Bridge</code></li>
+<li><strong>Network Type</strong>: <code>Host</code>, so the Apple TV and iPhone apps find Flexarr by themselves. <code>Bridge</code> works too, but then you type the server&#39;s address in the apps.</li>
 </ul>
 </li>
 <li><p>Switch the form to the advanced view with the <strong>Basic View</strong> toggle at the top right, and fill in:</p>
 <ul>
 <li><strong>WebUI</strong>: <code>http://[IP]:[PORT:8383]/</code></li>
-<li><strong>Extra Parameters</strong>: <code>--user 99:100</code></li>
 </ul>
 </li>
-<li><p>Add the port, the settings folder and your media with <strong>Add another Path, Port, Variable, Label or Device</strong> at the bottom, one at a time:</p>
+<li><p>Add the port, the settings folder, your media and the user to run as with <strong>Add another Path, Port, Variable, Label or Device</strong> at the bottom, one at a time:</p>
 <div class="table"><table>
 <thead>
 <tr>
@@ -173,23 +172,35 @@
 <td><code>/data/media</code></td>
 <td><code>/mnt/user/data/media</code></td>
 </tr>
+<tr>
+<td>Variable</td>
+<td>PUID</td>
+<td><code>PUID</code></td>
+<td><code>99</code></td>
+</tr>
+<tr>
+<td>Variable</td>
+<td>PGID</td>
+<td><code>PGID</code></td>
+<td><code>100</code></td>
+</tr>
 </tbody></table></div>
 <p>Change the media paths to match yours. The container path should be the one your *arrs use inside their containers.</p>
 </li>
 <li><p>Click <strong>Apply</strong>. Unraid downloads the image and starts Flexarr.</p>
 </li>
 </ol>
-<h3 id="why-user-99-100"><a class="anchor" href="#why-user-99-100" aria-hidden="true" tabindex="-1">#</a>Why <code>--user 99:100</code></h3>
-<p>The Flexarr container runs as its own user rather than root, and doesn&#39;t read <code>PUID</code> or <code>PGID</code> variables. <code>--user 99:100</code> runs it as Unraid&#39;s usual <code>nobody:users</code>, the owner of files on your shares and in appdata, so it can write its settings and read your media. If your other containers use a different <code>PUID</code> and <code>PGID</code>, use those numbers instead.</p>
+<h3 id="why-puid-99-and-pgid-100"><a class="anchor" href="#why-puid-99-and-pgid-100" aria-hidden="true" tabindex="-1">#</a>Why <code>PUID</code> 99 and <code>PGID</code> 100</h3>
+<p>They run Flexarr as Unraid&#39;s usual <code>nobody:users</code>, the owner of files on your shares and in appdata, so it can write its settings and read your media. If your other containers use a different <code>PUID</code> and <code>PGID</code>, use those numbers instead. Flexarr gives <code>appdata/flexarr</code> to that user when it starts.</p>
 <h3 id="media-paths"><a class="anchor" href="#media-paths" aria-hidden="true" tabindex="-1">#</a>Media paths</h3>
 <p>Sonarr, Radarr and Lidarr tell Flexarr where each new file is. When all of them see your media at the same container path (here <code>/data/media</code>), those paths match and new downloads appear straight away. If they don&#39;t, map one to the other in <strong>Settings › Connections › Path mappings</strong>. See <a href="/guide/media-paths">Media paths</a>.</p>
 <h2 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h2>
 <p>Flexarr converts video on the processor by default. On Linux, <strong>Settings › Streaming › Hardware acceleration › Automatic</strong> means the processor.</p>
-<p><strong>Intel and AMD graphics.</strong> Passing <code>/dev/dri</code> to the container isn&#39;t enough yet: the Flexarr image doesn&#39;t include the Intel or AMD drivers that VA-API and Quick Sync need. Leave hardware acceleration on <strong>Automatic</strong>.</p>
+<p><strong>Intel and AMD graphics.</strong> The image includes the drivers. Edit the container and add a <strong>Device</strong> with <code>/dev/dri</code> as its value, then apply. <strong>VA-API (Intel and AMD on Linux)</strong>, and on Intel <strong>Intel Quick Sync</strong>, appear in <strong>Settings › Streaming</strong>. Choose one and play something that needs converting. If it fails, set it back to <strong>Automatic</strong>.</p>
 <p><strong>NVIDIA graphics</strong> may work, because Unraid&#39;s NVIDIA driver supplies the libraries to the container. This is untested, so treat it as an experiment:</p>
 <ol>
 <li>Install the <strong>Nvidia Driver</strong> plugin from the Apps tab and reboot if it asks.</li>
-<li>Edit the Flexarr container. Add <code>--runtime=nvidia</code> to <strong>Extra Parameters</strong>, after <code>--user 99:100</code>.</li>
+<li>Edit the Flexarr container. Add <code>--runtime=nvidia</code> to <strong>Extra Parameters</strong>.</li>
 <li>Add two <strong>Variables</strong>: <code>NVIDIA_VISIBLE_DEVICES</code> set to <code>all</code> (or your card&#39;s ID from the plugin&#39;s page), and <code>NVIDIA_DRIVER_CAPABILITIES</code> set to <code>compute,video,utility</code>.</li>
 <li>Apply, then choose <strong>NVIDIA NVENC</strong> in <strong>Settings › Streaming</strong> and play something that needs converting. If it fails, set it back to <strong>Automatic</strong>.</li>
 </ol>

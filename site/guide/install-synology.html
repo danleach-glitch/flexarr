@@ -135,7 +135,7 @@
 </ol>
 <p>Note where your media is, for example <code>/volume1/data/media</code> with <code>movies</code>, <code>tv</code> and <code>music</code> inside. If you run Sonarr, Radarr and Lidarr on the NAS, use the folder they use.</p>
 <h2 id="3-find-your-user-id"><a class="anchor" href="#3-find-your-user-id" aria-hidden="true" tabindex="-1">#</a>3. Find your user ID</h2>
-<p>The Flexarr container doesn&#39;t read <code>PUID</code> or <code>PGID</code> settings. Instead you tell it which user to run as, so it can write to its folder and read your media. You need that user&#39;s numeric ID and group ID.</p>
+<p>You tell the Flexarr container which user to run as, with <code>PUID</code> and <code>PGID</code>, so it can write to its folder and read your media. You need that user&#39;s numeric ID and group ID.</p>
 <ol>
 <li><p>In <strong>Control Panel › Terminal &amp; SNMP</strong>, tick <strong>Enable SSH service</strong> and apply.</p>
 </li>
@@ -162,7 +162,7 @@
   flexarr:
     image: ghcr.io/danleach-glitch/flexarr:latest
     container_name: flexarr
-    user: &quot;1026:100&quot;
+    environment: [PUID=1026, PGID=100]
     ports: [&quot;8383:8383&quot;]
     volumes:
       - /volume1/docker/flexarr/config:/config
@@ -179,7 +179,11 @@
 <h3 id="port"><a class="anchor" href="#port" aria-hidden="true" tabindex="-1">#</a>Port</h3>
 <p>Flexarr listens on port <code>8383</code>. If you use DSM&#39;s firewall (<strong>Control Panel › Security › Firewall</strong>), allow that port from your home network.</p>
 <h2 id="hardware-transcoding"><a class="anchor" href="#hardware-transcoding" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding</h2>
-<p>Flexarr converts video on the processor by default. Many Intel-based Synology models have a graphics chip that could do this work, but the Flexarr image doesn&#39;t yet include the Intel drivers it needs. Leave <strong>Settings › Streaming › Hardware acceleration</strong> on <strong>Automatic</strong>.</p>
+<p>Flexarr converts video on the processor by default. Many Intel-based Synology models have a graphics chip that can do this work, and the Flexarr image includes the Intel drivers. If your NAS has <code>/dev/dri</code> (check with <code>ls /dev/dri</code> over SSH), add this to the service in the project&#39;s <code>docker-compose.yml</code>:</p>
+<pre><code class="language-yaml">    devices:
+      - /dev/dri:/dev/dri
+</code></pre>
+<p>Then choose <strong>Intel Quick Sync</strong> or <strong>VA-API (Intel and AMD on Linux)</strong> in <strong>Settings › Streaming › Hardware acceleration</strong> and play something that needs converting. If it fails, set it back to <strong>Automatic</strong>.</p>
 <p>This matters less than you might expect: the iPhone, iPad and Apple TV apps play most files directly, so the server only converts for web browsers, quality-limited streams away from home and some downloads. On a NAS with a low-power processor, keep those to one or two at a time.</p>
 <h2 id="updating"><a class="anchor" href="#updating" aria-hidden="true" tabindex="-1">#</a>Updating</h2>
 <p>When a new release is out, Container Manager&#39;s <strong>Image</strong> page marks the Flexarr image as having an update. Select it and choose <strong>Update</strong>, and Container Manager restarts Flexarr on the new version. Your settings stay in <code>docker/flexarr/config</code>. See <a href="/guide/updating">Updating</a>.</p>

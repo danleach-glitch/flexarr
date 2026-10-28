@@ -1,7 +1,7 @@
 import XCTest
 
 /// App Review's way in on the Apple TV, from a fresh install and with the Siri Remote: "Enter an address instead",
-/// the address and API key, then the App Review profile and Home. Run it before submitting a version, against the
+/// the address, "Use an API key" and the key, then the App Review profile and Home. Run it before submitting a version, against the
 /// review server:
 ///
 ///     TEST_RUNNER_FLEXARR_REVIEW_SERVER=<https address> TEST_RUNNER_FLEXARR_REVIEW_KEY=<key>
@@ -28,12 +28,18 @@ final class ReviewerSignIn: XCTestCase {
         XCTAssertTrue(manual.hasFocus, "focus should reach Enter an address instead")
         press(.select, wait: 2)
 
-        // Focus starts on the address field, then the API key, then Connect. Menu closes the keyboard.
+        // Focus starts on the address field. Menu closes the keyboard.
         XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
         press(.select, wait: 2)
         app.typeText(server)
         press(.menu, wait: 1.5)
-        press(.down, wait: 1)
+        // The review server is reached from outside, where codes aren't offered: the key is behind the link under Connect.
+        let useKey = app.buttons["Connecting from outside your home? Use an API key"]
+        for _ in 0..<3 where !useKey.hasFocus { press(.down, wait: 1) }
+        XCTAssertTrue(useKey.hasFocus, "focus should reach the API key link")
+        press(.select, wait: 2)
+        // The key field appears with the focus.
+        XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 5))
         press(.select, wait: 2)
         app.typeText(key)
         press(.menu, wait: 1.5)

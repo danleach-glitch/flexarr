@@ -29,17 +29,24 @@ RUN arch=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \
 
 # ---- Runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca
+ARG TARGETARCH
+# The VA-API drivers, so graphics passed in with --device /dev/dri can convert video: Mesa's for AMD everywhere, and
+# Intel's (VA-API and Quick Sync, old chips and new) on amd64, the only place Intel ships them.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg mesa-va-drivers \
+    && if [ "$TARGETARCH" = "amd64" ]; then \
+        apt-get install -y --no-install-recommends intel-media-va-driver-non-free i965-va-driver libmfx-gen1.2 libmfx1; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app ./
 COPY --from=web /src/frontend/dist ./wwwroot
+COPY deploy/docker/entrypoint.sh /usr/local/bin/flexarr-entrypoint
 
 ENV Flexarr__DataDirectory=/config \
     ASPNETCORE_HTTP_PORTS=8383
-RUN mkdir /config && chown $APP_UID /config
+RUN mkdir /config && chown $APP_UID:$APP_UID /config
 VOLUME /config
 EXPOSE 8383
-USER $APP_UID
-ENTRYPOINT ["dotnet", "Flexarr.dll"]
+# Starts as root only to hand /config to PUID:PGID (1654 unless set), then runs Flexarr as that user. --user skips it.
+ENTRYPOINT ["flexarr-entrypoint"]

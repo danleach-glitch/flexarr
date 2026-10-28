@@ -7,7 +7,7 @@ on:
     tags: ["v*"]
   workflow_dispatch:
   pull_request:
-    paths: [Dockerfile, .dockerignore, "src/**", "frontend/**", Directory.*.props, global.json]
+    paths: [Dockerfile, .dockerignore, "deploy/docker/**", "src/**", "frontend/**", Directory.*.props, global.json]
 
 permissions:
   contents: read

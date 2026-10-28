@@ -11,7 +11,8 @@ public sealed record RemoteAccessDto(
     TailscaleState Tailscale,
     IReadOnlyList<TailnetLinkDto> Links,
     bool CloudflareTunnelRunning,
-    bool MainProfileHasPin);
+    bool MainProfileHasPin,
+    bool InContainer);
 
 public sealed record TailnetLinkDto(string Login, string Name, string? ProfileId);
 
@@ -99,7 +100,9 @@ public static class RemoteAccessEndpoints
             state,
             links,
             CloudflareRunning(),
-            mainPin);
+            mainPin,
+            // A container can't see the host's tailscale command, so Turn on can't work there: the page says so.
+            Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true");
     }
 
     private static bool CloudflareRunning()

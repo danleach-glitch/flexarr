@@ -136,7 +136,7 @@
 <figure><img src="/guide/img/access.webp" alt="Settings › Access with Tailscale on, the private address and its Copy button, and the people on the tailnet" data-caption="Settings › Access, with Tailscale on" loading="lazy" decoding="async"></figure>
 <p>From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn&#39;t answer, they use the Tailscale one, and they go back to the home address when you&#39;re home again. There&#39;s nothing to change in the apps.</p>
 <p>In a browser away from home, open the private address instead of the usual one.</p>
-<blockquote class="callout note"><p><strong>Note</strong> Flexarr needs the <code>tailscale</code> command on the same computer it runs on to turn this on. If <strong>Settings › Access</strong> says Tailscale isn&#39;t installed on the server even though you&#39;ve installed it, Flexarr probably runs in a container that can&#39;t see it. That&#39;s usually the case on a NAS or in Docker.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Flexarr needs the <code>tailscale</code> command on the same computer it runs on to turn this on. In Docker it can&#39;t see the Tailscale installed around it, so <strong>Settings › Access</strong> says <strong>Not available in Docker</strong>. To use Flexarr away from home from Docker, put it behind an <a href="#an-https-reverse-proxy-instead">HTTPS reverse proxy</a>, or run Flexarr without Docker on a computer with Tailscale.</p>
 </blockquote>
 <h3 id="who-can-get-in"><a class="anchor" href="#who-can-get-in" aria-hidden="true" tabindex="-1">#</a>Who can get in</h3>
 <p>When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under <strong>People on your tailnet</strong> in <strong>Settings › Access</strong>. Choose a profile for each person. Anyone set to <strong>Not allowed</strong> is turned away, even though Tailscale lets them reach the server.</p>
@@ -178,7 +178,7 @@
 <p>Devices normally connect with a code you approve in <strong>Settings › Access › Connect a device</strong>, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:</p>
 <ul>
 <li><strong>iPhone and iPad:</strong> on the connect screen, choose <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
-<li><strong>Apple TV:</strong> under <strong>Enter an address instead</strong>, type the address and the API key. Over Tailscale it isn&#39;t needed.</li>
+<li><strong>Apple TV:</strong> the same: <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
 </ul>
 <p>The API key is in <strong>Settings › Access</strong> under <strong>API key</strong>. Showing it asks for the main profile&#39;s PIN. It&#39;s also in <code>config.json</code>.</p>
 <blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Don&#39;t paste it anywhere you wouldn&#39;t paste a password. If it leaks, <strong>Make a new key</strong> in <strong>Settings › Access</strong> replaces it, and can sign out every other browser and device at the same time.</p>

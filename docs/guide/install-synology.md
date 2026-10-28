@@ -20,7 +20,7 @@ Note where your media is, for example `/volume1/data/media` with `movies`, `tv` 
 
 ## 3. Find your user ID
 
-The Flexarr container doesn't read `PUID` or `PGID` settings. Instead you tell it which user to run as, so it can write to its folder and read your media. You need that user's numeric ID and group ID.
+You tell the Flexarr container which user to run as, with `PUID` and `PGID`, so it can write to its folder and read your media. You need that user's numeric ID and group ID.
 
 1. In **Control Panel › Terminal & SNMP**, tick **Enable SSH service** and apply.
 2. From a computer, connect with `ssh yourname@your-nas` and run `id`:
@@ -46,7 +46,7 @@ The Flexarr container doesn't read `PUID` or `PGID` settings. Instead you tell i
      flexarr:
        image: ghcr.io/danleach-glitch/flexarr:latest
        container_name: flexarr
-       user: "1026:100"
+       environment: [PUID=1026, PGID=100]
        ports: ["8383:8383"]
        volumes:
          - /volume1/docker/flexarr/config:/config
@@ -69,7 +69,14 @@ Flexarr listens on port `8383`. If you use DSM's firewall (**Control Panel › S
 
 ## Hardware transcoding
 
-Flexarr converts video on the processor by default. Many Intel-based Synology models have a graphics chip that could do this work, but the Flexarr image doesn't yet include the Intel drivers it needs. Leave **Settings › Streaming › Hardware acceleration** on **Automatic**.
+Flexarr converts video on the processor by default. Many Intel-based Synology models have a graphics chip that can do this work, and the Flexarr image includes the Intel drivers. If your NAS has `/dev/dri` (check with `ls /dev/dri` over SSH), add this to the service in the project's `docker-compose.yml`:
+
+```yaml
+    devices:
+      - /dev/dri:/dev/dri
+```
+
+Then choose **Intel Quick Sync** or **VA-API (Intel and AMD on Linux)** in **Settings › Streaming › Hardware acceleration** and play something that needs converting. If it fails, set it back to **Automatic**.
 
 This matters less than you might expect: the iPhone, iPad and Apple TV apps play most files directly, so the server only converts for web browsers, quality-limited streams away from home and some downloads. On a NAS with a low-power processor, keep those to one or two at a time.
 

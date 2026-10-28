@@ -16,7 +16,7 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Server on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access."
+            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web. Over Tailscale, your Tailscale account needs linking in Settings › Access."
         case .recordingInTheWay(let recording):
             recording.message
         case .http(let status, let message):
