@@ -36,7 +36,7 @@ public enum SharedSignIn {
         SecItemDelete(query(account: account) as CFDictionary)
         var add = query(account: account)
         add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        add[kSecAttrAccessible as String] = KeychainPlacement.accessible
         SecItemAdd(add as CFDictionary, nil)
     }
 
@@ -46,6 +46,7 @@ public enum SharedSignIn {
         read[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         guard SecItemCopyMatching(read as CFDictionary, &result) == errSecSuccess else { return nil }
+        KeychainPlacement.keepOnThisDevice(read)
         return result as? Data
     }
 

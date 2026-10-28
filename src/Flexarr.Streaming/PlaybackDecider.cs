@@ -76,6 +76,17 @@ public static class PlaybackDecider
     /// <summary>Below this cap (a remote connection, say), lossless audio is too big and converts to AAC instead.</summary>
     private const long LosslessMinBitrate = 20_000_000;
 
+    /// <summary>
+    /// H.264 and HEVC profiles players' hardware decoders take. 10-bit H.264 (Hi10P), 4:2:2 and 4:4:4 H.264, and HEVC
+    /// beyond Main 10 (12-bit, 4:2:2 and 4:4:4 range extensions) aren't, and fail to play. Unknown profiles pass.
+    /// </summary>
+    private static bool DecodableProfile(MediaStream video) => video.Profile is not { } p || video.Codec switch
+    {
+        "h264" => p is "Baseline" or "Constrained Baseline" or "Main" or "High" or "Extended",
+        "hevc" => p is "Main" or "Main 10" or "Main Still Picture",
+        _ => true,
+    };
+
     /// <summary>TrueHD, DTS-HD Master Audio, PCM and the lossless codecs: worth keeping lossless.</summary>
     private static bool IsLossless(MediaStream audio) =>
         audio.Codec is "truehd" or "mlp" or "flac" or "alac" || audio.Codec.StartsWith("pcm_", StringComparison.Ordinal)
@@ -191,6 +202,21 @@ public static class PlaybackDecider
         if (file.VideoRange != VideoRange.Sdr && !profile.Hdr)
         {
             reasons.Add("This display doesn't support HDR");
+        }
+        else if (file.VideoRange == VideoRange.DolbyVision && !profile.DolbyVision)
+        {
+            // Profile 5 has no HDR10 picture underneath and shows purple and green; which profile this is isn't known
+            // here, so it's repackaged (which knows, and keeps 7 and 8's HDR10) or converted.
+            reasons.Add("This display doesn't show Dolby Vision");
+        }
+        else if ((file.VideoRange == VideoRange.Hdr10 && profile.Hdr10 == false) || (file.VideoRange == VideoRange.Hlg && profile.Hlg == false))
+        {
+            reasons.Add($"This display isn't showing {(file.VideoRange == VideoRange.Hlg ? "HLG" : "HDR10")} right now");
+        }
+
+        if (video is not null && !DecodableProfile(video))
+        {
+            reasons.Add($"Players can't decode {video.Codec.ToUpperInvariant()} {video.Profile} video");
         }
 
         if (Math.Max(file.Height ?? 0, (file.Width ?? 0) * 9 / 16) > maxHeight)

@@ -10,9 +10,16 @@ namespace Flexarr.Api.Playback;
 /// Converts a file's text subtitles once, in the background, starting as soon as playback begins, so they're
 /// usually ready by the time someone turns them on. Concurrent requests share the same conversion.
 /// </summary>
-public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options)
+public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDisposable
 {
+    /// <summary>Each conversion reads the whole file: two at a time, so a household starting several films doesn't swamp the disk.</summary>
+    private const int AtOnce = 2;
+
+    /// <summary>Longest one file's conversion may take: a share that stopped answering mustn't hold a slot for good.</summary>
+    private static readonly TimeSpan Limit = TimeSpan.FromMinutes(10);
+
     private readonly ConcurrentDictionary<Guid, Lazy<Task<IReadOnlyDictionary<string, string>>>> _jobs = new();
+    private readonly SemaphoreSlim _converting = new(AtOnce, AtOnce);
 
     public void Prefetch(MediaFile file, IReadOnlyList<SubtitleTrack> tracks)
     {
@@ -39,10 +46,19 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options)
     {
         var lazy = _jobs.GetOrAdd(file.Id, id => new Lazy<Task<IReadOnlyDictionary<string, string>>>(async () =>
         {
+            // Not tied to a request: the conversion should finish even if the viewer moves on, within its limit.
+            using var limit = new CancellationTokenSource(Limit);
             try
             {
-                // Not tied to a request: the conversion should finish even if the viewer moves on.
-                return await Subtitles.ToWebVttAsync(file, tracks, PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue), CancellationToken.None);
+                await _converting.WaitAsync(limit.Token);
+                try
+                {
+                    return await Subtitles.ToWebVttAsync(file, tracks, PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue), limit.Token);
+                }
+                finally
+                {
+                    _converting.Release();
+                }
             }
             finally
             {
@@ -51,4 +67,6 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options)
         }));
         return lazy.Value;
     }
+
+    public void Dispose() => _converting.Dispose();
 }

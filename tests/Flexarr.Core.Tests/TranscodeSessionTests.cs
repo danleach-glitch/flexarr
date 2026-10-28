@@ -11,6 +11,50 @@ public sealed class TranscodeSessionTests : IDisposable
     public void Dispose() => Directory.Delete(_cache, recursive: true);
 
     [Fact]
+    public async Task AHardwareEncoderThatFailsAtOnce_GivesWayToSoftware()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Stands in for ffmpeg: VA-API fails straight away (no device); libx264 writes the segment it was asked for.
+        var ffmpeg = Path.Combine(_cache, "fake-ffmpeg");
+        File.WriteAllText(ffmpeg, """
+            #!/bin/sh
+            case "$*" in *libx264*) ;; *) echo "No VA display found" >&2; exit 1 ;; esac
+            for last; do :; done
+            dir=$(dirname "$last")
+            echo x > "$dir/seg0.ts"
+            printf '#EXTM3U\nseg0.ts\n' > "$last"
+            """);
+        File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = ffmpeg, HardwareAcceleration = HardwareAcceleration.Vaapi };
+        await using var session = new TranscodeSession("fallback", "/in.mkv", 600, Plan, settings, NullLogger.Instance);
+
+        var segment = await session.GetSegmentAsync(0, CancellationToken.None);
+
+        Assert.NotNull(segment);
+    }
+
+    [Fact]
+    public async Task WithoutASoftwareEncoder_AFailingHardwareEncoderJustFails()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var ffmpeg = Path.Combine(_cache, "failing-ffmpeg");
+        File.WriteAllText(ffmpeg, "#!/bin/sh\nexit 1\n");
+        File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = ffmpeg, HardwareAcceleration = HardwareAcceleration.VideoToolbox, SoftwareFallback = false };
+        await using var session = new TranscodeSession("mac", "/in.mkv", 600, Plan, settings, NullLogger.Instance);
+
+        Assert.Null(await session.GetSegmentAsync(0, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task SegmentsWellBehindTheViewer_AreDeleted_AndOnlyThoseAreAskedForAgain()
     {
         var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = "ffmpeg" };

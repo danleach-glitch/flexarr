@@ -68,8 +68,8 @@ final class AppRequests {
     private func reply(to line: String) -> String {
         let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
         let argument = parts.count > 1 ? parts[1] : nil
-        guard let head = parts.first, head.hasPrefix(token + " ") else { return "" }
-        switch head.dropFirst(token.count + 1) {
+        guard let head = parts.first, let space = head.firstIndex(of: " "), Self.sameInConstantTime(String(head[..<space]), token) else { return "" }
+        switch head[head.index(after: space)...] {
         case "choose":
             return folders.choose(startingIn: argument) ?? ""
         case "login-item":
@@ -77,6 +77,15 @@ final class AppRequests {
         default:
             return ""
         }
+    }
+}
+
+extension AppRequests {
+    /// Compares the whole of both, however early they differ, so the time taken says nothing about the token.
+    nonisolated static func sameInConstantTime(_ given: String, _ expected: String) -> Bool {
+        let a = Array(given.utf8), b = Array(expected.utf8)
+        guard a.count == b.count else { return false }
+        return zip(a, b).reduce(UInt8(0)) { $0 | ($1.0 ^ $1.1) } == 0
     }
 }
 

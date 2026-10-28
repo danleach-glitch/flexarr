@@ -4,6 +4,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Playback
+- HDR films converted for an SDR screen no longer look grey and washed out on Docker and Linux servers, on NVIDIA and Intel Quick Sync graphics, or with subtitles burned in.
+- When the graphics card won't convert a video (busy, or not passed in to Docker), Flexarr converts it in software instead of failing every time you press Play. The log says when it does. (The Mac app has no software converter, so there it still fails.)
+- Burned-in picture subtitles (Blu-ray PGS, DVD) fit the picture: they stay in frame on films cropped to widescreen, and are full size in 4K instead of small in a corner.
+- Dolby Vision films are only sent as they are to screens that show Dolby Vision. Elsewhere they're repackaged or converted, instead of showing purple and green. Safari on an HDR Mac now says it shows Dolby Vision, so it keeps playing them directly.
+- Films and episodes in 10-bit H.264, and other formats players can't decode (4:2:2 and 4:4:4 video, 12-bit HEVC), are converted instead of failing to play.
+- HDR10 and HLG are only sent as they are when the Apple TV says it's showing them right now.
+
 ### Server
 - The Docker image has a health check, so Docker, Compose and NAS apps show when the server has stopped answering.
 - **Coming soon**, requests and notifications find titles faster in big libraries.
@@ -18,6 +26,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 
 ### iPhone and Apple TV
+- The app's sign-in and notification key stay on the device they were made on. Restoring a backup to a new iPhone or iPad asks you to connect it again, so the old and new devices don't share one sign-in.
 - Where you got to in a film or episode is saved even when you leave the app straight after stopping.
 - Signing out of the iPhone app sends anything watched offline that hadn't reached the server yet before the downloads are removed.
 - On iPhone, tapping an episode in Home's **New podcasts** opens it (its notes, Play and download) instead of playing it straight away.

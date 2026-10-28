@@ -95,13 +95,14 @@ public struct CredentialStore: Sendable {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
+        KeychainPlacement.keepOnThisDevice(query)
         return String(data: data, encoding: .utf8)
     }
 
     /// Replaces the key in place, so a failed write leaves the old one there rather than none at all.
     private func writeKey(_ key: String, account: String) throws {
         let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8),
-                                         kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock]
+                                         kSecAttrAccessible as String: KeychainPlacement.accessible]
         var status = SecItemUpdate(baseQuery(account: account) as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
             let query = baseQuery(account: account).merging(attributes) { _, new in new }

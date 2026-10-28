@@ -39,6 +39,8 @@ export function detectProfile(): DeviceProfile {
   if (can('audio/mp4; codecs="alac"')) audioCodecs.push('alac')
 
   const hdr = videoCodecs.includes('hevc') && window.matchMedia?.('(dynamic-range: high)').matches === true
+  // Safari on an HDR screen shows Dolby Vision; without saying so, its files would be converted.
+  const dolbyVision = hdr && (can('video/mp4; codecs="dvh1.05.06"') || can('video/mp4; codecs="dvh1.08.06"'))
 
   return {
     client: 'web',
@@ -46,6 +48,7 @@ export function detectProfile(): DeviceProfile {
     videoCodecs,
     audioCodecs,
     hdr,
+    dolbyVision,
     maxHeight: window.screen?.height && window.screen.height * (window.devicePixelRatio || 1) >= 2000 ? 2160 : 1080,
     // Browsers decode surround but mix down; Dolby-capable browsers (Safari) can take 5.1 untouched.
     maxAudioChannels: dolby ? 6 : 2,

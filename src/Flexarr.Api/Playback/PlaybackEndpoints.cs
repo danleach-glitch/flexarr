@@ -310,6 +310,8 @@ public static partial class PlaybackEndpoints
         HardwareAcceleration = options.Transcoding.HardwareAcceleration,
         VaapiDevice = options.Transcoding.VaapiDevice,
         SoftwarePreset = options.Transcoding.SoftwarePreset,
+        SoftwareFallback = options.Transcoding.SoftwareFallback,
+        CanToneMapInSoftware = FfmpegFilters.Has(options.FfmpegPath, "zscale"),
         MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes,
     };
 

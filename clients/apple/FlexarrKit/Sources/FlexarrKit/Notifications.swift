@@ -171,6 +171,7 @@ public enum NotificationKey {
             query[kSecMatchLimit as String] = kSecMatchLimitOne
             var result: AnyObject?
             if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data, data.count == 32 {
+                KeychainPlacement.keepOnThisDevice(query)
                 return SymmetricKey(data: data)
             }
         }
@@ -186,7 +187,7 @@ public enum NotificationKey {
             var add = query(group)
             add[kSecValueData as String] = data
             // The extension decrypts on a locked phone.
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            add[kSecAttrAccessible as String] = KeychainPlacement.accessible
             if SecItemAdd(add as CFDictionary, nil) == errSecSuccess { break }
         }
         return key

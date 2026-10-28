@@ -48,7 +48,7 @@ public static class FfmpegCommand
 
         // Decode on the GPU when it can (H.264 and HEVC); an AVI's MPEG-4, VC-1 and the like are decoded in software
         // and still encoded in hardware. Keep frames on the GPU unless subtitles need burning in (overlay runs on the CPU).
-        switch (DecodesInHardware(hw, plan.SourceVideoCodec))
+        switch (DecodesInHardware(hw, plan.SourceVideoCodec, plan.ToneMap))
         {
             case HardwareAcceleration.VideoToolbox:
                 args.AddRange(["-hwaccel", "videotoolbox"]);
@@ -142,7 +142,7 @@ public static class FfmpegCommand
 
         var hw = plan is null || plan.VideoStreamIndex < 0 ? HardwareAcceleration.None : settings.Resolved;
         var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats" };
-        switch (DecodesInHardware(hw, plan?.SourceVideoCodec))
+        switch (DecodesInHardware(hw, plan?.SourceVideoCodec, plan?.ToneMap == true))
         {
             case HardwareAcceleration.VideoToolbox:
                 args.AddRange(["-hwaccel", "videotoolbox", "-hwaccel_output_format", "videotoolbox_vld"]);
@@ -242,27 +242,46 @@ public static class FfmpegCommand
 
     /// <summary>The GPU decodes H.264 and HEVC; asked to decode anything else, VideoToolbox fails outright, so those go
     /// through the software decoder (cheap: they're old, small formats) and only the encoder runs in hardware.</summary>
-    internal static HardwareAcceleration DecodesInHardware(HardwareAcceleration hw, string? sourceCodec) =>
-        sourceCodec is null or "h264" or "hevc" ? hw : HardwareAcceleration.None;
+    /// <remarks>
+    /// HDR going to SDR on NVENC or Quick Sync is decoded in software too: those have no tone mapping on the GPU here,
+    /// so the frames are mapped on the CPU and then encoded on the GPU. VideoToolbox and VA-API map on the GPU.
+    /// </remarks>
+    internal static HardwareAcceleration DecodesInHardware(HardwareAcceleration hw, string? sourceCodec, bool toneMap = false) =>
+        sourceCodec is not (null or "h264" or "hevc") || (toneMap && hw is HardwareAcceleration.Nvenc or HardwareAcceleration.Qsv)
+            ? HardwareAcceleration.None
+            : hw;
+
+    /// <summary>HDR (PQ or HLG) to SDR BT.709 on the CPU, as the start of a filter chain; empty when it can't be done.</summary>
+    private static string SoftwareToneMap(TranscodePlan plan, TranscodeSettings settings) =>
+        plan.ToneMap && settings.CanToneMapInSoftware
+            ? "zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv,"
+            : "";
 
     private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings)
     {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
         var width = plan.TargetWidth.ToString(CultureInfo.InvariantCulture);
-        var decodedInSoftware = DecodesInHardware(hw, plan.SourceVideoCodec) == HardwareAcceleration.None && hw != HardwareAcceleration.None;
+        var decodedInSoftware = DecodesInHardware(hw, plan.SourceVideoCodec, plan.ToneMap) == HardwareAcceleration.None && hw != HardwareAcceleration.None;
+        var toneMap = SoftwareToneMap(plan, settings);
         if (burn is not null)
         {
             var subtitleInput = burn.ExternalPath is null ? $"[0:{burn.StreamIndex}]" : "[1:0]";
             var tail = hw == HardwareAcceleration.Vaapi ? ",format=nv12,hwupload" : ",format=yuv420p";
-            args.AddRange(["-filter_complex", $"[0:{plan.VideoStreamIndex}]{subtitleInput}overlay,scale={width}:{height}{tail}[v]", "-map", "[v]"]);
+            // Burning in runs on the CPU, so HDR is mapped there first, whatever the encoder.
+            var video = toneMap.Length > 0 ? $"[0:{plan.VideoStreamIndex}]{toneMap.TrimEnd(',')}[sdr];" : "";
+            // Picture subtitles are drawn on a canvas of their own (often 1920×1080 whatever the video): scaled to the
+            // video's height, keeping their shape, and centred, so a cropped scope film keeps its captions in frame and
+            // a 4K one has them full size.
+            args.AddRange(["-filter_complex",
+                $"{video}{subtitleInput}{(video.Length > 0 ? "[sdr]" : $"[0:{plan.VideoStreamIndex}]")}scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale={width}:{height}{tail}[v]",
+                "-map", "[v]"]);
         }
         else if (decodedInSoftware)
         {
             // Software frames scaled (and HDR mapped to SDR) on the CPU, then handed to the hardware encoder.
             args.AddRange(["-map", $"0:{plan.VideoStreamIndex}"]);
-            var tonemap = plan.ToneMap ? "zscale=transfer=linear:npl=100,tonemap=hable,zscale=transfer=bt709:matrix=bt709:primaries=bt709," : "";
             var tail = hw == HardwareAcceleration.Vaapi ? "format=nv12,hwupload" : "format=yuv420p";
-            args.AddRange(["-vf", $"{tonemap}scale={width}:{height},{tail}"]);
+            args.AddRange(["-vf", $"{toneMap}scale={width}:{height},{tail}"]);
         }
         else
         {
@@ -273,7 +292,7 @@ public static class FfmpegCommand
                 HardwareAcceleration.VideoToolbox => $"scale_vt=w={width}:h={height}" + (plan.ToneMap ? ":color_matrix=bt709:color_primaries=bt709:color_transfer=bt709" : ""),
                 HardwareAcceleration.Vaapi => $"scale_vaapi=w={width}:h={height}:format=nv12" + (plan.ToneMap ? ",tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709" : ""),
                 HardwareAcceleration.Nvenc => $"scale_cuda={width}:{height}:format=yuv420p",
-                _ => $"scale={width}:{height},format=yuv420p",
+                _ => $"{toneMap}scale={width}:{height},format=yuv420p",
             };
             args.AddRange(["-vf", filter]);
         }

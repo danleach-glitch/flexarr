@@ -38,7 +38,12 @@ final class MediaFolders {
         NSApp.activate()
         guard panel.runModal() == .OK, let url = panel.url,
               let bookmark = try? Self.bookmark(url), url.startAccessingSecurityScopedResource() else { return nil }
-        var bookmarks = UserDefaults.standard.array(forKey: Self.defaultsKey) as? [Data] ?? []
+        // Choosing a folder again replaces its bookmark rather than adding another each time.
+        var bookmarks = (UserDefaults.standard.array(forKey: Self.defaultsKey) as? [Data] ?? []).filter { saved in
+            var stale = false
+            let path = try? URL(resolvingBookmarkData: saved, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale).path
+            return path != url.path
+        }
         bookmarks.append(bookmark)
         UserDefaults.standard.set(bookmarks, forKey: Self.defaultsKey)
         return url.path

@@ -25,6 +25,42 @@ public class PlaybackDeciderTests
     };
 
     [Fact]
+    public void DolbyVision_DirectPlaysOnlyOnADolbyVisionDisplay()
+    {
+        var file = File("mp4", "hevc", "eac3", 6, VideoRange.DolbyVision);
+
+        var hdr10Only = PlaybackDecider.Decide(file, AppleTv with { Hdr10 = true }, [], new PlaybackOptions());
+        var dolbyVision = PlaybackDecider.Decide(file, AppleTv with { DolbyVision = true, Hdr10 = true }, [], new PlaybackOptions());
+
+        Assert.Contains("This display doesn't show Dolby Vision", hdr10Only.Reasons);
+        Assert.Equal(PlaybackMethod.DirectPlay, dolbyVision.Method);
+    }
+
+    [Fact]
+    public void Hdr10_IsntDirectPlayed_ToADisplayThatSaysItIsntShowingIt()
+    {
+        var file = File("mp4", "hevc", "eac3", 6, VideoRange.Hdr10);
+
+        Assert.Contains("This display isn't showing HDR10 right now", PlaybackDecider.Decide(file, AppleTv with { Hdr10 = false }, [], new PlaybackOptions()).Reasons);
+        // An app that doesn't say (older versions) is taken at its word that it shows HDR.
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, AppleTv, [], new PlaybackOptions()).Method);
+    }
+
+    [Theory]
+    [InlineData("h264", "High 10", false)]
+    [InlineData("h264", "High 4:4:4 Predictive", false)]
+    [InlineData("hevc", "Rext", false)]
+    [InlineData("h264", "High", true)]
+    [InlineData("hevc", "Main 10", true)]
+    public void VideoProfiles_PlayersCantDecode_ArentDirectPlayed(string codec, string profile, bool direct)
+    {
+        var file = File("mp4", codec, "aac", 2);
+        file.Streams[0].Profile = profile;
+
+        Assert.Equal(direct ? PlaybackMethod.DirectPlay : PlaybackMethod.Transcode, PlaybackDecider.Decide(file, AppleTv, [], new PlaybackOptions()).Method);
+    }
+
+    [Fact]
     public void Mp4H264Aac_DirectPlaysInChrome()
     {
         var decision = PlaybackDecider.Decide(File("mp4", "h264", "aac", 2), Chrome, [], new PlaybackOptions());
