@@ -12,8 +12,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
-public class SubtitleSearchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
+public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
 {
+    private readonly FlexarrApiFactory factory;
+
+    public SubtitleSearchTests(FlexarrApiFactory factory)
+    {
+        this.factory = factory;
+        // Bazarr's queued work is checked on quickly, and given up on soon.
+        Flexarr.Api.Playback.SubtitleSearchEndpoints.PollEvery = TimeSpan.FromMilliseconds(20);
+        Flexarr.Api.Playback.SubtitleSearchEndpoints.DownloadWait = TimeSpan.FromSeconds(5);
+    }
+
     private const string Results = """
         {"data":[
           {"provider":"opensubtitlescom","subtitle":"a1","language":"en","hearing_impaired":"True","forced":"False","original_format":"False",
@@ -91,6 +101,35 @@ public class SubtitleSearchTests(FlexarrApiFactory factory) : IClassFixture<Flex
     }
 
     [Fact]
+    public async Task ADownloadBazarrQueuedButCouldntDo_SaysSo_AsSoonAsItsJobEnds()
+    {
+        const string earlier = """{"job_id":4,"job_name":"Manually downloading Subtitles for Other (1999)","status":"completed"}""";
+        var bazarr = new FakeBazarr();
+        var (film, _) = await AddFilmAsync(radarrId: 12);
+        bazarr.Film(12, "/data/movies/Film (2020)/Film (2020).mkv", profileId: 1);
+        bazarr.Responses["GET /api/providers/movies?radarrid=12"] = Results;
+        bazarr.Responses["GET /api/system/jobs"] = $$"""{"data":[{{earlier}}]}""";
+        bazarr.Responses["POST /api/providers/movies"] = "";
+        // Bazarr answers at once, and its job finishes later without a file (the site refused, say).
+        bazarr.OnRequest = r =>
+        {
+            if (r == "POST /api/providers/movies")
+            {
+                bazarr.Responses["GET /api/system/jobs"] =
+                    $$"""{"data":[{{earlier}},{"job_id":5,"job_name":"Manually downloading Subtitles for Film (2020)","status":"completed"}]}""";
+            }
+        };
+        using var app = bazarr.Serve(factory);
+        var started = DateTime.UtcNow;
+
+        var response = await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { });
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Contains("didn't save the subtitles", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(4)); // not the whole wait
+    }
+
+    [Fact]
     public async Task AnotherCopyThanBazarrs_IsRefused_SinceItsSubtitlesWouldLandElsewhere()
     {
         var bazarr = new FakeBazarr();
@@ -128,6 +167,8 @@ public class SubtitleSearchTests(FlexarrApiFactory factory) : IClassFixture<Flex
         bazarr.Responses["PATCH /api/subtitles"] = "";
         var release = new TaskCompletionSource();
         bazarr.Hold = r => r == "PATCH /api/subtitles" ? release.Task : Task.CompletedTask;
+        // Re-synced: Bazarr writes the file again.
+        bazarr.OnRequest = r => { if (r == "PATCH /api/subtitles") File.WriteAllText(Path.ChangeExtension(video, ".en.srt"), "re-timed"); };
         using var app = bazarr.Serve(factory);
         var client = Client(app);
 

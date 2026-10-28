@@ -109,23 +109,28 @@ public static partial class SubtitleSearchEndpoints
 
             // Bazarr may replace a subtitle that's already there, so look for whatever changed since now.
             var since = DateTime.UtcNow.AddSeconds(-2);
+            var file = found.File!;
+            SubtitleTrack? saved;
             try
             {
+                var before = await JobIdsAsync(bazarr, found.Bazarr!, ct);
                 await bazarr.DownloadAsync(found.Bazarr!, found.Media!, chosen, ct);
+                saved = await WaitForBazarrAsync(bazarr, found.Bazarr!, before, j => j.Name.StartsWith("Manually download", StringComparison.OrdinalIgnoreCase),
+                    () => Subtitles.For(file)
+                        .Where(t => t.ExternalPath is not null && File.GetLastWriteTimeUtc(t.ExternalPath) >= since)
+                        .MaxBy(t => File.GetLastWriteTimeUtc(t.ExternalPath!)),
+                    DownloadWait, ct);
             }
             catch (HttpRequestException ex)
             {
                 return Results.Problem($"Bazarr couldn't download it: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
             }
 
-            var saved = Subtitles.For(found.File!)
-                .Where(t => t.ExternalPath is not null && File.GetLastWriteTimeUtc(t.ExternalPath) >= since)
-                .MaxBy(t => File.GetLastWriteTimeUtc(t.ExternalPath!));
             if (saved is null)
             {
-                LogNotBeside(logs.CreateLogger(typeof(SubtitleSearchEndpoints)), found.File!.Path);
-                return Results.Problem("Bazarr saved the subtitles, but not beside the file Flexarr plays. Check Bazarr's path mappings.",
-                    statusCode: StatusCodes.Status502BadGateway);
+                LogNotSaved(logs.CreateLogger(typeof(SubtitleSearchEndpoints)), file.Path);
+                return Results.Problem("Bazarr didn't save the subtitles. The site may have refused the download (most allow only so many a day), or Bazarr " +
+                    "saved them somewhere Flexarr doesn't look; Bazarr's log says which.", statusCode: StatusCodes.Status502BadGateway);
             }
 
             return Results.Ok(new SubtitleDownloadedDto(saved.Key, Languages.Label(saved.Language, saved.Title, saved.IsForced)));
@@ -162,7 +167,18 @@ public static partial class SubtitleSearchEndpoints
             {
                 try
                 {
+                    // Re-synced means the file was written again.
+                    var written = File.GetLastWriteTimeUtc(path);
+                    var before = await JobIdsAsync(bazarr, instance, stopping);
                     await bazarr.SyncAsync(instance, media, subtitle, bazarrPath, stopping);
+                    var changed = await WaitForBazarrAsync(bazarr, instance, before, j => j.Name.Contains(name, StringComparison.Ordinal),
+                        () => File.GetLastWriteTimeUtc(path) != written ? path : null, SyncWait, stopping);
+                    if (changed is null)
+                    {
+                        LogSyncUnchanged(log, path);
+                        return "Bazarr couldn't re-sync these subtitles. Its log says why.";
+                    }
+
                     return null;
                 }
                 catch (HttpRequestException ex)
@@ -187,6 +203,57 @@ public static partial class SubtitleSearchEndpoints
         });
 
         return api;
+    }
+
+    /// <summary>How long a download may take Bazarr, and a re-sync (which listens to the whole film).</summary>
+    internal static TimeSpan DownloadWait { get; set; } = TimeSpan.FromSeconds(90);
+
+    internal static TimeSpan SyncWait { get; set; } = TimeSpan.FromMinutes(15);
+
+    internal static TimeSpan PollEvery { get; set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Waits for work Bazarr queued (since 1.6 it answers at once): until <paramref name="done"/> finds what it made, or the job
+    /// Bazarr started for it ends without that, or time runs out. Null unless it was made.
+    /// </summary>
+    /// <param name="before">The jobs Bazarr had before, so an older one with the same name isn't taken for this one.</param>
+    private static async Task<T?> WaitForBazarrAsync<T>(BazarrClient bazarr, BazarrInstance instance, HashSet<int> before, Func<BazarrJob, bool> ours,
+        Func<T?> done, TimeSpan timeout, CancellationToken ct) where T : class
+    {
+        var until = DateTime.UtcNow + timeout;
+        while (done() is null)
+        {
+            if (DateTime.UtcNow > until)
+            {
+                return null;
+            }
+
+            await Task.Delay(PollEvery, ct);
+            var jobs = await JobsAsync(bazarr, instance, ct);
+            if (jobs.Any(j => !before.Contains(j.Id) && ours(j) && j.Status is "failed" or "completed"))
+            {
+                // The file is written before the job ends: one last look.
+                return done();
+            }
+        }
+
+        return done();
+    }
+
+    private static async Task<HashSet<int>> JobIdsAsync(BazarrClient bazarr, BazarrInstance instance, CancellationToken ct) =>
+        (await JobsAsync(bazarr, instance, ct)).Select(j => j.Id).ToHashSet();
+
+    /// <summary>Bazarr's jobs, or none when it won't say: waiting then falls back to watching the file.</summary>
+    private static async Task<IReadOnlyList<BazarrJob>> JobsAsync(BazarrClient bazarr, BazarrInstance instance, CancellationToken ct)
+    {
+        try
+        {
+            return await bazarr.JobsAsync(instance, ct);
+        }
+        catch (HttpRequestException)
+        {
+            return [];
+        }
     }
 
     /// <summary>The best of a search's results: the top one, preferring plain subtitles over hearing-impaired or forced ones.</summary>
@@ -306,8 +373,11 @@ public static partial class SubtitleSearchEndpoints
 
     private sealed record Token(string Provider, string Subtitle, string Language, bool Hi, bool Forced, bool OriginalFormat);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr saved a subtitle for {Path}, but none appeared beside the file")]
-    private static partial void LogNotBeside(ILogger logger, string path);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr was asked for subtitles for {Path}, but none appeared beside the file")]
+    private static partial void LogNotSaved(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr was asked to re-sync {Path}, but the file didn't change")]
+    private static partial void LogSyncUnchanged(ILogger logger, string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Bazarr couldn't re-sync {Path}")]
     private static partial void LogSyncFailed(ILogger logger, Exception exception, string path);

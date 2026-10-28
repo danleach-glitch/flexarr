@@ -33,7 +33,14 @@ public sealed record BazarrSubtitleResult(
     IReadOnlyList<string> Matches,
     string? Uploader);
 
-/// <summary>Bazarr's API, for searching and downloading subtitles and re-syncing them to the audio.</summary>
+/// <summary>Work Bazarr queued: downloads and re-syncs run this way since 1.6.</summary>
+/// <param name="Status">pending, running, failed or completed.</param>
+public sealed record BazarrJob(int Id, string Name, string Status);
+
+/// <summary>
+/// Bazarr's API, for searching and downloading subtitles and re-syncing them to the audio. Since Bazarr 1.6 a download or
+/// re-sync is queued and the call returns at once; <see cref="JobsAsync"/> says how the work went.
+/// </summary>
 public sealed class BazarrClient(HttpClient http)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -98,7 +105,22 @@ public sealed class BazarrClient(HttpClient http)
             r.ReleaseInfo ?? [], r.Matches ?? [], r.Uploader)).ToList();
     }
 
-    /// <summary>Downloads one search result; Bazarr saves it beside the video.</summary>
+    /// <summary>Bazarr's queued work, newest last; none from a Bazarr too old to queue it.</summary>
+    public async Task<IReadOnlyList<BazarrJob>> JobsAsync(BazarrInstance bazarr, CancellationToken ct)
+    {
+        using var request = Request(bazarr, HttpMethod.Get, "system/jobs");
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        var jobs = await response.Content.ReadFromJsonAsync<Envelope<JobDto>>(Json, ct).ConfigureAwait(false);
+        return (jobs?.Data ?? []).Select(j => new BazarrJob(j.JobId, j.JobName ?? "", j.Status ?? "")).OrderBy(j => j.Id).ToList();
+    }
+
+    /// <summary>Downloads one search result; Bazarr saves it beside the video (queued since Bazarr 1.6).</summary>
     public async Task DownloadAsync(BazarrInstance bazarr, BazarrMedia media, BazarrSubtitleResult result, CancellationToken ct)
     {
         List<KeyValuePair<string, string>> form = media.SeriesId is { } series
@@ -114,7 +136,7 @@ public sealed class BazarrClient(HttpClient http)
         await SendFormAsync(bazarr, HttpMethod.Post, media.SeriesId is null ? "providers/movies" : "providers/episodes", form, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Re-times a subtitle file to the video's audio. Slow: a minute or more for a film.</summary>
+    /// <summary>Re-times a subtitle file to the video's audio (queued since Bazarr 1.6). Slow: a minute or more for a film.</summary>
     /// <param name="subtitlePath">The file as Bazarr sees it (from <see cref="BazarrMedia.Subtitles"/>).</param>
     public async Task SyncAsync(BazarrInstance bazarr, BazarrMedia media, BazarrSubtitleFile subtitle, string subtitlePath, CancellationToken ct)
     {
@@ -189,6 +211,8 @@ public sealed class BazarrClient(HttpClient http)
     private sealed record SeriesDto(int SonarrSeriesId, int? ProfileId);
 
     private sealed record ProfileDto(int ProfileId);
+
+    private sealed record JobDto([property: JsonPropertyName("job_id")] int JobId, [property: JsonPropertyName("job_name")] string? JobName, string? Status);
 
     private sealed record ResultDto(
         string? Provider,
