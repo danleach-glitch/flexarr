@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## 0.50.0 · 28 October 2026
+## Unreleased
 
 ### Docker
 - **Found on your network**: Flexarr now announces itself without any extra software, so the iPhone, iPad and Apple TV apps list a Docker install by themselves. Run the container on the host's network (`network_mode: host`) for this; Docker's own network doesn't pass the announcement on.
@@ -18,6 +18,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 - A new server's settings read **Main profile**, not "Main profile's profile".
+
+## 0.50.0 · 28 October 2026
+
+Not released on its own: its changes are in the next version, under Unreleased above.
 
 ## 0.49.3 · 27 October 2026
 
