@@ -30,15 +30,20 @@ export function createMixer(): Mixer {
     if (context !== undefined) return context
     try {
       context = typeof AudioContext === 'undefined' ? null : new AudioContext()
-      if (context) {
-        bus = context.createAnalyser()
-        bus.fftSize = 2048
-        // The visualiser does its own smoothing, with a quicker attack than release.
-        bus.smoothingTimeConstant = 0
-        bus.connect(context.destination)
-      }
     } catch {
       context = null
+    }
+    try {
+      if (context) {
+        const analyser = context.createAnalyser()
+        analyser.fftSize = 2048
+        // The visualiser does its own smoothing, with a quicker attack than release.
+        analyser.smoothingTimeConstant = 0
+        analyser.connect(context.destination)
+        bus = analyser
+      }
+    } catch {
+      bus = null // No analyser: the music plays straight out, and the visualiser drifts on its own.
     }
     return context
   }
