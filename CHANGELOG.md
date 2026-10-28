@@ -31,12 +31,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Search for subtitles from the player, on Apple TV, iPhone and the web, or from a title's page in the web app, when a film or episode has none in your language. Flexarr asks Bazarr, which searches OpenSubtitles and the other subtitle sites it's set up for, and lists what it finds, best match first, marking those made for your exact file. Choose one, or let Flexarr pick, and it's saved beside the video and switched on where you were. Connect Bazarr in Settings › Connections; it works for what Sonarr and Radarr manage.
 - Subtitles beside a video that drift out of time can be re-synced to the soundtrack from the same menu.
 - Hearing-impaired subtitle files named the way Bazarr names them (`Film.en.hi.srt`) are labelled SDH.
-- Styled subtitles (ASS and SSA, as most anime has) play in the web player as they were made: their own fonts (those attached to the file), colours, positions, signs and karaoke, rather than plain white text. On Apple TV, iPhone and iPad they now go where they were placed, such as signs at the top of the picture.
-- Choose where subtitles sit: **Bottom**, **Raised**, **Higher** or **Top**, in Settings › Playback or the player's subtitles menu, on every device.
-- **Subtitles in the black bars**: in films wider than the screen, subtitles go in the black bar below the picture instead of over it. Turn it on in Settings › Playback or the player's subtitles menu.
-- Closed captions carried inside the video, as American TV recordings have them, can be turned on like any other subtitles, on every device. Files already in your libraries are checked on the next scan.
-- Teletext subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad, where the subtitles menu also lets you choose the teletext page. In a web browser they show when the server's FFmpeg can read teletext, as the Docker image's can.
-- In the web player, the “Preparing subtitles” note now goes away as soon as the subtitles appear.
 
 ### Home
 - Every show or film in the header at the top of Home (and of a library's page) that you've started says **Resume** and picks up where you left off, on the web, iPhone and Apple TV. Before, only the first one did, and on iPhone and Apple TV a show always said Play.
