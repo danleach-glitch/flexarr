@@ -31,7 +31,7 @@ A new server greets you with **Welcome to your Flexarr server** and asks for its
 
 Type it in and choose **Set up Flexarr**. This browser becomes the server's owner and is signed in. That's the whole sign-up. The code stops working once the server is set up, and after ten wrong tries it's replaced with a new one (the log says so).
 
-![The welcome panel on a new server, with a Set up Flexarr button](../../site/guide/img/welcome.webp "What a new server shows the first browser to reach it")
+![The welcome panel on a new server, asking for its setup code beside a Set up Flexarr button](../../site/guide/img/welcome.webp "What a new server shows a browser on your home network")
 
 
 A few things to know:

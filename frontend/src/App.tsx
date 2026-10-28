@@ -270,7 +270,7 @@ export default function App() {
             <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
             <label htmlFor="setupCode">Setup code</label>
             <div className="api-key-row">
-              <input id="setupCode" name="setupCode" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
+              <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
               <button type="submit" className="button">
                 Set up Flexarr
               </button>
