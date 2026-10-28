@@ -38,9 +38,15 @@ Shows Sonarr doesn't know are looked up on [TVmaze](https://www.tvmaze.com), by 
 
 For films Radarr doesn't know, Flexarr can ask [TMDB](https://www.themoviedb.org), using a key of your own:
 
-1. Sign up at [themoviedb.org](https://www.themoviedb.org/signup) (it's free) and open **Settings › API** to ask for a key.
-2. In Flexarr, open **Settings › Connections**, choose **Edit** on **TMDB**, and paste the **API key** or the **API read access token**.
-3. Choose **Test**, then **Save**.
+1. Sign up at [themoviedb.org](https://www.themoviedb.org/signup) (it's free) and open **Settings › API**.
+2. Ask for a key. TMDB asks you to register an application first; that's the form for everyone, not something only developers do:
+   - Choose personal (non-commercial) use.
+   - **Application name**: something like *Flexarr at home*.
+   - **Application URL**: your Flexarr's address, or `https://flexarr.io`.
+   - **Application summary**: something like *My own media server, showing details and artwork for films I own.*
+   - Fill in your contact details and accept the terms. The key appears straight away.
+3. In Flexarr, open **Settings › Connections**, choose **Edit** on **TMDB**, and paste the **API key** or the **API read access token**.
+4. Choose **Test**, then **Save**.
 
 Films that weren't matched are looked up again straight away. They get a poster, background, logo, overview, genres, age rating, rating, trailer and cast.
 

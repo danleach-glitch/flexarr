@@ -460,7 +460,12 @@ function TmdbRow({
             <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">
               themoviedb.org
             </a>
-            , then copy the API key or read access token from Settings › API. Shows don’t need one: they come from TVmaze.
+            , and in Settings › API register an application for personal use (your own media server; any name will do). Then copy the API key or
+            read access token. Shows don’t need one: they come from TVmaze. See{' '}
+            <a href="https://flexarr.io/guide/without-arrs#films-from-tmdb" target="_blank" rel="noreferrer">
+              how to get a key
+            </a>
+            .
           </p>
           <label>
             API key

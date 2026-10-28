@@ -173,7 +173,15 @@
 <h2 id="films-from-tmdb"><a class="anchor" href="#films-from-tmdb" aria-hidden="true" tabindex="-1">#</a>Films from TMDB</h2>
 <p>For films Radarr doesn&#39;t know, Flexarr can ask <a href="https://www.themoviedb.org" rel="noopener">TMDB</a>, using a key of your own:</p>
 <ol>
-<li>Sign up at <a href="https://www.themoviedb.org/signup" rel="noopener">themoviedb.org</a> (it&#39;s free) and open <strong>Settings › API</strong> to ask for a key.</li>
+<li>Sign up at <a href="https://www.themoviedb.org/signup" rel="noopener">themoviedb.org</a> (it&#39;s free) and open <strong>Settings › API</strong>.</li>
+<li>Ask for a key. TMDB asks you to register an application first; that&#39;s the form for everyone, not something only developers do:<ul>
+<li>Choose personal (non-commercial) use.</li>
+<li><strong>Application name</strong>: something like <em>Flexarr at home</em>.</li>
+<li><strong>Application URL</strong>: your Flexarr&#39;s address, or <code>https://flexarr.io</code>.</li>
+<li><strong>Application summary</strong>: something like <em>My own media server, showing details and artwork for films I own.</em></li>
+<li>Fill in your contact details and accept the terms. The key appears straight away.</li>
+</ul>
+</li>
 <li>In Flexarr, open <strong>Settings › Connections</strong>, choose <strong>Edit</strong> on <strong>TMDB</strong>, and paste the <strong>API key</strong> or the <strong>API read access token</strong>.</li>
 <li>Choose <strong>Test</strong>, then <strong>Save</strong>.</li>
 </ol>
