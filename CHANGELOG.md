@@ -15,6 +15,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **On a Mac**, choose **Update now** to download and install a new version without the install script. If the new version doesn't start, the one you had is put back, with your database as it was. **Install updates automatically** (off unless you turn it on) does it between 4 and 5 in the morning, when nothing is playing, being watched live or recording.
 - **In Docker**, the page shows the commands to update the container, since a container can't replace itself.
 
+### Mac
+- On a Mac with the Tailscale app but not its command-line tool, the web app no longer says it can't reach the server. Settings › Access says to install Tailscale's command line (Tailscale › Settings › Install CLI) for remote access.
+
 ### Docker
 - **Found on your network**: Flexarr now announces itself without any extra software, so the iPhone, iPad and Apple TV apps list a Docker install by themselves. Run the container on the host's network (`network_mode: host`) for this; Docker's own network doesn't pass the announcement on.
 - **`PUID` and `PGID`** pick the user Flexarr runs as, as with Sonarr, Radarr and Lidarr. A settings folder Docker created as root is handed over when Flexarr starts, so it no longer fails to write there. `--user` still works as before.
