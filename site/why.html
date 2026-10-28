@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why Flexarr: how it compares with Plex, Jellyfin and Emby</title>
+  <meta name="description" content="An honest comparison of Flexarr with Plex, Jellyfin and Emby, and with the Infuse, Plezy, Swiftfin and Rivulet apps: what each does, what it costs, and where Flexarr isn&#39;t the right fit yet.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/why">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Why Flexarr: how it compares with Plex, Jellyfin and Emby">
+  <meta property="og:description" content="An honest comparison of Flexarr with Plex, Jellyfin and Emby, and with the Infuse, Plezy, Swiftfin and Rivulet apps: what each does, what it costs, and where Flexarr isn&#39;t the right fit yet.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/why">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <style>
+    :root { --mint: #9fdcb4; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
+    section { padding-top: clamp(64px, 9vw, 112px); }
+    section h2 { font-size: clamp(2.4rem, 6vw, 4rem); }
+    .intro { max-width: 720px; color: var(--usher); margin: 16px 0 0; }
+    .intro a { font-weight: 700; }
+
+    /* Hero */
+    .hero { padding-top: clamp(40px, 7vw, 88px); text-align: center; }
+    .hero h1 { font-size: clamp(3rem, 10vw, 6.4rem); font-weight: 900; }
+    .hero .lede { max-width: 680px; margin: 22px auto 0; color: var(--usher); font-size: clamp(1.1rem, 2.4vw, 1.3rem); text-wrap: balance; }
+    .stamp { display: inline-flex; gap: 8px; align-items: center; margin-top: 26px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--aisle); color: var(--usher); font-size: 0.92rem; }
+    .stamp strong { color: var(--screen); }
+
+    /* Fit: two columns of plain points */
+    .fit { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 20px; margin-top: 32px; }
+    .fit > div { border: 1px solid var(--aisle); border-radius: 24px; padding: clamp(24px, 3vw, 34px);
+      background: radial-gradient(420px 260px at 0% 0%, rgb(var(--accent) / 0.13), transparent 70%), linear-gradient(180deg, var(--seat), rgb(37 32 44 / 0.4)); }
+    .fit > div:first-child { --accent: 159 220 180; }
+    .fit > div:last-child { --accent: 241 194 125; }
+    .fit h3 { font-size: clamp(1.9rem, 3.2vw, 2.4rem); margin-bottom: 14px; }
+    .fit ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+    .fit li { display: grid; grid-template-columns: 26px 1fr; gap: 8px; color: #cfc8d8; }
+    .fit li strong { color: var(--screen); }
+
+    /* Comparison tables */
+    .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 32px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 20px 0 0; padding: 0; list-style: none; color: var(--usher); font-size: 0.92rem; }
+    .scroll { margin-top: 24px; border: 1px solid var(--aisle); border-radius: 22px; background: var(--seat); overflow-x: auto; overscroll-behavior-x: contain; }
+    .compare { width: 100%; min-width: 980px; border-collapse: separate; border-spacing: 0; font-size: 0.95rem; line-height: 1.45; }
+    .compare th, .compare td { padding: 14px 16px; text-align: left; vertical-align: top; border-top: 1px solid var(--aisle); }
+    .compare thead th { border-top: 0; position: sticky; top: 0; background: var(--seat-raised); font-family: var(--display); font-size: 1.6rem; font-weight: 800; letter-spacing: 0; padding-block: 16px; white-space: nowrap; }
+    .compare thead th small { display: block; font-family: var(--text); font-size: 0.78rem; font-weight: 500; color: var(--usher); margin-top: 4px; }
+    .compare tbody th { width: 15%; min-width: 150px; font-weight: 700; color: var(--screen); position: sticky; left: 0; background: var(--seat); z-index: 1; }
+    .compare thead th:first-child { position: sticky; left: 0; z-index: 2; }
+    .compare td { color: #cfc8d8; width: 21%; }
+    .compare .us { background: rgb(169 194 236 / 0.07); }
+    .compare thead .us { background: #353447; color: var(--screen); }
+    .compare tr.group th { position: static; background: var(--room); color: var(--silver); font-family: var(--text); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding-block: 12px; }
+    .compare tr.group th span { position: sticky; left: 16px; }
+    .m { display: block; font-size: 1.1rem; line-height: 1; margin-bottom: 6px; }
+    .ref { font-size: 0.72em; vertical-align: super; line-height: 0; text-decoration: none; font-weight: 700; margin-left: 1px; }
+    .ref:hover { text-decoration: underline; }
+    .ref + .ref::before { content: ","; margin-right: 1px; color: var(--usher); }
+    .scroll-hint { display: none; margin: 10px 0 0; color: var(--usher); font-size: 0.88rem; }
+    @media (max-width: 1100px) { .scroll-hint { display: block; } }
+    @media (max-width: 640px) {
+      .compare { min-width: 860px; font-size: 0.9rem; }
+      .compare th, .compare td { padding: 12px 12px; }
+      .compare tbody th { min-width: 120px; }
+    }
+    .footnote { color: var(--usher); font-size: 0.92rem; margin: 14px 0 0; max-width: 860px; }
+
+    /* Method and sources */
+    .method { display: grid; gap: 14px; max-width: 860px; color: #cfc8d8; margin-top: 20px; }
+    .method p { margin: 0; }
+    .sources { margin: 24px 0 0; padding-left: 1.6em; columns: 2 420px; column-gap: 48px; color: var(--usher); font-size: 0.88rem; }
+    .sources li { break-inside: avoid; margin-bottom: 8px; overflow-wrap: anywhere; scroll-margin-top: 100px; }
+    .sources li:target { color: var(--screen); }
+    .sources a { color: var(--silver); }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px 16px; justify-content: center; margin: clamp(56px, 8vw, 96px) 0 clamp(48px, 6vw, 72px); }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the content</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/why" aria-current="page">Why Flexarr</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a href="/#setup">Install</a>
+        <a class="keep" href="/guide">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      <div class="hero">
+        <p class="kicker">Why Flexarr</p>
+        <h1>How Flexarr compares.</h1>
+        <p class="lede">Flexarr, side by side with Plex, Jellyfin and Emby, and with the apps people use to watch them. Where another one does something better, we say so.</p>
+        <p class="stamp">Checked <strong>28 October 2026</strong> against Flexarr 0.52.0</p>
+      </div>
+
+      <section aria-labelledby="fit">
+        <h2 id="fit">The short version</h2>
+        <div class="fit">
+          <div>
+            <h3>Flexarr suits you if</h3>
+            <ul>
+              <li><span aria-hidden="true">✅</span><span><strong>You run Sonarr, Radarr or Lidarr.</strong> Flexarr takes its details and artwork straight from them, so there's no second library to keep in step.</span></li>
+              <li><span aria-hidden="true">✅</span><span><strong>You'd rather not pay or sign up.</strong> Every feature and every app is free, with no account and no company server in the middle.</span></li>
+              <li><span aria-hidden="true">✅</span><span><strong>Your household watches on Apple devices and the web.</strong> The Apple TV, iPhone and iPad apps play files as they are, HDR and Dolby Vision included.</span></li>
+              <li><span aria-hidden="true">✅</span><span><strong>You want it all in one place.</strong> Films, TV, music, podcasts, live TV, requests and downloads come with the server, not as add-ons.</span></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Look elsewhere if</h3>
+            <ul>
+              <li><span aria-hidden="true">❌</span><span><strong>You need Android, a smart TV, a games console or a desktop app.</strong> Flexarr's Android app is still being built. Plex, Jellyfin and Emby run on far more devices.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You want photos, audiobooks or a language other than English.</strong> Flexarr has none of these yet.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You track what you watch on Trakt or AniList,</strong> or want to watch together with friends elsewhere.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You want years of track record.</strong> Flexarr's first release was on 24 October 2026, and it's mostly one person's work. Plex and Emby date from around 2008, Jellyfin from 2018.</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="servers">
+        <h2 id="servers">Flexarr, Plex, Jellyfin and Emby</h2>
+        <p class="intro">Each is a server you run at home, with apps to watch on. Prices are in US dollars, as each company lists them. Numbers link to the source for each claim; where only users' reports exist, we say so.</p>
+        <ul class="legend" aria-label="Key">
+          <li><span aria-hidden="true">✅</span> Yes</li>
+          <li><span aria-hidden="true">🟡</span> Partly, or with limits</li>
+          <li><span aria-hidden="true">💳</span> Only with a paid plan</li>
+          <li><span aria-hidden="true">❌</span> No</li>
+          <li><span aria-hidden="true">❔</span> We couldn't confirm it</li>
+        </ul>
+        <div class="scroll" tabindex="0" role="region" aria-label="Flexarr, Plex, Jellyfin and Emby compared">
+          <table class="compare">
+            <thead>
+              <tr>
+                <th scope="col"><span class="visually-hidden">Feature</span></th>
+                <th scope="col" class="us">Flexarr<small>0.52.0</small></th>
+                <th scope="col">Plex<small>Media Server and apps</small></th>
+                <th scope="col">Jellyfin<small>12.4, with Swiftfin 1.6.1</small></th>
+                <th scope="col">Emby<small>4.10</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group"><th colspan="5" scope="colgroup"><span>Cost and ownership</span></th></tr>
+              <tr>
+                <th scope="row">What it costs</th>
+                <td class="us"><span class="m">✅</span>Free. Every feature, every app.</td>
+                <td><span class="m">🟡</span>Free at home. Plex Pass is $6.99 a month, $69.99 a year or $749.99 for life.<a class="ref" href="#s1">1</a><a class="ref" href="#s2">2</a></td>
+                <td><span class="m">✅</span>Free. Nothing is behind a paywall.<a class="ref" href="#s19">19</a></td>
+                <td><span class="m">🟡</span>Server free. Emby Premiere is $4.99 a month, $54 a year or $119 for life.<a class="ref" href="#s35">35</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Watching away from home</th>
+                <td class="us"><span class="m">✅</span>Free, over Tailscale with nothing opened on your router, or through your own HTTPS reverse proxy. The apps switch over by themselves.</td>
+                <td><span class="m">💳</span>A relay is built in, but limited to 2 Mbps. Your own videos away from home need Plex Pass or a Remote Watch Pass ($2.99 a month).<a class="ref" href="#s3">3</a><a class="ref" href="#s12">12</a></td>
+                <td><span class="m">🟡</span>Free. You set up port forwarding, a reverse proxy or Tailscale yourself.<a class="ref" href="#s29">29</a></td>
+                <td><span class="m">🟡</span>Free, through port forwarding or UPnP. No relay.<a class="ref" href="#s41">41</a></td>
+              </tr>
+              <tr>
+                <th scope="row">An account with the company</th>
+                <td class="us"><span class="m">✅</span>None.</td>
+                <td><span class="m">❌</span>A plex.tv account is needed to set up the server and to sign in to the apps.<a class="ref" href="#s4">4</a></td>
+                <td><span class="m">✅</span>None.<a class="ref" href="#s20">20</a></td>
+                <td><span class="m">✅</span>None. Emby Connect is optional.<a class="ref" href="#s37">37</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Works without the internet at home</th>
+                <td class="us"><span class="m">✅</span>Yes. Your *arr apps supply the details over your own network.</td>
+                <td><span class="m">🟡</span>Rides out short outages. Adding new titles, downloads and signing in need the internet.<a class="ref" href="#s62">62</a></td>
+                <td><span class="m">✅</span>Yes. Only fetching details needs the internet.<a class="ref" href="#s20">20</a></td>
+                <td><span class="m">🟡</span>Plays without Emby's servers, but Premiere checks in with them.<a class="ref" href="#s63">63</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Ads and the company's own content</th>
+                <td class="us"><span class="m">✅</span>None. Error reports are sent only if you turn them on.</td>
+                <td><span class="m">🟡</span>Plex's free, ad-supported films and channels sit beside yours. They can be hidden.<a class="ref" href="#s18">18</a></td>
+                <td><span class="m">✅</span>None.<a class="ref" href="#s19">19</a></td>
+                <td><span class="m">✅</span>None that we found.</td>
+              </tr>
+              <tr>
+                <th scope="row">Source code</th>
+                <td class="us"><span class="m">🟡</span>Source-available: free to read, change and share, not to sell (PolyForm Noncommercial).</td>
+                <td><span class="m">❌</span>Closed.</td>
+                <td><span class="m">✅</span>Open source (GPL-2.0).<a class="ref" href="#s32">32</a></td>
+                <td><span class="m">❌</span>Closed since 2018.<a class="ref" href="#s19">19</a></td>
+              </tr>
+
+              <tr class="group"><th colspan="5" scope="colgroup"><span>Your library</span></th></tr>
+              <tr>
+                <th scope="row">Built on Sonarr, Radarr and Lidarr</th>
+                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own.</td>
+                <td><span class="m">❌</span>Uses its own online lookups. The *arr apps only tell it to rescan.<a class="ref" href="#s64">64</a></td>
+                <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.<a class="ref" href="#s21">21</a></td>
+                <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.</td>
+              </tr>
+              <tr>
+                <th scope="row">.nfo files and your own artwork</th>
+                <td class="us"><span class="m">✅</span>Yes, with TVmaze for shows and TMDB (with a free key) for the rest.</td>
+                <td><span class="m">🟡</span>New in 2026, for films and shows but not music.<a class="ref" href="#s6">6</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s21">21</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s59">59</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Request new titles from the apps</th>
+                <td class="us"><span class="m">✅</span>Discover and Request in every app, through Seerr.</td>
+                <td><span class="m">❌</span>Not in the apps. Requests go through a separate site such as Seerr.</td>
+                <td><span class="m">❌</span>Not in the apps. Requests go through a separate site such as Seerr.</td>
+                <td><span class="m">❌</span>Not in the apps. Requests go through a separate site such as Seerr.</td>
+              </tr>
+              <tr>
+                <th scope="row">Home videos</th>
+                <td class="us"><span class="m">✅</span>Arranged by folder, never looked up online.</td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s5">5</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s22">22</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s59">59</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Photos</th>
+                <td class="us"><span class="m">❌</span>Not yet. It's on the roadmap.</td>
+                <td><span class="m">✅</span>Yes, with the Plex Photos app.<a class="ref" href="#s3">3</a></td>
+                <td><span class="m">🟡</span>On the web and Android, not in Swiftfin.<a class="ref" href="#s27">27</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s59">59</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Audiobooks</th>
+                <td class="us"><span class="m">❌</span>No.</td>
+                <td><span class="m">❌</span>No library for them; people use music libraries instead.<a class="ref" href="#s60">60</a></td>
+                <td><span class="m">🟡</span>In a Books library, on most apps but not Swiftfin.<a class="ref" href="#s22">22</a></td>
+                <td><span class="m">🟡</span>Basic support.<a class="ref" href="#s59">59</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Podcasts</th>
+                <td class="us"><span class="m">✅</span>Built in: Apple's directory or any feed, downloads, and Up Next across devices, on the web, iPhone and iPad.</td>
+                <td><span class="m">❌</span>Removed in 2022.<a class="ref" href="#s7">7</a></td>
+                <td><span class="m">❌</span>No.<a class="ref" href="#s33">33</a></td>
+                <td><span class="m">💳</span>A Premiere plugin that plays episodes from the feed.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Music</th>
+                <td class="us"><span class="m">✅</span>Synced lyrics, playlists, daily mixes, artist radio, crossfade and offline albums.</td>
+                <td><span class="m">🟡</span>Plexamp is a fine music app. Lyrics, its Sonic mixes and radio need Plex Pass.<a class="ref" href="#s8">8</a></td>
+                <td><span class="m">🟡</span>Synced lyrics, playlists and instant mixes. No crossfade in the web app; no music in Swiftfin.<a class="ref" href="#s27">27</a></td>
+                <td><span class="m">🟡</span>Playlists and instant mixes. Lyrics need Premiere.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Live TV and recording</th>
+                <td class="us"><span class="m">🟡</span>Guide, pause, rewind, recording and series recording, free. Your tuner or IPTV service connects through Dispatcharr.</td>
+                <td><span class="m">🟡</span>Tuners with a guide. Recording needs Plex Pass; IPTV needs an add-on.<a class="ref" href="#s9">9</a></td>
+                <td><span class="m">✅</span>Tuners and IPTV with a guide and recording, free.<a class="ref" href="#s23">23</a></td>
+                <td><span class="m">💳</span>Tuners and IPTV with a guide and recording, with Premiere.<a class="ref" href="#s38">38</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Skip intros and credits</th>
+                <td class="us"><span class="m">✅</span>Intros, recaps and credits, found by the server itself. Free.</td>
+                <td><span class="m">💳</span>Intros and credits, with Plex Pass.<a class="ref" href="#s10">10</a></td>
+                <td><span class="m">🟡</span>Through plugins such as Intro Skipper. Swiftfin 1.6.1 has no skip button.<a class="ref" href="#s24">24</a></td>
+                <td><span class="m">💳</span>Intros only, with Premiere.<a class="ref" href="#s39">39</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Plugins</th>
+                <td class="us"><span class="m">❌</span>None.</td>
+                <td><span class="m">❌</span>Only custom metadata providers.<a class="ref" href="#s64">64</a></td>
+                <td><span class="m">✅</span>An official catalogue, and others' too.<a class="ref" href="#s31">31</a></td>
+                <td><span class="m">✅</span>A catalogue in the dashboard.<a class="ref" href="#s45">45</a></td>
+              </tr>
+
+              <tr class="group"><th colspan="5" scope="colgroup"><span>Apps and devices</span></th></tr>
+              <tr>
+                <th scope="row">The server runs on</th>
+                <td class="us"><span class="m">✅</span>Docker, Synology, Unraid, Linux, Mac, and Windows with Docker Desktop.</td>
+                <td><span class="m">✅</span>Windows, Mac, Linux, Docker and most NAS.<a class="ref" href="#s65">65</a></td>
+                <td><span class="m">✅</span>Windows, Mac, Linux, Docker and Synology.<a class="ref" href="#s66">66</a></td>
+                <td><span class="m">✅</span>Windows, Mac, Linux, Docker and most NAS.<a class="ref" href="#s42">42</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Apple TV</th>
+                <td class="us"><span class="m">🟡</span>Waiting for App Store review. You can install it from Xcode today.</td>
+                <td><span class="m">✅</span>Free. Redesigned in September 2026; users report features missing since.<a class="ref" href="#s61">61</a></td>
+                <td><span class="m">🟡</span>Swiftfin: films, shows and home videos, but no music or photos.<a class="ref" href="#s27">27</a></td>
+                <td><span class="m">✅</span>Free to play; live TV needs Premiere.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">iPhone and iPad</th>
+                <td class="us"><span class="m">✅</span>Free on the App Store.</td>
+                <td><span class="m">✅</span>Free.<a class="ref" href="#s3">3</a></td>
+                <td><span class="m">✅</span>Free: Swiftfin and the Jellyfin app.<a class="ref" href="#s25">25</a></td>
+                <td><span class="m">💳</span>Stops after a minute without a $4.99 unlock or Premiere.<a class="ref" href="#s46">46</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Android, Android TV and Fire TV</th>
+                <td class="us"><span class="m">❌</span>Being built. The web app works in a phone's browser until then.</td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s65">65</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s25">25</a></td>
+                <td><span class="m">🟡</span>Phones need payment; up to five TVs play free.<a class="ref" href="#s43">43</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Smart TVs and games consoles</th>
+                <td class="us"><span class="m">❌</span>No.</td>
+                <td><span class="m">✅</span>Samsung, LG, Roku, Xbox, PlayStation and more.<a class="ref" href="#s65">65</a></td>
+                <td><span class="m">🟡</span>Samsung, LG, Roku and Xbox; no PlayStation.<a class="ref" href="#s25">25</a></td>
+                <td><span class="m">🟡</span>Samsung, LG and Roku free; consoles need Premiere.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Desktop apps</th>
+                <td class="us"><span class="m">❌</span>No. Use the web app in any browser.</td>
+                <td><span class="m">✅</span>Windows, Mac and Linux.<a class="ref" href="#s65">65</a></td>
+                <td><span class="m">✅</span>Windows, Mac and Linux.<a class="ref" href="#s25">25</a></td>
+                <td><span class="m">💳</span>Stop after a minute without Premiere.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Web player</th>
+                <td class="us"><span class="m">✅</span>Built into the server.</td>
+                <td><span class="m">✅</span>Yes.</td>
+                <td><span class="m">✅</span>Yes.</td>
+                <td><span class="m">✅</span>Yes.</td>
+              </tr>
+              <tr>
+                <th scope="row">Casting</th>
+                <td class="us"><span class="m">🟡</span>AirPlay from iPhone and iPad. No Chromecast yet.</td>
+                <td><span class="m">✅</span>Chromecast. AirPlay through Control Centre on iPhone.<a class="ref" href="#s67">67</a></td>
+                <td><span class="m">🟡</span>Chromecast from the web and Android apps.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">🟡</span>Chromecast; users report AirPlay as unreliable.<a class="ref" href="#s68">68</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Downloads for offline</th>
+                <td class="us"><span class="m">✅</span>Free on iPhone and iPad: films, episodes, albums, playlists and podcasts.</td>
+                <td><span class="m">💳</span>With Plex Pass.<a class="ref" href="#s5">5</a></td>
+                <td><span class="m">🟡</span>In the Jellyfin and Android apps, not in Swiftfin.<a class="ref" href="#s25">25</a></td>
+                <td><span class="m">💳</span>With Premiere.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Languages</th>
+                <td class="us"><span class="m">❌</span>English only, for now.</td>
+                <td><span class="m">✅</span>About 15 in the new apps, over 40 on the web.<a class="ref" href="#s58">58</a></td>
+                <td><span class="m">✅</span>Over 100 on the web.<a class="ref" href="#s34">34</a></td>
+                <td><span class="m">❔</span>Translated by volunteers; we couldn't find a count.</td>
+              </tr>
+
+              <tr class="group"><th colspan="5" scope="colgroup"><span>Watching, on Apple TV and beyond</span></th></tr>
+              <tr>
+                <th scope="row">HDR and Dolby Vision on Apple TV</th>
+                <td class="us"><span class="m">✅</span>HDR10, HDR10+, HLG and Dolby Vision 5 and 8.1 reach the TV untouched. Profile 7 plays its HDR10 base layer.</td>
+                <td><span class="m">🟡</span>Users report Dolby Vision arriving as HDR10, and profile 5 not playing, in the new app.<a class="ref" href="#s15">15</a></td>
+                <td><span class="m">🟡</span>Swiftfin shows Dolby Vision only in its native player, which can't open MKV files itself.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">🟡</span>Users report Dolby Vision MKV files tone-mapped or with wrong colours.<a class="ref" href="#s44">44</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Atmos and lossless sound on Apple TV<a class="ref" href="#atmos-note">*</a></th>
+                <td class="us"><span class="m">✅</span>Atmos in Dolby Digital Plus arrives intact. TrueHD and DTS-HD play as lossless surround, without TrueHD's height channels.</td>
+                <td><span class="m">🟡</span>TrueHD is converted by the server.<a class="ref" href="#s16">16</a></td>
+                <td><span class="m">🟡</span>Swiftfin 1.6.1 can't play TrueHD or DTS-HD, so the server converts them.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">🟡</span>Users report TrueHD converted.<a class="ref" href="#s44">44</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Hardware video conversion</th>
+                <td class="us"><span class="m">✅</span>Free: a Mac's graphics, Intel Quick Sync, VA-API and NVIDIA.</td>
+                <td><span class="m">💳</span>With Plex Pass.<a class="ref" href="#s11">11</a></td>
+                <td><span class="m">✅</span>Free, with HDR tone mapping.<a class="ref" href="#s28">28</a></td>
+                <td><span class="m">💳</span>With Premiere.<a class="ref" href="#s40">40</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Profiles and parental controls</th>
+                <td class="us"><span class="m">🟡</span>Profiles with their own history, libraries and PINs. No age-rating limits yet.</td>
+                <td><span class="m">✅</span>Plex Home with PINs and rating limits; finer controls with Plex Pass.<a class="ref" href="#s13">13</a></td>
+                <td><span class="m">🟡</span>Users with passwords, rating limits and schedules. PINs were removed in 12.0.<a class="ref" href="#s30">30</a><a class="ref" href="#s22">22</a></td>
+                <td><span class="m">✅</span>Users and parental controls, free.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Watch together</th>
+                <td class="us"><span class="m">❌</span>No.</td>
+                <td><span class="m">🟡</span>In the web app only.<a class="ref" href="#s14">14</a></td>
+                <td><span class="m">🟡</span>SyncPlay; not in Swiftfin.<a class="ref" href="#s22">22</a></td>
+                <td><span class="m">❌</span>No.</td>
+              </tr>
+              <tr>
+                <th scope="row">Trakt</th>
+                <td class="us"><span class="m">❌</span>Not yet. It's next on the roadmap.</td>
+                <td><span class="m">❌</span>Only through others' tools.</td>
+                <td><span class="m">✅</span>Official plugin.<a class="ref" href="#s31">31</a></td>
+                <td><span class="m">✅</span>Plugin.<a class="ref" href="#s45">45</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Siri and Shortcuts</th>
+                <td class="us"><span class="m">✅</span>"Play the next episode of <i>Ted Lasso</i> in Flexarr", here or on the Apple TV.</td>
+                <td><span class="m">🟡</span>In Plexamp.<a class="ref" href="#s8">8</a></td>
+                <td><span class="m">❔</span>None that we found.</td>
+                <td><span class="m">❔</span>None that we found. Alexa and Google Home with Premiere.<a class="ref" href="#s36">36</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Home Assistant</th>
+                <td class="us"><span class="m">✅</span>Through HACS.</td>
+                <td><span class="m">✅</span>Built into Home Assistant.<a class="ref" href="#s54">54</a></td>
+                <td><span class="m">✅</span>Built into Home Assistant.<a class="ref" href="#s55">55</a></td>
+                <td><span class="m">✅</span>Built into Home Assistant.<a class="ref" href="#s56">56</a></td>
+              </tr>
+
+              <tr class="group"><th colspan="5" scope="colgroup"><span>Track record</span></th></tr>
+              <tr>
+                <th scope="row">Age and size</th>
+                <td class="us"><span class="m">❌</span>New: first released on 24 October 2026, mostly by one developer.</td>
+                <td><span class="m">✅</span>Since about 2008, with over 25 million users.<a class="ref" href="#s17">17</a></td>
+                <td><span class="m">✅</span>Since 2018, built by volunteers, with over 58,000 stars on GitHub.<a class="ref" href="#s32">32</a></td>
+                <td><span class="m">✅</span>Since about 2008.<a class="ref" href="#s69">69</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Recent changes worth knowing</th>
+                <td class="us">Moving fast, with several releases a week. Expect things to change.</td>
+                <td>Prices went up in April 2025, and remote video moved behind a paid plan. Lifetime Plex Pass went from $249.99 to $749.99 in July 2026.<a class="ref" href="#s57">57</a><a class="ref" href="#s2">2</a></td>
+                <td>12.0 (September 2026) needed a database upgrade that can't be undone, and some older plugins and apps stopped working until updated.<a class="ref" href="#s22">22</a></td>
+                <td>Over the years, more features have moved to Premiere, now including intro skipping, lyrics and podcasts.<a class="ref" href="#s36">36</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint">Scroll the table sideways to see every column.</p>
+        <p class="footnote" id="atmos-note">* No Apple TV app can send TrueHD or DTS-HD to a receiver as it is: tvOS doesn't allow it. The best any app can do is decode it to lossless multichannel sound, which loses TrueHD's Atmos height channels, or send Atmos from Dolby Digital Plus. The rows above say which each one does.</p>
+      </section>
+
+      <section aria-labelledby="players">
+        <h2 id="players">Flexarr's apps and other players</h2>
+        <p class="intro">Infuse, Plezy, Swiftfin and Rivulet are players: they play from a Plex, Jellyfin or Emby server you already run. Flexarr's apps play only from a Flexarr server, so this compares the experience on screen. Each app's App Store version on 28 October 2026.</p>
+        <ul class="legend" aria-label="Key">
+          <li><span aria-hidden="true">✅</span> Yes</li>
+          <li><span aria-hidden="true">🟡</span> Partly, or with limits</li>
+          <li><span aria-hidden="true">💳</span> Only with a paid plan</li>
+          <li><span aria-hidden="true">❌</span> No</li>
+          <li><span aria-hidden="true">❔</span> We couldn't confirm it</li>
+        </ul>
+        <div class="scroll" tabindex="0" role="region" aria-label="Flexarr's apps, Infuse, Plezy, Swiftfin and Rivulet compared">
+          <table class="compare players">
+            <thead>
+              <tr>
+                <th scope="col"><span class="visually-hidden">Feature</span></th>
+                <th scope="col" class="us">Flexarr<small>Apple TV, iPhone, iPad, web</small></th>
+                <th scope="col">Infuse<small>Firecore</small></th>
+                <th scope="col">Plezy<small>2.25</small></th>
+                <th scope="col">Swiftfin<small>1.6.1</small></th>
+                <th scope="col">Rivulet<small>1.1.0</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Plays from</th>
+                <td class="us"><span class="m">🟡</span>A Flexarr server only.</td>
+                <td><span class="m">✅</span>Plex, Jellyfin, Emby, shared folders and cloud storage.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Plex, Jellyfin and Emby, several at once.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>Jellyfin only.<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">🟡</span>Plex and Jellyfin, and IPTV with no server at all.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Runs on</th>
+                <td class="us"><span class="m">🟡</span>iPhone, iPad, Apple TV (in review) and any browser.</td>
+                <td><span class="m">🟡</span>Apple only: iPhone, iPad, Apple TV, Mac and Vision Pro.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Apple, Android, Android TV, Fire TV, Windows, Mac and Linux.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>iPhone, iPad and Apple TV.<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">🟡</span>Apple TV; iPhone in beta.<a class="ref" href="#s53">53</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Price</th>
+                <td class="us"><span class="m">✅</span>Free.</td>
+                <td><span class="m">🟡</span>Free; Pro is $1.99 a month, $16.99 a year or $99.99 for life.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">🟡</span>$5.99 once on the App Store; free from GitHub.<a class="ref" href="#s50">50</a></td>
+                <td><span class="m">✅</span>Free.<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">✅</span>Free.<a class="ref" href="#s53">53</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Source code</th>
+                <td class="us"><span class="m">🟡</span>Source-available (PolyForm Noncommercial).</td>
+                <td><span class="m">❌</span>Closed.</td>
+                <td><span class="m">✅</span>Open source (GPL-3.0).<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">✅</span>Open source (MPL-2.0).<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">🟡</span>Source-available (PolyForm Noncommercial).<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Dolby Vision on Apple TV</th>
+                <td class="us"><span class="m">✅</span>Profiles 5 and 8.1 as they are; profile 7 as its HDR10 base layer.</td>
+                <td><span class="m">💳</span>Profiles 5 and 8 with Pro.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Profiles 5 and 8.1; profile 7 converted to 8.1.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>In its native player only; profile 7 as its base layer.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">✅</span>Profiles 5 and 8.1, and both layers of profile 7 on a Dolby Vision TV. The best of the five.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Atmos and lossless sound<a class="ref" href="#atmos-note">*</a></th>
+                <td class="us"><span class="m">✅</span>Atmos in Dolby Digital Plus intact; TrueHD and DTS-HD as lossless surround.</td>
+                <td><span class="m">💳</span>With Pro.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Yes, with TrueHD Atmos as spatial audio on tvOS 26.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>TrueHD and DTS-HD converted by the server.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">✅</span>Atmos in Dolby Digital Plus; TrueHD and DTS-HD as lossless surround.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Plays any format on the device</th>
+                <td class="us"><span class="m">✅</span>AV1, VC-1, MPEG-2, XviD and the rest, without the server converting.</td>
+                <td><span class="m">✅</span>Yes; some formats need Pro.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>Some; the server converts the rest.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Skip intros and credits</th>
+                <td class="us"><span class="m">✅</span>Intros, recaps and credits.</td>
+                <td><span class="m">✅</span>Yes, free.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Using the server's markers.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">❌</span>Not in 1.6.1.<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s53">53</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Downloads for offline</th>
+                <td class="us"><span class="m">✅</span>iPhone and iPad.</td>
+                <td><span class="m">✅</span>iPhone and iPad.<a class="ref" href="#s48">48</a></td>
+                <td><span class="m">✅</span>Phones, tablets and computers.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">❔</span>Not advertised.</td>
+                <td><span class="m">❌</span>Not in the Apple TV app.</td>
+              </tr>
+              <tr>
+                <th scope="row">Live TV</th>
+                <td class="us"><span class="m">✅</span>Guide, pause, rewind and recording.</td>
+                <td><span class="m">❌</span>No.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>From your server's live TV.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">✅</span>From Jellyfin's live TV.<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">✅</span>Guide, recording, four channels at once and live sports scores.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Music</th>
+                <td class="us"><span class="m">✅</span>Yes.</td>
+                <td><span class="m">❌</span>No.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">❌</span>No.<a class="ref" href="#s27">27</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Styled subtitles (ASS)</th>
+                <td class="us"><span class="m">🟡</span>The words show, but not their fonts, colours or positions yet.</td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>In one of its two players.<a class="ref" href="#s26">26</a></td>
+                <td><span class="m">✅</span>Yes, with the file's own fonts.<a class="ref" href="#s52">52</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Find subtitles from the player</th>
+                <td class="us"><span class="m">❌</span>Not yet; it's in the next release, through Bazarr.</td>
+                <td><span class="m">✅</span>OpenSubtitles, free.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">🟡</span>From Plex servers only.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">🟡</span>For admins, through the server.</td>
+                <td><span class="m">✅</span>Yes.<a class="ref" href="#s53">53</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Trakt and other trackers</th>
+                <td class="us"><span class="m">❌</span>Not yet.</td>
+                <td><span class="m">✅</span>Trakt.<a class="ref" href="#s47">47</a></td>
+                <td><span class="m">✅</span>Trakt, MyAnimeList, AniList and Simkl.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">❌</span>No; Jellyfin's server plugin instead.</td>
+                <td><span class="m">❌</span>No.</td>
+              </tr>
+              <tr>
+                <th scope="row">Request new titles</th>
+                <td class="us"><span class="m">✅</span>Through Seerr.</td>
+                <td><span class="m">❌</span>No.</td>
+                <td><span class="m">✅</span>Through Seerr.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">❌</span>No.</td>
+                <td><span class="m">❌</span>No.</td>
+              </tr>
+              <tr>
+                <th scope="row">Top Shelf and Siri</th>
+                <td class="us"><span class="m">✅</span>Both.</td>
+                <td><span class="m">🟡</span>Top Shelf; Siri isn't mentioned.<a class="ref" href="#s48">48</a></td>
+                <td><span class="m">🟡</span>Top Shelf; Siri isn't mentioned.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">❌</span>No.</td>
+                <td><span class="m">✅</span>Both.<a class="ref" href="#s53">53</a></td>
+              </tr>
+              <tr>
+                <th scope="row">Age and size</th>
+                <td class="us"><span class="m">❌</span>New in October 2026.</td>
+                <td><span class="m">✅</span>On the App Store since 2016, with over 28,000 ratings in the US.<a class="ref" href="#s70">70</a></td>
+                <td><span class="m">🟡</span>On the App Store since October 2025, with about 4,000 stars on GitHub.<a class="ref" href="#s49">49</a></td>
+                <td><span class="m">✅</span>On the App Store since 2022.<a class="ref" href="#s51">51</a></td>
+                <td><span class="m">🟡</span>On the App Store since June 2026.<a class="ref" href="#s53">53</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint">Scroll the table sideways to see every column.</p>
+      </section>
+
+      <section aria-labelledby="method">
+        <h2 id="method">How we checked</h2>
+        <div class="method">
+          <p>Every claim about another product was checked on 28 October 2026 against that company's own pages, support articles, App Store listings and code, linked below. Where the only evidence is what users report on a forum, the table says "users report". Where we couldn't confirm something, it shows ❔ rather than a guess.</p>
+          <p>Flexarr is described as it is in version 0.52.0, the latest release. Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
+          <p>Prices and features change. If something here is wrong or out of date, <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">tell us on GitHub</a> and we'll fix it.</p>
+        </div>
+        <ol class="sources">
+          <li id="s1">Plex plans: <a href="https://www.plex.tv/plans/" target="_blank" rel="noopener">plex.tv/plans</a></li>
+          <li id="s2">New lifetime Plex Pass pricing (May 2026, updated July 2026): <a href="https://www.plex.tv/blog/new-lifetime-plex-pass-pricing/" target="_blank" rel="noopener">plex.tv/blog</a></li>
+          <li id="s3">Requirements for remote playback of personal media (April 2026): <a href="https://support.plex.tv/articles/requirements-for-remote-playback-of-personal-media/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s4">Authentication for local network access: <a href="https://support.plex.tv/articles/200890058-authentication-for-local-network-access/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s5">Plex Pass feature overview: <a href="https://support.plex.tv/articles/201751006-plex-pass-feature-overview/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s6">Using NFO metadata files with Plex (April 2026): <a href="https://support.plex.tv/articles/using-nfo-metadata-files-with-plex/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s7">Plex pulls the plug on podcasts and web shows (April 2022): <a href="https://techcrunch.com/2022/04/12/plex-pulls-the-plug-on-podcasts-and-web-shows/" target="_blank" rel="noopener">techcrunch.com</a></li>
+          <li id="s8">Plexamp: <a href="https://www.plex.tv/plexamp/" target="_blank" rel="noopener">plex.tv/plexamp</a></li>
+          <li id="s9">Live TV and DVR: <a href="https://support.plex.tv/articles/225877347-live-tv-dvr/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s10">Skip content: <a href="https://support.plex.tv/articles/skip-content/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s11">Using hardware-accelerated streaming: <a href="https://support.plex.tv/articles/115002178853-using-hardware-accelerated-streaming/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s12">Accessing a server through Relay: <a href="https://support.plex.tv/articles/216766168-accessing-a-server-through-relay/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s13">What is Plex Home: <a href="https://support.plex.tv/articles/203815766-what-is-plex-home/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s14">An important Watch Together change (February 2025): <a href="https://forums.plex.tv/t/an-important-watch-together-change/906796" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s15">A user's Dolby Vision tests of the new Apple TV app (September 2026): <a href="https://forums.plex.tv/t/943226" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s16">TrueHD on Apple TV, answered by Plex's forum moderators (October 2026): <a href="https://forums.plex.tv/t/944484" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s17">About Plex: <a href="https://www.plex.tv/about/" target="_blank" rel="noopener">plex.tv/about</a></li>
+          <li id="s18">Free live TV streaming: <a href="https://support.plex.tv/articles/free-live-tv-streaming-overview/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s19">About Jellyfin: <a href="https://jellyfin.org/docs/general/about" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s20">Jellyfin networking: <a href="https://jellyfin.org/docs/general/post-install/networking" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s21">Jellyfin NFO metadata: <a href="https://jellyfin.org/docs/general/server/metadata/nfo" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s22">Jellyfin 12.0 release notes (September 2026): <a href="https://github.com/jellyfin/jellyfin/releases/tag/v12.0" target="_blank" rel="noopener">github.com/jellyfin</a></li>
+          <li id="s23">Jellyfin live TV: <a href="https://jellyfin.org/docs/general/server/live-tv" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s24">Jellyfin media segments: <a href="https://jellyfin.org/docs/general/server/metadata/media-segments" target="_blank" rel="noopener">jellyfin.org</a>, and Intro Skipper: <a href="https://github.com/intro-skipper/intro-skipper" target="_blank" rel="noopener">github.com/intro-skipper</a></li>
+          <li id="s25">Jellyfin clients: <a href="https://jellyfin.org/downloads/clients" target="_blank" rel="noopener">jellyfin.org/downloads/clients</a></li>
+          <li id="s26">Swiftfin 1.6.1 players: <a href="https://github.com/jellyfin/Swiftfin/blob/1.6.1/Documentation/players.md" target="_blank" rel="noopener">github.com/jellyfin/Swiftfin</a></li>
+          <li id="s27">Swiftfin libraries: <a href="https://github.com/jellyfin/Swiftfin/blob/main/Documentation/libraries.md" target="_blank" rel="noopener">github.com/jellyfin/Swiftfin</a></li>
+          <li id="s28">Jellyfin hardware acceleration: <a href="https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s29">Jellyfin and Tailscale: <a href="https://jellyfin.org/docs/general/post-install/networking/tailscale" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s30">Jellyfin users: <a href="https://jellyfin.org/docs/general/server/users/adding-managing-users" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s31">Jellyfin's official plugins: <a href="https://repo.jellyfin.org/files/plugin/manifest.json" target="_blank" rel="noopener">repo.jellyfin.org</a></li>
+          <li id="s32">Jellyfin on GitHub: <a href="https://github.com/jellyfin/jellyfin" target="_blank" rel="noopener">github.com/jellyfin/jellyfin</a></li>
+          <li id="s33">Jellyfin web removes the unused podcast type (January 2026): <a href="https://github.com/jellyfin/jellyfin-web/pull/7532" target="_blank" rel="noopener">github.com/jellyfin/jellyfin-web</a></li>
+          <li id="s34">Jellyfin translations: <a href="https://translate.jellyfin.org/projects/jellyfin/jellyfin-web/" target="_blank" rel="noopener">translate.jellyfin.org</a></li>
+          <li id="s35">Emby Premiere: <a href="https://emby.media/premiere.html" target="_blank" rel="noopener">emby.media/premiere</a></li>
+          <li id="s36">Emby Premiere feature matrix: <a href="https://emby.media/support/articles/Premiere-Feature-Matrix.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s37">Emby Connect: <a href="https://emby.media/support/articles/Emby-Connect.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s38">Emby live TV: <a href="https://emby.media/support/articles/Live-TV.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s39">Emby intro skip: <a href="https://emby.media/support/articles/Intro-Skip.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s40">Emby hardware acceleration: <a href="https://emby.media/support/articles/Hardware-Acceleration-Overview.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s41">Emby connectivity: <a href="https://emby.media/support/articles/Connectivity.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s42">Emby downloads: <a href="https://emby.media/download.html" target="_blank" rel="noopener">emby.media/download</a></li>
+          <li id="s43">New free playback and increased device limits (December 2024): <a href="https://emby.media/community/blogs/entry/582-new-free-playback-and-increased-device-limits/" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s44">Users on Emby's Apple TV players (August 2026): <a href="https://emby.media/community/topic/149237-whats-the-current-state-of-the-mvp-vs-native-player-in-the-appletv-client/" target="_blank" rel="noopener">emby.media/community</a></li>
+          <li id="s45">Emby plugins: <a href="https://emby.media/support/articles/Plugins.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s46">Emby on the App Store: <a href="https://apps.apple.com/us/app/emby/id992180193" target="_blank" rel="noopener">apps.apple.com</a></li>
+          <li id="s47">Infuse: <a href="https://firecore.com/infuse" target="_blank" rel="noopener">firecore.com/infuse</a></li>
+          <li id="s48">Infuse release notes: <a href="https://firecore.com/releases" target="_blank" rel="noopener">firecore.com/releases</a></li>
+          <li id="s49">Plezy on GitHub: <a href="https://github.com/edde746/plezy" target="_blank" rel="noopener">github.com/edde746/plezy</a></li>
+          <li id="s50">Plezy on the App Store: <a href="https://apps.apple.com/us/app/plezy-media-server-client/id6754315964" target="_blank" rel="noopener">apps.apple.com</a></li>
+          <li id="s51">Swiftfin on the App Store: <a href="https://apps.apple.com/us/app/swiftfin/id1604098728" target="_blank" rel="noopener">apps.apple.com</a>, and on GitHub: <a href="https://github.com/jellyfin/Swiftfin" target="_blank" rel="noopener">github.com/jellyfin/Swiftfin</a></li>
+          <li id="s52">Rivulet on GitHub: <a href="https://github.com/l984-451/Rivulet" target="_blank" rel="noopener">github.com/l984-451/Rivulet</a></li>
+          <li id="s53">Rivulet on the App Store: <a href="https://apps.apple.com/us/app/rivulet-player/id6756892857" target="_blank" rel="noopener">apps.apple.com</a></li>
+          <li id="s54">Home Assistant's Plex integration: <a href="https://www.home-assistant.io/integrations/plex/" target="_blank" rel="noopener">home-assistant.io</a></li>
+          <li id="s55">Home Assistant's Jellyfin integration: <a href="https://www.home-assistant.io/integrations/jellyfin/" target="_blank" rel="noopener">home-assistant.io</a></li>
+          <li id="s56">Home Assistant's Emby integration: <a href="https://www.home-assistant.io/integrations/emby" target="_blank" rel="noopener">home-assistant.io</a></li>
+          <li id="s57">Important 2025 Plex updates (March 2025, updated April 2026): <a href="https://www.plex.tv/blog/important-2025-plex-updates/" target="_blank" rel="noopener">plex.tv/blog</a></li>
+          <li id="s58">Plex translations: <a href="https://explore.transifex.com/plex-1/" target="_blank" rel="noopener">transifex.com</a></li>
+          <li id="s59">Emby library setup: <a href="https://emby.media/support/articles/Library-Setup.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s60">Support for audiobooks, a feature request: <a href="https://forums.plex.tv/t/support-for-audiobooks/27518" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s61">Users on the new Plex app for Apple TV (September 2026): <a href="https://forums.plex.tv/t/943263" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s62">Plex's internet and network requirements: <a href="https://support.plex.tv/articles/200484903-internet-and-network-requirements/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s63">Emby Premiere limits: <a href="https://emby.media/support/articles/Premiere-Limits.html" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s64">Plex custom metadata providers (December 2025): <a href="https://forums.plex.tv/t/announcement-custom-metadata-providers/934384" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s65">Plex apps and devices: <a href="https://www.plex.tv/apps-devices/" target="_blank" rel="noopener">plex.tv/apps-devices</a>, and server downloads: <a href="https://www.plex.tv/media-server-downloads/" target="_blank" rel="noopener">plex.tv</a></li>
+          <li id="s66">Installing Jellyfin: <a href="https://jellyfin.org/docs/general/installation" target="_blank" rel="noopener">jellyfin.org</a></li>
+          <li id="s67">Plex casting: <a href="https://support.plex.tv/articles/chromecast-airplay-and-casting/" target="_blank" rel="noopener">support.plex.tv</a></li>
+          <li id="s68">Emby and Chromecast: <a href="https://emby.media/support/articles/Chromecast.html" target="_blank" rel="noopener">emby.media</a>, and AirPlay reports: <a href="https://emby.media/community/topic/71935-emby-for-ios-176-released" target="_blank" rel="noopener">emby.media/community</a></li>
+          <li id="s69">The history and evolution of Emby: <a href="https://emby.media/community/blogs/entry/576-the-history-and-evolution-of-emby/" target="_blank" rel="noopener">emby.media</a></li>
+          <li id="s70">Infuse on the App Store: <a href="https://apps.apple.com/us/app/infuse/id1136220934" target="_blank" rel="noopener">apps.apple.com</a></li>
+        </ol>
+      </section>
+
+      <div class="cta">
+        <a class="button primary" href="/#setup">Set up your server</a>
+        <a class="button quiet" href="/apps">See every app</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects, Plex, Jellyfin, Emby or the apps compared here. Their names belong to their owners.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="/why">Why Flexarr</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
