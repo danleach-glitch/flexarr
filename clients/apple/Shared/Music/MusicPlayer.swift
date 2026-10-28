@@ -383,7 +383,7 @@ final class MusicPlayer {
                 playbackId = info.playbackId
                 if info.durationSeconds > 0 { duration = info.durationSeconds }
                 lastReport = Date()
-                attach(item(url: url))
+                attach(item(url: url, type: info.method == .directPlay ? Self.audioType(of: info.audioTracks.first?.codec) : nil))
                 if podcast, info.startPositionSeconds > 0 { seek(to: info.startPositionSeconds) }
                 player.play()
                 if podcast { onPodcastStarted?() }
@@ -398,9 +398,11 @@ final class MusicPlayer {
         }
     }
 
-    /// An item for a track's file or stream; speech keeps its pitch at other speeds.
-    private func item(url: URL) -> AVPlayerItem {
-        let item = AVPlayerItem(url: url)
+    /// An item for a track's file or stream; speech keeps its pitch at other speeds. `type` names what a file sent as
+    /// it is holds, for servers that send FLAC and MP3 without saying so (before 0.53).
+    private func item(url: URL, type: String? = nil) -> AVPlayerItem {
+        let asset = AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+        let item = AVPlayerItem(asset: asset)
         if isPodcast { item.audioTimePitchAlgorithm = .timeDomain }
         return item
     }
@@ -596,11 +598,23 @@ final class MusicPlayer {
         }
     }
 
+    /// The type of a file sent as it is, from its sound's codec: the two the Apple TV asks for beyond MP4.
+    private static func audioType(of codec: String?) -> String? {
+        switch codec {
+        case "flac": "audio/flac"
+        case "mp3": "audio/mpeg"
+        default: nil
+        }
+    }
+
     /// Music asks nothing of the picture: the usual profile with the display's HDR left out, so the server copies the
-    /// sound as it is when the player can take it and converts it otherwise.
+    /// sound as it is when the player can take it and converts it otherwise. The Apple TV also takes FLAC and MP3 files
+    /// as they are (AVPlayer plays both), so the visualiser can hear them: a converted stream can't be tapped.
     private static var profile: DeviceProfile {
         #if os(tvOS)
-        .tvOS(hdr: false)
+        var profile = DeviceProfile.tvOS(hdr: false)
+        profile.containers += ["flac", "mp3"]
+        return profile
         #else
         .iOS(hdr: false)
         #endif

@@ -32,9 +32,9 @@ struct MusicAurora: View {
         .overlay {
             // Keeps the words and controls legible on the brightest light.
             ZStack {
-                RadialGradient(colors: [.clear, .black.opacity(0.5)], center: .center, startRadius: 300, endRadius: 1300)
+                RadialGradient(colors: [.clear, .black.opacity(0.55)], center: .center, startRadius: 300, endRadius: 1300)
                 LinearGradient(colors: [.black.opacity(0.15), .clear, .clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
-                Color.black.opacity(0.14)
+                Color.black.opacity(0.24)
             }
         }
         .ignoresSafeArea()
@@ -59,7 +59,7 @@ struct MusicAurora: View {
             // Low fields (the first two) answer the bass; the rest the middle.
             let drive = i < 2 ? frame.bass : frame.mid
             let radius = span * (0.36 + 0.06 * sin(t * 0.9)) * (1 + 0.22 * drive + 0.18 * frame.pulse)
-            let alpha = 0.34 + 0.24 * drive + 0.2 * frame.pulse
+            let alpha = 0.28 + 0.2 * drive + 0.16 * frame.pulse
             fill(&context, size: size, at: CGPoint(x: x, y: y), radius: radius,
                  stops: [(c, alpha, 0), (c, alpha * 0.35, 0.55), (c, 0, 1)])
         }
