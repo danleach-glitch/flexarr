@@ -1,4 +1,4 @@
-# Publishing the iPhone and iPad app
+# Publishing the Apple apps
 
 One universal app (FlexarriOS) covers iPhone and iPad. It's listed in App Store Connect as "Flexarr"
 with the bundle ID `com.danleach.flexarr.ios`.
@@ -84,3 +84,49 @@ subtitle, age rating and App Privacy are shared.
   from outside your home? Use an API key" and the key, then the App Review profile. `FlexarrTVUITests/ReviewerSignIn.swift` walks it on a fresh install, with the same
   environment as the iOS test.
 - The screens behind the screenshots come from `FlexarrTVUITests/StoreTour.swift`.
+
+## Mac (Flexarr Server)
+
+The Mac app (`clients/macos`) is the server itself, so it has its own listing rather than joining the iPhone and Apple TV
+one: "Flexarr Server", bundle ID `com.danleach.flexarr.mac`, SKU `flexarr-mac`. A universal purchase would have shared
+the player apps' name, subtitle and App Privacy, and couldn't be split apart later.
+
+    make mac-upload TEAM=<team id> BUNDLE_ID=com.danleach.flexarr.mac
+
+It needs the Mac App Distribution and Mac Installer Distribution certificates, which Xcode creates when it's signed in
+to the developer account. `MAC_EXPORT=export` makes the signed package in `clients/macos/build/export` without
+uploading, to check signing. One package runs on Apple silicon and Intel (macOS 14 and later). Upload only a release:
+the App Store version must match `MARKETING_VERSION` in `clients/macos/project.yml`.
+
+### Listing
+
+- **Subtitle:** Your own home media server. **Category:** Entertainment. **Price:** free. **Age rating:** 4+.
+- **Keywords:** streaming, movies, films, tv shows, music, podcasts, self-hosted, library, transcode, free, no ads, offline.
+- **Promotional text:** Turn your Mac into a streaming service for the whole household: your films, shows, music and
+  podcasts on iPhone, iPad, Apple TV and the web. Free, with no ads.
+- The description leads with your own streaming service, then the Mac's part: hardware video conversion, the menu bar,
+  start at login, only the folders you choose, Apple silicon and Intel. It ends saying Flexarr contains no media of its own.
+- **URLs and App Privacy:** as for the iPhone app. The server is what sends the optional error reports, so the same
+  three Diagnostics types are declared. `FlexarrServer/PrivacyInfo.xcprivacy` lists them, and the reasons for the
+  APIs the app and its bundled server, FFmpeg and SQLite use: UserDefaults (CA92.1), file timestamps (C617.1, 3B52.1)
+  and disk space (E174.1, 85F4.1).
+
+### App Review
+
+No demo server is needed: the reviewer runs the server. Review notes:
+
+> Flexarr Server is a personal media server, like Plex Media Server or Jellyfin. It contains no content and offers no
+> way to obtain any; it plays video files the user already has.
+>
+> It's a menu bar app with no Dock icon or window. After launch, click the Flexarr icon in the menu bar and choose
+> "Open Flexarr" to open its interface in the browser. No sign-in is needed on the same Mac.
+>
+> To test: in Flexarr, choose Add library, then "Choose a folder on the Mac…" and select a folder holding a video file.
+> An openly licensed film you can use is Big Buck Bunny (Blender Foundation, CC BY), a 65 MB zip to double-click
+> open: https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4.zip. The film appears in the
+> library in a few seconds, and plays in the browser. The free Flexarr app for iPhone and Apple TV (already on the App Store) finds
+> this server automatically on the same network.
+>
+> Connections to other library tools are optional, and the app works fully without them.
+
+Blender moves its downloads now and then: check the link, and walk these steps on a clean install, before submitting a version that changes first-run or Add library.
