@@ -26,7 +26,16 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await RecoverAsync(stoppingToken);
+        try
+        {
+            await RecoverAsync(stoppingToken);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            // Escaping ExecuteAsync stops the whole server; a folder it can't tidy mustn't.
+            LogRecoverFailed(ex);
+        }
+
         using var timer = new PeriodicTimer(Tick);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -62,10 +71,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var folder = Folder(options.CurrentValue);
         if (Directory.Exists(folder))
         {
-            foreach (var partial in Directory.EnumerateFiles(folder, "*.part.*"))
-            {
-                File.Delete(partial);
-            }
+            DeletePartials(folder, recurse: false);
         }
 
         // Podcast episodes half fetched into the Podcasts library's folders.
@@ -73,9 +79,23 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             .SelectMany(l => l.Folders).Select(f => f.Path).ToListAsync(ct);
         foreach (var root in podcastFolders.Where(Directory.Exists))
         {
-            foreach (var partial in Directory.EnumerateFiles(root, "*.part.*", SearchOption.AllDirectories))
+            DeletePartials(root, recurse: true);
+        }
+    }
+
+    /// <summary>Deletes leftover <c>*.part.*</c> files, skipping folders it can't read and files it can't delete.</summary>
+    internal void DeletePartials(string folder, bool recurse)
+    {
+        var enumeration = new EnumerationOptions { RecurseSubdirectories = recurse, IgnoreInaccessible = true };
+        foreach (var partial in Directory.EnumerateFiles(folder, "*.part.*", enumeration))
+        {
+            try
             {
                 File.Delete(partial);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LogPartialNotDeleted(partial, ex.Message);
             }
         }
     }
@@ -410,6 +430,12 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Fetching podcast episode for download {Id} failed: {Error}")]
     private partial void LogPodcastFetchFailed(Guid id, string error);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't delete the unfinished download {Path}: {Error}")]
+    private partial void LogPartialNotDeleted(string path, string error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Tidying up downloads the server stopped in the middle of failed")]
+    private partial void LogRecoverFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Preparing downloads failed")]
     private partial void LogFailed(Exception exception);

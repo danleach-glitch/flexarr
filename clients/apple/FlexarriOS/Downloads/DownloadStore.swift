@@ -50,6 +50,37 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     var isDownloaded: Bool { state == .downloaded && fileName != nil }
 }
 
+/// Read field by field, so a list saved by an older app (before `automatic` or `createdAt`, say) still reads: Swift's
+/// own decoding ignores the defaults above and would fail the whole list. Only what it can't do without is required.
+extension LocalDownload {
+    private enum CodingKeys: String, CodingKey {
+        case id, profileId, quality, item, markers, durationSeconds, nextId, state, sizeBytes, fileName, remoteFileName
+        case imageFileName, position, finishedAt, unsent, automatic, manual, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        profileId = try c.decode(String.self, forKey: .profileId)
+        item = try c.decode(ItemSummary.self, forKey: .item)
+        state = try c.decode(State.self, forKey: .state)
+        quality = try c.decodeIfPresent(DownloadQuality.self, forKey: .quality) ?? .original
+        markers = (try? c.decodeIfPresent([Marker].self, forKey: .markers)) ?? []
+        durationSeconds = try c.decodeIfPresent(Double.self, forKey: .durationSeconds) ?? 0
+        nextId = try c.decodeIfPresent(String.self, forKey: .nextId)
+        sizeBytes = try c.decodeIfPresent(Int64.self, forKey: .sizeBytes)
+        fileName = try c.decodeIfPresent(String.self, forKey: .fileName)
+        remoteFileName = try c.decodeIfPresent(String.self, forKey: .remoteFileName)
+        imageFileName = try c.decodeIfPresent(String.self, forKey: .imageFileName)
+        position = try c.decodeIfPresent(Double.self, forKey: .position) ?? 0
+        finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
+        unsent = try? c.decodeIfPresent(UnsentProgress.self, forKey: .unsent)
+        automatic = try c.decodeIfPresent(Bool.self, forKey: .automatic) ?? false
+        manual = try c.decodeIfPresent(Bool.self, forKey: .manual)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
+}
+
 struct UnsentProgress: Codable, Hashable {
     var position: Double
     var finished: Bool
@@ -108,6 +139,28 @@ struct LocalCollection: Codable, Identifiable, Hashable {
             return .downloading(fractions.reduce(0, +) / Double(fractions.count))
         }
         return .preparing
+    }
+}
+
+/// Read field by field, like `LocalDownload`, so a list saved by an older app still reads.
+extension LocalCollection {
+    private enum CodingKeys: String, CodingKey {
+        case id, profileId, kind, title, subtitle, album, accentColor, trackIds, imageFileName, estimatedBytes, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        profileId = try c.decode(String.self, forKey: .profileId)
+        kind = try c.decode(Kind.self, forKey: .kind)
+        title = try c.decode(String.self, forKey: .title)
+        trackIds = try c.decodeIfPresent([String].self, forKey: .trackIds) ?? []
+        subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
+        album = try? c.decodeIfPresent(ItemSummary.self, forKey: .album)
+        accentColor = try c.decodeIfPresent(String.self, forKey: .accentColor)
+        imageFileName = try c.decodeIfPresent(String.self, forKey: .imageFileName)
+        estimatedBytes = try c.decodeIfPresent(Int64.self, forKey: .estimatedBytes)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
 }
 
@@ -185,12 +238,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     override init() {
         super.init()
-        if let data = try? Data(contentsOf: Self.manifest), let saved = try? FlexarrClient.decoder.decode([LocalDownload].self, from: data) {
-            all = saved
-        }
-        if let data = try? Data(contentsOf: Self.collectionsManifest), let saved = try? FlexarrClient.decoder.decode([LocalCollection].self, from: data) {
-            collections = saved
-        }
+        all = Self.loadSaved(LocalDownload.self, from: Self.manifest)
+        collections = Self.loadSaved(LocalCollection.self, from: Self.collectionsManifest)
         let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
         configuration.sessionSendsLaunchEvents = true
         configuration.isDiscretionary = false
@@ -201,6 +250,15 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             Task { @MainActor in self?.connectivityChanged(online: online, wifi: wifi) }
         }
         monitor.start(queue: .main)
+    }
+
+    /// A saved list, keeping every entry that reads; a copy of the file is kept when any doesn't.
+    private static func loadSaved<Element: Decodable>(_ type: Element.Type, from url: URL) -> [Element] {
+        let loaded = SavedList.load(type, from: url)
+        if loaded.unreadable > 0 {
+            log.error("Couldn't read \(loaded.unreadable) saved \(url.lastPathComponent) entries; the file was kept as \(loaded.keptAt?.lastPathComponent ?? "nothing")")
+        }
+        return loaded.items
     }
 
     /// This profile's downloads, newest first.

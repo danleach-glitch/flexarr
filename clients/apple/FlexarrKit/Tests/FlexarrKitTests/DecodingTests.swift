@@ -124,6 +124,15 @@ struct DecodingTests {
         let marker = try FlexarrClient.decoder.decode(Marker.self, from: Data(json.utf8))
         #expect(marker.type == .unknown)
     }
+
+    @Test func aNewerServersAvailabilityAndDownloadQualityStillDecode() throws {
+        let option = #"{"quality":"Tiny","estimatedBytes":1000,"available":true}"#
+        #expect(try FlexarrClient.decoder.decode(DownloadOption.self, from: Data(option.utf8)).quality == .unknown)
+        let qualities = try FlexarrClient.decoder.decode([DownloadQuality].self, from: Data(#"["Small","Tiny"]"#.utf8))
+        #expect(qualities == [.small, .unknown])
+        let states = try FlexarrClient.decoder.decode([Availability].self, from: Data(#"["Requested","Processing"]"#.utf8))
+        #expect(states == [.requested, .unknown])
+    }
 }
 
 extension ItemSummary {

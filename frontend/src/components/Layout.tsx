@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { askForProfile, clearApiCache, getLiveTvStatus, getPodcastPreferences, selectProfile, signOut } from '../api/client'
 import { PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
+import { session } from '../lib/session'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
@@ -183,7 +184,7 @@ export function Layout() {
                         if (other && !other.hasPin) {
                           // Refused (over Tailscale, a main profile without a PIN): the picker says why.
                           await selectProfile(other.id).then(
-                            () => sessionStorage.setItem('flexarr.profileChosen', '1'),
+                            () => session.set('flexarr.profileChosen', '1'),
                             () => askForProfile(),
                           )
                         } else {

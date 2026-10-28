@@ -8,6 +8,9 @@ import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueu
 
 const speedKey = 'flexarr.podcastSpeed'
 
+/** How long the bar says a track couldn't be played, in milliseconds. */
+const FAILURE_SHOWN_FOR = 8000
+
 function storedSpeed(): number {
   try {
     const speed = Number(localStorage.getItem(speedKey))
@@ -35,6 +38,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [playing, setPlaying] = useState(false)
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [failure, setFailure] = useState<string | null>(null)
+  const failureTimer = useRef<number | undefined>(undefined)
   const [musicPages, setMusicPages] = useState(0)
   // Where a restored queue was: Play starts from there rather than the beginning.
   const resumeAt = useRef(0)
@@ -113,6 +118,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         rate: (track) => speedForRef.current(track),
         stopAtEnd: () => sleepRef.current !== null && 'endOfEpisode' in sleepRef.current,
         stoppedAtEnd: () => setSleep(null),
+        failed: (track) => {
+          // Said for a few seconds, over whatever plays next.
+          setFailure(`Couldn't play “${track.title}”`)
+          window.clearTimeout(failureTimer.current)
+          failureTimer.current = window.setTimeout(() => setFailure(null), FAILURE_SHOWN_FOR)
+          // On to the next one, if there is one; the bar says what was skipped.
+          const { tracks, index } = stateRef.current
+          if (index + 1 < tracks.length) dispatch({ type: 'next' })
+        },
       })),
     [persist],
   )
@@ -289,6 +303,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       current,
       playing,
       duration,
+      failure,
       onMusicPage: musicPages > 0,
       play,
       enqueue,
@@ -314,6 +329,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       current,
       playing,
       duration,
+      failure,
       musicPages,
       play,
       enqueue,

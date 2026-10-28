@@ -2,6 +2,32 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Server
+- Download progress shows for everything Sonarr and Radarr are fetching, not just the first 200.
+- Episodes in **Coming soon** that Sonarr gives only a date for now show on the right day wherever you are.
+- Finding intros and credits carries on when one file can't be read, such as one on a network share that stopped answering, instead of stopping for good.
+- A title or its show being removed by a scan while you open it no longer shows an error.
+- Watching a long film no longer fills the disk: the server keeps the last 10 minutes of what's been converted for rewinding and deletes the rest as playback moves on. Films whose video is copied rather than converted also take half the space they did.
+- A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
+
+### iPhone and Apple TV
+- Downloads on your iPhone are kept through app updates: if the app can't read one saved download, it keeps the rest instead of starting with an empty list.
+- Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
+
+### Web
+- A song or podcast episode that won't play is tried once more from where it stopped. If it still won't play, Flexarr says so in the player bar and moves on to the next one, instead of stopping silently.
+- A video that keeps failing to decode now says so, instead of trying again for ever.
+- Going from one title to another (a Similar title, say) no longer briefly shows the previous title's details and Play button.
+- Space and Enter on a focused player button (Subtitles, Quality) now use that button, instead of pausing.
+- Flexarr starts in browsers that block storage, such as some private windows.
+- When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
+
+### Privacy and security
+- An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
+- When Flexarr plays, downloads or scans a video, it only reads the file itself. A file that's really a playlist in disguise can no longer make it fetch addresses on your network.
+
 ## 0.51.1 · 28 October 2026
 
 ### Web

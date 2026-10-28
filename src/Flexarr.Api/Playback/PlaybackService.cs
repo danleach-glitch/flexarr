@@ -174,8 +174,14 @@ public sealed class PlaybackService(
         var ancestors = new List<ItemSummaryDto>();
         for (var parentId = item.ParentId; parentId is { } pid;)
         {
-            ancestors.Insert(0, await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstAsync(ct));
-            parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstAsync(ct);
+            // A scan may take a parent away mid-request: the trail stops there instead of failing.
+            if (await db.MediaItems.Where(i => i.Id == pid).Summaries(profile.Id).FirstOrDefaultAsync(ct) is not { } parent)
+            {
+                break;
+            }
+
+            ancestors.Insert(0, parent);
+            parentId = await db.MediaItems.Where(i => i.Id == pid).Select(i => i.ParentId).FirstOrDefaultAsync(ct);
         }
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;

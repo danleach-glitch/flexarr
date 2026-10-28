@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent } from 'react'
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router'
+import { Fragment, lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from 'react'
+import { BrowserRouter, Route, Routes, useLocation, useParams } from 'react-router'
 import {
   claimSetup,
   clearApiCache,
@@ -34,6 +34,7 @@ import { UpcomingPage } from './pages/UpcomingPage'
 import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
 import { configureSentry } from './lib/sentry'
+import { session } from './lib/session'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/app.css'
@@ -48,15 +49,24 @@ import './styles/livetv.css'
  * Loads a page on demand. A tab opened before an update can ask for a file the update replaced; then the page reloads
  * once to pick up the new version rather than going blank. (Deploys also keep a week of old files.)
  */
+/**
+ * A page that starts afresh for each title it shows: going from one to another (a Similar title, a person's film)
+ * never shows the last one's details, or its Play button, under the new address while the new one loads.
+ */
+function Fresh({ children }: { children: ReactNode }) {
+  const params = useParams()
+  return <Fragment key={Object.values(params).join('/')}>{children}</Fragment>
+}
+
 function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) {
   return lazy(async () => {
     try {
       const page = await load()
-      sessionStorage.removeItem('flexarr.reloadedForUpdate')
+      session.remove('flexarr.reloadedForUpdate')
       return page
     } catch (error) {
-      if (!sessionStorage.getItem('flexarr.reloadedForUpdate')) {
-        sessionStorage.setItem('flexarr.reloadedForUpdate', '1')
+      if (!session.get('flexarr.reloadedForUpdate')) {
+        session.set('flexarr.reloadedForUpdate', '1')
         location.reload()
         return new Promise<T>(() => {}) // the reload replaces this page
       }
@@ -92,21 +102,21 @@ export function Shell() {
                 <Route path="live/:id" element={<LivePlayerPage />} />
                 <Route element={<Layout />}>
                   <Route index element={<HomePage />} />
-                  <Route path="library/:id" element={<LibraryPage />} />
-                  <Route path="item/:id" element={<ItemPage />} />
-                  <Route path="person/:id" element={<PersonPage />} />
+                  <Route path="library/:id" element={<Fresh><LibraryPage /></Fresh>} />
+                  <Route path="item/:id" element={<Fresh><ItemPage /></Fresh>} />
+                  <Route path="person/:id" element={<Fresh><PersonPage /></Fresh>} />
                   <Route path="collections" element={<CollectionsPage />} />
-                  <Route path="collection/:id" element={<CollectionPage />} />
+                  <Route path="collection/:id" element={<Fresh><CollectionPage /></Fresh>} />
                   <Route path="playlists" element={<PlaylistsPage />} />
-                  <Route path="playlist/:id" element={<PlaylistPage />} />
-                  <Route path="mix/:id" element={<MixPage />} />
+                  <Route path="playlist/:id" element={<Fresh><PlaylistPage /></Fresh>} />
+                  <Route path="mix/:id" element={<Fresh><MixPage /></Fresh>} />
                   <Route path="livetv" element={<LiveTvPage />} />
                   <Route path="podcasts" element={<PodcastsPage />} />
                   <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
-                  <Route path="podcasts/episode/:id" element={<PodcastEpisodePage />} />
-                  <Route path="podcasts/:id" element={<PodcastPage />} />
+                  <Route path="podcasts/episode/:id" element={<Fresh><PodcastEpisodePage /></Fresh>} />
+                  <Route path="podcasts/:id" element={<Fresh><PodcastPage /></Fresh>} />
                   <Route path="discover" element={<DiscoverPage />} />
-                  <Route path="discover/:mediaType/:tmdbId" element={<ExternalTitlePage />} />
+                  <Route path="discover/:mediaType/:tmdbId" element={<Fresh><ExternalTitlePage /></Fresh>} />
                   <Route path="upcoming" element={<UpcomingPage />} />
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />
@@ -154,16 +164,16 @@ export default function App() {
         const oldMainToken = me !== null && tokenFor === 'owner'
         if (token && me && (oldMainToken || tokenFor !== me.profileId)) {
           saveProfileToken(null)
-          sessionStorage.removeItem('flexarr.profileChosen')
+          session.remove('flexarr.profileChosen')
           clearApiCache()
         }
         // Ask who's watching when the household has several profiles and this device hasn't chosen one, or when
         // asked to ("Switch profile"). Otherwise, over Tailscale the person is already known from their account.
-        const asked = sessionStorage.getItem('flexarr.pickProfile') === '1' || (oldMainToken && me?.method === 'tailscale')
-        const chosen = profileToken() !== null || sessionStorage.getItem('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
+        const asked = session.get('flexarr.pickProfile') === '1' || (oldMainToken && me?.method === 'tailscale')
+        const chosen = profileToken() !== null || session.get('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
         // Asked for one profile in particular (Switch to the main profile, in Settings): straight to its PIN.
-        const initial = asked ? profiles.find((p) => p.id === sessionStorage.getItem('flexarr.pickProfileFor')) : undefined
-        sessionStorage.removeItem('flexarr.pickProfileFor')
+        const initial = asked ? profiles.find((p) => p.id === session.get('flexarr.pickProfileFor')) : undefined
+        session.remove('flexarr.pickProfileFor')
         setState(profiles.length > 0 && (asked || (profiles.length > 1 && !chosen)) ? { kind: 'choose-profile', profiles, asked, initial } : { kind: 'ready' })
       })
       .catch((error: unknown) => {
@@ -207,16 +217,16 @@ export default function App() {
         profiles={state.profiles}
         initial={state.initial}
         onChosen={() => {
-          sessionStorage.removeItem('flexarr.pickProfile')
-          sessionStorage.setItem('flexarr.profileChosen', '1')
+          session.remove('flexarr.pickProfile')
+          session.set('flexarr.profileChosen', '1')
           setState({ kind: 'ready' })
         }}
         // Carry on as before: opening the picker didn't give up the profile chosen here.
         onCancel={
           state.asked
             ? () => {
-                sessionStorage.removeItem('flexarr.pickProfile')
-                sessionStorage.setItem('flexarr.profileChosen', '1')
+                session.remove('flexarr.pickProfile')
+                session.set('flexarr.profileChosen', '1')
                 setState({ kind: 'ready' })
               }
             : undefined

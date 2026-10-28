@@ -14,6 +14,12 @@ public static class FfmpegCommand
     /// </summary>
     public const int RunAheadSeconds = 180;
 
+    /// <summary>
+    /// Before each input that's a file on this server: ffmpeg goes by what's in a file, not its name, so a "film" that's
+    /// really a playlist could otherwise have it fetch addresses on the network.
+    /// </summary>
+    public static readonly string[] LocalFile = ["-protocol_whitelist", "file"];
+
     /// <summary>ffmpeg's own pacing: the burst, then real time (ffmpeg 6 and later for the burst).</summary>
     private static readonly string[] Pacing = ["-readrate", "1.0", "-readrate_initial_burst", RunAheadSeconds.ToString(CultureInfo.InvariantCulture)];
 
@@ -73,10 +79,10 @@ public static class FfmpegCommand
                 break;
         }
 
-        args.AddRange([.. Pacing, "-ss", start, "-i", input]);
+        args.AddRange([.. Pacing, "-ss", start, .. LocalFile, "-i", input]);
         if (burn?.ExternalPath is { } subtitleFile)
         {
-            args.AddRange(["-ss", start, "-i", subtitleFile]);
+            args.AddRange(["-ss", start, .. LocalFile, "-i", subtitleFile]);
         }
 
         // ---- Video
@@ -97,7 +103,7 @@ public static class FfmpegCommand
     private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory)
     {
         var start = repackage.SegmentStarts[Math.Clamp(startSegment, 0, repackage.SegmentStarts.Count - 1)].ToString("0.###", CultureInfo.InvariantCulture);
-        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing, "-ss", start, "-i", input];
+        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing, "-ss", start, .. LocalFile, "-i", input];
         args.AddRange(["-map", $"0:{plan.VideoStreamIndex}", "-c:v", "copy", "-tag:v", repackage.CodecTag]);
         if (repackage.StripDolbyVision)
         {
@@ -152,11 +158,11 @@ public static class FfmpegCommand
                 break;
         }
 
-        args.AddRange(["-i", input]);
+        args.AddRange([.. LocalFile, "-i", input]);
         var sidecars = textSubtitles.Where(t => t.ExternalPath is not null).ToList();
         foreach (var sidecar in sidecars)
         {
-            args.AddRange(["-i", sidecar.ExternalPath!]);
+            args.AddRange([.. LocalFile, "-i", sidecar.ExternalPath!]);
         }
 
         if (plan is not null)
@@ -227,7 +233,7 @@ public static class FfmpegCommand
         return
         [
             "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats",
-            "-i", input,
+            .. LocalFile, "-i", input,
             "-map", $"0:{audioIndex}", "-vn", "-sn", "-dn",
             "-c:a", "aac", "-ac", Math.Clamp(channels, 1, 2).ToString(CultureInfo.InvariantCulture), "-b:a", rate,
             "-map_metadata", "-1", "-map_chapters", "-1", "-movflags", "+faststart", "-f", "ipod", output,

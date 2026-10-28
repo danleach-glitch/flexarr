@@ -94,6 +94,44 @@ const ends = (el: HTMLAudioElement) =>
   })
 
 describe('AudioPlayerProvider', () => {
+  it('tries a track whose stream fails once more from where it was, then skips it and says so', async () => {
+    const { requests } = playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+    await waitFor(() => expect(requests.map((r) => r.itemId)).toEqual(['t1']))
+    const [el] = elements()
+
+    tick(el, 30)
+    act(() => void el.dispatchEvent(new Event('error')))
+    await waitFor(() => expect(requests.map((r) => [r.itemId, r.startPositionSeconds])).toEqual([['t1', 0], ['t1', 30]]))
+    act(() => void el.dispatchEvent(new Event('error')))
+
+    await waitFor(() => expect(result.current.current?.id).toBe('t2'))
+    expect(result.current.failure).toBe('Couldn\'t play “One”')
+    await waitFor(() => expect(requests.map((r) => r.itemId)).toEqual(['t1', 't1', 't2']))
+  })
+
+  it('skips a track the server won\'t start, after asking twice', async () => {
+    const requests: { itemId: string }[] = []
+    mockApi({
+      'POST /playback': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { itemId: string }
+        requests.push(body)
+        return body.itemId === 't1'
+          ? new Response('', { status: 503 })
+          : { sessionId: 'session-t2', method: 'DirectPlay', url: '/stream/t2', reasons: [], durationSeconds: 251, startPositionSeconds: 0, fileId: 'f1',
+              audioTracks: [], selectedAudioIndex: null, subtitles: [], selectedSubtitleKey: null, subtitleBurnedIn: false }
+      },
+    })
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0))
+
+    await waitFor(() => expect(result.current.current?.id).toBe('t2'))
+    expect(requests.map((r) => r.itemId)).toEqual(['t1', 't1', 't2'])
+    expect(result.current.failure).toBe('Couldn\'t play “One”')
+  })
+
   it('plays a queue, asks the server for the track and remembers the queue for a reload', async () => {
     const { requests } = playbackApi()
     const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })

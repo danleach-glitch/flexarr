@@ -24,7 +24,6 @@ final class ServerProcess {
     private let requests: AppRequests
     private var requestsPort: UInt16?
     private var process: Process?
-    private var stopping = false
     private var quickExits = 0
 
     /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
@@ -97,7 +96,8 @@ final class ServerProcess {
         let started = Date()
         process.terminationHandler = { [weak self] ended in
             let code = ended.terminationStatus
-            Task { @MainActor in self?.ended(code: code, after: Date().timeIntervalSince(started)) }
+            let which = ObjectIdentifier(ended)
+            Task { @MainActor in self?.ended(which, code: code, after: Date().timeIntervalSince(started)) }
         }
 
         do {
@@ -111,13 +111,21 @@ final class ServerProcess {
         Task { await waitUntilAnswering() }
     }
 
+    /// Asks the server to stop and waits for it, up to 10 seconds, then kills it: Quit mustn't leave it running, and
+    /// a server slow to shut down mustn't hang the menu.
     func stop() {
         guard let process else { return }
-        stopping = true
-        process.terminate()
-        process.waitUntilExit()
+        // Forgotten first, so its exit isn't taken for a crash to restart from.
         self.process = nil
-        stopping = false
+        process.terminate()
+        let deadline = Date().addingTimeInterval(10)
+        while process.isRunning && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+            process.waitUntilExit()
+        }
         status = .stopped
     }
 
@@ -127,9 +135,10 @@ final class ServerProcess {
         start()
     }
 
-    private func ended(code: Int32, after seconds: TimeInterval) {
-        guard !stopping else { return }
-        process = nil
+    /// A server exited. Only the one running now counts: one that was stopped (by Stop, Restart or Quit) is done with.
+    private func ended(_ which: ObjectIdentifier, code: Int32, after seconds: TimeInterval) {
+        guard let process, ObjectIdentifier(process) == which else { return }
+        self.process = nil
         // Give up after a few exits in a row within seconds of starting: something's wrong that a restart won't fix.
         quickExits = seconds < 30 ? quickExits + 1 : 0
         if quickExits >= 3 {
@@ -139,7 +148,8 @@ final class ServerProcess {
         status = .starting
         Task {
             try? await Task.sleep(for: .seconds(2))
-            start()
+            // Unless it was stopped in the meantime.
+            if status == .starting { start() }
         }
     }
 

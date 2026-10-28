@@ -17,6 +17,33 @@ public sealed class DownloadTests : IDisposable
     public void Dispose() => _factory.Dispose();
 
     [Fact]
+    public void LeftoverPartials_AreDeleted_PastAFolderTheServerCantRead()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-partials-").FullName;
+        var locked = Directory.CreateDirectory(Path.Combine(root, "a-locked")).FullName;
+        var show = Directory.CreateDirectory(Path.Combine(root, "b-show")).FullName;
+        var partial = Path.Combine(show, "episode.mp3.part.1");
+        File.WriteAllText(partial, "half");
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            _factory.Services.GetRequiredService<Downloads.DownloadPreparer>().DeletePartials(root, recurse: true);
+
+            Assert.False(File.Exists(partial));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task AnMp4ThePhonePlays_IsReadyAtOnce_FetchedInPieces_AndKeptAfterReceipt()
     {
         var (movie, path) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");

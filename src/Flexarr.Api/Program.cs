@@ -179,6 +179,12 @@ builder.Services.AddMcpServer(o =>
         + "take commands while Flexarr is open on them.";
 })
     .WithHttpTransport(o => o.Stateless = true)
+    // MapMcp sits outside the /api/v1 group, so its tools get the profile's hidden libraries here.
+    .WithRequestFilters(f => f.AddCallToolFilter(next => async (request, ct) =>
+    {
+        await LibraryVisibility.ApplyAsync(request.Services!, ct);
+        return await next(request, ct);
+    }))
     .WithTools([typeof(FlexarrTools), typeof(LiveTvTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
     {
         TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),

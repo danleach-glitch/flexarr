@@ -30,6 +30,7 @@ public static class LoggingSetup
         builder.Services.AddSingleton(errorReports);
         builder.Services.AddSingleton<LogReader>();
         builder.Services.AddSingleton<ClientLogs>();
+        builder.Services.AddHttpClient<ErrorReportTunnel>(c => c.Timeout = TimeSpan.FromSeconds(15));
         builder.Services.AddScoped<Diagnostics>();
         builder.Services.AddHostedService<LogJanitor>();
 

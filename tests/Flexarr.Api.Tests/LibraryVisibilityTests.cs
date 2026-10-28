@@ -5,6 +5,8 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 
 namespace Flexarr.Api.Tests;
 
@@ -65,6 +67,35 @@ public class LibraryVisibilityTests(FlexarrApiFactory factory) : IClassFixture<F
 
         Assert.DoesNotContain(browsing.EnumerateArray(), l => l.GetProperty("id").GetGuid() == films);
         Assert.Contains(settings.EnumerateArray(), l => l.GetProperty("id").GetGuid() == films);
+    }
+
+    [Fact]
+    public async Task AnAssistantOverMcp_DoesntFindTitlesInHiddenLibraries()
+    {
+        var (films, _, film, show) = await SeedAsync();
+        await Client().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Main profile", hiddenLibraryIds = new[] { films } });
+        try
+        {
+            var http = factory.CreateClient();
+            var options = new HttpClientTransportOptions
+            {
+                Endpoint = new Uri(http.BaseAddress!, "/api/v1/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+                AdditionalHeaders = new Dictionary<string, string> { ["X-Api-Key"] = FlexarrApiFactory.ApiKey },
+            };
+            await using var mcp = await McpClient.CreateAsync(new HttpClientTransport(options, http, ownsHttpClient: true));
+
+            var found = await mcp.CallToolAsync("search_library", new Dictionary<string, object?> { ["query"] = "Visibility" });
+            Assert.NotEqual(true, found.IsError);
+            var text = found.StructuredContent?.GetRawText() ?? string.Concat(found.Content.OfType<TextContentBlock>().Select(b => b.Text));
+
+            Assert.Contains(show.ToString(), text, StringComparison.Ordinal);
+            Assert.DoesNotContain(film.ToString(), text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await Client().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Main profile", hiddenLibraryIds = Array.Empty<Guid>() });
+        }
     }
 
     [Fact]

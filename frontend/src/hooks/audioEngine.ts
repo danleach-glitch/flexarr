@@ -57,6 +57,8 @@ export interface EngineHost {
   stopAtEnd(): boolean
   /** It stopped at the end, as `stopAtEnd` asked. */
   stoppedAtEnd(): void
+  /** The current track couldn't be played, even after trying it again once: the queue decides what happens. */
+  failed(track: ItemSummary): void
 }
 
 export interface AudioEngine {
@@ -93,6 +95,8 @@ export function createEngine(host: EngineHost): AudioEngine {
   let isLoaded = false
   // Skipping quickly starts loads that overtake each other: only the latest gets to touch an element.
   let loadCount = 0
+  // The track last tried again after failing: a second failure gives up on it.
+  let retried: ItemSummary | undefined
 
   const current = () => slots[active]
   const other = () => slots[1 - active]
@@ -162,6 +166,15 @@ export function createEngine(host: EngineHost): AudioEngine {
       const { default: HlsPlayer } = await import('hls.js/light')
       if (mine !== loadCount) return false // Whatever overtook it has released the slot, session included.
       const player = new HlsPlayer({ startPosition: startAt > 0 ? startAt : -1 })
+      let recovered = false
+      player.on(HlsPlayer.Events.ERROR, (_event, data) => {
+        if (!data.fatal) return
+        // A media error once gets hls.js's own recovery; anything else, or a second one, is a failed track.
+        if (data.type === HlsPlayer.ErrorTypes.MEDIA_ERROR && !recovered) {
+          recovered = true
+          player.recoverMediaError()
+        } else fail(s)
+      })
       player.loadSource(info.url)
       player.attachMedia(s.el)
       s.hls = player
@@ -211,6 +224,29 @@ export function createEngine(host: EngineHost): AudioEngine {
     if (advance) host.advanced()
   }
 
+  /**
+   * A slot's track wouldn't play (its stream failed, or its session couldn't start). The spare is just let go: the
+   * queue starts that track the ordinary way when it's due. The current one is tried again once from where it was,
+   * then given up on.
+   */
+  function fail(s: Slot, at = s.el.currentTime) {
+    const track = s.track
+    if (!track) return
+    if (s !== current()) {
+      release(s)
+      return
+    }
+    if (retried !== track) {
+      retried = track
+      void engine.load(track, host.queue().index, Number.isFinite(at) ? at : 0)
+      return
+    }
+    retried = undefined
+    release(s)
+    host.playing(false)
+    host.failed(track)
+  }
+
   /** Gets the next track ready in the spare slot. Failures are left to `ended`, which starts it the ordinary way. */
   async function prepare(track: ItemSummary, index: number) {
     const s = other()
@@ -243,6 +279,10 @@ export function createEngine(host: EngineHost): AudioEngine {
   }
 
   const handlers = (s: Slot): Record<string, () => void> => ({
+    // Only a direct stream's: hls.js reports its own failures, and the element is let go before its error matters.
+    error: () => {
+      if (!s.hls) fail(s)
+    },
     timeupdate: () => {
       if (s !== current()) return
       host.time(s.el.currentTime)
@@ -287,7 +327,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     },
   })
 
-  return {
+  const engine: AudioEngine = {
     attach(elements) {
       slots = elements.map((el) => ({
         el,
@@ -313,6 +353,7 @@ export function createEngine(host: EngineHost): AudioEngine {
       const c = current()
       const o = other()
       if (!c) return
+      if (retried !== track) retried = undefined
       isLoaded = true
       mixer.resume()
       // Next pressed while the next track was ready (or a skip to it): it's already there to play.
@@ -324,7 +365,13 @@ export function createEngine(host: EngineHost): AudioEngine {
       release(c)
       host.time(startAt)
       host.duration(track.durationSeconds ?? 0)
-      if (!(await fill(c, track, index, startAt))) return
+      try {
+        if (!(await fill(c, track, index, startAt))) return
+      } catch {
+        // The server wouldn't start it (busy, gone, offline).
+        fail(c, startAt)
+        return
+      }
       host.duration(c.duration)
       channel(c).set(level(c))
       await c.el.play().catch(() => host.playing(false))
@@ -377,4 +424,5 @@ export function createEngine(host: EngineHost): AudioEngine {
       host.playing(false)
     },
   }
+  return engine
 }

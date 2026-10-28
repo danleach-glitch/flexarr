@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Flexarr.Api.Logging;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -242,6 +244,51 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
         finally
         {
             await admin.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = false });
+        }
+    }
+
+    [Fact]
+    public async Task TheWebAppsErrorReports_GoOnToItsSentryProjectOnly_AndOnlyWhileReportsAreOn()
+    {
+        var sentry = new RecordingSentry();
+        using var server = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+            s.AddHttpClient<ErrorReportTunnel>().ConfigurePrimaryHttpMessageHandler(() => sentry)));
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        admin.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+        static StringContent Envelope(string dsn) =>
+            new($"{{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"{dsn}\"}}\n{{\"type\":\"event\"}}\n{{}}", Encoding.UTF8, "text/plain");
+
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync(Api("/error-reports/web"), Envelope(ErrorReportTunnel.WebDsn))).StatusCode);
+
+        try
+        {
+            await admin.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = true });
+
+            var elsewhere = await admin.PostAsync(Api("/error-reports/web"), Envelope("https://key@o1.ingest.sentry.io/42"));
+            var tooBig = await admin.PostAsync(Api("/error-reports/web"), new StringContent(new string('x', ErrorReportTunnel.MaxEnvelopeBytes + 1)));
+            var sent = await admin.PostAsync(Api("/error-reports/web"), Envelope(ErrorReportTunnel.WebDsn));
+
+            Assert.Equal(HttpStatusCode.BadRequest, elsewhere.StatusCode);
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooBig.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+            var forwarded = Assert.Single(sentry.Requests);
+            Assert.Equal("https://o4512326167232512.ingest.de.sentry.io/api/4512326210027600/envelope/", forwarded.ToString());
+        }
+        finally
+        {
+            await admin.PutAsJsonAsync(Api("/logs/settings"), new { errorReports = false });
+        }
+    }
+
+    private sealed class RecordingSentry : HttpMessageHandler
+    {
+        public List<Uri> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request.RequestUri!);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }
 

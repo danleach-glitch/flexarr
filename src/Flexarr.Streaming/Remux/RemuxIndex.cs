@@ -156,7 +156,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
     private async Task<VideoFacts?> ProbeAsync(string path, CancellationToken ct)
     {
-        var output = await RunAsync(["-v", "error", "-select_streams", "v:0", "-show_streams", "-show_data", "-of", "json", path], ct).ConfigureAwait(false);
+        var output = await RunAsync(["-v", "error", .. FfmpegCommand.LocalFile, "-select_streams", "v:0", "-show_streams", "-show_data", "-of", "json", path], ct).ConfigureAwait(false);
         return output is null ? null : ParseFacts(output);
     }
 
@@ -271,7 +271,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
     /// <summary>Every video packet's flags, for files without an index: the keyframes' times.</summary>
     private async Task<List<double>?> ScanKeyframesAsync(string path)
     {
-        var output = await RunAsync(["-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", path],
+        var output = await RunAsync(["-v", "error", .. FfmpegCommand.LocalFile, "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", path],
             CancellationToken.None, lowPriority: true).ConfigureAwait(false);
         if (output is null)
         {

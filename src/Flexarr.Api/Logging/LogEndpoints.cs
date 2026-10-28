@@ -141,6 +141,12 @@ public static class LogEndpoints
                 : Results.StatusCode(StatusCodes.Status429TooManyRequests);
         });
 
+        // The web app's error reports, on their way to Sentry (its content security policy only lets it reach this server).
+        api.MapPost("/error-reports/web", async (HttpContext http, ErrorReportTunnel tunnel, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            options.CurrentValue.Logs.ErrorReports
+                ? Results.StatusCode(await tunnel.ForwardAsync(http.Request.Body, ct))
+                : Results.NotFound()).WithTags("Logs");
+
         clientLogs.MapPost("/diagnostics", async (string platform, string? appVersion, string? note, HttpContext http, ClientLogs clients, SignIns signIns,
             CurrentProfile profile, FlexarrDbContext db, CancellationToken ct) =>
         {

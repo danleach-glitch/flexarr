@@ -695,6 +695,10 @@
   color: var(--usher);
 }
 
+.now-playing-failure {
+  color: var(--danger);
+}
+
 .now-playing-centre {
   display: flex;
   flex-direction: column;

@@ -413,7 +413,8 @@ public static partial class DiscoveryEndpoints
             .OrderByDescending(x => x.Score).Take(RowSize).ToListAsync(ct);
         var order = ranked.Select(r => r.Id).ToList();
         var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
-        return order.Select(o => items[o]).ToList();
+        // A title a scan took away between the two queries is left out.
+        return order.Where(items.ContainsKey).Select(o => items[o]).ToList();
     }
 
     /// <summary>
