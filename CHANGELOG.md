@@ -54,9 +54,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Sleep timer for films and episodes:** stop in 15, 30, 45 or 60 minutes, or at the end of this episode. In the last minute the picture dims and asks "Still watching?", and any button adds 15 minutes (on iPhone, a tap or a shake). Otherwise the sound fades out and playback pauses.
 - **Speed in the web player,** from half speed to double. The speed you choose for a show's episode is kept for its other episodes, on every device.
 
-### Website
-- **[flexarr.io/why](https://flexarr.io/why)** compares Flexarr with Plex, Jellyfin and Emby, and its apps with Infuse, Plezy, Swiftfin and Rivulet: what each does, what it costs, and where Flexarr isn't the right fit yet, with a source for every claim.
-
 ## 0.52.0 · 28 October 2026
 
 ### Playback

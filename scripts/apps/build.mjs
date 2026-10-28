@@ -289,7 +289,6 @@ const html = `<!doctype html>
       <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
       <nav class="site-nav" aria-label="Main">
         <a href="/#features">Features</a>
-        <a href="/why">Why Flexarr</a>
         <a class="keep" href="/apps" aria-current="page">The Apps</a>
         <a href="/#setup">Install</a>
         <a class="keep" href="/guide">Guide</a>
@@ -350,7 +349,6 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
       <nav aria-label="Project">
         <a href="/guide">Guide</a>
         <a href="/apps">Apps</a>
-        <a href="/why">Why Flexarr</a>
         <a href="${repo}" target="_blank" rel="noopener">GitHub</a>
         <a href="${repo}/releases" target="_blank" rel="noopener">Releases</a>
         <a href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
