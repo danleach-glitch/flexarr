@@ -182,6 +182,9 @@ public sealed class LayoutOptions
     public List<RowSetting> Home { get; set; } = [];
     public List<RowSetting> Movies { get; set; } = [];
     public List<RowSetting> Shows { get; set; } = [];
+
+    /// <summary>Home shows one Latest unwatched row for all the film libraries, and one for all the TV ones.</summary>
+    public bool CombineLibraries { get; set; } = true;
 }
 
 /// <param name="Id">A row's id ("continue", "top-movies", "recent-{libraryId}", "genres" for all genre rows…).</param>
