@@ -353,6 +353,7 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
         <a href="${repo}/releases" target="_blank" rel="noopener">Releases</a>
         <a href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
         <a href="${repo}/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
         <a href="/privacy">Privacy</a>
       </nav>
     </div>
