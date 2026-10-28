@@ -215,6 +215,7 @@ struct ItemContextMenu: View {
     @Environment(Router.self) private var router
     @Environment(\.opensTitlesOnLibraryTab) private var opensOnLibraryTab
     @Environment(\.inContinueWatching) private var inContinueWatching
+    @Environment(\.leavesRow) private var leavesRow
     let item: ItemSummary
     var showsDetails = false
 
@@ -235,16 +236,25 @@ struct ItemContextMenu: View {
             }
         }
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
-        Button { Task { await model.setWatched(item, !watched) } } label: {
+        Button {
+            leavesRow?(item.id)
+            Task { await model.setWatched(item, !watched) }
+        } label: {
             Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if item.isResumable && !watched {
-            Button { Task { await model.setWatched(item, false) } } label: {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.setWatched(item, false) }
+            } label: {
                 Label("Mark as unwatched", systemImage: "eye.slash")
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
-            Button { Task { await model.removeFromContinueWatching(item) } } label: {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.removeFromContinueWatching(item) }
+            } label: {
                 Label("Remove from Continue Watching", systemImage: "minus.circle")
             }
         }
