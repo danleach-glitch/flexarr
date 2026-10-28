@@ -7,6 +7,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Music
 - In the web app, click the cover in the music bar to open Now Playing across the whole window: a big cover, the controls and what's up next, with soft light in the cover's colours moving in time with the music behind it. Escape closes it. The light can be turned off in Settings › Playback › Music in this browser.
 - On Apple TV, the same light moves behind Now Playing in the cover's colours, in time with the music. Settings › Playback › Music visualiser turns it off.
+- The Apple TV plays FLAC and MP3 music files as they are, so the server no longer converts them.
 
 ### Apple TV and iPhone
 - The screensaver no longer comes on in the middle of a film, whatever format it's in. It still comes on when you pause.
