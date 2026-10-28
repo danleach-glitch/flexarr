@@ -23,6 +23,9 @@ public sealed record TranscodeSettings
     /// <summary>libx264 preset when encoding in software.</summary>
     public string SoftwarePreset { get; init; } = "veryfast";
 
+    /// <summary>A stream whose hardware encoder fails as it starts is converted in software instead.</summary>
+    public bool SoftwareFallback { get; init; } = true;
+
     /// <summary>Most transcodes running at once (0 = no limit); playback beyond it is refused rather than slowing everyone.</summary>
     public int MaxConcurrentTranscodes { get; init; } = 3;
 

@@ -206,6 +206,12 @@ public sealed class TranscodingOptions
     public string VaapiDevice { get; set; } = "/dev/dri/renderD128";
     public string SoftwarePreset { get; set; } = "veryfast";
 
+    /// <summary>
+    /// When the hardware encoder fails as a stream starts (a GPU that's busy, a device not passed in), convert in
+    /// software instead. Off in the Mac app, whose FFmpeg has no software encoder.
+    /// </summary>
+    public bool SoftwareFallback { get; set; } = true;
+
     /// <summary>Upper limit for any one stream in bits per second (0 = none), e.g. to protect a slow uplink.</summary>
     public long MaxStreamingBitrate { get; set; }
 

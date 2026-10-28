@@ -27,7 +27,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// <summary>How long a new or restarted session counts as active before ffmpeg is running.</summary>
     private static readonly TimeSpan StartingWindow = TimeSpan.FromSeconds(30);
 
-    private readonly TranscodeSettings _settings;
+    private TranscodeSettings _settings;
     private readonly ILogger _logger;
     private readonly Action<TranscodeSession>? _reserve;
 
@@ -232,6 +232,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             // A restart for another request swaps the process; only give up if the one that died is still current.
             var process = _process;
             var died = process is not null && !IsAlive(process) && ReferenceEquals(process, _process) && !IsComplete(index);
+            if (died && await FallBackToSoftwareAsync(process!, index, ct).ConfigureAwait(false))
+            {
+                deadline = DateTime.UtcNow.AddSeconds(45);
+                continue;
+            }
+
             if (_disposed || DateTime.UtcNow > deadline || died)
             {
                 LogSegmentFailed(Id, index, _lastError ?? (_disposed ? "stopped" : "timed out"));
@@ -242,6 +248,38 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
 
         return Plan.Repackage is null ? path : await JoinFragmentsAsync(index, path, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// ffmpeg died on the hardware encoder within seconds, having made nothing: a GPU that's busy or out of sessions,
+    /// a device that wasn't passed in, a codec it won't take. Rather than fail every segment the player asks for, the
+    /// session carries on converting in software (where the server has a software encoder). True when it's restarted.
+    /// </summary>
+    private async Task<bool> FallBackToSoftwareAsync(Process failed, int index, CancellationToken ct)
+    {
+        if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null
+            || DateTime.UtcNow - StartedAt > TimeSpan.FromSeconds(20) || HighestComplete() >= _startSegment)
+        {
+            return false;
+        }
+
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (_disposed || !ReferenceEquals(failed, _process) || _settings.Resolved == HardwareAcceleration.None)
+            {
+                return !_disposed && !ReferenceEquals(failed, _process); // Someone else restarted it meanwhile.
+            }
+
+            LogSoftwareFallback(Id, _settings.Resolved.ToString(), _lastError ?? "no message");
+            _settings = _settings with { HardwareAcceleration = HardwareAcceleration.None };
+            await StartAsync(index).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     /// <summary>A repackaged segment: its keyframe fragments one after another (each a moof and its mdat), written once.</summary>
@@ -696,6 +734,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Transcode {Session}: segment {Segment} failed: {Error}")]
     private partial void LogSegmentFailed(string session, int segment, string error);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Transcode {Session}: the {Encoder} encoder failed as it started ({Error}); converting in software instead")]
+    private partial void LogSoftwareFallback(string session, string encoder, string error);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Transcode {Session}: idle, stopped and deleted its segments until it's needed again")]
     private partial void LogReleased(string session);

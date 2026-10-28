@@ -77,5 +77,10 @@ public sealed class MacAppTranscoding(MacAppHost mac) : IPostConfigureOptions<Fl
         {
             options.Transcoding.HardwareAcceleration = HardwareAcceleration.Auto;
         }
+
+        if (mac.IsAvailable)
+        {
+            options.Transcoding.SoftwareFallback = false;
+        }
     }
 }

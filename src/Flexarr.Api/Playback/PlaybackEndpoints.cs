@@ -310,6 +310,7 @@ public static partial class PlaybackEndpoints
         HardwareAcceleration = options.Transcoding.HardwareAcceleration,
         VaapiDevice = options.Transcoding.VaapiDevice,
         SoftwarePreset = options.Transcoding.SoftwarePreset,
+        SoftwareFallback = options.Transcoding.SoftwareFallback,
         MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes,
     };
 
