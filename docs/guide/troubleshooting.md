@@ -53,7 +53,7 @@ Flexarr rescans each library every 12 hours, and straight away when Sonarr, Rada
 
 If Sonarr runs in Docker on the same computer as Flexarr, use `host.docker.internal` in the address in place of the computer's name. If you made a new webhook secret in Flexarr, the old addresses stop working: copy the new ones in.
 
-If the webhook arrives but nothing appears, the paths probably don't match. Sonarr tells Flexarr the folder by its own path, such as `/data/tv/Show`, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or add a mapping in **Settings › Connections › Path mappings**. See [Media paths](media-paths.md).
+If the webhook arrives but nothing appears, the paths probably don't match. Sonarr tells Flexarr the folder by its own path, such as `/data/tv/Show`, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or check **Settings › Connections › Media folders**: an amber line there is a folder Flexarr hasn't found yet, with a suggestion or a folder to choose. See [Media paths](media-paths.md).
 
 To pick something up now, use the **Scan for new and changed files** icon on the library in **Settings › Libraries**.
 

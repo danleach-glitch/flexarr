@@ -160,7 +160,7 @@
 <li>Use <strong>Test</strong> in Sonarr to check it gets through.</li>
 </ol>
 <p>If Sonarr runs in Docker on the same computer as Flexarr, use <code>host.docker.internal</code> in the address in place of the computer&#39;s name. If you made a new webhook secret in Flexarr, the old addresses stop working: copy the new ones in.</p>
-<p>If the webhook arrives but nothing appears, the paths probably don&#39;t match. Sonarr tells Flexarr the folder by its own path, such as <code>/data/tv/Show</code>, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or add a mapping in <strong>Settings › Connections › Path mappings</strong>. See <a href="/guide/media-paths">Media paths</a>.</p>
+<p>If the webhook arrives but nothing appears, the paths probably don&#39;t match. Sonarr tells Flexarr the folder by its own path, such as <code>/data/tv/Show</code>, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or check <strong>Settings › Connections › Media folders</strong>: an amber line there is a folder Flexarr hasn&#39;t found yet, with a suggestion or a folder to choose. See <a href="/guide/media-paths">Media paths</a>.</p>
 <p>To pick something up now, use the <strong>Scan for new and changed files</strong> icon on the library in <strong>Settings › Libraries</strong>.</p>
 <h3 id="artwork-or-details-are-missing"><a class="anchor" href="#artwork-or-details-are-missing" aria-hidden="true" tabindex="-1">#</a>Artwork or details are missing</h3>
 <p>Films and shows get their artwork and details from Radarr and Sonarr.</p>

@@ -61,7 +61,7 @@ Container Manager downloads the image and starts Flexarr. The project shows as r
 
 ### About the media path
 
-Mount your media at the **same path** inside the container that Sonarr, Radarr and Lidarr use inside theirs. If they all see `/data/media/tv/...`, the paths they report to Flexarr match what Flexarr sees and everything lines up. If they don't, you can map one to the other in **Settings › Connections › Path mappings**. See [Media paths](media-paths.md).
+Mount your media at the **same path** inside the container that Sonarr, Radarr and Lidarr use inside theirs. If they all see `/data/media/tv/...`, the paths they report to Flexarr match what Flexarr sees and everything lines up. If they don't, you can map one to the other in **Settings › Connections › Media folders**. See [Media paths](media-paths.md).
 
 ### Port
 

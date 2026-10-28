@@ -96,7 +96,7 @@ public static class SettingsEndpoints
             ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
-            CancellationToken ct) =>
+            ILibraryScanQueue scans, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
             if (update.LiveTv is { BaseUrl.Length: > 0 } badLive && (WebAddress(badLive.BaseUrl) is null || string.IsNullOrWhiteSpace(badLive.Username)))
@@ -216,6 +216,17 @@ public static class SettingsEndpoints
                 liveTvRefresh.Request();
             }
 
+            // A new mapping or connection can link titles that weren't: refresh those, after a scan (which also saves any
+            // mapping the titles make certain).
+            if ((update.PathMappings is { } newMappings && !SameMappings(newMappings, current.PathMappings)) || update.Arr is not null)
+            {
+                await PathMappingFinder.RematchAsync(db, ct);
+                foreach (var folder in await db.LibraryFolders.Select(f => f.Path).ToListAsync(ct))
+                {
+                    await scans.EnqueueAsync(new LibraryScanRequest(folder, "Connections changed"), ct);
+                }
+            }
+
             return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
         });
 
@@ -259,6 +270,10 @@ public static class SettingsEndpoints
 
             return Results.Ok(new { webhookSecret = secret });
         });
+
+        // Where each app's root folders are on this server, and the mapping that would find the ones that aren't.
+        api.MapGet("/arr/folders", async (PathMappingFinder finder, CancellationToken ct) => await finder.CheckAsync(ct))
+            .WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         api.MapGet("/arr/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
             await Task.WhenAll(options.CurrentValue.Arr.Select(a => StatusAsync(client, a, ct)))).WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
@@ -418,6 +433,9 @@ public static class SettingsEndpoints
             _ => Results.Problem("That PIN isn't right.", statusCode: 403),
         };
     }
+
+    private static bool SameMappings(IReadOnlyList<PathMapping> a, IReadOnlyList<PathMapping> b) =>
+        a.Where(m => m.From.Length > 0 && m.To.Length > 0).Select(m => (m.From, m.To)).SequenceEqual(b.Select(m => (m.From, m.To)));
 
     /// <summary>An absolute http or https address; anything else (file:, ftp:) is refused.</summary>
     private static Uri? WebAddress(string? text) =>

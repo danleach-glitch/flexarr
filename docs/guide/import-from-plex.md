@@ -29,7 +29,7 @@ Flexarr reads Plex's database file, `com.plexapp.plugins.library.db`, so it has 
 
 > **Note** Flexarr only accepts a path to a file named `com.plexapp.plugins.library.db`. It won't read any other file you point it at.
 
-Matching is by file path, so your libraries need to be set up in Flexarr first, with their scans finished. If Plex saw your media under different paths from Flexarr (common when one of them runs in Docker), add a path mapping in **Settings › Connections › Path mappings** before importing; Flexarr applies the same mappings to Plex's paths. See [Media paths](media-paths.md).
+Matching is by file path, so your libraries need to be set up in Flexarr first, with their scans finished. If Plex saw your media under different paths from Flexarr (common when one of them runs in Docker), add a path mapping in **Settings › Connections › Media folders** before importing; Flexarr applies the same mappings to Plex's paths. See [Media paths](media-paths.md).
 
 ## Bring the history over
 

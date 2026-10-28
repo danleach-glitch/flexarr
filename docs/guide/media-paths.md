@@ -54,16 +54,20 @@ Sometimes you can't change the volumes, or the *arrs run in Docker and Flexarr r
 
 ### In Settings
 
-Go to **Settings › Connections** and find **Path mappings**.
+Go to **Settings › Connections** and find **Media folders**. Each of Sonarr, Radarr and Lidarr's root folders has a line saying where it is on this server.
 
-![Settings › Connections, with a path mapping from /data in the apps to /Volumes/Media/data on the server](../../site/guide/img/connections.webp "Path mappings sit at the bottom of Settings › Connections")
+Usually Flexarr works this out by itself. It compares the folders Sonarr, Radarr and Lidarr keep their shows, films and artists in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
 
-1. Choose **Add a mapping**.
-2. In **Path in the app**, type the path the *arr app uses, such as `/tv`.
-3. In **Path on this server**, type where Flexarr sees the same folder, such as `/data/media/tv`.
-4. Choose **Save**.
+When it's less sure, the line is amber:
 
-Add one mapping for each folder that differs. Mappings apply straight away.
+- **Use this** saves the folder Flexarr suggests.
+- **Choose another** or **Choose folder** lets you pick the folder on the server yourself.
+
+The app's line under **Apps** also says when one of its folders isn't found.
+
+To write a mapping yourself, choose **Edit by hand** (or **Add one by hand**). In **Path in the app**, type the path the *arr app uses, such as `/tv`. In **Path on this server**, type where Flexarr sees the same folder, such as `/data/media/tv`. Then choose **Save**. Mappings apply straight away, and titles that weren't linked to Sonarr, Radarr or Lidarr are matched again.
+
+If you take out a mapping Flexarr saved itself, it doesn't add it back.
 
 ### In config.json
 

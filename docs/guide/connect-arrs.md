@@ -20,7 +20,7 @@ Films and shows that Radarr or Sonarr don't manage are still looked up through t
 
 You need two things for each app: its **address** and its **API key**.
 
-![Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with path mappings below](../../site/guide/img/connections.webp "Settings › Connections")
+![Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with their media folders below](../../site/guide/img/connections.webp "Settings › Connections")
 
 1. In Flexarr, go to **Settings › Connections**.
 2. Under **Apps**, choose **Add a connection**.

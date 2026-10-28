@@ -645,6 +645,36 @@ describe('Settings', () => {
     expect(screen.getByRole('button', { name: 'Copy the Radarr address' })).toBeInTheDocument()
   })
 
+  it('says where each app’s folders are, warns on the app’s line, and takes a suggested mapping', async () => {
+    let saved: unknown
+    const settings = { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'x' }
+    mockApi({
+      '/libraries': [],
+      '/settings': { ...settings, arr: [{ name: 'Sonarr', kind: 'Sonarr', baseUrl: 'http://sonarr:8989', hasApiKey: true }, { name: 'Radarr', kind: 'Radarr', baseUrl: 'http://radarr:7878', hasApiKey: true }] },
+      '/arr/status': [
+        { name: 'Sonarr', kind: 'Sonarr', ok: true, version: '4.0', error: null },
+        { name: 'Radarr', kind: 'Radarr', ok: true, version: '5.0', error: null },
+      ],
+      '/arr/folders': [
+        { app: 'Sonarr', kind: 'Sonarr', path: '/tv', state: 'Suggested', local: null, suggested: { from: '/tv', to: '/Volumes/Media/TV' }, agreeing: 2, compared: 2, certain: false },
+        { app: 'Radarr', kind: 'Radarr', path: '/Volumes/Media/Films', state: 'Found', local: '/Volumes/Media/Films', suggested: null, agreeing: 0, compared: 0, certain: false },
+      ],
+      '/requests/status': { configured: false, reachable: false },
+      'PUT /settings': (init: RequestInit) => {
+        saved = JSON.parse(String(init.body))
+        return { ...settings, arr: [], pathMappings: [{ from: '/tv', to: '/Volumes/Media/TV' }] }
+      },
+    })
+
+    renderAt('/settings/connections')
+
+    expect(await screen.findByText(/folder isn’t at that path on this server/)).toBeInTheDocument()
+    expect(screen.getByText(/Not at that path here, but the 2 shows in both are in/)).toBeInTheDocument()
+    expect(screen.getByText('At the same path on this server')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Use this' }))
+    await vi.waitFor(() => expect(saved).toEqual({ pathMappings: [{ from: '/tv', to: '/Volumes/Media/TV' }] }))
+  })
+
   it('groups a browser that signed in again and again, marks only newer ones New, and renames one', async () => {
     const now = Date.now()
     const at = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()

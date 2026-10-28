@@ -39,7 +39,7 @@ They run Flexarr as Unraid's usual `nobody:users`, the owner of files on your sh
 
 ### Media paths
 
-Sonarr, Radarr and Lidarr tell Flexarr where each new file is. When all of them see your media at the same container path (here `/data/media`), those paths match and new downloads appear straight away. If they don't, map one to the other in **Settings › Connections › Path mappings**. See [Media paths](media-paths.md).
+Sonarr, Radarr and Lidarr tell Flexarr where each new file is. When all of them see your media at the same container path (here `/data/media`), those paths match and new downloads appear straight away. If they don't, map one to the other in **Settings › Connections › Media folders**. See [Media paths](media-paths.md).
 
 ## Hardware transcoding
 

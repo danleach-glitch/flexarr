@@ -85,7 +85,7 @@ Nothing to set up. **Settings › Streaming › Hardware acceleration** starts o
 
 ## If your \*arrs run in Docker on this Mac
 
-Sonarr, Radarr and Lidarr in Docker see your media under their own paths, such as `/data/tv`. Tell Flexarr where those are on the Mac in **Settings › Connections › Path mappings**. From inside a container, the Mac is `host.docker.internal`, so webhooks go to `http://host.docker.internal:8383`. [Connect Sonarr, Radarr and Lidarr](connect-arrs.md) and [Media paths](media-paths.md) cover both.
+Sonarr, Radarr and Lidarr in Docker see your media under their own paths, such as `/data/tv`. Flexarr usually works out where those are on the Mac by itself; **Settings › Connections › Media folders** shows what it found, and lets you choose any it couldn't. From inside a container, the Mac is `host.docker.internal`, so webhooks go to `http://host.docker.internal:8383`. [Connect Sonarr, Radarr and Lidarr](connect-arrs.md) and [Media paths](media-paths.md) cover both.
 
 ## Updating
 
