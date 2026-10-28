@@ -196,7 +196,7 @@ public sealed class TranscodingOptions
 public sealed class NotificationOptions
 {
     public bool Enabled { get; set; } = true;
-    public string RelayUrl { get; set; } = "https://www.flexarr.io/api/push";
+    public string RelayUrl { get; set; } = "https://push.flexarr.io/api/push";
 }
 
 public sealed class SeerrOptions
