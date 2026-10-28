@@ -92,14 +92,14 @@ const arrow = '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="curren
 const pill = p => `<span class="pill ${p.status}">${statuses[p.status].label}</span>`;
 const button = (l, i) => {
   const kind = l.store || l.primary ? 'button primary' : i === 0 ? 'button quiet' : 'more';
-  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
+  return `<a class="${kind}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.label)}</a>`;
 };
 
 // At a glance: one row each, with the first link as the way to get it.
 const get = p => {
   const l = p.links?.[0];
   if (!l) return '<span class="none">Not yet</span>';
-  return `<a class="get${l.store || l.primary ? ' ready' : ''}" href="${escape(l.href)}"${external(l.href) ? ' rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.short || l.label)}${external(l.href) ? arrow : ''}</a>`;
+  return `<a class="get${l.store || l.primary ? ' ready' : ''}" href="${escape(l.href)}"${external(l.href) ? ' target="_blank" rel="noopener"' : ''}>${l.store ? stores[l.store] : ''}${escape(l.short || l.label)}${external(l.href) ? arrow : ''}</a>`;
 };
 const row = p => `            <tr>
               <th scope="row"><div class="platform"><span class="row-icon">${icons[p.icon]}</span><div><a href="#${escape(p.id)}">${escape(p.name)}</a>${p.version ? `<span class="sub">${escape(p.version)}</span>` : ''}</div></div></th>
@@ -300,7 +300,7 @@ const html = `<!doctype html>
         <p class="kicker">Apps</p>
         <h1>Flexarr on every screen.</h1>
         <p class="lede">One server at home, and an app for every screen in it. Here's what you can get today and what's on the way.</p>
-        <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp"><img src="/shots/screens.webp" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
+        <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp" width="1100" height="902"><img src="/shots/screens.webp" width="2000" height="1206" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
       </div>
 
       <section aria-labelledby="glance">
@@ -330,7 +330,7 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
           <article class="card ask">
             <div class="card-body">
               <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
-              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" rel="noopener">Ask on GitHub</a></div>
+              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" target="_blank" rel="noopener">Ask on GitHub</a></div>
             </div>
           </article>
         </div>
@@ -346,10 +346,10 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
       <nav aria-label="Project">
         <a href="/guide">Guide</a>
         <a href="/apps">Apps</a>
-        <a href="${repo}">GitHub</a>
-        <a href="${repo}/releases">Releases</a>
-        <a href="${repo}/blob/main/CHANGELOG.md">Changelog</a>
-        <a href="${repo}/issues">Report a problem</a>
+        <a href="${repo}" target="_blank" rel="noopener">GitHub</a>
+        <a href="${repo}/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="${repo}/issues" target="_blank" rel="noopener">Report a problem</a>
         <a href="/privacy">Privacy</a>
       </nav>
     </div>

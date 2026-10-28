@@ -134,10 +134,10 @@ const footer = `<footer class="site-footer">
       <nav aria-label="Project">
         <a href="/guide">Guide</a>
         <a href="/apps">Apps</a>
-        <a href="${repo}">GitHub</a>
-        <a href="${repo}/releases">Releases</a>
-        <a href="${repo}/blob/main/CHANGELOG.md">Changelog</a>
-        <a href="${repo}/issues">Report a problem</a>
+        <a href="${repo}" target="_blank" rel="noopener">GitHub</a>
+        <a href="${repo}/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="${repo}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="${repo}/issues" target="_blank" rel="noopener">Report a problem</a>
         <a href="/privacy">Privacy</a>
       </nav>
     </div>
