@@ -1,0 +1,2 @@
+# Git-ignored files yolo copies from the main checkout into each new worktree.
+CLAUDE.local.md

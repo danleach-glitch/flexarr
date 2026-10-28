@@ -3,6 +3,9 @@
 #
 #   scripts/deploy-macos.sh <ssh-host>      e.g. scripts/deploy-macos.sh mini
 #
+# A checkout of a release tag deploys as that version. Anything else (main between releases) deploys as a build of
+# the next minor version, e.g. 0.51.0-dev.1a2b3c4d, so the server never claims to be a release it isn't.
+#
 # Layout on the target (no admin rights needed):
 #   ~/.dotnet         ASP.NET Core runtime, brought up to its latest patch on every deploy (the dotnet host itself is
 #                     kept: macOS's external-drive permission belongs to it)
@@ -34,13 +37,27 @@ case "$(ssh "$host" uname -m)" in
   *) echo "unsupported architecture on $host" >&2; exit 1 ;;
 esac
 
+# The version this build reports.
+prefix="$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' "$repo/Directory.Build.props")"
+if tag="$(git -C "$repo" describe --tags --exact-match --match 'v*' HEAD 2>/dev/null)" && [ -z "$(git -C "$repo" status --porcelain)" ]; then
+  version="${tag#v}"
+  version_args=(-p:Version="$version")
+else
+  IFS=. read -r major minor _ <<< "$prefix"
+  suffix="dev.$(git -C "$repo" rev-parse --short=8 HEAD)"
+  [ -z "$(git -C "$repo" status --porcelain)" ] || suffix="$suffix.modified"
+  version="$major.$((minor + 1)).0-$suffix"
+  version_args=(-p:VersionPrefix="$major.$((minor + 1)).0" -p:VersionSuffix="$suffix")
+fi
+echo "==> Deploying Flexarr $version to $host"
+
 echo "==> Building web client"
 (cd "$repo/frontend" && npm ci --silent && npm run build --silent)
 
 echo "==> Publishing server ($rid)"
 # Fresh build processes: reused MSBuild/compiler nodes can carry another working directory's path casing.
 rm -rf "$out"
-dotnet publish "$repo/src/Flexarr.Api" --disable-build-servers -c Release -r "$rid" --no-self-contained -p:UseAppHost=false -o "$out" --nologo -v quiet
+dotnet publish "$repo/src/Flexarr.Api" --disable-build-servers -c Release -r "$rid" --no-self-contained -p:UseAppHost=false "${version_args[@]}" -o "$out" --nologo -v quiet
 cp -R "$repo/frontend/dist" "$out/wwwroot"
 
 echo "==> Installing on $host"
@@ -122,6 +139,9 @@ fi
 root="$(ssh "$host" 'echo $HOME/.flexarr')"
 dotnet_root="$(ssh "$host" 'echo $HOME/.dotnet')"
 ssh "$host" "mkdir -p '$root/app' '$root/data' '$root/logs' ~/Library/LaunchAgents"
+# One rolling copy of the database as it was before this deploy (the server also keeps its own before a migration).
+ssh "$host" 'if [ -f ~/.flexarr/data/flexarr.db ]; then sqlite3 ~/.flexarr/data/flexarr.db ".backup $HOME/.flexarr/pre-deploy.db"; fi'
+echo "    database copied to ~/.flexarr/pre-deploy.db"
 # Keep earlier builds' web files (their names change every build), so tabs opened before this deploy can still load
 # the pages they ask for; files older than a week are pruned.
 rsync -a --delete --filter='P wwwroot/assets/' "$out/" "$host:.flexarr/app/"
@@ -149,4 +169,4 @@ done
 curl -sf http://localhost:8383/health >/dev/null || { echo "Flexarr did not become healthy; see $root/logs/console.log" >&2; tail -20 "$root/logs/console.log" >&2; exit 1; }
 REMOTE
 
-echo "==> Flexarr is running: http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"
+echo "==> Flexarr $version is running: http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"

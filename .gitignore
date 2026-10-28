@@ -31,6 +31,11 @@ xcuserdata/
 # Local dev stack
 /dev/
 
+# Claude Code and yolo (private notes, per-machine settings, worktrees)
+CLAUDE.local.md
+.claude/settings.local.json
+.yolo/
+
 # Editors / OS
 .idea/
 .vscode/*

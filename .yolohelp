@@ -1,0 +1,6 @@
+  ┌ Flexarr · {branch} (from {base})
+  │ Build and commit here. Add a CHANGELOG.md line under Unreleased for anything people will notice.
+  │ Done?          /land      pull request → CI → squash-merge. Never releases.
+  │ Try it at home /deploy    puts main on the Mini (after /land)
+  │ Ship a batch   /release   only when you decide; then /devices for the TV, iPhone and TestFlight
+  └ Then exit Claude: yolo removes this worktree once the pull request is merged.

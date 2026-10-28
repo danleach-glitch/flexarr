@@ -38,11 +38,17 @@ The Xcode project is generated from `clients/apple/project.yml`; edit that file 
 
 ## Releases
 
-Versions follow [semantic versioning](https://semver.org). While Flexarr is 0.x, a release with new features bumps the minor version (0.8.0 → 0.9.0) and one with only fixes bumps the patch (0.8.0 → 0.8.1).
+Flexarr works from one branch, `main`, which must always be releasable. Pull requests land on it whenever they're ready; their changelog entries collect under `## Unreleased`. A release is cut when a batch is worth shipping, not after every merge.
 
-1. Rename `## Unreleased` in CHANGELOG.md to `## <version> · <day month year>`.
-2. Set the same version in `Directory.Build.props` (`VersionPrefix`), `frontend/package.json` (`npm version <version> --no-git-tag-version` in `frontend/`) and `clients/apple/project.yml` (`MARKETING_VERSION`). A test checks that all four agree.
-3. Commit, then tag the commit `v<version>` and push the tag. The Docker workflow publishes `ghcr.io/danleach-glitch/flexarr:<version>`, `:<major>.<minor>` and `:latest`.
-4. Make a GitHub release from the tag, with that version's changelog section as its notes.
+Versions follow [semantic versioning](https://semver.org). While Flexarr is 0.x, a release with new features bumps the minor version (0.50.0 → 0.51.0) and one with only fixes to a released version bumps the patch (0.51.0 → 0.51.1).
+
+`scripts/release.sh` does the steps and stops at the first failing check:
+
+1. `scripts/release.sh prepare minor` (or `patch`, or an exact version) from a clean checkout of `main`: waits for main's CI to pass, renames `## Unreleased` in CHANGELOG.md to `## <version> · <day month year>`, sets the version in `Directory.Build.props` (`VersionPrefix`), `frontend/package.json` and `clients/apple/project.yml` (`MARKETING_VERSION`, quoted), runs the test that checks all four agree, then commits, tags `v<version>` and pushes.
+2. `scripts/release.sh publish v<version>`: waits for that commit's CI and the Docker workflow, which publishes `ghcr.io/danleach-glitch/flexarr:<version>`, `:<major>.<minor>` and `:latest`, then makes the GitHub release with that version's changelog section as its notes.
+
+An urgent fix while `main` holds unfinished work goes on a `release/<major>.<minor>` branch made from the last tag, tagged there as a patch release, and lands on `main` too.
+
+Builds from `main` between releases report the next version with a `-dev.<commit>` suffix (`scripts/deploy-macos.sh` does this), so they never pass for a release.
 
 By contributing you agree that your contributions are licensed under the same terms as Flexarr ([PolyForm Noncommercial 1.0.0](LICENSE)), and that the maintainer may also license them to others under other terms, including commercially.

@@ -42,7 +42,7 @@ apple-install: ## Build, sign and install the tvOS app on a paired Apple TV
 	test -n "$$device" || { echo "No paired Apple TV found (Xcode › Window › Devices and Simulators, or ⇧⌘2)"; exit 1; }; \
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination "id=$$device" \
 		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic build -quiet && \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-appletvos/FlexarrTV.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
 
@@ -63,7 +63,7 @@ ios-install: ## Build, sign and install the iOS app on a connected iPhone or iPa
 	test -n "$$device" || { echo "No iPhone or iPad found (connect it, or pair it in Xcode › Window › Devices and Simulators)"; exit 1; }; \
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination "id=$$device" \
 		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) FLEXARR_IOS_ENTITLEMENTS=$(IOS_ENTITLEMENTS) FLEXARR_WIDGET_ENTITLEMENTS=$(WIDGET_ENTITLEMENTS) FLEXARR_NOTIFICATION_ENTITLEMENTS=$(NOTIFICATION_ENTITLEMENTS) CODE_SIGN_STYLE=Automatic build -quiet && \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) FLEXARR_IOS_ENTITLEMENTS=$(IOS_ENTITLEMENTS) FLEXARR_WIDGET_ENTITLEMENTS=$(WIDGET_ENTITLEMENTS) FLEXARR_NOTIFICATION_ENTITLEMENTS=$(NOTIFICATION_ENTITLEMENTS) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-iphoneos/FlexarriOS.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
 
@@ -71,6 +71,9 @@ ios-install: ## Build, sign and install the iOS app on a connected iPhone or iPa
 #   make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios
 # Each upload needs a higher build number, so it defaults to the current time.
 BUILD ?= $(shell date +%Y%m%d%H%M)
+# MARKETING=0.51.0 builds the Apple apps as that version without editing project.yml. App Store Connect refuses a
+# TestFlight upload of a version that's already on the App Store, so builds from main between releases pass the next one.
+APPLE_VERSION = $(if $(MARKETING),MARKETING_VERSION=$(MARKETING))
 # Sign in to App Store Connect with an API key instead of Xcode's account: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8).
 ASC_AUTH = $(if $(ASC_KEY_ID),-authenticationKeyID $(ASC_KEY_ID) -authenticationKeyIssuerID $(ASC_ISSUER_ID) -authenticationKeyPath $(ASC_KEY_PATH))
 
@@ -79,7 +82,7 @@ ios-upload: ## Archive the iOS app and upload it to App Store Connect
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination 'generic/platform=iOS' \
 		-archivePath build/apple/FlexarriOS.xcarchive -allowProvisioningUpdates \
-		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) FLEXARR_IOS_ENTITLEMENTS=$(IOS_ENTITLEMENTS) FLEXARR_WIDGET_ENTITLEMENTS=$(WIDGET_ENTITLEMENTS) FLEXARR_NOTIFICATION_ENTITLEMENTS=$(NOTIFICATION_ENTITLEMENTS) CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) FLEXARR_IOS_ENTITLEMENTS=$(IOS_ENTITLEMENTS) FLEXARR_WIDGET_ENTITLEMENTS=$(WIDGET_ENTITLEMENTS) FLEXARR_NOTIFICATION_ENTITLEMENTS=$(NOTIFICATION_ENTITLEMENTS) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
 		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
 		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
@@ -106,7 +109,7 @@ tv-upload: ## Archive the tvOS app and upload it to App Store Connect
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination 'generic/platform=tvOS' \
 		-archivePath build/apple/FlexarrTV.xcarchive -allowProvisioningUpdates \
-		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
 		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
 		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
