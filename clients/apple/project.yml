@@ -49,7 +49,9 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
-        # Only HTTPS, which is exempt: answers App Store Connect's export compliance question for each build.
+        # HTTPS, and CryptoKit's AES-GCM for notification content: only encryption that comes with Apple's operating
+        # system, which is exempt. Answers App Store Connect's export compliance question for each build; confirm it
+        # against the questionnaire if the app ever ships its own encryption.
         ITSAppUsesNonExemptEncryption: false
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
@@ -149,7 +151,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.ios
             CFBundleURLSchemes: [flexarr]
-        # Only HTTPS and Apple's own crypto, which is exempt from export documentation.
+        # HTTPS and CryptoKit (notification content), both Apple's own, which is exempt from export documentation.
         ITSAppUsesNonExemptEncryption: false
         # How "Flexarr" tends to come out of speech recognition, so Siri still knows which app is meant.
         # App Store Connect rejects more than three per language (ITMS-90626).
