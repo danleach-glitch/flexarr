@@ -26,6 +26,8 @@ final class EngineTransport: PlayerTransport {
         didSet { if phase != oldValue { delegate?.transport(self, phaseChanged: phase) } }
     }
     private(set) var rate: Float = 1
+    /// How long opening the file may take before the server's stream is used instead.
+    private static let openDeadlineSeconds: Double = 60
 
     init(info: PlaybackInfo, client: FlexarrClient) throws {
         self.info = info
@@ -71,18 +73,31 @@ final class EngineTransport: PlayerTransport {
 
         observe()
         log.info("Opening \(self.info.item.title) at \(Int(seconds))s", ["playbackId": self.info.playbackId])
+        // An open that never finishes (re-encoding a lossless soundtrack can hang at the start) counts as a failed one,
+        // so the controller falls back to the server's stream rather than leaving a spinner up for ever.
+        let deadline = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(Self.openDeadlineSeconds))) != nil, let self, self.loading else { return }
+            log.error("Still opening after \(Int(Self.openDeadlineSeconds))s; giving up", ["playbackId": self.info.playbackId])
+            self.engine.stop()
+            self.phase = .failed("The file took too long to open.")
+        }
         Task { [weak self] in
+            defer { deadline.cancel() }
             guard let self else { return }
             do {
                 _ = try await self.engine.load(url: url, startPosition: seconds > 1 ? seconds : nil, options: options,
                                                audioSourceStreamIndex: audioIndex.map(Int32.init))
             } catch is CancellationError {
                 return
+            } catch let error as URLError where error.code == .cancelled {
+                return
             } catch {
+                if case .failed = self.phase { return } // the deadline gave up on it already
                 log.error("Couldn't open", error: error, ["playbackId": self.info.playbackId])
                 self.phase = .failed(error.localizedDescription)
                 return
             }
+            if case .failed = self.phase { return }
             self.loading = false
             log.info("Route \(self.engine.videoRoute.rawValue), audio \(self.engine.audioTracks.count) tracks, subtitles \(self.engine.subtitleTracks.count)",
                      ["playbackId": self.info.playbackId])

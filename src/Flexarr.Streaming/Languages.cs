@@ -46,6 +46,47 @@ public static class Languages
         }
     }
 
+    // ISO 639-2/B codes whose two-letter tag .NET can't find from the code itself.
+    private static readonly Dictionary<string, string> Bibliographic = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["fre"] = "fr", ["ger"] = "de", ["dut"] = "nl", ["ice"] = "is", ["cze"] = "cs", ["slo"] = "sk", ["rum"] = "ro",
+        ["gre"] = "el", ["per"] = "fa", ["may"] = "ms", ["chi"] = "zh", ["baq"] = "eu", ["wel"] = "cy", ["arm"] = "hy",
+        ["geo"] = "ka", ["mac"] = "mk", ["alb"] = "sq", ["bur"] = "my", ["tib"] = "bo", ["mao"] = "mi",
+    };
+
+    /// <summary>
+    /// The BCP-47 tag for a file's language code, as HLS playlists want it: the two-letter code where there is one
+    /// ("eng" is "en", "fre" is "fr"), else the code as it was. A tag with a region ("pt-BR") is one already.
+    /// </summary>
+    public static string Tag(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return "und";
+        }
+
+        code = code.Trim();
+        if (code.Length != 3 || code.Equals("und", StringComparison.OrdinalIgnoreCase) || code.Equals("zxx", StringComparison.OrdinalIgnoreCase))
+        {
+            return code;
+        }
+
+        if (Bibliographic.TryGetValue(code, out var tag))
+        {
+            return tag;
+        }
+
+        try
+        {
+            var two = CultureInfo.GetCultureInfo(code).TwoLetterISOLanguageName;
+            return two.Length == 2 ? two : code;
+        }
+        catch (CultureNotFoundException)
+        {
+            return code;
+        }
+    }
+
     /// <summary>
     /// A label for a track: the language, plus whatever the stream title adds ("SDH", "Commentary"), with the
     /// noise removed: source names ("iTunes"), the language repeated, and nested brackets.

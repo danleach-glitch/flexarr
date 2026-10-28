@@ -69,7 +69,7 @@ public sealed class PlaybackService(
         var audioStreams = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
 
         var audioIndex = request.AudioStreamIndex
-            ?? audioStreams.FirstOrDefault(a => preferences.Audio is not null && a.Language == preferences.Audio)?.Index;
+            ?? AudioTracks.InLanguage(audioStreams, preferences.Audio)?.Index;
         var subtitleKey = request.SubtitleKey switch
         {
             "off" => null,
@@ -693,7 +693,7 @@ public sealed class PlaybackService(
                 name = $"{label} {n}";
             }
 
-            var language = PlaylistText(subtitle.Language ?? "") is { Length: > 0 } tag ? tag : "und";
+            var language = PlaylistText(Languages.Tag(subtitle.Language)) is { Length: > 0 } tag ? tag : "und";
             builder.Append(CultureInfo.InvariantCulture,
                 $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{language}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
         }
@@ -719,7 +719,7 @@ public sealed class PlaybackService(
 
             if (plan.AudioCodecTag is not null)
             {
-                var language = PlaylistText(session.AudioLanguage ?? "") is { Length: > 0 } tag ? tag : "und";
+                var language = PlaylistText(Languages.Tag(session.AudioLanguage)) is { Length: > 0 } tag ? tag : "und";
                 var channels = session.AudioIsAtmos && plan.CopyAudio && plan.SourceAudioCodec == "eac3" ? "16/JOC" : plan.AudioChannels.ToString(CultureInfo.InvariantCulture);
                 builder.Append(CultureInfo.InvariantCulture,
                     $"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"{PlaylistText(Languages.Label(session.AudioLanguage, null, false))}\",LANGUAGE=\"{language}\",DEFAULT=YES,AUTOSELECT=YES,CHANNELS=\"{channels}\"\n");
