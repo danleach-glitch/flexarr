@@ -27,6 +27,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. When two people have a TV library each, the shows each of them asks for land in their own. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
 
 ### Settings
+- In Settings › Connections, Add a connection offers Seerr, Bazarr, TMDB and Dispatcharr as well as Sonarr, Radarr and Lidarr, and only what you've set up is listed. In an open connection, Remove is shown in red.
 - Profiles other than the main one see only their own settings: the server's section is gone from their Settings, rather than listed with a note about the main profile.
 
 ### Playback
