@@ -4,7 +4,7 @@ import SwiftUI
 struct PlaybackSettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var playsFilesDirectly = PlaybackController.usesEngine
-    @State private var losslessAudio = UserDefaults.standard.bool(forKey: "FlexarrEngineLossless")
+    @State private var losslessAudio = PlaybackController.losslessAudio
     @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var preferences: PlaybackPreferences?
 
@@ -48,13 +48,13 @@ struct PlaybackSettingsView: View {
                 if playsFilesDirectly {
                     Toggle("Lossless surround", isOn: $losslessAudio)
                         .settingsRow()
-                        .onChange(of: losslessAudio) { _, on in UserDefaults.standard.set(on, forKey: "FlexarrEngineLossless") }
+                        .onChange(of: losslessAudio) { _, on in PlaybackController.losslessAudio = on }
                 }
             } header: {
                 Text("This \(ThisDevice.name)")
             } footer: {
                 Text(playsFilesDirectly
-                    ? "Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus."
+                    ? "Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it."
                     : "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.")
             }
         }

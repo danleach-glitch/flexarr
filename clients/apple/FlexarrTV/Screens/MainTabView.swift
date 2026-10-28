@@ -111,6 +111,9 @@ struct MainTabView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .modifier(SidebarVersion())
+        // A tab added or taken away while focus is in a tab's content can leave the sidebar unable to take focus
+        // again, so Now Playing coming and going builds the sidebar afresh instead (the selection carries over).
+        .id(model.music.current != nil)
         // Menu on the sidebar leaves the app. With screens open on Home, go back through them first.
         .onExitCommand(perform: selection == .home && !homeRouter.path.isEmpty ? { homeRouter.path.removeLast() } : nil)
         // The remote's play/pause button runs the music from any screen (the video player takes it over while it's up).

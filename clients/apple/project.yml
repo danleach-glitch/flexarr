@@ -20,10 +20,11 @@ settings:
 packages:
   FlexarrKit:
     path: FlexarrKit
-  # Experimental (spike): plays files as they are on the device, FFmpeg demuxing and VideoToolbox decoding.
+  # Plays files as they are on the device, FFmpeg demuxing and VideoToolbox decoding. Pinned: a new release reaches
+  # the TV only after it has been tried on one.
   AetherEngine:
     url: https://github.com/superuser404notfound/AetherEngine
-    from: 7.47.0
+    exactVersion: 7.49.0
   # Error reports (crashes and errors), only when the server's owner turns them on. Pinned: it runs at launch.
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa

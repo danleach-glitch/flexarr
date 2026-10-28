@@ -358,6 +358,7 @@ final class PlayerViewController: UIViewController {
     /// Closes the screen when it's done: the controller asks, having stopped the session.
     func finish(completion: (() -> Void)? = nil) {
         finished = true
+        UIApplication.shared.isIdleTimerDisabled = false
         nowPlaying.deactivate()
         hideTask?.cancel()
         #if os(iOS)
@@ -683,6 +684,13 @@ final class PlayerViewController: UIViewController {
         default: spinner.stopAnimating()
         }
         controls.setPlaying(phase == .playing || phase == .buffering)
+        // No screensaver while the picture plays. Apple's player saw to this, but the engine's software route has none
+        // behind it; loading and buffering leave it as it was, so a stall mid-play doesn't let the screensaver in.
+        switch phase {
+        case .playing: UIApplication.shared.isIdleTimerDisabled = true
+        case .loading, .buffering: break
+        default: UIApplication.shared.isIdleTimerDisabled = false
+        }
         // A moment's buffering mid-play doesn't keep the controls up; a pause does.
         switch phase {
         case .playing: if hideTask == nil || hideTask!.isCancelled { scheduleHide() }
