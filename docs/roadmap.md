@@ -13,7 +13,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Apple TV on the App Store | With Apple for review | 🚧 |
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 |
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
-| Player controls | Audio sync, a sleep timer for video, speed on the web, stereo or 5.1 output with centre boost. S each. [#125](https://github.com/danleach-glitch/flexarr/discussions/125) | 🕐 1 |
+| Speaker setup | Stereo or 5.1 output with a centre-channel boost, built with dialogue boost and night mode. S–M. [#125](https://github.com/danleach-glitch/flexarr/discussions/125), [#23](https://github.com/danleach-glitch/flexarr/discussions/23) | 🕐 1 |
 | Subtitles | Teletext, closed captions and height (S); styled ASS after (M). [#40](https://github.com/danleach-glitch/flexarr/discussions/40) | 🕐 1 |
 | Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
 | HDR10+ | Dynamic HDR metadata on the TVs that show it. S–M. [#41](https://github.com/danleach-glitch/flexarr/discussions/41) | 🕐 1 |
@@ -34,7 +34,6 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | "What did they say?" | Replay the last few seconds with subtitles. [#112](https://github.com/danleach-glitch/flexarr/discussions/112) | 💡 |
 | Watching together | Shared progress for the people in the room. [#20](https://github.com/danleach-glitch/flexarr/discussions/20) | 💡 |
 | "Tonight" picker | One button for what to watch now. [#21](https://github.com/danleach-glitch/flexarr/discussions/21) | 💡 |
-| Dialogue boost and night mode | [#23](https://github.com/danleach-glitch/flexarr/discussions/23) | 💡 |
 | Search what people say | Find a scene by its dialogue. [#24](https://github.com/danleach-glitch/flexarr/discussions/24) | 💡 |
 | Skip more than intros | Recaps, "Previously on" and post-credits flags. [#25](https://github.com/danleach-glitch/flexarr/discussions/25) | 💡 |
 | Ready for a trip | Get films ready to take away, and smooth Up Next on weak Wi-Fi. [#26](https://github.com/danleach-glitch/flexarr/discussions/26) | 💡 |
@@ -62,7 +61,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Foundations | Server, API-key auth, CI (server, web, Apple, Docker, CodeQL), Docker image with PUID/PGID and VA-API/Quick Sync, macOS deploy, semver releases, Settings › Updates with one-click updates on a Mac, backups, logs and opt-in error reports | ✅ |
 | Library | Scanner for films, TV and music, file name parsing, ffprobe media info, webhook-driven and scheduled rescans, Fix match, delete through Sonarr and Radarr, library health, Plex history import, media folders that find themselves, libraries without the \*arr apps, Home videos | ✅ |
 | Metadata | From Sonarr, Radarr and Lidarr with no keys of our own, local `.nfo` files and artwork, TVmaze, TMDB with your own key, image cache, music artwork and album kinds | ✅ |
-| Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size and the system caption style, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
+| Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size and the system caption style, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
 | Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), Coming soon, Discover and Seerr requests, shuffle | ✅ |
 | Music | Queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums | ✅ |
 | Podcasts | Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple) | ✅ |
