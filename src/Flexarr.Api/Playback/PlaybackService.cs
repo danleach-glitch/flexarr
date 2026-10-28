@@ -664,16 +664,18 @@ public sealed class PlaybackService(
     }
 
     /// <summary>What the player's info panel says about the stream: "Original HEVC (Dolby Vision), FLAC 7.1 sound".</summary>
-    private static string Summary(TranscodePlan plan, MediaFile file)
+    internal static string Summary(TranscodePlan plan, MediaFile file)
     {
         var sound = plan.CopyAudio ? null : plan.LosslessAudio ? $"lossless FLAC {Channels(plan.AudioChannels)} sound" : null;
         if (plan.Repackage is { } repackage)
         {
+            // HDR10+ travels inside the copied video, so it's there whenever the HDR10 is.
             var range = file.VideoRange switch
             {
-                VideoRange.DolbyVision when !repackage.StripDolbyVision => " (Dolby Vision)",
+                VideoRange.DolbyVision when !repackage.StripDolbyVision => file.Hdr10Plus == true ? " (Dolby Vision, HDR10+)" : " (Dolby Vision)",
                 VideoRange.Sdr => "",
-                _ => repackage.VideoRange == "HLG" ? " (HLG)" : " (HDR10)",
+                _ when repackage.VideoRange == "HLG" => " (HLG)",
+                _ => file.Hdr10Plus == true ? " (HDR10+)" : " (HDR10)",
             };
             var original = $"Original {(file.VideoCodec == "hevc" ? "HEVC" : "H.264")}{range}, repackaged";
             return sound is null ? original : $"{original}, {sound}";

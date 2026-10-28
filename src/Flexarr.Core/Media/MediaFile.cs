@@ -33,6 +33,10 @@ public sealed class MediaFile
     public int? Width { get; set; }
     public int? Height { get; set; }
     public VideoRange VideoRange { get; set; }
+
+    /// <summary>HDR10+ metadata in the video. Null until checked: HDR files scanned before it was looked for get checked again.</summary>
+    public bool? Hdr10Plus { get; set; }
+
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
 

@@ -18,6 +18,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - HLG videos that the Apple TV can't draw itself play from the server instead of showing black.
 - The player's controls no longer sometimes stay on screen while a film plays; they fade away a few seconds after you stop using the remote, as they should.
 
+### HDR10+
+- Films and episodes with HDR10+ say so: **HDR10+** (or **Dolby Vision, HDR10+**) in their details on the web, iPhone and Apple TV, and in the player's stream info. Files already in your libraries are checked on the next scan.
+- When the server repackages a stream for Apple TV, the HDR10+ scene-by-scene metadata goes with the picture, for televisions that use it.
+
 ### Subtitles
 - Search for subtitles from the player, on Apple TV, iPhone and the web, or from a title's page in the web app, when a film or episode has none in your language. Flexarr asks Bazarr, which searches OpenSubtitles and the other subtitle sites it's set up for, and lists what it finds, best match first, marking those made for your exact file. Choose one, or let Flexarr pick, and it's saved beside the video and switched on where you were. Connect Bazarr in Settings › Connections; it works for what Sonarr and Radarr manage.
 - Subtitles beside a video that drift out of time can be re-synced to the soundtrack from the same menu.

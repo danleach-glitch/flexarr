@@ -141,6 +141,8 @@ export interface MediaFile {
   audioChannels: number | null
   probeError: string | null
   streams: MediaStream[]
+  /** Absent from servers before 0.53. */
+  hdr10Plus?: boolean
 }
 
 export interface Credit {

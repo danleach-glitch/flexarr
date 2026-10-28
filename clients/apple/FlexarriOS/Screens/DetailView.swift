@@ -343,7 +343,7 @@ struct DetailView: View {
     }
 
     private func fileInfo(_ file: MediaFile) -> some View {
-        let video = [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.videoRange == .sdr ? nil : file.videoRange.label]
+        let video = [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel]
             .compactMap { $0 }.joined(separator: " ")
         let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), alignment: .topLeading)], alignment: .leading, spacing: 14) {

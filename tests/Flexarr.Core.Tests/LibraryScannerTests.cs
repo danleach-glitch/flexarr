@@ -532,6 +532,44 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task HdrFilesScannedBeforeHdr10PlusWasLookedFor_AreReadAgainOnce_KeepingTheirAudioSync()
+    {
+        var root = Touch("movies/Road House (2024)/Road House (2024).mkv", "movies/Dredd (2012)/Dredd (2012).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        _probe.Range = VideoRange.Hdr10;
+        await Scanner().ScanAsync(library, null, default);
+        // As an older version left them: HDR10 and Dolby Vision, never checked for HDR10+.
+        await _db.MediaFiles.ExecuteUpdateAsync(u => u.SetProperty(f => f.Hdr10Plus, (bool?)null).SetProperty(f => f.AudioDelaySeconds, 0.25));
+        await _db.MediaFiles.Where(f => f.Path.Contains("Dredd")).ExecuteUpdateAsync(u => u.SetProperty(f => f.VideoRange, VideoRange.DolbyVision));
+        _db.ChangeTracker.Clear();
+        _probe.Calls = 0;
+        _probe.Hdr10Plus = true;
+
+        var backfill = await Scanner().ScanAsync(library, null, default);
+        var after = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((2, 0), (backfill.Updated, after.Updated));
+        Assert.Equal(2, _probe.Calls);
+        _db.ChangeTracker.Clear();
+        Assert.All(await _db.MediaFiles.ToListAsync(), f => Assert.Equal((true, 0.25), (f.Hdr10Plus, f.AudioDelaySeconds)));
+    }
+
+    [Fact]
+    public async Task SdrFiles_AreNotReadAgainForHdr10Plus()
+    {
+        var root = Touch("movies/Plain (2020)/Plain (2020).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.ExecuteUpdateAsync(u => u.SetProperty(f => f.Hdr10Plus, (bool?)null));
+        _db.ChangeTracker.Clear();
+        _probe.Calls = 0;
+
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((1, 0), (result.Unchanged, _probe.Calls));
+    }
+
+    [Fact]
     public async Task ProbeFailure_StillAddsFile_AndRetriesWhenChangedOrAsked()
     {
         var root = Touch("movies/Broken (2020)/Broken (2020).mkv");
@@ -711,6 +749,8 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     {
         public int Calls;
         public bool Fail;
+        public VideoRange Range = VideoRange.Sdr;
+        public bool Hdr10Plus;
 
         /// <summary>Tags to report, by file name.</summary>
         public Dictionary<string, Dictionary<string, string>> Tags { get; } = [];
@@ -726,11 +766,11 @@ public sealed class LibraryScannerTests : IAsyncLifetime
             var tags = Tags.TryGetValue(Path.GetFileName(path), out var t)
                 ? new Dictionary<string, string>(t, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            return Task.FromResult(new ProbeResult("mkv", 1800, 5_000_000, VideoRange.Sdr,
+            return Task.FromResult(new ProbeResult("mkv", 1800, 5_000_000, Range,
             [
                 new MediaStream { Index = 0, Type = StreamType.Video, Codec = "hevc", Width = 1920, Height = 1080 },
                 new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "eac3", Channels = 6, IsDefault = true },
-            ]) { Tags = tags });
+            ]) { Tags = tags, Hdr10Plus = Hdr10Plus });
         }
     }
 }

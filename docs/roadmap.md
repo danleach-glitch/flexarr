@@ -15,7 +15,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
 | Subtitles | Teletext, closed captions and height (S); styled ASS after (M). [#40](https://github.com/danleach-glitch/flexarr/discussions/40) | 🕐 1 |
 | Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
-| HDR10+ | Dynamic HDR metadata on the TVs that show it. S–M. [#41](https://github.com/danleach-glitch/flexarr/discussions/41) | 🕐 1 |
+| HDR10+ | Dynamic HDR metadata on the TVs that show it. S–M. [#41](https://github.com/danleach-glitch/flexarr/discussions/41) | 🚧 |
 | Watchlist | Films and shows to watch later, per profile, whether you have them or not. S–M. [#39](https://github.com/danleach-glitch/flexarr/discussions/39) | 🕐 2 |
 | Tracker sync | Trakt, Simkl, MyAnimeList and AniList: scrobbling, history, ratings and scores. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🕐 2 |
 | iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 🕐 3 |
