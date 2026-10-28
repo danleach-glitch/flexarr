@@ -311,6 +311,11 @@ final class MusicPlayer {
     /// Ends the session and empties the queue (the now-playing bar goes away).
     func stop() {
         generation += 1
+        // A downloaded episode or track playing with no session keeps its place on the phone, as one streamed does on
+        // the server (endSession).
+        if isPlayingOffline, recordsHistory, let track = current, position > 0 {
+            offlineLibrary?.record(itemId: track.id, position: position, finished: false)
+        }
         endSession()
         clearItem()
         queue = []

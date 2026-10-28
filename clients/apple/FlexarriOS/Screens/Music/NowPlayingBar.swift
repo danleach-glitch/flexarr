@@ -1,8 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-/// The music (or podcast) that's playing, in a bar above the tab bar while there is any: cover, track, artist, a
-/// play/pause button, next (a podcast's forward 30) and a thin progress line. Tapping it opens Now Playing.
+/// The music (or podcast) that's playing, in a bar above the tab bar while there is any: a close button, cover, track,
+/// artist, a play/pause button, next (a podcast's forward 30) and a thin progress line. Tapping it opens Now Playing;
+/// the close button stops playback (keeping an episode's place) and takes the bar away.
 struct NowPlayingBar: View {
     @Environment(AppModel.self) private var model
     @State private var showingNowPlaying = false
@@ -12,6 +13,18 @@ struct NowPlayingBar: View {
     var body: some View {
         if let track = music.current {
             HStack(spacing: 12) {
+                Button {
+                    withAnimation { music.stop() }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.usher)
+                        .frame(width: 28, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Stop and close")
+                .padding(.trailing, -6)
                 Button { showingNowPlaying = true } label: {
                     HStack(spacing: 12) {
                         ZStack {
