@@ -306,7 +306,7 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         }
         folders = media.flatMap(\.folders)
         title = "Your library is empty"
-        body = "\(names) \(media.count > 1 ? "are" : "is") set up, but Flexarr hasn’t found any \(wanted) in \(folders.count > 1 ? "its folders" : "its folder") yet. Add some there, or connect Sonarr or Radarr so what they download lands there: open Flexarr in a browser and go to Settings › Libraries or Settings › Connections."
+        body = "\(names) \(media.count > 1 ? "are" : "is") set up, but Flexarr hasn’t found any \(wanted) in \(folders.count > 1 ? "its folders" : "its folder") yet. Add some there, or connect Sonarr or Radarr in Flexarr’s settings on the web."
     }
 
     private static func kind(_ type: LibraryType) -> String {
