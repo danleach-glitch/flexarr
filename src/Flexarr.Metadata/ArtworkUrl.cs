@@ -60,6 +60,13 @@ public static partial class ArtworkUrl
         url is not null && (url.StartsWith("file://", StringComparison.Ordinal) || url.StartsWith("embedded://", StringComparison.Ordinal)
             || url.StartsWith(FrameScheme, StringComparison.Ordinal));
 
+    /// <summary>The file a local artwork URL reads (the image, the track, or the video); null for any other URL.</summary>
+    public static string? LocalPath(string? url) =>
+        TryParseFrame(url, out var video, out _) ? video
+        : url?.StartsWith("file://", StringComparison.Ordinal) == true ? url["file://".Length..]
+        : url?.StartsWith("embedded://", StringComparison.Ordinal) == true ? url["embedded://".Length..]
+        : null;
+
     private const string FrameScheme = "frame://";
 
     /// <summary>A still from a video, <paramref name="seconds"/> in: <c>frame://{path}#{seconds}</c>.</summary>
