@@ -37,7 +37,8 @@ public static class LibraryVisibility
             return new HashSet<LibraryType>();
         }
 
-        var libraries = await db.Libraries.IgnoreQueryFilters().Select(l => new { l.Id, l.Type }).ToListAsync(ct);
+        // Home videos are never upcoming or requested, so they don't keep TV that is from being hidden.
+        var libraries = await db.Libraries.IgnoreQueryFilters().Where(l => l.Type != LibraryType.HomeVideos).Select(l => new { l.Id, l.Type }).ToListAsync(ct);
         return libraries.GroupBy(l => l.Type).Where(g => g.All(l => hidden.Contains(l.Id))).Select(g => g.Key).ToHashSet();
     }
 

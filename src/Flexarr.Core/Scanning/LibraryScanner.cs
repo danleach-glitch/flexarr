@@ -146,7 +146,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 released = true;
             }
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music)
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, everything: library.Type == LibraryType.HomeVideos)
                 .Where(f => PathComparison.IsUnder(f.FullName, root))
                 .ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -277,6 +277,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         await PruneEmptyItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
         await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        if (library.Type == LibraryType.HomeVideos)
+        {
+            await NumberHomeVideosAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        }
+
         // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
         await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
 
@@ -513,6 +518,39 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     }
 
     /// <summary>Removes playable items without files, then the albums/seasons and artists/series left empty.</summary>
+    /// <summary>
+    /// Home videos are kept by their folders' and files' paths; their season and episode numbers only put them in
+    /// order, so they're given again after every scan: folders and videos by name, with numbers in names counted as
+    /// numbers ("Part 2" before "Part 10"). Videos straight in a show's folder come first.
+    /// </summary>
+    private async Task NumberHomeVideosAsync(Guid libraryId, CancellationToken ct)
+    {
+        var order = StringComparer.Create(System.Globalization.CultureInfo.InvariantCulture, System.Globalization.CompareOptions.NumericOrdering | System.Globalization.CompareOptions.IgnoreCase);
+        var items = await db.MediaItems.IgnoreQueryFilters()
+            .Where(i => i.LibraryId == libraryId && (i.Kind == MediaKind.Series || i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode))
+            .ToListAsync(ct).ConfigureAwait(false);
+        var children = items.Where(i => i.ParentId is not null).ToLookup(i => i.ParentId!.Value);
+        foreach (var series in items.Where(i => i.Kind == MediaKind.Series))
+        {
+            var seasons = children[series.Id].OrderBy(s => s.Path == series.Path ? 0 : 1).ThenBy(s => s.Title, order).ToList();
+            for (var s = 0; s < seasons.Count; s++)
+            {
+                var season = seasons[s];
+                season.SeasonNumber = s + 1;
+                season.SortTitle = SortTitle.ForNumber(s + 1);
+                var videos = children[season.Id].OrderBy(e => Path.GetFileName(e.Path) ?? e.Title, order).ToList();
+                for (var e = 0; e < videos.Count; e++)
+                {
+                    videos[e].SeasonNumber = s + 1;
+                    videos[e].EpisodeNumber = e + 1;
+                    videos[e].SortTitle = SortTitle.ForNumber(e + 1);
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
     private async Task PruneEmptyItemsAsync(Guid libraryId, CancellationToken ct)
     {
         // Missing files still count: their items wait out the grace period with them.
@@ -566,7 +604,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album)
                 .ToListAsync(ct).ConfigureAwait(false);
             parents.ForEach(index.Track);
-            if (library.Type != LibraryType.TvShows)
+            if (library.Type is not (LibraryType.TvShows or LibraryType.HomeVideos))
             {
                 return index;
             }
@@ -612,6 +650,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 LibraryType.Movies => ResolveMovie(library, root, segments),
                 LibraryType.TvShows => ResolveEpisode(library, root, segments),
                 LibraryType.Music => ResolveTrack(library, root, filePath, probe),
+                LibraryType.HomeVideos => ResolveHomeVideo(library, root, filePath, segments),
                 _ => null,
             };
         }
@@ -795,6 +834,68 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         private static int? EpisodeKey(int? number, DateOnly? airDate) => number ?? airDate?.DayNumber;
 
+        /// <summary>
+        /// A home video: the folder it's in under the library's folder is its "show" (or the library's folder itself,
+        /// for videos straight in it), the folder under that its "season" (with any deeper folders in it; the show's own
+        /// folder for videos straight in it), and the video an "episode" named after its file. Numbers are only
+        /// provisional: <see cref="NumberHomeVideosAsync"/> puts them in order once the scan is done.
+        /// </summary>
+        private MediaItem ResolveHomeVideo(Library library, string root, string filePath, string[] segments)
+        {
+            var seriesPath = segments.Length > 1 ? Path.Combine(root, segments[0]) : root.TrimEnd(Path.DirectorySeparatorChar);
+            if (!_byPath.TryGetValue(PathComparison.Key(seriesPath), out var series))
+            {
+                var name = Path.GetFileName(seriesPath) is { Length: > 0 } folder ? folder : library.Name;
+                series = Add(new MediaItem
+                {
+                    LibraryId = library.Id,
+                    Kind = MediaKind.Series,
+                    Title = name,
+                    SortTitle = SortTitle.For(name),
+                    Path = seriesPath,
+                });
+            }
+
+            var seasonPath = segments.Length > 2 ? Path.Combine(seriesPath, segments[1]) : seriesPath;
+            if (!_byKey.TryGetValue($"season:{PathComparison.Key(seasonPath)}", out var season))
+            {
+                var number = NextNumber(series.Id);
+                season = Add(new MediaItem
+                {
+                    LibraryId = library.Id,
+                    ParentId = series.Id,
+                    Kind = MediaKind.Season,
+                    Title = seasonPath == seriesPath ? series.Title : Path.GetFileName(seasonPath),
+                    SortTitle = SortTitle.ForNumber(number),
+                    SeasonNumber = number,
+                    Path = seasonPath,
+                });
+            }
+
+            if (_byKey.TryGetValue($"video:{PathComparison.Key(filePath)}", out var video))
+            {
+                return video;
+            }
+
+            var episode = NextNumber(season.Id);
+            var title = Path.GetFileNameWithoutExtension(filePath).Trim();
+            return Add(new MediaItem
+            {
+                LibraryId = library.Id,
+                ParentId = season.Id,
+                Kind = MediaKind.Episode,
+                Title = title.Length > 0 ? title : Path.GetFileName(filePath),
+                SortTitle = SortTitle.ForNumber(episode),
+                SeasonNumber = season.SeasonNumber,
+                EpisodeNumber = episode,
+                Path = filePath,
+            });
+        }
+
+        private readonly Dictionary<Guid, int> _highest = [];
+
+        private int NextNumber(Guid parent) => _highest.GetValueOrDefault(parent) + 1;
+
         private MediaItem Add(MediaItem item)
         {
             item.AddedAt = _addedAt;
@@ -802,6 +903,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             Track(item);
             return item;
         }
+
+        private void Number(Guid parent, int number) => _highest[parent] = Math.Max(_highest.GetValueOrDefault(parent), number);
 
         private void Track(MediaItem item)
         {
@@ -812,9 +915,21 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     break;
                 case MediaKind.Season when item.ParentId is { } p && item.SeasonNumber is { } s:
                     _byNumber[(p, s)] = item;
+                    Number(p, s);
+                    if (item.Path is not null)
+                    {
+                        _byKey[$"season:{PathComparison.Key(item.Path)}"] = item; // a home video folder
+                    }
+
                     break;
                 case MediaKind.Episode when item.ParentId is { } p && EpisodeKey(item.EpisodeNumber, item.AirDate) is { } key:
                     _byNumber[(p, key)] = item;
+                    Number(p, key);
+                    if (item.Path is not null)
+                    {
+                        _byKey[$"video:{PathComparison.Key(item.Path)}"] = item; // a home video
+                    }
+
                     break;
                 // Under the tags' name too (kept as the original title when Lidarr renamed it), since the files still
                 // carry the tags.

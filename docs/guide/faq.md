@@ -25,7 +25,7 @@ If you'd like to support it, there's a Sponsor button on the GitHub page.
 
 Flexarr works best with them, and they're where most of its information comes from. Here's what each one adds:
 
-- **Sonarr and Radarr** supply the posters, artwork and details for your shows and films, with no extra accounts or API keys. Without them, Flexarr still finds and plays your video files, and takes artwork and details from any `.nfo` files and images beside them (as Kodi, Jellyfin and Plex users often have); titles with neither show without artwork. They also power **Coming soon**, deleting through Sonarr and Radarr, **Fix match**, and "find a better copy" in [Library health](library-health.md).
+- **Sonarr and Radarr** supply the posters, artwork and details for your shows and films, with no extra accounts or API keys. Without them, Flexarr still finds and plays your video files, and takes artwork and details from any `.nfo` files and images beside them (as Kodi, Jellyfin and Plex users often have), from TVmaze for shows, and from TMDB for films with a free key of your own. See [Without Sonarr and Radarr](without-arrs.md). They also power **Coming soon**, deleting through Sonarr and Radarr, and "find a better copy" in [Library health](library-health.md).
 - **Lidarr** supplies artist pictures, album covers and the split into albums, EPs and singles. Music works without it, using the tags in your files and any artwork in their folders.
 - **Seerr** lets you request films and shows from **Discover**. Without it, Discover shows your own library by genre.
 

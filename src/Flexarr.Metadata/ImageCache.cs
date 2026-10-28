@@ -262,7 +262,13 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
 
-        // Local artwork from music folders: cover.jpg next to the files, or art embedded in a track.
+        // A still from a home video, taken where the URL says.
+        if (ArtworkUrl.TryParseFrame(remoteUrl, out var video, out var seconds))
+        {
+            return File.Exists(video) && await ResizeAsync(video, null, embedded: true, snapped, target, ct, seconds).ConfigureAwait(false) ? Written(target) : null;
+        }
+
+        // Local artwork: cover.jpg or poster.jpg next to the files, or art embedded in a track.
         if (ArtworkUrl.IsLocal(remoteUrl))
         {
             var embedded = remoteUrl.StartsWith("embedded://", StringComparison.Ordinal);
@@ -554,7 +560,14 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     }
 
     /// <summary>Resizes into a temporary file and moves it into place, so a half-written image is never served.</summary>
-    private async Task<bool> ResizeAsync(string input, string? format, bool embedded, int width, string target, CancellationToken ct)
+    /// <param name="input">An image, or a media file (<paramref name="embedded"/>) whose first picture is taken.</param>
+    /// <param name="format">The image's format, when it's an image.</param>
+    /// <param name="embedded">Take the media file's picture: a track's cover art, or a video's frame.</param>
+    /// <param name="width">The widest it may be.</param>
+    /// <param name="target">Where the result goes.</param>
+    /// <param name="ct">Stops ffmpeg.</param>
+    /// <param name="seek">For a video, how many seconds in the frame is.</param>
+    private async Task<bool> ResizeAsync(string input, string? format, bool embedded, int width, string target, CancellationToken ct, double? seek = null)
     {
         var png = target.EndsWith(".png", StringComparison.Ordinal);
         var partial = Path.Combine(Path.GetDirectoryName(target)!, $"{Path.GetFileNameWithoutExtension(target)}.{Guid.NewGuid():N}.tmp{Path.GetExtension(target)}");
@@ -562,7 +575,8 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         {
             string[] args =
             [
-                "-v", "error", "-y", "-protocol_whitelist", "file", .. format is null ? Array.Empty<string>() : ["-f", format], "-i", input,
+                "-v", "error", "-y", "-protocol_whitelist", "file", .. format is null ? Array.Empty<string>() : ["-f", format],
+                .. seek is { } at ? new[] { "-ss", at.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) } : [], "-i", input,
                 .. embedded ? new[] { "-map", "0:v:0", "-an" } : [],
                 "-vf", $"scale='min({width},iw)':-2", "-frames:v", "1", "-update", "1", .. png ? Array.Empty<string>() : ["-q:v", "3"], partial,
             ];

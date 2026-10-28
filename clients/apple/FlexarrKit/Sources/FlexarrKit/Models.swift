@@ -20,7 +20,7 @@ extension ForwardCompatibleEnum {
 }
 
 public enum LibraryType: String, ForwardCompatibleEnum {
-    case movies = "Movies", tvShows = "TvShows", music = "Music", podcasts = "Podcasts", unknown
+    case movies = "Movies", tvShows = "TvShows", music = "Music", podcasts = "Podcasts", homeVideos = "HomeVideos", unknown
 }
 
 public enum MediaKind: String, ForwardCompatibleEnum {
@@ -202,6 +202,9 @@ public struct ItemSummary: Codable, Sendable, Hashable, Identifiable {
     public var seriesId: String? = nil
     /// Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist).
     public var trackArtist: String? = nil
+    /// In a home video library: a "series" is a folder, its "seasons" the folders in it and its "episodes" videos,
+    /// all known by name rather than number. Absent from servers before home videos.
+    public var homeVideo: Bool? = nil
 }
 
 /// One line of a track's lyrics; `time` (seconds into the track) is set throughout synced lyrics and never otherwise.

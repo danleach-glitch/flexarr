@@ -77,6 +77,7 @@ public sealed partial class MetadataRefresher(
             LibraryType.Movies => await RefreshMoviesAsync(library.Id, force, within, tmdbId, ct).ConfigureAwait(false),
             LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, tvdbId, ct).ConfigureAwait(false),
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, within, ct).ConfigureAwait(false),
+            LibraryType.HomeVideos => await RefreshHomeVideosAsync(library.Id, force, within, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
     }
@@ -1105,6 +1106,66 @@ public sealed partial class MetadataRefresher(
     [System.Text.RegularExpressions.GeneratedRegex("<[^>]*>")]
     private static partial System.Text.RegularExpressions.Regex HtmlTag();
 
+    // ------------------------------------------------------------------ Home videos
+
+    /// <summary>
+    /// Home videos are never looked up: what's beside them (a poster.jpg, a .nfo, an episode's -thumb.jpg) is used, and
+    /// a frame from the video stands in for whatever isn't there.
+    /// </summary>
+    private async Task<MetadataRefreshResult> RefreshHomeVideosAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
+        var also = await WithinAsync(libraryId, MediaKind.Series, within, ct).ConfigureAwait(false);
+        var items = await Stale(libraryId, MediaKind.Series, force, also).Include(i => i.Genres).ToListAsync(ct).ConfigureAwait(false);
+        var fromLocal = 0;
+        foreach (var item in items)
+        {
+            var local = item.Path is { } path ? LocalFiles.ForSeries(path) : LocalArt.None;
+            await ApplyLocalOnlyAsync(item, local, ct).ConfigureAwait(false);
+            await ApplyLocalSeasonsAsync(item, ct).ConfigureAwait(false);
+            await ApplyFramesAsync(item, ct).ConfigureAwait(false);
+            fromLocal += local.IsEmpty ? 0 : 1;
+            item.MetadataUpdatedAt = DateTime.UtcNow;
+            await SaveEveryAsync(items.IndexOf(item) + 1, ct).ConfigureAwait(false);
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return new MetadataRefreshResult(0, 0, 0, fromLocal);
+    }
+
+    /// <summary>
+    /// A frame a little way into each video without a still of its own, and the first video's for a folder (season)
+    /// or show without a poster.
+    /// </summary>
+    private async Task ApplyFramesAsync(MediaItem series, CancellationToken ct)
+    {
+        var seasons = await db.MediaItems.Where(i => i.ParentId == series.Id && i.Kind == MediaKind.Season).OrderBy(i => i.SeasonNumber).ToListAsync(ct).ConfigureAwait(false);
+        var seasonIds = seasons.Select(s => s.Id).ToList();
+        var videos = await db.MediaItems.Where(i => i.ParentId != null && seasonIds.Contains(i.ParentId.Value)).OrderBy(i => i.EpisodeNumber).ToListAsync(ct).ConfigureAwait(false);
+        var videoIds = videos.Select(v => v.Id).ToList();
+        var files = (await db.MediaFiles.Where(f => videoIds.Contains(f.MediaItemId)).Select(f => new { f.MediaItemId, f.Path, f.DurationSeconds }).ToListAsync(ct).ConfigureAwait(false))
+            .GroupBy(f => f.MediaItemId).ToDictionary(g => g.Key, g => g.OrderBy(f => f.Path, StringComparer.Ordinal).First());
+
+        foreach (var video in videos)
+        {
+            if (files.TryGetValue(video.Id, out var file) && (video.ThumbUrl is null || ArtworkUrl.TryParseFrame(video.ThumbUrl, out _, out _)))
+            {
+                // A tenth of the way in, past a fade from black, but no further than a minute.
+                video.ThumbUrl = ArtworkUrl.Frame(file.Path, Math.Min(60, (file.DurationSeconds ?? 0) / 10));
+            }
+        }
+
+        foreach (var season in seasons)
+        {
+            season.PosterUrl ??= videos.FirstOrDefault(v => v.ParentId == season.Id)?.ThumbUrl;
+            season.MetadataUpdatedAt = DateTime.UtcNow;
+        }
+
+        if (series.PosterUrl is null && seasons.Select(s => s.PosterUrl).FirstOrDefault(p => p is not null) is { } first)
+        {
+            await SetArtworkAsync(series, first, series.BackdropUrl ?? first, series.LogoUrl, ct).ConfigureAwait(false);
+        }
+    }
+
     // ------------------------------------------------------------------ Local files
 
     /// <summary>
@@ -1170,8 +1231,9 @@ public sealed partial class MetadataRefresher(
         var seasons = await db.MediaItems.Where(i => i.ParentId == series.Id && i.Kind == MediaKind.Season).ToListAsync(ct).ConfigureAwait(false);
         foreach (var season in seasons)
         {
-            // Without a poster of its own, a season shows the show's.
-            season.PosterUrl = LocalFiles.SeasonPoster(folder, season.SeasonNumber ?? 0)
+            // Without a poster of its own, a season shows the show's. A home video's "season" is a folder of its own.
+            var own = season.Path is { } seasonFolder && seasonFolder != folder ? LocalFiles.FolderPoster(seasonFolder) : null;
+            season.PosterUrl = own ?? (season.Path is null ? LocalFiles.SeasonPoster(folder, season.SeasonNumber ?? 0) : null)
                 ?? (ArtworkUrl.IsLocal(season.PosterUrl) && season.PosterUrl != series.PosterUrl ? null : season.PosterUrl);
         }
 

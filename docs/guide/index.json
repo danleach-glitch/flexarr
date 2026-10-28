@@ -9,6 +9,7 @@
         "install-unraid",
         "install-docker",
         "first-setup",
+        "without-arrs",
         "connect-devices",
         "apple-tv-xcode",
         "updating"

@@ -158,6 +158,54 @@ public sealed class LocalMetadataTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task HomeVideos_UseFramesWhereThereIsNoArtwork()
+    {
+        var show = Write("Holidays/poster.jpg", "x");
+        var cornwall = Write("Holidays/2019 Cornwall/folder.jpg", "x");
+        var beach = Path.Combine(Write("Holidays/2019 Cornwall/Beach.mp4", "x"), "Beach.mp4");
+        Write("Holidays/2019 Cornwall/Beach-thumb.jpg", "x");
+        var boat = Path.Combine(Write("Holidays/2019 Cornwall/Boat.mp4", "x"), "Boat.mp4");
+        var lakes = Path.Combine(Write("Holidays/2021 Lakes/Walk.mp4", "x"), "Walk.mp4");
+
+        var library = new Library { Name = "Home videos", Type = LibraryType.HomeVideos, Folders = [new LibraryFolder { Path = Media }] };
+        var series = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Holidays", SortTitle = "holidays", Path = show };
+        var one = new MediaItem { LibraryId = library.Id, ParentId = series.Id, Kind = MediaKind.Season, Title = "2019 Cornwall", SortTitle = "1", SeasonNumber = 1, Path = cornwall };
+        var two = new MediaItem { LibraryId = library.Id, ParentId = series.Id, Kind = MediaKind.Season, Title = "2021 Lakes", SortTitle = "2", SeasonNumber = 2, Path = Path.GetDirectoryName(lakes) };
+        MediaItem Video(MediaItem season, string path, int n) => new() { LibraryId = library.Id, ParentId = season.Id, Kind = MediaKind.Episode, Title = Path.GetFileNameWithoutExtension(path), SortTitle = $"{n}", SeasonNumber = season.SeasonNumber, EpisodeNumber = n, Path = path };
+        var (b, o, w) = (Video(one, beach, 1), Video(one, boat, 2), Video(two, lakes, 1));
+        _db.Libraries.Add(library);
+        _db.MediaItems.AddRange(series, one, two, b, o, w);
+        _db.MediaFiles.AddRange(new MediaFile { MediaItemId = b.Id, Path = beach, DurationSeconds = 300 },
+            new MediaFile { MediaItemId = o.Id, Path = boat, DurationSeconds = 120 }, new MediaFile { MediaItemId = w.Id, Path = lakes, DurationSeconds = 3600 });
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(library, force: false, default);
+
+        foreach (var item in new[] { series, one, two, b, o, w })
+        {
+            await _db.Entry(item).ReloadAsync();
+        }
+
+        Assert.Equal($"file://{Path.Combine(show, "poster.jpg")}", series.PosterUrl);
+        Assert.Equal($"file://{Path.Combine(cornwall, "folder.jpg")}", one.PosterUrl);
+        Assert.Equal($"file://{Path.Combine(cornwall, "Beach-thumb.jpg")}", b.ThumbUrl);
+        Assert.Equal(ArtworkUrl.Frame(boat, 12), o.ThumbUrl); // a tenth of the way in
+        Assert.Equal(ArtworkUrl.Frame(lakes, 60), w.ThumbUrl); // but no more than a minute
+        Assert.Equal(w.ThumbUrl, two.PosterUrl); // a folder with no poster shows its first video
+    }
+
+    [Theory]
+    [InlineData("/media/Holidays/Beach #2.mp4", 12.5)]
+    [InlineData(@"D:\Videos\Beach.mp4", 0)]
+    public void Frame_ReadsBackWhatWasWritten(string path, double seconds)
+    {
+        Assert.True(ArtworkUrl.TryParseFrame(ArtworkUrl.Frame(path, seconds), out var read, out var at));
+        Assert.Equal((path, seconds), (read, at));
+        Assert.True(ArtworkUrl.IsLocal(ArtworkUrl.Frame(path, seconds)));
+        Assert.False(ArtworkUrl.TryParseFrame("file:///media/poster.jpg", out _, out _));
+    }
+
+    [Fact]
     public void LooseFilm_OnlyTakesArtworkNamedAfterIt()
     {
         var film = Path.Combine(Write("Heat (1995).mkv", "x"), "Heat (1995).mkv");

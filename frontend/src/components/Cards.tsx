@@ -1,7 +1,7 @@
 import { memo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
-import { episodeCode, episodeHeading, progressOf, year } from '../lib/format'
+import { episodeCode, episodeHeading, episodeName, progressOf, year } from '../lib/format'
 import { itemLink } from '../lib/links'
 import { getTracks } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -43,8 +43,10 @@ function WatchState({ item }: { item: ItemSummary }) {
 function subtitle(item: ItemSummary): string | null {
   switch (item.kind) {
     case 'Series':
+      if (item.homeVideo) return item.childCount === 1 ? '1 folder' : `${item.childCount} folders`
       return item.childCount === 1 ? '1 season' : `${item.childCount} seasons`
     case 'Season':
+      if (item.homeVideo) return item.childCount === 1 ? '1 video' : `${item.childCount} videos`
       return item.childCount === 1 ? '1 episode' : `${item.childCount} episodes`
     case 'Episode':
       return episodeCode(item)
@@ -123,7 +125,7 @@ function CardShell({ item, to, className, art, playLabel, onOpen, overlay, conti
   )
 }
 
-const cardLabel = (item: ItemSummary) => (item.kind === 'Episode' && item.seriesTitle ? `${item.seriesTitle} ${episodeCode(item)}` : item.title)
+const cardLabel = (item: ItemSummary) => (item.kind === 'Episode' ? episodeName(item) : item.title)
 
 /** An episode's show, then its season-and-number and title, each linking where you'd expect. */
 function EpisodeText({ item }: { item: ItemSummary }) {

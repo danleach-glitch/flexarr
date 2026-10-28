@@ -1,4 +1,4 @@
-export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts'
+export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts' | 'HomeVideos'
 export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track' | 'Podcast' | 'PodcastEpisode'
 export type VideoRange = 'Sdr' | 'Hdr10' | 'Hlg' | 'DolbyVision'
 export type StreamType = 'Video' | 'Audio' | 'Subtitle'
@@ -98,6 +98,8 @@ export interface ItemSummary {
   albumType?: AlbumType | null
   /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
   trackArtist?: string | null
+  /** In a home video library: a "show" is a folder, its "seasons" folders in it, and its "episodes" videos, all shown by name. */
+  homeVideo?: boolean
   /**
    * Not from the server: where the player starts this queue entry, for a podcast episode played from the start rather
    * than from where it was left.

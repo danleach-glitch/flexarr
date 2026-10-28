@@ -71,7 +71,7 @@ export function HomePage() {
   )
 }
 
-const kinds: Record<Library['type'], string> = { Movies: 'films', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts' }
+const kinds: Record<Library['type'], string> = { Movies: 'films', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos' }
 
 /** Libraries are there but hold nothing Flexarr recognised: still scanning, or nothing found in their folders. */
 function EmptyLibraries({ libraries }: { libraries: Library[] }) {

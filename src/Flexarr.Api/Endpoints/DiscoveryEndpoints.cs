@@ -74,13 +74,13 @@ public static partial class DiscoveryEndpoints
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
             // One row for each library, or (as it starts) one for all the film libraries and one for all the TV ones.
             var combine = options.Layout.CombineLibraries;
-            foreach (var group in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows).GroupBy(l => combine ? (object)l.Type : l.Id))
+            foreach (var group in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos).GroupBy(l => combine ? (object)l.Type : l.Id))
             {
                 var first = group.First();
                 var movies = first.Type == LibraryType.Movies;
                 var ids = group.Select(l => l.Id).ToList();
                 // "in {library}" only when there's more than one library of the kind to tell apart.
-                var title = $"Latest unwatched {(movies ? "films" : "shows")}"
+                var title = $"Latest unwatched {(movies ? "films" : first.Type == LibraryType.HomeVideos ? "home videos" : "shows")}"
                     + (!combine && libraries.Count(l => l.Type == first.Type) > 1 ? $" in {first.Name}" : "");
                 // Combined, there's no one library to open, so the title isn't a link.
                 rows.Add(new HomeRowDto(combine ? LayoutEndpoints.CombinedRowId(first.Type) : $"recent-{first.Id}", title, "poster",
@@ -198,7 +198,7 @@ public static partial class DiscoveryEndpoints
             }
 
             var movies = library.Type == LibraryType.Movies;
-            var noun = movies ? "films" : "shows";
+            var noun = movies ? "films" : library.Type == LibraryType.HomeVideos ? "home videos" : "shows";
             var topLevel = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
             var unwatched = topLevel.Where(i => !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
             var rows = new List<HomeRowDto>();
@@ -207,7 +207,7 @@ public static partial class DiscoveryEndpoints
             var continueWatching = await ContinueWatchingAsync(db, me, RowSize, id, ct);
             rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
 
-            rows.Add(new HomeRowDto("recent", movies ? "Latest unwatched films" : "Latest unwatched shows", "poster",
+            rows.Add(new HomeRowDto("recent", $"Latest unwatched {noun}", "poster",
                 await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
             rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
             rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",

@@ -38,6 +38,7 @@ enum TabBarEntry: Identifiable, Hashable {
             case .movies: "film"
             case .tvShows: "tv"
             case .music: "music.note"
+            case .homeVideos: "folder"
             default: "square.stack"
             }
         case .liveTv: "antenna.radiowaves.left.and.right"

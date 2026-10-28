@@ -47,7 +47,7 @@ function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={all ? 'page' : undefined}>
-        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts' }[library.type]}
+        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders' }[library.type]}
       </Link>
       {library.type === 'Music' && <Link to="/playlists">Playlists</Link>}
     </nav>
@@ -473,7 +473,7 @@ function LibraryAll() {
             <ViewSwitch library={library} all />
           </div>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts' }[library.type]}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders' }[library.type]}
           </p>
         </div>
         <div className="library-tools">

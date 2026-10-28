@@ -129,7 +129,7 @@ struct LibrariesView: View {
             } else {
                 List {
                     ForEach(model.libraries.filter { $0.type != .podcasts }) { library in
-                        row(library.name, icon: library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : "film") {
+                        row(library.name, icon: library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : library.type == .homeVideos ? "folder" : "film") {
                             router.push(.library(library, .title))
                         }
                     }

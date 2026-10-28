@@ -43,7 +43,7 @@ public static class LayoutEndpoints
     private static async Task<LayoutDto> LayoutAsync(FlexarrDbContext db, FlexarrOptions options, LayoutOptions layout, string me, CancellationToken ct)
     {
         var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
-        var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows)
+        var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos)
             && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
         var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
             .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
@@ -70,7 +70,12 @@ public static class LayoutEndpoints
     }
 
     /// <summary>The Latest unwatched row standing for every library of a kind, when they're combined.</summary>
-    public static string CombinedRowId(LibraryType type) => type == LibraryType.Movies ? "recent-movies" : "recent-shows";
+    public static string CombinedRowId(LibraryType type) => type switch
+    {
+        LibraryType.Movies => "recent-movies",
+        LibraryType.HomeVideos => "recent-home-videos",
+        _ => "recent-shows",
+    };
 
     /// <summary>
     /// A saved Home layout for the rows Home has now, with libraries combined or not. Whichever of a kind's combined row
@@ -81,7 +86,7 @@ public static class LayoutEndpoints
     public static List<RowSetting> ForCombining(IReadOnlyList<RowSetting> layout, IEnumerable<Library> libraries, bool combine)
     {
         var result = layout.ToList();
-        foreach (var kind in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows).GroupBy(l => l.Type))
+        foreach (var kind in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos).GroupBy(l => l.Type))
         {
             List<string> combined = [CombinedRowId(kind.Key)], own = [.. kind.Select(l => $"recent-{l.Id}")];
             var (shown, other) = combine ? (combined, own) : (own, combined);
@@ -124,7 +129,12 @@ public static class LayoutEndpoints
         {
             var first = g.First();
             var label = g.Count() == 1 ? $"Latest unwatched in {first.Name}"
-                : first.Type == LibraryType.Movies ? "Latest unwatched films, from every film library" : "Latest unwatched shows, from every TV library";
+                : first.Type switch
+                {
+                    LibraryType.Movies => "Latest unwatched films, from every film library",
+                    LibraryType.HomeVideos => "Latest unwatched home videos, from every home video library",
+                    _ => "Latest unwatched shows, from every TV library",
+                };
             return new RowChoiceDto(combine ? CombinedRowId(first.Type) : $"recent-{first.Id}", label, true);
         });
 

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Streaming.Markers;
 using Microsoft.EntityFrameworkCore;
@@ -87,6 +88,14 @@ public sealed partial class MarkerDetectionWorker(
 
     private async Task AnalyseSeasonAsync(FlexarrDbContext db, MarkerDetector detector, Guid seasonId, CancellationToken ct)
     {
+        // A folder of home videos isn't a season of a show: its videos share no intro or credits to find.
+        if (await db.MediaItems.AnyAsync(s => s.Id == seasonId && db.Libraries.Any(l => l.Id == s.LibraryId && l.Type == LibraryType.HomeVideos), ct))
+        {
+            await db.MediaFiles.Where(f => f.MediaItem!.ParentId == seasonId && f.MarkersScannedAt == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.MarkersScannedAt, DateTime.UtcNow), ct);
+            return;
+        }
+
         var started = TimeProvider.System.GetTimestamp();
         var episodes = await db.MediaItems.Where(e => e.ParentId == seasonId).OrderBy(e => e.SortTitle)
             .Select(e => e.Files.Where(f => f.ProbeError == null).OrderByDescending(f => f.Height).FirstOrDefault())

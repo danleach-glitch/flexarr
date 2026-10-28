@@ -88,6 +88,13 @@ public static class LocalFiles
         return own is null ? null : Image(Listing(own), PosterNames);
     }
 
+    /// <summary>A poster in a folder of its own: poster.jpg, folder.jpg, cover.jpg.</summary>
+    public static string? FolderPoster(string folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        return Directory.Exists(folder) ? Image(Listing(folder), PosterNames) : null;
+    }
+
     /// <summary>An episode's .nfo and still (Episode.nfo and Episode-thumb.jpg, or Episode.jpg, beside Episode.mkv).</summary>
     public static (NfoInfo? Nfo, string? Thumb) ForEpisode(string file, IReadOnlyDictionary<string, string> listing)
     {
