@@ -110,11 +110,12 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Updating Flexarr</h1>
         <p class="lede">How to update the Flexarr server in Docker or on a Mac, what happens to your data when you do, and how to keep the apps up to date.</p>
-        <p class="meta">3 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#before-you-update">Before you update</a></li>
+            <li><a href="#settings-updates">Settings › Updates</a></li>
             <li><a href="#docker">Docker</a></li>
             <li><a href="#on-a-mac">On a Mac</a></li>
             <li><a href="#what-happens-to-your-data">What happens to your data</a></li>
@@ -130,7 +131,22 @@
 <li>the <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" rel="noopener">changelog</a></li>
 <li><a href="https://github.com/danleach-glitch/flexarr/releases" rel="noopener">GitHub releases</a></li>
 </ul>
-<p><strong>Settings › About</strong> also shows the version you&#39;re running now.</p>
+<p><strong>Settings › Updates</strong> shows the version you&#39;re running now and the newest release, with what&#39;s changed in it.</p>
+<h2 id="settings-updates"><a class="anchor" href="#settings-updates" aria-hidden="true" tabindex="-1">#</a>Settings › Updates</h2>
+<p>Flexarr asks GitHub once a day whether there&#39;s a newer release, and Settings shows a dot beside <strong>Updates</strong> when there is. To look straight away, choose <strong>Check for updates</strong>. To stop the daily check, turn off <strong>Check for updates every day</strong>; nothing else about your server is sent.</p>
+<p>What happens next depends on how you installed Flexarr:</p>
+<ul>
+<li><strong>On a Mac</strong> (installed with the install script), choose <strong>Update now</strong>. Flexarr downloads the new version, checks it against the checksum published with the release, and restarts to install it, which takes a minute or two. If anything is playing, being watched live or recording, it asks first, because the restart interrupts it.</li>
+<li><strong>In Docker</strong>, a container can&#39;t replace itself, so the page shows the commands to update it (see <a href="#docker">Docker</a> below).</li>
+<li><strong>Anything else</strong>, such as running from source, is updated the way you installed it.</li>
+</ul>
+<h3 id="automatic-updates-on-a-mac"><a class="anchor" href="#automatic-updates-on-a-mac" aria-hidden="true" tabindex="-1">#</a>Automatic updates on a Mac</h3>
+<p>Turn on <strong>Install updates automatically</strong> to have a Mac install update itself. It&#39;s off unless you turn it on. Flexarr installs a new release between 4 and 5 in the morning, after the nightly backup, and only when nothing is playing, being watched live or recording. A busy night waits for the next. A release that failed to install isn&#39;t tried again by itself; you can still install it with <strong>Update now</strong>.</p>
+<h3 id="if-an-update-doesn-t-start"><a class="anchor" href="#if-an-update-doesn-t-start" aria-hidden="true" tabindex="-1">#</a>If an update doesn&#39;t start</h3>
+<p>Before swapping in the new version, Flexarr copies the database aside. If the new version doesn&#39;t answer within five minutes, the version you had is put back, with the database as it was, and <strong>Settings › Updates</strong> says what happened. The update&#39;s own log is <code>~/.flexarr/logs/update.log</code>, and the version that didn&#39;t start is kept in <code>~/.flexarr/app.failed</code> so you can report what went wrong.</p>
+<p>The version before the last successful update is kept in <code>~/.flexarr/app.previous</code>.</p>
+<blockquote class="callout note"><p><strong>Note</strong> A release can need a newer .NET runtime than your Mac has. Settings › Updates then says so, and the install script, which installs the runtime too, is the way to update.</p>
+</blockquote>
 <p>You don&#39;t need to make a backup by hand: Flexarr makes one itself whenever an update is about to change the database (see <a href="#what-happens-to-your-data">below</a>). If you&#39;d like an extra copy anyway, choose <strong>Back up now</strong> in <strong>Settings › Backup and restore</strong>.</p>
 <h2 id="docker"><a class="anchor" href="#docker" aria-hidden="true" tabindex="-1">#</a>Docker</h2>
 <p>Flexarr&#39;s image is <code>ghcr.io/danleach-glitch/flexarr</code>. Updating means downloading the newer image and making a new container from it, with the same settings and folders as before.</p>
@@ -176,10 +192,11 @@ docker run -d --name flexarr \
 <td>Exactly that release, never anything else.</td>
 </tr>
 </tbody></table></div>
+<p>To have containers updated automatically, a tool such as <a href="https://containrrr.dev/watchtower/" rel="noopener">Watchtower</a> can pull new images and recreate them.</p>
 <p>Use <code>latest</code> to always get the newest Flexarr, or pin a version like <code>0.49</code> and change the number when you&#39;re ready to move on. Change the tag in your <code>docker-compose.yml</code> (<code>image: ghcr.io/danleach-glitch/flexarr:0.49</code>) or in your <code>docker run</code> command.</p>
 <p>Images are built for 64-bit Intel/AMD and 64-bit ARM, and Docker picks the right one for your machine.</p>
 <h2 id="on-a-mac"><a class="anchor" href="#on-a-mac" aria-hidden="true" tabindex="-1">#</a>On a Mac</h2>
-<p>If you installed Flexarr natively on a Mac with the deploy script (see <a href="/guide/install-macos">Install on a Mac</a>), update by getting the newest source and running the same command again from the machine you deployed from:</p>
+<p>If you installed Flexarr natively on a Mac with the deploy script (see <a href="/guide/install-macos">Install on a Mac</a>), the easiest way is <strong>Update now</strong> in <a href="#settings-updates">Settings › Updates</a>. You can also update by getting the newest source and running the same command again from the machine you deployed from:</p>
 <pre><code class="language-bash">cd flexarr
 git pull
 make deploy DEPLOY_HOST=&lt;your-mac&gt;

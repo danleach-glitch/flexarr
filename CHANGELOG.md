@@ -10,6 +10,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Podcasts**: **Mark as unplayed** on an episode you're part way through forgets your place and takes it off the listening list, on the web and iPhone. It stays in Up Next. A downloaded episode on the iPhone starts from the beginning too.
 - Assistants connected over MCP can do both: `mark_watched` with unwatched forgets the place, and `remove_from_continue_watching` is new.
 
+### Updates
+- **Settings › Updates** shows the version your server runs and whether there's a newer one, with what's changed in it. Flexarr checks GitHub once a day (you can turn that off), and Settings shows a dot when an update is waiting.
+- **On a Mac**, choose **Update now** to download and install a new version without the install script. If the new version doesn't start, the one you had is put back, with your database as it was. **Install updates automatically** (off unless you turn it on) does it between 4 and 5 in the morning, when nothing is playing, being watched live or recording.
+- **In Docker**, the page shows the commands to update the container, since a container can't replace itself.
+
 ### Docker
 - **Found on your network**: Flexarr now announces itself without any extra software, so the iPhone, iPad and Apple TV apps list a Docker install by themselves. Run the container on the host's network (`network_mode: host`) for this; Docker's own network doesn't pass the announcement on.
 - **`PUID` and `PGID`** pick the user Flexarr runs as, as with Sonarr, Radarr and Lidarr. A settings folder Docker created as root is handed over when Flexarr starts, so it no longer fails to write there. `--user` still works as before.

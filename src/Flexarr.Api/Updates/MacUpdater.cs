@@ -105,7 +105,16 @@ public sealed partial class MacUpdater(
                 LogFailed(release.Version.ToString(), ex);
                 Error = ex is UpdateException ? ex.Message : $"The update didn't install: {ex.Message}";
                 Stage = UpdateStage.Idle;
+                TidyUp();
+                return;
             }
+
+            // install-update.sh stops this server within seconds. Still running long after, it didn't go ahead.
+            await Task.Delay(TimeSpan.FromMinutes(5));
+            Error = LastResult() is { Ok: false, To: var to } result && to == release.Version.ToString()
+                ? result.Message
+                : "The update didn't go ahead. Its log is ~/.flexarr/logs/update.log on the server.";
+            Stage = UpdateStage.Idle;
         });
         return true;
     }
@@ -180,6 +189,22 @@ public sealed partial class MacUpdater(
 
         KeepRecentWebFiles(Path.Combine(root, "app", "wwwroot", "assets"), Path.Combine(app, "wwwroot", "assets"), DateTime.UtcNow);
         await HandOverAsync(root, stage, release.Version, ct);
+    }
+
+    /// <summary>Removes what a failed attempt downloaded or unpacked.</summary>
+    private void TidyUp()
+    {
+        try
+        {
+            if (install.Root is { } root && Directory.Exists(Path.Combine(root, "update")))
+            {
+                Directory.Delete(Path.Combine(root, "update"), recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Cleared at the start of the next attempt anyway.
+        }
     }
 
     /// <summary>Writes install-update.sh and a LaunchAgent for it, and starts it.</summary>
