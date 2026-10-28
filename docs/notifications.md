@@ -6,13 +6,14 @@ recording, or a request coming in. It can also send a morning list of what's air
 ## How a notification travels
 
 ```
-Flexarr server ──(encrypted payload)──▶ relay (flexarr.io/api/push) ──▶ Apple Push Notification service ──▶ phone
+Flexarr server ──(encrypted payload)──▶ relay (push.flexarr.io)   ──▶ Apple Push Notification service ──▶ phone
                                                                                                          │
                                                          the app's notification extension decrypts it ◀───┘
 ```
 
 - Apple only takes pushes signed with the App Store app's own key, which can't be handed to every server, so the
-  servers send their pushes through a small relay that holds the key (`site/api/push.js`, deployed with flexarr.io).
+  servers send their pushes through a small relay that holds the key (`relay/api/push.js`, the Vercel project flexarr-push at push.flexarr.io, deployed on its own when
+  `relay/` changes).
 - The relay never sees what a notification says. When notifications are turned on, the phone makes a random
   256-bit key and gives it to its own server. The server encrypts each notification with it (AES-256-GCM). The relay
   forwards only the encrypted payload, under a generic alert ("Something new is ready"), and the extension on the
@@ -99,7 +100,9 @@ Categories and their buttons:
 
 ## Relay API
 
-`POST https://www.flexarr.io/api/push`
+`POST https://push.flexarr.io/api/push`
+
+Servers from before 0.51.0 post to `https://www.flexarr.io/api/push`, which the site passes on to the relay.
 
 ```json
 { "token": "<hex>", "environment": "production", "payload": "<base64>", "collapseId": "<≤64 chars, optional>" }
@@ -115,7 +118,7 @@ The relay sends Apple:
 It answers `200 {"ok":true}`, `410 {"reason":"Unregistered"}` or `400 {"reason":"BadDeviceToken"}` (the server forgets
 the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited, or `502` with Apple's reason.
 
-The relay needs these environment variables on the Vercel project: `APNS_KEY` (the .p8 file's contents),
+The relay needs these environment variables on the flexarr-push Vercel project: `APNS_KEY` (the .p8 file's contents),
 `APNS_KEY_ID`, `APNS_TEAM_ID` (`KZRA8PTJ5Z`) and `APNS_TOPIC` (`com.danleach.flexarr.ios`). Make the key in the Apple
 Developer site under Certificates, Identifiers & Profiles › Keys, with Apple Push Notifications service enabled. The
 app ID needs the Push Notifications capability.
