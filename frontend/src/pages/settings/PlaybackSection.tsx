@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPlaybackPreferences, setPlaybackPreferences, type PlaybackPreferences, type SubtitleSize } from '../../api/client'
+import { getPlaybackPreferences, setPlaybackPreferences, type PlaybackPreferences, type SubtitlePosition, type SubtitleSize } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { crossfadeChoices, useMusicSettings, writeMusicSettings } from '../../lib/musicSettings'
@@ -50,6 +50,20 @@ function WhileWatching({ name }: { name?: string }) {
           <option value="ExtraLarge">Extra large</option>
         </select>
       </SettingRow>
+      <SettingRow label="Subtitle position" help="Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.">
+        <select value={preferences.subtitlePosition ?? 'Bottom'} onChange={(e) => void change({ ...preferences, subtitlePosition: e.target.value as SubtitlePosition })}>
+          <option value="Bottom">Bottom</option>
+          <option value="Raised">Raised</option>
+          <option value="Higher">Higher</option>
+          <option value="Top">Top</option>
+        </select>
+      </SettingRow>
+      <ToggleRow
+        label="Subtitles in the black bars"
+        help="In films wider than the screen, subtitles go in the black bar below the picture rather than over it."
+        checked={preferences.subtitlesInBlackBars ?? false}
+        onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
+      />
     </SettingsGroup>
   )
 }

@@ -381,6 +381,8 @@ export interface SubtitleTrack {
   url: string | null
   /** A subtitle file beside the video (which Bazarr can re-sync), not one inside it. Absent from servers before 0.53. */
   isExternal?: boolean
+  /** Styled subtitles (ASS/SSA) as authored, drawn with their fonts and positions. Absent from servers before 0.53. */
+  styledUrl?: string | null
 }
 
 export interface Marker {
@@ -421,6 +423,13 @@ export interface PlaybackInfo {
   speed?: number | null
   /** Bazarr can find subtitles for this (and re-sync files beside it). Absent from servers before 0.53. */
   canSearchSubtitles?: boolean
+  /** The fonts attached to the file for its styled subtitles. Absent from servers before 0.53. */
+  fontsUrl?: string | null
+}
+
+export interface SubtitleFont {
+  name: string
+  url: string
 }
 
 /** A subtitle a provider offers, through Bazarr, best match first. */
@@ -567,9 +576,14 @@ export interface PlaybackPreferences {
   skipRecaps: boolean
   skipCredits: boolean
   subtitleSize?: SubtitleSize
+  /** Absent from servers before 0.53. */
+  subtitlePosition?: SubtitlePosition
+  /** In films wider than the screen, subtitles go in the black bar below the picture. Absent from servers before 0.53. */
+  subtitlesInBlackBars?: boolean
 }
 
 export type SubtitleSize = 'Small' | 'Standard' | 'Large' | 'ExtraLarge'
+export type SubtitlePosition = 'Bottom' | 'Raised' | 'Higher' | 'Top'
 
 export interface LyricLine {
   /** Where in the track the line is sung, in seconds; null in unsynced lyrics. */
