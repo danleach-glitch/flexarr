@@ -931,7 +931,9 @@ public sealed partial class MetadataRefresher(
         item.MetadataSource = searched ? TmdbSearch : Tmdb;
         ApplyNfo(item, local.Nfo);
 
-        var logo = movie.Images?.Logos.OrderByDescending(l => l.Iso6391 == "en").ThenByDescending(l => l.VoteAverage).FirstOrDefault()?.FilePath;
+        // TMDB keeps some logos as SVG, which the image cache can't read; the PNGs are the ones to use.
+        var logo = movie.Images?.Logos.Where(l => !l.FilePath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(l => l.Iso6391 == "en").ThenByDescending(l => l.VoteAverage).FirstOrDefault()?.FilePath;
         await SetArtworkAsync(item, local.Poster ?? TmdbClient.ImageUrl(movie.PosterPath), local.Backdrop ?? TmdbClient.ImageUrl(movie.BackdropPath),
             local.Logo ?? TmdbClient.ImageUrl(logo), ct).ConfigureAwait(false);
         await SetGenresAsync(item, NfoGenres(item, local) ?? movie.Genres?.Select(g => g.Name).ToList() ?? [], ct).ConfigureAwait(false);

@@ -48,7 +48,7 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
              "release_dates":{"results":[{"iso_3166_1":"GB","release_dates":[{"certification":"12A","type":3}]},
                                          {"iso_3166_1":"US","release_dates":[{"certification":"","type":1},{"certification":"PG-13","type":3}]}]},
              "videos":{"results":[{"site":"YouTube","key":"abc","type":"Trailer","official":true}]},
-             "images":{"posters":[],"backdrops":[],"logos":[{"file_path":"/logo.png","iso_639_1":"en","vote_average":5}]}}
+             "images":{"posters":[],"backdrops":[],"logos":[{"file_path":"/logo.svg","iso_639_1":"en","vote_average":9},{"file_path":"/logo.png","iso_639_1":"en","vote_average":5}]}}
             """;
 
         var result = await Refresher().RefreshLibraryAsync(library, force: false, default);
