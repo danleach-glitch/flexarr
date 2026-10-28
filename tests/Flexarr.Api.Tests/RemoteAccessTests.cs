@@ -399,4 +399,21 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         await db.SaveChangesAsync();
         return profile.Id;
     }
+
+    [Theory]
+    [InlineData("The Tailscale GUI failed to start: The operation couldn’t be completed. (Tailscale.CLIError error 3.)")]
+    [InlineData("")]
+    [InlineData("[]")]
+    [InlineData("{\"BackendState\":\"Stopped\"}")]
+    public void TailscaleStatus_ThatIsNotTailscalesAnswer_IsNone(string output) =>
+        Assert.Null(Flexarr.Api.Security.TailscaleService.ParseStatus(output));
+
+    [Fact]
+    public void TailscaleStatus_WithItsOwnDevice_IsRead()
+    {
+        using var status = Flexarr.Api.Security.TailscaleService.ParseStatus("""{"BackendState":"Running","Self":{"DNSName":"mini.tail.ts.net."}}""");
+
+        Assert.NotNull(status);
+        Assert.Equal("Running", status.RootElement.GetProperty("BackendState").GetString());
+    }
 }

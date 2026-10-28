@@ -106,6 +106,18 @@ public sealed class FlexarrOptions
     public LiveTvOptions? LiveTv { get; set; }
 
     public BackupOptions Backups { get; set; } = new();
+
+    public UpdateOptions Updates { get; set; } = new();
+}
+
+/// <summary>Finding and installing new releases (see <see cref="Flexarr.Api.Updates.UpdateChecker"/>).</summary>
+public sealed class UpdateOptions
+{
+    /// <summary>Install a newer release by itself, overnight while nothing's playing. Only where Flexarr can update itself.</summary>
+    public bool Automatic { get; set; }
+
+    /// <summary>GitHub's latest-release address for Flexarr's repository.</summary>
+    public string ReleasesUrl { get; set; } = "https://api.github.com/repos/danleach-glitch/flexarr/releases/latest";
 }
 
 /// <summary>Backups of the database and settings (see <see cref="Flexarr.Api.Backups.BackupStore"/>).</summary>

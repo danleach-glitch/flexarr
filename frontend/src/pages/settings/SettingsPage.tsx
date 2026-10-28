@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { askForProfile, getMe, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
+import { askForProfile, getMe, getUpdates, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
@@ -20,6 +20,7 @@ import { PodcastsSection } from './PodcastsSection'
 import { ProfilesSection } from './ProfilesSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
+import { UpdatesSection } from './UpdatesSection'
 
 interface Page {
   id: string
@@ -49,6 +50,7 @@ const serverPages: Page[] = [
   { id: 'access', label: 'Access', render: () => <AccessSection /> },
   { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'access' },
   { id: 'backups', label: 'Backup and restore', render: () => <BackupSection /> },
+  { id: 'updates', label: 'Updates', render: () => <UpdatesSection /> },
   { id: 'logs', label: 'Logs', render: () => <LogsSection /> },
   { id: 'about', label: 'About', render: () => <AboutSection /> },
 ]
@@ -65,6 +67,9 @@ export function SettingsPage() {
   // way back to the main one (with its PIN) for the rest. Older servers have no /me: everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
   const ownerOverTailscale = me.data?.method === 'tailscale' && me.data.profileId === 'owner'
+  // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.
+  const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
+  const badges: Record<string, string | undefined> = { updates: updates.data?.available ? `Flexarr ${updates.data.latest?.version} is available` : undefined }
 
   // Which page to open first depends on whose profile this is, so it waits to know.
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
@@ -77,6 +82,7 @@ export function SettingsPage() {
   const link = (p: Page) => (
     <NavLink key={p.id} to={`/settings/${p.id}`} className={() => (p.id === lit ? 'active' : undefined)}>
       {p.label}
+      {badges[p.id] && <span className="settings-nav-badge" role="img" aria-label={badges[p.id]} title={badges[p.id]} />}
     </NavLink>
   )
 

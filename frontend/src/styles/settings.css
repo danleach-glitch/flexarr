@@ -2168,3 +2168,54 @@
 .error-reports-privacy a {
   color: var(--screen);
 }
+
+/* ---------- Updates ---------- */
+
+/* A dot after a page's name in the list: something there wants a look (a release to install). */
+.settings-nav-badge {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--silver);
+  vertical-align: middle;
+}
+
+.update-result {
+  margin: 0;
+  padding: 12px 0 4px;
+}
+
+.update-progress {
+  display: grid;
+  gap: 8px;
+  padding: 14px 0;
+}
+
+.update-progress progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--silver);
+}
+
+.update-howto {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.update-howto p {
+  margin: 0;
+}
+
+.update-command {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--room);
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--step--1);
+  color: var(--screen);
+}

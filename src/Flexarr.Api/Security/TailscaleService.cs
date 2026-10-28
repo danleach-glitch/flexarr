@@ -69,7 +69,17 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
             return new TailscaleState(true, false, null, null, false, false, [], error);
         }
 
-        using var status = JsonDocument.Parse(statusJson);
+        // The Mac app's own binary, run from a background service (a LaunchAgent), says "The Tailscale GUI failed to
+        // start" instead of answering. Anything that isn't Tailscale's status is Tailscale being unavailable, not an
+        // error in every request that asks.
+        using var status = ParseStatus(statusJson);
+        if (status is null)
+        {
+            var said = statusJson.Trim() is { Length: > 0 } text ? text.Split('\n')[0].Trim() : error;
+            return new TailscaleState(true, false, null, null, false, false, [],
+                $"Tailscale's command line didn't answer as expected ({said}). On a Mac, install it from the Tailscale app: Settings › Install CLI.");
+        }
+
         var root = status.RootElement;
         var running = root.TryGetProperty("BackendState", out var backend) && backend.GetString() == "Running";
         var self = root.GetProperty("Self");
@@ -220,6 +230,27 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         {
             // Not what whois normally prints: treat the address as unknown.
             return new WhoisAnswer(null, Definite: true);
+        }
+    }
+
+    /// <summary><c>tailscale status --json</c>'s answer, or null when it's something else.</summary>
+    internal static JsonDocument? ParseStatus(string output)
+    {
+        try
+        {
+            var document = JsonDocument.Parse(output);
+            if (document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("Self", out var self)
+                && self.ValueKind == JsonValueKind.Object)
+            {
+                return document;
+            }
+
+            document.Dispose();
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
