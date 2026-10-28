@@ -212,6 +212,9 @@ const html = `<!doctype html>
       .get .arrow { display: none; }
     }
 
+    /* On a phone the cards below say it all, so the table goes. */
+    @media (max-width: 640px) { .glance { display: none; } }
+
     /* Cards */
     .cards + .cards { margin-top: 20px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin-top: 32px; }
@@ -303,7 +306,7 @@ const html = `<!doctype html>
         <picture><source media="(max-width: 640px)" srcset="/shots/screens-m.webp" width="1100" height="902"><img src="/shots/screens.webp" width="2000" height="1206" srcset="/shots/screens-1000.webp 1000w, /shots/screens.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr in a web browser showing Only Murders in the Building on Home, on an iPad showing Home, and on an iPhone showing Barbie's page." fetchpriority="high"></picture>
       </div>
 
-      <section aria-labelledby="glance">
+      <section class="glance" aria-labelledby="glance">
         <div class="section-head">
           <h2 id="glance">At a glance</h2>
           <ul class="legend">

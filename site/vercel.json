@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
+  "redirects": [{ "source": "/install", "destination": "/#setup", "permanent": false }],
   "rewrites": [{ "source": "/api/push", "destination": "https://push.flexarr.io/api/push" }],
   "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
   "headers": [
