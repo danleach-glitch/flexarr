@@ -3,7 +3,7 @@
   "cleanUrls": true,
   "redirects": [{ "source": "/install", "destination": "/#setup", "permanent": false }],
   "rewrites": [{ "source": "/api/push", "destination": "https://push.flexarr.io/api/push" }],
-  "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- .",
+  "ignoreCommand": "[ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git diff --quiet \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD -- .",
   "headers": [
     {
       "source": "/(.*)",
