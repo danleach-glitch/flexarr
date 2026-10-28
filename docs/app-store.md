@@ -80,7 +80,7 @@ subtitle, age rating and App Privacy are shared.
 - tvOS can't open links, so the listing needs the privacy policy as plain text (App Information › Privacy Policy
   Text). Until it's there, App Store Connect refuses to submit any platform's version. Keep it in step with
   `site/privacy.html`.
-- Reviewers sign in with the Siri Remote: "Enter an address instead", the review server's address and the API key,
-  then the App Review profile. `FlexarrTVUITests/ReviewerSignIn.swift` walks it on a fresh install, with the same
+- Reviewers sign in with the Siri Remote: "Enter an address instead", the review server's address, "Connecting
+  from outside your home? Use an API key" and the key, then the App Review profile. `FlexarrTVUITests/ReviewerSignIn.swift` walks it on a fresh install, with the same
   environment as the iOS test.
 - The screens behind the screenshots come from `FlexarrTVUITests/StoreTour.swift`.
