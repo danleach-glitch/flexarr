@@ -26,6 +26,12 @@ public sealed record TranscodeSettings
     /// <summary>A stream whose hardware encoder fails as it starts is converted in software instead.</summary>
     public bool SoftwareFallback { get; init; } = true;
 
+    /// <summary>
+    /// This FFmpeg has zscale, to map HDR to SDR on the CPU (software encoding, NVENC, Quick Sync, burned-in subtitles).
+    /// Without it (the Mac app's LGPL build, Homebrew's) HDR is sent on unmapped rather than failing to play.
+    /// </summary>
+    public bool CanToneMapInSoftware { get; init; } = true;
+
     /// <summary>Most transcodes running at once (0 = no limit); playback beyond it is refused rather than slowing everyone.</summary>
     public int MaxConcurrentTranscodes { get; init; } = 3;
 

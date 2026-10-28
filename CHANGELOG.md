@@ -5,6 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
+- HDR films converted for an SDR screen no longer look grey and washed out on Docker and Linux servers, on NVIDIA and Intel Quick Sync graphics, or with subtitles burned in.
 - When the graphics card won't convert a video (busy, or not passed in to Docker), Flexarr converts it in software instead of failing every time you press Play. The log says when it does. (The Mac app has no software converter, so there it still fails.)
 - Burned-in picture subtitles (Blu-ray PGS, DVD) fit the picture: they stay in frame on films cropped to widescreen, and are full size in 4K instead of small in a corner.
 - Dolby Vision films are only sent as they are to screens that show Dolby Vision. Elsewhere they're repackaged or converted, instead of showing purple and green. Safari on an HDR Mac now says it shows Dolby Vision, so it keeps playing them directly.

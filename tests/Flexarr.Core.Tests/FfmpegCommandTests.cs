@@ -51,7 +51,40 @@ public class FfmpegCommandTests
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
 
         Assert.DoesNotContain("hwaccel_output_format", args, StringComparison.Ordinal);
-        Assert.Contains("-filter_complex [0:3][0:0]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", args, StringComparison.Ordinal);
+        // HDR is mapped to SDR on the CPU before the subtitles go on.
+        Assert.Contains("-filter_complex [0:0]zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv[sdr];"
+            + "[0:3][sdr]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", args, StringComparison.Ordinal);
+
+        var sdr = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn, ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
+        Assert.Contains("-filter_complex [0:3][0:0]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", sdr, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hdr_IsMappedToSdr_InSoftware_AndOnTheCpuForNvencAndQuickSync()
+    {
+        var software = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.None)));
+        var nvenc = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { SourceVideoCodec = "hevc" }, 0, "/out", Settings(HardwareAcceleration.Nvenc)));
+        var qsv = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { SourceVideoCodec = "hevc" }, 0, "/out", Settings(HardwareAcceleration.Qsv)));
+
+        Assert.Contains("-vf zscale=transfer=linear", software, StringComparison.Ordinal);
+        Assert.Contains("-c:v libx264", software, StringComparison.Ordinal);
+        // Decoded on the CPU, mapped there, then encoded on the GPU.
+        Assert.DoesNotContain("-hwaccel cuda", nvenc, StringComparison.Ordinal);
+        Assert.Contains("zscale=transfer=linear", nvenc, StringComparison.Ordinal);
+        Assert.Contains("h264_nvenc", nvenc, StringComparison.Ordinal);
+        Assert.DoesNotContain("-hwaccel qsv", qsv, StringComparison.Ordinal);
+        Assert.Contains("zscale=transfer=linear", qsv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WithoutZscale_HdrIsSentOnRatherThanFailing()
+    {
+        var settings = Settings(HardwareAcceleration.None) with { CanToneMapInSoftware = false };
+
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", settings));
+
+        Assert.DoesNotContain("zscale", args, StringComparison.Ordinal);
+        Assert.Contains("-vf scale=1920:1080,format=yuv420p", args, StringComparison.Ordinal);
     }
 
     [Fact]
