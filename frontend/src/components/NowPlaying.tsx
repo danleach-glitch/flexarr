@@ -4,6 +4,7 @@ import { imageUrl } from '../api/client'
 import { podcastSpeeds, useAudioPlayer, useAudioTime, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock } from '../lib/format'
 import { speedLabel } from '../lib/podcasts'
+import { minutesLeft, sleepChoices, sleepLabel } from '../lib/sleepTimer'
 import { Close, Forward30, Moon, Next, Pause, Play, Queue, Replay15 } from './icons'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { QueuePanel } from './QueuePanel'
@@ -172,8 +173,8 @@ function PodcastTools({ player }: { player: AudioPlayer }) {
     const r = e.currentTarget.getBoundingClientRect()
     setOpen(open?.menu === menu ? null : { menu, at: { x: r.right - 200, y: r.bottom + 6 } })
   }
-  const minutesLeft = player.sleep && 'until' in player.sleep ? Math.max(1, Math.ceil((player.sleep.until - now) / 60_000)) : null
-  const sleepLabel = player.sleep === null ? 'Sleep timer' : minutesLeft !== null ? `Sleep timer, ${minutesLeft} min left` : 'Sleep timer, at the end of this episode'
+  const left = minutesLeft(player.sleep, now)
+  const label = sleepLabel(player.sleep, now)
 
   return (
     <>
@@ -182,14 +183,14 @@ function PodcastTools({ player }: { player: AudioPlayer }) {
       </button>
       <button
         className={player.sleep ? 'icon-button now-playing-sleep active' : 'icon-button now-playing-sleep'}
-        aria-label={sleepLabel}
-        title={sleepLabel}
+        aria-label={label}
+        title={label}
         aria-haspopup="menu"
         aria-expanded={open?.menu === 'sleep'}
         onClick={toggle('sleep')}
       >
         <Moon />
-        {minutesLeft !== null && <span className="now-playing-count" aria-hidden="true">{minutesLeft}</span>}
+        {left !== null && <span className="now-playing-count" aria-hidden="true">{left}</span>}
       </button>
       {open?.menu === 'speed' && (
         <Menu
@@ -204,8 +205,7 @@ function PodcastTools({ player }: { player: AudioPlayer }) {
           label="Sleep timer"
           at={open.at}
           actions={[
-            ...[15, 30, 45, 60].map((minutes) => ({ label: `In ${minutes} minutes`, run: () => player.setSleep({ until: Date.now() + minutes * 60_000 }) })),
-            { label: 'At the end of this episode', run: () => player.setSleep({ endOfEpisode: true }) },
+            ...sleepChoices('episode').map((choice) => ({ label: choice.label, run: () => player.setSleep(choice.start()) })),
             ...(player.sleep ? ['divider' as const, { label: 'Turn off', run: () => player.setSleep(null) }] : []),
           ]}
           onClose={() => setOpen(null)}

@@ -694,6 +694,11 @@ export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('P
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
 export const setSubtitleDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/subtitle-delay`, { seconds })
+/** Moves the file's sound to match its picture, for the household; with restOfSeason, the season's later episodes too. */
+export const setAudioDelay = (itemId: string, seconds: number, restOfSeason = false) =>
+  request<void>('PUT', `/items/${itemId}/audio-delay`, { seconds, restOfSeason })
+/** The speed to watch an episode's show at from now on (1 forgets it); a film's isn't kept. */
+export const setPlaybackSpeed = (itemId: string, speed: number) => request<void>('PUT', `/items/${itemId}/playback-speed`, { speed })
 /** The subtitles the viewer picked in the player (a track's key, or null for off), remembered for the title and its show. */
 export const setSubtitleChoice = (sessionId: string, key: string | null) => request<void>('PUT', `/playback/${sessionId}/subtitle`, { key: key ?? 'off' })
 export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>

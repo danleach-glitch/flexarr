@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect } from 'react'
 import type { ItemSummary } from '../api/types'
+import type { SleepTimer } from '../lib/sleepTimer'
 
 export interface AudioPlayer {
   queue: ItemSummary[]
@@ -39,7 +40,7 @@ export interface AudioPlayer {
   setSleep: (timer: SleepTimer | null) => void
 }
 
-export type SleepTimer = { until: number } | { endOfEpisode: true }
+export type { SleepTimer }
 
 /** The speeds podcasts can play at. */
 export const podcastSpeeds = [0.8, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2, 2.5, 3] as const

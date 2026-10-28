@@ -1,7 +1,21 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { ApiError, beaconProgress, imageUrl, reportProgress, setPlaybackPreferences, setSubtitleChoice, setSubtitleDelay, startPlayback, stopPlayback, type PlaybackInfo, type PlaybackPreferences } from '../api/client'
+import {
+  ApiError,
+  beaconProgress,
+  imageUrl,
+  reportProgress,
+  setAudioDelay,
+  setPlaybackPreferences,
+  setPlaybackSpeed,
+  setSubtitleChoice,
+  setSubtitleDelay,
+  startPlayback,
+  stopPlayback,
+  type PlaybackInfo,
+  type PlaybackPreferences,
+} from '../api/client'
 import type { SubtitleSize } from '../api/client'
 import {
   Back,
@@ -9,6 +23,7 @@ import {
   ExitFullscreen,
   Forward10,
   Fullscreen,
+  Moon,
   Muted,
   Next,
   Pause,
@@ -16,11 +31,14 @@ import {
   Replay10,
   Volume,
 } from '../components/icons'
+import { MAX_AUDIO_DELAY_SECONDS, useDelayedSound } from '../hooks/delayedSound'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
+import { speedLabel } from '../lib/podcasts'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
+import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
 type Quality = 'auto' | 1080 | 720 | 480
 const qualities: { value: Quality; label: string; bitrate?: number }[] = [
@@ -29,6 +47,9 @@ const qualities: { value: Quality; label: string; bitrate?: number }[] = [
   { value: 720, label: '720p', bitrate: 4_000_000 },
   { value: 480, label: '480p', bitrate: 1_500_000 },
 ]
+
+/** The speeds the player offers; an episode's is kept for its show. */
+const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
 
 /** The countdown between one episode finishing and the next starting. */
 const UP_NEXT_SECONDS = 5
@@ -60,6 +81,12 @@ const subtitleSizes: { value: SubtitleSize; label: string }[] = [
 function delayLabel(seconds: number) {
   if (seconds === 0) return 'In time'
   return `${Math.abs(seconds)}s ${seconds > 0 ? 'later' : 'earlier'}`
+}
+
+/** "In sync", "+0.15 s" (the sound later), "−0.2 s" (earlier). */
+function syncLabel(seconds: number) {
+  if (seconds === 0) return 'In sync'
+  return `${seconds > 0 ? '+' : '−'}${Math.abs(seconds)} s`
 }
 const HIDE_CHROME_MS = 3000
 const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
@@ -127,7 +154,7 @@ export function PlayerPage() {
   const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [chrome, setChrome] = useState(true)
-  const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | null>(null)
+  const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | 'speed' | 'sleep' | null>(null)
   const [quality, setQuality] = useState<Quality>('auto')
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
   // Embedded subtitles are extracted on first use, which can take a little while for large files.
@@ -138,6 +165,16 @@ export function PlayerPage() {
   const [finished, setFinished] = useState(false)
   const [preferences, setPreferences] = useState<PlaybackPreferences>(defaultPreferences)
   const [subtitleDelay, setSubtitleDelayState] = useState(0)
+  // The file's sound offset, as last nudged here (the server is told a moment after the nudging stops).
+  const [audioDelay, setAudioDelayState] = useState(0)
+  const syncTimer = useRef<number | undefined>(undefined)
+  const [speed, setSpeed] = useState(1)
+  // The sleep timer runs across episodes, and stopping leaves the picture dimmed until the viewer comes back.
+  const [sleep, setSleep] = useState<SleepTimer | null>(null)
+  const [asleep, setAsleep] = useState(false)
+  const [clock, setClock] = useState(() => Date.now())
+  // The volume before the timer started fading it, put back when it's done.
+  const fadeFrom = useRef<number | null>(null)
   const scale = subtitleScale[preferences.subtitleSize ?? 'Standard']
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
@@ -248,8 +285,12 @@ export function PlayerPage() {
         }
         if (session.current && session.current !== playback.sessionId) void stopPlayback(session.current)
         session.current = playback.sessionId
+        // The same title again (another audio track, a recovery) keeps its speed; another starts at its show's.
+        const sameTitle = playingItem.current === playback.item.id
         playingItem.current = playback.item.id
         setInfo(playback)
+        setAudioDelayState(playback.audioDelaySeconds ?? 0)
+        setSpeed((current) => playback.speed ?? (sameTitle ? current : 1))
         if (playback.preferences) setPreferences({ ...defaultPreferences, ...playback.preferences })
         setSubtitleDelayState(playback.subtitleDelaySeconds ?? 0)
         setSubtitleKey(playback.selectedSubtitleKey)
@@ -499,6 +540,7 @@ export function PlayerPage() {
 
   const wake = useCallback(() => {
     setChrome(true)
+    setAsleep(false)
     window.clearTimeout(hideTimer.current)
     hideTimer.current = window.setTimeout(() => setChrome(false), HIDE_CHROME_MS)
   }, [])
@@ -663,6 +705,120 @@ export function PlayerPage() {
     )
   }
 
+  // ---------- Audio sync
+
+  // A file the browser plays itself takes a later sound there and then; anything else is the server's to move.
+  const soundHere = info?.method === 'DirectPlay' && !info.audioDelayInStream
+  useDelayedSound(video, soundHere ? Math.max(0, audioDelay) : 0)
+
+  /**
+   * Moves the file's sound by 50 ms (0 puts it back), for everyone who plays it. Played here, a later sound changes at
+   * once; an earlier one, or a stream the server makes, needs a new stream, asked for when the nudging stops.
+   */
+  function nudgeSound(by: number) {
+    const itemId = playingItem.current
+    if (!itemId || !info) return
+    const next = by === 0 ? 0 : Math.round((audioDelay + by) * 1000) / 1000
+    if (Math.abs(next) > MAX_AUDIO_DELAY_SECONDS) return
+    setAudioDelayState(next)
+    const local = info.method === 'DirectPlay' && next >= 0
+    window.clearTimeout(syncTimer.current)
+    syncTimer.current = window.setTimeout(
+      () =>
+        void setAudioDelay(itemId, next).then(
+          () => {
+            const streamed = info.audioDelayInStream ? (info.audioDelaySeconds ?? 0) : 0
+            if (!local && next !== streamed) void restartHere({ audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+          },
+          () => {
+            setAudioDelayState(info.audioDelaySeconds ?? 0)
+            setNotice('The sound couldn’t be moved just now')
+          },
+        ),
+      local ? 400 : 1200,
+    )
+  }
+  useEffect(() => () => window.clearTimeout(syncTimer.current), [])
+
+  /** The same offset for this episode's later ones in its season: a bad batch tends to be out the same way. */
+  function soundForRestOfSeason() {
+    const itemId = playingItem.current
+    if (!itemId) return
+    window.clearTimeout(syncTimer.current)
+    void setAudioDelay(itemId, audioDelay, true).then(
+      () => setNotice('The rest of the season will play with this timing'),
+      () => setNotice('The sound couldn’t be moved just now'),
+    )
+  }
+
+  // ---------- Speed
+
+  useEffect(() => {
+    const el = video.current
+    if (!el) return
+    // The default too, which a new source (the next episode, another stream) starts at.
+    el.defaultPlaybackRate = speed
+    el.playbackRate = speed
+  }, [speed, info])
+
+  function chooseSpeed(next: number) {
+    setMenu(null)
+    setSpeed(next)
+    // Kept for the show (a film's is for this time only).
+    if (info?.item.kind === 'Episode') void setPlaybackSpeed(info.item.id, next).catch(() => undefined)
+  }
+
+  // ---------- Sleep timer
+
+  useEffect(() => {
+    if (!sleep) return
+    const timer = window.setInterval(() => setClock(Date.now()), 500)
+    return () => window.clearInterval(timer)
+  }, [sleep])
+
+  // Waiting for the end means the credits, or the very end without them, at the speed it's playing.
+  const sleepEnd = credits?.start ?? duration
+  const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
+  const stillWatching = sleepLeft !== null && sleepLeft <= STILL_WATCHING_SECONDS && playing && !error
+  const sleepWhat = info?.item.kind === 'Episode' ? 'episode' : 'film'
+
+  /** The volume back where it was before the timer faded it. */
+  const unfade = () => {
+    if (fadeFrom.current !== null && video.current) video.current.volume = fadeFrom.current
+    fadeFrom.current = null
+  }
+
+  function chooseSleep(timer: SleepTimer | null) {
+    setMenu(null)
+    unfade()
+    setClock(Date.now())
+    setSleep(timer)
+  }
+
+  // The last seconds fade the sound out; at the end, playback pauses (progress is saved as for any pause), nothing plays
+  // on after it, and the picture stays dimmed until the viewer comes back.
+  useEffect(() => {
+    const el = video.current
+    if (sleepLeft === null || !el) return
+    if (sleepLeft <= 0) {
+      el.pause()
+      unfade()
+      setSleep(null)
+      setAsleep(true)
+      setUpNextCancelled(true)
+      setFinished(false)
+      dropPrepared()
+      return
+    }
+    if (sleepLeft <= FADE_SECONDS && playing) {
+      fadeFrom.current ??= el.volume
+      el.volume = fadeFrom.current * Math.max(0, sleepLeft / FADE_SECONDS)
+    } else if (fadeFrom.current !== null) {
+      unfade()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unfade is a plain function of this render
+  }, [sleepLeft, playing])
+
   function chooseSubtitleSize(size: SubtitleSize) {
     const next = { ...preferences, subtitleSize: size }
     setPreferences(next)
@@ -695,6 +851,12 @@ export function PlayerPage() {
         return
       }
       wake()
+      // Still watching? Any key says so (Tab still moves between the prompt's buttons).
+      if (stillWatching && e.key !== 'Tab' && !(e.target instanceof HTMLButtonElement && (e.key === 'Enter' || e.key === ' '))) {
+        e.preventDefault()
+        chooseSleep(extended(sleep, Date.now()))
+        return
+      }
       switch (e.key) {
         case ' ':
         case 'k':
@@ -783,6 +945,10 @@ export function PlayerPage() {
         )}
       </video>
 
+      {/* The sleep timer's last minute dims the picture little by little; stopped, it stays dim until the viewer's back. */}
+      {(stillWatching || asleep) && (
+        <div className="player-sleep-dim" aria-hidden="true" style={{ opacity: asleep ? 1 : Math.min(1, 1 - (sleepLeft ?? 0) / STILL_WATCHING_SECONDS) }} />
+      )}
       {waiting && !error && <div className="player-spinner" role="status" aria-label="Loading" />}
       {subtitleStatus !== 'idle' && (
         <p className="player-toast" role="status">
@@ -840,6 +1006,23 @@ export function PlayerPage() {
         <p className="player-notice" role="status">
           {notice}
         </p>
+      )}
+
+      {stillWatching && (
+        <div className="player-still-watching" role="alertdialog" aria-labelledby="still-watching-title" aria-describedby="still-watching-note">
+          <p id="still-watching-title">Still watching?</p>
+          <p id="still-watching-note" className="muted">
+            Pausing in {Math.max(1, Math.ceil(sleepLeft ?? 0))} s
+          </p>
+          <div className="player-error-actions">
+            <button className="button" autoFocus onClick={() => chooseSleep(extended(sleep, Date.now()))}>
+              +15 min
+            </button>
+            <button className="button quiet" onClick={() => chooseSleep(null)}>
+              Turn off timer
+            </button>
+          </div>
+        </div>
       )}
 
       {skippable && !showUpNext && !error && (
@@ -966,17 +1149,107 @@ export function PlayerPage() {
                     ))}
                   </div>
                 )}
-                {info.audioTracks.length > 1 && (
+                {info.audioTracks.length > 0 && (
                   <div className="player-menu-column">
-                    <h3>Audio</h3>
-                    {info.audioTracks.map((a) => (
-                      <MenuItem key={a.index} selected={a.index === info.selectedAudioIndex} onClick={() => chooseAudio(a.index)}>
-                        {a.label}
-                        <span className="muted"> {[a.codec.toUpperCase(), a.channels && a.channels > 2 ? `${a.channels - 1}.1` : null].filter(Boolean).join(' ')}</span>
-                      </MenuItem>
-                    ))}
+                    {info.audioTracks.length > 1 && (
+                      <>
+                        <h3>Audio</h3>
+                        {info.audioTracks.map((a) => (
+                          <MenuItem key={a.index} selected={a.index === info.selectedAudioIndex} onClick={() => chooseAudio(a.index)}>
+                            {a.label}
+                            <span className="muted"> {[a.codec.toUpperCase(), a.channels && a.channels > 2 ? `${a.channels - 1}.1` : null].filter(Boolean).join(' ')}</span>
+                          </MenuItem>
+                        ))}
+                      </>
+                    )}
+                    {/* Fixes the file for everyone, so it's worth saying so. */}
+                    <h3>Audio sync</h3>
+                    <div className="player-menu-stepper">
+                      <button aria-label="Play the sound earlier" onClick={() => nudgeSound(-0.05)}>
+                        −
+                      </button>
+                      <span aria-live="polite">{syncLabel(audioDelay)}</span>
+                      <button aria-label="Play the sound later" onClick={() => nudgeSound(0.05)}>
+                        +
+                      </button>
+                    </div>
+                    {audioDelay !== 0 && (
+                      <>
+                        <button className="player-menu-item" onClick={() => nudgeSound(0)}>
+                          Reset sync
+                        </button>
+                        {info.item.kind === 'Episode' && (
+                          <button className="player-menu-item" onClick={soundForRestOfSeason}>
+                            Use for the rest of the season
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <p className="player-menu-note muted">For everyone who plays this file.</p>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          <div className="menu-anchor">
+            <button
+              className={speed !== 1 ? 'player-quality active' : 'player-quality'}
+              aria-expanded={menu === 'speed'}
+              aria-label={`Speed: ${speedLabel(speed)}`}
+              onClick={() => setMenu(menu === 'speed' ? null : 'speed')}
+            >
+              {speedLabel(speed)}
+            </button>
+            {menu === 'speed' && (
+              <div className="player-menu" role="menu">
+                <div className="player-menu-column">
+                  <h3>Speed</h3>
+                  {speeds.map((s) => (
+                    <MenuItem key={s} selected={s === speed} onClick={() => chooseSpeed(s)}>
+                      {s === 1 ? 'Normal' : speedLabel(s)}
+                    </MenuItem>
+                  ))}
+                  {info?.item.kind === 'Episode' && <p className="player-menu-note muted">Kept for this show.</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="menu-anchor">
+            <button
+              className={sleep ? 'icon-button player-sleep active' : 'icon-button player-sleep'}
+              aria-expanded={menu === 'sleep'}
+              aria-label={sleepLabel(sleep, clock, sleepWhat)}
+              title={sleepLabel(sleep, clock, sleepWhat)}
+              onClick={() => setMenu(menu === 'sleep' ? null : 'sleep')}
+            >
+              <Moon />
+              {minutesLeft(sleep, clock) !== null && (
+                <span className="player-sleep-count" aria-hidden="true">
+                  {minutesLeft(sleep, clock)}
+                </span>
+              )}
+            </button>
+            {menu === 'sleep' && (
+              <div className="player-menu" role="menu">
+                <div className="player-menu-column">
+                  <h3>Sleep timer</h3>
+                  {sleepChoices(sleepWhat).map((choice) => (
+                    <MenuItem
+                      key={choice.label}
+                      selected={choice.label.startsWith('At the end') ? !!sleep && 'endOfEpisode' in sleep : false}
+                      onClick={() => chooseSleep(choice.start())}
+                    >
+                      {choice.label}
+                    </MenuItem>
+                  ))}
+                  {sleep && (
+                    <button className="player-menu-item" onClick={() => chooseSleep(null)}>
+                      Turn off
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -53,6 +53,9 @@ export function detectProfile(): DeviceProfile {
     // Browsers decode surround but mix down; Dolby-capable browsers (Safari) can take 5.1 untouched.
     maxAudioChannels: dolby ? 6 : 2,
     maxBitrate: 0,
+    // A file whose sound is out of sync: Web Audio can hold the sound back, but nothing in a browser can bring it forward.
+    delaysAudio: typeof AudioContext !== 'undefined',
+    advancesAudio: false,
   }
 }
 
