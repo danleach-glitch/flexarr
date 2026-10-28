@@ -33,6 +33,8 @@ import type {
   Paged,
   Person,
   PlaybackInfo,
+  SubtitleResult,
+  SubtitleSync,
   PlaybackPreferences,
   PlaybackRequest,
   PlaylistDetail,
@@ -700,6 +702,18 @@ export const setAudioDelay = (itemId: string, seconds: number) => request<void>(
 export const setPlaybackSpeed = (itemId: string, speed: number) => request<void>('PUT', `/items/${itemId}/playback-speed`, { speed })
 /** The subtitles the viewer picked in the player (a track's key, or null for off), remembered for the title and its show. */
 export const setSubtitleChoice = (sessionId: string, key: string | null) => request<void>('PUT', `/playback/${sessionId}/subtitle`, { key: key ?? 'off' })
+/** Whether Bazarr is set up for finding subtitles. */
+export const getSubtitleSearchStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/subtitles/status', signal)
+/** Asks Bazarr's providers for subtitles to a title's file (the one playback would choose, without `fileId`). Slow: often 10–60 seconds. */
+export const searchSubtitles = (itemId: string, fileId?: string, signal?: AbortSignal) =>
+  apiGet<{ results: SubtitleResult[] }>(`/items/${itemId}/subtitles/search${fileId ? `?fileId=${fileId}` : ''}`, signal)
+/** Downloads a search result (or, without one, the best match) beside the file; `key` is its track in a new playback session. */
+export const downloadSubtitles = (itemId: string, result: string | undefined, fileId?: string) =>
+  request<{ key: string; label: string }>('POST', `/items/${itemId}/subtitles/download`, { result, fileId })
+/** Starts re-syncing a subtitle file beside the video to its audio, in the background. */
+export const startSubtitleSync = (itemId: string, key: string, fileId?: string) => request<void>('POST', `/items/${itemId}/subtitles/sync`, { key, fileId })
+export const getSubtitleSync = (itemId: string, fileId?: string, signal?: AbortSignal) =>
+  apiGet<SubtitleSync>(`/items/${itemId}/subtitles/sync${fileId ? `?fileId=${fileId}` : ''}`, signal)
 export const reportProgress = (sessionId: string, positionSeconds: number, paused: boolean, ended = false) =>
   request<void>('POST', `/playback/${sessionId}/progress`, { positionSeconds, paused, ended })
 

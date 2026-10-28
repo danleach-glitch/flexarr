@@ -373,6 +373,8 @@ export interface SubtitleTrack {
   isDefault: boolean
   isText: boolean
   url: string | null
+  /** A subtitle file beside the video (which Bazarr can re-sync), not one inside it. Absent from servers before 0.53. */
+  isExternal?: boolean
 }
 
 export interface Marker {
@@ -411,6 +413,33 @@ export interface PlaybackInfo {
   audioDelayInStream?: boolean
   /** The speed this profile watches the show at; absent or null for 1×. */
   speed?: number | null
+  /** Bazarr can find subtitles for this (and re-sync files beside it). Absent from servers before 0.53. */
+  canSearchSubtitles?: boolean
+}
+
+/** A subtitle a provider offers, through Bazarr, best match first. */
+export interface SubtitleResult {
+  /** Passed back to download it. */
+  id: string
+  provider: string
+  language: string
+  languageLabel: string
+  /** The release it was made for, as the provider names it. */
+  release: string
+  hearingImpaired: boolean
+  forced: boolean
+  /** Out of 100. */
+  score: number
+  /** Made for this exact file (matched by hash), so it should be in sync. */
+  matchesFile: boolean
+  uploader: string | null
+}
+
+/** A background re-sync of a file's subtitle: `none` when there's been none since the server started. */
+export interface SubtitleSync {
+  state: 'running' | 'done' | 'failed' | 'none'
+  key: string | null
+  error: string | null
 }
 
 export interface TranscodingSettings {
@@ -461,6 +490,8 @@ export interface Settings {
   } | null
   /** The server's name on the network, put in place of localhost in links to apps; none in a container. */
   hostName?: string | null
+  /** Bazarr, for finding subtitles; the API key is never sent back. */
+  bazarr?: { baseUrl: string; hasApiKey: boolean } | null
 }
 
 export interface SettingsUpdate {
@@ -475,6 +506,8 @@ export interface SettingsUpdate {
   liveTv?: LiveTvSettingsUpdate
   /** An empty key removes it. */
   tmdb?: { apiKey: string }
+  /** An empty address removes Bazarr; an omitted key keeps the saved one (for the same server). */
+  bazarr?: { baseUrl: string; apiKey?: string }
 }
 
 export interface ArrStatus {

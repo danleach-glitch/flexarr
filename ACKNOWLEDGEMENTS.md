@@ -9,8 +9,9 @@ Flexarr was built to sit alongside these apps, and follows their conventions so 
 - [Sonarr](https://sonarr.tv), [Radarr](https://radarr.video) and [Lidarr](https://lidarr.audio): TV, films and music, and most of Flexarr's metadata
 - [Seerr](https://github.com/seerr-team/seerr): requests and Discover
 - [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr): Live TV
+- [Bazarr](https://www.bazarr.media): finding and re-syncing subtitles
 
-Flexarr isn't affiliated with or endorsed by any of them. The web app shows each app's logo, taken from its own repository: Sonarr's, Radarr's and Lidarr's under the GPL-3.0, Seerr's under the MIT licence, and Dispatcharr's from its web app. The names and logos belong to their projects.
+Flexarr isn't affiliated with or endorsed by any of them. The web app shows each app's logo, taken from its own repository: Sonarr's, Radarr's, Lidarr's and Bazarr's under the GPL-3.0, Seerr's under the MIT licence, and Dispatcharr's from its web app. The names and logos belong to their projects.
 
 ## Server
 
