@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
+  getArrFolders,
   getArrStatus,
   getLiveTvStatus,
   getRequestStatus,
@@ -8,6 +9,7 @@ import {
   rotateWebhookSecret,
   testArr,
   testLiveTv,
+  type ArrFolder,
   type ArrKind,
   type ArrStatus,
   type LiveTvSettingsUpdate,
@@ -18,6 +20,7 @@ import { AsyncButton, IconButton } from '../../components/AsyncButton'
 import { Check, Pencil, Refresh, Trash } from '../../components/icons'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
+import { FolderPicker } from '../../components/FolderPicker'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
@@ -35,8 +38,8 @@ interface DraftConnection {
 type Save = ReturnType<typeof useSettings>['save']
 
 /**
- * Sonarr, Radarr and Lidarr, then Seerr and Dispatcharr (Live TV): a line each saying how it is, opened to change it. Below them, path mappings
- * and the webhook addresses the apps call when something new arrives.
+ * Sonarr, Radarr and Lidarr, then Seerr and Dispatcharr (Live TV): a line each saying how it is, opened to change it. Below them, where the
+ * apps' media folders are on this server, and the webhook addresses the apps call when something new arrives.
  */
 export function ConnectionsSection() {
   const { settings, save, saved, saveError, waiting } = useSettings()
@@ -44,6 +47,7 @@ export function ConnectionsSection() {
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
   const liveStatus = useApi((signal) => (settings ? getLiveTvStatus(signal) : Promise.resolve(undefined)), [settings])
+  const folders = useApi((signal) => (settings?.arr.length ? getArrFolders(signal) : Promise.resolve(undefined)), [settings])
   // While the channels and guide come in (after a save, or Refresh), keep asking how it's going.
   usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
   // Which one is open: an index into the list, 'new' for one being added, 'seerr' or 'livetv'.
@@ -87,6 +91,7 @@ export function ConnectionsSection() {
               key={`${a.name}-${i}`}
               connection={{ ...a, apiKey: '' }}
               live={status.data?.find((s) => s.name === a.name)}
+              unfound={folders.data?.filter((f) => f.app === a.name && (f.state === 'Suggested' || f.state === 'Missing')).map((f) => f.path)}
               open={open === i}
               onOpen={() => setOpen(i)}
               onClose={() => setOpen(undefined)}
@@ -143,7 +148,7 @@ export function ConnectionsSection() {
           />
         </SettingsGroup>
 
-        <PathMappings mappings={settings.pathMappings} save={save} />
+        <MediaFolders folders={folders.data} hasApps={settings.arr.length > 0} mappings={settings.pathMappings} save={save} />
         <Webhooks secret={settings.webhookSecret} />
       </section>
     </ServerName>
@@ -154,11 +159,30 @@ export function ConnectionsSection() {
 const ServerName = createContext<string | null | undefined>(undefined)
 
 /** A connection's line: whether it's reachable, its version, a link to it beside its name, and Edit, which opens the form under it. */
-function ConnectionLine({ kind, name, ok, status, baseUrl, open, onOpen }: { kind: keyof typeof appLogos; name: string; ok?: boolean; status: ReactNode; baseUrl: string; open: boolean; onOpen: () => void }) {
+function ConnectionLine({
+  kind,
+  name,
+  ok,
+  status,
+  warning,
+  baseUrl,
+  open,
+  onOpen,
+}: {
+  kind: keyof typeof appLogos
+  name: string
+  ok?: boolean
+  status: ReactNode
+  /** Something to see to though it's connected: shown under the status, with an amber dot. */
+  warning?: ReactNode
+  baseUrl: string
+  open: boolean
+  onOpen: () => void
+}) {
   const host = useContext(ServerName)
   return (
     <div className="connection-line">
-      <span className={ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
+      <span className={ok && warning ? 'status-dot warn' : ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
       <img className="app-logo" src={appLogos[kind]} alt="" />
       <span className="setting-text">
         <strong className="connection-name">
@@ -166,6 +190,7 @@ function ConnectionLine({ kind, name, ok, status, baseUrl, open, onOpen }: { kin
           {baseUrl && <OpenApp baseUrl={baseUrl} name={name} host={host} />}
         </strong>
         <span className="muted">{status}</span>
+        {warning && <span className="connection-warning">{warning}</span>}
       </span>
       <span className="connection-actions">
         {!open && (
@@ -179,6 +204,7 @@ function ConnectionLine({ kind, name, ok, status, baseUrl, open, onOpen }: { kin
 function ArrRow({
   connection,
   live,
+  unfound,
   isNew,
   open,
   onOpen,
@@ -188,6 +214,8 @@ function ArrRow({
 }: {
   connection: DraftConnection
   live?: ArrStatus
+  /** Its root folders that aren't at the same path here and have no mapping. */
+  unfound?: string[]
   isNew?: boolean
   open: boolean
   onOpen: () => void
@@ -218,7 +246,29 @@ function ArrRow({
   const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · version ${shown.version}` : shown ? shown.error : isNew ? 'New connection' : 'Checking…'
   return (
     <div className="connection">
-      <ConnectionLine kind={draft.kind} name={draft.name || draft.kind} ok={shown?.ok} status={statusText} baseUrl={isNew ? '' : connection.baseUrl} open={open} onOpen={onOpen} />
+      <ConnectionLine
+        kind={draft.kind}
+        name={draft.name || draft.kind}
+        ok={shown?.ok}
+        status={statusText}
+        warning={
+          unfound?.length ? (
+            <>
+              {unfound.length === 1 ? (
+                <>
+                  Its <code>{unfound[0]}</code> folder isn’t at that path on this server.
+                </>
+              ) : (
+                `${unfound.length} of its folders aren’t at those paths on this server.`
+              )}{' '}
+              <a href="#media-folders">Find {unfound.length === 1 ? 'it' : 'them'}</a>
+            </>
+          ) : undefined
+        }
+        baseUrl={isNew ? '' : connection.baseUrl}
+        open={open}
+        onOpen={onOpen}
+      />
       {open && (
         <form className="connection-form" onSubmit={submit} aria-label={isNew ? 'New connection' : `Edit ${connection.name}`}>
           <div className="field-row">
@@ -471,14 +521,114 @@ function testSummary(t: LiveTvTest) {
   return parts.join(' · ')
 }
 
-/** Where Docker'd apps see the media, against where this server does. Saved together, once changed. */
-function PathMappings({ mappings: saved, save }: { mappings: Settings['pathMappings']; save: Save }) {
+/**
+ * Where Sonarr, Radarr and Lidarr's root folders are on this server, one line each. In Docker the apps see the media
+ * under other paths; the server works out where from titles both sides have, and saves it itself when enough agree.
+ * What it can't be sure of is a suggestion to take, or a folder to choose. Mappings can still be written by hand below
+ * (Plex's paths, for an import, go through them too).
+ */
+function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolder[]; hasApps: boolean; mappings: Settings['pathMappings']; save: Save }) {
+  const [choosing, setChoosing] = useState<string>()
+
+  /** Saves a mapping for one folder, in place of any from the same path. */
+  const map = (from: string, to: string) => save({ pathMappings: [...mappings.filter((m) => m.from !== from), { from, to }] }, 'Mapping saved')
+
+  return (
+    <div id="media-folders">
+      <SettingsGroup
+        title="Media folders"
+        note={
+          hasApps
+            ? 'Sonarr, Radarr and Lidarr say where they keep media. In Docker they can see it under other paths than this server does, and Flexarr works out where when it can.'
+            : 'Only needed when another app (Plex, for an import) sees your media under other paths, as it does in Docker.'
+        }
+      >
+        {folders?.map((f) => (
+          <div key={`${f.app}:${f.path}`} className="connection">
+            <div className="connection-line">
+              <span className={f.state === 'Found' || f.state === 'Mapped' ? 'status-dot ok' : 'status-dot warn'} aria-hidden="true" />
+              <img className="app-logo" src={appLogos[f.kind]} alt="" />
+              <span className="setting-text">
+                <strong>
+                  <code>{f.path}</code> <span className="muted">in {f.app}</span>
+                </strong>
+                <span className="muted">
+                  <FolderState folder={f} />
+                </span>
+              </span>
+              <span className="connection-actions">
+                {f.state === 'Suggested' && f.suggested && (
+                  <AsyncButton className="button small" onClick={() => map(f.suggested!.from, f.suggested!.to)}>
+                    Use this
+                  </AsyncButton>
+                )}
+                {f.state !== 'Found' && (
+                  <button type="button" className="button quiet small" onClick={() => setChoosing(choosing === f.path ? undefined : f.path)}>
+                    {f.state === 'Mapped' ? 'Change' : f.state === 'Suggested' ? 'Choose another' : 'Choose folder'}
+                  </button>
+                )}
+              </span>
+            </div>
+            {choosing === f.path && (
+              <div className="connection-form">
+                <p className="muted">
+                  Where is {f.app}’s <code>{f.path}</code> on this server?
+                </p>
+                <FolderPicker onPick={(to) => void map(f.path, to).then((ok) => ok && setChoosing(undefined))} />
+                <button type="button" className="text-button" onClick={() => setChoosing(undefined)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+        <SavedMappings key={JSON.stringify(mappings)} mappings={mappings} save={save} />
+      </SettingsGroup>
+    </div>
+  )
+}
+
+/** Where one of an app's folders is here, or what says where it might be. */
+function FolderState({ folder: f }: { folder: ArrFolder }) {
+  switch (f.state) {
+    case 'Found':
+      return <>At the same path on this server</>
+    case 'Mapped':
+      return (
+        <>
+          On this server at <code>{f.local}</code>
+        </>
+      )
+    case 'Suggested':
+      return (
+        <>
+          Not at that path here.{' '}
+          {f.agreeing > 0 ? `${titlesAgreeing(f.agreeing, f.compared)} at ` : 'Perhaps '}
+          <code>{f.suggested?.to}</code>
+          {f.agreeing === 0 && ', which has the same name'}
+        </>
+      )
+    default:
+      return <>Not at that path here, and no titles say where it is. Choose the folder it is on this server.</>
+  }
+}
+
+const titlesAgreeing = (agreeing: number, compared: number) =>
+  agreeing < compared
+    ? `${agreeing.toLocaleString()} of the ${compared.toLocaleString()} titles you have in both put it`
+    : compared === 1
+      ? 'The one title you have in both puts it'
+      : `${compared === 2 ? 'Both' : `All ${compared.toLocaleString()}`} titles you have in both put it`
+
+/** The mappings saved (worked out, taken from a suggestion, or written by hand), which can be changed. Saved together, once changed. */
+function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMappings']; save: Save }) {
   const [mappings, setMappings] = useState(saved)
   const changed = JSON.stringify(mappings) !== JSON.stringify(saved)
   const set = (i: number, change: Partial<Settings['pathMappings'][number]>) => setMappings(mappings.map((x, j) => (j === i ? { ...x, ...change } : x)))
 
   return (
-    <SettingsGroup title="Path mappings" note="Only needed when Sonarr, Radarr or Lidarr see your media under other paths, as they do in Docker.">
+    <div className="saved-mappings">
+      {mappings.length > 0 && <h4 className="settings-minor-head">Saved mappings</h4>}
       {mappings.map((m, i) => (
         <div key={i} className="field-row mapping">
           <label className="grow">
@@ -494,7 +644,7 @@ function PathMappings({ mappings: saved, save }: { mappings: Settings['pathMappi
       ))}
       <div className="form-actions">
         <button type="button" className="button quiet small form-actions-start" onClick={() => setMappings([...mappings, { from: '', to: '' }])}>
-          Add a mapping
+          Add a mapping by hand
         </button>
         {changed && (
           <>
@@ -507,7 +657,7 @@ function PathMappings({ mappings: saved, save }: { mappings: Settings['pathMappi
           </>
         )}
       </div>
-    </SettingsGroup>
+    </div>
   )
 }
 

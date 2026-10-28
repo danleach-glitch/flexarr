@@ -476,6 +476,36 @@
   background: var(--danger);
 }
 
+/* Connected, but something to see to (a media folder that isn't found here). */
+.status-dot.warn {
+  background: #e8b45a;
+}
+
+.connection-warning {
+  color: #e8b45a;
+  font-size: 0.92rem;
+}
+
+.connection-warning a {
+  color: inherit;
+}
+
+/* Under a media folder: the mappings saved, which can be edited by hand. */
+.saved-mappings {
+  padding: 14px 0;
+}
+
+.connection + .saved-mappings {
+  border-top: 1px solid var(--aisle);
+}
+
+.settings-minor-head {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--usher);
+}
+
 .mapping {
   align-items: flex-end;
   margin-top: 12px;

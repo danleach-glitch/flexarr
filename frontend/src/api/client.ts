@@ -8,6 +8,7 @@ import type {
   Recording,
   Recordings,
   RecordingSeries,
+  ArrFolder,
   ArrStatus,
   DirectoryListing,
   DirectoryPodcast,
@@ -714,6 +715,8 @@ export const rotateApiKey = (confirmation: KeyConfirmation & { signOutOthers?: b
 /** Replaces the secret in the webhook addresses; Sonarr, Radarr and Lidarr need the new ones. */
 export const rotateWebhookSecret = () => request<{ webhookSecret: string }>('POST', '/settings/webhook-secret/rotate', {})
 export const getArrStatus = (signal?: AbortSignal) => apiGet<ArrStatus[]>('/arr/status', signal)
+/** Where each app's root folders are on this server, with a mapping for any that aren't found. */
+export const getArrFolders = (signal?: AbortSignal) => apiGet<ArrFolder[]>('/arr/folders', signal)
 export const testArr = (connection: { name: string; kind: string; baseUrl: string; apiKey?: string }) =>
   request<ArrStatus>('POST', '/arr/test', connection)
 export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/activity', signal)

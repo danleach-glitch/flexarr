@@ -465,6 +465,24 @@ export interface ArrStatus {
   error: string | null
 }
 
+/** One of an app's root folders, and where Flexarr finds it. */
+export interface ArrFolder {
+  app: string
+  kind: ArrKind
+  /** As the app sees it. */
+  path: string
+  /** Found: here at the same path. Mapped: a saved mapping leads here. Suggested: not here, but its titles say where. */
+  state: 'Found' | 'Mapped' | 'Suggested' | 'Missing'
+  /** Where it is here, when found or mapped. */
+  local: string | null
+  suggested: { from: string; to: string } | null
+  /** How many titles the suggestion explains, of how many were compared (0 when it's only a folder of the same name). */
+  agreeing: number
+  compared: number
+  /** Enough titles agree for the server to save it unasked. */
+  certain: boolean
+}
+
 export interface Activity {
   scan: ScanStatus | null
   episodesAnalysed: number
