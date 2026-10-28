@@ -99,5 +99,22 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
         var listing = await Client().GetFromJsonAsync<DirectoryListingDto>(new Uri($"/api/v1/filesystem?path={Uri.EscapeDataString(folder)}", UriKind.Relative), Json);
 
         Assert.Equal(["Child"], listing!.Directories.Select(d => d.Name));
+        Assert.False(listing.ChooseOnMac);
+    }
+
+    [Fact]
+    public async Task ChooseFolder_OutsideTheMacApp_IsNotFound()
+    {
+        var response = await Client().PostAsync(new Uri("/api/v1/filesystem/choose", UriKind.Relative), null, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MacApp_OutsideTheMacApp_IsNotFound()
+    {
+        var response = await Client().GetAsync(new Uri("/api/v1/mac-app", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }

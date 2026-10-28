@@ -317,6 +317,17 @@
   font-weight: 400;
 }
 
+.folder-picker-mac {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 12px;
+}
+
+.folder-picker-mac p {
+  margin: 0;
+}
+
 .folder-picker-bar {
   display: flex;
   justify-content: space-between;

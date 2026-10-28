@@ -396,6 +396,21 @@ describe('Settings', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
   })
 
+  it('chooses library folders in the Mac folder window when the server runs in the Mac app', async () => {
+    mockApi({
+      '/libraries': [],
+      '/filesystem': { path: '/Volumes', parent: '/', directories: [], chooseOnMac: true },
+      'POST /filesystem/choose': { path: '/Volumes/Media/Films' },
+    })
+
+    renderAt('/settings/libraries')
+    fireEvent.click(await screen.findByRole('button', { name: 'Add library' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Choose a folder on the Mac/ }))
+
+    expect(await screen.findByText('/Volumes/Media/Films')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use this folder' })).not.toBeInTheDocument()
+  })
+
   it('renames a library in place, keeping its folders', async () => {
     let library = { ...movies, scan: null }
     const sent: unknown[] = []
@@ -586,6 +601,29 @@ describe('Settings', () => {
     expect(await screen.findByText('Not available in Docker')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Watch away from home' })).toHaveAttribute('href', 'https://flexarr.io/guide/away-from-home')
     expect(screen.queryByText(/Install Tailscale on the server/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument()
+  })
+
+  it('in the Mac app, explains Tailscale and shows the Mac’s tailnet address instead of Turn on', async () => {
+    mockApi({
+      '/remote': {
+        yourConnection: 'Local',
+        yourTailscaleLogin: null,
+        tailscale: { installed: true, running: false, dnsName: null, ownerLogin: null, privateAccess: false, publicAccess: false, people: [], problem: 'Operation not permitted', url: null },
+        links: [],
+        cloudflareTunnelRunning: false,
+        mainProfileHasPin: false,
+        inContainer: false,
+        inMacApp: true,
+        tailnetAddress: 'http://100.64.1.2:8383',
+      },
+    })
+
+    renderAt('/settings/access')
+
+    expect(await screen.findByText('This Mac is on your tailnet')).toBeInTheDocument()
+    expect(screen.getByText('http://100.64.1.2:8383')).toBeInTheDocument()
+    expect(screen.queryByText('Operation not permitted')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument()
   })
 

@@ -144,6 +144,8 @@ builder.Services.AddHttpClient(UpdateChecker.DownloadClientName, c =>
     c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr (+https://github.com/danleach-glitch/flexarr)");
 });
 builder.Services.AddSingleton<IInstallEnvironment, InstallEnvironment>();
+builder.Services.AddSingleton<MacAppHost>();
+builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, MacAppTranscoding>();
 builder.Services.AddSingleton<UpdateChecker>();
 builder.Services.AddSingleton<RuntimeInstaller>();
 builder.Services.AddSingleton<MacUpdater>();

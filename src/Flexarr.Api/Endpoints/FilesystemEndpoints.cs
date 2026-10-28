@@ -4,7 +4,14 @@ namespace Flexarr.Api.Endpoints;
 
 public sealed record DirectoryDto(string Name, string Path);
 
-public sealed record DirectoryListingDto(string Path, string? Parent, IReadOnlyList<DirectoryDto> Directories);
+/// <param name="ChooseOnMac">The server runs in the Mac app, which can only read folders chosen in macOS's folder window.</param>
+public sealed record DirectoryListingDto(string Path, string? Parent, IReadOnlyList<DirectoryDto> Directories, bool ChooseOnMac = false);
+
+public sealed record ChosenFolderDto(string Path);
+
+public sealed record MacAppDto(StartAtLogin StartAtLogin);
+
+public sealed record StartAtLoginRequest(bool Enabled);
 
 public static class FilesystemEndpoints
 {
@@ -17,7 +24,7 @@ public static class FilesystemEndpoints
     /// <summary>Folder browser for choosing library folders, like the *arr root-folder picker.</summary>
     public static RouteGroupBuilder MapFilesystemEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/filesystem", (string? path) =>
+        api.MapGet("/filesystem", (string? path, MacAppHost mac) =>
         {
             var dir = string.IsNullOrWhiteSpace(path) ? DefaultRoot() : Path.GetFullPath(path);
             if (!Directory.Exists(dir))
@@ -29,8 +36,28 @@ public static class FilesystemEndpoints
                 .Select(d => new DirectoryDto(Path.GetFileName(d), d))
                 .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            return Results.Ok(new DirectoryListingDto(dir, Path.GetDirectoryName(dir), directories));
+            return Results.Ok(new DirectoryListingDto(dir, Path.GetDirectoryName(dir), directories, mac.IsAvailable));
         }).WithTags("Filesystem").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // In the Mac app: opens macOS's folder window on the Mac and waits for a folder, which the server can then read.
+        api.MapPost("/filesystem/choose", async (string? start, MacAppHost mac, CancellationToken cancellationToken) =>
+        {
+            if (!mac.IsAvailable)
+            {
+                return Results.NotFound();
+            }
+
+            return await mac.ChooseFolderAsync(start, cancellationToken) is { } path ? Results.Ok(new ChosenFolderDto(path)) : Results.NoContent();
+        }).WithTags("Filesystem").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // In the Mac app: what the app itself does, which the web app's settings show.
+        api.MapGet("/mac-app", async (MacAppHost mac, CancellationToken cancellationToken) =>
+            mac.IsAvailable ? Results.Ok(new MacAppDto(await mac.StartAtLoginAsync(null, cancellationToken))) : Results.NotFound())
+            .WithTags("Mac app").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        api.MapPut("/mac-app/start-at-login", async (StartAtLoginRequest request, MacAppHost mac, CancellationToken cancellationToken) =>
+            mac.IsAvailable ? Results.Ok(new MacAppDto(await mac.StartAtLoginAsync(request.Enabled, cancellationToken))) : Results.NotFound())
+            .WithTags("Mac app").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }

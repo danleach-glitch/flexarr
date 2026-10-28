@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 12 40 42" width="17" height="18">
+  <!-- The Flexarr mark (frontend/public/logo-mark.svg), its bars outlined in one colour: macOS tints it to suit the
+       menu bar. A stroke of 2.8 here is about 1.2 points at menu bar size. -->
+  <g fill="none" stroke="#000" stroke-width="2.8">
+    <rect x="15.4" y="16.4" width="33.2" height="7.2" rx="3.6" transform="rotate(-5 14 20)"/>
+    <rect x="15.4" y="29.9" width="27.2" height="7.2" rx="3.6"/>
+    <rect x="15.4" y="43.4" width="20.2" height="7.2" rx="3.6"/>
+  </g>
+</svg>

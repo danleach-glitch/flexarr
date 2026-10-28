@@ -723,6 +723,16 @@ export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/a
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
   apiGet<DirectoryListing>(`/filesystem${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
+/** What the Mac app does itself. Only there: elsewhere the server answers 404. */
+export interface MacApp {
+  /** NeedsApproval: turned on, but macOS waits for it to be allowed in System Settings › General › Login Items. */
+  startAtLogin: 'On' | 'Off' | 'NeedsApproval'
+}
+export const getMacApp = (signal?: AbortSignal) => apiGet<MacApp>('/mac-app', signal)
+export const setStartAtLogin = (enabled: boolean) => request<MacApp>('PUT', '/mac-app/start-at-login', { enabled })
+/** In the Mac app: opens macOS's folder window on the Mac, in `start` if given (~ is home). Undefined when cancelled. */
+export const chooseFolderOnMac = (start?: string) =>
+  request<{ path: string } | undefined>('POST', `/filesystem/choose${start ? `?start=${encodeURIComponent(start)}` : ''}`)
 
 /** Artwork URLs from the API with a width hint for the image cache. */
 export function imageUrl(url: string | null | undefined, width: number): string | undefined {
@@ -838,7 +848,7 @@ export const forgetBackupFile = (id: string) => request<void>('DELETE', `/backup
 // ---------- Updates
 
 /** How the server was installed: a Mac install updates itself; Docker and the rest are updated by hand. */
-export type InstallKind = 'MacLaunchAgent' | 'Docker' | 'Other'
+export type InstallKind = 'MacLaunchAgent' | 'Docker' | 'MacApp' | 'Other'
 export type UpdateStage = 'Idle' | 'Downloading' | 'Installing'
 export interface Updates {
   version: string
@@ -1133,6 +1143,10 @@ export interface RemoteAccess {
   mainProfileHasPin: boolean
   /** Flexarr runs in a container (Docker), which can't reach the host's Tailscale. */
   inContainer: boolean
+  /** The Mac app, whose sandbox can't run the tailscale command. */
+  inMacApp?: boolean
+  /** In the Mac app: this Mac's address on a tailnet, if it's on one. */
+  tailnetAddress?: string | null
 }
 
 export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)

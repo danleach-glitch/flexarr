@@ -1,4 +1,7 @@
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +15,11 @@ public sealed record RemoteAccessDto(
     IReadOnlyList<TailnetLinkDto> Links,
     bool CloudflareTunnelRunning,
     bool MainProfileHasPin,
-    bool InContainer);
+    bool InContainer,
+    // The Mac app's sandbox can't run the tailscale command, so the page explains instead of offering Turn on.
+    bool InMacApp = false,
+    // There, the address this Mac has on a tailnet, if it's on one: plain HTTP on the server's own port.
+    string? TailnetAddress = null);
 
 public sealed record TailnetLinkDto(string Login, string Name, string? ProfileId);
 
@@ -90,6 +97,7 @@ public static class RemoteAccessEndpoints
     private static async Task<RemoteAccessDto> DescribeAsync(HttpContext http, TailscaleService tailscale, FlexarrDbContext db, CancellationToken ct)
     {
         var port = http.Connection.LocalPort > 0 ? http.Connection.LocalPort : 8383;
+        var macApp = http.RequestServices.GetRequiredService<IInstallEnvironment>().Kind == InstallKind.MacApp;
         var state = await tailscale.StateAsync(port, ct);
         var linked = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin != null).ToDictionaryAsync(p => p.TailscaleLogin!, p => p.Id, ct);
         var links = state.People.Select(p => new TailnetLinkDto(p.Login, p.Name, linked.GetValueOrDefault(p.Login))).ToList();
@@ -102,7 +110,27 @@ public static class RemoteAccessEndpoints
             CloudflareRunning(),
             mainPin,
             // A container can't see the host's tailscale command, so Turn on can't work there: the page says so.
-            Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true");
+            Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true",
+            macApp,
+            macApp && TailnetIp() is { } ip ? $"http://{ip}:{port}" : null);
+    }
+
+    /// <summary>This computer's address in Tailscale's range (100.64.0.0/10), read from its network interfaces.</summary>
+    private static string? TailnetIp()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.OperationalStatus == OperationalStatus.Up)
+                .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                .Select(a => a.Address)
+                .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork && a.GetAddressBytes() is [100, var b, ..] && b is >= 64 and < 128)
+                ?.ToString();
+        }
+        catch (NetworkInformationException)
+        {
+            return null;
+        }
     }
 
     private static bool CloudflareRunning()

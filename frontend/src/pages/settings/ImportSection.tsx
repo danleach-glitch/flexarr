@@ -1,8 +1,28 @@
 import { useState } from 'react'
-import { ApiError, getPlexSource, importPlexAvatars, type PlexAvatarResult, getProfiles, importFromPlex, type PlexImportResult } from '../../api/client'
+import {
+  ApiError,
+  browseFilesystem,
+  chooseFolderOnMac,
+  getPlexSource,
+  importPlexAvatars,
+  type PlexAvatarResult,
+  getProfiles,
+  importFromPlex,
+  type PlexImportResult,
+} from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { SettingsHeader } from './shared'
+
+const database = 'com.plexapp.plugins.library.db'
+
+/** Plex's database inside a folder chosen on the Mac: Plex Media Server's own folder, or anywhere down to Databases. */
+function databaseIn(folder: string) {
+  const below = ['Plex Media Server', 'Plug-in Support', 'Databases']
+  const last = folder.replace(/\/+$/, '').split('/').pop() ?? ''
+  const at = below.indexOf(last)
+  return [folder.replace(/\/+$/, ''), ...below.slice(at === -1 ? 1 : at + 1), database].join('/')
+}
 
 export function ImportSection() {
   const profiles = useApi(getProfiles, [])
@@ -15,6 +35,15 @@ export function ImportSection() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const chosen = account ?? source.data?.accounts[0]?.id
+  // In the Mac app, the server can only read Plex's folder once it's been chosen in macOS's folder window.
+  const onMac = useApi((signal) => browseFilesystem(undefined, signal), []).data?.chooseOnMac === true
+
+  async function chooseOnMac() {
+    const picked = await chooseFolderOnMac('~/Library/Application Support/Plex Media Server')
+    if (!picked) return
+    setPath(databaseIn(picked.path))
+    setLookup((n) => n + 1)
+  }
 
   async function run() {
     if (chosen === undefined) return
@@ -37,7 +66,20 @@ export function ImportSection() {
       </SettingsHeader>
       <div className="panel">
         {source.loading && <p className="muted">Looking for Plex…</p>}
-        {source.data && !source.data.found && (
+        {source.data && !source.data.found && onMac && (
+          <div className="field">
+            <span className="field-label">
+              Choose Plex’s folder: <code>Plex Media Server</code>, in your Library’s Application Support folder. Flexarr opens it in a window on the Mac.
+            </span>
+            {source.error && <p className="error">{source.error.message}</p>}
+            <div className="form-actions">
+              <AsyncButton className="button small" onClick={chooseOnMac}>
+                Choose Plex’s folder on the Mac…
+              </AsyncButton>
+            </div>
+          </div>
+        )}
+        {source.data && !source.data.found && !onMac && (
           <form
             className="field"
             onSubmit={(e) => {
@@ -105,7 +147,8 @@ export function ImportSection() {
           </>
         )}
       </div>
-      {source.data?.found && <PlexPictures path={source.data.path ?? undefined} />}
+      {/* Plex's sign-in, which the pictures need, is out of the Mac app's reach. */}
+      {source.data?.found && !onMac && <PlexPictures path={source.data.path ?? undefined} />}
     </section>
   )
 }

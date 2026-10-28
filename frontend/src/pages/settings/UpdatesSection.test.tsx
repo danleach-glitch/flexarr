@@ -74,6 +74,14 @@ describe('Settings › Updates', () => {
     expect(screen.queryByRole('switch', { name: /Install updates automatically/ })).not.toBeInTheDocument()
   })
 
+  it('in the Mac app, sends you to the App Store, and offers no install', async () => {
+    open({ '/updates': updates({ install: 'MacApp', canInstall: false }) })
+
+    expect(await screen.findByText(/open the App Store/)).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /Install updates automatically/ })).not.toBeInTheDocument()
+  })
+
   it('a development build shows the latest release but is never offered it', async () => {
     open({ '/updates': updates({ version: '0.51.0-dev.1a2b3c4d', isDevelopment: true, available: false, canInstall: false }) })
 
