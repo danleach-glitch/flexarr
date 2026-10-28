@@ -26,6 +26,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 
 ### iPhone and Apple TV
+- The app's sign-in and notification key stay on the device they were made on. Restoring a backup to a new iPhone or iPad asks you to connect it again, so the old and new devices don't share one sign-in.
 - Where you got to in a film or episode is saved even when you leave the app straight after stopping.
 - Signing out of the iPhone app sends anything watched offline that hadn't reached the server yet before the downloads are removed.
 - On iPhone, tapping an episode in Home's **New podcasts** opens it (its notes, Play and download) instead of playing it straight away.
