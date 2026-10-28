@@ -5,6 +5,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- A live TV channel whose stream stopped while nobody was watching starts afresh for the next viewer, instead of opening frozen.
+- Big library scans finish sooner and use less memory once the files have been read and the details are being fetched.
 - Download progress shows for everything Sonarr and Radarr are fetching, not just the first 200.
 - Episodes in **Coming soon** that Sonarr gives only a date for now show on the right day wherever you are.
 - Finding intros and credits carries on when one file can't be read, such as one on a network share that stopped answering, instead of stopping for good.

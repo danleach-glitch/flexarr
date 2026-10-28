@@ -165,6 +165,11 @@ public sealed partial class LibraryScanWorker(
                 result.Unmatched, result.ProbeFailures, seconds);
         }
 
+        // The scans have saved everything. Their files and streams stay tracked otherwise, and every save of the refresh
+        // below would check them all again: minutes, and hundreds of MB, on a big library. The libraries are only read
+        // from here on.
+        db.ChangeTracker.Clear();
+
         // A whole library was scanned (at startup, twice a day, after the connections change): first save any mapping its
         // titles make certain, so the refresh below can link them to Sonarr, Radarr or Lidarr.
         if (targets.Any(t => t.Library.Folders.Any(f => PathComparison.IsUnder(f.Path, t.Scope))))

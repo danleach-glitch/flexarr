@@ -86,4 +86,28 @@ public class MasterPlaylistTests
         Assert.DoesNotContain("TYPE=AUDIO", plainPlaylist, StringComparison.Ordinal);
         Assert.DoesNotContain("CLOSED-CAPTIONS", plainPlaylist, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Music_SaysItHasNoVideo()
+    {
+        var cache = Directory.CreateTempSubdirectory("flexarr-master-").FullName;
+        try
+        {
+            var audio = new TranscodePlan(-1, 0, 0, 0, 0, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null);
+            await using var track = new TranscodeSession("music", "/in.flac", 240, audio, new TranscodeSettings { CacheDirectory = cache }, NullLogger.Instance);
+            var playlist = PlaybackService.MasterPlaylist(new PlaybackSession
+            {
+                Id = "music", ItemId = Guid.NewGuid(), ProfileId = "main", FileId = Guid.NewGuid(), FilePath = "/in.flac", Container = "flac",
+                DurationSeconds = 240, Method = PlaybackMethod.Transcode, CreditsStart = null, Transcode = track, Subtitles = [],
+            }, includeSubtitles: false);
+
+            Assert.Contains("CODECS=\"mp4a.40.2\"", playlist, StringComparison.Ordinal);
+            Assert.DoesNotContain("avc1", playlist, StringComparison.Ordinal);
+            Assert.DoesNotContain("RESOLUTION", playlist, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(cache, recursive: true);
+        }
+    }
 }
