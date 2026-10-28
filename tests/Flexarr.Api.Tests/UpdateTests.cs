@@ -171,7 +171,7 @@ public class UpdateTests
     }
 
     [Fact]
-    public async Task UpdateSettings_AreSaved_AndAutomaticNeedsTheDailyCheck()
+    public async Task AutomaticUpdates_AreOffToBeginWith_AndSaved()
     {
         using var factory = new FlexarrApiFactory();
         using var server = Serve(factory, new FakeGitHub("v0.0.1"), InstallKind.MacLaunchAgent);
@@ -179,13 +179,11 @@ public class UpdateTests
 
         var before = await client.GetFromJsonAsync<JsonElement>(Api("/updates"));
         var on = await (await client.PutAsJsonAsync(Api("/updates/settings"), new { automatic = true })).Content.ReadFromJsonAsync<JsonElement>();
-        var off = await (await client.PutAsJsonAsync(Api("/updates/settings"), new { checkDaily = false })).Content.ReadFromJsonAsync<JsonElement>();
+        var off = await (await client.PutAsJsonAsync(Api("/updates/settings"), new { automatic = false })).Content.ReadFromJsonAsync<JsonElement>();
         var config = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, "config.json"))).RootElement;
 
-        Assert.True(before.GetProperty("checkDaily").GetBoolean());
         Assert.False(before.GetProperty("automatic").GetBoolean());
         Assert.True(on.GetProperty("automatic").GetBoolean());
-        Assert.False(off.GetProperty("checkDaily").GetBoolean());
         Assert.False(off.GetProperty("automatic").GetBoolean());
         Assert.False(config.GetProperty("updates").GetProperty("automatic").GetBoolean());
     }

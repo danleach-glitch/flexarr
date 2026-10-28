@@ -4,9 +4,9 @@ using Microsoft.Extensions.Options;
 namespace Flexarr.Api.Updates;
 
 /// <summary>
-/// Checks for a new release once a day, and with automatic updates on, installs one between four and five in the
-/// morning (after the half-past-three backup) when nothing's playing, being watched live or recording. A night that's
-/// busy all hour waits for the next.
+/// Checks for a new release once a day (always: it's one small request, and how Settings knows to show its dot). With
+/// automatic updates on, installs one between four and five in the morning (after the half-past-three backup) when
+/// nothing's playing, being watched live or recording. A night that's busy all hour waits for the next.
 /// </summary>
 public sealed partial class UpdateWorker(
     UpdateChecker checker,
@@ -56,7 +56,7 @@ public sealed partial class UpdateWorker(
     {
         var settings = options.CurrentValue.Updates;
         var now = time.GetUtcNow();
-        if ((settings.CheckDaily || settings.Automatic) && (checker.LastChecked is not { } last || now - last >= CheckEvery))
+        if (checker.LastChecked is not { } last || now - last >= CheckEvery)
         {
             await checker.CheckAsync(ct);
         }

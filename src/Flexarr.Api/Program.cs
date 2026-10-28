@@ -145,6 +145,7 @@ builder.Services.AddHttpClient(UpdateChecker.DownloadClientName, c =>
 });
 builder.Services.AddSingleton<IInstallEnvironment, InstallEnvironment>();
 builder.Services.AddSingleton<UpdateChecker>();
+builder.Services.AddSingleton<RuntimeInstaller>();
 builder.Services.AddSingleton<MacUpdater>();
 builder.Services.AddSingleton<ServerActivity>();
 builder.Services.AddHostedService<UpdateWorker>();

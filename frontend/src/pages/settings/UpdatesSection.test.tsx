@@ -25,7 +25,6 @@ const updates = (over: Partial<Updates> = {}): Updates => ({
   available: true,
   lastChecked: new Date().toISOString(),
   checkError: null,
-  checkDaily: true,
   automatic: false,
   progress: { stage: 'Idle', version: null, received: 0, total: null, error: null },
   lastResult: null,
@@ -71,7 +70,7 @@ describe('Settings › Updates', () => {
 
     expect(await screen.findByText(/docker compose pull flexarr/)).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: /Check for updates every day/ })).toBeChecked()
+    expect(screen.getByText(/can’t install them/)).toBeVisible()
     expect(screen.queryByRole('switch', { name: /Install updates automatically/ })).not.toBeInTheDocument()
   })
 

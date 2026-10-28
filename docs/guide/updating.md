@@ -17,11 +17,11 @@ Read what's changed. Every release is listed, newest first, in:
 
 ## Settings › Updates
 
-Flexarr asks GitHub once a day whether there's a newer release, and Settings shows a dot beside **Updates** when there is. To look straight away, choose **Check for updates**. To stop the daily check, turn off **Check for updates every day**; nothing else about your server is sent.
+Flexarr asks GitHub once a day whether there's a newer release, and Settings shows a dot beside **Updates** when there is. To look straight away, choose **Check for updates**. The check sends nothing about your server but its version.
 
 What happens next depends on how you installed Flexarr:
 
-- **On a Mac** (installed with the install script), choose **Update now**. Flexarr downloads the new version, checks it against the checksum published with the release, and restarts to install it, which takes a minute or two. If anything is playing, being watched live or recording, it asks first, because the restart interrupts it.
+- **On a Mac** (installed with the install script), choose **Update now**. Flexarr downloads the new version, checks it against the checksum published with the release, brings the .NET runtime up to date if it needs to, and restarts to install it, which takes a minute or two. If anything is playing, being watched live or recording, it asks first, because the restart interrupts it.
 - **In Docker**, a container can't replace itself, so the page shows the commands to update it (see [Docker](#docker) below).
 - **Anything else**, such as running from source, is updated the way you installed it.
 
@@ -35,7 +35,7 @@ Before swapping in the new version, Flexarr copies the database aside. If the ne
 
 The version before the last successful update is kept in `~/.flexarr/app.previous`.
 
-> **Note** A release can need a newer .NET runtime than your Mac has. Settings › Updates then says so, and the install script, which installs the runtime too, is the way to update.
+Each update also brings the .NET runtime Flexarr runs on (in `~/.dotnet`) up to its latest patch, as the install script does, so your server gets Microsoft's security fixes. The download is checked against the checksum Microsoft publishes. If it can't be fetched, the update carries on with the runtime you have, unless the new version needs a newer one.
 
 You don't need to make a backup by hand: Flexarr makes one itself whenever an update is about to change the database (see [below](#what-happens-to-your-data)). If you'd like an extra copy anyway, choose **Back up now** in **Settings › Backup and restore**.
 

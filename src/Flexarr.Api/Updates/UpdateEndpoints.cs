@@ -19,7 +19,6 @@ public sealed record UpdatesDto(
     bool Available,
     DateTimeOffset? LastChecked,
     string? CheckError,
-    bool CheckDaily,
     bool Automatic,
     UpdateProgressDto Progress,
     UpdateResult? LastResult,
@@ -28,9 +27,11 @@ public sealed record UpdatesDto(
 /// <param name="Notes">The release's changes, as CHANGELOG.md's Markdown for that version.</param>
 public sealed record ReleaseDto(string Version, string Notes, Uri Url, DateTimeOffset? PublishedAt);
 
-public sealed record UpdateProgressDto(UpdateStage Stage, string? Version, long Received, long? Total, string? Error);
+/// <param name="Downloading">What's downloading now: "Flexarr 0.51.0", then "the latest .NET runtime" if one's needed.</param>
+public sealed record UpdateProgressDto(UpdateStage Stage, string? Version, long Received, long? Total, string? Error, string? Downloading = null);
 
-public sealed record UpdateSettingsUpdate(bool? CheckDaily, bool? Automatic);
+/// <param name="Automatic">Install new releases by themselves overnight (only where Flexarr can update itself).</param>
+public sealed record UpdateSettingsUpdate(bool? Automatic);
 
 public static class UpdateEndpoints
 {
@@ -42,7 +43,7 @@ public static class UpdateEndpoints
             IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             // A server that's only just started hasn't made its daily check yet.
-            if (checker.LastChecked is null && options.CurrentValue.Updates.CheckDaily)
+            if (checker.LastChecked is null)
             {
                 await checker.CheckAsync(ct);
             }
@@ -60,20 +61,16 @@ public static class UpdateEndpoints
         group.MapPut("/settings", async (UpdateSettingsUpdate update, UpdateChecker checker, MacUpdater updater, ServerActivity activity,
             IInstallEnvironment install, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
-            var current = options.CurrentValue.Updates;
-            var checkDaily = update.CheckDaily ?? current.CheckDaily;
-            // Installing by itself means knowing there's something to install.
-            var automatic = (update.Automatic ?? current.Automatic) && checkDaily;
+            var automatic = update.Automatic ?? options.CurrentValue.Updates.Automatic;
             ServerConfigStore.Update(options.CurrentValue.DataDirectory, config =>
             {
                 var updates = config["updates"] as JsonObject ?? [];
-                updates["checkDaily"] = checkDaily;
                 updates["automatic"] = automatic;
                 config["updates"] = updates;
             });
 
             // The file watcher reloads options a moment after the write.
-            for (var i = 0; i < 50 && (options.CurrentValue.Updates.CheckDaily != checkDaily || options.CurrentValue.Updates.Automatic != automatic); i++)
+            for (var i = 0; i < 50 && options.CurrentValue.Updates.Automatic != automatic; i++)
             {
                 await Task.Delay(100, ct);
             }
@@ -119,9 +116,8 @@ public static class UpdateEndpoints
             available,
             checker.LastChecked,
             checker.CheckError,
-            options.Updates.CheckDaily,
             options.Updates.Automatic,
-            new UpdateProgressDto(updater.Stage, updater.Installing?.ToString(), updater.Received, updater.Total, updater.Error),
+            new UpdateProgressDto(updater.Stage, updater.Installing?.ToString(), updater.Received, updater.Total, updater.Error, updater.Downloading),
             updater.LastResult(),
             available ? await activity.InUseAsync(ct) : []);
     }

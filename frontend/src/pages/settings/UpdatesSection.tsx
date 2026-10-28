@@ -57,6 +57,7 @@ export function UpdatesSection() {
 
       <SettingsGroup
         title="This server"
+        note={current?.install === 'Docker' ? 'Docker containers are updated from outside Flexarr, so it tells you about new versions but can’t install them.' : undefined}
         action={
           <AsyncButton className="button small" onClick={check}>
             Check for updates
@@ -123,7 +124,7 @@ export function UpdatesSection() {
         </div>
       )}
 
-      {current && <Automatic updates={current} onSaved={setUpdates} />}
+      {current?.install === 'MacLaunchAgent' && !current.isDevelopment && <Automatic updates={current} onSaved={setUpdates} />}
 
       {confirming && current?.latest && (
         <ConfirmDialog title={`Update to Flexarr ${current.latest.version}?`} confirmLabel={current.inUse.length ? 'Update anyway' : 'Update now'} onConfirm={install} onClose={() => setConfirming(false)}>
@@ -153,7 +154,7 @@ function statusLine(updates: Updates) {
 
 function checkedLine(updates: Updates) {
   if (updates.isDevelopment) return 'Development builds aren’t updated from here: a release could be older than this.'
-  return updates.lastChecked ? `Checked ${relativeTime(updates.lastChecked)}.` : undefined
+  return `${updates.lastChecked ? `Checked ${relativeTime(updates.lastChecked)}. ` : ''}Flexarr checks once a day.`
 }
 
 /** How the last update went, for a week after. */
@@ -172,10 +173,10 @@ function LastResult({ result }: { result: NonNullable<Updates['lastResult']> }) 
 }
 
 function Downloading({ updates }: { updates: Updates }) {
-  const { received, total, version } = updates.progress
+  const { received, total, version, downloading } = updates.progress
   const share = total ? Math.min(1, received / total) : undefined
   return (
-    <SettingsGroup title={`Downloading Flexarr ${version ?? ''}`}>
+    <SettingsGroup title={`Downloading ${downloading ?? `Flexarr ${version ?? ''}`}`}>
       <div className="update-progress" role="status">
         <progress max={1} value={share} aria-label="Download progress" />
         <span className="muted">
@@ -221,12 +222,12 @@ function HowToUpdate({ updates }: { updates: Updates }) {
   )
 }
 
+/** Installing new releases by themselves, where Flexarr can update itself. Checking for them is always on. */
 function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: Updates) => void }) {
   const [error, setError] = useState<string>()
   const [saved, setSaved] = useState<string>()
-  const selfUpdating = updates.install === 'MacLaunchAgent' && !updates.isDevelopment
 
-  async function save(update: { checkDaily?: boolean; automatic?: boolean }) {
+  async function save(update: { automatic: boolean }) {
     setError(undefined)
     try {
       onSaved(await saveUpdateSettings(update))
@@ -239,27 +240,23 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
 
   return (
     <SettingsGroup
-      title="Automatically"
+      title="Automatic updates"
       note={
         error ? (
           <span className="error" role="alert">
             {error}
           </span>
         ) : (
-          (saved ?? (updates.install === 'Docker' ? 'Docker containers are updated from outside Flexarr, so it can only tell you about new releases.' : undefined))
+          saved
         )
       }
     >
-      <ToggleRow label="Check for updates every day" help="Asks GitHub once a day whether there’s a newer release." checked={updates.checkDaily} onChange={(on) => void save({ checkDaily: on })} />
-      {selfUpdating && (
-        <ToggleRow
-          label="Install updates automatically"
-          help={updates.checkDaily ? 'Between 4 and 5 in the morning, when nothing is playing, being watched live or recording. A busy night waits for the next.' : 'Needs the daily check.'}
-          checked={updates.automatic}
-          disabled={!updates.checkDaily}
-          onChange={(on) => void save({ automatic: on })}
-        />
-      )}
+      <ToggleRow
+        label="Install updates automatically"
+        help="When a new version comes out, install it between 4 and 5 in the morning, once nothing is playing, being watched live or recording. A busy night waits for the next."
+        checked={updates.automatic}
+        onChange={(on) => void save({ automatic: on })}
+      />
     </SettingsGroup>
   )
 }

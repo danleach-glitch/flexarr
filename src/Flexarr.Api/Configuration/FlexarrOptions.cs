@@ -113,9 +113,6 @@ public sealed class FlexarrOptions
 /// <summary>Finding and installing new releases (see <see cref="Flexarr.Api.Updates.UpdateChecker"/>).</summary>
 public sealed class UpdateOptions
 {
-    /// <summary>Ask GitHub once a day whether there's a newer release.</summary>
-    public bool CheckDaily { get; set; } = true;
-
     /// <summary>Install a newer release by itself, overnight while nothing's playing. Only where Flexarr can update itself.</summary>
     public bool Automatic { get; set; }
 

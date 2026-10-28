@@ -838,9 +838,9 @@ export interface Updates {
   available: boolean
   lastChecked: string | null
   checkError: string | null
-  checkDaily: boolean
   automatic: boolean
-  progress: { stage: UpdateStage; version: string | null; received: number; total: number | null; error: string | null }
+  /** `downloading` says what: "Flexarr 0.51.0", then "the latest .NET runtime" when the update needs it. */
+  progress: { stage: UpdateStage; version: string | null; received: number; total: number | null; error: string | null; downloading?: string | null }
   lastResult: { from: string; to: string; ok: boolean; message: string; at: string } | null
   /** What installing now would interrupt, in words. */
   inUse: string[]
@@ -848,7 +848,7 @@ export interface Updates {
 
 export const getUpdates = (signal?: AbortSignal) => apiGet<Updates>('/updates', signal)
 export const checkForUpdates = () => request<Updates>('POST', '/updates/check')
-export const saveUpdateSettings = (update: { checkDaily?: boolean; automatic?: boolean }) => request<Updates>('PUT', '/updates/settings', update)
+export const saveUpdateSettings = (update: { automatic: boolean }) => request<Updates>('PUT', '/updates/settings', update)
 export const installUpdate = () => request<Updates>('POST', '/updates/install')
 
 export interface PlexSource {

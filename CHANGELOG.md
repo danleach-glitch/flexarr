@@ -11,8 +11,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Assistants connected over MCP can do both: `mark_watched` with unwatched forgets the place, and `remove_from_continue_watching` is new.
 
 ### Updates
-- **Settings › Updates** shows the version your server runs and whether there's a newer one, with what's changed in it. Flexarr checks GitHub once a day (you can turn that off), and Settings shows a dot when an update is waiting.
-- **On a Mac**, choose **Update now** to download and install a new version without the install script. If the new version doesn't start, the one you had is put back, with your database as it was. **Install updates automatically** (off unless you turn it on) does it between 4 and 5 in the morning, when nothing is playing, being watched live or recording.
+- **Settings › Updates** shows the version your server runs and whether there's a newer one, with what's changed in it. Flexarr checks for one once a day, and Settings shows a dot when an update is waiting.
+- **On a Mac**, choose **Update now** to download and install a new version without the install script. It brings the .NET runtime up to its latest patch too, as the install script does. If the new version doesn't start, the one you had is put back, with your database as it was. **Install updates automatically** (off unless you turn it on) does it between 4 and 5 in the morning, when nothing is playing, being watched live or recording.
 - **In Docker**, the page shows the commands to update the container, since a container can't replace itself.
 
 ### Mac

@@ -31,6 +31,7 @@ public sealed record UpdateResult(string From, string To, bool Ok, string Messag
 public sealed partial class MacUpdater(
     IInstallEnvironment install,
     IHttpClientFactory clients,
+    RuntimeInstaller runtime,
     IOptionsMonitor<FlexarrOptions> options,
     IServer server,
     ILogger<MacUpdater> logger)
@@ -47,6 +48,9 @@ public sealed partial class MacUpdater(
 
     /// <summary>The release being downloaded or installed.</summary>
     public ReleaseVersion? Installing { get; private set; }
+
+    /// <summary>What's downloading: the release, then the .NET runtime it needs if that's newer than what's installed.</summary>
+    public string? Downloading { get; private set; }
 
     public long Received { get; private set; }
 
@@ -87,6 +91,7 @@ public sealed partial class MacUpdater(
 
             Stage = UpdateStage.Downloading;
             Installing = release.Version;
+            Downloading = $"Flexarr {release.Version}";
             Received = 0;
             Total = null;
             Error = null;
@@ -166,7 +171,6 @@ public sealed partial class MacUpdater(
             }
         }
 
-        Stage = UpdateStage.Installing;
         var app = Path.Combine(stage, "app");
         Directory.CreateDirectory(app);
         await using (var compressed = File.OpenRead(archive))
@@ -182,13 +186,52 @@ public sealed partial class MacUpdater(
             throw new UpdateException($"Flexarr {release.Version}'s Mac build isn't laid out as expected, so it wasn't installed.");
         }
 
+        await UpdateRuntimeAsync(app, release.Version, ct);
         if (MissingRuntime(app, install.DotnetRoot) is { } missing)
         {
             throw new UpdateException($"Flexarr {release.Version} needs {missing}, which isn't installed. Update with the install script, which installs it.");
         }
 
         KeepRecentWebFiles(Path.Combine(root, "app", "wwwroot", "assets"), Path.Combine(app, "wwwroot", "assets"), DateTime.UtcNow);
+        Stage = UpdateStage.Installing;
         await HandOverAsync(root, stage, release.Version, ct);
+    }
+
+    /// <summary>
+    /// The latest patch of the .NET runtime the release needs, as the install script brings in on every deploy. Without
+    /// one, an update still goes ahead on the runtime already there, as long as it's one the release can run on.
+    /// </summary>
+    private async Task UpdateRuntimeAsync(string app, ReleaseVersion version, CancellationToken ct)
+    {
+        if (install.DotnetRoot is not { } dotnetRoot)
+        {
+            return;
+        }
+
+        try
+        {
+            Downloading = "the latest .NET runtime";
+            Received = 0;
+            Total = null;
+            if (await runtime.EnsureLatestAsync(app, dotnetRoot, UpdateChecker.MacRuntime(RuntimeInformation.OSArchitecture), (received, total) =>
+                {
+                    Received = received;
+                    Total = total;
+                }, ct) is { } installed)
+            {
+                LogRuntimeInstalled(installed);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UpdateException or IOException or UnauthorizedAccessException
+            or JsonException or InvalidDataException && !ct.IsCancellationRequested)
+        {
+            if (MissingRuntime(app, dotnetRoot) is { } missing)
+            {
+                throw new UpdateException($"Flexarr {version} needs {missing}, which couldn't be installed: {ex.Message}");
+            }
+
+            LogRuntimeSkipped(ex);
+        }
     }
 
     /// <summary>Removes what a failed attempt downloaded or unpacked.</summary>
@@ -381,6 +424,12 @@ public sealed partial class MacUpdater(
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Installed the ASP.NET Core {Version} runtime for the update")]
+    private partial void LogRuntimeInstalled(string version);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't bring the .NET runtime up to its latest patch; updating on the one installed")]
+    private partial void LogRuntimeSkipped(Exception ex);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Downloading Flexarr {Version} to update")]
     private partial void LogStarting(string version);
