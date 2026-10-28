@@ -1054,8 +1054,19 @@ export function PlayerPage() {
             srcLang={selectedText.language ?? 'und'}
             label={selectedText.key}
             default
-            onLoad={() => setSubtitleStatus('idle')}
-            onError={() => setSubtitleStatus('failed')}
+            // React doesn't pass on a <track>'s load and error events, so they're listened for here.
+            ref={(el) => {
+              if (!el) return
+              const loaded = () => setSubtitleStatus('idle')
+              const failed = () => setSubtitleStatus('failed')
+              el.addEventListener('load', loaded)
+              el.addEventListener('error', failed)
+              if (el.readyState === HTMLTrackElement.LOADED) loaded()
+              return () => {
+                el.removeEventListener('load', loaded)
+                el.removeEventListener('error', failed)
+              }
+            }}
           />
         )}
       </video>

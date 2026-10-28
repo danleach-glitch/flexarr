@@ -36,6 +36,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Subtitles in the black bars**: in films wider than the screen, subtitles go in the black bar below the picture instead of over it. Turn it on in Settings › Playback or the player's subtitles menu.
 - Closed captions carried inside the video, as American TV recordings have them, can be turned on like any other subtitles, on every device. Files already in your libraries are checked on the next scan.
 - Teletext subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad, where the subtitles menu also lets you choose the teletext page. In a web browser they show when the server's FFmpeg can read teletext, as the Docker image's can.
+- In the web player, the “Preparing subtitles” note now goes away as soon as the subtitles appear.
 
 ### Home
 - Every show or film in the header at the top of Home (and of a library's page) that you've started says **Resume** and picks up where you left off, on the web, iPhone and Apple TV. Before, only the first one did, and on iPhone and Apple TV a show always said Play.
