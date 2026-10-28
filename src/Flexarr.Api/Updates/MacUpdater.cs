@@ -200,7 +200,8 @@ public sealed partial class MacUpdater(
         var log = Path.Combine(root, "logs", "update.log");
         Directory.CreateDirectory(Path.GetDirectoryName(log)!);
         string[] arguments = ["/bin/bash", script, root, data, Port().ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ReleaseVersion.Current.ToString(), version.ToString()];
+            ReleaseVersion.Current.ToString(), version.ToString(), InstallEnvironment.LaunchAgentLabel,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "LaunchAgents", InstallEnvironment.LaunchAgentLabel + ".plist")];
         var plist = Path.Combine(stage, UpdaterLabel + ".plist");
         await File.WriteAllTextAsync(plist, $"""
             <?xml version="1.0" encoding="UTF-8"?>

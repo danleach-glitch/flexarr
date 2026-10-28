@@ -2,8 +2,9 @@
 # Cut a Flexarr release from origin/main, in two steps that each stop at the first problem:
 #
 #   scripts/release.sh prepare minor|patch|<x.y.z>   check main's CI, bump the version everywhere, commit, tag, push
-#   scripts/release.sh publish v<x.y.z>               wait for that commit's CI and the tag's Docker image, then
-#                                                     publish the GitHub release with the changelog section as notes
+#   scripts/release.sh publish v<x.y.z>               wait for that commit's CI, the tag's Docker image and Mac
+#                                                     builds, then publish the GitHub release with the changelog
+#                                                     section as notes and the Mac builds attached
 #
 # Run it from a clean checkout of main (the /release skill makes a throwaway worktree for it). Never release a red build:
 # every job's result is printed, and anything but success or skipped stops the script.
@@ -15,7 +16,8 @@ cd "$(git rev-parse --show-toplevel)"
 die() { echo "release: $*" >&2; exit 1; }
 
 # Waits for the run of <workflow file> for <full sha> (or a tag's push), prints every job's result, fails unless all
-# succeeded or were skipped. gh needs the FULL sha: a short one silently matches nothing.
+# succeeded or were skipped. gh needs the FULL sha: a short one silently matches nothing. Leaves the run's id in $run_id.
+run_id=""
 wait_for_run() {
   local workflow="$1" filter="$2" value="$3" id="" status conclusion
   for _ in $(seq 1 60); do
@@ -29,6 +31,7 @@ wait_for_run() {
   gh run view "$id" --json jobs --jq '.jobs[] | "    \(.conclusion)\t\(.name)"'
   conclusion=$(gh run view "$id" --json jobs --jq '[.jobs[].conclusion | select(. != "success" and . != "skipped")] | length')
   [ "$conclusion" = 0 ] || die "$workflow run $id is not green: https://github.com/danleach-glitch/flexarr/actions/runs/$id"
+  run_id="$id"
 }
 
 current_version() { sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' Directory.Build.props; }
@@ -79,16 +82,25 @@ prepare() {
 }
 
 publish() {
-  local tag="${1:?usage: $0 publish v<x.y.z>}" version sha notes
+  local tag="${1:?usage: $0 publish v<x.y.z>}" version sha notes builds
   version="${tag#v}"
   git fetch -q origin main --tags
   sha=$(git rev-list -n 1 "$tag") || die "no tag $tag"
   wait_for_run ci.yml --commit "$sha"
   wait_for_run docker.yml --branch "$tag"
+  # The Mac builds Settings › Updates installs on a Mac (.github/workflows/macos.yml).
+  wait_for_run macos.yml --branch "$tag"
+  builds="$(mktemp -d)"
+  gh run download "$run_id" --name mac-builds --dir "$builds"
+  for rid in osx-arm64 osx-x64; do
+    [ -f "$builds/flexarr-$version-$rid.tar.gz" ] || die "the Mac builds have no flexarr-$version-$rid.tar.gz"
+  done
+  (cd "$builds" && shasum -a 256 -c SHA256SUMS) || die "the Mac builds don't match their SHA256SUMS"
   # The changelog section for this version, without its heading.
   notes=$(awk -v v="$version" '$0 ~ "^## " v " " {on=1; next} /^## / {if (on) exit} on' CHANGELOG.md)
   [ -n "$notes" ] || die "no CHANGELOG.md section for $version"
-  gh release create "$tag" --title "$version" --notes "$notes" --verify-tag
+  gh release create "$tag" --title "$version" --notes "$notes" --verify-tag "$builds"/flexarr-*.tar.gz "$builds/SHA256SUMS"
+  rm -rf "$builds"
   echo "==> Released $version: https://github.com/danleach-glitch/flexarr/releases/tag/$tag"
 }
 

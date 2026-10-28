@@ -822,6 +822,35 @@ export const importSettingsFile = (id: string, choice: { sections: string[]; lib
   request<SettingsImportResult>('POST', `/backups/uploads/${id}/import`, choice)
 export const forgetBackupFile = (id: string) => request<void>('DELETE', `/backups/uploads/${id}`)
 
+// ---------- Updates
+
+/** How the server was installed: a Mac install updates itself; Docker and the rest are updated by hand. */
+export type InstallKind = 'MacLaunchAgent' | 'Docker' | 'Other'
+export type UpdateStage = 'Idle' | 'Downloading' | 'Installing'
+export interface Updates {
+  version: string
+  /** A build between releases: never updated from here. */
+  isDevelopment: boolean
+  install: InstallKind
+  canInstall: boolean
+  /** Notes are CHANGELOG.md's Markdown for that version, without its heading. */
+  latest: { version: string; notes: string; url: string; publishedAt: string | null } | null
+  available: boolean
+  lastChecked: string | null
+  checkError: string | null
+  checkDaily: boolean
+  automatic: boolean
+  progress: { stage: UpdateStage; version: string | null; received: number; total: number | null; error: string | null }
+  lastResult: { from: string; to: string; ok: boolean; message: string; at: string } | null
+  /** What installing now would interrupt, in words. */
+  inUse: string[]
+}
+
+export const getUpdates = (signal?: AbortSignal) => apiGet<Updates>('/updates', signal)
+export const checkForUpdates = () => request<Updates>('POST', '/updates/check')
+export const saveUpdateSettings = (update: { checkDaily?: boolean; automatic?: boolean }) => request<Updates>('PUT', '/updates/settings', update)
+export const installUpdate = () => request<Updates>('POST', '/updates/install')
+
 export interface PlexSource {
   path: string | null
   found: boolean

@@ -1,0 +1,59 @@
+name: Mac builds
+
+# The Mac builds a release carries, which Settings › Updates on a Mac install downloads: the server and web app for
+# Apple silicon and Intel, as scripts/deploy-macos.sh builds them (framework-dependent, run by ~/.dotnet's own dotnet),
+# with their SHA-256s in SHA256SUMS. scripts/release.sh waits for this run and attaches its files to the GitHub release.
+# Pull requests that change how they're built check they still build.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths: [.github/workflows/macos.yml, src/Flexarr.Api/Flexarr.Api.csproj, src/Flexarr.Api/Updates/**, Directory.*.props, global.json]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            prefix="$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' Directory.Build.props)"
+            echo "version=$prefix-dev.${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Web client
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Server
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p artifacts/release
+          for rid in osx-arm64 osx-x64; do
+            out="artifacts/publish/$rid"
+            dotnet publish src/Flexarr.Api -c Release -r "$rid" --no-self-contained -p:UseAppHost=false -p:Version="$VERSION" -o "$out" --nologo
+            cp -R frontend/dist "$out/wwwroot"
+            tar -czf "artifacts/release/flexarr-$VERSION-$rid.tar.gz" -C "$out" .
+          done
+          (cd artifacts/release && shasum -a 256 flexarr-*.tar.gz > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mac-builds
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 7

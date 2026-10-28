@@ -1,7 +1,7 @@
 #!/bin/bash
 # Puts a Flexarr update in place on a Mac, and takes it back out if it doesn't start.
 #
-#   install-update.sh <root> <data> <port> <from> <to>
+#   install-update.sh <root> <data> <port> <from> <to> <label> <plist>
 #
 # The server (Updates/MacUpdater.cs) downloads and checks the release, unpacks it to <root>/update/app, and starts this
 # as a one-shot LaunchAgent of its own (io.github.flexarr.updater), so it carries on while the server is stopped. Here:
@@ -11,10 +11,9 @@
 # happened, for Settings › Updates.
 set -uo pipefail
 
-root="$1" data="$2" port="$3" from="$4" to="$5"
-label="io.github.flexarr.server"
+# <label> and <plist> are the server's LaunchAgent (io.github.flexarr.server, in ~/Library/LaunchAgents).
+root="$1" data="$2" port="$3" from="$4" to="$5" label="$6" plist="$7"
 domain="gui/$(id -u)"
-plist="$HOME/Library/LaunchAgents/$label.plist"
 stage="$root/update"
 databases=(flexarr.db flexarr.db-wal flexarr.db-shm)
 
