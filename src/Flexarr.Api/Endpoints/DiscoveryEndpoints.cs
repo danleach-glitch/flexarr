@@ -21,7 +21,10 @@ public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnly
 }
 
 /// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
-public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading, ItemSummaryDto? Resume = null);
+/// <param name="Resumes">What each part-played featured title's Play button resumes, by the title's id: a film part watched, or a
+/// show's episode part watched or up next. Titles not started are left out.</param>
+public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading, ItemSummaryDto? Resume = null,
+    IReadOnlyDictionary<Guid, ItemSummaryDto>? Resumes = null);
 
 public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
 
@@ -134,6 +137,7 @@ public static partial class DiscoveryEndpoints
             var rotation = await FeaturedAsync(topLevel, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
             var overviews = await OverviewsAsync(db, rotation, ct);
+            var resumes = await ResumesAsync(db, me, rotation, resume, ct);
             // Sequential: these share the DbContext with the queries above, which isn't thread-safe.
             // Coming soon is a bonus; the home page must render even if it fails.
             List<UpcomingDto> upcoming = [];
@@ -162,7 +166,7 @@ public static partial class DiscoveryEndpoints
             var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
             var layout = LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries);
-            return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, layout), upcoming, downloading, resume);
+            return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, layout), upcoming, downloading, resume, resumes);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -238,9 +242,10 @@ public static partial class DiscoveryEndpoints
             var rotation = await FeaturedAsync(topLevel, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
             var overviews = await OverviewsAsync(db, rotation, ct);
+            var resumes = await ResumesAsync(db, me, rotation, resume, ct);
 
             var layout = movies ? options.CurrentValue.Layout.Movies : options.CurrentValue.Layout.Shows;
-            return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume));
+            return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume, resumes));
         }).WithTags("Discovery");
 
         api.MapGet("/items/{id:guid}/similar", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -458,6 +463,45 @@ public static partial class DiscoveryEndpoints
         return leadId is { } id && await db.MediaItems.Where(i => i.Id == id).Summaries(profileId).FirstOrDefaultAsync(ct) is { } lead
             ? ([lead, .. rotation.Where(r => r.Id != lead.Id).Take(4)], resume)
             : (rotation, null);
+    }
+
+    /// <summary>
+    /// What each featured title picks up from, for the ones this profile has started: a film part watched, or for a
+    /// show the episode part watched (the latest), else the one up next. <paramref name="lead"/> is what the first
+    /// title already resumes, from Continue Watching.
+    /// </summary>
+    private static async Task<Dictionary<Guid, ItemSummaryDto>> ResumesAsync(
+        FlexarrDbContext db, string profileId, List<ItemSummaryDto> rotation, ItemSummaryDto? lead, CancellationToken ct)
+    {
+        var ids = rotation.Select(i => i.Id).ToList();
+        var states = db.PlaybackStates.Where(p => p.UserId == profileId && !p.Watched && p.PositionSeconds > 0);
+        var films = await states.Where(p => p.MediaItem!.Kind == MediaKind.Movie && ids.Contains(p.MediaItemId)).Select(p => p.MediaItemId).ToListAsync(ct);
+        var episodes = await states.Where(p => p.MediaItem!.Kind == MediaKind.Episode && p.MediaItem.Parent!.ParentId != null && ids.Contains(p.MediaItem.Parent.ParentId.Value))
+            .Select(p => new { p.MediaItemId, SeriesId = p.MediaItem!.Parent!.ParentId!.Value, p.LastPlayedAt }).ToListAsync(ct);
+
+        var picks = films.ToDictionary(id => id, id => id);
+        foreach (var show in episodes.GroupBy(e => e.SeriesId))
+        {
+            picks[show.Key] = show.MaxBy(e => e.LastPlayedAt)!.MediaItemId;
+        }
+
+        var shows = rotation.Where(i => i.Kind == MediaKind.Series && !picks.ContainsKey(i.Id)).Select(i => i.Id).ToList();
+        foreach (var show in (await PlaybackService.EpisodesAsync(db, profileId, shows, ct)).GroupBy(e => e.SeriesId))
+        {
+            if (PlaybackService.UpNext(show.ToList()) is { } next)
+            {
+                picks[show.Key] = next.Id;
+            }
+        }
+
+        if (lead is not null && rotation.Count > 0)
+        {
+            picks[rotation[0].Id] = lead.Id;
+        }
+
+        var wanted = picks.Values.ToList();
+        var items = await db.MediaItems.Where(i => wanted.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
+        return picks.Where(p => items.ContainsKey(p.Value)).ToDictionary(p => p.Key, p => items[p.Value]);
     }
 
     /// <summary>

@@ -106,6 +106,24 @@ public class UpNextTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task EveryPartPlayedFeaturedTitle_SaysWhatItResumes()
+    {
+        var lead = await SeedAsync(("S01E01", 1, 1, null), ("S01E02", 1, 2, null));
+        var other = await SeedAsync(lead.Library, ("S01E01", 1, 1, null), ("S01E02", 1, 2, null));
+        var fresh = await SeedAsync(lead.Library, ("S01E01", 1, 1, null));
+        await WatchAsync(other.Episodes["S01E01"], DateTime.UtcNow.AddDays(-2));
+        await StartAsync(lead.Episodes["S01E02"], DateTime.UtcNow.AddDays(-1));
+
+        var browse = await Client().GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/libraries/{lead.Library}/browse", UriKind.Relative));
+        Assert.Equal(lead.Series.ToString(), browse.GetProperty("featured")[0].GetProperty("id").GetString());
+        Assert.Equal(3, browse.GetProperty("featured").GetArrayLength());
+        var resumes = browse.GetProperty("resumes");
+        Assert.Equal(lead.Episodes["S01E02"].ToString(), resumes.GetProperty(lead.Series.ToString()).GetProperty("id").GetString());
+        Assert.Equal(other.Episodes["S01E02"].ToString(), resumes.GetProperty(other.Series.ToString()).GetProperty("id").GetString());
+        Assert.False(resumes.TryGetProperty(fresh.Series.ToString(), out _));
+    }
+
+    [Fact]
     public async Task RemovingAnUnknownTitle_IsNotFound()
     {
         var response = await Client().DeleteAsync(new Uri($"/api/v1/home/continue/{Guid.NewGuid()}", UriKind.Relative));
@@ -151,13 +169,25 @@ public class UpNextTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     /// <summary>A show in a library of its own; episodes are (title, season, episode number, air date for daily shows).</summary>
-    private async Task<(Guid Library, Guid Series, Dictionary<string, Guid> Episodes)> SeedAsync(params (string Title, int Season, int? Number, DateOnly? AirDate)[] episodes)
+    private Task<(Guid Library, Guid Series, Dictionary<string, Guid> Episodes)> SeedAsync(params (string Title, int Season, int? Number, DateOnly? AirDate)[] episodes) =>
+        SeedAsync(null, episodes);
+
+    /// <summary>As above, into <paramref name="libraryId"/> when given. The shows have what the hero needs to feature them.</summary>
+    private async Task<(Guid Library, Guid Series, Dictionary<string, Guid> Episodes)> SeedAsync(Guid? libraryId, params (string Title, int Season, int? Number, DateOnly? AirDate)[] episodes)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
-        var series = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show" };
-        db.AddRange(library, series);
+        var library = libraryId is { } id ? await db.Libraries.FindAsync(id) : new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+        var series = new MediaItem
+        {
+            LibraryId = library!.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", BackdropUrl = "backdrop.jpg", Overview = "A show.", CommunityRating = 8,
+        };
+        if (libraryId is null)
+        {
+            db.Add(library);
+        }
+
+        db.Add(series);
         var seasons = new Dictionary<int, MediaItem>();
         var ids = new Dictionary<string, Guid>();
         foreach (var (title, number, (episode, airDate)) in episodes.Select(e => (e.Title, e.Season, (e.Number, e.AirDate))))

@@ -175,7 +175,7 @@ function LibraryBrowse({ library }: { library: Library }) {
 
   return (
     <>
-      <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} top={heading} />
+      <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} top={heading} />
       <div className="rows" {...focusReturn}>
         <HomeRows rows={data.rows} />
       </div>

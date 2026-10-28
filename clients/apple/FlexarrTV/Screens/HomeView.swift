@@ -47,7 +47,7 @@ struct HomeView: View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 30) {
                 if !home.featured.isEmpty {
-                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)
+                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
                 } else if let message = EmptyHomeMessage(libraries: model.libraries) {
                     // Above whatever else Home has (Coming soon, channels).
                     EmptyHome(message: message)
@@ -121,6 +121,8 @@ struct HomeHero: View {
     let items: [ItemSummary]
     let overviews: [String: String?]
     @Binding var index: Int
+    /// What a title's Play picks up from, when it's been started.
+    var resuming: (ItemSummary) -> ItemSummary? = { _ in nil }
     /// Controls at the top-left, under the sidebar's label (a library's Browse and All switch); up from Play reaches them.
     var top: AnyView?
     @Environment(\.focusesContent) private var takesFocus
@@ -155,7 +157,7 @@ struct HomeHero: View {
 
                 HStack(spacing: 28) {
                     Button { play() } label: {
-                        Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                        Label(resuming(item) != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
                     .focused($focusedButton, equals: .play)
@@ -261,7 +263,11 @@ struct HomeHero: View {
 
     private func play() {
         let item = item
-        Task { await model.playBest(item, router: router) }
+        if let resume = resuming(item) {
+            model.play(resume)
+        } else {
+            Task { await model.playBest(item, router: router) }
+        }
     }
 }
 

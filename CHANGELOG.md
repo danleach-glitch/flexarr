@@ -23,6 +23,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Subtitles beside a video that drift out of time can be re-synced to the soundtrack from the same menu.
 - Hearing-impaired subtitle files named the way Bazarr names them (`Film.en.hi.srt`) are labelled SDH.
 
+### Home
+- Every show or film in the header at the top of Home (and of a library's page) that you've started says **Resume** and picks up where you left off, on the web, iPhone and Apple TV. Before, only the first one did, and on iPhone and Apple TV a show always said Play.
+
 ### Requests
 - Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. When two people have a TV library each, the shows each of them asks for land in their own. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
 

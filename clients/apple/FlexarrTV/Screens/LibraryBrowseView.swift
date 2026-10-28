@@ -214,7 +214,7 @@ struct LibraryBrowseView: View {
                         .padding(.leading, Layout.edge)
                         .padding(.top, LibraryViewSwitch.topInset)
                 } else {
-                    HomeHero(items: browse.featured, overviews: browse.overviews, index: $featuredIndex, top: AnyView(viewSwitch))
+                    HomeHero(items: browse.featured, overviews: browse.overviews, index: $featuredIndex, resuming: browse.resuming, top: AnyView(viewSwitch))
                 }
                 ForEach(browse.rows.filter(\.hasContent)) { row in
                     HomeRowView(row: row)

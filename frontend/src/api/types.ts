@@ -291,6 +291,8 @@ export interface Home {
   featured: ItemSummary[]
   /** What the first featured title resumes (the episode, for a show), when it's from Continue Watching. */
   resume?: ItemSummary | null
+  /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
+  resumes?: Record<string, ItemSummary> | null
   overviews: Record<string, string | null>
   rows: HomeRow[]
   upcoming: UpcomingItem[]

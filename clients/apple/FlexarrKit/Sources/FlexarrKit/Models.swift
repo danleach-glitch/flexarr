@@ -357,9 +357,19 @@ public struct Home: Codable, Sendable {
     public let featured: [ItemSummary]
     public let overviews: [String: String?]
     public let rows: [HomeRow]
+    /// What the first featured title resumes (the episode, for a show), when it's from Continue Watching.
+    public var resume: ItemSummary? = nil
+    /// What each part-played featured title resumes, by its id. Absent from servers before 0.53.
+    public var resumes: [String: ItemSummary]? = nil
 
     public func overview(for id: String) -> String? {
         overviews[id] ?? nil
+    }
+
+    /// What a featured title's Play picks up from, when it's been started: the film itself, or a show's episode.
+    public func resuming(_ item: ItemSummary) -> ItemSummary? {
+        if let resumes { return resumes[item.id] }
+        return item.id == featured.first?.id ? resume : nil
     }
 }
 
