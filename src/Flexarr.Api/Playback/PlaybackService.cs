@@ -64,7 +64,13 @@ public sealed class PlaybackService(
 
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
         var preferences = await LanguagePreferencesAsync(item, ct);
-        var subtitles = Subtitles.For(file);
+        var subtitles = Subtitles.For(file, FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec"));
+        if (!request.Profile.SelectsTracksItself)
+        {
+            // Teletext this server can't read can't be converted or burned in either; only a player that decodes it can show it.
+            subtitles = subtitles.Where(s => !s.IsTeletext || s.IsText).ToList();
+        }
+
         subtitleCache.Prefetch(file, subtitles);
         var audioStreams = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
 
@@ -186,7 +192,7 @@ public sealed class PlaybackService(
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
         var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
         // On shuffle the player keeps its own trail of what it played; in order, the episode before this one.
         var before = shuffling ? null : await PreviousEpisodeAsync(item, ct);
@@ -208,7 +214,7 @@ public sealed class PlaybackService(
             audioStreams.Select(a => new AudioTrackDto(a.Index, Languages.Label(a.Language, a.Title, false), a.Codec, a.Language, a.Channels, a.IsDefault)).ToList(),
             decision.Audio?.Index,
             subtitles.Select(s => new SubtitleTrackDto(s.Key, Languages.Label(s.Language, s.Title, s.IsForced), s.Codec, s.Language, s.IsForced, s.IsDefault, s.IsText,
-                s.IsText ? $"{basePath}/subtitles/{s.Key}.vtt" : null, s.ExternalPath is not null)).ToList(),
+                s.IsText ? $"{basePath}/subtitles/{s.Key}.vtt" : null, s.ExternalPath is not null, s.IsStyled ? $"{basePath}/subtitles/{s.Key}.ass" : null)).ToList(),
             decision.Subtitle?.Key,
             burned,
             file.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList(),
@@ -224,7 +230,8 @@ public sealed class PlaybackService(
             decision.Transcode?.AudioDelaySeconds is not (null or 0),
             speed,
             // Bazarr finds subtitles for what Sonarr and Radarr manage.
-            options.CurrentValue.Bazarr?.Instance is not null && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null);
+            options.CurrentValue.Bazarr?.Instance is not null && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null,
+            subtitles.Any(s => s.IsStyled && s.ExternalPath is null) ? $"{basePath}/fonts.json" : null);
     }
 
     /// <summary>
@@ -272,7 +279,7 @@ public sealed class PlaybackService(
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var ancestors = item.ParentId is { } podcastId ? await db.MediaItems.Where(i => i.Id == podcastId).Summaries(profile.Id).ToListAsync(ct) : [];
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
         return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, $"/api/v1/playback/{id}/stream", [], duration, Math.Max(0, start), Guid.Empty,
             [], null, [], null, false, [], summary, ancestors, null, null, false, watching);
     }

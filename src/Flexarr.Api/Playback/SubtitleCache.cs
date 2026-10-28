@@ -29,11 +29,12 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDi
         }
     }
 
-    public async Task<string?> GetAsync(MediaFile file, IReadOnlyList<SubtitleTrack> tracks, SubtitleTrack track, CancellationToken ct)
+    /// <summary>A track's WebVTT; with <paramref name="styled"/>, once its styled copy (an embedded ASS track's) is kept too.</summary>
+    public async Task<string?> GetAsync(MediaFile file, IReadOnlyList<SubtitleTrack> tracks, SubtitleTrack track, CancellationToken ct, bool styled = false)
     {
         var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
         var cached = Subtitles.CachePath(file, track, settings);
-        if (File.Exists(cached))
+        if (File.Exists(cached) && (!styled || track.ExternalPath is not null || File.Exists(Subtitles.CachePath(file, track, settings, ".ass"))))
         {
             return cached;
         }

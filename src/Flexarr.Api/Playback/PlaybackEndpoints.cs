@@ -46,7 +46,7 @@ public static partial class PlaybackEndpoints
         // Each profile's own: anyone signed in as it may change them, admin or not.
         api.MapGet("/me/playback-preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize)).FirstOrDefaultAsync(ct) is { } found
+                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct) is { } found
                 ? Results.Ok(found)
                 : Results.NotFound()).WithTags("Playback");
 
@@ -62,8 +62,13 @@ public static partial class PlaybackEndpoints
             found.SkipRecaps = preferences.SkipRecaps;
             found.SkipCredits = preferences.SkipCredits;
             found.SubtitleSize = preferences.SubtitleSize ?? found.SubtitleSize;
+            found.SubtitlePosition = preferences.SubtitlePosition ?? found.SubtitlePosition;
+            found.SubtitlesInBlackBars = preferences.SubtitlesInBlackBars ?? found.SubtitlesInBlackBars;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(preferences with { SubtitleSize = found.SubtitleSize });
+            return Results.Ok(preferences with
+            {
+                SubtitleSize = found.SubtitleSize, SubtitlePosition = found.SubtitlePosition, SubtitlesInBlackBars = found.SubtitlesInBlackBars,
+            });
         }).WithTags("Playback");
 
         // Remembered for the title, and applied to its subtitles from the next time they're fetched.
@@ -321,7 +326,67 @@ public static partial class PlaybackEndpoints
             }
 
             var vtt = Subtitles.Shift(await File.ReadAllTextAsync(path, ct), delay);
-            return Results.Text(hls == true ? Subtitles.WithHlsTimestampMap(vtt, session.Transcode?.Plan.Fmp4 == true) : vtt, "text/vtt");
+            if (hls != true)
+            {
+                return Results.Text(vtt, "text/vtt");
+            }
+
+            // Apple's own player draws these as the cues say, so the profile's position goes into the cues.
+            var position = await db.Profiles.AsNoTracking().Where(p => p.Id == session.ProfileId).Select(p => p.SubtitlePosition).FirstOrDefaultAsync(ct);
+            return Results.Text(Subtitles.WithHlsTimestampMap(Subtitles.Placed(vtt, position), session.Transcode?.Plan.Fmp4 == true), "text/vtt");
+        });
+
+        // Styled subtitles as authored, for players that draw them with their own fonts, colours and positions.
+        group.MapGet("/subtitles/{key}.ass", async (string sid, string key, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles,
+            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            if (sessions.Get(sid) is not { } session || session.Subtitles.FirstOrDefault(s => s.Key == key) is not { IsStyled: true } track)
+            {
+                return Results.NotFound();
+            }
+
+            var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
+            var settings = TranscodeSettingsFor(options.CurrentValue);
+            var text = await Subtitles.StyledAsync(file, track, settings, ct);
+            if (text is null)
+            {
+                // Converted before styled copies were kept, or not yet: converting again keeps one.
+                await subtitles.GetAsync(file, session.Subtitles, track, ct, styled: true);
+                text = await Subtitles.StyledAsync(file, track, settings, ct);
+            }
+
+            return text is null ? Results.Problem("These subtitles couldn't be read.", statusCode: 422) : Results.Text(text, "text/x-ssa");
+        });
+
+        // The fonts attached to the file, which its styled subtitles are drawn with.
+        group.MapGet("/fonts.json", async (string sid, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            if (sessions.Get(sid) is not { } session)
+            {
+                return Results.NotFound();
+            }
+
+            var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
+            var fonts = await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct);
+            return Results.Ok(fonts.Select(f => new SubtitleFontDto(f.Name, $"/api/v1/playback/{sid}/fonts/{f.StreamIndex}")).ToList());
+        });
+
+        group.MapGet("/fonts/{index:int}", async (string sid, int index, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
+            CancellationToken ct) =>
+        {
+            if (sessions.Get(sid) is not { } session)
+            {
+                return Results.NotFound();
+            }
+
+            var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
+            if ((await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct)).FirstOrDefault(f => f.StreamIndex == index) is not { } font
+                || await SubtitleFonts.ExtractAsync(file, font, TranscodeSettingsFor(options.CurrentValue), ct) is not { } path)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.File(path, font.ContentType, font.Name);
         });
 
         group.MapGet("/subtitles/{key}.m3u8", (string sid, string key, PlaybackSessions sessions, HttpContext http) =>

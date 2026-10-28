@@ -37,4 +37,16 @@ public class SubtitleShiftTests
 
     [Fact]
     public void NoDelay_LeavesTheFileAlone() => Assert.Same(Vtt, Subtitles.Shift(Vtt, 0));
+
+    [Fact]
+    public void Placed_SetsEveryCuesLine_KeepingItsOtherSettings()
+    {
+        var vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.500 align:start line:0\nSign\n\n00:00:03.000 --> 00:00:04.000\nHello\n";
+
+        var placed = Subtitles.Placed(vtt, Flexarr.Core.Media.SubtitlePosition.Raised);
+
+        Assert.Contains("00:00:01.000 --> 00:00:02.500 align:start line:82%,end\nSign", placed, StringComparison.Ordinal);
+        Assert.Contains("00:00:03.000 --> 00:00:04.000 line:82%,end\nHello", placed, StringComparison.Ordinal);
+        Assert.Same(vtt, Subtitles.Placed(vtt, Flexarr.Core.Media.SubtitlePosition.Bottom));
+    }
 }

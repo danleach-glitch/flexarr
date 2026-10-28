@@ -74,7 +74,8 @@ public static class DownloadPlanner
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(subtitles);
-        var text = subtitles.Where(s => s.IsText).ToList();
+        // Captions in the video's frames travel with the picture when it's copied, and can't be mapped as a stream.
+        var text = subtitles.Where(s => s.IsText && !s.InVideo).ToList();
         var video = file.Streams.Where(s => s.Type == StreamType.Video).OrderBy(s => s.Index).FirstOrDefault();
         var audio = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).FirstOrDefault();
         if (video is null)

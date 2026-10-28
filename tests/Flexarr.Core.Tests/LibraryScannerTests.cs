@@ -570,6 +570,25 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task VideosScannedBeforeClosedCaptionsWereLookedFor_AreReadAgainOnce()
+    {
+        var root = Touch("movies/Network (1976)/Network (1976).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.ExecuteUpdateAsync(u => u.SetProperty(f => f.ClosedCaptions, (bool?)null));
+        _db.ChangeTracker.Clear();
+        _probe.Calls = 0;
+        _probe.ClosedCaptions = true;
+
+        var backfill = await Scanner().ScanAsync(library, null, default);
+        var after = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((1, 0, 1), (backfill.Updated, after.Updated, _probe.Calls));
+        _db.ChangeTracker.Clear();
+        Assert.True((await _db.MediaFiles.SingleAsync()).ClosedCaptions);
+    }
+
+    [Fact]
     public async Task ProbeFailure_StillAddsFile_AndRetriesWhenChangedOrAsked()
     {
         var root = Touch("movies/Broken (2020)/Broken (2020).mkv");
@@ -751,6 +770,7 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         public bool Fail;
         public VideoRange Range = VideoRange.Sdr;
         public bool Hdr10Plus;
+        public bool? ClosedCaptions = false;
 
         /// <summary>Tags to report, by file name.</summary>
         public Dictionary<string, Dictionary<string, string>> Tags { get; } = [];
@@ -770,7 +790,7 @@ public sealed class LibraryScannerTests : IAsyncLifetime
             [
                 new MediaStream { Index = 0, Type = StreamType.Video, Codec = "hevc", Width = 1920, Height = 1080 },
                 new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "eac3", Channels = 6, IsDefault = true },
-            ]) { Tags = tags, Hdr10Plus = Hdr10Plus });
+            ]) { Tags = tags, Hdr10Plus = Hdr10Plus, ClosedCaptions = ClosedCaptions });
         }
     }
 }

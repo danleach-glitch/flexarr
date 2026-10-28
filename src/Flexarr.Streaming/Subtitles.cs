@@ -18,14 +18,24 @@ public static partial class Subtitles
         [".ssa"] = "ssa",
     };
 
-    /// <summary>Embedded subtitle streams plus sidecar files such as "Movie (2020).en.forced.srt".</summary>
-    public static IReadOnlyList<SubtitleTrack> For(MediaFile file)
+    /// <summary>
+    /// Embedded subtitle streams, closed captions in the video, and sidecar files such as "Movie (2020).en.forced.srt".
+    /// <paramref name="teletextReadable"/>: this server's FFmpeg can convert teletext.
+    /// </summary>
+    public static IReadOnlyList<SubtitleTrack> For(MediaFile file, bool teletextReadable = false)
     {
         ArgumentNullException.ThrowIfNull(file);
 
         var tracks = file.Streams.Where(s => s.Type == StreamType.Subtitle).OrderBy(s => s.Index)
-            .Select(s => new SubtitleTrack($"e{s.Index}", s.Index, null, s.Codec, s.Language, s.Title, s.IsDefault, s.IsForced))
+            .Select(s => new SubtitleTrack($"e{s.Index}", s.Index, null, s.Codec, s.Language, s.Title, s.IsDefault, s.IsForced) { TeletextReadable = teletextReadable })
             .ToList();
+
+        // Captions in the video's frames come with the picture: the language is the programme's, so the first audio's.
+        if (file.ClosedCaptions == true && file.Streams.FirstOrDefault(s => s.Type == StreamType.Video) is { } video)
+        {
+            var language = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).FirstOrDefault()?.Language;
+            tracks.Add(new SubtitleTrack($"cc{video.Index}", video.Index, null, "eia_608", language, "CC", false, false) { InVideo = true });
+        }
 
         var directory = Path.GetDirectoryName(file.Path);
         var stem = Path.GetFileNameWithoutExtension(file.Path);
@@ -57,16 +67,20 @@ public static partial class Subtitles
         return tracks;
     }
 
-    /// <summary>Where a track's WebVTT is cached (keyed by source, stream and modification time).</summary>
-    public static string CachePath(MediaFile file, SubtitleTrack track, TranscodeSettings settings)
+    /// <summary>
+    /// Where a track's WebVTT (or, with <paramref name="extension"/> ".ass", its styled original) is cached, keyed by
+    /// source, stream and modification time.
+    /// </summary>
+    public static string CachePath(MediaFile file, SubtitleTrack track, TranscodeSettings settings, string extension = ".vtt")
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(settings);
 
         var source = track.ExternalPath ?? file.Path;
-        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{source}|{track.StreamIndex}|{File.GetLastWriteTimeUtc(source).Ticks}")))[..32];
-        return Path.Combine(settings.CacheDirectory, "subtitles", $"{key}.vtt");
+        var stream = track.InVideo ? $"cc{track.StreamIndex}" : $"{track.StreamIndex}";
+        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{source}|{stream}|{File.GetLastWriteTimeUtc(source).Ticks}")))[..32];
+        return Path.Combine(settings.CacheDirectory, "subtitles", key + extension);
     }
 
     /// <summary>
@@ -80,10 +94,12 @@ public static partial class Subtitles
 
         var done = new Dictionary<string, string>(StringComparer.Ordinal);
         var embedded = new List<(SubtitleTrack Track, string Target)>();
+        var teletext = new List<(SubtitleTrack Track, string Target)>();
+        var captions = new List<(SubtitleTrack Track, string Target)>();
         foreach (var track in tracks.Where(t => t.IsText))
         {
             var target = CachePath(file, track, settings);
-            if (File.Exists(target))
+            if (File.Exists(target) && (!track.IsStyled || track.ExternalPath is not null || File.Exists(CachePath(file, track, settings, ".ass"))))
             {
                 done[track.Key] = target;
             }
@@ -96,38 +112,120 @@ public static partial class Subtitles
             }
             else
             {
-                embedded.Add((track, target));
+                (track.InVideo ? captions : track.IsTeletext ? teletext : embedded).Add((track, target));
             }
         }
 
-        if (embedded.Count == 0)
+        if (embedded.Count > 0)
         {
-            return done;
+            // Styled tracks are also copied as they are, for players that draw them as authored: same pass, no extra read.
+            var outputs = embedded.Select(e => (e.Track, Format: "webvtt", e.Target))
+                .Concat(embedded.Where(e => e.Track.IsStyled).Select(e => (e.Track, Format: "ass", Target: CachePath(file, e.Track, settings, ".ass"))))
+                .ToList();
+            await ExtractAsync([], file.Path, outputs, done, settings, ct).ConfigureAwait(false);
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(embedded[0].Target)!);
-        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file", "-i", file.Path, "-vn", "-an", "-dn" };
-        foreach (var (track, target) in embedded)
+        if (teletext.Count > 0)
         {
-            args.AddRange(["-map", $"0:{track.StreamIndex}", "-c:s", "webvtt", "-f", "webvtt", target + ".tmp"]);
+            // Its own pass, with the teletext decoder's options: subtitle pages, as text rather than pictures of the page.
+            await ExtractAsync(["-txt_format", "text", "-txt_page", "subtitle"], file.Path,
+                teletext.Select(e => (e.Track, Format: "webvtt", e.Target)).ToList(), done, settings, ct).ConfigureAwait(false);
+        }
+
+        foreach (var (track, target) in captions)
+        {
+            if (await ExtractCaptionsAsync(file.Path, target, settings, ct).ConfigureAwait(false))
+            {
+                done[track.Key] = target;
+            }
+        }
+
+        return done;
+    }
+
+    /// <summary>One read of the file, writing each of <paramref name="outputs"/>; the WebVTT ones that land go in <paramref name="done"/>.</summary>
+    private static async Task ExtractAsync(string[] inputOptions, string path, List<(SubtitleTrack Track, string Format, string Target)> outputs,
+        Dictionary<string, string> done, TranscodeSettings settings, CancellationToken ct)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(outputs[0].Target)!);
+        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file", .. inputOptions, "-i", path, "-vn", "-an", "-dn"];
+        foreach (var (track, format, target) in outputs)
+        {
+            args.AddRange(["-map", $"0:{track.StreamIndex}", "-c:s", format == "ass" ? "copy" : "webvtt", "-f", format, target + ".tmp"]);
         }
 
         var ok = await RunAsync(settings.FfmpegPath, args, ct).ConfigureAwait(false);
-        foreach (var (track, target) in embedded)
+        foreach (var (track, format, target) in outputs)
         {
             var partial = target + ".tmp";
             if (ok && File.Exists(partial))
             {
                 File.Move(partial, target, overwrite: true);
-                done[track.Key] = target;
+                if (format == "webvtt")
+                {
+                    done[track.Key] = target;
+                }
             }
             else if (File.Exists(partial))
             {
                 File.Delete(partial);
             }
         }
+    }
 
-        return done;
+    /// <summary>
+    /// Closed captions in the video's frames: FFmpeg only gets at them by decoding the video, through the movie filter
+    /// (its subcc output). The filter takes a file name inside a filter graph, where quotes, colons and brackets in a
+    /// real path would need escaping twice over, so it reads a link with a plain name, from the link's own folder.
+    /// </summary>
+    private static async Task<bool> ExtractCaptionsAsync(string path, string target, TranscodeSettings settings, CancellationToken ct)
+    {
+        var folder = Path.GetDirectoryName(target)!;
+        Directory.CreateDirectory(folder);
+        var link = $"cc-{Guid.NewGuid():N}{Path.GetExtension(path).ToLowerInvariant() switch { var e when e.Length is > 1 and <= 5 && e[1..].All(char.IsAsciiLetterOrDigit) => e, _ => "" }}";
+        var partial = target + ".tmp";
+        try
+        {
+            File.CreateSymbolicLink(Path.Combine(folder, link), path);
+            var ok = await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", $"movie={link}[out0+subcc]",
+                "-map", "0:1", "-c:s", "webvtt", "-f", "webvtt", partial], ct, folder).ConfigureAwait(false);
+            if (ok && File.Exists(partial))
+            {
+                File.Move(partial, target, overwrite: true);
+                return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            File.Delete(Path.Combine(folder, link));
+            File.Delete(partial);
+        }
+    }
+
+    /// <summary>
+    /// A styled (ASS/SSA) track as authored, as UTF-8 text: an embedded one from the copy made alongside its WebVTT, a
+    /// sidecar read as it is (Windows-1252 when it isn't UTF-8). Null when it hasn't been extracted.
+    /// </summary>
+    public static async Task<string?> StyledAsync(MediaFile file, SubtitleTrack track, TranscodeSettings settings, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        var path = track.ExternalPath ?? CachePath(file, track, settings, ".ass");
+        if (!track.IsStyled || !File.Exists(path))
+        {
+            return null;
+        }
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        try
+        {
+            return new UTF8Encoding(false, true).GetString(bytes).TrimStart('\uFEFF');
+        }
+        catch (DecoderFallbackException)
+        {
+            return (CodePagesEncodingProvider.Instance.GetEncoding(1252) ?? Encoding.Latin1).GetString(bytes);
+        }
     }
 
     private static async Task<bool> ConvertSidecarAsync(string source, string target, TranscodeSettings settings, CancellationToken ct)
@@ -160,9 +258,9 @@ public static partial class Subtitles
         _ => [],
     };
 
-    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct)
+    private static async Task<bool> RunAsync(string ffmpeg, IEnumerable<string> args, CancellationToken ct, string? workingDirectory = null)
     {
-        var start = new ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true };
+        var start = new ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true, WorkingDirectory = workingDirectory ?? "" };
         foreach (var arg in args)
         {
             start.ArgumentList.Add(arg);
@@ -221,6 +319,37 @@ public static partial class Subtitles
 
         return builder.ToString();
     }
+
+    /// <summary>
+    /// Sets every cue's line to the profile's <paramref name="position"/>, for players that draw WebVTT as the cues say:
+    /// the foot of the cue raised to 82% or 72% of the picture's height, or its top at 8%. At the bottom, cues are kept.
+    /// </summary>
+    public static string Placed(string vtt, SubtitlePosition position)
+    {
+        ArgumentNullException.ThrowIfNull(vtt);
+        var line = position switch
+        {
+            SubtitlePosition.Raised => "line:82%,end",
+            SubtitlePosition.Higher => "line:72%,end",
+            SubtitlePosition.Top => "line:8%,start",
+            _ => null,
+        };
+        if (line is null)
+        {
+            return vtt;
+        }
+
+        return CueLine().Replace(vtt.Replace("\r\n", "\n", StringComparison.Ordinal), m =>
+        {
+            // The cue's own settings stay (alignment, size), except a line of its own.
+            var settings = string.Join(' ', m.Groups["settings"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(x => !x.StartsWith("line:", StringComparison.Ordinal)).Append(line));
+            return $"{m.Groups["timing"].Value} {settings}";
+        });
+    }
+
+    [GeneratedRegex(@"^(?<timing>(?:\d+:)?\d{2}:\d{2}\.\d{3}\s+-->\s+(?:\d+:)?\d{2}:\d{2}\.\d{3})(?<settings>[^\n]*)$", RegexOptions.Multiline)]
+    private static partial Regex CueLine();
 
     private static double ParseTime(string value)
     {
