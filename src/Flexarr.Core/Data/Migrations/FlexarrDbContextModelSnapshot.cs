@@ -564,6 +564,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<long?>("Bitrate")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool?>("ClosedCaptions")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Container")
                         .HasColumnType("TEXT");
 
@@ -1047,10 +1050,18 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("SkipRecaps")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SubtitlePosition")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SubtitleSize")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("SubtitlesInBlackBars")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("TailscaleLogin")
                         .HasColumnType("TEXT");
@@ -1078,7 +1089,9 @@ namespace Flexarr.Core.Data.Migrations
                             SkipCredits = false,
                             SkipIntros = false,
                             SkipRecaps = false,
-                            SubtitleSize = "Standard"
+                            SubtitlePosition = "Bottom",
+                            SubtitleSize = "Standard",
+                            SubtitlesInBlackBars = false
                         });
                 });
 

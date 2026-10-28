@@ -37,6 +37,12 @@ public sealed class MediaFile
     /// <summary>HDR10+ metadata in the video. Null until checked: HDR files scanned before it was looked for get checked again.</summary>
     public bool? Hdr10Plus { get; set; }
 
+    /// <summary>
+    /// Closed captions (CEA-608/708) carried inside the video's own frames rather than as a track of their own. Null
+    /// until checked: files scanned before they were looked for get checked again.
+    /// </summary>
+    public bool? ClosedCaptions { get; set; }
+
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
 

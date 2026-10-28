@@ -42,6 +42,12 @@ public sealed class Profile
     /// <summary>How big subtitles are drawn, on every device.</summary>
     public SubtitleSize SubtitleSize { get; set; } = SubtitleSize.Standard;
 
+    /// <summary>How high subtitles sit over the picture, on every device.</summary>
+    public SubtitlePosition SubtitlePosition { get; set; } = SubtitlePosition.Bottom;
+
+    /// <summary>In films wider than the screen, subtitles go in the black bar below the picture rather than over it.</summary>
+    public bool SubtitlesInBlackBars { get; set; }
+
     /// <summary>Phones keep the newest episodes of the podcasts this profile follows without being asked (on Wi-Fi).</summary>
     public bool PodcastAutoDownload { get; set; } = true;
 
@@ -104,4 +110,13 @@ public enum SubtitleSize
     Standard,
     Large,
     ExtraLarge,
+}
+
+/// <summary>Where subtitles sit: at the foot of the picture, raised a little or a lot, or at the top.</summary>
+public enum SubtitlePosition
+{
+    Bottom,
+    Raised,
+    Higher,
+    Top,
 }
