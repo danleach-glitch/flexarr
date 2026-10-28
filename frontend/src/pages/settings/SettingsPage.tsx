@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { askForProfile, getMe, getRequestDestinations, getUpdates, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
+import { askForProfile, getMe, getRequestDestinations, getUpdates, signIn, UnauthorizedError, getProfiles, type Profile } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
@@ -71,10 +71,11 @@ export function SettingsPage() {
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
   const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
-  // Settings for the server are the main profile's. Another profile chosen on this browser has its own pages, and a
-  // way back to the main one (with its PIN) for the rest. Older servers have no /me: everything, as before.
+  // Settings for the server are the main profile's: another profile chosen on this browser has only its own pages. The
+  // owner over Tailscale is the exception, with one page saying how to prove it's them. Older servers have no /me:
+  // everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
-  const ownerOverTailscale = me.data?.method === 'tailscale' && me.data.profileId === 'owner'
+  const ownerOverTailscale = !isAdmin && me.data?.method === 'tailscale' && me.data.profileId === 'owner'
   // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.
   const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
   const badges: Record<string, string | undefined> = { updates: updates.data?.available ? `Flexarr ${updates.data.latest?.version} is available` : undefined }
@@ -85,6 +86,9 @@ export function SettingsPage() {
 
   const profilePage = [...profilePages, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
+  // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
+  if (!profilePage && me.loading) return null
+  if (!profilePage && !isAdmin && !ownerOverTailscale) return <Navigate to="/settings/playback" replace />
   const lit = serverPage?.under ?? section
 
   const link = (p: Page) => (
@@ -103,19 +107,19 @@ export function SettingsPage() {
             <h2>{profileHeading(name)}</h2>
             {ownPages.map(link)}
           </div>
-          <div className="settings-nav-group">
-            <h2>Server</h2>
-            {isAdmin ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: 'Manage the server', render: () => null })}
-          </div>
+          {(isAdmin || ownerOverTailscale) && (
+            <div className="settings-nav-group">
+              <h2>Server</h2>
+              {isAdmin ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: 'Manage the server', render: () => null })}
+            </div>
+          )}
         </nav>
       </aside>
       <div className="settings-content">
         {profilePage
           ? profilePage.render()
-          : !isAdmin
-            ? ownerOverTailscale
-              ? <TailscaleAdminNote />
-              : <MainProfileNote />
+          : ownerOverTailscale
+            ? <TailscaleAdminNote />
             : serverPage
               ? serverPage.render()
               : <p className="muted">There’s no such page in Settings.</p>}
@@ -135,44 +139,6 @@ function profileHeading(name: string | undefined) {
 function switchToMainProfile(main: Profile | undefined) {
   askForProfile(main?.id)
   window.location.reload()
-}
-
-/** Another profile is chosen on this browser: the way back to the main one, and to this page. */
-function MainProfileNote() {
-  const { profiles } = useSession()
-  const main = profiles?.find((p) => p.isMain)
-  const [refused, setRefused] = useState(false)
-
-  return (
-    <div className="page-message">
-      <p className="muted">The server’s settings are for the main profile.</p>
-      {refused ? (
-        <p className="muted">Ask whoever manages Flexarr to give the main profile a PIN.</p>
-      ) : (
-        <p>
-          <AsyncButton
-            className="button"
-            onClick={async () => {
-              if (main && !main.hasPin) {
-                // Nothing to ask for: switch straight to it, unless the server won't (over Tailscale, without a PIN).
-                try {
-                  await selectProfile(main.id)
-                  sessionStorage.setItem('flexarr.profileChosen', '1')
-                  window.location.reload()
-                } catch {
-                  setRefused(true)
-                }
-                return
-              }
-              switchToMainProfile(main)
-            }}
-          >
-            Switch to the main profile
-          </AsyncButton>
-        </p>
-      )}
-    </div>
-  )
 }
 
 /**

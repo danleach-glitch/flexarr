@@ -20,6 +20,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Requests
 - Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. When two people have a TV library each, the shows each of them asks for land in their own. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
 
+### Settings
+- Profiles other than the main one see only their own settings: the server's section is gone from their Settings, rather than listed with a note about the main profile.
+
 ### Playback
 - When you've chosen a language, the soundtrack in it is picked over a commentary or audio description track, and the file's default track wins among the rest.
 
