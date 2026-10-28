@@ -30,12 +30,6 @@ protocol OfflineMusicLibrary: AnyObject {
 @MainActor
 @Observable
 final class MusicPlayer {
-    /// When a podcast should stop by itself: after so many minutes, or at the end of the episode.
-    enum SleepTimer: Hashable {
-        case minutes(Int)
-        case endOfEpisode
-    }
-
     /// The speeds a podcast can play at.
     static let speeds: [Double] = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
 
@@ -68,9 +62,8 @@ final class MusicPlayer {
     var errorMessage: String?
     /// How fast the podcast episode plays (music always plays at 1×).
     private(set) var speed: Double = 1
-    private(set) var sleepTimer: SleepTimer?
-    /// When a timer of minutes runs out.
-    private(set) var sleepEndsAt: Date?
+    /// When a podcast should stop by itself: after so many minutes (it pauses), or at the end of the episode.
+    let sleep = SleepTimer()
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
     /// Where downloaded tracks come from (set by the iOS app; the Apple TV has none).
@@ -105,7 +98,6 @@ final class MusicPlayer {
     @ObservationIgnored private var yieldedToVideo = false
     /// Which remote commands the lock screen has: music's previous and next, or a podcast's skips and speed.
     @ObservationIgnored private var nowPlayingIsPodcast: Bool?
-    @ObservationIgnored private var sleepTask: Task<Void, Never>?
     @ObservationIgnored private var lastOfflineRecord = Date.distantPast
 
     private static let reportInterval: TimeInterval = 10
@@ -128,6 +120,7 @@ final class MusicPlayer {
             let options = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
             MainActor.assumeIsolated { self?.interrupted(type: type, options: options) }
         }
+        sleep.onExpire = { [weak self] in self?.pause() }
         nowPlaying.onPlay = { [weak self] in self?.resume() }
         nowPlaying.onPause = { [weak self] in self?.pause() }
         nowPlaying.onNext = { [weak self] in self?.next() }
@@ -205,22 +198,6 @@ final class MusicPlayer {
     /// Back or forward a few seconds (a podcast's 15 and 30).
     func skip(by seconds: Double) {
         seek(to: position + seconds)
-    }
-
-    func setSleepTimer(_ timer: SleepTimer?) {
-        sleepTask?.cancel()
-        sleepTask = nil
-        sleepTimer = timer
-        sleepEndsAt = nil
-        guard case .minutes(let minutes) = timer else { return }
-        sleepEndsAt = Date().addingTimeInterval(Double(minutes * 60))
-        sleepTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(minutes * 60))
-            guard !Task.isCancelled, let self else { return }
-            pause()
-            sleepTimer = nil
-            sleepEndsAt = nil
-        }
     }
 
     func togglePlayPause() {
@@ -327,7 +304,7 @@ final class MusicPlayer {
         artwork = nil
         isPlayingOffline = false
         isLoading = false
-        setSleepTimer(nil)
+        sleep.set(nil)
         nowPlaying.deactivate()
         nowPlayingIsPodcast = nil
     }
@@ -471,8 +448,8 @@ final class MusicPlayer {
             offlineLibrary?.record(itemId: track.id, position: 0, finished: true)
         }
         report(paused: true, ended: true)
-        if sleepTimer == .endOfEpisode {
-            setSleepTimer(nil)
+        if sleep.setting == .endOfEpisode {
+            sleep.set(nil)
             endSession()
             clearItem()
             position = 0

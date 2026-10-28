@@ -134,6 +134,35 @@
   border-color: var(--screen);
 }
 
+/* A speed other than normal shows in the show's colour. */
+.player-quality.active {
+  border-color: var(--ambient);
+  color: var(--ambient);
+}
+
+.player-sleep {
+  position: relative;
+}
+
+.player-sleep.active {
+  color: var(--ambient);
+}
+
+/* Minutes left on the sleep timer, on its icon. */
+.player-sleep-count {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ambient);
+  color: var(--room);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+}
+
 /* ---------- Scrubber ---------- */
 
 .scrubber {
@@ -321,6 +350,28 @@
   background: rgb(255 255 255 / 0.18);
 }
 
+.player-menu-stepper button svg {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+
+.player-menu-stepper button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.player-menu-stepper button:disabled:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+/* What a menu's choice does beyond this screen ("For everyone who plays this file"). */
+.player-menu-note {
+  max-width: 220px;
+  padding: 4px 14px 2px;
+  font-size: var(--step--1);
+}
+
 /* ---------- Skip, up next, states ---------- */
 
 .skip-button {
@@ -471,6 +522,39 @@
   border-radius: var(--radius-panel);
   background: var(--seat);
   text-align: center;
+}
+
+/* The sleep timer's last minute: the picture dims under the prompt, and stays dim once it has stopped. */
+.player-sleep-dim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.7);
+  pointer-events: none;
+  transition: opacity 0.5s linear;
+}
+
+.player-still-watching {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(380px, calc(100vw - 32px));
+  padding: 24px;
+  border-radius: var(--radius-panel);
+  background: rgb(27 23 32 / 0.9);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  z-index: 6;
+}
+
+.player-still-watching p:first-child {
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+
+.player-still-watching .muted {
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
 }
 
 .player-error-note {

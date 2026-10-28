@@ -276,6 +276,18 @@ public struct FlexarrClient: Sendable {
         _ = try await send("PUT", "items/\(itemId)/subtitle-delay", body: SubtitleDelayBody(seconds: seconds))
     }
 
+    /// Plays a file's sound `seconds` later (earlier when negative, up to two seconds either way), for everyone in the
+    /// household. Servers before 0.53 answer 404.
+    public func setAudioDelay(itemId: String, seconds: Double) async throws {
+        _ = try await send("PUT", "items/\(itemId)/audio-delay", body: AudioDelayBody(seconds: seconds))
+    }
+
+    /// Remembers `speed` for the show an episode belongs to, for this profile (1 forgets it). A film's isn't kept.
+    /// Servers before 0.53 answer 404.
+    public func setPlaybackSpeed(itemId: String, speed: Double) async throws {
+        _ = try await send("PUT", "items/\(itemId)/playback-speed", body: PlaybackSpeedBody(speed: speed))
+    }
+
     // MARK: Profiles
 
     public func profiles() async throws -> [Profile] {

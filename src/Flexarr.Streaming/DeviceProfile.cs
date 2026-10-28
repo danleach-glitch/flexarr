@@ -43,4 +43,14 @@ public sealed record DeviceProfile
     /// its own. Otherwise only the first audio track plays as it is, and picture subtitles have to be burned in.
     /// </summary>
     public bool SelectsTracksItself { get; init; }
+
+    /// <summary>
+    /// The player can play a file's sound later (a browser, through Web Audio) or earlier (AetherEngine) than its picture
+    /// by itself. When the file's offset (<see cref="Core.Media.MediaFile.AudioDelaySeconds"/>) is one the player can't
+    /// apply, the server moves the sound in a stream of its own. Left out by older apps: they can't.
+    /// </summary>
+    public bool? DelaysAudio { get; init; }
+
+    /// <inheritdoc cref="DelaysAudio"/>
+    public bool? AdvancesAudio { get; init; }
 }

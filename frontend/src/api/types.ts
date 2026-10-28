@@ -331,6 +331,10 @@ export interface DeviceProfile {
   maxHeight: number
   maxAudioChannels: number
   maxBitrate: number
+  /** Plays a file's sound later than its picture by itself (Web Audio), when the file is out of sync. */
+  delaysAudio?: boolean
+  /** Plays it earlier by itself: browsers can't, so the server moves the sound in its stream. */
+  advancesAudio?: boolean
 }
 
 export interface PlaybackRequest {
@@ -401,6 +405,12 @@ export interface PlaybackInfo {
   preferences?: PlaybackPreferences | null
   /** This title's subtitles are shown this many seconds later (earlier when negative). */
   subtitleDelaySeconds?: number
+  /** The file's sound plays this many seconds later (earlier when negative), for everyone. */
+  audioDelaySeconds?: number
+  /** The server's stream already moves the sound by audioDelaySeconds, so the player mustn't as well. */
+  audioDelayInStream?: boolean
+  /** The speed this profile watches the show at; absent or null for 1×. */
+  speed?: number | null
 }
 
 export interface TranscodingSettings {

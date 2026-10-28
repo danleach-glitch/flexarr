@@ -1,4 +1,5 @@
 using Flexarr.Streaming;
+using Flexarr.Streaming.Remux;
 
 namespace Flexarr.Core.Tests;
 
@@ -144,6 +145,40 @@ public class FfmpegCommandTests
         Assert.Contains("#EXT-X-MAP:URI=\"init.mp4\"\n", playlist, StringComparison.Ordinal);
         Assert.Contains("#EXTINF:6.000,\n0.m4s", playlist, StringComparison.Ordinal);
         Assert.DoesNotContain(".ts", playlist, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SoundOutOfSync_ComesFromTheFileAgain_ReadFromTheDelayBeforeThePicture()
+    {
+        // Later: the sound that goes with the picture at 60 s is the file's at 59.5 s.
+        var later = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { AudioDelaySeconds = 0.5 }, 10, "/out", Settings(HardwareAcceleration.None)));
+        Assert.Contains("-itsoffset 0 -readrate 1.0 -readrate_initial_burst 180 -ss 59.5 -protocol_whitelist file -i /in.mkv", later, StringComparison.Ordinal);
+        Assert.Contains("-map 1:1", later, StringComparison.Ordinal);
+        Assert.DoesNotContain("-map 0:1", later, StringComparison.Ordinal);
+
+        // Earlier, from the start: read ahead of the picture.
+        var earlier = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { AudioDelaySeconds = -0.3 }, 0, "/out", Settings(HardwareAcceleration.None)));
+        Assert.Contains("-itsoffset 0 -readrate 1.0 -readrate_initial_burst 180 -ss 0.3 -protocol_whitelist file -i /in.mkv", earlier, StringComparison.Ordinal);
+
+        // Later, from the start: there's nothing before the beginning to read, so the sound starts after a pause.
+        var fromStart = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { AudioDelaySeconds = 0.5 }, 0, "/out", Settings(HardwareAcceleration.None)));
+        Assert.Contains("-itsoffset 0.5 -readrate 1.0 -readrate_initial_burst 180 -ss 0 -protocol_whitelist file -i /in.mkv", fromStart, StringComparison.Ordinal);
+
+        var inSync = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 10, "/out", Settings(HardwareAcceleration.None)));
+        Assert.DoesNotContain("-itsoffset", inSync, StringComparison.Ordinal);
+        Assert.Contains("-map 0:1", inSync, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SoundOutOfSync_InARepackagedVideo_KeepsTheFilesTimelineMovedByTheDelay()
+    {
+        var repackage = new Repackage([0, 4, 8.5], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false);
+        var plan = Plan with { Repackage = repackage, AudioDelaySeconds = -0.25, CopyAudio = true };
+
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", plan, 2, "/out", Settings(HardwareAcceleration.None)));
+
+        Assert.Contains("-itsoffset -0.25 -readrate 1.0 -readrate_initial_burst 180 -ss 8.75 -protocol_whitelist file -i /in.mkv", args, StringComparison.Ordinal);
+        Assert.Contains("-map 1:1 -c:a copy", args, StringComparison.Ordinal);
     }
 
     private static TranscodeSettings Settings(HardwareAcceleration hw) => new() { CacheDirectory = "/cache", HardwareAcceleration = hw };

@@ -355,6 +355,58 @@ struct SubtitleChoiceTests {
     }
 }
 
+struct PlayerControlsTests {
+    @Test func movesAFilesSound() async throws {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+
+        try await client.setAudioDelay(itemId: "ep", seconds: -0.15)
+
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "PUT")
+        #expect(request.url?.path == "/api/v1/items/ep/audio-delay")
+        let json = try #require(try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
+        #expect(json["seconds"] as? Double == -0.15)
+        #expect(json["restOfSeason"] == nil)
+    }
+
+    @Test func remembersAShowsSpeed() async throws {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+
+        try await client.setPlaybackSpeed(itemId: "ep", speed: 1.25)
+
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "PUT")
+        #expect(request.url?.path == "/api/v1/items/ep/playback-speed")
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"speed":1.25}"#)
+    }
+
+    @Test func theEngineSaysItMovesTheSoundItself_AVPlayerDoesNot() throws {
+        let engine = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            DeviceProfile.engine(client: "tvos", hdr: true, dolbyVision: false, hdr10: true, hlg: true))) as? [String: Any]
+        #expect(engine?["delaysAudio"] as? Bool == true)
+        #expect(engine?["advancesAudio"] as? Bool == true)
+        let avPlayer = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DeviceProfile.tvOS(hdr: true))) as? [String: Any]
+        #expect(avPlayer?["delaysAudio"] == nil)
+        #expect(avPlayer?["advancesAudio"] == nil)
+    }
+
+    @Test func readsTheOffsetAndSpeed_andGoesWithoutOnOlderServers() throws {
+        let old = try Fixture.decode(PlaybackInfo.self, "playback")
+        #expect(old.audioDelaySeconds == nil)
+        #expect(!old.hasPlayerControls)
+
+        var json = try #require(try JSONSerialization.jsonObject(with: Fixture.data("playback")) as? [String: Any])
+        json["audioDelaySeconds"] = 0.2
+        json["audioDelayInStream"] = true
+        json["speed"] = 1.5
+        let info = try FlexarrClient.decoder.decode(PlaybackInfo.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(info.audioDelaySeconds == 0.2)
+        #expect(info.audioDelayInStream == true)
+        #expect(info.speed == 1.5)
+        #expect(info.hasPlayerControls)
+    }
+}
+
 struct CommandStreamTests {
     @Test func commandStream_yieldsEachCommandEvent_andSkipsCommentsAndCRLF() async throws {
         let body = ": connected\n\nevent: command\r\ndata: {\"id\":\"a\",\"kind\":\"Play\",\"itemId\":\"x\",\"fromBeginning\":false,\"sentBy\":null,\"sentAt\":\"2026-10-25T10:00:00Z\"}\r\n\r\n"

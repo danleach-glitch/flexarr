@@ -16,6 +16,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The next episode starts sooner, as its opening is fetched during the credits.
 - Lossless surround is on by itself when the Apple TV is connected to a receiver or soundbar that takes it, which keeps 4K films with TrueHD sound from stuttering. Settings › Playback still turns it off.
 - HLG videos that the Apple TV can't draw itself play from the server instead of showing black.
+- The player's controls no longer sometimes stay on screen while a film plays; they fade away a few seconds after you stop using the remote, as they should.
 
 ### Requests
 - Each profile can choose which library the shows and films it requests are added to, in Settings › Requests. When two people have a TV library each, the shows each of them asks for land in their own. It's there when you have two TV or film libraries Seerr can add to, applies to requests from every device, and the main profile can set it for anyone in Settings › Profiles.
@@ -25,6 +26,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Playback
 - When you've chosen a language, the soundtrack in it is picked over a commentary or audio description track, and the file's default track wins among the rest.
+- **Audio sync:** when a file's sound and picture drift apart, move the sound earlier or later in 50 ms steps from the player's audio menu, on the web, Apple TV, iPhone and iPad. It's fixed for everyone in the household.
+- **Sleep timer for films and episodes:** stop in 15, 30, 45 or 60 minutes, or at the end of this episode. In the last minute the picture dims and asks "Still watching?", and any button adds 15 minutes (on iPhone, a tap or a shake). Otherwise the sound fades out and playback pauses.
+- **Speed in the web player,** from half speed to double. The speed you choose for a show's episode is kept for its other episodes, on every device.
 
 ## 0.52.0 · 28 October 2026
 

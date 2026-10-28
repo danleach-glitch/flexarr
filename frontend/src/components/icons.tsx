@@ -21,6 +21,12 @@ export const Info = (p: IconProps) => (
     <path d="M12 11v5M12 8h.01" />
   </svg>
 )
+export const Reset = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.34-5.66" />
+    <path d="M4 4v4.5h4.5" />
+  </svg>
+)
 export const Check = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="m5 12.5 4.5 4.5L19 7.5" />
@@ -117,9 +123,11 @@ export const Microphone = (p: IconProps) => (
     <path d="M12 17v4.5M8.5 21.5h7" />
   </svg>
 )
-export const Moon = (p: IconProps) => (
+/** The sleep timer: a bed. */
+export const Sleep = (p: IconProps) => (
   <svg {...base} {...p}>
-    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+    <path d="M2.5 4.5v15M2.5 15.5h19M21.5 19.5V12a3 3 0 0 0-3-3H11v6.5" />
+    <rect x="5" y="10" width="4" height="5.5" rx="1.2" />
   </svg>
 )
 export const Next = (p: IconProps) => (

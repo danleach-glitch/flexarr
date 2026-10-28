@@ -236,15 +236,15 @@ struct NowPlayingView: View {
 
     private var sleepMenu: some View {
         Menu {
-            Picker("Sleep timer", selection: Binding(get: { music.sleepTimer }, set: { music.setSleepTimer($0) })) {
-                Text("Off").tag(MusicPlayer.SleepTimer?.none)
-                ForEach([15, 30, 45, 60], id: \.self) { Text("\($0) minutes").tag(MusicPlayer.SleepTimer?.some(.minutes($0))) }
-                Text("End of episode").tag(MusicPlayer.SleepTimer?.some(.endOfEpisode))
+            Picker("Sleep timer", selection: Binding(get: { music.sleep.setting }, set: { music.sleep.set($0) })) {
+                Text("Off").tag(SleepTimer.Setting?.none)
+                ForEach(SleepTimer.minuteChoices, id: \.self) { Text(SleepTimer.Setting.minutes($0).label).tag(SleepTimer.Setting?.some(.minutes($0))) }
+                Text(SleepTimer.Setting.endOfEpisode.label).tag(SleepTimer.Setting?.some(.endOfEpisode))
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: music.sleepTimer == nil ? "moon.zzz" : "moon.zzz.fill")
-                if let end = music.sleepEndsAt {
+                Image(systemName: music.sleep.setting == nil ? "bed.double" : "bed.double.fill")
+                if let end = music.sleep.endsAt {
                     // Minutes left, counting down.
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(Format.timestamp(max(0, end.timeIntervalSince(context.date))))
@@ -254,10 +254,10 @@ struct NowPlayingView: View {
                 }
             }
             .font(.system(size: 20, weight: .semibold))
-            .foregroundStyle(music.sleepTimer == nil ? Color.screen : Color.silver)
+            .foregroundStyle(music.sleep.setting == nil ? Color.screen : Color.silver)
             .frame(minWidth: 44, minHeight: 44)
         }
-        .accessibilityLabel(music.sleepTimer == nil ? "Sleep timer" : "Sleep timer on")
+        .accessibilityLabel(music.sleep.setting == nil ? "Sleep timer" : "Sleep timer on")
     }
 
     @ViewBuilder

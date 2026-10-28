@@ -79,7 +79,7 @@ public sealed class PlaybackService(
 
         var transcoding = options.CurrentValue.Transcoding;
         var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode);
+        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds);
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
 
         // A player that takes fragmented MP4 (Apple's) gets the video as it is when only the container or the sound was
@@ -192,6 +192,10 @@ public sealed class PlaybackService(
         var before = shuffling ? null : await PreviousEpisodeAsync(item, ct);
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
+        var series = ancestors.FirstOrDefault(a => a.Kind == MediaKind.Series)?.Id;
+        var speed = series is { } seriesId
+            ? await db.ShowPlaybackSpeeds.AsNoTracking().Where(s => s.ProfileId == profile.Id && s.SeriesId == seriesId).Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct)
+            : null;
 
         return new PlaybackInfoDto(
             id,
@@ -215,7 +219,10 @@ public sealed class PlaybackService(
             shuffling,
             watching,
             state?.SubtitleDelaySeconds ?? 0,
-            before is null ? null : await db.MediaItems.Where(i => i.Id == before.Id).Summaries(profile.Id).FirstAsync(ct));
+            before is null ? null : await db.MediaItems.Where(i => i.Id == before.Id).Summaries(profile.Id).FirstAsync(ct),
+            file.AudioDelaySeconds,
+            decision.Transcode?.AudioDelaySeconds is not (null or 0),
+            speed);
     }
 
     /// <summary>

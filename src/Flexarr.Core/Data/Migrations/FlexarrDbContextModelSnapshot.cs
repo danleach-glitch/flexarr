@@ -558,6 +558,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("AudioCodec")
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("AudioDelaySeconds")
+                        .HasColumnType("REAL");
+
                     b.Property<long?>("Bitrate")
                         .HasColumnType("INTEGER");
 
@@ -1074,6 +1077,25 @@ namespace Flexarr.Core.Data.Migrations
                             SkipRecaps = false,
                             SubtitleSize = "Standard"
                         });
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.ShowPlaybackSpeed", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SeriesId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("Speed")
+                        .HasColumnType("REAL");
+
+                    b.HasKey("ProfileId", "SeriesId");
+
+                    b.HasIndex("SeriesId");
+
+                    b.ToTable("ShowPlaybackSpeeds");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.WatchTombstone", b =>
@@ -1638,6 +1660,21 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.ShowPlaybackSpeed", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.WatchTombstone", b =>

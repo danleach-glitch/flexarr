@@ -36,6 +36,12 @@ public sealed class MediaFile
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
 
+    /// <summary>
+    /// Seconds this file's sound is played later (or, negative, earlier) to match its picture: a fault of the file, so
+    /// one offset for everyone. Cleared when the file changes.
+    /// </summary>
+    public double AudioDelaySeconds { get; set; }
+
     /// <summary>Set when ffprobe could not read the file; the scanner retries when the file changes.</summary>
     public string? ProbeError { get; set; }
 

@@ -24,6 +24,18 @@ protocol PlayerScreenDelegate: AnyObject {
     func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??)
     func playerScreen(_ screen: PlayerViewController, subtitleDelay seconds: Double)
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize)
+    /// The viewer nudged the file's sound (seconds later, earlier when negative).
+    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double)
+    /// The viewer chose a speed in the menu.
+    func playerScreen(_ screen: PlayerViewController, choseRate rate: Float)
+    /// The sleep timer was set, changed, asked, ran out or was woken from (`sleepHoldsEpisode` may have changed).
+    func playerScreenSleepChanged(_ screen: PlayerViewController)
+}
+
+extension PlayerScreenDelegate {
+    func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {}
+    func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {}
+    func playerScreenSleepChanged(_ screen: PlayerViewController) {}
 }
 
 /// The player screen: the transport's picture full-bleed, our controls over it, and the remote (Apple TV) or touch
@@ -51,6 +63,17 @@ final class PlayerViewController: UIViewController {
     private var holdTask: Task<Void, Never>?
     #endif
     private var subtitleSize: SubtitleSize = .standard
+    /// The file's audio offset (nil: not adjustable here).
+    private var audioSync: Double?
+    private let audioSyncPanel = AudioSyncPanel()
+    private var audioSyncOpen: Bool { !audioSyncPanel.isHidden }
+    /// The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode.
+    let sleep = SleepTimer()
+    private let sleepPrompt = SleepPromptView()
+    private var sleepPhase = SleepPhase.off
+    private var sleepWatch: Task<Void, Never>?
+    /// The minutes left last shown in the sleep menu, so it's rebuilt only when that changes.
+    private var sleepMinutesShown: Int?
     private var title_: (String, String?) = ("", nil)
     private var artwork: UIImage?
     #if os(iOS)
@@ -63,6 +86,21 @@ final class PlayerViewController: UIViewController {
     static var skipSeconds: Double {
         let saved = UserDefaults.standard.double(forKey: "FlexarrSkipSeconds")
         return saved > 0 ? saved : 30
+    }
+
+    private enum SleepPhase {
+        case off
+        /// The last minute: "Still watching?" over the dimmed picture.
+        case asking
+        /// Ran out: paused, dimmed until someone touches something.
+        case asleep
+    }
+
+    /// Where an episode ends for the sleep timer's End of episode: at its credits when the profile skips them (and
+    /// they're marked), else at its very end; the question comes as the credits start, or a minute before the end.
+    struct EpisodeEnd {
+        var credits: Double?
+        var stopsAtCredits: Bool
     }
 
     /// The timings offered for subtitles: a pick restarts the stream (about two seconds) with the subtitles moved.
@@ -84,6 +122,7 @@ final class PlayerViewController: UIViewController {
 
     init() {
         super.init(nibName: nil, bundle: nil)
+        sleep.onExpire = { [weak self] in self?.fallAsleep() }
         modalPresentationStyle = .fullScreen
         #if os(iOS)
         modalTransitionStyle = .crossDissolve
@@ -104,6 +143,11 @@ final class PlayerViewController: UIViewController {
         if let transport { install(transport) }
         controls.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(controls)
+        for panel in [sleepPrompt, audioSyncPanel] as [UIView] {
+            panel.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(panel)
+        }
+        audioSyncPanel.isHidden = true
         spinner.color = .white
         spinner.hidesWhenStopped = true
         spinner.translatesAutoresizingMaskIntoConstraints = false
@@ -115,11 +159,23 @@ final class PlayerViewController: UIViewController {
             controls.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            sleepPrompt.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            sleepPrompt.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            sleepPrompt.topAnchor.constraint(equalTo: view.topAnchor),
+            sleepPrompt.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            audioSyncPanel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
         ])
+        #if os(tvOS)
+        // Above the timeline and the menus, below the transport's circles.
+        audioSyncPanel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -190).isActive = true
+        #else
+        audioSyncPanel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -100).isActive = true
+        #endif
         controls.skipSeconds = Self.skipSeconds
         controls.setTitle(title_.0, subtitle: title_.1)
         wireControls()
         wireNowPlaying()
+        wirePanels()
         // Sound on with the ring switch off; playing on in Picture in Picture or with the screen locked. Apple's player
         // did this itself; on Apple TV it's also what lets tvOS negotiate the HDMI route for multichannel sound.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
@@ -142,6 +198,8 @@ final class PlayerViewController: UIViewController {
         super.viewDidAppear(animated)
         #if os(iOS)
         isRestoringFromPictureInPicture = false
+        // First responder, for shakes (more time on the sleep timer).
+        becomeFirstResponder()
         #else
         // Focus must be in here, or the remote's Menu goes to the screen underneath and takes this one down with it.
         setNeedsFocusUpdate()
@@ -162,6 +220,18 @@ final class PlayerViewController: UIViewController {
     }
 
     #if os(iOS)
+    override var canBecomeFirstResponder: Bool { true }
+
+    /// A shake while the sleep timer asks "Still watching?" is a yes; after it ran out, it wakes the screen.
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        guard motion == .motionShake else { return super.motionEnded(motion, with: event) }
+        switch sleepPhase {
+        case .asking: extendSleep()
+        case .asleep: wake()
+        case .off: super.motionEnded(motion, with: event)
+        }
+    }
+
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .allButUpsideDown }
@@ -246,6 +316,37 @@ final class PlayerViewController: UIViewController {
             // The pill shows on its own, without the rest of the controls.
             controls.promptButton.superview?.alpha = 1
         }
+    }
+
+    /// The file's audio offset for the audio menu's Audio sync (nil: not adjustable here, as for a download or an older
+    /// server). Left alone while the panel is open: the viewer's nudges there are newer.
+    func setAudioSync(seconds: Double?) {
+        audioSync = seconds.map { audioSyncOpen ? audioSyncPanel.seconds : $0 }
+        if seconds == nil { closeAudioSync() }
+        if !audioSyncOpen, let seconds { audioSyncPanel.configure(seconds: seconds) }
+        rebuildMenus()
+    }
+
+    /// Plays at `rate` (a show's remembered speed), as if chosen in the menu but without remembering it again.
+    func applyRate(_ rate: Float) {
+        guard let transport, rate <= transport.maxRate else { return }
+        transport.setRate(rate)
+        rebuildMenus()
+    }
+
+    /// What End of episode means for this title (nil: not an episode, so it isn't offered).
+    var episodeEnd: EpisodeEnd? {
+        didSet {
+            // Moved on to something that isn't an episode: there's no end of episode to stop at.
+            if episodeEnd == nil, sleep.setting == .endOfEpisode { sleep.set(nil) }
+            rebuildMenus()
+        }
+    }
+
+    /// The sleep timer has this episode stopping at its end, or has run out: the episode doesn't go on to the next
+    /// by itself, and Next Episode isn't offered over the question.
+    var sleepHoldsEpisode: Bool {
+        sleep.setting == .endOfEpisode || sleepPhase != .off
     }
 
     /// Subtitle timing (nil: not adjustable on this stream) and size, for the subtitles menu.
@@ -358,6 +459,9 @@ final class PlayerViewController: UIViewController {
     /// Closes the screen when it's done: the controller asks, having stopped the session.
     func finish(completion: (() -> Void)? = nil) {
         finished = true
+        sleepWatch?.cancel()
+        sleepWatch = nil
+        sleep.set(nil)
         UIApplication.shared.isIdleTimerDisabled = false
         nowPlaying.deactivate()
         hideTask?.cancel()
@@ -396,7 +500,9 @@ final class PlayerViewController: UIViewController {
         #endif
     }
 
-    /// The controls go after a few seconds of playing untouched (never while paused, loading or scrubbing).
+    /// The controls go after a few seconds of playing untouched (never while paused, loading or scrubbing). Held up
+    /// (loading after a seek, a menu open, scrubbing), it keeps checking and goes once they're done: giving up there left
+    /// the controls on screen for good, as nothing else would ask again while it played on.
     private func scheduleHide() {
         hideTask?.cancel()
         #if DEBUG
@@ -409,18 +515,28 @@ final class PlayerViewController: UIViewController {
             #else
             try? await Task.sleep(for: .seconds(3))
             #endif
-            guard !Task.isCancelled, let self, let transport, transport.isPlaying, !controls.scrubber.isScrubbing, !menuOpen else { return }
-            hideControls()
+            while !Task.isCancelled {
+                guard let self, controlsVisible else { return }
+                if let transport, transport.isPlaying, !controls.scrubber.isScrubbing, !menuOpen, !audioSyncOpen {
+                    return hideControls()
+                }
+                // Paused, it waits for Play, which asks again (see phaseChanged); anything else, a moment.
+                if transport?.phase == .paused { hideTask = nil; return }
+                try? await Task.sleep(for: .seconds(1))
+            }
         }
     }
 
     #if os(iOS)
     @objc private func tapped() {
+        if handleSleepTouch() { return }
+        if audioSyncOpen { return closeAudioSync() }
         controlsVisible ? hideControls() : showControls()
     }
 
     /// Two taps on the left or right third of the picture: skip, like Apple's player.
     @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) {
+        if handleSleepTouch() { return }
         let x = gesture.location(in: view).x / max(1, view.bounds.width)
         // Two taps at the edges skip 10 seconds (fine positioning); the buttons do the longer jump.
         if x < 0.35 { skip(-10, flash: true) } else if x > 0.65 { skip(10, flash: true) } else { togglePlayPause() }
@@ -431,11 +547,16 @@ final class PlayerViewController: UIViewController {
 
     #if os(tvOS)
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
-        controlsVisible || controls.promptShown ? [controls] : [rootView]
+        if sleepPrompt.isAsking { return [sleepPrompt] }
+        if audioSyncOpen { return [audioSyncPanel] }
+        return controlsVisible || controls.promptShown ? [controls] : [rootView]
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
+        // Asked "Still watching?", a touch alone (moving between its buttons) isn't an answer.
+        if sleepPhase == .asking { return }
+        if sleepPhase == .asleep { return wake() }
         showControls()
     }
 
@@ -445,6 +566,20 @@ final class PlayerViewController: UIViewController {
         if presentedViewController != nil {
             super.pressesBegan(presses, with: event)
             return
+        }
+        // An open menu takes the remote's presses for itself, so one reaching the player means none is open, whatever
+        // the last word was: a menu that went without saying so mustn't keep the controls up for good.
+        menuOpen = false
+        // Ran out: any button wakes the screen, and only that. Asked "Still watching?": any button but the edges
+        // (which move between its two) is a yes; Select on a button is that button's.
+        switch sleepPhase {
+        case .asleep:
+            return wake()
+        case .asking:
+            if presses.contains(where: { $0.type != .leftArrow && $0.type != .rightArrow }) { return extendSleep() }
+            return super.pressesBegan(presses, with: event)
+        case .off:
+            break
         }
         for press in presses {
             switch press.type {
@@ -466,6 +601,7 @@ final class PlayerViewController: UIViewController {
             case .menu:
                 if scan != nil { endScan(commit: false); return }
                 if controls.scrubber.cancelScrubIfNeeded() { return }
+                if audioSyncOpen { return closeAudioSync() }
                 if controlsVisible {
                     hideControls()
                     return
@@ -595,16 +731,27 @@ final class PlayerViewController: UIViewController {
     private func rebuildMenus() {
         guard let transport else { return }
         let audio = transport.audioTracks
-        controls.audioButton.isHidden = audio.count < 2
-        controls.audioButton.menu = UIMenu(title: "Audio", children: audio.map { track in
-            UIAction(title: track.label, state: track.id == transport.activeAudioTrack ? .on : .off) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self, let transport = self.transport else { return }
-                    if !transport.selectAudioTrack(track.id) { self.delegate?.playerScreen(self, selectAudio: track.id) }
-                    self.rebuildMenus()
+        var audioItems: [UIMenuElement] = []
+        if audio.count > 1 {
+            audioItems.append(UIMenu(options: .displayInline, children: audio.map { track in
+                UIAction(title: track.label, state: track.id == transport.activeAudioTrack ? .on : .off) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let transport = self.transport else { return }
+                        if !transport.selectAudioTrack(track.id) { self.delegate?.playerScreen(self, selectAudio: track.id) }
+                        self.rebuildMenus()
+                    }
                 }
+            }))
+        }
+        if let audioSync {
+            let sync = UIAction(title: "Audio sync", image: UIImage(systemName: "waveform.badge.magnifyingglass")) { [weak self] _ in
+                MainActor.assumeIsolated { self?.openAudioSync() }
             }
-        })
+            sync.subtitle = audioSync == 0 ? "As the file is" : AudioSyncPanel.label(audioSync)
+            audioItems.append(UIMenu(options: .displayInline, children: [sync]))
+        }
+        controls.audioButton.isHidden = audioItems.isEmpty
+        controls.audioButton.menu = UIMenu(title: "Audio", children: audioItems)
 
         let subtitles = transport.subtitleTracks
         var items: [UIMenuElement] = []
@@ -645,17 +792,42 @@ final class PlayerViewController: UIViewController {
         controls.subtitlesButton.isHidden = items.isEmpty
         controls.subtitlesButton.menu = UIMenu(title: "Subtitles", children: items)
 
-        let rates = Self.rateChoices.filter { $0 <= transport.maxRate }
+        // A show's remembered speed may be one the menu doesn't list (chosen in the browser, say).
+        let rates = Set(Self.rateChoices + [transport.rate]).sorted().filter { $0 <= transport.maxRate }
         // Live TV has no speeds (it can't run ahead of the channel).
         controls.speedButton.isHidden = rates.count < 2 || transport.maxRate <= 1
         controls.speedButton.menu = UIMenu(title: "Speed", children: rates.map { rate in
             UIAction(title: Self.rateLabel(rate), state: rate == transport.rate ? .on : .off) { [weak self] _ in
                 MainActor.assumeIsolated {
-                    self?.transport?.setRate(rate)
-                    self?.rebuildMenus()
+                    guard let self, let transport = self.transport, rate != transport.rate else { return }
+                    transport.setRate(rate)
+                    self.rebuildMenus()
+                    self.delegate?.playerScreen(self, choseRate: transport.rate)
                 }
             }
         })
+        controls.setSpeedBadge(controls.speedButton.isHidden || transport.rate == 1 ? nil : Self.rateLabel(transport.rate))
+        rebuildSleepMenu()
+    }
+
+    /// Off, 15 to 60 minutes, End of episode (episodes only); with the minutes left while one runs.
+    private func rebuildSleepMenu() {
+        let current = sleep.setting
+        var choices: [SleepTimer.Setting] = SleepTimer.minuteChoices.map { .minutes($0) }
+        if episodeEnd != nil { choices.append(.endOfEpisode) }
+        let off = UIAction(title: "Off", state: current == nil ? .on : .off) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setSleep(nil) }
+        }
+        let items = choices.map { setting in
+            UIAction(title: setting.label, state: setting == current ? .on : .off) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setSleep(setting) }
+            }
+        }
+        sleepMinutesShown = sleep.remaining.map { Int(($0 / 60).rounded(.up)) }
+        let title = sleepMinutesShown.map { "Sleep timer · \($0) min left" } ?? "Sleep timer"
+        controls.sleepButton.isHidden = false
+        controls.sleepButton.menu = UIMenu(title: title, children: [UIMenu(options: .displayInline, children: [off])] + [UIMenu(options: .displayInline, children: items)])
+        controls.setSleepActive(current != nil)
     }
 
     private func chooseSubtitle(_ track: TransportTrack?) {
@@ -691,6 +863,8 @@ final class PlayerViewController: UIViewController {
         case .loading, .buffering: break
         default: UIApplication.shared.isIdleTimerDisabled = false
         }
+        // Played again from elsewhere (the lock screen, a command) after the sleep timer ran out: awake.
+        if phase == .playing, sleepPhase == .asleep { wake() }
         // A moment's buffering mid-play doesn't keep the controls up; a pause does.
         switch phase {
         case .playing: if hideTask == nil || hideTask!.isCancelled { scheduleHide() }
@@ -700,6 +874,184 @@ final class PlayerViewController: UIViewController {
         if let transport {
             nowPlaying.setTime(position: transport.currentTime, duration: transport.duration, rate: phase == .playing ? transport.rate : 0)
         }
+    }
+
+    // MARK: Audio sync
+
+    private func wirePanels() {
+        audioSyncPanel.onChange = { [weak self] seconds in
+            guard let self, audioSync != nil else { return }
+            audioSync = seconds
+            delegate?.playerScreen(self, audioDelay: seconds)
+            rebuildMenus()
+        }
+        audioSyncPanel.onDone = { [weak self] in self?.closeAudioSync() }
+        sleepPrompt.onMore = { [weak self] in self?.extendSleep() }
+        sleepPrompt.onCancel = { [weak self] in self?.setSleep(nil) }
+    }
+
+    private func openAudioSync() {
+        guard let audioSync else { return }
+        audioSyncPanel.configure(seconds: audioSync)
+        audioSyncPanel.alpha = 0
+        audioSyncPanel.isHidden = false
+        UIView.animate(withDuration: 0.2) { self.audioSyncPanel.alpha = 1 }
+        hideTask?.cancel()
+        #if os(tvOS)
+        // After the menu has gone, or it takes focus back to its button.
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard let self, audioSyncOpen else { return }
+            controls.focusNext = nil
+            setNeedsFocusUpdate()
+            updateFocusIfNeeded()
+        }
+        #endif
+    }
+
+    private func closeAudioSync() {
+        guard audioSyncOpen else { return }
+        audioSyncPanel.isHidden = true
+        #if os(tvOS)
+        controls.focusNext = controls.audioButton
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        #endif
+        scheduleHide()
+    }
+
+    // MARK: Sleep timer
+
+    /// The viewer chose a timer (or Off, or Cancel timer) in the menu or the question.
+    private func setSleep(_ setting: SleepTimer.Setting?) {
+        log.info("Sleep timer: \(setting?.label ?? "off")")
+        sleep.set(setting)
+        if sleepPhase == .asking { endAsking() }
+        rebuildMenus()
+        delegate?.playerScreenSleepChanged(self)
+        if setting != nil { watchSleep() }
+    }
+
+    /// "+15 min": fifteen minutes from now, whatever the timer was (End of episode included).
+    private func extendSleep() {
+        setSleep(.minutes(15))
+    }
+
+    /// Checks the timer a few times a second while it runs: the question in the last minute (or as End of episode's
+    /// credits start), the sound fading over the last ten seconds, and the stop.
+    private func watchSleep() {
+        guard sleepWatch == nil else { return }
+        sleepWatch = Task { [weak self] in
+            while let self, !Task.isCancelled, self.checkSleep() {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            self?.sleepWatch = nil
+        }
+    }
+
+    /// Whether to keep watching the timer.
+    private func checkSleep() -> Bool {
+        guard sleepPhase != .asleep else { return false }
+        guard let setting = sleep.setting else {
+            if sleepPhase == .asking { endAsking() }
+            return false
+        }
+        // Between transports (the next episode opening): nothing to measure until it's here.
+        guard let transport else { return true }
+        let left: Double
+        let asking: Bool
+        switch setting {
+        case .minutes:
+            left = sleep.remaining ?? 0
+            asking = left <= 60
+        case .endOfEpisode:
+            guard let end = episodeEnd, transport.duration > 0 else { return true }
+            let stop = end.stopsAtCredits ? end.credits ?? transport.duration : transport.duration
+            let question = end.stopsAtCredits ? stop - 60 : end.credits ?? stop - 60
+            let position = transport.currentTime
+            left = (stop - position) / Double(max(transport.rate, 0.25))
+            if left <= 0.3 {
+                fallAsleep()
+                return false
+            }
+            asking = position >= min(question, stop - 10)
+        }
+        if asking {
+            if sleepPhase == .off { beginAsking() }
+            sleepPrompt.ask(detail: "Pausing in " + Format.timestamp(left.rounded(.up)))
+            transport.volume = Float(max(0, min(1, left / 10)))
+        } else if sleepPhase == .asking {
+            endAsking()
+        }
+        let minutes = sleep.remaining.map { Int(($0 / 60).rounded(.up)) }
+        if minutes != sleepMinutesShown, !menuOpen { rebuildSleepMenu() }
+        return true
+    }
+
+    private func beginAsking() {
+        log.info("Sleep timer asking whether anyone's still watching")
+        sleepPhase = .asking
+        closeAudioSync()
+        hideControls()
+        sleepPrompt.ask(detail: "")
+        #if os(tvOS)
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        #endif
+        delegate?.playerScreenSleepChanged(self)
+    }
+
+    /// Back to watching: the question and the dim go, the sound comes back up.
+    private func endAsking() {
+        sleepPhase = .off
+        sleepPrompt.dismiss()
+        transport?.volume = 1
+        #if os(tvOS)
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        #endif
+    }
+
+    /// Run out: the picture pauses (its place reported as for any pause) and stays dimmed until someone's there.
+    private func fallAsleep() {
+        guard sleepPhase != .asleep, !finished else { return }
+        log.info("Sleep timer ran out; pausing")
+        if sleep.setting != nil { sleep.set(nil) }
+        sleepPhase = .asleep
+        transport?.pause()
+        hideControls()
+        sleepPrompt.sleep()
+        rebuildMenus()
+        #if os(tvOS)
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
+        #endif
+        delegate?.playerScreenSleepChanged(self)
+    }
+
+    /// The episode reached its end with the timer stopping there: asleep now, if the watch hadn't got there first.
+    func sleepAtEndOfEpisode() {
+        fallAsleep()
+    }
+
+    /// Someone's there after the timer ran out: the dim goes and the controls come up (still paused).
+    private func wake() {
+        guard sleepPhase == .asleep else { return }
+        sleepPhase = .off
+        sleepPrompt.dismiss()
+        transport?.volume = 1
+        showControls()
+        delegate?.playerScreenSleepChanged(self)
+    }
+
+    /// A touch on the picture while the timer asks (15 minutes more) or after it ran out (awake): true if it was that.
+    private func handleSleepTouch() -> Bool {
+        switch sleepPhase {
+        case .asking: extendSleep()
+        case .asleep: wake()
+        case .off: return false
+        }
+        return true
     }
 
     // MARK: Picture in Picture
@@ -754,11 +1106,11 @@ extension PlayerViewController: PlayerTransportDelegate {
 
 #if os(iOS)
 extension PlayerViewController: UIGestureRecognizerDelegate {
-    /// Taps on the controls are theirs; taps on the picture show or hide them.
+    /// Taps on the controls (and the audio sync panel) are theirs; taps on the picture show or hide them.
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         var view = touch.view
         while let current = view {
-            if current is UIControl || current is ScrubberView || current is AVRoutePickerView { return false }
+            if current is UIControl || current is ScrubberView || current is AVRoutePickerView || current is AudioSyncPanel { return false }
             view = current.superview
         }
         return true
