@@ -171,7 +171,22 @@
     .card h3 { margin-top: 14px; font-size: 1.7rem; }
     .card p { margin: 6px 0 0; color: var(--usher); font-size: 0.98rem; }
     .card .more { margin-top: 10px; }
-    .swipe-hint { margin: 14px 0 0; color: var(--usher); font-size: 0.9rem; }
+    .arrows { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .arrows button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--screen); background: rgb(242 238 231 / 0.04); border: 1px solid var(--aisle); cursor: pointer; }
+    .arrows button:disabled { opacity: 0.35; cursor: default; }
+    .arrows svg { width: 20px; height: 20px; }
+
+    /* The apps, one line each: name and the way to get it. */
+    @media (max-width: 640px) {
+      .apps { grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 24px; }
+      .app { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 0; }
+      .app:last-child { border-bottom: 1px solid var(--aisle); }
+      .app h3 { flex: 1; font-size: 1.5rem; gap: 12px; }
+      .app-icon { width: 38px; height: 38px; border-radius: 11px; }
+      .app p, .app .aside { display: none; }
+      .badge { align-self: center; padding: 7px 13px; font-size: 0.88rem; }
+      #apps .center + p.center { margin-top: 4px; }
+    }
 
     /* Set-up steps, short, with the number beside the heading. */
     @media (max-width: 640px) {
@@ -227,7 +242,7 @@
         </a>
       </div>
       <ul class="facts off-phone"><li>Free for personal use</li><li>Your files never leave home</li><li>Docker, NAS or Mac</li><li>Apple TV app coming to the App Store</li></ul>
-      <div class="stage"><picture><source media="(max-width: 640px)" srcset="/shots/hero-m.webp" width="1100" height="902"><img class="shot" src="/shots/hero.webp" width="2000" height="1069" srcset="/shots/hero-1000.webp 1000w, /shots/hero.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr on an Apple TV showing Ted Lasso's page, with Resume S3 E8 and the seasons, and an iPhone beside it showing Home with Only Murders in the Building and Continue watching." fetchpriority="high"></picture></div>
+      <div class="stage off-phone"><picture><source media="(max-width: 640px)" srcset="/shots/hero-m.webp" width="1100" height="902"><img class="shot" src="/shots/hero.webp" width="2000" height="1069" srcset="/shots/hero-1000.webp 1000w, /shots/hero.webp 2000w" sizes="(min-width: 1260px) 1180px, 92vw" alt="Flexarr on an Apple TV showing Ted Lasso's page, with Resume S3 E8 and the seasons, and an iPhone beside it showing Home with Only Murders in the Building and Continue watching." fetchpriority="high"></picture></div>
 
       <div class="newcomer off-phone">
         <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></div>
@@ -414,7 +429,10 @@
             <p>Artwork from Sonarr, Radarr and Lidarr, requests through Seerr, and your Plex history.</p>
           </a>
         </div>
-        <p class="swipe-hint">Swipe for more, or tap one to read about it.</p>
+        <div class="arrows">
+          <button type="button" data-step="-1" aria-label="Previous" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <button type="button" data-step="1" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
       </div>
     </section>
 
@@ -429,18 +447,18 @@
           <div class="app">
             <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span>iPhone and iPad</h3>
             <p>Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.</p>
-            <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg>Download on the App Store</a>
+            <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg><span class="off-phone">Download on the App Store</span><span class="on-phone">App Store</span></a>
           </div>
           <div class="app">
             <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg></span>Apple TV</h3>
             <p>Your libraries, music and live TV from the sofa, with Continue Watching in the Top Shelf and a player built for HDR and Atmos.</p>
-            <span class="badge soon">Coming soon to the App Store</span>
+            <span class="badge soon"><span class="off-phone">Coming soon to the App Store</span><span class="on-phone">Coming soon</span></span>
             <p class="aside">Can't wait? <a href="/guide/apple-tv-xcode">Install it from Xcode</a>.</p>
           </div>
           <div class="app">
             <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3Z"/></svg></span>Web</h3>
             <p>Built into the server, nothing to install. Open your server's address in any browser, on a computer, tablet or phone.</p>
-            <a class="badge ready" href="#setup">Included with the server</a>
+            <a class="badge ready" href="#setup"><span class="off-phone">Included with the server</span><span class="on-phone">With the server</span></a>
           </div>
         </div>
         <p class="center"><a class="more" href="/apps">Every app, its version, and Android on the way</a></p>
@@ -589,6 +607,20 @@
         setTimeout(() => (button.lastChild.textContent = label), 1600);
       });
     }
+    // Arrows under the swipe: one card at a time, greyed out at either end.
+    const rail = document.querySelector('.rail');
+    const arrows = [...document.querySelectorAll('[data-step]')];
+    for (const arrow of arrows) {
+      arrow.addEventListener('click', () => {
+        const card = rail.querySelector('.card');
+        rail.scrollBy({ left: Number(arrow.dataset.step) * (card.offsetWidth + parseFloat(getComputedStyle(rail).columnGap)), behavior: 'smooth' });
+      });
+    }
+    function updateArrows() {
+      arrows[0].disabled = rail.scrollLeft < 4;
+      arrows[1].disabled = rail.scrollLeft > rail.scrollWidth - rail.clientWidth - 4;
+    }
+    rail.addEventListener('scroll', updateArrows, { passive: true });
     // Copy buttons, with the old way as a fallback.
     for (const pre of document.querySelectorAll('pre')) {
       const button = Object.assign(document.createElement('button'), { type: 'button', className: 'copy', textContent: 'Copy' });
