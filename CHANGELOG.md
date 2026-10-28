@@ -33,6 +33,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Signing out of the iPhone app sends anything watched offline that hadn't reached the server yet before the downloads are removed.
 - On iPhone, tapping an episode in Home's **New podcasts** opens it (its notes, Play and download) instead of playing it straight away.
 - On iPhone, an episode's page shows **Pause** while that episode is playing, and **Resume** carries on from where it is.
+- On iPhone, the playing bar above the tabs has a close button on its left. It stops what's playing, keeps a podcast episode's place, and takes the bar away.
 - Playing a podcast episode that's already playing or paused carries on from where it is, instead of going back to where it was when the screen opened.
 - Downloads on your iPhone are kept through app updates: if the app can't read one saved download, it keeps the rest instead of starting with an empty list.
 - Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
