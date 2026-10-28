@@ -151,7 +151,7 @@ export function ConnectionsSection() {
           <ServiceRow
             kind="Bazarr"
             service={settings.bazarr}
-            description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage."
+            description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage. A title you search for gets Bazarr’s first languages profile if it has none, so Bazarr’s own schedule may then fetch subtitles for it too."
             placeholder="http://localhost:6767"
             keyHint="In Bazarr, under Settings › General"
             removeWarning="Remove Bazarr? Searching for subtitles from the player goes with it."

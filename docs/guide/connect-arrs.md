@@ -63,7 +63,7 @@ Seerr has its own row under **Apps**. Choose the pencil beside **Seerr**, type i
 
 ### Bazarr
 
-Bazarr has its own row too. Choose the pencil beside **Bazarr**, type its **Address** and **API key**, and choose **Save**. Bazarr needs Sonarr and Radarr connected on its side, at least one language profile and some subtitle sites (providers); set those up in Bazarr itself. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles).
+Bazarr has its own row too. Choose the pencil beside **Bazarr**, type its **Address** and **API key**, and choose **Save**. Bazarr needs Sonarr and Radarr connected on its side, at least one languages profile and some subtitle sites (providers); set those up in Bazarr itself. A title you search for gets Bazarr's first languages profile if it has none, so Bazarr's own schedule may then fetch subtitles for it too. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles).
 
 ## Webhooks: new downloads appear straight away
 

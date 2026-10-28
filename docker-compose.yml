@@ -1,4 +1,4 @@
-# Local development stack: Flexarr plus the *arr apps it integrates with.
+# Local development stack: Flexarr plus the *arr apps (and Bazarr, for subtitles) it integrates with.
 #   docker compose up -d
 # Media lives in ./dev/media (movies, tv, music) and is shared by every container
 # at the same path, so paths in *arr webhooks match what Flexarr sees.
@@ -33,6 +33,14 @@ services:
     ports: ["8686:8686"]
     volumes:
       - ./dev/lidarr:/config
+      - ./dev/media:/data/media
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    environment: [PUID=1000, PGID=1000, TZ=Etc/UTC]
+    ports: ["6767:6767"]
+    volumes:
+      - ./dev/bazarr:/config
       - ./dev/media:/data/media
 
   prowlarr:

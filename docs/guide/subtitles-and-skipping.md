@@ -38,6 +38,9 @@ When a film or episode has no subtitles in your language, or the ones it has are
 
 The subtitles are saved beside the video, so every app sees them. In the player, the title carries on where it was with them on.
 
+> **Note**
+> Bazarr only searches for a film or show that has a languages profile. If it has none, the first search from Flexarr gives it Bazarr's first profile; for an episode, that's the whole show. From then on Bazarr looks after it like anything else with a profile, so if Bazarr is set to search for missing subtitles on a schedule, it will fetch them for that title by itself. To keep Bazarr to what you ask for, go to **Settings › Scheduler** in Bazarr and set **Search for Missing Series Subtitles** and **Search for Missing Movies Subtitles** to **Never**.
+
 If subtitles beside the video drift out of time, choose them, then **Re-sync to audio**. Bazarr lines them up with the soundtrack, which takes a minute or so, and the player picks up the new timing when it's done. For an offset that's the same all the way through, **Timing** in the subtitles menu is quicker.
 
 ### Turning them on and off
