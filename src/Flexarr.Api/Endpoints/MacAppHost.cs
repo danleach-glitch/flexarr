@@ -1,0 +1,36 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+
+namespace Flexarr.Api.Endpoints;
+
+/// <summary>
+/// The Flexarr Server Mac app (clients/macos), when this server runs inside it. The app's sandbox only lets the server
+/// read folders someone chose in macOS's folder window, so choosing a library folder asks the app to show one. The
+/// app passes a local port and a token in Flexarr:MacApp; it answers one line per connection: the token and the word
+/// "choose" in, the chosen folder's path out, or an empty line if it was cancelled.
+/// </summary>
+public sealed class MacAppHost(IConfiguration configuration)
+{
+    private readonly int? port = int.TryParse(configuration["Flexarr:MacApp:Port"], out var p) ? p : null;
+    private readonly string? token = configuration["Flexarr:MacApp:Token"];
+
+    public bool IsAvailable => port is not null && !string.IsNullOrEmpty(token);
+
+    /// <summary>Shows the folder window on the Mac and waits for the person there. Null when they cancel.</summary>
+    public async Task<string?> ChooseFolderAsync(CancellationToken cancellationToken)
+    {
+        if (!IsAvailable)
+        {
+            throw new InvalidOperationException("Not running in the Mac app.");
+        }
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, port!.Value, cancellationToken);
+        await using var stream = client.GetStream();
+        await stream.WriteAsync(Encoding.UTF8.GetBytes($"{token} choose\n"), cancellationToken);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        var path = await reader.ReadLineAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(path) ? null : path;
+    }
+}

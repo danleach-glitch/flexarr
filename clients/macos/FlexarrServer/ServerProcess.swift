@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Runs the server bundled in Contents/Helpers as a child process, which inherits the app's sandbox and the
-/// media folders it has open. Restarts it if it stops on its own.
+/// folders it has open, even ones chosen while it runs. Restarts it if it stops on its own.
 @MainActor
 @Observable
 final class ServerProcess {
@@ -21,7 +21,8 @@ final class ServerProcess {
     }
 
     private(set) var status = Status.stopped
-    private let folders: MediaFolders
+    private let requests: FolderRequests
+    private var requestsPort: UInt16?
     private var process: Process?
     private var stopping = false
     private var quickExits = 0
@@ -36,11 +37,24 @@ final class ServerProcess {
     var logDirectory: URL { root.appending(path: "logs") }
 
     init(folders: MediaFolders) {
-        self.folders = folders
+        requests = FolderRequests(folders: folders)
     }
 
     func start() {
         guard process == nil else { return }
+        // The server asks the app for folders, so the app listens before the server starts.
+        guard let requestsPort else {
+            status = .starting
+            Task {
+                do {
+                    requestsPort = try await requests.start()
+                    start()
+                } catch {
+                    status = .failed(error.localizedDescription)
+                }
+            }
+            return
+        }
         // The executable and its libraries are in Contents/Helpers; its settings and the web app in Resources/Server.
         let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Flexarr")
         let content = Bundle.main.resourceURL!.appending(path: "Server")
@@ -58,6 +72,8 @@ final class ServerProcess {
         environment["Flexarr__DataDirectory"] = data.path
         environment["Flexarr__Logs__Directory"] = logDirectory.path
         environment["Flexarr__Logs__ConsoleLevel"] = "Warning"
+        environment["Flexarr__MacApp__Port"] = String(requestsPort)
+        environment["Flexarr__MacApp__Token"] = requests.token
         process.environment = environment
 
         let console = logDirectory.appending(path: "console.log")

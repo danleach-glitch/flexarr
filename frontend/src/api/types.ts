@@ -314,6 +314,8 @@ export interface DirectoryListing {
   path: string
   parent: string | null
   directories: { name: string; path: string }[]
+  /** The server runs in the Mac app, which can only read folders chosen in macOS's folder window. */
+  chooseOnMac?: boolean
 }
 
 export interface DeviceProfile {

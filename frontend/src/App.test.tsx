@@ -396,6 +396,21 @@ describe('Settings', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
   })
 
+  it('chooses library folders in the Mac folder window when the server runs in the Mac app', async () => {
+    mockApi({
+      '/libraries': [],
+      '/filesystem': { path: '/Volumes', parent: '/', directories: [], chooseOnMac: true },
+      'POST /filesystem/choose': { path: '/Volumes/Media/Films' },
+    })
+
+    renderAt('/settings/libraries')
+    fireEvent.click(await screen.findByRole('button', { name: 'Add library' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Choose a folder on the Mac/ }))
+
+    expect(await screen.findByText('/Volumes/Media/Films')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use this folder' })).not.toBeInTheDocument()
+  })
+
   it('renames a library in place, keeping its folders', async () => {
     let library = { ...movies, scan: null }
     const sent: unknown[] = []

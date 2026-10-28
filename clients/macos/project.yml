@@ -34,8 +34,9 @@ targets:
         # The server listens for the apps and browsers on the network, and calls out to Sonarr, Radarr and metadata.
         com.apple.security.network.server: true
         com.apple.security.network.client: true
-        # Media folders are chosen in an open panel and remembered as security-scoped bookmarks.
-        com.apple.security.files.user-selected.read-only: true
+        # Folders are chosen in macOS's folder window, from the web app, and remembered as security-scoped bookmarks.
+        # Read and write: podcast downloads and recordings are saved into them too.
+        com.apple.security.files.user-selected.read-write: true
         com.apple.security.files.bookmarks.app-scope: true
     info:
       path: FlexarrServer/Info.plist

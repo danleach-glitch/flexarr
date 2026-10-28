@@ -720,6 +720,8 @@ export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/a
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
   apiGet<DirectoryListing>(`/filesystem${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
+/** In the Mac app: opens macOS's folder window on the Mac. Undefined when it was cancelled. */
+export const chooseFolderOnMac = () => request<{ path: string } | undefined>('POST', '/filesystem/choose')
 
 /** Artwork URLs from the API with a width hint for the image cache. */
 export function imageUrl(url: string | null | undefined, width: number): string | undefined {
