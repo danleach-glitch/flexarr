@@ -182,11 +182,18 @@ struct HomeHero: View {
         }
     }
 
-    /// From the library's switch, as the tab opens (see `focusesContent`).
+    /// From the library's switch as the tab opens, or from the sidebar as the app opens (see `focusesContent`).
     private func takeFocus() {
         guard takesFocus.wrappedValue else { return }
         takesFocus.wrappedValue = false
-        focusedButton = .play
+        // As the app opens, the focus engine is still settling on the sidebar and can take one request back: keep
+        // asking for a moment.
+        Task {
+            for _ in 0..<8 where focusedButton == nil {
+                focusedButton = .play
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+        }
     }
 
     private var backdrop: some View {

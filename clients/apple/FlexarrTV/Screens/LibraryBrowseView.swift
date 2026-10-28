@@ -245,6 +245,6 @@ extension EnvironmentValues {
     /// Set as the switch changes the view: the new view's switch takes focus as it appears, and clears it.
     @Entry var focusesViewSwitch: Binding<Bool> = .constant(false)
     /// Set as the switch is given focus with the tab: the hero's Play, or the first title, takes it (once there is
-    /// one, while the switch still has focus), and clears it.
+    /// one, while the switch still has focus), and clears it. Home sets it too as the app opens (see `MainTabView`).
     @Entry var focusesContent: Binding<Bool> = .constant(false)
 }
