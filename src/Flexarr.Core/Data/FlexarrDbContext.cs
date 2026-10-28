@@ -86,6 +86,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });
             e.HasIndex(i => i.Path);
             e.HasIndex(i => i.AddedAt);
+            // Coming soon, requests, notifications and watch history all find titles by these.
+            e.HasIndex(i => i.TmdbId);
+            e.HasIndex(i => i.TvdbId);
+            e.HasIndex(i => i.ImdbId);
             e.HasMany(i => i.Genres).WithMany(g => g.Items).UsingEntity(j => j.ToTable("MediaItemGenres"));
             e.HasMany(i => i.Credits).WithOne(c => c.MediaItem).HasForeignKey(c => c.MediaItemId).OnDelete(DeleteBehavior.Cascade);
         });

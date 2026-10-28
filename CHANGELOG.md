@@ -5,6 +5,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- **Coming soon**, requests and notifications find titles faster in big libraries.
+- Very large Sonarr and Radarr libraries over a slow connection no longer time out while Flexarr reads them.
 - A live TV channel whose stream stopped while nobody was watching starts afresh for the next viewer, instead of opening frozen.
 - Big library scans finish sooner and use less memory once the files have been read and the details are being fetched.
 - Download progress shows for everything Sonarr and Radarr are fetching, not just the first 200.
