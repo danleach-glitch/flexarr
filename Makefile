@@ -1,4 +1,4 @@
-.PHONY: guide apps apple-install ios-install ios-upload ios-dsyms tv-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: guide apps apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -119,6 +119,26 @@ tv-upload: ## Archive the tvOS app and upload it to App Store Connect
 		'</dict></plist>' > build/apple/ExportOptions.plist
 	xcodebuild -exportArchive -archivePath build/apple/FlexarrTV.xcarchive -exportOptionsPlist build/apple/ExportOptions.plist \
 		-exportPath build/apple/export-tv -allowProvisioningUpdates $(ASC_AUTH)
+
+# Archive the Mac server app and upload it to App Store Connect. It has its own App Store record, not the iOS app's.
+#   make mac-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.mac
+# MAC_EXPORT=export builds the signed installer package into clients/macos/build/export instead of uploading it.
+MAC_EXPORT ?= upload
+mac-upload: ## Archive the Mac app and upload it to App Store Connect
+	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make mac-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.mac"; exit 1; }
+	clients/macos/Tools/build-ffmpeg.sh
+	clients/macos/Tools/publish-server.sh
+	cd clients/macos && xcodegen generate --quiet
+	xcodebuild -project clients/macos/FlexarrServer.xcodeproj -scheme FlexarrServer -configuration Release -destination 'generic/platform=macOS' \
+		-archivePath clients/macos/build/FlexarrServer.xcarchive -allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_MAC_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
+		$(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
+	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
+		'<key>method</key><string>app-store-connect</string><key>destination</key><string>$(MAC_EXPORT)</string>' \
+		'<key>teamID</key><string>$(TEAM)</string><key>signingStyle</key><string>automatic</string>' \
+		'</dict></plist>' > clients/macos/build/ExportOptions.plist
+	xcodebuild -exportArchive -archivePath clients/macos/build/FlexarrServer.xcarchive -exportOptionsPlist clients/macos/build/ExportOptions.plist \
+		-exportPath clients/macos/build/export -allowProvisioningUpdates $(ASC_AUTH)
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
