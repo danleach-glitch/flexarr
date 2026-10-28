@@ -4,6 +4,7 @@ import { getDownloads, getUpcoming, imageUrl, type Download, type DownloadState,
 import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
+import { webLink } from '../lib/links'
 
 /** Yesterday (for what just arrived) and four weeks ahead. */
 const DAYS = 30
@@ -122,9 +123,10 @@ function EntryLink({ item, className, children, ...rest }: { item: UpcomingItem;
         {children}
       </Link>
     )
-  if (item.manageUrl)
+  const manage = webLink(item.manageUrl)
+  if (manage)
     return (
-      <a href={item.manageUrl} target="_blank" rel="noreferrer" className={className} title={`Open in ${sourceName(item)}`} {...rest}>
+      <a href={manage} target="_blank" rel="noreferrer" className={className} title={`Open in ${sourceName(item)}`} {...rest}>
         {children}
       </a>
     )
@@ -169,8 +171,8 @@ function DownloadRow({ download: d }: { download: Download }) {
         <span className="scan-track">
           <span style={{ width: `${d.state.progress * 100}%` }} />
         </span>
-        {attention && d.manageUrl ? (
-          <a className="download-attention" href={d.manageUrl} target="_blank" rel="noreferrer">
+        {attention && webLink(d.manageUrl) ? (
+          <a className="download-attention" href={webLink(d.manageUrl)} target="_blank" rel="noreferrer">
             Needs attention: open {sourceName(d)}
           </a>
         ) : (

@@ -71,7 +71,8 @@ describe('Add to playlist', () => {
     expect(await screen.findByRole('dialog', { name: 'Add Tender to a playlist' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Road trip/ })).toBeInTheDocument()
 
-    fireEvent.keyDown(window, { key: 'Escape' })
+    // From wherever the focus is, as a real key press is.
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

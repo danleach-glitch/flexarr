@@ -3,6 +3,7 @@ import { addToCollection, ApiError, createCollection, getItemCollections, remove
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
+import { useModal } from '../hooks/useModal'
 
 /** Asks for the Add to collection dialog, from anywhere (a card's menu closes before it opens). */
 const OPEN = 'flexarr:add-to-collection'
@@ -33,11 +34,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
   // Ticks show at once; the server catches up (and a failure puts them back).
   const [ticked, setTicked] = useState<Record<string, boolean>>({})
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const dialog = useModal<HTMLDivElement>(onClose)
 
   async function run(work: () => Promise<unknown>) {
     try {
@@ -78,7 +75,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="panel add-to-collection" role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a collection`} onClick={(e) => e.stopPropagation()}>
+      <div className="panel add-to-collection" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a collection`} onClick={(e) => e.stopPropagation()}>
         <h2>Add {item.title} to a collection</h2>
         {collections.data && editable.length === 0 && <p className="muted">No collections of yours yet. Start one below.</p>}
         <ul className="collection-choices">

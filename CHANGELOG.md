@@ -23,6 +23,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
 
 ### Web
+- Dialogs (Fix match, Delete, Add to playlist or collection, the collection editor, trailers) keep the keyboard inside them while they're open, and put it back where it was when they close.
+- **Settings › Logs** stays smooth while lines arrive quickly in the live view.
 - A song or podcast episode that won't play is tried once more from where it stopped. If it still won't play, Flexarr says so in the player bar and moves on to the next one, instead of stopping silently.
 - A video that keeps failing to decode now says so, instead of trying again for ever.
 - Going from one title to another (a Similar title, say) no longer briefly shows the previous title's details and Play button.

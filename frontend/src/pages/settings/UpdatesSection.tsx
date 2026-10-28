@@ -8,6 +8,7 @@ import { formatSize, relativeTime } from '../../lib/format'
 import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { webLink } from '../../lib/links'
 
 const guide = 'https://flexarr.io/guide/updating'
 
@@ -123,7 +124,7 @@ export function UpdatesSection() {
             ))}
           </div>
           <p className="settings-note">
-            <a href={current.latest.url} target="_blank" rel="noreferrer">
+            <a href={webLink(current.latest.url)} target="_blank" rel="noreferrer">
               This release on GitHub <External />
             </a>
           </p>

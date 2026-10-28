@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { ApiError, createCollection, getGenres, updateCollection, type CollectionSummary, type SmartRules } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
+import { useModal } from '../hooks/useModal'
 
 const thisYear = new Date().getFullYear()
 
@@ -32,11 +33,7 @@ export function CollectionEditor({
   const genres = useApi(getGenres, [])
   const set = (change: Partial<SmartRules>) => setRules((r) => ({ ...r, ...change }))
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const dialog = useModal<HTMLFormElement>(onClose)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -56,7 +53,7 @@ export function CollectionEditor({
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <form className="panel collection-editor" role="dialog" aria-modal="true" aria-label={collection ? `Edit ${collection.name}` : 'New collection'} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+      <form className="panel collection-editor" ref={dialog} role="dialog" aria-modal="true" aria-label={collection ? `Edit ${collection.name}` : 'New collection'} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h2>{collection ? `Edit ${collection.name}` : 'New collection'}</h2>
         <label className="field">
           Name
