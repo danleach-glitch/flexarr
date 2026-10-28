@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { askForProfile, getMe, getUpdates, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
+import { askForProfile, getMe, getRequestDestinations, getUpdates, signIn, UnauthorizedError, getProfiles, selectProfile, type Profile } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
+import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
 import { AccessSection } from './AccessSection'
 import { BackupSection } from './BackupSection'
@@ -18,6 +19,7 @@ import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
 import { PodcastsSection } from './PodcastsSection'
 import { ProfilesSection } from './ProfilesSection'
+import { RequestsSection } from './RequestsSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
 import { UpdatesSection } from './UpdatesSection'
@@ -35,6 +37,9 @@ const profilePages: Page[] = [
   { id: 'playback', label: 'Playback', render: () => <PlaybackSection /> },
   { id: 'podcasts', label: 'Podcasts', render: () => <PodcastsSection /> },
 ]
+
+/** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */
+const requestsPage: Page = { id: 'requests', label: 'Requests', render: () => <RequestsSection /> }
 
 /** The server's, for the main profile only. */
 const serverPages: Page[] = [
@@ -62,7 +67,10 @@ export function SettingsPage() {
   const { section } = useParams()
   const me = useApi(getMe, [])
   const { profiles } = useSession()
-  const name = profiles?.find((p) => p.isCurrent)?.name
+  const current = profiles?.find((p) => p.isCurrent)
+  const name = current?.name
+  const destinations = useApi(getRequestDestinations, [])
+  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
   // Settings for the server are the main profile's. Another profile chosen on this browser has its own pages, and a
   // way back to the main one (with its PIN) for the rest. Older servers have no /me: everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
@@ -75,7 +83,7 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = profilePages.find((p) => p.id === section)
+  const profilePage = [...profilePages, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
   const lit = serverPage?.under ?? section
 
@@ -93,7 +101,7 @@ export function SettingsPage() {
         <nav aria-label="Settings">
           <div className="settings-nav-group">
             <h2>{profileHeading(name)}</h2>
-            {profilePages.map(link)}
+            {ownPages.map(link)}
           </div>
           <div className="settings-nav-group">
             <h2>Server</h2>

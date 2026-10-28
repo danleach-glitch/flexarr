@@ -25,6 +25,15 @@ public sealed record SeerrResult
 
 public sealed record SeerrPage(int Page, int TotalPages, IReadOnlyList<SeerrResult> Results);
 
+/// <summary>One of the Sonarr or Radarr servers Seerr sends requests to.</summary>
+/// <param name="ActiveDirectory">The root folder Seerr adds to unless told otherwise.</param>
+public sealed record SeerrService(int Id, string Name, bool Is4k, bool IsDefault, string? ActiveDirectory);
+
+public sealed record SeerrRootFolder(string Path);
+
+/// <summary>Where a request goes: a server and root folder Seerr knows, instead of its defaults.</summary>
+public sealed record SeerrDestination(int ServerId, string RootFolder);
+
 /// <summary>Talks to Seerr's API: trending and popular lists (from TMDB, via Seerr) and requests.</summary>
 public sealed class SeerrClient(HttpClient http)
 {
@@ -50,12 +59,23 @@ public sealed class SeerrClient(HttpClient http)
     }
 
     /// <summary>Requests a film, or every season of a show; Seerr passes it to Radarr or Sonarr.</summary>
-    public async Task RequestAsync(SeerrInstance seerr, string mediaType, int tmdbId, CancellationToken ct)
+    /// <param name="to">Where it goes; null, Seerr's default server and root folder.</param>
+    public async Task RequestAsync(SeerrInstance seerr, string mediaType, int tmdbId, SeerrDestination? to, CancellationToken ct)
     {
         using var request = Request(seerr, HttpMethod.Post, "request");
-        request.Content = JsonContent.Create(mediaType == "tv"
-            ? new { mediaType, mediaId = tmdbId, seasons = "all" }
-            : (object)new { mediaType, mediaId = tmdbId }, options: Json);
+        var body = new Dictionary<string, object> { ["mediaType"] = mediaType, ["mediaId"] = tmdbId };
+        if (mediaType == "tv")
+        {
+            body["seasons"] = "all";
+        }
+
+        if (to is not null)
+        {
+            body["serverId"] = to.ServerId;
+            body["rootFolder"] = to.RootFolder;
+        }
+
+        request.Content = JsonContent.Create(body, options: Json);
         using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
@@ -73,6 +93,26 @@ public sealed class SeerrClient(HttpClient http)
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>(Json, ct).ConfigureAwait(false);
     }
+
+    /// <param name="service">sonarr or radarr.</param>
+    public async Task<IReadOnlyList<SeerrService>> ServicesAsync(SeerrInstance seerr, string service, CancellationToken ct)
+    {
+        using var request = Request(seerr, HttpMethod.Get, $"service/{service}");
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<SeerrService>>(Json, ct).ConfigureAwait(false) ?? [];
+    }
+
+    /// <summary>The root folders of one of Seerr's Sonarr or Radarr servers, as that server sees them.</summary>
+    public async Task<IReadOnlyList<SeerrRootFolder>> RootFoldersAsync(SeerrInstance seerr, string service, int serverId, CancellationToken ct)
+    {
+        using var request = Request(seerr, HttpMethod.Get, $"service/{service}/{serverId.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<SeerrServiceDetail>(Json, ct).ConfigureAwait(false))?.RootFolders ?? [];
+    }
+
+    private sealed record SeerrServiceDetail(IReadOnlyList<SeerrRootFolder>? RootFolders);
 
     public async Task<bool> PingAsync(SeerrInstance seerr, CancellationToken ct)
     {

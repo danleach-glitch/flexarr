@@ -1026,6 +1026,12 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("PodcastsInSidebar")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("RequestFilmsLibraryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("RequestShowsLibraryId")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("SkipCredits")
                         .HasColumnType("INTEGER");
 

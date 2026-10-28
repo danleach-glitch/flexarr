@@ -5,6 +5,7 @@ using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,13 @@ using Microsoft.Extensions.Options;
 namespace Flexarr.Api.Profiles;
 
 /// <param name="Image">The profile picture's URL, or null to show the initial on the colour.</param>
-public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image);
+/// <param name="RequestShowsLibraryId">The library this profile's show requests go to; null, Seerr's default.</param>
+/// <param name="RequestFilmsLibraryId">The library its film requests go to; null, Seerr's default.</param>
+public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
+    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null);
+
+/// <summary>Where a profile's requests go. Both are set each time; null is wherever Seerr adds them by default.</summary>
+public sealed record RequestLibrariesRequest(Guid? ShowsLibraryId, Guid? FilmsLibraryId);
 
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
 /// <param name="CurrentPin">Changing or removing the main profile's PIN takes the one it has now...</param>
@@ -91,6 +98,43 @@ public static partial class ProfileEndpoints
 
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // A profile's own choice, so anyone signed in as it may make it; the admin may make it for anyone.
+        group.MapPut("/{id}/request-libraries", async (string id, RequestLibrariesRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (id != current.Id && !current.IsAdmin)
+            {
+                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+            }
+
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            var errors = new Dictionary<string, string[]>();
+            async Task<bool> IsAsync(Guid? libraryId, LibraryType type) =>
+                libraryId is not { } chosen || await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == type, ct);
+            if (!await IsAsync(request.ShowsLibraryId, LibraryType.TvShows))
+            {
+                errors["showsLibraryId"] = ["That isn’t a TV library."];
+            }
+
+            if (!await IsAsync(request.FilmsLibraryId, LibraryType.Movies))
+            {
+                errors["filmsLibraryId"] = ["That isn’t a film library."];
+            }
+
+            if (errors.Count > 0)
+            {
+                return Results.ValidationProblem(errors);
+            }
+
+            profile.RequestShowsLibraryId = request.ShowsLibraryId;
+            profile.RequestFilmsLibraryId = request.FilmsLibraryId;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
+        });
 
         group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, CancellationToken ct) =>
         {
@@ -308,7 +352,8 @@ public static partial class ProfileEndpoints
     }
 
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
-        new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p));
+        new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
+            p.RequestFilmsLibraryId);
 
     private static IResult? Validate(ProfileRequest request)
     {

@@ -1056,6 +1056,16 @@ export const approvePairing = (code: string) => request<void>('POST', `/pairing/
 /** Not now, or not my TV: the code is dropped and the TV shows a new one. */
 export const declinePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/decline`, {})
 
+/** A library requests can be added to. `isDefault`: where Seerr adds them when a profile hasn't chosen. */
+export interface RequestDestination {
+  id: string
+  name: string
+  mediaType: 'movie' | 'tv'
+  isDefault: boolean
+}
+
+/** The libraries the current profile's requests can go to (every one, for the main profile). */
+export const getRequestDestinations = (signal?: AbortSignal) => apiGet<RequestDestination[]>('/requests/destinations', signal)
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
 /** A film or show you don't have, with what Seerr knows about it. */
@@ -1102,6 +1112,10 @@ export interface Profile {
   hiddenLibraryIds: string[]
   /** Profile picture URL; null shows the initial on the profile's colour. */
   image: string | null
+  /** The library this profile's show requests go to; null (or absent, from older servers) is Seerr's default. */
+  requestShowsLibraryId?: string | null
+  /** The library its film requests go to; null is Seerr's default. */
+  requestFilmsLibraryId?: string | null
 }
 
 /** Changing or removing the main profile's PIN takes `currentPin`, or `apiKey` if it's forgotten. */
@@ -1111,6 +1125,9 @@ export const getProfiles = (signal?: AbortSignal) => cachedGet<Profile[]>('/prof
 export const createProfile = (profile: Omit<ProfileChanges, 'removePin'>) => request<Profile>('POST', '/profiles', profile)
 export const updateProfile = (id: string, profile: ProfileChanges) =>
   request<Profile>('PUT', `/profiles/${id}`, profile)
+/** Where a profile's requests go; null is wherever Seerr adds them by default. */
+export const setRequestLibraries = (id: string, libraries: { showsLibraryId: string | null; filmsLibraryId: string | null }) =>
+  request<Profile>('PUT', `/profiles/${id}/request-libraries`, libraries)
 export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
 export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${id}/image`, image)
 export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
