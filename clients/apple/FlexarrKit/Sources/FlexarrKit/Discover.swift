@@ -9,12 +9,14 @@ public struct RequestStatus: Codable, Sendable, Hashable {
 }
 
 /// Where a title from outside the library stands.
-public enum Availability: String, Codable, Sendable, Hashable {
+public enum Availability: String, ForwardCompatibleEnum {
     /// Not in the library and not requested.
     case none = "None"
     case requested = "Requested"
     case partlyAvailable = "PartlyAvailable"
     case available = "Available"
+    /// A state from a newer server: shown as not requestable.
+    case unknown
 }
 
 /// A film or show TMDB knows (via Seerr), with whether the library has it.

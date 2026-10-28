@@ -709,8 +709,10 @@ struct SelectProfileRequest: Codable, Sendable {
 
 // MARK: - Downloads
 
-public enum DownloadQuality: String, Codable, Sendable, CaseIterable, Identifiable {
+public enum DownloadQuality: String, ForwardCompatibleEnum, Identifiable {
     case original = "Original", high = "High", medium = "Medium", small = "Small"
+    /// A quality from a newer server: listed, but never asked for.
+    case unknown
 
     public var id: String { rawValue }
 
@@ -721,6 +723,7 @@ public enum DownloadQuality: String, Codable, Sendable, CaseIterable, Identifiab
         case .high: "High (1080p)"
         case .medium: "Medium (720p)"
         case .small: "Small (480p)"
+        case .unknown: "Other"
         }
     }
 }

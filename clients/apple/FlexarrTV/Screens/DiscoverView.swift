@@ -314,6 +314,7 @@ extension Availability {
         case .requested: "Requested"
         case .partlyAvailable: "Partly in your library"
         case .available: "In your library"
+        case .unknown: "Not available"
         }
     }
 }
@@ -621,6 +622,7 @@ private struct RequestButton: View {
         case .available: return "checkmark"
         case .requested, .partlyAvailable: return "clock"
         case .none: return "plus"
+        case .unknown: return "minus.circle"
         }
     }
 

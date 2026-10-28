@@ -7,6 +7,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Server
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 
+### iPhone and Apple TV
+- Downloads on your iPhone are kept through app updates: if the app can't read one saved download, it keeps the rest instead of starting with an empty list.
+- Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
+
 ### Web
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
