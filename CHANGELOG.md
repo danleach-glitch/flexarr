@@ -5,6 +5,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- A live TV channel whose stream stopped while nobody was watching starts afresh for the next viewer, instead of opening frozen.
+- Big library scans finish sooner and use less memory once the files have been read and the details are being fetched.
 - Download progress shows for everything Sonarr and Radarr are fetching, not just the first 200.
 - Episodes in **Coming soon** that Sonarr gives only a date for now show on the right day wherever you are.
 - Finding intros and credits carries on when one file can't be read, such as one on a network share that stopped answering, instead of stopping for good.
@@ -25,6 +27,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security
+- **A new server asks for its setup code.** Setting up Flexarr in a browser now needs the eight-character code the server writes in its log as it starts (`docker logs flexarr` with Docker; the Mac app shows it in its menu). Behind some reverse proxies and Docker Desktop, visitors from the internet can look as though they're on your home network, and the code makes sure only whoever has the server can claim it. After ten wrong tries the code changes. The iPhone and Apple TV apps say to type it in when the server asks for one.
 - An AI assistant connected to Flexarr (MCP) no longer sees titles from libraries hidden from its profile.
 - When Flexarr plays, downloads or scans a video, it only reads the file itself. A file that's really a playlist in disguise can no longer make it fetch addresses on your network.
 

@@ -698,8 +698,11 @@ public sealed class PlaybackService(
                 $"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"{name}\",LANGUAGE=\"{language}\",DEFAULT=NO,AUTOSELECT={(subtitle.IsForced ? "YES" : "NO")},FORCED={(subtitle.IsForced ? "YES" : "NO")},URI=\"subtitles/{subtitle.Key}.m3u8\"\n");
         }
 
-        var video = plan.Repackage?.Codecs ?? $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
-        var codecs = plan.AudioCodecTag is { } audio ? $"{video},{audio}" : video;
+        // Music has no video: saying H.264 can leave players that set up from CODECS waiting for pictures.
+        var audioOnly = plan.VideoStreamIndex < 0;
+        var video = audioOnly ? null : plan.Repackage?.Codecs ?? $"avc1.{(plan.TargetHeight > 1080 ? "640033" : "640028")}";
+        var codecs = string.Join(',', new[] { video, plan.AudioCodecTag }.OfType<string>());
+        var resolution = audioOnly ? "" : $",RESOLUTION={plan.TargetWidth}x{plan.TargetHeight}";
         var bandwidth = plan.VideoBitrate + plan.AudioBitrate;
         // Repackaged video says what it is, so the TV switches to HDR or Dolby Vision for it; and the Apple TV wants
         // the full account of an HDR stream before it will take it: the soundtrack declared as a rendition (muxed, so
@@ -726,7 +729,7 @@ public sealed class PlaybackService(
             range = $",AVERAGE-BANDWIDTH={bandwidth}" + range + audioGroup + ",CLOSED-CAPTIONS=NONE";
         }
 
-        builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={plan.TargetWidth}x{plan.TargetHeight},CODECS=\"{codecs}\"{range}{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
+        builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth}{resolution},CODECS=\"{codecs}\"{range}{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
         return builder.ToString();
     }
 

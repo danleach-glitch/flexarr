@@ -15,6 +15,8 @@ final class Pairing {
     private(set) var error: String?
     /// The server is new and nobody has set it up in a browser yet, so there's nobody to approve the code: say so.
     private(set) var needsSetup = false
+    /// Setting it up asks for the code in the server's log (servers from 0.52 on).
+    private(set) var setupNeedsCode = false
 
     init(server: DiscoveredServer) {
         self.server = server
@@ -32,7 +34,9 @@ final class Pairing {
         while !Task.isCancelled {
             do {
                 let started = try await client.startPairing(deviceName: UIDevice.current.name)
-                needsSetup = await client.setupOpen()
+                let setup = await client.setupStatus()
+                needsSetup = setup?.open ?? false
+                setupNeedsCode = setup?.codeRequired ?? false
                 if let shown = current, shown.code != started.code { renewedAt = Date() }
                 current = started
                 error = nil

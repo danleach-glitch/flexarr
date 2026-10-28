@@ -62,4 +62,4 @@ The Docker tab shows when a newer Flexarr image is available. Click **apply upda
 
 ## Next: set it up
 
-Click Flexarr's icon in the Docker tab and choose **WebUI**, or open **http://&lt;your-unraid&gt;:8383** in a browser on your home network. Choose **Set up Flexarr**: the first browser to reach a new server becomes its owner. Carry on with [First setup](first-setup.md).
+Click Flexarr's icon in the Docker tab and choose **WebUI**, or open **http://&lt;your-unraid&gt;:8383** in a browser on your home network. Enter the setup code from the container's log (click its icon and choose **Logs**), then choose **Set up Flexarr**: the first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).

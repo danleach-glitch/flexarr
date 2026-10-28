@@ -21,6 +21,8 @@ final class ServerProcess {
     }
 
     private(set) var status = Status.stopped
+    /// While nobody has set the server up: the code its welcome page asks for, which it keeps in its data folder.
+    private(set) var setupCode: String?
     private let requests: AppRequests
     private var requestsPort: UInt16?
     private var process: Process?
@@ -34,6 +36,7 @@ final class ServerProcess {
     private let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appending(path: "Flexarr")
     var logDirectory: URL { root.appending(path: "logs") }
+    private var setupCodeFile: URL { root.appending(path: "data/setup-code.txt") }
 
     init(folders: MediaFolders) {
         requests = AppRequests(folders: folders)
@@ -160,9 +163,22 @@ final class ServerProcess {
             if let (_, response) = try? await URLSession.shared.data(from: health),
                (response as? HTTPURLResponse)?.statusCode == 200 {
                 status = .running
+                await followSetupCode()
                 return
             }
             try? await Task.sleep(for: .milliseconds(500))
+        }
+    }
+}
+
+extension ServerProcess {
+    /// Shows the setup code while the file is there: the server deletes it once someone has set it up.
+    fileprivate func followSetupCode() async {
+        while true {
+            let code = (try? String(contentsOf: setupCodeFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+            setupCode = code?.isEmpty == false ? code : nil
+            guard setupCode != nil, process != nil else { return }
+            try? await Task.sleep(for: .seconds(5))
         }
     }
 }

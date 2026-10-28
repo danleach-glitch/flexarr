@@ -147,9 +147,16 @@ export async function setupOpen(): Promise<boolean> {
   }
 }
 
-/** Sets up a new server from this browser, which becomes its owner and is signed in. */
-export async function claimSetup() {
-  const response = await fetch('/api/v1/setup/claim', { method: 'POST', headers: { 'X-Requested-With': 'flexarr' } })
+/**
+ * Sets up a new server from this browser, which becomes its owner and is signed in. `code` is the setup code from the
+ * server's log; a wrong one is an ApiError with status 400.
+ */
+export async function claimSetup(code: string) {
+  const response = await fetch('/api/v1/setup/claim', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'flexarr', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
   if (!response.ok) throw new ApiError(response.status, response.statusText, [])
 }
 

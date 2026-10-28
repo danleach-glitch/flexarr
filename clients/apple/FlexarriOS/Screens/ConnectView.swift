@@ -199,7 +199,11 @@ private struct PairWithServer: View {
                         Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
                     }
                     if pairing.needsSetup {
-                        NumberedStep(2) { Text("Click **Set up Flexarr**.") }
+                        NumberedStep(2) {
+                            Text(pairing.setupNeedsCode
+                                ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
+                                : "Click **Set up Flexarr**.")
+                        }
                     }
                     NumberedStep(pairing.needsSetup ? 3 : 2) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
                     NumberedStep(pairing.needsSetup ? 4 : 3) { Text("Type in this code:") }

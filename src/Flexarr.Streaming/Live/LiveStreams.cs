@@ -53,7 +53,7 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
         await _starting.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (_sessions.TryGetValue(channelKey, out var running) && running.Failed)
+            if (_sessions.TryGetValue(channelKey, out var running) && (running.Failed || running.Ended))
             {
                 await StopAsync(running).ConfigureAwait(false);
                 running = null;

@@ -101,4 +101,4 @@ See [Updating](updating.md) for more.
 
 ## Next: set it up
 
-Open **http://your-mac.local:8383** (or **http://localhost:8383** on the Mac itself) in a browser and choose **Set up Flexarr**. The first browser to reach a new server becomes its owner. Carry on with [First setup](first-setup.md).
+Open **http://your-mac.local:8383** (or **http://localhost:8383** on the Mac itself) in a browser and enter the setup code from `~/.flexarr/logs/console.log` (or `~/.flexarr/data/setup-code.txt`). The first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).

@@ -369,6 +369,9 @@ app.MapMediaBrowserEndpoints();
 // The web client is a SPA; let it own every non-API route.
 app.MapFallbackToFile("index.html", webApp);
 
+// A server with no owner yet says its setup code in the log, where whoever installed it will look.
+app.Services.GetRequiredService<FirstRun>().Announce();
+
 await app.RunAsync();
 
 public partial class Program;

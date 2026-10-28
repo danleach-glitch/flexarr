@@ -139,4 +139,4 @@ Flexarr converts on the processor. Docker Desktop can pass an NVIDIA graphics ca
 
 ## Next: set it up
 
-Open **http://&lt;server&gt;:8383** in a browser on your home network, using the computer's name or IP address (or **http://localhost:8383** on the computer itself), and choose **Set up Flexarr**. The first browser to reach a new server becomes its owner. Carry on with [First setup](first-setup.md).
+Open **http://&lt;server&gt;:8383** in a browser on your home network, using the computer's name or IP address (or **http://localhost:8383** on the computer itself), and enter the setup code from `docker logs flexarr`. The first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).

@@ -305,8 +305,12 @@ public struct FlexarrClient: Sendable {
     /// Whether the server is new and nobody has set it up in a browser yet (so there's nobody to approve a code).
     /// False on servers from before this, which don't say.
     public func setupOpen() async -> Bool {
-        let status: SetupStatus? = try? await get("setup")
-        return status?.open ?? false
+        await setupStatus()?.open ?? false
+    }
+
+    /// Whether the server is new, and whether setting it up asks for the code in its log. Nil when it doesn't say.
+    public func setupStatus() async -> SetupStatus? {
+        try? await get("setup")
     }
 
     // MARK: Devices (playing on another screen)

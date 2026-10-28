@@ -53,6 +53,12 @@ public sealed partial class LiveSession : IAsyncDisposable
     /// <summary>The source dropped more often than it's worth retrying; <see cref="Error"/> says why.</summary>
     public bool Failed { get; private set; }
 
+    /// <summary>
+    /// ffmpeg stopped while nobody was watching, so it wasn't started again: what's on disk is a stream that will never
+    /// move on. The next viewer gets a fresh session instead.
+    /// </summary>
+    public bool Ended { get; private set; }
+
     /// <summary>Why the channel stopped or wouldn't start, in words for the viewer.</summary>
     public string? Error => _lastError is { } e ? LiveStreamException.Explain(e) : null;
 
@@ -145,6 +151,10 @@ public sealed partial class LiveSession : IAsyncDisposable
                     _lastError = ex.Message;
                     Failed = true;
                 }
+            }
+            else
+            {
+                Ended = true;
             }
         }
     }
