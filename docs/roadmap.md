@@ -28,25 +28,25 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Apple TV on the App Store | With Apple for review | 🚧 In progress |
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 In progress |
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 In progress |
+| Player controls | Audio sync, a sleep timer for video, speed on the web, stereo or 5.1 output with centre boost. S each. [#125](https://github.com/danleach-glitch/flexarr/discussions/125) | 🔜 1 |
 | Subtitles | Teletext, closed captions and height (S); styled ASS after (M). [#40](https://github.com/danleach-glitch/flexarr/discussions/40) | 🔜 1 |
+| Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🔜 1 |
 | HDR10+ | Dynamic HDR metadata on the TVs that show it. S–M. [#41](https://github.com/danleach-glitch/flexarr/discussions/41) | 🔜 1 |
 | Watchlist | Films and shows to watch later, per profile, whether you have them or not. S–M. [#39](https://github.com/danleach-glitch/flexarr/discussions/39) | 🔜 2 |
-| Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🔜 3 |
-| Cast and trivia | Who's on screen and facts about the title while you watch. M. [#43](https://github.com/danleach-glitch/flexarr/discussions/43) | 🔜 4 |
-| Family filter | Mute language and skip scenes, with parental ratings for profiles. M. [#44](https://github.com/danleach-glitch/flexarr/discussions/44) | 🔜 4 |
-| TrueHD Atmos with height channels | Object audio kept for receivers that decode it. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🔜 4 |
-| Music visualiser | On Now Playing. S–M. [#46](https://github.com/danleach-glitch/flexarr/discussions/46) | 🔜 5 |
-| Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🔜 5 |
+| Tracker sync | Trakt, Simkl, MyAnimeList and AniList: scrobbling, history, ratings and scores. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🔜 2 |
+| iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 🔜 3 |
+| Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🔜 4 |
+| Cast and trivia | Who's on screen and facts about the title while you watch. M. [#43](https://github.com/danleach-glitch/flexarr/discussions/43) | 🔜 5 |
+| Family filter | Mute language and skip scenes, with parental ratings for profiles. M. [#44](https://github.com/danleach-glitch/flexarr/discussions/44) | 🔜 5 |
+| TrueHD Atmos with height channels | Object audio kept for receivers that decode it. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🔜 5 |
+| Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🔜 6 |
+| Music visualiser | On Now Playing. S–M. [#46](https://github.com/danleach-glitch/flexarr/discussions/46) | 🔜 7 |
+| Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🔜 7 |
 | Photo libraries | [#48](https://github.com/danleach-glitch/flexarr/discussions/48) | 🗓️ Later |
 | PostgreSQL | As an alternative to SQLite. [#14](https://github.com/danleach-glitch/flexarr/issues/14) | 🗓️ Later |
 | New files noticed at once | In libraries the \*arr apps don't manage, rather than at the next scan. [#3](https://github.com/danleach-glitch/flexarr/issues/3) | 🗓️ Later |
-| Player controls | Audio sync, a sleep timer for video, speed on the web, stereo or 5.1 output with centre boost. S each. [#125](https://github.com/danleach-glitch/flexarr/discussions/125) | 💡 Idea |
-| Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 💡 Idea |
 | Subtitles made on the device | For titles that have none. [#111](https://github.com/danleach-glitch/flexarr/discussions/111) | 💡 Idea |
 | "What did they say?" | Replay the last few seconds with subtitles. [#112](https://github.com/danleach-glitch/flexarr/discussions/112) | 💡 Idea |
-| Tracker sync | Trakt, Simkl, MyAnimeList and AniList: scrobbling, history, ratings and scores. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 💡 Idea |
-| iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 💡 Idea |
-| Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 💡 Idea |
 | Watching together | Shared progress for the people in the room. [#20](https://github.com/danleach-glitch/flexarr/discussions/20) | 💡 Idea |
 | "Tonight" picker | One button for what to watch now. [#21](https://github.com/danleach-glitch/flexarr/discussions/21) | 💡 Idea |
 | Dialogue boost and night mode | [#23](https://github.com/danleach-glitch/flexarr/discussions/23) | 💡 Idea |
