@@ -137,21 +137,24 @@ final class PodcastPageModel {
     }
 
     /// Marks an episode played or unplayed here at once (on Unplayed, a played one goes), then on the server.
+    /// Unplayed part way through forgets the place reached.
     func setPlayed(_ episode: PodcastEpisode, _ played: Bool, model: AppModel) async {
-        guard let client = model.client, episode.isPlayed != played else { return }
+        let changes = episode.isPlayed != played
+        guard let client = model.client, changes || (!played && episode.progress != nil) else { return }
         if unplayedOnly, played {
             episodes.removeAll { $0.id == episode.id }
             total = max(0, total - 1)
         } else if let index = episodes.firstIndex(where: { $0.id == episode.id }) {
             episodes[index] = episode.with(played: played)
         }
-        if let podcast { self.podcast = podcast.with(unplayedCount: podcast.unplayedCount + (played ? -1 : 1)) }
+        if let podcast, changes { self.podcast = podcast.with(unplayedCount: podcast.unplayedCount + (played ? -1 : 1)) }
         do {
             try await client.setWatched(episode.id, watched: played)
         } catch {
             await load(model: model) // didn't stick: back to what the server has
             return
         }
+        if !played { model.player.offlineLibrary?.forgetPosition(itemId: episode.id) }
         // Other screens catch up; this one already shows it, and only its counts are checked.
         skipsNextReload = true
         model.invalidate()

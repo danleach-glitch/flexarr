@@ -170,6 +170,12 @@ public struct FlexarrClient: Sendable {
         _ = try await send("POST", "items/\(id)/watched", body: WatchedRequest(watched: watched))
     }
 
+    /// Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until
+    /// another episode is played.
+    public func removeFromContinueWatching(_ id: String) async throws {
+        _ = try await send("DELETE", "home/continue/\(id)")
+    }
+
     public func person(_ id: String) async throws -> Person {
         try await get("people/\(id)")
     }

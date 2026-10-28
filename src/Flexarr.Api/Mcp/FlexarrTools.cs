@@ -250,11 +250,18 @@ public static class FlexarrTools
         return list;
     }
 
-    [McpServerTool(Name = "mark_watched"), Description("Marks a film or episode watched (or unwatched) for this profile; a show or season marks every episode.")]
+    [McpServerTool(Name = "mark_watched"), Description("Marks a film or episode watched (or unwatched) for this profile; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue watching.")]
     public static async Task<string> MarkWatchedAsync([Description("The title's id")] Guid itemId, bool watched, PlaybackService playback, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(playback);
         return await playback.SetWatchedAsync(itemId, watched, ct) ? (watched ? "Marked watched." : "Marked unwatched.") : throw new InvalidOperationException("There's no title with that id.");
+    }
+
+    [McpServerTool(Name = "remove_from_continue_watching"), Description("Takes a film or episode out of this profile's Continue watching without marking it watched: forgets how far in it was and, for an episode, keeps its show's next episode out of the row until another is played.")]
+    public static async Task<string> RemoveFromContinueWatchingAsync([Description("The title's id")] Guid itemId, PlaybackService playback, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(playback);
+        return await playback.RemoveFromContinueWatchingAsync(itemId, ct) ? "Removed from Continue watching." : throw new InvalidOperationException("There's no title with that id.");
     }
 
     /// <summary>"The Traitors Uncloaked S3 E4, \"The Reveal\"" or "Heat (1995)".</summary>

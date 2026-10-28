@@ -165,10 +165,25 @@ struct DetailView: View {
                     }
                 }
 
-                Button { Task { await model.setWatched(item, !watched) } } label: {
-                    Label(watched ? "Unwatched" : "Watched", systemImage: watched ? "eye.slash" : "checkmark")
+                if item.isResumable && !watched {
+                    // Part way through, either way: unwatched forgets the place (it leaves Continue Watching).
+                    Menu {
+                        Button { Task { await model.setWatched(item, true) } } label: {
+                            Label("Mark as watched", systemImage: "checkmark")
+                        }
+                        Button { Task { await model.setWatched(item, false) } } label: {
+                            Label("Mark as unwatched", systemImage: "eye.slash")
+                        }
+                    } label: {
+                        Label("Watched", systemImage: "checkmark")
+                    }
+                    .accessibilityLabel("Watched or unwatched")
+                } else {
+                    Button { Task { await model.setWatched(item, !watched) } } label: {
+                        Label(watched ? "Unwatched" : "Watched", systemImage: watched ? "eye.slash" : "checkmark")
+                    }
+                    .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
                 }
-                .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
 
                 if item.kind == .episode, let series {
                     Button { router.push(.item(series)) } label: {

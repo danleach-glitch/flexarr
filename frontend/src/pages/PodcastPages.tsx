@@ -287,6 +287,8 @@ function EpisodeRow({
     { label: 'Play next', run: () => addToUpNext(episode.id, true).then(onChanged) },
     { label: 'Add to Up Next', run: () => addToUpNext(episode.id).then(onChanged) },
     ...(showPodcast ? [{ label: `Go to ${episode.podcastTitle}`, run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
+    // Part way through: forget the place without marking it played, which takes it out of the listening list.
+    ...(progress !== null && !played ? ['divider' as const, { label: 'Mark as unplayed', run: () => mark(false) }] : []),
   ]
 
   return (
@@ -807,6 +809,17 @@ function EpisodeDetail() {
               >
                 Play from the start
               </button>
+            )}
+            {progress !== null && !e.userData.watched && (
+              <AsyncButton
+                className="button quiet"
+                onClick={async () => {
+                  await setWatched(e.id, false)
+                  setVersion((v) => v + 1)
+                }}
+              >
+                Mark as unplayed
+              </AsyncButton>
             )}
             <AsyncButton
               className="button quiet"

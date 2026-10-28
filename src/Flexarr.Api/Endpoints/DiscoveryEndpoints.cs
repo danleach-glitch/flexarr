@@ -159,6 +159,10 @@ public static partial class DiscoveryEndpoints
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await ContinueWatchingAsync(db, profile.Id, Math.Clamp(take ?? 20, 1, 50), null, ct)).WithTags("Discovery");
 
+        // Takes a title out of Continue Watching without marking it watched (see PlaybackService).
+        api.MapDelete("/home/continue/{id:guid}", async (Guid id, Playback.PlaybackService playback, CancellationToken ct) =>
+            await playback.RemoveFromContinueWatchingAsync(id, ct) ? Results.NoContent() : Results.NotFound()).WithTags("Discovery");
+
         // A library's own home page: what you're watching in it, what's new, the best of it, and its main genres.
         api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile,
             Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
@@ -353,8 +357,11 @@ public static partial class DiscoveryEndpoints
             .Select(p => new { p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId })
             .ToListAsync(ct);
         var busy = inProgress.Select(p => p.SeriesId).Where(s => s is not null).ToHashSet();
+        // Shows taken out of the row stay out until an episode is played after that.
+        var dismissed = await db.ContinueWatchingDismissals.Where(d => d.ProfileId == profileId).ToDictionaryAsync(d => d.SeriesId, d => d.DismissedAt, ct);
         var shows = finished.Where(p => p.SeriesId is not null && !busy.Contains(p.SeriesId))
             .GroupBy(p => p.SeriesId!.Value).Select(g => (SeriesId: g.Key, At: g.Max(p => p.LastPlayedAt)))
+            .Where(s => !dismissed.TryGetValue(s.SeriesId, out var at) || s.At > at)
             .OrderByDescending(s => s.At).Take(limit).ToList();
 
         // Every show's episodes in one query, rather than a few queries per show.

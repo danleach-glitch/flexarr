@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { getTracks, setWatched, type ItemSummary } from '../api/client'
+import { getTracks, removeFromContinueWatching, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { openAddToPlaylist } from './AddToPlaylist'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -19,8 +19,12 @@ export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Se
 
 export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
 
-/** Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) */
-export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoint; onClose: () => void }) {
+/**
+ * Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) Something
+ * part way through can be marked either way: unwatched forgets the place reached. `continueWatching` is for cards in
+ * that row, where a show's next episode can be taken out of it.
+ */
+export function ItemMenu({ item, at, onClose, continueWatching = false }: { item: ItemSummary; at: MenuPoint; onClose: () => void; continueWatching?: boolean }) {
   const navigate = useNavigate()
   const play = usePlay()
   const music = useAudioPlayer()
@@ -30,6 +34,11 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
   }
   const go = (to: string) => () => navigate(to)
   const resumable = progressOf(item) !== null
+  const started = resumable && !item.userData.watched
+  const remove = async () => {
+    await removeFromContinueWatching(item.id)
+    announceWatched(item)
+  }
   const showId = item.kind === 'Series' ? item.id : (item.seriesId ?? (item.kind === 'Season' ? item.parentId : null))
   const show = item.seriesTitle ?? 'the show'
 
@@ -40,12 +49,15 @@ export function ItemMenu({ item, at, onClose }: { item: ItemSummary; at: MenuPoi
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider')
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
+      if (started) actions.push({ label: 'Mark as unwatched', run: mark(item, false) })
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Episode':
       actions.push({ label: `${resumable ? 'Resume' : 'Play'} ${episodeCode(item)}`, run: go(`/play/${item.id}`) })
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
+      if (started) actions.push({ label: 'Mark episode as unwatched', run: mark(item, false) })
+      else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove from Continue Watching', run: remove })
       if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
       break
     case 'Season':

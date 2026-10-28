@@ -272,6 +272,7 @@ struct HomeRowView: View {
                         switch row.style {
                         case .wide:
                             WideCard(item: item, width: Layout.wideWidth(sizeClass))
+                                .environment(\.inContinueWatching, row.id == "continue")
                         case .top10:
                             Top10Card(rank: index + 1, item: item, width: Layout.posterWidth(sizeClass))
                         case .tracks:

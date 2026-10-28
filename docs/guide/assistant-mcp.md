@@ -16,7 +16,8 @@ Flexarr is an MCP server. MCP (the [Model Context Protocol](https://modelcontext
 | `now_playing` | Everything playing right now on every screen: which device, whose profile, what, and how far in. |
 | `play_on_device` | Plays a title on a device. A show plays the episode you're up to; it can shuffle a show or start from the beginning. |
 | `control_device` | Pauses, resumes or stops a device. |
-| `mark_watched` | Marks a film or episode watched or unwatched; a show or season marks every episode. |
+| `mark_watched` | Marks a film or episode watched or unwatched; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue Watching. |
+| `remove_from_continue_watching` | Takes a film or episode out of Continue Watching without marking it watched. A show stays out until you play another episode of it. |
 | `podcasts` | The podcasts you follow, with how many episodes you haven't heard. |
 | `new_podcast_episodes` | The newest episodes you haven't heard. |
 | `podcast_up_next` | Your podcast Up Next queue. |

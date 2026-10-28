@@ -14,7 +14,7 @@ export function HomeRows({ rows }: { rows: HomeRow[] }) {
       {row.style === 'top10'
         ? row.items.map((item, i) => <Top10Card key={item.id} item={item} rank={i + 1} />)
         : row.style === 'wide'
-          ? row.items.map((item) => <WideCard key={item.id} item={item} />)
+          ? row.items.map((item) => <WideCard key={item.id} item={item} continueWatching={row.id === 'continue'} />)
           : row.style === 'tracks'
             ? row.items.map((item, i) => <TrackCard key={item.id} item={item} queue={row.items} index={i} />)
             : row.style === 'playlists'

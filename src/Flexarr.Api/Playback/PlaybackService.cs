@@ -371,7 +371,11 @@ public sealed class PlaybackService(
         return false;
     }
 
-    /// <summary>Marks an item (or every episode of a series or season) watched or unwatched.</summary>
+    /// <summary>
+    /// Marks an item (or every episode of a series or season) watched or unwatched. Unwatched also forgets the place
+    /// reached in something part way through, which takes it out of Continue Watching; for an episode, its show's next
+    /// episode stays out of the row too, until another episode is played.
+    /// </summary>
     public async Task<bool> SetWatchedAsync(Guid itemId, bool watched, CancellationToken ct)
     {
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == itemId, ct);
@@ -389,6 +393,7 @@ public sealed class PlaybackService(
 
         var existing = await db.PlaybackStates.Where(p => p.UserId == profile.Id && targets.Contains(p.MediaItemId))
             .ToDictionaryAsync(p => p.MediaItemId, ct);
+        var cleared = false;
         foreach (var id in targets)
         {
             if (!existing.TryGetValue(id, out var state))
@@ -400,6 +405,13 @@ public sealed class PlaybackService(
 
                 state = new PlaybackState { UserId = profile.Id, MediaItemId = id };
                 db.PlaybackStates.Add(state);
+            }
+            else if (!watched && !state.Watched)
+            {
+                // Part way through: forget the place but keep when it was played, so history stays true.
+                cleared |= state.PositionSeconds > 0;
+                state.PositionSeconds = 0;
+                continue;
             }
             else if (state.Watched == watched)
             {
@@ -415,8 +427,57 @@ public sealed class PlaybackService(
             }
         }
 
+        if (cleared && item.Kind == MediaKind.Episode)
+        {
+            await DismissShowAsync(item, ct);
+        }
+
         await db.SaveChangesAsync(ct);
         return true;
+    }
+
+    /// <summary>
+    /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an
+    /// episode (or a show), keeps the show's next episode out of the row until another episode is played.
+    /// </summary>
+    public async Task<bool> RemoveFromContinueWatchingAsync(Guid itemId, CancellationToken ct)
+    {
+        var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == itemId, ct);
+        if (item is null)
+        {
+            return false;
+        }
+
+        await db.PlaybackStates.Where(p => p.UserId == profile.Id && p.MediaItemId == itemId && !p.Watched)
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0), ct);
+        await DismissShowAsync(item, ct);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    /// <summary>Notes that this profile took the show of <paramref name="item"/> (an episode or the show) out of Continue Watching.</summary>
+    private async Task DismissShowAsync(MediaItem item, CancellationToken ct)
+    {
+        var seriesId = item.Kind switch
+        {
+            MediaKind.Series => item.Id,
+            MediaKind.Episode when item.ParentId is { } season => await db.MediaItems.Where(s => s.Id == season).Select(s => s.ParentId).FirstOrDefaultAsync(ct),
+            _ => null,
+        };
+        if (seriesId is not { } id)
+        {
+            return;
+        }
+
+        var dismissal = await db.ContinueWatchingDismissals.FindAsync([profile.Id, id], ct);
+        if (dismissal is null)
+        {
+            db.ContinueWatchingDismissals.Add(new ContinueWatchingDismissal { ProfileId = profile.Id, SeriesId = id });
+        }
+        else
+        {
+            dismissal.DismissedAt = DateTime.UtcNow;
+        }
     }
 
     /// <summary>

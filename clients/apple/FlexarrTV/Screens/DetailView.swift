@@ -166,6 +166,14 @@ struct DetailView: View {
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient))
 
+            // Part way through: forget the place without marking it watched (it leaves Continue Watching).
+            if item.isResumable && !watched {
+                Button { Task { await model.setWatched(item, false) } } label: {
+                    Label("Mark as unwatched", systemImage: "eye.slash")
+                }
+                .buttonStyle(ActionButtonStyle(ambient: ambient))
+            }
+
             if item.kind == .episode, let series {
                 Button { router.push(.item(series)) } label: {
                     Label("Go to show", systemImage: "rectangle.stack")

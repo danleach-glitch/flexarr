@@ -83,6 +83,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // Play, the trailer and watched stay as buttons; everything else waits behind the ellipsis so the row doesn't wrap.
   const more: MenuAction[] = []
   if (progress !== null) more.push({ label: 'Play from the start', run: () => navigate(`/play/${item.id}?t=0`) })
+  // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
+  if (progress !== null && !item.userData.watched) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
   if (item.kind === 'Movie' || item.kind === 'Series') more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
   if (canFixMatch) more.push({ label: 'Fix match…', run: () => setMatching(true) })
   if (canDelete) {
@@ -90,6 +92,12 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
     more.push({ label: 'Delete…', run: () => setDeleting(true), danger: true })
   }
   const best = detail.files[0]
+
+  async function markUnwatched() {
+    await setWatched(item.id, false)
+    announceWatched(item)
+    onChange()
+  }
 
   async function toggleWatched() {
     await setWatched(item.id, !item.userData.watched)
