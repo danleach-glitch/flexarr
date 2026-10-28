@@ -9,6 +9,10 @@ public sealed record DirectoryListingDto(string Path, string? Parent, IReadOnlyL
 
 public sealed record ChosenFolderDto(string Path);
 
+public sealed record MacAppDto(StartAtLogin StartAtLogin);
+
+public sealed record StartAtLoginRequest(bool Enabled);
+
 public static class FilesystemEndpoints
 {
     private static readonly EnumerationOptions Options = new()
@@ -45,6 +49,15 @@ public static class FilesystemEndpoints
 
             return await mac.ChooseFolderAsync(start, cancellationToken) is { } path ? Results.Ok(new ChosenFolderDto(path)) : Results.NoContent();
         }).WithTags("Filesystem").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // In the Mac app: what the app itself does, which the web app's settings show.
+        api.MapGet("/mac-app", async (MacAppHost mac, CancellationToken cancellationToken) =>
+            mac.IsAvailable ? Results.Ok(new MacAppDto(await mac.StartAtLoginAsync(null, cancellationToken))) : Results.NotFound())
+            .WithTags("Mac app").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        api.MapPut("/mac-app/start-at-login", async (StartAtLoginRequest request, MacAppHost mac, CancellationToken cancellationToken) =>
+            mac.IsAvailable ? Results.Ok(new MacAppDto(await mac.StartAtLoginAsync(request.Enabled, cancellationToken))) : Results.NotFound())
+            .WithTags("Mac app").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }

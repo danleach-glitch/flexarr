@@ -26,6 +26,8 @@
 	<string>public.app-category.entertainment</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Free for personal use. flexarr.io</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Flexarr Server shares your media with the Flexarr apps and browsers on your network.</string>
 </dict>

@@ -21,7 +21,7 @@ final class ServerProcess {
     }
 
     private(set) var status = Status.stopped
-    private let requests: FolderRequests
+    private let requests: AppRequests
     private var requestsPort: UInt16?
     private var process: Process?
     private var stopping = false
@@ -37,7 +37,7 @@ final class ServerProcess {
     var logDirectory: URL { root.appending(path: "logs") }
 
     init(folders: MediaFolders) {
-        requests = FolderRequests(folders: folders)
+        requests = AppRequests(folders: folders)
     }
 
     func start() {

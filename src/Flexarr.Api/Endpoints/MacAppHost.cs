@@ -9,10 +9,14 @@ namespace Flexarr.Api.Endpoints;
 
 /// <summary>
 /// The Flexarr Server Mac app (clients/macos), when this server runs inside it. The app's sandbox only lets the server
-/// read folders someone chose in macOS's folder window, so choosing a library folder asks the app to show one. The
-/// app passes a local port and a token in Flexarr:MacApp; it answers one line per connection: the token and the word
-/// "choose" in (then, optionally, a tab and the folder to start in, where ~ is the person's home folder), the chosen
-/// folder's path out, or an empty line if it was cancelled.
+/// read folders someone chose in macOS's folder window, so choosing a folder asks the app to show one; the app also
+/// owns starting at login. It passes a local port and a token in Flexarr:MacApp and answers one line per connection:
+/// the token, a command and, after a tab, its argument go in, and one line comes back.
+/// <list type="bullet">
+/// <item>choose [folder to start in, ~ for home]: the chosen folder's path, or nothing if cancelled.</item>
+/// <item>login-item [on|off]: whether the app starts at login (after changing it, if asked): on, off, or approval
+/// when macOS is waiting for the person to allow it in System Settings.</item>
+/// </list>
 /// </summary>
 public sealed class MacAppHost(IConfiguration configuration)
 {
@@ -22,7 +26,19 @@ public sealed class MacAppHost(IConfiguration configuration)
     public bool IsAvailable => port is not null && !string.IsNullOrEmpty(token);
 
     /// <summary>Shows the folder window on the Mac and waits for the person there. Null when they cancel.</summary>
-    public async Task<string?> ChooseFolderAsync(string? start, CancellationToken cancellationToken)
+    public Task<string?> ChooseFolderAsync(string? start, CancellationToken cancellationToken) =>
+        SendAsync("choose", start, cancellationToken);
+
+    /// <summary>Whether the app starts when someone logs in to the Mac, changing it first if <paramref name="on"/> is given.</summary>
+    public async Task<StartAtLogin> StartAtLoginAsync(bool? on, CancellationToken cancellationToken) =>
+        await SendAsync("login-item", on switch { true => "on", false => "off", null => null }, cancellationToken) switch
+        {
+            "on" => StartAtLogin.On,
+            "approval" => StartAtLogin.NeedsApproval,
+            _ => StartAtLogin.Off,
+        };
+
+    private async Task<string?> SendAsync(string command, string? argument, CancellationToken cancellationToken)
     {
         if (!IsAvailable)
         {
@@ -32,12 +48,21 @@ public sealed class MacAppHost(IConfiguration configuration)
         using var client = new TcpClient();
         await client.ConnectAsync(IPAddress.Loopback, port!.Value, cancellationToken);
         await using var stream = client.GetStream();
-        var startIn = string.IsNullOrWhiteSpace(start) ? "" : "\t" + start.ReplaceLineEndings("").Replace('\t', ' ');
-        await stream.WriteAsync(Encoding.UTF8.GetBytes($"{token} choose{startIn}\n"), cancellationToken);
+        var tail = string.IsNullOrWhiteSpace(argument) ? "" : "\t" + argument.ReplaceLineEndings("").Replace('\t', ' ');
+        await stream.WriteAsync(Encoding.UTF8.GetBytes($"{token} {command}{tail}\n"), cancellationToken);
         using var reader = new StreamReader(stream, Encoding.UTF8);
-        var path = await reader.ReadLineAsync(cancellationToken);
-        return string.IsNullOrWhiteSpace(path) ? null : path;
+        var answer = await reader.ReadLineAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(answer) ? null : answer;
     }
+}
+
+public enum StartAtLogin
+{
+    Off,
+    On,
+
+    /// <summary>Turned on, but macOS waits for the person to allow it in System Settings › General › Login Items.</summary>
+    NeedsApproval,
 }
 
 /// <summary>

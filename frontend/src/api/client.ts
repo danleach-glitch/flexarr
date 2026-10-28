@@ -720,6 +720,13 @@ export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/a
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
   apiGet<DirectoryListing>(`/filesystem${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
+/** What the Mac app does itself. Only there: elsewhere the server answers 404. */
+export interface MacApp {
+  /** NeedsApproval: turned on, but macOS waits for it to be allowed in System Settings › General › Login Items. */
+  startAtLogin: 'On' | 'Off' | 'NeedsApproval'
+}
+export const getMacApp = (signal?: AbortSignal) => apiGet<MacApp>('/mac-app', signal)
+export const setStartAtLogin = (enabled: boolean) => request<MacApp>('PUT', '/mac-app/start-at-login', { enabled })
 /** In the Mac app: opens macOS's folder window on the Mac, in `start` if given (~ is home). Undefined when cancelled. */
 export const chooseFolderOnMac = (start?: string) =>
   request<{ path: string } | undefined>('POST', `/filesystem/choose${start ? `?start=${encodeURIComponent(start)}` : ''}`)

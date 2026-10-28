@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { getChangelog, getSystemStatus } from '../../api/client'
+import { getChangelog, getMacApp, getSystemStatus, setStartAtLogin, type MacApp } from '../../api/client'
 import { useApi } from '../../hooks/useApi'
 import { relativeTime } from '../../lib/format'
 import { parse, ReleaseNotes } from './changelog'
-import { SettingRow, SettingsGroup, SettingsHeader } from './shared'
-import { useSettings } from './useSettings'
+import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
+import { errorText, useSettings } from './useSettings'
 
 /** Which Flexarr this is, where it keeps things, and what's changed. */
 export function AboutSection() {
@@ -35,9 +35,48 @@ export function AboutSection() {
             </SettingRow>
           </>
         )}
+        <StartAtLogin />
       </SettingsGroup>
       <WhatsNew />
     </section>
+  )
+}
+
+/** In the Mac app: opening it at login, so the server is back after the Mac restarts. Not shown anywhere else. */
+function StartAtLogin() {
+  const loaded = useApi(getMacApp, [])
+  const [app, setApp] = useState<MacApp>()
+  const [error, setError] = useState<string>()
+  const current = app ?? loaded.data
+  if (!current) return null
+
+  async function change(on: boolean) {
+    setError(undefined)
+    try {
+      setApp(await setStartAtLogin(on))
+    } catch (e) {
+      setError(errorText(e))
+    }
+  }
+
+  return (
+    <>
+      <ToggleRow
+        label="Start when you log in"
+        help={
+          current.startAtLogin === 'NeedsApproval'
+            ? 'macOS needs your OK first: on the Mac, open System Settings › General › Login Items and turn on Flexarr Server.'
+            : 'Opens Flexarr Server when you log in to this Mac, so the server is back after a restart.'
+        }
+        checked={current.startAtLogin !== 'Off'}
+        onChange={(on) => void change(on)}
+      />
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   )
 }
 

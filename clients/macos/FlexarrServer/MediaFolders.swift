@@ -1,5 +1,4 @@
 import AppKit
-import Network
 
 /// The folders the server may use. The sandbox only lets the app, and the server running in its sandbox, see folders
 /// chosen in macOS's folder window, so each is kept as a security-scoped bookmark and opened again at every launch.
@@ -48,72 +47,5 @@ final class MediaFolders {
     private static func bookmark(_ url: URL) throws -> Data {
         // Read and write: podcast downloads and recordings are saved into chosen folders too.
         try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-    }
-}
-
-/// Where the server asks for a folder (src/Flexarr.Api/Endpoints/MacAppHost.cs): a port on the loopback address and a
-/// token, both passed to it at launch. Each connection sends one line, the token and "choose" (then, optionally, a tab
-/// and the folder to start in), and gets back the chosen folder's path, or an empty line if it was cancelled or the
-/// token was wrong.
-@MainActor
-final class FolderRequests {
-    let token = UUID().uuidString
-    private let folders: MediaFolders
-    private var listener: NWListener?
-
-    init(folders: MediaFolders) {
-        self.folders = folders
-    }
-
-    /// Starts listening and returns the port, once there is one.
-    func start() async throws -> UInt16 {
-        let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: .any)
-        let listener = try NWListener(using: parameters)
-        self.listener = listener
-        listener.newConnectionHandler = { [weak self] connection in
-            MainActor.assumeIsolated { self?.answer(connection) }
-        }
-        return try await withCheckedThrowingContinuation { continuation in
-            starting = continuation
-            // On the main queue, so its callbacks run on the main actor.
-            listener.stateUpdateHandler = { [weak self] state in
-                MainActor.assumeIsolated { self?.listenerChanged(state) }
-            }
-            listener.start(queue: .main)
-        }
-    }
-
-    private var starting: CheckedContinuation<UInt16, Error>?
-
-    private func listenerChanged(_ state: NWListener.State) {
-        guard let starting else { return }
-        switch state {
-        case .ready:
-            self.starting = nil
-            starting.resume(returning: listener?.port?.rawValue ?? 0)
-        case .failed(let error):
-            self.starting = nil
-            starting.resume(throwing: error)
-        default:
-            break
-        }
-    }
-
-    private func answer(_ connection: NWConnection) {
-        connection.start(queue: .main)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, _, _ in
-            let request = data.flatMap { String(data: $0, encoding: .utf8) }?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { @MainActor in
-                guard let self else { return connection.cancel() }
-                let parts = request?.split(separator: "\t", maxSplits: 1).map(String.init) ?? []
-                let path = parts.first == "\(self.token) choose"
-                    ? self.folders.choose(startingIn: parts.count > 1 ? parts[1] : nil) : nil
-                connection.send(content: Data(((path ?? "") + "\n").utf8), completion: .contentProcessed { _ in
-                    connection.cancel()
-                })
-            }
-        }
     }
 }

@@ -109,4 +109,12 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task MacApp_OutsideTheMacApp_IsNotFound()
+    {
+        var response = await Client().GetAsync(new Uri("/api/v1/mac-app", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
 }

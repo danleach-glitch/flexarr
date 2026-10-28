@@ -40,6 +40,31 @@ public class MacAppHostTests
         Assert.Equal(sent, request);
         Assert.Equal(expected, await choosing);
     }
+
+    [Theory]
+    [InlineData(null, "secret login-item", "on", StartAtLogin.On)]
+    [InlineData(true, "secret login-item\ton", "approval", StartAtLogin.NeedsApproval)]
+    [InlineData(false, "secret login-item\toff", "off", StartAtLogin.Off)]
+    public async Task StartAtLogin_AsksTheApp_AndReadsItsAnswer(bool? on, string sent, string answer, StartAtLogin expected)
+    {
+        using var app = new TcpListener(IPAddress.Loopback, 0);
+        app.Start();
+        var host = new MacAppHost(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Flexarr:MacApp:Port"] = ((IPEndPoint)app.LocalEndpoint).Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Flexarr:MacApp:Token"] = "secret",
+        }).Build());
+
+        var asking = host.StartAtLoginAsync(on, CancellationToken.None);
+        using var connection = await app.AcceptTcpClientAsync(CancellationToken.None);
+        await using var stream = connection.GetStream();
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+        var request = await reader.ReadLineAsync(CancellationToken.None);
+        await stream.WriteAsync(Encoding.UTF8.GetBytes(answer + "\n"), CancellationToken.None);
+
+        Assert.Equal(sent, request);
+        Assert.Equal(expected, await asking);
+    }
 }
 
 public class MacAppTranscodingTests
