@@ -119,7 +119,8 @@ const card = p => `<article class="card${p.runsOn ? ' wide' : ''}" id="${escape(
               <div class="card-top"><span class="app-icon">${icons[p.icon]}</span>${pill(p)}</div>
               <h3>${escape(p.name)}</h3>
 ${p.version ? `              <p class="version-line">Version <span class="version">${escape(p.version)}</span></p>\n` : ''}              <p class="summary">${escape(p.summary)}</p>
-${p.note ? `              <p class="note">${escape(p.note)}</p>\n` : ''}${p.requires ? `              <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.links?.length ? `              <div class="links">${p.links.map(button).join('')}</div>\n` : ''}            </div>
+${p.requires ? `              <p class="requires">${escape(p.requires)}</p>\n` : ''}${p.note || p.links?.length ? `              <div class="foot">
+${p.note ? `                <p class="note">${escape(p.note)}</p>\n` : ''}${p.links?.length ? `                <div class="links">${p.links.map(button).join('')}</div>\n` : ''}              </div>\n` : ''}            </div>
 ${p.runsOn ? `            <div class="runs-on">
               <p>Runs on</p>
               <ul>${p.runsOn.map(r => `<li>${systems[r]}${escape(r)}</li>`).join('')}</ul>
@@ -230,7 +231,9 @@ const html = `<!doctype html>
     .summary { color: #cfc8d8; }
     .note, .requires { color: var(--usher); font-size: 0.93rem; }
     .requires::before { content: "Needs "; color: var(--screen); font-weight: 700; }
-    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: auto; padding-top: 10px; }
+    /* The note and buttons sit at the bottom, so cards in a row line up. */
+    .foot { margin-top: auto; padding-top: 10px; display: flex; flex-direction: column; gap: 12px; }
+    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
     .links .button { min-height: 46px; padding: 0 20px; font-size: 0.95rem; }
     .links .button.primary { box-shadow: none; }
     .links .button svg { width: 18px; height: 18px; }
@@ -262,6 +265,9 @@ const html = `<!doctype html>
     /* On the way: lighter, dashed. */
     .soon .card { background: transparent; border-style: dashed; }
     .soon .card h3 { font-size: clamp(1.8rem, 3vw, 2.2rem); }
+    .soon .requires { display: none; }
+    .soon .foot { border-top: 1px dashed var(--aisle); padding-top: 16px; margin-top: auto; }
+    .soon .card-body > .summary { margin-bottom: 8px; }
     /* A slim strip across the row, after the cards. */
     .card.ask { grid-column: 1 / -1; }
     .card.ask .card-body { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-block: 24px; }
@@ -324,7 +330,7 @@ ${Object.values(statuses).map(s => `            <li><span aria-hidden="true">${s
           <article class="card ask">
             <div class="card-body">
               <div><h3>Somewhere else?</h3><p>Tell us where you'd like to watch Flexarr next.</p></div>
-              <div class="links"><a class="button quiet" href="${repo}/issues" rel="noopener">Ask on GitHub</a></div>
+              <div class="links"><a class="button quiet" href="${repo}/discussions/categories/ideas" rel="noopener">Ask on GitHub</a></div>
             </div>
           </article>
         </div>
