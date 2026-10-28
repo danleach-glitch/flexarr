@@ -5,6 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
+- Burned-in picture subtitles (Blu-ray PGS, DVD) fit the picture: they stay in frame on films cropped to widescreen, and are full size in 4K instead of small in a corner.
 - Dolby Vision films are only sent as they are to screens that show Dolby Vision. Elsewhere they're repackaged or converted, instead of showing purple and green. Safari on an HDR Mac now says it shows Dolby Vision, so it keeps playing them directly.
 - Films and episodes in 10-bit H.264, and other formats players can't decode (4:2:2 and 4:4:4 video, 12-bit HEVC), are converted instead of failing to play.
 - HDR10 and HLG are only sent as they are when the Apple TV says it's showing them right now.

@@ -51,7 +51,7 @@ public class FfmpegCommandTests
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
 
         Assert.DoesNotContain("hwaccel_output_format", args, StringComparison.Ordinal);
-        Assert.Contains("-filter_complex [0:0][0:3]overlay,scale=1920:1080,format=yuv420p[v] -map [v]", args, StringComparison.Ordinal);
+        Assert.Contains("-filter_complex [0:3][0:0]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", args, StringComparison.Ordinal);
     }
 
     [Fact]

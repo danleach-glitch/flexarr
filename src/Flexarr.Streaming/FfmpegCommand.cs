@@ -254,7 +254,12 @@ public static class FfmpegCommand
         {
             var subtitleInput = burn.ExternalPath is null ? $"[0:{burn.StreamIndex}]" : "[1:0]";
             var tail = hw == HardwareAcceleration.Vaapi ? ",format=nv12,hwupload" : ",format=yuv420p";
-            args.AddRange(["-filter_complex", $"[0:{plan.VideoStreamIndex}]{subtitleInput}overlay,scale={width}:{height}{tail}[v]", "-map", "[v]"]);
+            // Picture subtitles are drawn on a canvas of their own (often 1920×1080 whatever the video): scaled to the
+            // video's height, keeping their shape, and centred, so a cropped scope film keeps its captions in frame and
+            // a 4K one has them full size.
+            args.AddRange(["-filter_complex",
+                $"{subtitleInput}[0:{plan.VideoStreamIndex}]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale={width}:{height}{tail}[v]",
+                "-map", "[v]"]);
         }
         else if (decodedInSoftware)
         {
