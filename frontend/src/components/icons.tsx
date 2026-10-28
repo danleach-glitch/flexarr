@@ -123,10 +123,11 @@ export const Microphone = (p: IconProps) => (
     <path d="M12 17v4.5M8.5 21.5h7" />
   </svg>
 )
-/** The sleep timer: zz, a big Z and a smaller one above it. */
+/** The sleep timer: a bed. */
 export const Sleep = (p: IconProps) => (
   <svg {...base} {...p}>
-    <path d="M3 11h8l-8 9h8M14 4h6l-6 7h6" />
+    <path d="M2.5 4.5v15M2.5 15.5h19M21.5 19.5V12a3 3 0 0 0-3-3H11v6.5" />
+    <rect x="5" y="10" width="4" height="5.5" rx="1.2" />
   </svg>
 )
 export const Next = (p: IconProps) => (

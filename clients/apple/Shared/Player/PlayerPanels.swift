@@ -171,7 +171,7 @@ final class SleepPromptView: UIView {
         titleLabel.textColor = .white
         detailLabel.textColor = UIColor.white.withAlphaComponent(0.75)
         moreButton.configuration?.title = "+15 min"
-        moreButton.configuration?.image = UIImage(systemName: "zzz")
+        moreButton.configuration?.image = UIImage(systemName: "bed.double")
         cancelButton.configuration?.title = "Cancel timer"
         moreButton.addAction(UIAction { [weak self] _ in self?.onMore?() }, for: .primaryActionTriggered)
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)

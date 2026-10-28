@@ -87,7 +87,7 @@ final class PlayerControlsView: UIView {
         audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
         subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
         speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
-        sleepButton = Self.button("zzz", size: Self.symbolSize * 0.8, menu: true)
+        sleepButton = Self.button("bed.double", size: Self.symbolSize * 0.8, menu: true)
         channelsButton = Self.button("list.bullet.rectangle", size: Self.symbolSize * 0.8)
         guideButton = Self.button("calendar", size: Self.symbolSize * 0.8)
         promptButton = Self.pill(filled: true)
@@ -202,8 +202,9 @@ final class PlayerControlsView: UIView {
         speedButton.accessibilityValue = text
     }
 
-    /// Says whether a sleep timer runs (the menu shows how long is left).
+    /// The bed filled while a sleep timer runs.
     func setSleepActive(_ active: Bool) {
+        sleepButton.configuration?.image = UIImage(systemName: active ? "bed.double.fill" : "bed.double")
         sleepButton.accessibilityValue = active ? "On" : nil
         sleepButton.setNeedsUpdateConfiguration()
     }
