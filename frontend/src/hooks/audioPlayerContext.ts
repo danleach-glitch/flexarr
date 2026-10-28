@@ -38,6 +38,8 @@ export interface AudioPlayer {
   /** A sleep timer: playback pauses at `until` (a Date.now() time), or when the episode ends. Null when there's none. */
   sleep: SleepTimer | null
   setSleep: (timer: SleepTimer | null) => void
+  /** The music as it sounds, for the visualiser: null before anything has played, or without Web Audio. */
+  analyser: () => AnalyserNode | null
 }
 
 export type { SleepTimer }

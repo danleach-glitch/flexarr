@@ -1,18 +1,20 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link, useLocation } from 'react-router'
 import { imageUrl } from '../api/client'
 import { podcastSpeeds, useAudioPlayer, useAudioTime, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock } from '../lib/format'
 import { speedLabel } from '../lib/podcasts'
 import { minutesLeft, sleepChoices, sleepLabel } from '../lib/sleepTimer'
-import { Close, Forward30, Next, Pause, Play, Queue, Replay15, Sleep } from './icons'
+import { Close, Forward30, Fullscreen, Next, Pause, Play, Queue, Replay15, Sleep } from './icons'
 import { Menu, type MenuPoint } from './ItemMenu'
+import { NowPlayingView } from './NowPlayingView'
 import { QueuePanel } from './QueuePanel'
 
 
 /**
  * The music bar along the bottom: there while something is queued, and always on music pages (empty until a track
- * is picked). Cover, title and artist link to their pages; the queue opens in a panel above it. A podcast episode
+ * is picked). The cover opens Now Playing over the whole window; title and artist link to their pages; the queue opens
+ * in a panel above it. A podcast episode
  * gets 15 seconds back and 30 on instead of previous and next, a speed and a sleep timer.
  */
 export function NowPlaying() {
@@ -20,6 +22,8 @@ export function NowPlaying() {
   const time = useAudioTime()
   // The panel is open for one page: following a link from the queue (or anywhere) puts it away.
   const [openOn, setOpenOn] = useState<string | null>(null)
+  const [viewOpen, setViewOpen] = useState(false)
+  const closeView = useCallback(() => setViewOpen(false), [])
   const queueButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
   const track = player.current
@@ -47,16 +51,26 @@ export function NowPlaying() {
   return (
     <>
       {queueOpen && track && <QueuePanel onClose={closeQueue} style={accent} />}
+      {viewOpen && track && <NowPlayingView onClose={closeView} />}
       <aside className="now-playing" aria-label="Now playing" style={accent}>
         <div className="now-playing-track">
-          {album ? (
-            <Link to={album} className="now-playing-cover" tabIndex={-1} aria-hidden="true">
-              {track?.artwork.poster && <img src={imageUrl(track.artwork.poster, 185)} alt="" />}
-            </Link>
+          {track ? (
+            <button
+              className="now-playing-cover"
+              onClick={() => {
+                setQueueOpen(false)
+                setViewOpen(true)
+              }}
+              aria-label="Open Now Playing"
+              aria-haspopup="dialog"
+            >
+              {track.artwork.poster && <img src={imageUrl(track.artwork.poster, 185)} alt="" />}
+              <span className="now-playing-expand" aria-hidden="true">
+                <Fullscreen />
+              </span>
+            </button>
           ) : (
-            <div className="now-playing-cover" aria-hidden="true">
-              {track?.artwork.poster && <img src={imageUrl(track.artwork.poster, 185)} alt="" />}
-            </div>
+            <div className="now-playing-cover" aria-hidden="true" />
           )}
           <div className="now-playing-text">
             {track ? (

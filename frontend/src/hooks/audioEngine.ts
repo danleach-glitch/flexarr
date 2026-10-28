@@ -81,6 +81,8 @@ export interface AudioEngine {
   rateChanged(): void
   /** Stops everything and forgets it. */
   stop(): void
+  /** The mix, for the visualiser: null before anything has played, or without Web Audio. */
+  analyser(): AnalyserNode | null
 }
 
 /**
@@ -423,6 +425,8 @@ export function createEngine(host: EngineHost): AudioEngine {
       host.duration(0)
       host.playing(false)
     },
+
+    analyser: () => mixer.analyser(),
   }
   return engine
 }

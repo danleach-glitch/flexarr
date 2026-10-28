@@ -54,7 +54,7 @@ function WhileWatching({ name }: { name?: string }) {
   )
 }
 
-/** How music plays in this browser: crossfade and ReplayGain. Kept on the device, since speakers and taste differ by room. */
+/** How music plays in this browser: crossfade, ReplayGain and the visualiser. Kept on the device, since speakers and taste differ by room. */
 function MusicInThisBrowser() {
   const settings = useMusicSettings()
   return (
@@ -74,6 +74,12 @@ function MusicInThisBrowser() {
           ))}
         </select>
       </SettingRow>
+      <ToggleRow
+        label="Visualiser"
+        help="Light in the cover’s colours moves with the music behind Now Playing."
+        checked={settings.visualiser}
+        onChange={(visualiser) => writeMusicSettings({ visualiser })}
+      />
     </SettingsGroup>
   )
 }

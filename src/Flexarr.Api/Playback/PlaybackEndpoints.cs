@@ -429,6 +429,8 @@ public static partial class PlaybackEndpoints
         "webm" => "video/webm",
         "mkv" => "video/x-matroska",
         "avi" => "video/x-msvideo",
+        "flac" => "audio/flac",
+        "mp3" => "audio/mpeg",
         _ => "application/octet-stream",
     };
 

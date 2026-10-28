@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// The profile's playback preferences (saved on the server, so they follow it to every device), then this Apple TV's
-/// own: how far the remote skips and how files are played.
+/// own: how far the remote skips, how files are played and whether music has a visualiser.
 struct PlaybackSettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var preferences: PlaybackPreferences?
@@ -10,6 +10,7 @@ struct PlaybackSettingsView: View {
     @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var losslessAudio = PlaybackController.losslessAudio
+    @State private var visualiser = AudioSpectrum.isOn
 
     var body: some View {
         SettingsPage(title: "Playback", summary: saveFailed ? "That change couldn't be saved on the server, so it's been put back." : nil) {
@@ -68,6 +69,11 @@ struct PlaybackSettingsView: View {
                     losslessAudio.toggle()
                     PlaybackController.losslessAudio = losslessAudio
                 }
+            }
+            SettingsRow.toggle("Music visualiser", isOn: visualiser, symbol: "waveform",
+                               help: "Light in the cover's colours moves with the music behind Now Playing.") {
+                visualiser.toggle()
+                AudioSpectrum.isOn = visualiser
             }
         }
         .animation(.easeOut(duration: 0.2), value: playsFilesDirectly)

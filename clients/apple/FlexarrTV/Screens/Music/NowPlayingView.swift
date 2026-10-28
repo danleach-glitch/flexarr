@@ -11,6 +11,9 @@ struct NowPlayingView: View {
     @State private var lyrics = LyricsLoader()
     /// Lyrics are wanted; the page shows while the track that's playing has some.
     @State private var showingLyrics = false
+    /// The cover's colours for the visualiser, read once per cover.
+    @State private var palette: [CoverPalette.RGB] = []
+    @State private var visualiser = AudioSpectrum.isOn
 
     private enum Control: Hashable { case shuffle, previous, playPause, next, `repeat`, lyrics }
 
@@ -18,7 +21,12 @@ struct NowPlayingView: View {
 
     var body: some View {
         ZStack {
-            RoomBackground(ambient: music.current?.glowColor, intensity: 0.5)
+            if visualiser, music.current != nil {
+                MusicAurora(colours: palette, spectrum: music.spectrum, playing: music.isPlaying)
+                    .transition(.opacity)
+            } else {
+                RoomBackground(ambient: music.current?.glowColor, intensity: 0.5)
+            }
             if let track = music.current {
                 if showingLyrics, let found = lyrics.lyrics {
                     lyricsPage(track, found)
@@ -43,6 +51,8 @@ struct NowPlayingView: View {
         }
         .defaultFocus($focusedControl, .playPause)
         .task(id: music.current?.id) { await lyrics.load(music.current, client: model.client) }
+        .task(id: PaletteSource(track: music.current?.id, hasArtwork: music.artwork != nil)) { readPalette() }
+        .onAppear { visualiser = AudioSpectrum.isOn }
     }
 
     /// The words beside a smaller cover, the track's name and the timeline. Menu comes back here.
@@ -65,6 +75,20 @@ struct NowPlayingView: View {
             showingLyrics = false
             focusedControl = .lyrics
         }
+    }
+
+    /// What the palette is read from: the track, and whether its cover has arrived yet.
+    private struct PaletteSource: Equatable {
+        var track: String?
+        var hasArtwork: Bool
+    }
+
+    /// The cover's colours, or (until it arrives, or for a grey cover) the track's own glow and its neighbours.
+    private func readPalette() {
+        guard visualiser, let track = music.current else { return }
+        let glow = track.ambient.glow
+        let fallback = CoverPalette.RGB(r: glow.red * 255, g: glow.green * 255, b: glow.blue * 255)
+        withAnimation(.easeInOut(duration: 1.2)) { palette = CoverPalette.colours(of: music.artwork, fallback: fallback) }
     }
 
     private func cover(_ track: ItemSummary, size: CGFloat) -> some View {

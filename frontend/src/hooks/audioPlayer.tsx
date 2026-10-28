@@ -296,6 +296,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [current, toggle, next, previous, seek, skipBy])
 
+  const analyser = useCallback(() => engineRef.current?.analyser() ?? null, [])
+
   const value = useMemo<AudioPlayer>(
     () => ({
       queue,
@@ -322,6 +324,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       setSpeed,
       sleep,
       setSleep,
+      analyser,
     }),
     [
       queue,
@@ -347,6 +350,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       speed,
       setSpeed,
       sleep,
+      analyser,
     ],
   )
   return (

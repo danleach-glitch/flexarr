@@ -9,15 +9,18 @@ export interface MusicSettings {
   crossfade: number
   /** Whether tracks are levelled with their ReplayGain tags. */
   normalise: boolean
+  /** Whether light moves with the music behind Now Playing. */
+  visualiser: boolean
 }
 
 export const crossfadeChoices = [0, 2, 4, 6, 8, 12] as const
 
 const crossfadeKey = 'flexarr.crossfade'
 const normaliseKey = 'flexarr.normaliseVolume'
+const visualiserKey = 'flexarr.visualiser'
 const changed = 'flexarr:music-settings'
 
-export const defaultMusicSettings: MusicSettings = { crossfade: 0, normalise: true }
+export const defaultMusicSettings: MusicSettings = { crossfade: 0, normalise: true, visualiser: true }
 
 export function readMusicSettings(): MusicSettings {
   try {
@@ -25,6 +28,7 @@ export function readMusicSettings(): MusicSettings {
     return {
       crossfade: (crossfadeChoices as readonly number[]).includes(crossfade) ? crossfade : defaultMusicSettings.crossfade,
       normalise: localStorage.getItem(normaliseKey) !== '0',
+      visualiser: localStorage.getItem(visualiserKey) !== '0',
     }
   } catch {
     return defaultMusicSettings
@@ -35,6 +39,7 @@ export function writeMusicSettings(next: Partial<MusicSettings>) {
   try {
     if (next.crossfade !== undefined) localStorage.setItem(crossfadeKey, String(next.crossfade))
     if (next.normalise !== undefined) localStorage.setItem(normaliseKey, next.normalise ? '1' : '0')
+    if (next.visualiser !== undefined) localStorage.setItem(visualiserKey, next.visualiser ? '1' : '0')
   } catch {
     // Storage blocked: the change holds for this page only.
   }
@@ -54,7 +59,7 @@ const subscribe = (notify: () => void) => {
 let snapshot = defaultMusicSettings
 const getSnapshot = () => {
   const now = readMusicSettings()
-  if (now.crossfade !== snapshot.crossfade || now.normalise !== snapshot.normalise) snapshot = now
+  if (now.crossfade !== snapshot.crossfade || now.normalise !== snapshot.normalise || now.visualiser !== snapshot.visualiser) snapshot = now
   return snapshot
 }
 
