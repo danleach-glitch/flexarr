@@ -92,4 +92,20 @@ struct ErrorReportTests {
         let old = try FlexarrClient.decoder.decode(SystemStatus.self, from: Data((base + "}").utf8))
         #expect(old.errorReports == nil)
     }
+
+    @Test func expectedFailuresAreNotReported() {
+        #expect(!ErrorReportFilter.shouldReport(CancellationError()))
+        #expect(!ErrorReportFilter.shouldReport(URLError(.cancelled)))
+        #expect(!ErrorReportFilter.shouldReport(URLError(.notConnectedToInternet)))
+        #expect(!ErrorReportFilter.shouldReport(URLError(.timedOut)))
+        #expect(!ErrorReportFilter.shouldReport(NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotConnectToHost)))
+        #expect(!ErrorReportFilter.shouldReport(FlexarrClientError.unreachable))
+    }
+
+    @Test func realFailuresAreReported() {
+        #expect(ErrorReportFilter.shouldReport(URLError(.badServerResponse)))
+        #expect(ErrorReportFilter.shouldReport(URLError(.serverCertificateUntrusted)))
+        #expect(ErrorReportFilter.shouldReport(FlexarrClientError.invalidResponse))
+        #expect(ErrorReportFilter.shouldReport(NSError(domain: "AVFoundationErrorDomain", code: -11800)))
+    }
 }

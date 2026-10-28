@@ -592,6 +592,8 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "Shuffle \(\.$title) with \(.applicationName)",
                 "Shuffle episodes of \(\.$title) in \(.applicationName)",
                 "Play \(\.$title) on shuffle in \(.applicationName)",
+                // No title in the phrase: Siri asks which show (where a phrase can't carry one).
+                "Shuffle a show in \(.applicationName)",
             ],
             shortTitle: "Shuffle a show",
             systemImageName: "shuffle"

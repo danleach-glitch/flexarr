@@ -51,8 +51,9 @@ enum ErrorReports {
     }
 
     /// An error logged as an error: only its type, domain and code go, with the log's category, never the message.
+    /// Expected ones (a cancelled task, the server out of reach) stay in the log only (`ErrorReportFilter`).
     static func capture(_ error: any Error, category: String) {
-        guard isOn else { return }
+        guard isOn, ErrorReportFilter.shouldReport(error) else { return }
         let ns = error as NSError
         // A bare error of the same kind: its description and user info (which can hold titles and addresses) stay here.
         let bare = NSError(domain: ns.domain, code: ns.code)
