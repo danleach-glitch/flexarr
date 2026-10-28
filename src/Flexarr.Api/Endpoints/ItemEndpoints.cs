@@ -1,8 +1,10 @@
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -60,9 +62,10 @@ public static class ItemEndpoints
         // includeSeason (the web's title page): a series also carries its Up Next episode and one season's episodes (the
         // requested number, else the first unwatched), so the page needs one request rather than three in a row.
         api.MapGet("/items/{id:guid}", async (Guid id, bool? includeSeason, int? season, FlexarrDbContext db, PlaybackService playback,
-            CurrentProfile profile, CancellationToken ct) =>
+            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
-            var detail = await DetailAsync(id, db, profile, ct);
+            var bazarr = options.CurrentValue.Bazarr?.Instance is not null;
+            var detail = await DetailAsync(id, db, profile, bazarr, ct);
             if (detail is null)
             {
                 return Results.NotFound();
@@ -78,7 +81,7 @@ public static class ItemEndpoints
                 var selected = seasons.FirstOrDefault(s => season is { } n && s.SeasonNumber == n)
                     ?? seasons.FirstOrDefault(s => !s.UserData.Watched && s.SeasonNumber != 0)
                     ?? seasons.FirstOrDefault();
-                var seasonDetail = selected is null ? null : await DetailAsync(selected.Id, db, profile, ct);
+                var seasonDetail = selected is null ? null : await DetailAsync(selected.Id, db, profile, bazarr, ct);
                 detail = detail with { NextUp = nextUp, Season = seasonDetail };
             }
 
@@ -105,7 +108,8 @@ public static class ItemEndpoints
         return api;
     }
 
-    private static async Task<ItemDetailDto?> DetailAsync(Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    /// <param name="bazarr">Whether Bazarr is set up, so films and episodes Sonarr and Radarr manage can have subtitles found.</param>
+    private static async Task<ItemDetailDto?> DetailAsync(Guid id, FlexarrDbContext db, CurrentProfile profile, bool bazarr, CancellationToken ct)
     {
         var item = await db.MediaItems.Where(i => i.Id == id).Summaries(profile.Id).FirstOrDefaultAsync(ct);
         if (item is null)
@@ -160,7 +164,8 @@ public static class ItemEndpoints
             entity.Studio ?? series.Studio, series.Status, entity.TrailerYouTubeId,
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
-            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked);
+            ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked,
+            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0);
     }
 
     private static FileDto ToDto(MediaFile f) => new(

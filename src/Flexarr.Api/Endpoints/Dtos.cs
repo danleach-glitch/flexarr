@@ -84,7 +84,8 @@ public sealed record ItemDetailDto(
     IReadOnlyDictionary<Guid, string?> ChildOverviews,
     bool MatchLocked,
     ItemSummaryDto? NextUp = null,
-    ItemDetailDto? Season = null);
+    ItemDetailDto? Season = null,
+    bool CanSearchSubtitles = false);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 

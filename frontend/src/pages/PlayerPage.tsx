@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   ApiError,
   beaconProgress,
+  getSubtitleSync,
   imageUrl,
   reportProgress,
   setAudioDelay,
@@ -12,6 +13,7 @@ import {
   setSubtitleChoice,
   setSubtitleDelay,
   startPlayback,
+  startSubtitleSync,
   stopPlayback,
   type PlaybackInfo,
   type PlaybackPreferences,
@@ -32,6 +34,8 @@ import {
   Sleep,
   Volume,
 } from '../components/icons'
+import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
+import { usePolling } from '../hooks/usePolling'
 import { MAX_AUDIO_DELAY_SECONDS, useDelayedSound } from '../hooks/delayedSound'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
@@ -176,6 +180,11 @@ export function PlayerPage() {
   const [clock, setClock] = useState(() => Date.now())
   // The volume before the timer started fading it, put back when it's done.
   const fadeFrom = useRef<number | null>(null)
+  // Searching Bazarr for subtitles (a dialog over the player), and re-syncing a subtitle file to the audio.
+  const [findingSubtitles, setFindingSubtitles] = useState(false)
+  const [resync, setResync] = useState<{ state: 'running' | 'failed'; error?: string }>()
+  // Bumped when a subtitle file changes on the server (a re-sync), so the track is fetched again.
+  const [subtitleVersion, setSubtitleVersion] = useState(0)
   const scale = subtitleScale[preferences.subtitleSize ?? 'Standard']
   const [notice, setNotice] = useState<string>()
   // The latest request to get the next episode ready, so an older answer arriving late is let go.
@@ -606,6 +615,49 @@ export function PlayerPage() {
     }
   }
 
+  function searchForSubtitles() {
+    setMenu(null)
+    video.current?.pause()
+    setFindingSubtitles(true)
+  }
+
+  /** Re-times the chosen subtitle file to the audio, in the background; it reloads when done. */
+  async function resyncSubtitles() {
+    setMenu(null)
+    if (!info || !subtitleKey) return
+    setResync({ state: 'running' })
+    try {
+      await startSubtitleSync(info.item.id, subtitleKey, info.fileId)
+    } catch (e) {
+      setResync({ state: 'failed', error: e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The subtitles couldn’t be re-synced.' })
+    }
+  }
+
+  usePolling(
+    () => {
+      if (!info) return
+      void getSubtitleSync(info.item.id, info.fileId).then((sync) => {
+        if (sync.state === 'running') return
+        if (sync.state === 'failed') {
+          setResync({ state: 'failed', error: sync.error ?? 'The subtitles couldn’t be re-synced.' })
+          return
+        }
+        setResync(undefined)
+        // Burned-in subtitles need a new stream; text ones are fetched again.
+        if (info.subtitleBurnedIn) void restartHere({ subtitleKey: subtitleKey ?? 'off', audioStreamIndex: info.selectedAudioIndex ?? undefined })
+        else setSubtitleVersion((v) => v + 1)
+      })
+    },
+    resync?.state === 'running' ? 3000 : null,
+  )
+
+  // A failed re-sync says why for a few seconds.
+  useEffect(() => {
+    if (resync?.state !== 'failed') return
+    const timer = setTimeout(() => setResync(undefined), 8000)
+    return () => clearTimeout(timer)
+  }, [resync])
+
   function chooseAudio(index: number) {
     setMenu(null)
     if (index !== info?.selectedAudioIndex) void restartHere({ audioStreamIndex: index, subtitleKey: subtitleKey ?? 'off' })
@@ -848,7 +900,8 @@ export function PlayerPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (belongsToFocused(e) || e.metaKey || e.ctrlKey) return
+      // The subtitle search dialog has the keys (Escape closes it, not the player).
+      if (belongsToFocused(e) || e.metaKey || e.ctrlKey || findingSubtitles) return
       // With an error showing, only its buttons (and Escape, to leave) do anything.
       if (error) {
         if (e.key === 'Escape') exit()
@@ -917,7 +970,8 @@ export function PlayerPage() {
   const accent = item?.accentColor ?? series?.accentColor
   const selectedText = info?.subtitles.find((s) => s.key === subtitleKey && s.isText && s.url)
   // The server shifts the cues; a new address (with the delay in it) fetches them again.
-  const textUrl = selectedText?.url ? `${selectedText.url}${selectedText.url.includes('?') ? '&' : '?'}delay=${subtitleDelay}` : undefined
+  const textUrl = selectedText?.url ? `${selectedText.url}${selectedText.url.includes('?') ? '&' : '?'}delay=${subtitleDelay}${subtitleVersion ? `&v=${subtitleVersion}` : ''}` : undefined
+  const selectedTrack = info?.subtitles.find((s) => s.key === subtitleKey)
 
   return (
     <div
@@ -960,6 +1014,11 @@ export function PlayerPage() {
       {subtitleStatus !== 'idle' && (
         <p className="player-toast" role="status">
           {subtitleStatus === 'loading' ? 'Preparing subtitles. They’ll appear in a moment.' : 'These subtitles couldn’t be loaded. Try another track.'}
+        </p>
+      )}
+      {resync && subtitleStatus === 'idle' && (
+        <p className="player-toast" role="status">
+          {resync.state === 'running' ? 'Re-syncing the subtitles to the audio. This takes a minute or so.' : resync.error}
         </p>
       )}
 
@@ -1126,6 +1185,16 @@ export function PlayerPage() {
                       {!s.isText && <span className="muted"> (burned in)</span>}
                     </MenuItem>
                   ))}
+                  {info.canSearchSubtitles && (
+                    <button className="player-menu-item" onClick={searchForSubtitles}>
+                      Search for subtitles…
+                    </button>
+                  )}
+                  {info.canSearchSubtitles && selectedTrack?.isExternal && (
+                    <button className="player-menu-item" disabled={resync?.state === 'running'} onClick={() => void resyncSubtitles()}>
+                      {resync?.state === 'running' ? 'Re-syncing…' : 'Re-sync to audio'}
+                    </button>
+                  )}
                   {selectedText && (
                     <>
                       <h3>Timing</h3>
@@ -1314,6 +1383,23 @@ export function PlayerPage() {
           </button>
         </div>
       </footer>
+
+      {/* Inside the player, so it shows in full screen too. */}
+      {findingSubtitles && info && (
+        <SubtitleSearchDialog
+          itemId={info.item.id}
+          fileId={info.fileId}
+          title={info.item.kind === 'Episode' && series ? `${series.title} ${episodeCode(info.item) ?? ''}`.trim() : info.item.title}
+          onDownloaded={(saved) => {
+            setFindingSubtitles(false)
+            void restartHere({ subtitleKey: saved.key, audioStreamIndex: info.selectedAudioIndex ?? undefined })
+          }}
+          onClose={() => {
+            setFindingSubtitles(false)
+            void video.current?.play()
+          }}
+        />
+      )}
     </div>
   )
 }

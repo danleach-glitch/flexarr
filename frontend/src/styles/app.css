@@ -2734,6 +2734,30 @@ a.download-attention {
   }
 }
 
+/* Subtitle search reuses Fix match's dialog: a heading, a note, then the results take the room. */
+.subtitle-search {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.subtitle-result {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.subtitle-release {
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .subtitle-result {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .subtitle-result .tag {
+    grid-column: 1;
+  }
+}
+
 .collection-editor h2,
 .add-to-collection h2 {
   margin-bottom: 18px;

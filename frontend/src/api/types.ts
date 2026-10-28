@@ -174,6 +174,8 @@ export interface ItemDetail {
   nextUp?: ItemSummary | null
   /** The season a series' page opens on, with its episodes (getItemPage). */
   season?: ItemDetail | null
+  /** Bazarr can find subtitles for this film or episode. Absent from servers before 0.53. */
+  canSearchSubtitles?: boolean
 }
 
 export interface Person {
