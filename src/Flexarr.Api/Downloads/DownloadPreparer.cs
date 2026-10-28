@@ -188,7 +188,22 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var args = plan.IsAudioOnly
             ? FfmpegCommand.M4a(file.Path, plan.AudioIndex ?? 0, plan.Convert?.AudioChannels ?? 2, partial)
             : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, settings);
-        var error = await RunAsync(settings.FfmpegPath, args, file.DurationSeconds ?? 0, download.Id, ct);
+        // Someone starting to watch takes precedence: the conversion stops and goes back in the queue.
+        var error = await RunAsync(settings.FfmpegPath, args, file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.ActiveCount > 0);
+        if (ReferenceEquals(error, Yielded))
+        {
+            File.Delete(partial);
+            await db.Entry(download).ReloadAsync(ct);
+            if (db.Entry(download).State != EntityState.Detached)
+            {
+                download.Status = DownloadStatus.Queued;
+                download.Progress = 0;
+                await db.SaveChangesAsync(ct);
+            }
+
+            LogYielded(download.Id);
+            return;
+        }
 
         // Deleted while it was being made? Then there's nothing to keep.
         await db.Entry(download).ReloadAsync(ct);
@@ -357,8 +372,14 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         return name.Length == 0 ? "Podcast" : name.Length > 100 ? name[..100].Trim() : name;
     }
 
-    /// <summary>Runs ffmpeg, noting its progress; null when it worked, else what went wrong.</summary>
-    private async Task<string?> RunAsync(string ffmpeg, IReadOnlyList<string> args, double duration, Guid id, CancellationToken ct)
+    /// <summary>What <see cref="RunAsync"/> gives back when it stopped to make way for someone watching.</summary>
+    private static readonly string Yielded = new("yielded".ToCharArray());
+
+    /// <summary>
+    /// Runs ffmpeg, noting its progress; null when it worked, else what went wrong, or <see cref="Yielded"/> when
+    /// <paramref name="yieldTo"/> said to stop for someone else.
+    /// </summary>
+    private async Task<string?> RunAsync(string ffmpeg, IReadOnlyList<string> args, double duration, Guid id, CancellationToken ct, Func<bool>? yieldTo = null)
     {
         var start = new ProcessStartInfo(ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (var arg in args)
@@ -382,6 +403,13 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         {
             while (await process.StandardOutput.ReadLineAsync(ct) is { } line)
             {
+                if (yieldTo?.Invoke() == true)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(ct);
+                    return Yielded;
+                }
+
                 if (!line.StartsWith("out_time_us=", StringComparison.Ordinal) || duration <= 0
                     || !long.TryParse(line.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var micros)
                     || DateTime.UtcNow - lastSaved < TimeSpan.FromSeconds(3))
@@ -430,6 +458,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         return await db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id).ExecuteUpdateAsync(u => u.SetProperty(d => d.Progress, progress), ct) > 0;
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Download {Id} stopped to make way for someone watching; it starts again when they're done")]
+    private partial void LogYielded(Guid id);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Preparing download {Id} ({Quality})")]
     private partial void LogPreparing(Guid id, string quality);

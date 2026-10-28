@@ -5,6 +5,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
+- Live TV channels that need converting share the server's limit on conversions with films and episodes, so a busy evening can't overload it. A channel played as it is doesn't count.
+- A download being converted for your phone stops when someone starts watching, and carries on once they've finished, instead of competing with them.
 - HDR films converted for an SDR screen no longer look grey and washed out on Docker and Linux servers, on NVIDIA and Intel Quick Sync graphics, or with subtitles burned in.
 - When the graphics card won't convert a video (busy, or not passed in to Docker), Flexarr converts it in software instead of failing every time you press Play. The log says when it does. (The Mac app has no software converter, so there it still fails.)
 - Burned-in picture subtitles (Blu-ray PGS, DVD) fit the picture: they stay in frame on films cropped to widescreen, and are full size in 4K instead of small in a corner.
@@ -45,6 +47,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security
+- A profile kept out of a library no longer sees what's playing from it on the household's other screens. The device shows as playing **Something private**, with no title or artwork, in the device list, Home Assistant events and the AI assistant.
 - A phone, tablet or TV that hasn't been used for a year is signed out, so one that was lost, sold or given away stops working. Signing it in again takes a new code.
 - Phones signed in with the server's API key can't change or test each other's notifications when more than one of them is set up.
 - One podcast import (OPML) runs at a time on a server.

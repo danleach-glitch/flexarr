@@ -128,7 +128,8 @@ public static class DeviceEndpoints
             NowPlayingDto? nowPlaying = null;
             var playing = sessions.Active.Where(s => s.SignInId == device.Id && DateTime.UtcNow - s.LastSeen < NowPlayingStaleness)
                 .OrderByDescending(s => s.LastSeen).FirstOrDefault();
-            if (playing is not null && await db.MediaItems.Where(i => i.Id == playing.ItemId).Summaries(playing.ProfileId).FirstOrDefaultAsync(ct) is { } item)
+            // A title from a library hidden from this profile shows as playing, but not what it is.
+            if (playing is not null && await LibraryVisibility.PlayingAsync(db, playing.ItemId, playing.ProfileId, ct) is { } item)
             {
                 nowPlaying = new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused);
             }

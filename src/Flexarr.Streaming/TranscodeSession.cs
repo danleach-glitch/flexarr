@@ -45,6 +45,11 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     // Repackaged runs: each fragment's place on the timeline (from its own timestamp), and which make up each segment.
     private readonly Dictionary<string, (double Start, double End)> _fragments = new(StringComparer.Ordinal);
+
+    private static readonly Comparer<(double Start, double End, string Name)> StartOrder = Comparer<(double Start, double End, string Name)>.Create((a, b) => a.Start.CompareTo(b.Start));
+
+    // The same fragments in order of their start, kept sorted as they arrive, for finding a segment's by binary search.
+    private readonly List<(double Start, double End, string Name)> _byStart = [];
     private readonly Dictionary<int, List<string>> _segmentFragments = [];
     private uint? _timescale;
     private int _highestCompleted = -1;
@@ -547,6 +552,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             _prunedBelow = 0;
             _playlistStamp = default;
             _fragments.Clear();
+            _byStart.Clear();
             _segmentFragments.Clear();
             _timescale = null;
         }
@@ -684,6 +690,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
                     {
                         var start = decodeTime / (double)_timescale.Value;
                         _fragments[line] = (start, start + duration);
+                        var at = _byStart.BinarySearch((start, 0, ""), StartOrder);
+                        _byStart.Insert(at < 0 ? ~at : at, (start, start + duration, line));
                     }
                 }
                 catch (IOException)
@@ -698,27 +706,43 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
 
         var starts = repackage.SegmentStarts;
-        var byStart = _fragments.OrderBy(f => f.Value.Start).ToList();
-        var done = new HashSet<int>();
-        var highest = -1;
-        _segmentFragments.Clear();
+        // A finished segment stays finished; only the others are looked at, each by binary search for its fragments.
+        var done = new HashSet<int>(_completed);
+        var highest = _highestCompleted;
         for (var i = 0; i < starts.Count; i++)
         {
-            var from = starts[i];
-            var to = i + 1 < starts.Count ? starts[i + 1] : DurationSeconds;
-            var parts = byStart.Where(f => f.Value.Start >= from - Slack && f.Value.Start < to - Slack).ToList();
-            if (parts.Count == 0 || parts[0].Value.Start > from + 0.05)
+            if (done.Contains(i))
             {
                 continue;
             }
 
-            var reaches = parts[^1].Value.End >= to - Slack || (ended && i == starts.Count - 1);
-            var unbroken = parts.Zip(parts.Skip(1)).All(p => p.Second.Value.Start - p.First.Value.End < 0.1);
+            var from = starts[i];
+            var to = i + 1 < starts.Count ? starts[i + 1] : DurationSeconds;
+            var first = _byStart.BinarySearch((from - Slack, 0, ""), StartOrder);
+            first = first < 0 ? ~first : first;
+            while (first > 0 && _byStart[first - 1].Start >= from - Slack)
+            {
+                first--; // The search lands on any equal start; take the first.
+            }
+
+            var parts = new List<(double Start, double End, string Name)>();
+            for (var k = first; k < _byStart.Count && _byStart[k].Start < to - Slack; k++)
+            {
+                parts.Add(_byStart[k]);
+            }
+
+            if (parts.Count == 0 || parts[0].Start > from + 0.05)
+            {
+                continue;
+            }
+
+            var reaches = parts[^1].End >= to - Slack || (ended && i == starts.Count - 1);
+            var unbroken = parts.Zip(parts.Skip(1)).All(p => p.Second.Start - p.First.End < 0.1);
             if (reaches && unbroken)
             {
                 done.Add(i);
                 highest = Math.Max(highest, i);
-                _segmentFragments[i] = [.. parts.Select(p => p.Key)];
+                _segmentFragments[i] = [.. parts.Select(p => p.Name)];
             }
         }
 

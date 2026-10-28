@@ -79,6 +79,22 @@ public sealed class TranscodeSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task ALiveChannelBeingConverted_TakesASlot_AndIsntTakenOver()
+    {
+        var liveChannels = 1;
+        await using var manager = new TranscodeManager(() => new TranscodeSettings { CacheDirectory = _cache, MaxConcurrentTranscodes = 2 },
+            NullLoggerFactory.Instance, () => liveChannels);
+        await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+
+        // One film and one channel fill two slots; the channel can't be ended to make room, and the film is the only
+        // other profile's.
+        await Assert.ThrowsAsync<TranscodeLimitException>(() => manager.CreateAsync("b", "/in.mkv", 600, Plan));
+
+        liveChannels = 0;
+        Assert.NotNull(await manager.CreateAsync("b", "/in.mkv", 600, Plan));
+    }
+
+    [Fact]
     public async Task Create_RefusesTranscodesBeyondTheLimit_UntilOneStops()
     {
         await using var manager = Manager(limit: 2);

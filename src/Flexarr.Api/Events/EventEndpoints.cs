@@ -25,8 +25,10 @@ public static class EventEndpoints
     /// "event: playback" with a <see cref="PlaybackEventDto"/> as JSON for each change, and a comment every twenty
     /// seconds so proxies keep it open. It shows everyone's watching, so only the API key or a trusted sign-in has it.
     /// </summary>
-    private static async Task StreamAsync(HttpContext http, CurrentProfile current, PlaybackEvents events, CancellationToken ct)
+    private static async Task StreamAsync(HttpContext http, CurrentProfile current, PlaybackEvents events, Core.Data.FlexarrDbContext db, CancellationToken ct)
     {
+        // Titles from libraries hidden from this profile are told as playing, but not what they are.
+        var hidden = db.HiddenLibraryIds.ToHashSet();
         if (!current.IsTrusted)
         {
             await Results.Problem("Only the API key or a signed-in browser or device can follow what's playing.", statusCode: 403).ExecuteAsync(http);
@@ -61,6 +63,11 @@ public static class EventEndpoints
 
                 while (listener.Events.TryRead(out var playback))
                 {
+                    if (playback.Item is { } item && hidden.Contains(item.LibraryId))
+                    {
+                        playback = playback with { Item = item.Private() };
+                    }
+
                     await http.Response.WriteAsync($"event: playback\ndata: {JsonSerializer.Serialize(playback, Json)}\n\n", ct);
                 }
 

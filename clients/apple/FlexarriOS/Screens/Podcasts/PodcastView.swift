@@ -7,6 +7,8 @@ struct PodcastView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @Environment(\.scenePhase) private var scenePhase
+    /// Only the screen on show refreshes when the app comes back, not every one left open in a tab or below it.
+    @State private var isVisible = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var page: PodcastPageModel
     @State private var markingAllPlayed = false
@@ -109,8 +111,10 @@ struct PodcastView: View {
             await load()
         }
         .onChange(of: page.unplayedOnly) { _, _ in Task { await load() } }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await load() } }
+            if phase == .active, isVisible { Task { await load() } }
         }
     }
 

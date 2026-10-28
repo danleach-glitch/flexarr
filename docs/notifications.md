@@ -117,7 +117,7 @@ The relay sends Apple:
 ```
 
 It answers `200 {"ok":true}`, `410 {"reason":"Unregistered"}` or `400 {"reason":"BadDeviceToken"}` (the server forgets
-the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited (120 requests a minute from one address, 12 a minute to one phone), or `502`
+the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited (12 a minute to one phone; 600 a minute from one address, as a backstop), or `502`
 with Apple's reason.
 
 The relay needs these environment variables on the flexarr-push Vercel project: `APNS_KEY` (the .p8 file's contents),

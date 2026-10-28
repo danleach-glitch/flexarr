@@ -50,6 +50,31 @@ public class CollectionTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
     }
 
     [Fact]
+    public async Task CollectionsOnHome_EachShowTheirOwnTitles_InTheirOwnOrder()
+    {
+        var (_, films) = await SeedAsync(("Home One", 2001, 6.0), ("Home Two", 2002, 7.0), ("Home Three", 2003, 8.0));
+        var ids = new List<string>();
+        foreach (var (name, picks) in new[] { ("Home first", new[] { films[2], films[0] }), ("Home second", new[] { films[1] }) })
+        {
+            var created = await (await Client().PostAsJsonAsync(Api("/collections"), new { name, personal = false, showOnHome = true }))
+                .Content.ReadFromJsonAsync<JsonElement>();
+            var id = created.GetProperty("id").GetString()!;
+            ids.Add(id);
+            foreach (var film in picks)
+            {
+                (await Client().PostAsJsonAsync(Api($"/collections/{id}/items"), new { itemId = film })).EnsureSuccessStatusCode();
+            }
+        }
+
+        var home = await Client().GetFromJsonAsync<JsonElement>(Api("/home"));
+        List<string?> Row(string id) => [.. home.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == $"collection-{id}")
+            .GetProperty("items").EnumerateArray().Select(i => i.GetProperty("title").GetString())];
+
+        Assert.Equal(["Home Three", "Home One"], Row(ids[0]));
+        Assert.Equal(["Home Two"], Row(ids[1]));
+    }
+
+    [Fact]
     public async Task ASmartCollection_AppliesItsRules()
     {
         var (library, _) = await SeedAsync(("Old Classic", 1985, 9.0), ("Good New", 2015, 8.1), ("Great New", 2018, 8.7), ("Weak New", 2016, 5.0));
