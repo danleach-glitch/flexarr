@@ -40,16 +40,16 @@ esac
 # The version this build reports.
 prefix="$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' "$repo/Directory.Build.props")"
 if tag="$(git -C "$repo" describe --tags --exact-match --match 'v*' HEAD 2>/dev/null)" && [ -z "$(git -C "$repo" status --porcelain)" ]; then
-  version="${tag#v}"
-  version_args=(-p:Version="$version")
+  flexarr_version="${tag#v}"
+  version_args=(-p:Version="$flexarr_version")
 else
   IFS=. read -r major minor _ <<< "$prefix"
   suffix="dev.$(git -C "$repo" rev-parse --short=8 HEAD)"
   [ -z "$(git -C "$repo" status --porcelain)" ] || suffix="$suffix.modified"
-  version="$major.$((minor + 1)).0-$suffix"
+  flexarr_version="$major.$((minor + 1)).0-$suffix"
   version_args=(-p:VersionPrefix="$major.$((minor + 1)).0" -p:VersionSuffix="$suffix")
 fi
-echo "==> Deploying Flexarr $version to $host"
+echo "==> Deploying Flexarr $flexarr_version to $host"
 
 echo "==> Building web client"
 (cd "$repo/frontend" && npm ci --silent && npm run build --silent)
@@ -169,4 +169,4 @@ done
 curl -sf http://localhost:8383/health >/dev/null || { echo "Flexarr did not become healthy; see $root/logs/console.log" >&2; tail -20 "$root/logs/console.log" >&2; exit 1; }
 REMOTE
 
-echo "==> Flexarr $version is running: http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"
+echo "==> Flexarr $flexarr_version is running: http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"
