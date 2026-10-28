@@ -9,9 +9,10 @@ Flexarr's own player on Apple TV, iPhone and iPad, and the web player, share the
 
 ### What Flexarr finds
 
-Flexarr picks up two kinds of subtitles:
+Flexarr picks up these kinds of subtitles:
 
 - **Embedded:** tracks inside the video file, as most MKV files have.
+- **Closed captions** carried inside the video itself, as American TV recordings have them. They're listed as **CC**. Flexarr checks for them when it scans a file.
 - **Sidecar files:** `.srt`, `.vtt`, `.ass` or `.ssa` files beside the video, named after it. Add a language and, if you like, `forced` or `sdh` before the extension:
 
 ```text
@@ -25,8 +26,14 @@ Sonarr, Radarr and most subtitle tools name files this way already.
 
 Subtitles come as **text** (SRT, WebVTT, ASS and the like) or **pictures** (PGS from Blu-rays, VobSub from DVDs, DVB from broadcasts). Text subtitles are drawn by the player at the size you choose. Picture subtitles are drawn by the app on Apple TV, iPhone and iPad when **Play files directly** is on. In a web browser they have to be burned into the picture, which means the server converts the video while they're on.
 
-> **Note**
-> Styled ASS subtitles show their words but not their fonts, colours or positions yet.
+### Styled subtitles
+
+ASS and SSA subtitles, as most anime has, can carry their own fonts, colours, positions, signs and karaoke. The web player draws them exactly as they were made, with the fonts attached to the file. On Apple TV, iPhone and iPad they keep their colours and go where they were placed, such as a sign at the top of the picture, in your caption style's font.
+
+### Closed captions and teletext
+
+- **Closed captions** carried inside the video, as American TV recordings have them, are listed as **CC** and work on every device. Flexarr looks for them when it scans a file.
+- **Teletext** subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with **Play files directly** on. The subtitles menu there has a **Teletext page** choice for channels that don't use the usual page, such as 888 in the UK or 150 and 777 in Germany. In a web browser, teletext shows only when the server's FFmpeg can read it, as the Docker image's can; a server on a Mac can't.
 
 ### Finding subtitles
 
@@ -56,6 +63,10 @@ Choose **Small**, **Standard**, **Large** or **Extra large**. It's your profile'
 - On the web, in **Settings › Playback › Subtitle size**, or the player's subtitles menu.
 - On Apple TV, in **Settings › Playback › Subtitle size**, or the player.
 - On iPhone and iPad, in **Settings › Playback**.
+
+### Position
+
+Subtitles sit at the bottom of the picture. If they cover text in the picture, or your TV cuts off its edges, choose **Raised** or **Higher**, or **Top**. With **Subtitles in the black bars** on, films wider than the screen get their subtitles in the black bar below the picture instead of over it, whenever they fit there. Both are your profile's settings on every device, in **Settings › Playback** and the player's subtitles menu. Styled subtitles that place themselves keep their own places.
 
 ### Timing
 
