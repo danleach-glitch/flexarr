@@ -2,6 +2,23 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## 0.50.0 · 28 October 2026
+
+### Docker
+- **Found on your network**: Flexarr now announces itself without any extra software, so the iPhone, iPad and Apple TV apps list a Docker install by themselves. Run the container on the host's network (`network_mode: host`) for this; Docker's own network doesn't pass the announcement on.
+- **`PUID` and `PGID`** pick the user Flexarr runs as, as with Sonarr, Radarr and Lidarr. A settings folder Docker created as root is handed over when Flexarr starts, so it no longer fails to write there. `--user` still works as before.
+- **Intel and AMD graphics** can convert video: the image now includes the VA-API drivers, and Intel's Quick Sync ones on 64-bit Intel/AMD machines. Pass `/dev/dri` into the container. Settings › Streaming only offers VA-API and Quick Sync when the container has a graphics device.
+- Settings › Access says Tailscale isn't available in Docker, with what to do instead, rather than asking you to install it on the server.
+
+### Apple TV
+- **Enter an address instead** connects with a code, like a server found on your network, so there's no API key to type with the remote. The key is still there behind **Connecting from outside your home? Use an API key**.
+
+### iPhone and iPad
+- Settings › Server and the sign-in error point to **Settings › Access** on the web, where remote access and the API key are now.
+
+### Web
+- A new server's settings read **Main profile**, not "Main profile's profile".
+
 ## 0.49.3 · 27 October 2026
 
 ### iPhone, iPad and Apple TV
