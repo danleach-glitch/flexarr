@@ -17,6 +17,18 @@
       ]
     },
     {
+      "id": "mac",
+      "name": "Server for Mac",
+      "icon": "apple",
+      "status": "development",
+      "requires": "A Mac with Apple silicon or Intel",
+      "summary": "The Flexarr server as a Mac app on the Mac App Store: install it in one step, choose your media folders, and it runs from the menu bar, converting video with your Mac's graphics hardware. Free.",
+      "note": "Until then, you can build the server for your Mac from source.",
+      "links": [
+        { "label": "Install on a Mac today", "href": "/guide/install-macos", "short": "Build from source" }
+      ]
+    },
+    {
       "id": "iphone",
       "name": "iPhone and iPad",
       "icon": "apple",
