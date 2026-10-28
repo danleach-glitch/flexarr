@@ -1,5 +1,6 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Core.Libraries;
 
 namespace Flexarr.Api.Tests;
 
@@ -31,5 +32,29 @@ public class LayoutTests
         HomeRowDto[] rows = [Row("continue"), Row("recent"), Row("top")];
 
         Assert.Equal(["continue", "recent", "top"], LayoutEndpoints.Arrange(rows, []).Select(r => r.Id));
+    }
+
+    private static readonly Library A = new() { Name = "A", Type = LibraryType.TvShows }, B = new() { Name = "B", Type = LibraryType.TvShows };
+
+    [Fact]
+    public void ForCombining_PutsTheCombinedRowWhereTheLibrariesRowsWere_WithTheirSwitch()
+    {
+        List<RowSetting> layout = [new() { Id = "continue" }, new() { Id = $"recent-{A.Id}", Enabled = false }, new() { Id = $"recent-{B.Id}", Enabled = false }];
+
+        var combined = LayoutEndpoints.ForCombining(layout, [A, B], combine: true);
+
+        Assert.Equal(["continue", "recent-shows", $"recent-{A.Id}", $"recent-{B.Id}"], combined.Select(r => r.Id));
+        Assert.False(combined[1].Enabled);
+    }
+
+    [Fact]
+    public void ForCombining_Off_PutsEachLibrarysRowWhereTheCombinedOneWas()
+    {
+        List<RowSetting> layout = [new() { Id = "upcoming" }, new() { Id = "recent-shows" }, new() { Id = "continue" }];
+
+        var own = LayoutEndpoints.ForCombining(layout, [A, B], combine: false);
+
+        Assert.Equal(["upcoming", $"recent-{A.Id}", $"recent-{B.Id}", "recent-shows", "continue"], own.Select(r => r.Id));
+        Assert.Same(layout[0], own[0]);
     }
 }

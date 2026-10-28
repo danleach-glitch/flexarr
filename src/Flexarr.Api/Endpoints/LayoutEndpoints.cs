@@ -11,9 +11,10 @@ namespace Flexarr.Api.Endpoints;
 
 public sealed record RowChoiceDto(string Id, string Label, bool Enabled);
 
-public sealed record LayoutDto(IReadOnlyList<RowChoiceDto> Home, IReadOnlyList<RowChoiceDto> Movies, IReadOnlyList<RowChoiceDto> Shows);
+/// <param name="Combinable">Whether there are two film libraries or two TV ones, so combining them changes anything.</param>
+public sealed record LayoutDto(IReadOnlyList<RowChoiceDto> Home, IReadOnlyList<RowChoiceDto> Movies, IReadOnlyList<RowChoiceDto> Shows, bool CombineLibraries, bool Combinable);
 
-public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows);
+public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows, bool CombineLibraries = true);
 
 /// <summary>Choosing which rows Home and Browse show, and in what order (Settings › Home and Browse).</summary>
 public static class LayoutEndpoints
@@ -24,26 +25,32 @@ public static class LayoutEndpoints
     {
         var group = api.MapGroup("/settings/layout").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapGet("/", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
-        {
-            var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
-            var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows)
-                && !(options.CurrentValue.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
-            var me = profile.Id;
-            var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
-                .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
-            var layout = options.CurrentValue.Layout;
-            return new LayoutDto(Merge([.. HomeRows(libraries, all.Any(l => l.Type == LibraryType.Music)), .. collections], layout.Home), Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows));
-        });
+        group.MapGet("/", (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
+            LayoutAsync(db, options.CurrentValue, options.CurrentValue.Layout, profile.Id, ct));
 
-        group.MapPut("/", (LayoutUpdate update, IOptionsMonitor<FlexarrOptions> options) =>
+        // Answers with the layout as saved: config.json reloads a moment later, and combining changes which rows there are.
+        group.MapPut("/", (LayoutUpdate update, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
             ServerConfigStore.Update(options.CurrentValue.DataDirectory, config =>
-                config["layout"] = JsonSerializer.SerializeToNode(new { home = update.Home, movies = update.Movies, shows = update.Shows }, Json));
-            return Results.NoContent();
+                config["layout"] = JsonSerializer.SerializeToNode(new { home = update.Home, movies = update.Movies, shows = update.Shows, combineLibraries = update.CombineLibraries }, Json));
+            var saved = new LayoutOptions { Home = [.. update.Home], Movies = [.. update.Movies], Shows = [.. update.Shows], CombineLibraries = update.CombineLibraries };
+            return LayoutAsync(db, options.CurrentValue, saved, profile.Id, ct);
         });
 
         return api;
+    }
+
+    private static async Task<LayoutDto> LayoutAsync(FlexarrDbContext db, FlexarrOptions options, LayoutOptions layout, string me, CancellationToken ct)
+    {
+        var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
+        var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows)
+            && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
+        var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
+            .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
+        var home = ForCombining(layout.Home, libraries, layout.CombineLibraries);
+        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, all.Any(l => l.Type == LibraryType.Music)), .. collections], home),
+            Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows),
+            layout.CombineLibraries, libraries.GroupBy(l => l.Type).Any(g => g.Count() > 1));
     }
 
     /// <summary>
@@ -62,16 +69,46 @@ public static class LayoutEndpoints
             .ToList();
     }
 
+    /// <summary>The Latest unwatched row standing for every library of a kind, when they're combined.</summary>
+    public static string CombinedRowId(LibraryType type) => type == LibraryType.Movies ? "recent-movies" : "recent-shows";
+
+    /// <summary>
+    /// A saved Home layout for the rows Home has now, with libraries combined or not. Whichever of a kind's combined row
+    /// and its libraries' own rows the layout doesn't mention takes the place and the switch of the ones it does, so
+    /// turning combining on or off moves nothing.
+    /// </summary>
+    /// <param name="libraries">The film and TV libraries, in Home's order.</param>
+    public static List<RowSetting> ForCombining(IReadOnlyList<RowSetting> layout, IEnumerable<Library> libraries, bool combine)
+    {
+        var result = layout.ToList();
+        foreach (var kind in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows).GroupBy(l => l.Type))
+        {
+            List<string> combined = [CombinedRowId(kind.Key)], own = [.. kind.Select(l => $"recent-{l.Id}")];
+            var (shown, other) = combine ? (combined, own) : (own, combined);
+            var missing = shown.Where(id => result.All(r => r.Id != id)).ToList();
+            var at = result.FindIndex(r => other.Contains(r.Id));
+            if (missing.Count == 0 || at < 0)
+            {
+                continue;
+            }
+
+            var enabled = result.Where(r => other.Contains(r.Id)).Any(r => r.Enabled);
+            result.InsertRange(at, missing.Select(id => new RowSetting { Id = id, Enabled = enabled }));
+        }
+
+        return result;
+    }
+
     public static bool IsOn(IReadOnlyList<RowSetting> layout, string id) => !layout.Any(r => r.Id == id && !r.Enabled);
 
     private static string Key(string rowId) => rowId.StartsWith("genre-", StringComparison.Ordinal) ? "genres" : rowId;
 
     /// <param name="music">Whether there's a music library: its rows are only offered when there's one to fill them.</param>
-    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool music) =>
+    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music) =>
     [
         new("continue", "Continue watching", true),
         new("live-tv", "Live TV (your favourite channels)", true),
-        .. libraries.Select(l => new RowChoiceDto($"recent-{l.Id}", $"Latest unwatched in {l.Name}", true)),
+        .. RecentRows(libraries.ToList(), combine),
         new("top-movies", "Top 10 films", true),
         new("top-shows", "Top 10 shows", true),
         .. music ? MusicRows : Array.Empty<RowChoiceDto>(),
@@ -80,6 +117,16 @@ public static class LayoutEndpoints
         new("gems", "Highly rated films, not yet watched", true),
         new("upcoming", "Coming soon", true),
     ];
+
+    /// <summary>A Latest unwatched row for each library, or one for each kind where it has more than one to combine.</summary>
+    private static IEnumerable<RowChoiceDto> RecentRows(List<Library> libraries, bool combine) =>
+        libraries.GroupBy(l => combine ? (object)l.Type : l.Id).Select(g =>
+        {
+            var first = g.First();
+            var label = g.Count() == 1 ? $"Latest unwatched in {first.Name}"
+                : first.Type == LibraryType.Movies ? "Latest unwatched films, from every film library" : "Latest unwatched shows, from every TV library";
+            return new RowChoiceDto(combine ? CombinedRowId(first.Type) : $"recent-{first.Id}", label, true);
+        });
 
     private static readonly RowChoiceDto[] MusicRows =
     [

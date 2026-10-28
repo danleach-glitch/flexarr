@@ -432,7 +432,7 @@ describe('Settings', () => {
     const row = (id: string) => ({ id, label: id, enabled: true })
     mockApi({
       '/libraries': [],
-      '/settings/layout': { home: [row('Continue'), row('Latest'), row('Genres')], movies: [], shows: [] },
+      '/settings/layout': { home: [row('Continue'), row('Latest'), row('Genres')], movies: [], shows: [], combineLibraries: true, combinable: false },
       'PUT /settings/layout': (init?: RequestInit) => {
         saved = JSON.parse(String(init?.body))
         return undefined
@@ -450,6 +450,29 @@ describe('Settings', () => {
     fireEvent.drop(last, { dataTransfer })
 
     await vi.waitFor(() => expect(saved?.home.map((r) => r.id)).toEqual(['Latest', 'Genres', 'Continue']))
+  })
+
+  it('combines libraries on Home, then shows the rows the server answers with', async () => {
+    let saved: { combineLibraries: boolean } | undefined
+    const row = (id: string, label = id) => ({ id, label, enabled: true })
+    mockApi({
+      '/libraries': [],
+      '/settings/layout': { home: [row('continue'), row('recent-shows', 'Latest unwatched shows, from every TV library')], movies: [], shows: [], combineLibraries: true, combinable: true },
+      'PUT /settings/layout': (init?: RequestInit) => {
+        saved = JSON.parse(String(init?.body))
+        return { home: [row('continue'), row('recent-a', 'Latest unwatched in TV'), row('recent-b', 'Latest unwatched in Anime')], movies: [], shows: [], combineLibraries: false, combinable: true }
+      },
+    })
+
+    renderAt('/settings/layout')
+    const combine = await screen.findByRole('switch', { name: /Combine libraries of the same kind/ })
+    expect(combine).toBeChecked()
+    fireEvent.click(combine)
+
+    expect(await screen.findByText('Latest unwatched in Anime')).toBeInTheDocument()
+    expect(screen.queryByText('Latest unwatched shows, from every TV library')).not.toBeInTheDocument()
+    expect(saved?.combineLibraries).toBe(false)
+    expect(combine).not.toBeChecked()
   })
 
   it('sends old links to where their pages moved', async () => {

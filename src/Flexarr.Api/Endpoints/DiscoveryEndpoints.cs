@@ -72,15 +72,20 @@ public static partial class DiscoveryEndpoints
             // Recordings are in Live TV, not a library with a row of its own.
             var libraries = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
-            foreach (var library in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows))
+            // One row for each library, or (as it starts) one for all the film libraries and one for all the TV ones.
+            var combine = options.Layout.CombineLibraries;
+            foreach (var group in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows).GroupBy(l => combine ? (object)l.Type : l.Id))
             {
-                var movies = library.Type == LibraryType.Movies;
+                var first = group.First();
+                var movies = first.Type == LibraryType.Movies;
+                var ids = group.Select(l => l.Id).ToList();
                 // "in {library}" only when there's more than one library of the kind to tell apart.
                 var title = $"Latest unwatched {(movies ? "films" : "shows")}"
-                    + (libraries.Count(l => l.Type == library.Type) > 1 ? $" in {library.Name}" : "");
-                rows.Add(new HomeRowDto($"recent-{library.Id}", title, "poster",
-                    await LatestUnwatched(topLevel.Where(i => i.LibraryId == library.Id), movies, me).Take(RowSize).Summaries(me).ToListAsync(ct),
-                    $"/library/{library.Id}?sort=added"));
+                    + (!combine && libraries.Count(l => l.Type == first.Type) > 1 ? $" in {first.Name}" : "");
+                // Combined, there's no one library to open, so the title isn't a link.
+                rows.Add(new HomeRowDto(combine ? LayoutEndpoints.CombinedRowId(first.Type) : $"recent-{first.Id}", title, "poster",
+                    await LatestUnwatchedOnceAsync(topLevel.Where(i => ids.Contains(i.LibraryId)), movies, me, ct),
+                    ids.Count == 1 ? $"/library/{first.Id}?sort=added" : null));
             }
 
             rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
@@ -153,7 +158,11 @@ public static partial class DiscoveryEndpoints
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
             var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0));
-            return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, options.Layout.Home), upcoming, downloading, resume);
+            // Placed by every film and TV library, including ones this profile can't see, as Settings places them.
+            var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
+                .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
+            var layout = LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries);
+            return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, layout), upcoming, downloading, resume);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -458,6 +467,19 @@ public static partial class DiscoveryEndpoints
         ? topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).OrderByDescending(i => i.AddedAt)
         : topLevel.Where(i => i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)))
             .OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
+
+    /// <summary>
+    /// <see cref="LatestUnwatched"/> across libraries, with a title that's in two of them (an HD and a 4K copy) shown
+    /// once: its newest copy.
+    /// </summary>
+    private static async Task<List<ItemSummaryDto>> LatestUnwatchedOnceAsync(IQueryable<MediaItem> topLevel, bool movies, string profileId, CancellationToken ct)
+    {
+        var newest = await LatestUnwatched(topLevel, movies, profileId).Select(i => new { i.Id, i.TmdbId, i.TvdbId, i.ImdbId }).Take(RowSize * 3).ToListAsync(ct);
+        var ids = newest.DistinctBy(i => i.TmdbId is not null ? $"tmdb:{i.TmdbId}" : i.TvdbId is not null ? $"tvdb:{i.TvdbId}" : i.ImdbId is not null ? $"imdb:{i.ImdbId}" : i.Id.ToString())
+            .Take(RowSize).Select(i => i.Id).ToList();
+        var items = await topLevel.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
+        return [.. items.OrderBy(i => ids.IndexOf(i.Id))];
+    }
 
     /// <summary>Audience rating, nudged by critics where Rotten Tomatoes has a score.</summary>
     private static IOrderedQueryable<MediaItem> TopRated(IQueryable<MediaItem> query) =>

@@ -426,12 +426,22 @@ export interface Layout {
   home: RowChoice[]
   movies: RowChoice[]
   shows: RowChoice[]
+  /** Home shows one Latest unwatched row for all the film libraries, and one for all the TV ones. */
+  combineLibraries: boolean
+  /** There are two film libraries or two TV ones, so combining them changes anything. */
+  combinable: boolean
 }
 
 export const getLayout = (signal?: AbortSignal) => apiGet<Layout>('/settings/layout', signal)
 export const saveLayout = (layout: Layout) => {
   const strip = (rows: RowChoice[]) => rows.map(({ id, enabled }) => ({ id, enabled }))
-  return request<void>('PUT', '/settings/layout', { home: strip(layout.home), movies: strip(layout.movies), shows: strip(layout.shows) })
+  // Answers with the rows as saved, which change when combining is turned on or off.
+  return request<Layout>('PUT', '/settings/layout', {
+    home: strip(layout.home),
+    movies: strip(layout.movies),
+    shows: strip(layout.shows),
+    combineLibraries: layout.combineLibraries,
+  })
 }
 /** A library's own home page: hero and rows for just that library. */
 export const getLibraryBrowse = (id: string, signal?: AbortSignal) => cachedGet<Home>(`/libraries/${id}/browse`, signal)
