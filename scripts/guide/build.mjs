@@ -16,7 +16,9 @@ const order = sections.flatMap(s => s.pages.map(slug => ({ slug, section: s.titl
 const slugs = new Set(order.map(p => p.slug));
 
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const plain = s => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+// Strips tags until none are left, then decodes &amp; last so "&amp;lt;" stays "&lt;".
+const stripTags = s => { for (let prev; prev !== s;) { prev = s; s = s.replace(/<[^>]*>/g, ''); } return s; };
+const plain = s => stripTags(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 const slugify = s => plain(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
 
 function frontMatter(text, file) {
@@ -66,7 +68,7 @@ const pages = order.map(({ slug, section }) => {
       },
       link({ href, title, tokens }) {
         const to = rewrite(href, file, missing);
-        const external = /^https?:/.test(to) && !to.startsWith('https://flexarr.io');
+        const external = /^https?:/.test(to) && new URL(to).hostname !== 'flexarr.io';
         return `<a href="${escape(to)}"${title ? ` title="${escape(title)}"` : ''}${external ? ' rel="noopener"' : ''}>${this.parser.parseInline(tokens)}</a>`;
       },
     },
