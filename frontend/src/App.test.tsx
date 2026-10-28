@@ -71,6 +71,20 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeInTheDocument()
   })
 
+  it('shows what Home found rather than an empty library when the library list is behind a scan', async () => {
+    const film = summary({ id: 'm9', kind: 'Movie', title: 'Big Buck Bunny', poster: null, backdrop: null })
+    mockApi({
+      '/system/status': status,
+      '/libraries': [{ ...movies, itemCount: 0, scan: null }],
+      '/home': { featured: [], overviews: {}, rows: [{ id: 'recent-movies', title: 'Latest unwatched films', style: 'poster', items: [film], link: null }], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Latest unwatched films' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Your library is empty' })).not.toBeInTheDocument()
+  })
+
   it('says an empty library is still being looked through during its first scan', async () => {
     mockApi({
       '/system/status': status,
@@ -409,6 +423,8 @@ describe('Settings', () => {
 
     expect(await screen.findByText('/Volumes/Media/Films')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Use this folder' })).not.toBeInTheDocument()
+    // The first library's form stands in for the list, with no empty list below it.
+    expect(document.querySelector('.library-list')).toBeNull()
   })
 
   it('renames a library in place, keeping its folders', async () => {

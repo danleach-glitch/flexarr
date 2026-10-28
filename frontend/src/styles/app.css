@@ -378,8 +378,8 @@ kbd {
   gap: 12px;
 }
 
-/* Rows (Coming soon, channels) under the empty-library message. */
-.rows-after-welcome {
+/* Rows (Coming soon, channels) under the empty-library message; doubled up to win over .rows, which comes later. */
+.rows.rows-after-welcome {
   margin-top: 0;
   padding-top: 56px;
 }

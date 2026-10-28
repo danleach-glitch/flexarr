@@ -69,12 +69,15 @@ export function LibrariesSection() {
           onCancel={() => setAdding(false)}
         />
       )}
-      <div className="panel library-list">
-        {managed.map((library) => (
-          <LibraryRow key={library.id} library={library} onChange={reload} />
-        ))}
-        {managed.length === 0 && !adding && <p className="muted">No libraries yet. Add one to start.</p>}
-      </div>
+      {/* With no libraries yet, the form adding the first takes the list's place. */}
+      {(managed.length > 0 || !adding) && (
+        <div className="panel library-list">
+          {managed.map((library) => (
+            <LibraryRow key={library.id} library={library} onChange={reload} />
+          ))}
+          {managed.length === 0 && <p className="muted">No libraries yet. Add one to start.</p>}
+        </div>
+      )}
       {podcasts && <PodcastLibrary library={podcasts} onMoved={() => all.reload()} />}
       <LibraryTools />
     </section>
