@@ -55,8 +55,13 @@ final class ServerProcess {
             }
             return
         }
-        // The executable and its libraries are in Contents/Helpers; its settings and the web app in Resources/Server.
-        let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Flexarr")
+        // The executable and its libraries are in Contents/Helpers, one server for each kind of Mac
+        // (Tools/publish-server.sh); its settings and the web app in Resources/Server.
+        #if arch(arm64)
+        let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Flexarr-arm64")
+        #else
+        let executable = Bundle.main.bundleURL.appending(path: "Contents/Helpers/Flexarr-x64")
+        #endif
         let content = Bundle.main.resourceURL!.appending(path: "Server")
         let data = root.appending(path: "data")
         try? FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)

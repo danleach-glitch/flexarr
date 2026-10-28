@@ -10,7 +10,7 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 
 cd "$here"
 xcodegen generate --quiet
-xcodebuild -project FlexarrServer.xcodeproj -scheme FlexarrServer -configuration Release \
+xcodebuild -project FlexarrServer.xcodeproj -scheme FlexarrServer -configuration Release -destination 'generic/platform=macOS' \
   -derivedDataPath build/DerivedData ${FLEXARR_MAC_BUNDLE_ID:+FLEXARR_MAC_BUNDLE_ID=$FLEXARR_MAC_BUNDLE_ID} \
   -quiet build
 rm -rf "build/Flexarr Server.app"

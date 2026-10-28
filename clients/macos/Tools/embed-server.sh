@@ -9,9 +9,9 @@ contents="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
 entitlements="$SRCROOT/FlexarrServer/Helper.entitlements"
 identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 
-ffmpeg="$SRCROOT/build/ffmpeg/$(sed -n 's/^version=//p' "$SRCROOT/Tools/build-ffmpeg.sh")-$NATIVE_ARCH"
+ffmpeg="$SRCROOT/build/ffmpeg/$(sed -n 's/^version=//p' "$SRCROOT/Tools/build-ffmpeg.sh")-universal"
 
-if [ ! -x "$src/bin/Flexarr" ]; then
+if [ ! -x "$src/bin/Flexarr-arm64" ] || [ ! -x "$src/bin/Flexarr-x64" ]; then
   echo "error: no published server in $src; run clients/macos/Tools/publish-server.sh" >&2
   exit 1
 fi
@@ -30,6 +30,6 @@ cp -R "$src/content" "$contents/Resources/Server"
 for lib in "$contents/Helpers/"*.dylib; do
   codesign --force --sign "$identity" --timestamp=none "$lib"
 done
-for tool in Flexarr ffmpeg ffprobe; do
+for tool in Flexarr-arm64 Flexarr-x64 ffmpeg ffprobe; do
   codesign --force --sign "$identity" --timestamp=none --entitlements "$entitlements" "$contents/Helpers/$tool"
 done
