@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Web
+- Right after a library's first scan, Home shows what it found instead of saying the library is empty, and the rows under that message no longer overlap its buttons.
+- Adding your first library no longer shows an empty box under the form.
+
 ## 0.51.0 · 28 October 2026
 
 ### Libraries

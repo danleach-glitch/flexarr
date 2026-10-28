@@ -42,8 +42,10 @@ export function HomePage() {
   )
   const afterContinue = data.rows.some((row) => row.id === 'continue')
   // Libraries set up but nothing in them recognised yet: say so, above whatever else Home has (Coming soon, channels).
+  // Home's own rows win over the library list, which can lag a scan that finished between its checks.
   const media = libraries.filter((l) => l.type !== 'Podcasts')
-  const empty = data.featured.length === 0 && media.every((l) => l.itemCount === 0)
+  const titles = data.rows.some((row) => row.items.length > 0)
+  const empty = data.featured.length === 0 && !titles && media.every((l) => l.itemCount === 0)
 
   return (
     <>

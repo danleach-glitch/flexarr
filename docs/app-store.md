@@ -119,7 +119,8 @@ No demo server is needed: the reviewer runs the server. Review notes:
 > way to obtain any; it plays video files the user already has.
 >
 > It's a menu bar app with no Dock icon or window. After launch, click the Flexarr icon in the menu bar and choose
-> "Open Flexarr" to open its interface in the browser. No sign-in is needed on the same Mac.
+> "Open Flexarr" to open its interface in the browser. The first time, choose "Set up Flexarr": that browser becomes the
+> server's owner, with no account or password to create.
 >
 > To test: in Flexarr, choose Add library, then "Choose a folder on the Mac…" and select a folder holding a video file.
 > An openly licensed film you can use is Big Buck Bunny (Blender Foundation, CC BY), a 65 MB zip to double-click
