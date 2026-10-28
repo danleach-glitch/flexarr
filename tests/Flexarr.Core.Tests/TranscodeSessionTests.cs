@@ -11,6 +11,30 @@ public sealed class TranscodeSessionTests : IDisposable
     public void Dispose() => Directory.Delete(_cache, recursive: true);
 
     [Fact]
+    public async Task SegmentsWellBehindTheViewer_AreDeleted_AndOnlyThoseAreAskedForAgain()
+    {
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = "ffmpeg" };
+        await using var session = new TranscodeSession("prune", "/in.mkv", 7200, Plan, settings, NullLogger.Instance);
+        var extension = Plan.Fmp4 ? ".m4s" : ".ts";
+        // As though ffmpeg had already written the first 200 segments (20 minutes).
+        File.WriteAllLines(Path.Combine(session.Directory, "ffmpeg.m3u8"), Enumerable.Range(0, 200).Select(i => $"seg{i}{extension}"));
+        foreach (var i in Enumerable.Range(0, 200))
+        {
+            File.WriteAllText(Path.Combine(session.Directory, $"seg{i}{extension}"), "x");
+        }
+
+        var watching = await session.GetSegmentAsync(150, CancellationToken.None);
+
+        // 150 segments of 6 s is 15 minutes in; ten minutes back from there is segment 50.
+        var kept = (int)(TranscodeSession.KeptBehind.TotalSeconds / FfmpegCommand.SegmentSeconds);
+        Assert.NotNull(watching);
+        Assert.False(File.Exists(Path.Combine(session.Directory, $"seg0{extension}")));
+        Assert.False(File.Exists(Path.Combine(session.Directory, $"seg{149 - kept}{extension}")));
+        Assert.True(File.Exists(Path.Combine(session.Directory, $"seg{150 - kept}{extension}")));
+        Assert.NotNull(await session.GetSegmentAsync(150 - kept, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Create_RefusesTranscodesBeyondTheLimit_UntilOneStops()
     {
         await using var manager = Manager(limit: 2);

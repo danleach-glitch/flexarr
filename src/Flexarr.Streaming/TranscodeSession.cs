@@ -15,6 +15,15 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 {
     private const int SeekTolerance = 4;   // a request this far past what's produced waits rather than restarts
 
+    /// <summary>
+    /// How much of what's been watched is kept for rewinding. Older segments are deleted as playback moves on, so a
+    /// film doesn't fill the disk; going back further starts ffmpeg again there, like a seek.
+    /// </summary>
+    internal static readonly TimeSpan KeptBehind = TimeSpan.FromMinutes(10);
+
+    /// <summary>Segments are deleted in batches of at least this many, so each request doesn't touch the disk.</summary>
+    private const int PruneBatch = 10;
+
     /// <summary>How long a new or restarted session counts as active before ffmpeg is running.</summary>
     private static readonly TimeSpan StartingWindow = TimeSpan.FromSeconds(30);
 
@@ -39,6 +48,9 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private readonly Dictionary<int, List<string>> _segmentFragments = [];
     private uint? _timescale;
     private int _highestCompleted = -1;
+
+    // Every segment below this has been deleted to free the disk (see KeptBehind).
+    private int _prunedBelow;
     private (long Length, DateTime Written) _playlistStamp;
 
     /// <param name="reserve">
@@ -193,7 +205,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             if (!IsComplete(index))
             {
                 var produced = HighestComplete();
-                var coming = IsRunning && index >= _startSegment && index <= Math.Max(produced, _startSegment) + SeekTolerance;
+                var coming = IsRunning && index >= Math.Max(_startSegment, _prunedBelow) && index <= Math.Max(produced, _startSegment) + SeekTolerance;
                 if (!coming)
                 {
                     // Back from a long pause (or a crash), this is a new transcode as far as the limit goes.
@@ -210,6 +222,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         {
             _gate.Release();
         }
+
+        await PruneAsync(index, ct).ConfigureAwait(false);
 
         // Wait for ffmpeg to finish the segment (it's listed in its playlist only once fully written).
         var deadline = DateTime.UtcNow.AddSeconds(45);
@@ -262,6 +276,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             }
 
             File.Move(partial, path, overwrite: true);
+            // The segment has them now; keeping both would store the film twice.
+            foreach (var part in parts)
+            {
+                File.Delete(Path.Combine(Directory, part));
+            }
+
             return path;
         }
         catch (IOException)
@@ -411,6 +431,62 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>When segment <paramref name="index"/> starts in the film.</summary>
+    private double SegmentStart(int index) =>
+        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : index * (double)FfmpegCommand.SegmentSeconds;
+
+    /// <summary>Deletes the segments more than <see cref="KeptBehind"/> before <paramref name="watching"/>.</summary>
+    private async Task PruneAsync(int watching, CancellationToken ct)
+    {
+        var keepFrom = SegmentAt(SegmentStart(watching) - KeptBehind.TotalSeconds);
+        if (keepFrom - _prunedBelow < PruneBatch)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (_disposed || keepFrom - _prunedBelow < PruneBatch)
+            {
+                return;
+            }
+
+            var from = _prunedBelow;
+            List<string> fragments = [];
+            lock (_playlistLock)
+            {
+                for (var i = from; i < keepFrom; i++)
+                {
+                    if (_segmentFragments.TryGetValue(i, out var names))
+                    {
+                        fragments.AddRange(names);
+                    }
+                }
+
+                _prunedBelow = keepFrom;
+            }
+
+            for (var i = from; i < keepFrom; i++)
+            {
+                File.Delete(Path.Combine(Directory, $"seg{i}{SegmentExtension}"));
+            }
+
+            foreach (var fragment in fragments)
+            {
+                File.Delete(Path.Combine(Directory, fragment));
+            }
+        }
+        catch (IOException)
+        {
+            // Still being read by a request: the next prune or the session's own cleanup gets it.
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private void Touch(int index)
     {
         LastAccess = DateTime.UtcNow;
@@ -430,6 +506,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         {
             _completed = [];
             _highestCompleted = -1;
+            _prunedBelow = 0;
             _playlistStamp = default;
             _fragments.Clear();
             _segmentFragments.Clear();
@@ -455,7 +532,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         lock (_playlistLock)
         {
             RefreshCompleted();
-            return _completed.Contains(index);
+            return index >= _prunedBelow && _completed.Contains(index);
         }
     }
 

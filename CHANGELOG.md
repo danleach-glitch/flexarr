@@ -5,6 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Server
+- Watching a long film no longer fills the disk: the server keeps the last 10 minutes of what's been converted for rewinding and deletes the rest as playback moves on. Films whose video is copied rather than converted also take half the space they did.
 - A podcast folder Flexarr isn't allowed to read no longer stops the server from starting.
 
 ### iPhone and Apple TV
