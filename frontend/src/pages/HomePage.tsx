@@ -49,7 +49,7 @@ export function HomePage() {
 
   return (
     <>
-      {empty ? <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} />}
+      {empty ? <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} />}
       {/* No hero (only Live TV so far): the rows start below the top bar. */}
       <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}

@@ -75,7 +75,7 @@ struct HomeView: View {
             }
             LazyVStack(alignment: .leading, spacing: 28) {
                 if !home.featured.isEmpty {
-                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex)
+                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
                 }
                 // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
                 let rows = home.rows.filter(\.hasContent)
@@ -171,6 +171,8 @@ struct HomeHero: View {
     let items: [ItemSummary]
     let overviews: [String: String?]
     @Binding var index: Int
+    /// What a title's Play picks up from, when it's been started.
+    var resuming: (ItemSummary) -> ItemSummary? = { _ in nil }
 
     /// Shorter on a phone held sideways, so the title and Play stay on screen.
     private var height: CGFloat { verticalSizeClass == .compact ? 340 : sizeClass == .regular ? 620 : 560 }
@@ -220,8 +222,11 @@ struct HomeHero: View {
                         .frame(maxWidth: 520, alignment: .leading)
                 }
                 HStack(spacing: 10) {
-                    Button { Task { await model.playBest(item, router: router) } } label: {
-                        Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                    let resume = resuming(item)
+                    Button {
+                        if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
+                    } label: {
+                        Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
                     Button { router.push(.item(item)) } label: {

@@ -34,8 +34,17 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
   )
 }
 
-/** `resume`, when given, is what the first title picks up from: the episode for a show you're partway through. */
-export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; overviews?: Record<string, string | null>; resume?: ItemSummary; top?: ReactNode }) {
+/**
+ * `resumes` is what each part-played title picks up from, by its id: the episode for a show you're partway through.
+ * `resume` is the first title's alone, from servers that don't send `resumes`.
+ */
+export function Hero({ items, overviews, resume, resumes, top }: {
+  items: ItemSummary[]
+  overviews?: Record<string, string | null>
+  resume?: ItemSummary
+  resumes?: Record<string, ItemSummary> | null
+  top?: ReactNode
+}) {
   // The one fading out is kept until the next change, so the cross-fade has something to fade from.
   const [{ index, previous }, setShown] = useState({ index: 0, previous: -1 })
   const setIndex = (next: number) => setShown((s) => (s.index === next ? s : { index: next, previous: s.index }))
@@ -43,7 +52,7 @@ export function Hero({ items, overviews, resume, top }: { items: ItemSummary[]; 
   const play = usePlay()
   const navigate = useNavigate()
   const item = items[index]
-  const resuming = index === 0 ? resume : undefined
+  const resuming = resumes ? resumes[item?.id ?? ''] : index === 0 ? resume : undefined
   const episode = resuming?.kind === 'Episode' ? episodeHeading(resuming) : undefined
 
   useEffect(() => {
