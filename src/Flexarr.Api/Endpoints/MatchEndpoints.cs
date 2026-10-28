@@ -14,9 +14,11 @@ namespace Flexarr.Api.Endpoints;
 
 /// <summary>
 /// A show (by TVDB id) or film (by TMDB id) a library item could be, from Sonarr's or Radarr's search. ManagedBy names
-/// the instance that already has it, and ManagedPath is where (as Flexarr sees it).
+/// the instance that already has it, and ManagedPath is where (as Flexarr sees it). Without Sonarr or Radarr, Source
+/// says the search was TMDB's (films, by TMDB id) or TVmaze's (shows, by TVmaze id), and nothing is added anywhere.
 /// </summary>
-public sealed record MatchCandidateDto(int Id, string Title, int? Year, string? Overview, string? Poster, string? Network, bool Current, string? ManagedBy, string? ManagedPath);
+public sealed record MatchCandidateDto(int Id, string Title, int? Year, string? Overview, string? Poster, string? Network, bool Current, string? ManagedBy, string? ManagedPath,
+    string Source = "");
 
 public sealed record FixMatchRequest(int Id);
 
@@ -28,7 +30,8 @@ public sealed record FixMatchResultDto(string Instance, bool Added, bool Complet
 
 /// <summary>
 /// Fix match: choose which show or film a library folder really is. The choice is kept through refreshes, and the
-/// title is always managed by Sonarr or Radarr (added there when it isn't already).
+/// title is managed by Sonarr or Radarr (added there when it isn't already). Without them, films are chosen from TMDB
+/// (with the owner's key) and shows from TVmaze.
 /// </summary>
 public static partial class MatchEndpoints
 {
@@ -36,7 +39,8 @@ public static partial class MatchEndpoints
 
     public static RouteGroupBuilder MapMatchEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/items/{id:guid}/match", async (Guid id, string? q, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, CancellationToken ct) =>
+        api.MapGet("/items/{id:guid}/match", async (Guid id, string? q, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
+            TmdbClient tmdb, TvMazeClient tvmaze, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series), ct);
             if (item is null)
@@ -47,12 +51,12 @@ public static partial class MatchEndpoints
             var config = options.CurrentValue;
             var kind = KindFor(item);
             var instances = config.Arr.Where(a => a.Kind == kind).ToList();
+            var term = string.IsNullOrWhiteSpace(q) ? item.Title : q.Trim();
             if (instances.Count == 0)
             {
-                return Results.Problem($"Fixing a match needs {kind}. Add it under Settings › Connections.", statusCode: 409);
+                return await OnlineCandidatesAsync(item, term, config, tmdb, tvmaze, ct);
             }
 
-            var term = string.IsNullOrWhiteSpace(q) ? item.Title : q.Trim();
             try
             {
                 var managed = await ManagedAsync(arr, instances, config.PathMappings, ct);
@@ -67,7 +71,7 @@ public static partial class MatchEndpoints
                 {
                     var owner = managed.GetValueOrDefault(r.Id);
                     return new MatchCandidateDto(r.Id, r.Title, r.Year > 0 ? r.Year : null, NullIfEmpty(r.Overview), r.Poster, NullIfEmpty(r.Network),
-                        r.Id.ToString(CultureInfo.InvariantCulture) == current, owner?.Instance.Name, owner?.Path);
+                        r.Id.ToString(CultureInfo.InvariantCulture) == current, owner?.Instance.Name, owner?.Path, kind.ToString());
                 }).ToList());
             }
             catch (HttpRequestException ex)
@@ -92,7 +96,20 @@ public static partial class MatchEndpoints
             var instances = config.Arr.Where(a => a.Kind == kind).ToList();
             if (instances.Count == 0)
             {
-                return Results.Problem($"Fixing a match needs {kind}. Add it under Settings › Connections.", statusCode: 409);
+                if (OnlineUnavailable(item, config) is { } unavailable)
+                {
+                    return unavailable;
+                }
+
+                // Nothing to add it to: the choice alone is kept, and TMDB or TVmaze supply the rest.
+                var source = item.Kind == MediaKind.Movie ? MetadataRefresher.Tmdb : MetadataRefresher.TvMaze;
+                Forget(db, item);
+                item.TmdbId = item.Kind == MediaKind.Movie ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
+                item.TvMazeId = item.Kind == MediaKind.Series ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
+                await refresher.RefreshItemAsync(item, ct);
+                await db.SaveChangesAsync(ct);
+                LogFixed(logs.CreateLogger("Flexarr.Match"), item.Path ?? item.Title, item.Title, item.Year, source, false);
+                return Results.Ok(new FixMatchResultDto(source, false, true));
             }
 
             ArrInstance instance;
@@ -157,15 +174,9 @@ public static partial class MatchEndpoints
                 return Results.Problem($"{kind} didn't answer ({(int?)ex.StatusCode ?? 0}), so the match wasn't changed.", statusCode: 502);
             }
 
-            // Forget everything the wrong match brought, so none of it carries over.
+            Forget(db, item);
             item.TvdbId = item.Kind == MediaKind.Series ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
             item.TmdbId = item.Kind == MediaKind.Movie ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
-            item.ImdbId = null;
-            item.TvMazeId = null;
-            item.ArrId = null;
-            item.MatchLocked = true;
-            db.Credits.RemoveRange(item.Credits);
-            item.Credits.Clear();
 
             await refresher.RefreshItemAsync(item, ct);
             if (!complete)
@@ -204,7 +215,7 @@ public static partial class MatchEndpoints
                 return Results.NotFound();
             }
 
-            if ((item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId) is null)
+            if ((item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId ?? item.TvMazeId) is null)
             {
                 return Results.Problem($"{item.Title} isn't matched to anything yet. Use Fix match to choose what it is.", statusCode: 409);
             }
@@ -215,6 +226,53 @@ public static partial class MatchEndpoints
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
+    }
+
+    /// <summary>Forgets everything the wrong match brought, so none of it carries over, and keeps the one chosen.</summary>
+    private static void Forget(FlexarrDbContext db, MediaItem item)
+    {
+        item.TvdbId = null;
+        item.TmdbId = null;
+        item.ImdbId = null;
+        item.TvMazeId = null;
+        item.ArrId = null;
+        item.MatchLocked = true;
+        db.Credits.RemoveRange(item.Credits);
+        item.Credits.Clear();
+    }
+
+    /// <summary>Without Radarr, films are found on TMDB, which needs the owner's key.</summary>
+    private static IResult? OnlineUnavailable(MediaItem item, FlexarrOptions config) =>
+        item.Kind == MediaKind.Movie && config.Tmdb?.ApiKey is not { Length: > 0 }
+            ? Results.Problem("Fixing a film's match needs Radarr, or a TMDB key. Add either under Settings › Connections.", statusCode: 409)
+            : null;
+
+    /// <summary>Without Radarr or Sonarr: films from TMDB's search, shows from TVmaze's.</summary>
+    private static async Task<IResult> OnlineCandidatesAsync(MediaItem item, string term, FlexarrOptions config, TmdbClient tmdb, TvMazeClient tvmaze, CancellationToken ct)
+    {
+        if (OnlineUnavailable(item, config) is { } unavailable)
+        {
+            return unavailable;
+        }
+
+        try
+        {
+            if (item.Kind == MediaKind.Movie)
+            {
+                var films = await tmdb.SearchMoviesAsync(config.Tmdb!.ApiKey, term, null, ct);
+                return Results.Ok(films.Take(20).Select(f => new MatchCandidateDto(f.Id, f.Title ?? "", f.Year > 0 ? f.Year : null, NullIfEmpty(f.Overview),
+                    TmdbClient.ImageUrl(f.PosterPath), null, f.Id.ToString(CultureInfo.InvariantCulture) == item.TmdbId, null, null, MetadataRefresher.Tmdb)).ToList());
+            }
+
+            var shows = await tvmaze.SearchAsync(term, ct);
+            return Results.Ok(shows.Take(20).Select(r => r.Show).Select(s => new MatchCandidateDto(s.Id, s.Name, s.Year > 0 ? s.Year : null,
+                MetadataRefresher.PlainText(s.Summary), s.Image?.Original ?? s.Image?.Medium, s.Network?.Name ?? s.WebChannel?.Name,
+                s.Id.ToString(CultureInfo.InvariantCulture) == item.TvMazeId, null, null, MetadataRefresher.TvMaze)).ToList());
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            return Results.Problem($"{(item.Kind == MediaKind.Movie ? "TMDB" : "TVmaze")} didn't answer the search.", statusCode: 502);
+        }
     }
 
     private sealed record Managed(ArrInstance Instance, string Title, string? Path, int QualityProfileId);

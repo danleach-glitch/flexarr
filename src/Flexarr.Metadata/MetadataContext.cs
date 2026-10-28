@@ -10,4 +10,7 @@ public interface IMetadataSettings
     IReadOnlyList<PathMapping> PathMappings { get; }
     string CacheDirectory { get; }
     string FfmpegPath { get; }
+
+    /// <summary>The TMDB key the server's owner pasted into Settings, for films Radarr doesn't have; null without one.</summary>
+    string? TmdbApiKey => null;
 }

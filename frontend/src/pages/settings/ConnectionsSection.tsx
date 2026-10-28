@@ -9,6 +9,7 @@ import {
   rotateWebhookSecret,
   testArr,
   testLiveTv,
+  testTmdb,
   type ArrFolder,
   type ArrKind,
   type ArrStatus,
@@ -17,7 +18,7 @@ import {
   type Settings,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Check, Pencil, Refresh, Trash } from '../../components/icons'
+import { Check, Film, Pencil, Refresh, Trash } from '../../components/icons'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { FolderPicker } from '../../components/FolderPicker'
@@ -50,8 +51,8 @@ export function ConnectionsSection() {
   const folders = useApi((signal) => (settings?.arr.length ? getArrFolders(signal) : Promise.resolve(undefined)), [settings])
   // While the channels and guide come in (after a save, or Refresh), keep asking how it's going.
   usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
-  // Which one is open: an index into the list, 'new' for one being added, 'seerr' or 'livetv'.
-  const [open, setOpen] = useState<number | 'new' | 'seerr' | 'livetv'>()
+  // Which one is open: an index into the list, 'new' for one being added, 'seerr', 'tmdb' or 'livetv'.
+  const [open, setOpen] = useState<number | 'new' | 'seerr' | 'tmdb' | 'livetv'>()
   if (!settings) return waiting
 
   const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
@@ -71,8 +72,8 @@ export function ConnectionsSection() {
     <ServerName value={settings.hostName}>
       <section>
         <SettingsHeader title="Connections">
-          Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Seerr adds Discover and requests,
-          and Dispatcharr Live TV.
+          Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Without them, shows come from
+          TVmaze, and films from TMDB with a free key of your own. Seerr adds Discover and requests, and Dispatcharr Live TV.
         </SettingsHeader>
 
         <SettingsGroup
@@ -120,6 +121,16 @@ export function ConnectionsSection() {
               if (await save({ seerr })) setOpen(undefined)
             }}
           />
+          <TmdbRow
+            hasKey={settings.hasTmdbKey === true}
+            hasRadarr={settings.arr.some((a) => a.kind === 'Radarr')}
+            open={open === 'tmdb'}
+            onOpen={() => setOpen('tmdb')}
+            onClose={() => setOpen(undefined)}
+            onSave={async (apiKey) => {
+              if (await save({ tmdb: { apiKey } })) setOpen(undefined)
+            }}
+          />
           <DispatcharrRow
             liveTv={settings.liveTv ?? null}
             status={
@@ -161,6 +172,7 @@ const ServerName = createContext<string | null | undefined>(undefined)
 /** A connection's line: whether it's reachable, its version, a link to it beside its name, and Edit, which opens the form under it. */
 function ConnectionLine({
   kind,
+  icon,
   name,
   ok,
   status,
@@ -169,7 +181,9 @@ function ConnectionLine({
   open,
   onOpen,
 }: {
-  kind: keyof typeof appLogos
+  kind?: keyof typeof appLogos
+  /** In place of an app's logo, for a service with none here. */
+  icon?: ReactNode
   name: string
   ok?: boolean
   status: ReactNode
@@ -183,7 +197,13 @@ function ConnectionLine({
   return (
     <div className="connection-line">
       <span className={ok && warning ? 'status-dot warn' : ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
-      <img className="app-logo" src={appLogos[kind]} alt="" />
+      {kind ? (
+        <img className="app-logo" src={appLogos[kind]} alt="" />
+      ) : (
+        <span className="app-logo app-logo-icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
       <span className="setting-text">
         <strong className="connection-name">
           {name}
@@ -389,6 +409,95 @@ function SeerrRow({
               Cancel
             </button>
             <AsyncButton type="submit" className="button small" busy={saving}>
+              Save
+            </AsyncButton>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The owner's own TMDB key, for films Radarr doesn't have (or all of them, without Radarr). It's never sent back, so
+ * the form only replaces or removes it.
+ */
+function TmdbRow({
+  hasKey,
+  hasRadarr,
+  open,
+  onOpen,
+  onClose,
+  onSave,
+}: {
+  hasKey: boolean
+  hasRadarr: boolean
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onSave: (apiKey: string) => Promise<void>
+}) {
+  const [apiKey, setApiKey] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [test, setTest] = useState<{ ok: boolean; error: string | null }>()
+  const status = test && !test.ok ? (test.error ?? 'TMDB didn’t accept the key') : hasKey ? 'Key saved' : 'Not set up'
+  return (
+    <div className="connection">
+      <ConnectionLine icon={<Film />} name="TMDB" ok={test ? test.ok : hasKey ? true : undefined} status={status} baseUrl="" open={open} onOpen={onOpen} />
+      {open && (
+        <form
+          className="connection-form"
+          aria-label="Edit TMDB"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setSaving(true)
+            void onSave(apiKey.trim()).finally(() => setSaving(false))
+          }}
+        >
+          <p className="muted">
+            {hasRadarr ? 'Details and artwork for films Radarr doesn’t have.' : 'Details, artwork and cast for your films, which Radarr would otherwise supply.'}{' '}
+            The key is free: sign up at{' '}
+            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">
+              themoviedb.org
+            </a>
+            , then copy the API key or read access token from Settings › API. Shows don’t need one: they come from TVmaze.
+          </p>
+          <label>
+            API key
+            <input
+              type="password"
+              value={apiKey}
+              autoComplete="off"
+              placeholder={hasKey ? 'Saved; paste to replace' : 'API key or read access token'}
+              onChange={(e) => {
+                setApiKey(e.target.value)
+                setTest(undefined)
+              }}
+            />
+          </label>
+          {test?.ok && (
+            <p className="muted" role="status">
+              <Check /> TMDB accepted the key.
+            </p>
+          )}
+          <p className="muted tmdb-credit">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+          <div className="form-actions">
+            {hasKey && (
+              <IconButton
+                label="Remove"
+                aria-label="Remove the TMDB key"
+                icon={<Trash />}
+                className="button quiet small icon danger-icon form-actions-start"
+                onClick={() => confirm('Remove the TMDB key? Films already filled in keep their details.') && onSave('')}
+              />
+            )}
+            <AsyncButton type="button" className="button quiet small" disabled={!apiKey.trim() && !hasKey} onClick={async () => setTest(await testTmdb(apiKey.trim()))}>
+              Test
+            </AsyncButton>
+            <button type="button" className="button quiet small" onClick={onClose}>
+              Cancel
+            </button>
+            <AsyncButton type="submit" className="button small" busy={saving} disabled={!apiKey.trim()}>
               Save
             </AsyncButton>
           </div>

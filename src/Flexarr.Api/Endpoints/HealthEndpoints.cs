@@ -90,9 +90,12 @@ public static partial class HealthEndpoints
             var missing = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
 
             // Films and shows Sonarr and Radarr don't manage, so their details came from searching for the folder's
-            // name: worth a look, as a search can pick the wrong one (a remake, an older show of the same name).
+            // name (in them, or on TMDB or TVmaze): worth a look, as a search can pick the wrong one (a remake, an older
+            // show of the same name).
             var byTitle = await db.MediaItems
-                .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && (i.MetadataSource == MetadataRefresher.RadarrLookup || i.MetadataSource == MetadataRefresher.SonarrLookup) && !i.MatchLocked)
+                .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series)
+                    && (i.MetadataSource == MetadataRefresher.RadarrLookup || i.MetadataSource == MetadataRefresher.SonarrLookup
+                        || i.MetadataSource == MetadataRefresher.TmdbSearch || i.MetadataSource == MetadataRefresher.TvMazeSearch) && !i.MatchLocked)
                 .OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
 
             // Films and shows whose best copy is standard definition: candidates for an upgrade search.
@@ -100,12 +103,13 @@ public static partial class HealthEndpoints
             // The score counts each film or episode once, however many problems it has.
             var titles = await db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode, ct);
             var sdIds = await sd.Select(i => i.Id).ToListAsync(ct);
-            // Film and show artwork comes from Radarr and Sonarr: with neither connected, it isn't something to fix here.
-            // (The score is of films and episodes, so artists without a photo don't count either.)
-            var arrKinds = options.CurrentValue.Arr.Select(a => a.Kind).ToHashSet();
+            // Film artwork comes from Radarr or TMDB (with a key): with neither, it isn't something to fix here. Show
+            // artwork can always come from TVmaze. (The score is of films and episodes, so artists without a photo
+            // don't count either.)
+            var findsFilms = options.CurrentValue.Arr.Any(a => a.Kind == ArrKind.Radarr) || options.CurrentValue.Tmdb?.ApiKey is { Length: > 0 };
             var artlessVideo = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
                 .Select(i => new { i.Id, i.Kind }).ToListAsync(ct);
-            var artless = artlessVideo.Where(i => arrKinds.Contains(i.Kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr)).Select(i => i.Id).ToList();
+            var artless = artlessVideo.Where(i => i.Kind == MediaKind.Series || findsFilms).Select(i => i.Id).ToList();
             var fileProblems = check.Status.Problems.Select(p => p.ItemId).Distinct().ToList();
             var troubled = new HashSet<Guid>([.. ids, .. unreadable.Select(u => u.MediaItemId), .. sdIds, .. artless, .. fileProblems]);
             var score = new HealthScoreDto(

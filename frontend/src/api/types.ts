@@ -420,6 +420,8 @@ export interface Settings {
   pathMappings: { from: string; to: string }[]
   arr: ArrConnection[]
   seerr: { baseUrl: string; hasApiKey: boolean } | null
+  /** Whether there's a TMDB key (it's never sent back), for films Radarr doesn't have. */
+  hasTmdbKey?: boolean
   dataDirectory: string
   ffmpegPath: string
   ffprobePath: string
@@ -457,6 +459,8 @@ export interface SettingsUpdate {
   podcasts?: { country: string }
   /** An empty address removes the source; an omitted password keeps the saved one (for the same server). */
   liveTv?: LiveTvSettingsUpdate
+  /** An empty key removes it. */
+  tmdb?: { apiKey: string }
 }
 
 export interface ArrStatus {

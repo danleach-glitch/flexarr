@@ -434,6 +434,22 @@
   flex: none;
 }
 
+/* A service with no logo here: one of Flexarr's own icons in its place. */
+.app-logo-icon {
+  display: grid;
+  place-items: center;
+  color: var(--usher);
+}
+
+.tmdb-credit {
+  font-size: var(--step--1);
+}
+
+.app-logo-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
 .connection-name {
   display: inline-flex;
   align-items: center;
