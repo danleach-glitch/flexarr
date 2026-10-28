@@ -1,6 +1,7 @@
 import { Fragment, lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes, useLocation, useParams } from 'react-router'
 import {
+  ApiError,
   claimSetup,
   clearApiCache,
   getMe,
@@ -85,7 +86,7 @@ type ConnectionState =
   | { kind: 'ready' }
   /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
   | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
-  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean }
+  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
@@ -204,11 +205,17 @@ export default function App() {
       )
   }
 
-  function setUp() {
+  function setUp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const code = new FormData(event.currentTarget).get('setupCode')?.toString().trim()
+    if (!code) return
     setState({ kind: 'loading' })
-    claimSetup()
+    claimSetup(code)
       .then(() => setAttempt((n) => n + 1))
-      .catch(() => setAttempt((n) => n + 1))
+      .catch((error: unknown) =>
+        // A wrong code asks again; anything else (set up meanwhile, say) looks afresh at where the server is.
+        error instanceof ApiError && error.status === 400 ? setState({ kind: 'unauthorized', setupOpen: true, wrongCode: true }) : setAttempt((n) => n + 1),
+      )
   }
 
   if (state.kind === 'choose-profile') {
@@ -258,13 +265,21 @@ export default function App() {
         {state.kind === 'loading' && <p className="muted">Connecting…</p>}
         {state.kind === 'error' && <p className="error">Can't reach the server ({state.message}). Check that Flexarr is running, then reload.</p>}
         {state.kind === 'unauthorized' && state.setupOpen && (
-          <div className="setup-welcome">
+          <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>Welcome to your Flexarr server</h1>
             <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
-            <button type="button" className="button" onClick={setUp}>
-              Set up Flexarr
-            </button>
-          </div>
+            <label htmlFor="setupCode">Setup code</label>
+            <div className="api-key-row">
+              <input id="setupCode" name="setupCode" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
+              <button type="submit" className="button">
+                Set up Flexarr
+              </button>
+            </div>
+            {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+            <p className="muted small-print">
+              The server shows its setup code in its log as it starts, and keeps it in setup-code.txt in its data folder. With Docker, run docker logs flexarr.
+            </p>
+          </form>
         )}
         {state.kind === 'unauthorized' && !state.setupOpen && tvCode && (
           // Arrived from a device's code: this browser isn't signed in, and only a signed-in main profile can let a device in.

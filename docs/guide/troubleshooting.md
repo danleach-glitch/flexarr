@@ -23,7 +23,7 @@ If the browser test works but discovery doesn't, your router may block devices f
 A new Flexarr server has no owner until someone sets it up in a browser. The app shows the steps; here they are in full:
 
 1. On a computer on your home network, open the server's address (the app shows it) in a web browser.
-2. Choose **Set up Flexarr**. That browser becomes the server's owner, with no key needed.
+2. Enter the server's setup code (it's in the server's log; [First setup](first-setup.md#enter-the-setup-code) says where for your install) and choose **Set up Flexarr**. That browser becomes the server's owner, with no key needed.
 3. Go to **Settings › Access › Connect a device** and type in the code the app is showing.
 
 The app moves on by itself once you have. See [First setup](first-setup.md).

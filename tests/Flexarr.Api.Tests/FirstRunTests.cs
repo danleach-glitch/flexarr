@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Security;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -46,6 +47,10 @@ public sealed class FirstRunTests : IDisposable
         return client;
     }
 
+    private string Code => _factory.Services.GetRequiredService<FirstRun>().Code!;
+
+    private static JsonContent Claim(string? code) => JsonContent.Create(new { code });
+
     private static async Task<bool> Open(HttpClient client) =>
         (await client.GetFromJsonAsync<JsonElement>(Api("/setup"))).GetProperty("open").GetBoolean();
 
@@ -56,13 +61,20 @@ public sealed class FirstRunTests : IDisposable
         var second = From("192.168.1.21");
 
         var openBefore = await Open(first);
-        var claimed = await first.PostAsync(Api("/setup/claim"), null);
+        var code = Code;
+        var codeFile = Path.Combine(_factory.DataDirectory, FirstRun.CodeFileName);
+        var saved = (await File.ReadAllTextAsync(codeFile)).Trim();
+        // Typed as people do: lower case, without the dash.
+        var claimed = await first.PostAsync(Api("/setup/claim"), Claim(code.ToLowerInvariant().Replace("-", " ", StringComparison.Ordinal)));
         var cookie = claimed.Headers.GetValues("Set-Cookie").Single();
         var openAfter = await Open(second);
-        var again = await second.PostAsync(Api("/setup/claim"), null);
+        var again = await second.PostAsync(Api("/setup/claim"), Claim(code));
 
         Assert.True(openBefore);
+        Assert.Equal(code, saved);
+        Assert.Matches("^[A-Z2-9]{4}-[A-Z2-9]{4}$", code);
         Assert.Equal(HttpStatusCode.NoContent, claimed.StatusCode);
+        Assert.False(File.Exists(codeFile));
         Assert.StartsWith("flexarr.session=", cookie, StringComparison.Ordinal);
         Assert.False(openAfter);
         Assert.Equal(HttpStatusCode.Forbidden, again.StatusCode);
@@ -77,9 +89,34 @@ public sealed class FirstRunTests : IDisposable
         var otherSite = From("192.168.1.20", webApp: false);
 
         Assert.False(await Open(internet));
-        Assert.Equal(HttpStatusCode.Forbidden, (await internet.PostAsync(Api("/setup/claim"), null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await otherSite.PostAsync(Api("/setup/claim"), null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await internet.PostAsync(Api("/setup/claim"), Claim(Code))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherSite.PostAsync(Api("/setup/claim"), Claim(Code))).StatusCode);
         Assert.True(Options.SetupOpen);
+    }
+
+    [Fact]
+    public async Task WithoutTheCode_NobodyCanClaimIt_AndGuessingGetsANewCode()
+    {
+        // Behind a proxy or Docker's port forwarding, the internet can look like the home network: the code is what
+        // only someone with the machine has.
+        var looksLocal = From("192.168.1.20");
+        var first = Code;
+
+        var none = await looksLocal.PostAsync(Api("/setup/claim"), null);
+        var wrong = await looksLocal.PostAsync(Api("/setup/claim"), Claim("AAAA-AAAA"));
+        for (var i = 2; i < FirstRun.TriesPerCode; i++)
+        {
+            await looksLocal.PostAsync(Api("/setup/claim"), Claim("AAAA-AAAA"));
+        }
+
+        var stale = await looksLocal.PostAsync(Api("/setup/claim"), Claim(first));
+
+        Assert.Equal(HttpStatusCode.BadRequest, none.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
+        Assert.NotEqual(first, Code);
+        Assert.Equal(HttpStatusCode.BadRequest, stale.StatusCode);
+        Assert.True(Options.SetupOpen);
+        Assert.Equal(HttpStatusCode.NoContent, (await looksLocal.PostAsync(Api("/setup/claim"), Claim(Code))).StatusCode);
     }
 
     [Fact]

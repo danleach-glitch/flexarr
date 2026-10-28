@@ -238,7 +238,7 @@ volumes:
 <h3 id="hardware-transcoding-on-windows"><a class="anchor" href="#hardware-transcoding-on-windows" aria-hidden="true" tabindex="-1">#</a>Hardware transcoding on Windows</h3>
 <p>Flexarr converts on the processor. Docker Desktop can pass an NVIDIA graphics card through to containers, so the NVIDIA steps above may work, with <code>gpus: all</code> under the service in place of <code>runtime: nvidia</code>. Intel and AMD graphics aren&#39;t available to containers on Windows.</p>
 <h2 id="next-set-it-up"><a class="anchor" href="#next-set-it-up" aria-hidden="true" tabindex="-1">#</a>Next: set it up</h2>
-<p>Open <strong>http://&lt;server&gt;:8383</strong> in a browser on your home network, using the computer&#39;s name or IP address (or <strong><a href="http://localhost:8383" rel="noopener">http://localhost:8383</a></strong> on the computer itself), and choose <strong>Set up Flexarr</strong>. The first browser to reach a new server becomes its owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
+<p>Open <strong>http://&lt;server&gt;:8383</strong> in a browser on your home network, using the computer&#39;s name or IP address (or <strong><a href="http://localhost:8383" rel="noopener">http://localhost:8383</a></strong> on the computer itself), and enter the setup code from <code>docker logs flexarr</code>. The first browser with the code becomes the new server&#39;s owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

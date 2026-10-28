@@ -45,6 +45,13 @@ struct ServerMenu: View {
         Button("Open Flexarr") { NSWorkspace.shared.open(server.address) }
             .disabled(server.status != .running)
             .keyboardShortcut("o")
+        // A new server's welcome page asks for this; choosing it copies it.
+        if let code = server.setupCode {
+            Button("Setup Code: \(code)") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(code, forType: .string)
+            }
+        }
         Button("Copy Address") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(networkAddress, forType: .string)

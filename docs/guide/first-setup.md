@@ -3,7 +3,7 @@ title: First setup
 description: Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.
 ---
 
-Once the server is installed and running, everything else happens in a web browser. There's no account to make and no key to copy: the first browser to open a new server on your home network becomes its owner.
+Once the server is installed and running, everything else happens in a web browser. There's no account to make and no key to copy: the first browser on your home network to enter the server's setup code becomes its owner.
 
 ## Open Flexarr in a browser
 
@@ -21,9 +21,15 @@ Replace `<server>` with the server's address. Any of these usually work:
 
 If the page doesn't load, check that Flexarr is running (your install guide, linked from [What you need](what-you-need.md), shows how) and that you've typed `http://`, not `https://`.
 
-## Choose Set up Flexarr
+## Enter the setup code
 
-A new server greets you with **Welcome to your Flexarr server** and one button, **Set up Flexarr**. Choose it, and this browser becomes the server's owner and is signed in. That's the whole sign-up.
+A new server greets you with **Welcome to your Flexarr server** and asks for its **setup code**. The code proves you're the one who installed it: some setups (a reverse proxy, Docker Desktop) make visitors from the internet look as though they're on your home network, and only someone with the server can read its code. It's eight letters and numbers, like `K7QM-3PXT`, and it's in:
+
+- **Docker** (including Synology and Unraid): the container's log. Run `docker logs flexarr`, or open the container's log in your NAS's Docker app. It's also in `setup-code.txt` in the container's settings folder.
+- **The Mac app**: the menu bar menu, as **Setup Code**. Choose it to copy the code.
+- **macOS (installed with the script)**: `~/.flexarr/logs/console.log`, or `~/.flexarr/data/setup-code.txt`.
+
+Type it in and choose **Set up Flexarr**. This browser becomes the server's owner and is signed in. That's the whole sign-up. The code stops working once the server is set up, and after ten wrong tries it's replaced with a new one (the log says so).
 
 ![The welcome panel on a new server, with a Set up Flexarr button](../../site/guide/img/welcome.webp "What a new server shows the first browser to reach it")
 

@@ -211,11 +211,15 @@ describe('App', () => {
     expect(localStorage.length).toBe(0)
   })
 
-  it('sets up a new server from the first browser, without a key', async () => {
+  it('sets up a new server from the first browser with its setup code, without a key', async () => {
     let claimed = false
+    const sent: string[] = []
     mockApi({
-      '/setup': () => ({ open: !claimed }),
-      '/setup/claim': () => {
+      '/setup': () => ({ open: !claimed, codeRequired: true }),
+      '/setup/claim': (init?: RequestInit) => {
+        const { code } = JSON.parse(String(init?.body)) as { code: string }
+        sent.push(code)
+        if (code !== 'ABCD-EFGH') return new Response(JSON.stringify({ title: 'Wrong code' }), { status: 400 })
         claimed = true
         return new Response(null, { status: 204 })
       },
@@ -225,10 +229,16 @@ describe('App', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Set up Flexarr' }))
+    fireEvent.change(await screen.findByLabelText('Setup code'), { target: { value: 'WRONG-ONE' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
+    expect(await screen.findByText("That isn't this server's setup code.")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: 'ABCD-EFGH' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
 
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
+    expect(sent).toEqual(['WRONG-ONE', 'ABCD-EFGH'])
   })
 
   it('says so when the API key is wrong', async () => {

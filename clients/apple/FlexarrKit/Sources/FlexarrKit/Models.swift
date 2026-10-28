@@ -642,6 +642,8 @@ public struct PairingStart: Decodable, Sendable, Equatable {
 /// GET /setup: a new server that nobody has set up in a browser yet.
 public struct SetupStatus: Decodable, Sendable, Equatable {
     public let open: Bool
+    /// Setting up asks for the code in the server's log. Absent from servers before 0.52, which don't.
+    public var codeRequired: Bool? = nil
 }
 
 public struct PairingStatus: Decodable, Sendable, Equatable {

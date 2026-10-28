@@ -111,12 +111,12 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>First setup</h1>
         <p class="lede">Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#open-flexarr-in-a-browser">Open Flexarr in a browser</a></li>
-            <li><a href="#choose-set-up-flexarr">Choose Set up Flexarr</a></li>
+            <li><a href="#enter-the-setup-code">Enter the setup code</a></li>
             <li><a href="#what-you-see-next">What you see next</a></li>
             <li><a href="#add-your-libraries">Add your libraries</a></li>
             <li><a href="#the-first-scan">The first scan</a></li>
@@ -125,7 +125,7 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Once the server is installed and running, everything else happens in a web browser. There&#39;s no account to make and no key to copy: the first browser to open a new server on your home network becomes its owner.</p>
+<p>Once the server is installed and running, everything else happens in a web browser. There&#39;s no account to make and no key to copy: the first browser on your home network to enter the server&#39;s setup code becomes its owner.</p>
 <h2 id="open-flexarr-in-a-browser"><a class="anchor" href="#open-flexarr-in-a-browser" aria-hidden="true" tabindex="-1">#</a>Open Flexarr in a browser</h2>
 <p>Flexarr listens on port <strong>8383</strong>. On a computer on the same home network as the server, open:</p>
 <pre><code class="language-text">http://&lt;server&gt;:8383
@@ -137,8 +137,14 @@
 <li>Its IP address, such as <code>http://192.168.1.20:8383</code>. Your router&#39;s app or admin page lists the addresses of devices on your network.</li>
 </ul>
 <p>If the page doesn&#39;t load, check that Flexarr is running (your install guide, linked from <a href="/guide/what-you-need">What you need</a>, shows how) and that you&#39;ve typed <code>http://</code>, not <code>https://</code>.</p>
-<h2 id="choose-set-up-flexarr"><a class="anchor" href="#choose-set-up-flexarr" aria-hidden="true" tabindex="-1">#</a>Choose Set up Flexarr</h2>
-<p>A new server greets you with <strong>Welcome to your Flexarr server</strong> and one button, <strong>Set up Flexarr</strong>. Choose it, and this browser becomes the server&#39;s owner and is signed in. That&#39;s the whole sign-up.</p>
+<h2 id="enter-the-setup-code"><a class="anchor" href="#enter-the-setup-code" aria-hidden="true" tabindex="-1">#</a>Enter the setup code</h2>
+<p>A new server greets you with <strong>Welcome to your Flexarr server</strong> and asks for its <strong>setup code</strong>. The code proves you&#39;re the one who installed it: some setups (a reverse proxy, Docker Desktop) make visitors from the internet look as though they&#39;re on your home network, and only someone with the server can read its code. It&#39;s eight letters and numbers, like <code>K7QM-3PXT</code>, and it&#39;s in:</p>
+<ul>
+<li><strong>Docker</strong> (including Synology and Unraid): the container&#39;s log. Run <code>docker logs flexarr</code>, or open the container&#39;s log in your NAS&#39;s Docker app. It&#39;s also in <code>setup-code.txt</code> in the container&#39;s settings folder.</li>
+<li><strong>The Mac app</strong>: the menu bar menu, as <strong>Setup Code</strong>. Choose it to copy the code.</li>
+<li><strong>macOS (installed with the script)</strong>: <code>~/.flexarr/logs/console.log</code>, or <code>~/.flexarr/data/setup-code.txt</code>.</li>
+</ul>
+<p>Type it in and choose <strong>Set up Flexarr</strong>. This browser becomes the server&#39;s owner and is signed in. That&#39;s the whole sign-up. The code stops working once the server is set up, and after ten wrong tries it&#39;s replaced with a new one (the log says so).</p>
 <figure><img src="/guide/img/welcome.webp" alt="The welcome panel on a new server, with a Set up Flexarr button" data-caption="What a new server shows the first browser to reach it" loading="lazy" decoding="async"></figure>
 <p>A few things to know:</p>
 <ul>
