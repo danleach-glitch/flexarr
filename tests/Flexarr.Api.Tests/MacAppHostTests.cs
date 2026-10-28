@@ -17,9 +17,9 @@ public class MacAppHostTests
     }
 
     [Theory]
-    [InlineData("/Volumes/Media/Films", "/Volumes/Media/Films")]
-    [InlineData("", null)]
-    public async Task ChooseFolder_SendsTheToken_AndReadsTheAppsAnswer(string answer, string? expected)
+    [InlineData(null, "secret choose", "/Volumes/Media/Films", "/Volumes/Media/Films")]
+    [InlineData("~/Library/Application Support/Plex Media Server", "secret choose\t~/Library/Application Support/Plex Media Server", "", null)]
+    public async Task ChooseFolder_SendsTheToken_AndReadsTheAppsAnswer(string? start, string sent, string answer, string? expected)
     {
         using var app = new TcpListener(IPAddress.Loopback, 0);
         app.Start();
@@ -30,14 +30,14 @@ public class MacAppHostTests
             ["Flexarr:MacApp:Token"] = "secret",
         }).Build());
 
-        var choosing = host.ChooseFolderAsync(CancellationToken.None);
+        var choosing = host.ChooseFolderAsync(start, CancellationToken.None);
         using var connection = await app.AcceptTcpClientAsync(CancellationToken.None);
         await using var stream = connection.GetStream();
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
         var request = await reader.ReadLineAsync(CancellationToken.None);
         await stream.WriteAsync(Encoding.UTF8.GetBytes(answer + "\n"), CancellationToken.None);
 
-        Assert.Equal("secret choose", request);
+        Assert.Equal(sent, request);
         Assert.Equal(expected, await choosing);
     }
 }

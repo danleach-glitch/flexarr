@@ -720,8 +720,9 @@ export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/a
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
   apiGet<DirectoryListing>(`/filesystem${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)
-/** In the Mac app: opens macOS's folder window on the Mac. Undefined when it was cancelled. */
-export const chooseFolderOnMac = () => request<{ path: string } | undefined>('POST', '/filesystem/choose')
+/** In the Mac app: opens macOS's folder window on the Mac, in `start` if given (~ is home). Undefined when cancelled. */
+export const chooseFolderOnMac = (start?: string) =>
+  request<{ path: string } | undefined>('POST', `/filesystem/choose${start ? `?start=${encodeURIComponent(start)}` : ''}`)
 
 /** Artwork URLs from the API with a width hint for the image cache. */
 export function imageUrl(url: string | null | undefined, width: number): string | undefined {
@@ -1132,6 +1133,10 @@ export interface RemoteAccess {
   mainProfileHasPin: boolean
   /** Flexarr runs in a container (Docker), which can't reach the host's Tailscale. */
   inContainer: boolean
+  /** The Mac app, whose sandbox can't run the tailscale command. */
+  inMacApp?: boolean
+  /** In the Mac app: this Mac's address on a tailnet, if it's on one. */
+  tailnetAddress?: string | null
 }
 
 export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)

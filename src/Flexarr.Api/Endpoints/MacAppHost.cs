@@ -11,7 +11,8 @@ namespace Flexarr.Api.Endpoints;
 /// The Flexarr Server Mac app (clients/macos), when this server runs inside it. The app's sandbox only lets the server
 /// read folders someone chose in macOS's folder window, so choosing a library folder asks the app to show one. The
 /// app passes a local port and a token in Flexarr:MacApp; it answers one line per connection: the token and the word
-/// "choose" in, the chosen folder's path out, or an empty line if it was cancelled.
+/// "choose" in (then, optionally, a tab and the folder to start in, where ~ is the person's home folder), the chosen
+/// folder's path out, or an empty line if it was cancelled.
 /// </summary>
 public sealed class MacAppHost(IConfiguration configuration)
 {
@@ -21,7 +22,7 @@ public sealed class MacAppHost(IConfiguration configuration)
     public bool IsAvailable => port is not null && !string.IsNullOrEmpty(token);
 
     /// <summary>Shows the folder window on the Mac and waits for the person there. Null when they cancel.</summary>
-    public async Task<string?> ChooseFolderAsync(CancellationToken cancellationToken)
+    public async Task<string?> ChooseFolderAsync(string? start, CancellationToken cancellationToken)
     {
         if (!IsAvailable)
         {
@@ -31,7 +32,8 @@ public sealed class MacAppHost(IConfiguration configuration)
         using var client = new TcpClient();
         await client.ConnectAsync(IPAddress.Loopback, port!.Value, cancellationToken);
         await using var stream = client.GetStream();
-        await stream.WriteAsync(Encoding.UTF8.GetBytes($"{token} choose\n"), cancellationToken);
+        var startIn = string.IsNullOrWhiteSpace(start) ? "" : "\t" + start.ReplaceLineEndings("").Replace('\t', ' ');
+        await stream.WriteAsync(Encoding.UTF8.GetBytes($"{token} choose{startIn}\n"), cancellationToken);
         using var reader = new StreamReader(stream, Encoding.UTF8);
         var path = await reader.ReadLineAsync(cancellationToken);
         return string.IsNullOrWhiteSpace(path) ? null : path;

@@ -36,14 +36,14 @@ public static class FilesystemEndpoints
         }).WithTags("Filesystem").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // In the Mac app: opens macOS's folder window on the Mac and waits for a folder, which the server can then read.
-        api.MapPost("/filesystem/choose", async (MacAppHost mac, CancellationToken cancellationToken) =>
+        api.MapPost("/filesystem/choose", async (string? start, MacAppHost mac, CancellationToken cancellationToken) =>
         {
             if (!mac.IsAvailable)
             {
                 return Results.NotFound();
             }
 
-            return await mac.ChooseFolderAsync(cancellationToken) is { } path ? Results.Ok(new ChosenFolderDto(path)) : Results.NoContent();
+            return await mac.ChooseFolderAsync(start, cancellationToken) is { } path ? Results.Ok(new ChosenFolderDto(path)) : Results.NoContent();
         }).WithTags("Filesystem").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;

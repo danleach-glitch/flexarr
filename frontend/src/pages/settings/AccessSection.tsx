@@ -55,6 +55,7 @@ function RemoteAccessGroups() {
   if (!remote.data) return <p className="muted">{remote.error ? remote.error.message : 'Checking Tailscale…'}</p>
   const { tailscale: ts } = remote.data
   const inDocker = !ts.installed && remote.data.inContainer
+  const inMacApp = remote.data.inMacApp === true
   const you = (
     <>
       You’re connected from {zoneLabel[remote.data.yourConnection]}
@@ -78,11 +79,15 @@ function RemoteAccessGroups() {
         }
       >
         <div className="connection-line">
-          <span className={ts.privateAccess ? 'status-dot ok' : ts.running ? 'status-dot' : 'status-dot bad'} aria-hidden="true" />
+          <span className={ts.privateAccess || remote.data.tailnetAddress ? 'status-dot ok' : ts.running ? 'status-dot' : 'status-dot bad'} aria-hidden="true" />
           <span className="setting-text">
             <strong>Tailscale</strong>
             <span className="muted">
-              {inDocker
+              {inMacApp
+                ? remote.data.tailnetAddress
+                  ? 'This Mac is on your tailnet'
+                  : 'Set up in the Tailscale app'
+                : inDocker
                 ? 'Not available in Docker'
                 : !ts.installed
                 ? 'Not installed on the server'
@@ -93,7 +98,7 @@ function RemoteAccessGroups() {
                     : `Off. Connected as ${ts.dnsName}`}
             </span>
           </span>
-          {ts.running && (
+          {ts.running && !inMacApp && (
             <span className="connection-actions">
               <AsyncButton className={ts.privateAccess ? 'button danger small' : 'button small'} disabled={busy} onClick={() => run(() => setTailscaleAccess(!ts.privateAccess))}>
                 {ts.privateAccess ? 'Turn off' : 'Turn on'}
@@ -101,7 +106,21 @@ function RemoteAccessGroups() {
             </span>
           )}
         </div>
-        {ts.problem && !inDocker && <p className="error">{ts.problem}</p>}
+        {ts.problem && !inDocker && !inMacApp && <p className="error">{ts.problem}</p>}
+        {inMacApp && (
+          <>
+            <p className="muted">
+              Flexarr Server can’t switch Tailscale on itself: Mac App Store apps aren’t allowed to control other apps. Install{' '}
+              <a href="https://tailscale.com/download">Tailscale</a> on this Mac and on your devices, signed in to the same account, and they can reach Flexarr
+              at this Mac’s Tailscale address. See <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
+            </p>
+            {remote.data.tailnetAddress && (
+              <SettingRow as="div" label="Private address" help={<code className="remote-address">{remote.data.tailnetAddress}</code>}>
+                <CopyButton text={remote.data.tailnetAddress} what="the address" />
+              </SettingRow>
+            )}
+          </>
+        )}
         {inDocker && (
           <p className="muted">
             Flexarr runs in a container here, which can’t reach Tailscale on the computer around it, so it can’t turn this on. Run Flexarr without
@@ -109,7 +128,7 @@ function RemoteAccessGroups() {
             <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
           </p>
         )}
-        {!ts.installed && !inDocker && (
+        {!ts.installed && !inDocker && !inMacApp && (
           <p className="muted">
             Install Tailscale on the server from <a href="https://tailscale.com/download">tailscale.com/download</a>, sign in, then come back here.
           </p>

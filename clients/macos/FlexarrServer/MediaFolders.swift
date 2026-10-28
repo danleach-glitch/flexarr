@@ -21,9 +21,16 @@ final class MediaFolders {
         UserDefaults.standard.set(kept, forKey: Self.defaultsKey)
     }
 
-    /// Shows the folder window and keeps the folder chosen. Its path, or nil when cancelled.
-    func choose() -> String? {
+    /// Shows the folder window, starting in `start` if given (~ is the person's home), and keeps the folder chosen.
+    /// Its path, or nil when cancelled.
+    func choose(startingIn start: String?) -> String? {
         let panel = NSOpenPanel()
+        if let start, !start.isEmpty {
+            // In the sandbox, NSHomeDirectory() is the app's container; the panel wants the person's real home.
+            let home = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
+            let expanded = start.hasPrefix("~/") ? home + start.dropFirst() : start
+            panel.directoryURL = URL(fileURLWithPath: expanded, isDirectory: true)
+        }
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -45,8 +52,9 @@ final class MediaFolders {
 }
 
 /// Where the server asks for a folder (src/Flexarr.Api/Endpoints/MacAppHost.cs): a port on the loopback address and a
-/// token, both passed to it at launch. Each connection sends one line, the token and "choose", and gets back the
-/// chosen folder's path, or an empty line if it was cancelled or the token was wrong.
+/// token, both passed to it at launch. Each connection sends one line, the token and "choose" (then, optionally, a tab
+/// and the folder to start in), and gets back the chosen folder's path, or an empty line if it was cancelled or the
+/// token was wrong.
 @MainActor
 final class FolderRequests {
     let token = UUID().uuidString
@@ -99,7 +107,9 @@ final class FolderRequests {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             Task { @MainActor in
                 guard let self else { return connection.cancel() }
-                let path = request == "\(self.token) choose" ? self.folders.choose() : nil
+                let parts = request?.split(separator: "\t", maxSplits: 1).map(String.init) ?? []
+                let path = parts.first == "\(self.token) choose"
+                    ? self.folders.choose(startingIn: parts.count > 1 ? parts[1] : nil) : nil
                 connection.send(content: Data(((path ?? "") + "\n").utf8), completion: .contentProcessed { _ in
                     connection.cancel()
                 })
