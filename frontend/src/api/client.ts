@@ -49,6 +49,7 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
+import { session } from '../lib/session'
 
 export type * from './types'
 
@@ -116,10 +117,10 @@ export function saveProfileToken(token: string | null) {
  */
 export function askForProfile(profileId?: string) {
   try {
-    sessionStorage.removeItem('flexarr.profileChosen')
-    sessionStorage.setItem('flexarr.pickProfile', '1')
-    if (profileId) sessionStorage.setItem('flexarr.pickProfileFor', profileId)
-    else sessionStorage.removeItem('flexarr.pickProfileFor')
+    session.remove('flexarr.profileChosen')
+    session.set('flexarr.pickProfile', '1')
+    if (profileId) session.set('flexarr.pickProfileFor', profileId)
+    else session.remove('flexarr.pickProfileFor')
   } catch {
     // Storage unavailable.
   }
@@ -1185,7 +1186,7 @@ export async function signOut() {
   await request<void>('DELETE', '/session')
   saveProfileToken(null)
   try {
-    sessionStorage.removeItem('flexarr.profileChosen')
+    session.remove('flexarr.profileChosen')
   } catch {
     // Storage unavailable.
   }

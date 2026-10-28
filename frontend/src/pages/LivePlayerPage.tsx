@@ -8,6 +8,8 @@ import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Pause,
 import { useFavourites } from '../hooks/useFavourites'
 import { usePolling } from '../hooks/usePolling'
 import { formatClock } from '../lib/format'
+import { belongsToFocused } from '../lib/focusedKeys'
+import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { prefersNativeHls } from '../lib/profile'
 import { programmeTime, progress } from '../lib/livetv'
 
@@ -58,10 +60,12 @@ export default function LivePlayerPage() {
     if (!prefersNativeHls() && Hls.isSupported()) {
       // Start a few segments back from the newest, and never jump forward on its own: the viewer may have rewound.
       const player = new Hls({ liveSyncDurationCount: 3, liveMaxLatencyDurationCount: Infinity, backBufferLength: 120, maxBufferLength: 30 })
+      const stopped = () => setError('The channel stopped sending. Try again, or pick another channel.')
+      const onMediaError = mediaErrorRecovery(player, stopped)
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal || hls.current !== player) return
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) player.recoverMediaError()
-        else setError('The channel stopped sending. Try again, or pick another channel.')
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) onMediaError()
+        else stopped()
       })
       player.once(Hls.Events.MANIFEST_PARSED, () => el.play().catch(() => setPlaying(false)))
       player.loadSource(playlist)
@@ -192,7 +196,7 @@ export default function LivePlayerPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return
+      if (belongsToFocused(e) || e.metaKey || e.ctrlKey || e.altKey) return
       const handled = (() => {
         switch (e.key) {
           case ' ':

@@ -67,7 +67,11 @@ export function NowPlaying() {
                 ) : (
                   <strong className="now-playing-title">{track.title}</strong>
                 )}
-                {artist ? (
+                {player.failure ? (
+                  <span className="now-playing-artist now-playing-failure" role="status">
+                    {player.failure}
+                  </span>
+                ) : artist ? (
                   <Link to={artist} className="now-playing-artist">
                     {track.seriesTitle}
                   </Link>

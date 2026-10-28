@@ -7,6 +7,8 @@ export interface AudioPlayer {
   current: ItemSummary | undefined
   playing: boolean
   duration: number
+  /** A track that couldn't be played just now (and was skipped), said in the bar for a few seconds. */
+  failure: string | null
   /** True while a music page is on screen, when the bar stays put even with nothing queued. */
   onMusicPage: boolean
   /** Replaces the queue and starts playing at `start`. */

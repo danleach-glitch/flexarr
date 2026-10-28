@@ -17,6 +17,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover and downloads keep working when a newer server reports a request state or download quality the app doesn't know yet.
 
 ### Web
+- A song or podcast episode that won't play is tried once more from where it stopped. If it still won't play, Flexarr says so in the player bar and moves on to the next one, instead of stopping silently.
+- A video that keeps failing to decode now says so, instead of trying again for ever.
+- Going from one title to another (a Similar title, say) no longer briefly shows the previous title's details and Play button.
+- Space and Enter on a focused player button (Subtitles, Quality) now use that button, instead of pausing.
+- Flexarr starts in browsers that block storage, such as some private windows.
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security

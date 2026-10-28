@@ -18,6 +18,8 @@ import {
 } from '../components/icons'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
+import { belongsToFocused } from '../lib/focusedKeys'
+import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 
 type Quality = 'auto' | 1080 | 720 | 480
@@ -194,9 +196,11 @@ export function PlayerPage() {
     if (playback.method === 'Transcode' && !prefersNativeHls() && Hls.isSupported()) {
       // Subtitles are rendered as <track>s, so leave them out of the HLS manifest.
       const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90 })
+      // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
+      const onMediaError = mediaErrorRecovery(player, () => void recoverRef.current())
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) player.recoverMediaError()
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) onMediaError()
         else void recoverRef.current()
       })
       player.loadSource(`${playback.url}?subtitles=false`)
@@ -280,6 +284,8 @@ export function PlayerPage() {
     const life = lifetime.current
     const failed = session.current
     try {
+      // Nothing of ours is playing (the title was left, or the old stream erred after being let go): nothing to recover.
+      if (failed === undefined) return
       // A stream ended to make way for another screen says so (410), even inside the once-a-minute limit.
       const takenOver = failed ? await takenOverReason(failed) : undefined
       // Left for another title, or started another stream (an audio change, Next episode), while that was out.
@@ -326,6 +332,11 @@ export function PlayerPage() {
     return () => {
       life.alive = false
       hls.current?.destroy()
+      // A direct or native stream is let go too, so its late errors can't start a recovery for the next title.
+      if (el) {
+        el.removeAttribute('src')
+        el.load()
+      }
       if (session.current) {
         beaconProgress(session.current, el?.currentTime ?? 0)
         void stopPlayback(session.current)
@@ -646,7 +657,10 @@ export function PlayerPage() {
     if (!id) return
     const next = by === 0 ? 0 : Math.round((subtitleDelay + by) * 100) / 100
     if (Math.abs(next) > 60) return
-    void setSubtitleDelay(id, next).then(() => setSubtitleDelayState(next))
+    void setSubtitleDelay(id, next).then(
+      () => setSubtitleDelayState(next),
+      () => undefined, // Unchanged on the server, so unchanged here: the next nudge tries again.
+    )
   }
 
   function chooseSubtitleSize(size: SubtitleSize) {
@@ -674,7 +688,7 @@ export function PlayerPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey) return
+      if (belongsToFocused(e) || e.metaKey || e.ctrlKey) return
       // With an error showing, only its buttons (and Escape, to leave) do anything.
       if (error) {
         if (e.key === 'Escape') exit()
