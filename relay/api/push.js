@@ -12,7 +12,9 @@ const HOSTS = { production: 'https://api.push.apple.com', sandbox: 'https://api.
 // Apple takes 4 KB in all; base64 grows the sealed payload by a third, and the alert around it needs room too.
 const MAX_PAYLOAD = 2800;
 const TIMEOUT_MS = 10_000;
-const RATE_LIMIT = 120; // requests per minute per IP
+// Per address: a backstop only, now each phone has its own limit. Generous, because servers from before 0.51 reach the
+// relay through flexarr.io's rewrite and may all arrive from Vercel's own few addresses.
+const RATE_LIMIT = 600; // requests per minute per IP
 // Per phone: a household's server sends a handful a minute at most (a season arriving). More is someone else's server,
 // or someone who has the phone's token, filling it with alerts.
 const TOKEN_LIMIT = 12; // per minute per device token
@@ -158,7 +160,10 @@ module.exports = async (req, res) => {
   }
 
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
-  if (limited(ip)) return reply(res, 429, { reason: 'TooManyRequests' });
+  if (limited(ip)) {
+    console.log('push: address limit reached');
+    return reply(res, 429, { reason: 'TooManyRequests' });
+  }
 
   let input;
   try { input = await readBody(req); } catch { return reply(res, 400, { reason: 'BadRequest' }); }
@@ -175,7 +180,10 @@ module.exports = async (req, res) => {
     return reply(res, 400, { reason: 'BadCollapseId' });
   }
 
-  if (await tokenLimited(token)) return reply(res, 429, { reason: 'TooManyRequests' });
+  if (await tokenLimited(token)) {
+    console.log('push: phone limit reached');
+    return reply(res, 429, { reason: 'TooManyRequests' });
+  }
 
   const { APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC } = process.env;
   if (!APNS_KEY || !APNS_KEY_ID || !APNS_TEAM_ID || !APNS_TOPIC) return reply(res, 503, { reason: 'NotConfigured' });
