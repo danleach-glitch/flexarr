@@ -27,6 +27,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When error reports are switched on, the web app's reports now reach Flexarr's developer. The browser was blocking them before. They now go through your server, so Sentry no longer sees the address of whoever's watching.
 
 ### Privacy and security
+- A phone, tablet or TV that hasn't been used for a year is signed out, so one that was lost, sold or given away stops working. Signing it in again takes a new code.
+- Phones signed in with the server's API key can't change or test each other's notifications when more than one of them is set up.
+- One podcast import (OPML) runs at a time on a server.
 - If a Sonarr, Radarr or Seerr address redirects to another site, Flexarr no longer follows it, so their API keys aren't passed along. Redirects on the same server (to https, say) still work.
 - Podcast feeds can no longer reach your home network through IPv6 addresses that carry a home network address inside them (NAT64, 6to4).
 - A device can send diagnostics six times an hour, and diagnostics have their own 100 MB of space, so they can't crowd out the server's own log.

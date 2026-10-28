@@ -59,6 +59,21 @@ public sealed class SignInStoreTests : IDisposable
     }
 
     [Fact]
+    public void ADeviceUnusedForAYear_IsSignedOut_ButOneUsedThisSummerIsnt()
+    {
+        var monthsAgo = DateTime.UtcNow.AddDays(-200).ToString("O");
+        var overAYear = DateTime.UtcNow.AddDays(-370).ToString("O");
+        File.WriteAllText(FilePath, $$"""
+            [
+              { "id": "h", "kind": "Device", "name": "Holiday home TV", "tokenHash": "h1", "createdAt": "{{monthsAgo}}", "lastUsedAt": "{{monthsAgo}}" },
+              { "id": "s", "kind": "Device", "name": "Sold iPhone", "tokenHash": "h2", "createdAt": "{{overAYear}}", "lastUsedAt": "{{overAYear}}" }
+            ]
+            """);
+
+        Assert.Equal("Holiday home TV", Assert.Single(Store().List()).Name);
+    }
+
+    [Fact]
     public void ABrowserSignedInWithThePin_LapsesSooner()
     {
         var weeksAgo = DateTime.UtcNow.AddDays(-20).ToString("O");

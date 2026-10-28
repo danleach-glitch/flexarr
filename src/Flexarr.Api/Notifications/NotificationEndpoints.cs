@@ -141,12 +141,19 @@ public static partial class NotificationEndpoints
 
     /// <summary>
     /// This phone's registration, by its sign-in. A phone signed in with the server's API key has no sign-in of its
-    /// own, so it's taken to be the latest registration made that way (there's rarely more than one).
+    /// own, so it's the registration made that way, when there's only one: with two, either could be someone else's
+    /// phone, and none is changed, deleted or sent a test.
     /// </summary>
-    private static async Task<NotificationDevice?> FindAsync(FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
-        current.SignInId is { } signIn
-            ? await db.NotificationDevices.FirstOrDefaultAsync(d => d.Id == signIn, ct)
-            : await db.NotificationDevices.Where(d => d.SignInId == null).OrderByDescending(d => d.UpdatedAt).FirstOrDefaultAsync(ct);
+    private static async Task<NotificationDevice?> FindAsync(FlexarrDbContext db, CurrentProfile current, CancellationToken ct)
+    {
+        if (current.SignInId is { } signIn)
+        {
+            return await db.NotificationDevices.FirstOrDefaultAsync(d => d.Id == signIn, ct);
+        }
+
+        var unsigned = await db.NotificationDevices.Where(d => d.SignInId == null).Take(2).ToListAsync(ct);
+        return unsigned.Count == 1 ? unsigned[0] : null;
+    }
 
     private static async Task<NotificationDeviceDto> ToDtoAsync(FlexarrDbContext db, NotificationDevice d, PushRelay relay, CancellationToken ct)
     {

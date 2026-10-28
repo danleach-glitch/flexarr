@@ -90,6 +90,8 @@ public sealed record OpmlImportDto(int Added, int AlreadySubscribed, IReadOnlyLi
 
 public static class PodcastEndpoints
 {
+    private static readonly SemaphoreSlim OpmlImporting = new(1, 1);
+
     /// <summary>How much of an episode's notes lists carry.</summary>
     private const int ListOverview = 300;
 
@@ -463,26 +465,40 @@ public static class PodcastEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["opml"] = [ex.Message] });
             }
 
+            // One import at a time on the server: each can fetch hundreds of feeds, so several at once could tie the server
+            // (and its connection) up for a long while.
+            if (!await OpmlImporting.WaitAsync(0, ct))
+            {
+                return Results.Problem("Another podcast import is still running. Try again when it's finished.", statusCode: StatusCodes.Status429TooManyRequests);
+            }
+
             int added = 0, already = 0;
             var failed = new List<string>();
-            foreach (var url in urls.Take(500))
+            try
             {
-                var result = await library.AddAsync(url, null, null, ct);
-                if (result.PodcastId is not { } id)
+                foreach (var url in urls.Take(500))
                 {
-                    failed.Add(url);
-                    continue;
-                }
+                    var result = await library.AddAsync(url, null, null, ct);
+                    if (result.PodcastId is not { } id)
+                    {
+                        failed.Add(url);
+                        continue;
+                    }
 
-                if (await db.PodcastSubscriptions.AnyAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct))
-                {
-                    already++;
-                    continue;
-                }
+                    if (await db.PodcastSubscriptions.AnyAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct))
+                    {
+                        already++;
+                        continue;
+                    }
 
-                db.PodcastSubscriptions.Add(new PodcastSubscription { ProfileId = profile.Id, FeedId = id });
-                await db.SaveChangesAsync(ct);
-                added++;
+                    db.PodcastSubscriptions.Add(new PodcastSubscription { ProfileId = profile.Id, FeedId = id });
+                    await db.SaveChangesAsync(ct);
+                    added++;
+                }
+            }
+            finally
+            {
+                OpmlImporting.Release();
             }
 
             return Results.Ok(new OpmlImportDto(added, already, failed));
