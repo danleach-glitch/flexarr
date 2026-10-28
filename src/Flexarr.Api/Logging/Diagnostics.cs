@@ -77,6 +77,7 @@ public sealed class Diagnostics(LogPaths paths, IOptionsMonitor<FlexarrOptions> 
             Files = await db.MediaFiles.CountAsync(ct),
             Profiles = await db.Profiles.CountAsync(ct),
             Integrations = current.Arr.Select(a => a.Kind.ToString()).Concat(current.Seerr is { BaseUrl.Length: > 0 } ? ["Seerr"] : [])
+                .Concat(current.Bazarr is { BaseUrl.Length: > 0 } ? ["Bazarr"] : [])
                 .Concat(current.LiveTv is { BaseUrl.Length: > 0 } ? ["Live TV"] : []),
             Logs = new { current.Logs.Level, current.Logs.Areas, current.Logs.RetentionDays, current.Logs.MaxSizeMb },
         };

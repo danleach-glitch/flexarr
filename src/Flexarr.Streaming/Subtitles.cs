@@ -45,9 +45,12 @@ public static partial class Subtitles
 
             // Everything between the video's name and the extension: ".en", ".eng.forced", ".en.sdh".
             var tags = name[stem.Length..^Path.GetExtension(name).Length].Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var language = tags.FirstOrDefault(t => LanguageTag().IsMatch(t));
+            var at = Array.FindIndex(tags, t => LanguageTag().IsMatch(t));
+            var language = at < 0 ? null : tags[at];
             var forced = tags.Any(t => t.Equals("forced", StringComparison.OrdinalIgnoreCase));
-            var sdh = tags.Any(t => t.Equals("sdh", StringComparison.OrdinalIgnoreCase) || t.Equals("cc", StringComparison.OrdinalIgnoreCase));
+            // Bazarr writes "Movie.en.hi.srt"; "hi" alone is Hindi, so it only means hearing-impaired after the language.
+            var sdh = tags.Any(t => t.Equals("sdh", StringComparison.OrdinalIgnoreCase) || t.Equals("cc", StringComparison.OrdinalIgnoreCase))
+                || (at >= 0 && tags.Skip(at + 1).Any(t => t.Equals("hi", StringComparison.OrdinalIgnoreCase)));
             tracks.Add(new SubtitleTrack($"x{n++}", null, sidecar, codec, language?.ToLowerInvariant(), sdh ? "SDH" : null, false, forced));
         }
 

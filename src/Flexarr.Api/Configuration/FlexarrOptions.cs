@@ -91,6 +91,9 @@ public sealed class FlexarrOptions
     /// <summary>Optional Seerr/Overseerr/Jellyseerr server for "not in your library" discovery and requests.</summary>
     public SeerrOptions? Seerr { get; set; }
 
+    /// <summary>Optional Bazarr server, for finding, downloading and re-syncing subtitles from the players.</summary>
+    public BazarrOptions? Bazarr { get; set; }
+
     /// <summary>The owner's own TMDB key, for films Radarr doesn't have (or when there's no Radarr).</summary>
     public TmdbOptions? Tmdb { get; set; }
 
@@ -237,4 +240,12 @@ public sealed class SeerrOptions
     public string ApiKey { get; set; } = "";
 
     public SeerrInstance? Instance => Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && ApiKey.Length > 0 ? new SeerrInstance(url, ApiKey) : null;
+}
+
+public sealed class BazarrOptions
+{
+    public string BaseUrl { get; set; } = "";
+    public string ApiKey { get; set; } = "";
+
+    public BazarrInstance? Instance => Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && ApiKey.Length > 0 ? new BazarrInstance(url, ApiKey) : null;
 }
