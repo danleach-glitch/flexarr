@@ -65,7 +65,7 @@ prepare() {
   sed -i '' "s|^## Unreleased\$|## $version · $today|" CHANGELOG.md
   sed -i '' "s|<VersionPrefix>$current</VersionPrefix>|<VersionPrefix>$version</VersionPrefix>|" Directory.Build.props
   # Quoted: VersionTests only reads the quoted form.
-  sed -i '' -E "s|MARKETING_VERSION: \"?[0-9.]+\"?|MARKETING_VERSION: \"$version\"|" clients/apple/project.yml
+  sed -i '' -E "s|MARKETING_VERSION: \"?[0-9.]+\"?|MARKETING_VERSION: \"$version\"|" clients/apple/project.yml clients/macos/project.yml
   (cd frontend && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
   # flexarr.io/apps shows the server and web app's version.
   node scripts/apps/build.mjs --server-version "$version" >/dev/null

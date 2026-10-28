@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Flexarr.Api.Tests;
 
-/// <summary>The version is written in four places; a release that bumps some of them and not the others fails here.</summary>
+/// <summary>The version is written in five places; a release that bumps some of them and not the others fails here.</summary>
 public partial class VersionTests
 {
     private static readonly string Root = FindRoot();
@@ -27,12 +27,14 @@ public partial class VersionTests
         var server = VersionPrefix().Match(Read("Directory.Build.props")).Groups[1].Value;
         var web = JsonDocument.Parse(Read("frontend/package.json")).RootElement.GetProperty("version").GetString();
         var apple = MarketingVersion().Match(Read("clients/apple/project.yml")).Groups[1].Value;
+        var mac = MarketingVersion().Match(Read("clients/macos/project.yml")).Groups[1].Value;
         // The newest numbered heading, skipping "## Unreleased".
         var changelog = ChangelogVersion().Match(Read("CHANGELOG.md")).Groups[1].Value;
 
         Assert.Matches(@"^\d+\.\d+\.\d+$", server);
         Assert.Equal(server, web);
         Assert.Equal(server, apple);
+        Assert.Equal(server, mac);
         Assert.Equal(server, changelog);
     }
 
