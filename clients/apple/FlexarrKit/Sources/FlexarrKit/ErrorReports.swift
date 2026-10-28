@@ -4,6 +4,26 @@ import Foundation
 // Settings › Logs. What goes is scrubbed hard first: what went wrong and where in the code, never what was being
 // watched, by whom, or where. The Sentry side lives in the apps; this is the part that can be tested anywhere.
 
+/// Which errors are worth a report. Some are expected: a task cancelled because the viewer moved on, or the network
+/// or server out of reach (a home server is often off or out of range). Those stay in the app's own log and its
+/// diagnostics, but a report would only use up the quota and hide the real problems.
+public enum ErrorReportFilter {
+    /// URL errors that mean the network or the server couldn't be reached, not that anything is broken.
+    private static let unreachable: Set<URLError.Code> = [
+        .cancelled, .notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost,
+        .dnsLookupFailed, .internationalRoamingOff, .dataNotAllowed, .callIsActive, .backgroundSessionWasDisconnected,
+    ]
+
+    public static func shouldReport(_ error: any Error) -> Bool {
+        if error is CancellationError { return false }
+        if let error = error as? URLError { return !unreachable.contains(error.code) }
+        if let error = error as? FlexarrClientError, error == .unreachable { return false }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain { return !unreachable.contains(URLError.Code(rawValue: ns.code)) }
+        return true
+    }
+}
+
 /// Takes everything that could say who or where out of an error report's text: what the log redacts (sign-ins, long
 /// hex runs, query strings), then server addresses, IP addresses, email addresses, file paths and anything quoted
 /// (titles usually are).
