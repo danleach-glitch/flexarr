@@ -7,6 +7,8 @@ struct PodcastsView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.scenePhase) private var scenePhase
+    /// Only the screen on show refreshes when the app comes back, not every one left open in a tab or below it.
+    @State private var isVisible = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var home = PodcastsHomeModel()
     @State private var editingUpNext = false
@@ -32,8 +34,10 @@ struct PodcastsView: View {
         }
         .task(id: model.refreshToken) { await load() }
         .onChange(of: model.music.current?.id) { _, _ in Task { await load() } }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, Freshness.isStale(home.loadedAt) { Task { await load() } }
+            if phase == .active, isVisible, Freshness.isStale(home.loadedAt) { Task { await load() } }
         }
     }
 

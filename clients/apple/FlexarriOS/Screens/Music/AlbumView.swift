@@ -9,6 +9,8 @@ struct AlbumView: View {
     @Environment(DownloadStore.self) private var downloads
     @State private var page: MusicPageModel
     @Environment(\.scenePhase) private var scenePhase
+    /// Only the screen on show refreshes when the app comes back, not every one left open in a tab or below it.
+    @State private var isVisible = false
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(id: String, preview: ItemSummary?) {
@@ -39,8 +41,10 @@ struct AlbumView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task(id: model.refreshToken) { await load(ifFresh: true) }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await load(ifFresh: true) } }
+            if phase == .active, isVisible { Task { await load(ifFresh: true) } }
         }
     }
 
