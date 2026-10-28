@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Flexarr.Api.Configuration;
+using Flexarr.Streaming;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Endpoints;
 
@@ -32,5 +35,20 @@ public sealed class MacAppHost(IConfiguration configuration)
         using var reader = new StreamReader(stream, Encoding.UTF8);
         var path = await reader.ReadLineAsync(cancellationToken);
         return string.IsNullOrWhiteSpace(path) ? null : path;
+    }
+}
+
+/// <summary>
+/// In the Mac app, video is always converted with VideoToolbox: its FFmpeg has no software encoder (libx264 is GPL).
+/// A setting saved or restored from another server (software, VA-API) goes back to Auto, which is VideoToolbox on a Mac.
+/// </summary>
+public sealed class MacAppTranscoding(MacAppHost mac) : IPostConfigureOptions<FlexarrOptions>
+{
+    public void PostConfigure(string? name, FlexarrOptions options)
+    {
+        if (mac.IsAvailable && options.Transcoding.HardwareAcceleration is not (HardwareAcceleration.Auto or HardwareAcceleration.VideoToolbox))
+        {
+            options.Transcoding.HardwareAcceleration = HardwareAcceleration.Auto;
+        }
     }
 }

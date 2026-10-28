@@ -10,6 +10,9 @@ public enum InstallKind
     /// <summary>The Docker image. A container can't replace itself, so updating is the person's to do.</summary>
     Docker,
 
+    /// <summary>The Flexarr Server Mac app (clients/macos), which the Mac App Store updates.</summary>
+    MacApp,
+
     /// <summary>Anything else: run from source, or set up by hand.</summary>
     Other,
 }
@@ -39,7 +42,11 @@ public sealed class InstallEnvironment : IInstallEnvironment
             ? root
             : Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
 
-        if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" || File.Exists("/.dockerenv"))
+        if (OperatingSystem.IsMacOS() && Environment.GetEnvironmentVariable("Flexarr__MacApp__Port") is { Length: > 0 })
+        {
+            Kind = InstallKind.MacApp;
+        }
+        else if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" || File.Exists("/.dockerenv"))
         {
             Kind = InstallKind.Docker;
         }

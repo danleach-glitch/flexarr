@@ -57,7 +57,13 @@ export function UpdatesSection() {
 
       <SettingsGroup
         title="This server"
-        note={current?.install === 'Docker' ? 'Docker containers are updated from outside Flexarr, so it tells you about new versions but can’t install them.' : undefined}
+        note={
+          current?.install === 'Docker'
+            ? 'Docker containers are updated from outside Flexarr, so it tells you about new versions but can’t install them.'
+            : current?.install === 'MacApp'
+              ? 'The Mac App Store updates Flexarr Server, so Flexarr tells you about new versions but doesn’t install them itself.'
+              : undefined
+        }
         action={
           <AsyncButton className="button small" onClick={check}>
             Check for updates
@@ -200,6 +206,14 @@ function HowToUpdate({ updates }: { updates: Updates }) {
           <a href={`${guide}#docker`} target="_blank" rel="noreferrer">
             More in the guide
           </a>
+        </p>
+      </div>
+    )
+  if (updates.install === 'MacApp')
+    return (
+      <div className="panel update-howto">
+        <p>
+          To update, open the App Store on the Mac running Flexarr Server and choose <strong>Updates</strong>. A new version can take a day or two to reach the App Store after it’s released.
         </p>
       </div>
     )

@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Streaming;
 using Microsoft.Extensions.Configuration;
 
 namespace Flexarr.Api.Tests;
@@ -37,5 +39,36 @@ public class MacAppHostTests
 
         Assert.Equal("secret choose", request);
         Assert.Equal(expected, await choosing);
+    }
+}
+
+public class MacAppTranscodingTests
+{
+    private static MacAppHost Host(bool inMacApp) => new(new ConfigurationBuilder().AddInMemoryCollection(inMacApp
+        ? new Dictionary<string, string?> { ["Flexarr:MacApp:Port"] = "1", ["Flexarr:MacApp:Token"] = "t" }
+        : []).Build());
+
+    [Theory]
+    [InlineData(HardwareAcceleration.None, HardwareAcceleration.Auto)]
+    [InlineData(HardwareAcceleration.Vaapi, HardwareAcceleration.Auto)]
+    [InlineData(HardwareAcceleration.VideoToolbox, HardwareAcceleration.VideoToolbox)]
+    [InlineData(HardwareAcceleration.Auto, HardwareAcceleration.Auto)]
+    public void InTheMacApp_OnlyVideoToolboxOrAutoStand(HardwareAcceleration saved, HardwareAcceleration expected)
+    {
+        var options = new FlexarrOptions { Transcoding = { HardwareAcceleration = saved } };
+
+        new MacAppTranscoding(Host(inMacApp: true)).PostConfigure(null, options);
+
+        Assert.Equal(expected, options.Transcoding.HardwareAcceleration);
+    }
+
+    [Fact]
+    public void ElsewhereTheSettingIsLeftAlone()
+    {
+        var options = new FlexarrOptions { Transcoding = { HardwareAcceleration = HardwareAcceleration.None } };
+
+        new MacAppTranscoding(Host(inMacApp: false)).PostConfigure(null, options);
+
+        Assert.Equal(HardwareAcceleration.None, options.Transcoding.HardwareAcceleration);
     }
 }

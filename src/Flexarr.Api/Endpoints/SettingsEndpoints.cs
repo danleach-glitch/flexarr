@@ -462,13 +462,15 @@ public static class SettingsEndpoints
             return _available;
         }
 
-        var found = new List<HardwareAcceleration> { HardwareAcceleration.Auto, HardwareAcceleration.None };
+        var found = new List<HardwareAcceleration> { HardwareAcceleration.Auto };
         try
         {
             var start = new ProcessStartInfo(options.FfmpegPath, "-hide_banner -encoders") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
             using var process = Process.Start(start)!;
             var encoders = await process.StandardOutput.ReadToEndAsync(ct);
             await process.WaitForExitAsync(ct);
+            // Software encoding needs libx264, which an LGPL build (the Mac app's) doesn't have.
+            if (encoders.Contains("libx264", StringComparison.Ordinal)) found.Add(HardwareAcceleration.None);
             if (encoders.Contains("h264_videotoolbox", StringComparison.Ordinal)) found.Add(HardwareAcceleration.VideoToolbox);
             // On Linux, VA-API and Quick Sync go through a render device, which a container only has when it's passed
             // in (--device /dev/dri): an ffmpeg with the encoders but no device can't use them, so they aren't offered.
@@ -479,6 +481,7 @@ public static class SettingsEndpoints
         catch (System.ComponentModel.Win32Exception)
         {
             // ffmpeg missing: only software is listed, and playback reports the problem.
+            found.Add(HardwareAcceleration.None);
         }
 
         return _available = found;

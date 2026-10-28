@@ -837,7 +837,7 @@ export const forgetBackupFile = (id: string) => request<void>('DELETE', `/backup
 // ---------- Updates
 
 /** How the server was installed: a Mac install updates itself; Docker and the rest are updated by hand. */
-export type InstallKind = 'MacLaunchAgent' | 'Docker' | 'Other'
+export type InstallKind = 'MacLaunchAgent' | 'Docker' | 'MacApp' | 'Other'
 export type UpdateStage = 'Idle' | 'Downloading' | 'Installing'
 export interface Updates {
   version: string
