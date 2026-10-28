@@ -7,7 +7,12 @@ final class ImageCache: @unchecked Sendable {
     private let cache = NSCache<NSURL, UIImage>()
 
     init() {
+        // An Apple TV has less memory to spare than a phone, and its grids are large: decoded artwork adds up.
+        #if os(tvOS)
+        cache.totalCostLimit = 150 * 1024 * 1024
+        #else
         cache.totalCostLimit = 300 * 1024 * 1024
+        #endif
     }
 
     func image(for url: URL) -> UIImage? {

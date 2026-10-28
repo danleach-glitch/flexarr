@@ -677,7 +677,21 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }
 
     /// Signing out: every download goes, whoever's it was (the server keeps its record of what was declined).
+    /// Watched offline and not yet sent, kept from downloads deleted by signing out until the sign-in has sent it.
+    private var leftoverProgress: [(itemId: String, progress: UnsentProgress)] = []
+
+    /// Signing out: sends what was watched offline and not yet sent, with the sign-in that's still working, whether
+    /// or not the downloads have been deleted yet.
+    func sendLeftoverProgress(with client: FlexarrClient) async {
+        let pending = leftoverProgress + all.compactMap { d in d.unsent.map { (d.item.id, $0) } }
+        leftoverProgress = []
+        for (itemId, unsent) in pending {
+            try? await client.reportOfflineProgress(itemId: itemId, positionSeconds: unsent.position, finished: unsent.finished, playedAt: unsent.playedAt)
+        }
+    }
+
     func deleteAll() {
+        leftoverProgress += all.compactMap { d in d.unsent.map { (d.item.id, $0) } }
         for id in all.map(\.id) { delete(id) }
         let pictures = collections.compactMap(\.imageFileName)
         collections = []

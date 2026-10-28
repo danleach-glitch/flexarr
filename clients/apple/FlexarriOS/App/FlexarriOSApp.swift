@@ -16,8 +16,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     /// The app model, once the window's up: what a tapped notification plays or opens with.
     weak var model: AppModel? {
         didSet {
-            // Signing out stops this phone's notifications on the server while its sign-in still works.
-            model?.onSignOut = { [notifications] client in await notifications.signedOut(client) }
+            // Signing out sends what was watched offline, and stops this phone's notifications on the server, while its
+            // sign-in still works.
+            model?.onSignOut = { [notifications, downloads] client in
+                await downloads.sendLeftoverProgress(with: client)
+                await notifications.signedOut(client)
+            }
         }
     }
 
