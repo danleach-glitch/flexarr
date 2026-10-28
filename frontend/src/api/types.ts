@@ -326,6 +326,8 @@ export interface DeviceProfile {
   videoCodecs: string[]
   audioCodecs: string[]
   hdr: boolean
+  /** Shows Dolby Vision (Safari on an HDR screen). */
+  dolbyVision?: boolean
   maxHeight: number
   maxAudioChannels: number
   maxBitrate: number
