@@ -19,6 +19,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Person> People => Set<Person>();
     public DbSet<Credit> Credits => Set<Credit>();
     public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
+    public DbSet<ContinueWatchingDismissal> ContinueWatchingDismissals => Set<ContinueWatchingDismissal>();
     public DbSet<MediaMarker> MediaMarkers => Set<MediaMarker>();
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Collection> Collections => Set<Collection>();
@@ -314,6 +315,14 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne(p => p.MediaItem).WithMany(i => i.PlaybackStates).HasForeignKey(p => p.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Profile>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(p => new { p.UserId, p.LastPlayedAt });
+        });
+
+        modelBuilder.Entity<ContinueWatchingDismissal>(e =>
+        {
+            e.HasKey(d => new { d.ProfileId, d.SeriesId });
+            e.Property(d => d.ProfileId).HasMaxLength(64);
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(d => d.SeriesId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Profile>().WithMany().HasForeignKey(d => d.ProfileId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

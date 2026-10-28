@@ -43,3 +43,14 @@ public sealed class MediaMarker
     /// <summary>"chapters", "fingerprint" or "blackframes".</summary>
     public required string Source { get; set; }
 }
+
+/// <summary>
+/// A show taken out of someone's Continue Watching row: its next episode stays out until they play (or mark) an
+/// episode of it after <see cref="DismissedAt"/>. One row per profile and show.
+/// </summary>
+public sealed class ContinueWatchingDismissal
+{
+    public string ProfileId { get; set; } = PlaybackState.DefaultUser;
+    public Guid SeriesId { get; set; }
+    public DateTime DismissedAt { get; set; } = DateTime.UtcNow;
+}
