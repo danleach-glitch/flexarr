@@ -15,7 +15,6 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
 | Subtitles | Teletext, closed captions and height (S); styled ASS after (M). [#40](https://github.com/danleach-glitch/flexarr/discussions/40) | 🕐 1 |
 | Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
-| HDR10+ | Dynamic HDR metadata on the TVs that show it. S–M. [#41](https://github.com/danleach-glitch/flexarr/discussions/41) | 🚧 |
 | Watchlist | Films and shows to watch later, per profile, whether you have them or not. S–M. [#39](https://github.com/danleach-glitch/flexarr/discussions/39) | 🕐 2 |
 | Tracker sync | Trakt, Simkl, MyAnimeList and AniList: scrobbling, history, ratings and scores. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🕐 2 |
 | iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 🕐 3 |
@@ -61,7 +60,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Foundations | Server, API-key auth, CI (server, web, Apple, Docker, CodeQL), Docker image with PUID/PGID and VA-API/Quick Sync, macOS deploy, semver releases, Settings › Updates with one-click updates on a Mac, backups, logs and opt-in error reports | ✅ |
 | Library | Scanner for films, TV and music, file name parsing, ffprobe media info, webhook-driven and scheduled rescans, Fix match, delete through Sonarr and Radarr, library health, Plex history import, media folders that find themselves, libraries without the \*arr apps, Home videos | ✅ |
 | Metadata | From Sonarr, Radarr and Lidarr with no keys of our own, local `.nfo` files and artwork, TVmaze, TMDB with your own key, image cache, music artwork and album kinds | ✅ |
-| Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size and the system caption style, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
+| Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HDR10+, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size and the system caption style, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
 | Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), Coming soon, Discover and Seerr requests, shuffle | ✅ |
 | Music | Queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums | ✅ |
 | Podcasts | Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple) | ✅ |
