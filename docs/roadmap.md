@@ -13,7 +13,6 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Apple TV on the App Store | With Apple for review | 🚧 |
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 |
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
-| Speaker setup | Stereo or 5.1 output with a centre-channel boost, built with dialogue boost and night mode. S–M. [#125](https://github.com/danleach-glitch/flexarr/discussions/125), [#23](https://github.com/danleach-glitch/flexarr/discussions/23) | 🕐 1 |
 | Subtitles | Teletext, closed captions and height (S); styled ASS after (M). [#40](https://github.com/danleach-glitch/flexarr/discussions/40) | 🕐 1 |
 | Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
 | HDR10+ | Dynamic HDR metadata on the TVs that show it. S–M. [#41](https://github.com/danleach-glitch/flexarr/discussions/41) | 🕐 1 |
@@ -28,6 +27,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Music visualiser | On Now Playing. S–M. [#46](https://github.com/danleach-glitch/flexarr/discussions/46) | 🕐 7 |
 | Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🕐 7 |
 | Photo libraries | [#48](https://github.com/danleach-glitch/flexarr/discussions/48) | 🗓️ |
+| Speaker setup | Stereo or 5.1 output with a centre-channel boost, built with dialogue boost and night mode. Waiting for the Apple apps' player to be able to shape the sound ([AetherEngine#923](https://github.com/superuser404notfound/AetherEngine/issues/923)). S–M. [#125](https://github.com/danleach-glitch/flexarr/discussions/125), [#23](https://github.com/danleach-glitch/flexarr/discussions/23) | 🗓️ |
 | PostgreSQL | As an alternative to SQLite. [#14](https://github.com/danleach-glitch/flexarr/issues/14) | 🗓️ |
 | New files noticed at once | In libraries the \*arr apps don't manage, rather than at the next scan. [#3](https://github.com/danleach-glitch/flexarr/issues/3) | 🗓️ |
 | Subtitles made on the device | For titles that have none. [#111](https://github.com/danleach-glitch/flexarr/discussions/111) | 💡 |
