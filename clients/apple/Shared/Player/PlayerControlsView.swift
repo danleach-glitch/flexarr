@@ -87,7 +87,8 @@ final class PlayerControlsView: UIView {
         audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
         subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
         speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
-        sleepButton = Self.button("bed.double", size: Self.symbolSize * 0.8, menu: true)
+        // The bed is a wide symbol: drawn smaller, it sits as large as the others.
+        sleepButton = Self.button("bed.double", size: Self.symbolSize * 0.62, menu: true)
         channelsButton = Self.button("list.bullet.rectangle", size: Self.symbolSize * 0.8)
         guideButton = Self.button("calendar", size: Self.symbolSize * 0.8)
         promptButton = Self.pill(filled: true)
@@ -430,6 +431,11 @@ final class PlayerControlsView: UIView {
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 0
+        // The same slot for each, however wide its symbol, so they sit evenly; the speed's widens for its badge.
+        for button in [channelsButton, guideButton, audioButton, subtitlesButton, sleepButton] {
+            button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        }
+        speedButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         let menuBar = GlassView(cornerRadius: 22, content: menus, size: nil)
         for view in [top, transport, menuBar, scrubber, elapsedLabel, remainingLabel, detailLabel] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
