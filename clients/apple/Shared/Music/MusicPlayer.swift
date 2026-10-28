@@ -82,6 +82,8 @@ final class MusicPlayer {
     /// tracks passes the albums it knows.
     @ObservationIgnored private var albumTitles: [String: String] = [:]
     @ObservationIgnored private let player = AVPlayer()
+    /// The music's bass, middle and treble as it plays, for the visualiser behind Now Playing.
+    @ObservationIgnored let spectrum = AudioSpectrum()
     @ObservationIgnored private var sessionId: String?
     /// The session's id for logs (never the session id itself, the stream's credential).
     @ObservationIgnored private var playbackId: String?
@@ -406,6 +408,10 @@ final class MusicPlayer {
     private func attach(_ item: AVPlayerItem) {
         clearItem()
         player.replaceCurrentItem(with: item)
+        #if os(tvOS)
+        // Only the Apple TV shows the visualiser, and with it off nothing listens.
+        if AudioSpectrum.isOn { Task { await spectrum.tap(item) } }
+        #endif
         itemObservers = [
             NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.trackEnded() }
