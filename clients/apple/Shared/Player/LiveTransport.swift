@@ -118,6 +118,7 @@ final class LiveTransport: NSObject, PlayerTransport {
     var activeSubtitleTrack: String? { nil }
     func selectSubtitleTrack(_ id: String?) {}
     var subtitleSize: SubtitleSize = .standard
+    var subtitlePlacement = SubtitlePlacement()
 
     #if os(iOS)
     func pictureInPictureContentSource() -> AVPictureInPictureController.ContentSource? {

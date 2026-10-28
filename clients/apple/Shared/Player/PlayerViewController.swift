@@ -24,6 +24,7 @@ protocol PlayerScreenDelegate: AnyObject {
     func playerScreen(_ screen: PlayerViewController, choseSubtitle key: String??)
     func playerScreen(_ screen: PlayerViewController, subtitleDelay seconds: Double)
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize)
+    func playerScreen(_ screen: PlayerViewController, subtitlePlacement placement: SubtitlePlacement)
     /// The viewer nudged the file's sound (seconds later, earlier when negative).
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double)
     /// The viewer chose a speed in the menu.
@@ -69,6 +70,7 @@ final class PlayerViewController: UIViewController {
     private var holdTask: Task<Void, Never>?
     #endif
     private var subtitleSize: SubtitleSize = .standard
+    private var subtitlePlacement = SubtitlePlacement()
     /// The file's audio offset (nil: not adjustable here).
     private var audioSync: Double?
     private let audioSyncPanel = AudioSyncPanel()
@@ -124,6 +126,7 @@ final class PlayerViewController: UIViewController {
             guard let transport else { return }
             transport.delegate = self
             transport.subtitleSize = subtitleSize
+            transport.subtitlePlacement = subtitlePlacement
             if isViewLoaded { install(transport) }
             phaseChanged(transport.phase)
         }
@@ -358,11 +361,13 @@ final class PlayerViewController: UIViewController {
         sleep.setting == .endOfEpisode || sleepPhase != .off
     }
 
-    /// Subtitle timing (nil: not adjustable on this stream) and size, for the subtitles menu.
-    func setSubtitleOptions(delay: Double?, size: SubtitleSize) {
+    /// Subtitle timing (nil: not adjustable on this stream), size and placement, for the subtitles menu.
+    func setSubtitleOptions(delay: Double?, size: SubtitleSize, placement: SubtitlePlacement) {
         subtitleDelay = delay
         subtitleSize = size
+        subtitlePlacement = placement
         transport?.subtitleSize = size
+        transport?.subtitlePlacement = placement
         rebuildMenus()
     }
 
@@ -788,6 +793,19 @@ final class PlayerViewController: UIViewController {
                 }
             }))
         }
+        if transport.showsTeletext {
+            let page = transport.teletextPage
+            let choose: (Int?) -> Void = { [weak self] page in
+                guard let self else { return }
+                self.transport?.teletextPage = page
+                self.rebuildMenus()
+            }
+            items.append(UIMenu(title: "Teletext page", subtitle: page.map(String.init) ?? "Automatic", children: [
+                UIAction(title: "Automatic", state: page == nil ? .on : .off) { _ in MainActor.assumeIsolated { choose(nil) } },
+            ] + teletextPages.map { number in
+                UIAction(title: String(number), state: page == number ? .on : .off) { _ in MainActor.assumeIsolated { choose(number) } }
+            }))
+        }
         if let current = subtitleDelay, !subtitles.isEmpty {
             let choices = Set(Self.delayChoices + [current]).sorted()
             items.append(UIMenu(title: "Timing", subtitle: Self.delayLabel(current), children: choices.map { seconds in
@@ -811,6 +829,23 @@ final class PlayerViewController: UIViewController {
                     }
                 }
             }))
+            let placed = subtitlePlacement
+            let place: (SubtitlePlacement) -> Void = { [weak self] placement in
+                guard let self else { return }
+                self.subtitlePlacement = placement
+                transport.subtitlePlacement = placement
+                self.delegate?.playerScreen(self, subtitlePlacement: placement)
+                self.rebuildMenus()
+            }
+            items.append(UIMenu(title: "Position", subtitle: placed.position.label, children: SubtitlePosition.allCases.map { position in
+                UIAction(title: position.label, state: position == placed.position ? .on : .off) { _ in
+                    MainActor.assumeIsolated { place(SubtitlePlacement(position: position, inBlackBars: placed.inBlackBars)) }
+                }
+            } + [
+                UIAction(title: "In the black bars", state: placed.inBlackBars ? .on : .off) { _ in
+                    MainActor.assumeIsolated { place(SubtitlePlacement(position: placed.position, inBlackBars: !placed.inBlackBars)) }
+                },
+            ]))
         }
         if subtitleSearch.available {
             var finding: [UIMenuElement] = [

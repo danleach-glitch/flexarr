@@ -297,7 +297,7 @@ final class PlaybackController: NSObject {
         screen.setDetail(Self.detail(for: info))
         screen.previews = client.flatMap { info.isOffline ? nil : TrickplayPreviews(client: $0, sessionId: info.sessionId) }
         screen.setSubtitleOptions(delay: info.isOffline || info.subtitleBurnedIn || transport is EngineTransportMarker ? nil : (info.subtitleDelaySeconds ?? 0),
-                                  size: preferences.subtitleSize ?? .standard)
+                                  size: preferences.subtitleSize ?? .standard, placement: preferences.subtitlePlacement)
         // Audio sync needs the server (which keeps the offset for the household); a download plays as it was made.
         screen.setAudioSync(seconds: info.isOffline || !info.hasPlayerControls ? nil : info.audioDelaySeconds ?? 0)
         screen.episodeEnd = info.item.kind == .episode
@@ -369,6 +369,17 @@ final class PlaybackController: NSObject {
     /// The profile's subtitle size, changed while watching: drawn at once, and saved for every device.
     func setSubtitleSize(_ size: SubtitleSize) {
         preferences.subtitleSize = size
+        savePreferences()
+    }
+
+    /// Where the profile's subtitles sit, changed while watching: drawn at once, and saved for every device.
+    func setSubtitlePlacement(_ placement: SubtitlePlacement) {
+        preferences.subtitlePosition = placement.position
+        preferences.subtitlesInBlackBars = placement.inBlackBars
+        savePreferences()
+    }
+
+    private func savePreferences() {
         if let client {
             let saved = preferences
             Task { try? await client.setPlaybackPreferences(saved) }
@@ -1137,6 +1148,10 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, subtitleSize size: SubtitleSize) {
         setSubtitleSize(size)
+    }
+
+    func playerScreen(_ screen: PlayerViewController, subtitlePlacement placement: SubtitlePlacement) {
+        setSubtitlePlacement(placement)
     }
 
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {

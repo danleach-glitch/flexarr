@@ -52,6 +52,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         layerView.playerLayer.videoGravity = .resizeAspect
         layerView.backgroundColor = .black
         subtitleSize = info.preferences?.subtitleSize ?? .standard
+        subtitlePlacement = info.preferences?.subtitlePlacement ?? SubtitlePlacement()
         observe()
     }
 
@@ -159,11 +160,11 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
     }
 
     var subtitleSize: SubtitleSize = .standard {
-        didSet {
-            let percent = subtitleSize.percent
-            item.textStyleRules = percent == 100 ? nil
-                : AVTextStyleRule(textMarkupAttributes: [kCMTextMarkupAttribute_RelativeFontSize as String: percent]).map { [$0] }
-        }
+        didSet { item.textStyleRules = subtitleSize.textStyleRules(placement: subtitlePlacement) }
+    }
+
+    var subtitlePlacement = SubtitlePlacement() {
+        didSet { item.textStyleRules = subtitleSize.textStyleRules(placement: subtitlePlacement) }
     }
 
     // MARK: Picture in Picture

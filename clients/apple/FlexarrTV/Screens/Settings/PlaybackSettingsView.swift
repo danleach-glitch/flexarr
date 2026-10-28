@@ -41,6 +41,21 @@ struct PlaybackSettingsView: View {
                         save(changed, over: preferences)
                     }
                 }
+                SettingsLinkRow(title: "Subtitle position", symbol: "arrow.up.and.down.text.horizontal", value: subtitlePosition.label,
+                                help: "Raise subtitles clear of text in the picture or the edge of the TV. Styled subtitles keep the places they were made for.") {
+                    SettingsChoicePage(title: "Subtitle position", summary: "For this profile on every device.",
+                                       choices: SubtitlePosition.allCases, label: \.label, selection: subtitlePosition) { position in
+                        var changed = preferences
+                        changed.subtitlePosition = position
+                        save(changed, over: preferences)
+                    }
+                }
+                SettingsRow.toggle("Subtitles in the black bars", isOn: preferences.subtitlesInBlackBars ?? false, symbol: "rectangle.bottomthird.inset.filled",
+                                   help: "In films wider than the TV, subtitles go in the black bar below the picture rather than over it.") {
+                    var changed = preferences
+                    changed.subtitlesInBlackBars = !(preferences.subtitlesInBlackBars ?? false)
+                    save(changed, over: preferences)
+                }
             } else {
                 // The server's half arrives a moment later; this keeps the rows below from jumping up and back.
                 SettingsGroupLabel("Your profile, on every device")
@@ -85,6 +100,11 @@ struct PlaybackSettingsView: View {
     private var subtitleSize: SubtitleSize {
         guard let size = preferences?.subtitleSize, size != .unknown else { return .standard }
         return size
+    }
+
+    private var subtitlePosition: SubtitlePosition {
+        guard let position = preferences?.subtitlePosition, position != .unknown else { return .bottom }
+        return position
     }
 
     private func change(_ key: WritableKeyPath<PlaybackPreferences, Bool>) {

@@ -66,6 +66,7 @@ protocol PlayerTransport: AnyObject {
     var activeSubtitleTrack: String? { get }
     func selectSubtitleTrack(_ id: String?)
     var subtitleSize: SubtitleSize { get set }
+    var subtitlePlacement: SubtitlePlacement { get set }
 
     /// Apple's player underneath, when there is one: AirPlay and Picture in Picture go through it.
     var avPlayer: AVPlayer? { get }
@@ -79,10 +80,39 @@ protocol PlayerTransport: AnyObject {
 
 extension PlayerTransport {
     var isPlaying: Bool { phase == .playing || phase == .buffering }
+
+    /// The subtitles showing are teletext, whose caption page can be chosen. Only the engine decodes teletext.
+    var showsTeletext: Bool { false }
+    /// The teletext caption page; nil, the one the broadcast marks as subtitles.
+    var teletextPage: Int? {
+        get { nil }
+        set {}
+    }
 }
+
+/// The teletext caption pages broadcasters use most: 888 (the UK, Ireland, the Netherlands), 777 and 150 (Germany
+/// and elsewhere), 801 (Sweden).
+let teletextPages = [888, 777, 150, 801]
 
 /// A view whose layer is an AVPlayerLayer: the picture of a server stream or a download.
 final class PlayerLayerView: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+}
+
+extension SubtitleSize {
+    /// The style rules Apple's player draws WebVTT and other text subtitles with: the profile's size, and its position
+    /// as a line along the picture's height (black bars aren't something it can do).
+    func textStyleRules(placement: SubtitlePlacement) -> [AVTextStyleRule]? {
+        var attributes: [String: Any] = [:]
+        if percent != 100 { attributes[kCMTextMarkupAttribute_RelativeFontSize as String] = percent }
+        let line: Int? = switch placement.position {
+        case .raised: 80
+        case .higher: 70
+        case .top: 10
+        case .bottom, .unknown: nil
+        }
+        if let line { attributes[kCMTextMarkupAttribute_OrthogonalLinePositionPercentageRelativeToWritingDirection as String] = line }
+        return attributes.isEmpty ? nil : AVTextStyleRule(textMarkupAttributes: attributes).map { [$0] }
+    }
 }

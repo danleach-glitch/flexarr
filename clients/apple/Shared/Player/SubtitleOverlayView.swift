@@ -5,9 +5,9 @@ import FlexarrKit
 import MediaAccessibility
 import UIKit
 
-/// Subtitles the engine decodes, drawn over the video: text cues at the bottom (in the caption style chosen in the
-/// system's Accessibility settings, as Apple's own player draws them), and
-/// picture subtitles (PGS, DVB) placed as the disc authored them, the cue's canvas mapped width-aligned and
+/// Subtitles the engine decodes, drawn over the video: text cues where the profile put them (in the caption style
+/// chosen in the system's Accessibility settings, as Apple's own player draws them), or where a styled (ASS) cue asks
+/// to be, and picture subtitles (PGS, DVB) placed as the disc authored them, the cue's canvas mapped width-aligned and
 /// centre-anchored onto the video's rectangle (the picture fitted into this view).
 final class SubtitleOverlayView: UIView {
     /// The picture's size in pixels, for placing cues over it.
@@ -19,22 +19,22 @@ final class SubtitleOverlayView: UIView {
         didSet { if subtitleSize != oldValue { setNeedsLayout() } }
     }
 
+    var placement = SubtitlePlacement() {
+        didSet { if placement != oldValue { setNeedsLayout() } }
+    }
+
     private var images: [SubtitleImage] = []
     private var imageViews: [UIImageView] = []
-    private var textCues: [SubtitleCue] = []
-    /// The window behind the text (the caption style's window colour), and the text in it.
-    private let captionWindow = UIView()
-    private let textLabel = UILabel()
+    /// Text cues in groups drawn together: the ones the profile places, then each one placed by its own ASS tags.
+    private var textGroups: [(placement: SubtitleTextPlacement?, cues: [SubtitleCue])] = []
+    /// A window behind each group's text (the caption style's window colour), and the text in it.
+    private var captionWindows: [UIView] = []
+    private var textLabels: [UILabel] = []
     private var style = CaptionStyle.current
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isUserInteractionEnabled = false
-        textLabel.numberOfLines = 0
-        textLabel.textAlignment = .center
-        captionWindow.isHidden = true
-        captionWindow.addSubview(textLabel)
-        addSubview(captionWindow)
         applyStyle()
         NotificationCenter.default.addObserver(self, selector: #selector(styleChanged),
                                                name: Notification.Name(kMACaptionAppearanceSettingsChangedNotification as String), object: nil)
@@ -46,11 +46,17 @@ final class SubtitleOverlayView: UIView {
         setNeedsLayout()
     }
 
-    /// The window's colour and the text's edge, from the caption style.
+    /// The windows' colour and the text's edge, from the caption style.
     private func applyStyle() {
-        captionWindow.backgroundColor = style.window
-        captionWindow.layer.cornerRadius = style.window == nil ? 0 : 4
-        let layer = textLabel.layer
+        for (window, label) in zip(captionWindows, textLabels) {
+            applyStyle(window: window, label: label)
+        }
+    }
+
+    private func applyStyle(window: UIView, label: UILabel) {
+        window.backgroundColor = style.window
+        window.layer.cornerRadius = style.window == nil ? 0 : 4
+        let layer = label.layer
         layer.shadowColor = UIColor.black.cgColor
         switch style.edge {
         case .none:
@@ -73,7 +79,20 @@ final class SubtitleOverlayView: UIView {
             if case .image(let image) = cue.body { return image }
             return nil
         }
-        textCues = cues.filter { if case .image = $0.body { false } else { true } }
+        let text = cues.filter { if case .image = $0.body { false } else { true } }
+        let placed = text.filter { Self.ownPlacement($0) != nil }
+        textGroups = (text.count > placed.count ? [(nil, text.filter { Self.ownPlacement($0) == nil })] : [])
+            + placed.map { (Self.ownPlacement($0), [$0]) }
+        while captionWindows.count < textGroups.count {
+            let window = UIView()
+            let label = UILabel()
+            label.numberOfLines = 0
+            window.addSubview(label)
+            addSubview(window)
+            applyStyle(window: window, label: label)
+            captionWindows.append(window)
+            textLabels.append(label)
+        }
         while imageViews.count < images.count {
             let view = UIImageView()
             view.contentMode = .scaleToFill
@@ -110,29 +129,78 @@ final class SubtitleOverlayView: UIView {
         layoutText(in: video)
     }
 
-    /// Text at the bottom of the picture. Apple's captions are about 4.3% of the picture's height at the system's
-    /// standard size; the caption style's text size multiplies that, and the profile's size multiplies it again.
+    /// A styled cue's own place, from its ASS tags; nil when it has none worth following. Bottom-centre alignment
+    /// without a position is where every line goes anyway, so the profile's position applies to it too.
+    private static func ownPlacement(_ cue: SubtitleCue) -> SubtitleTextPlacement? {
+        guard let placement = cue.placement, placement.position != nil || (placement.alignment ?? 2) != 2 else { return nil }
+        return placement
+    }
+
+    /// Text where the profile put it, or where a styled cue asks. Apple's captions are about 4.3% of the picture's
+    /// height at the system's standard size; the caption style's text size multiplies that, and the profile's size
+    /// multiplies it again.
     private func layoutText(in video: CGRect) {
-        guard !textCues.isEmpty else {
-            captionWindow.isHidden = true
-            return
-        }
         let base = max(14, video.height * 0.043)
         let points = base * style.scale * CGFloat(subtitleSize.percent) / 100
-        let text = NSMutableAttributedString()
-        for (i, cue) in textCues.enumerated() {
-            if i > 0 { text.append(NSAttributedString(string: "\n")) }
-            text.append(Self.attributed(cue, size: points, style: style))
-        }
-        textLabel.attributedText = text
-        captionWindow.isHidden = false
         let padding = style.window == nil ? 0 : points * 0.3
-        let width = video.width * 0.84 - padding * 2
-        let size = textLabel.sizeThatFits(CGSize(width: width, height: video.height))
-        let bottom = video.maxY - max(video.height * 0.06, safeAreaInsets.bottom + 8)
-        let boxed = CGSize(width: size.width + padding * 2, height: size.height + padding * 2)
-        captionWindow.frame = CGRect(x: video.midX - boxed.width / 2, y: bottom - boxed.height, width: boxed.width, height: boxed.height)
-        textLabel.frame = CGRect(x: padding, y: padding, width: size.width, height: size.height)
+        for (i, window) in captionWindows.enumerated() {
+            guard i < textGroups.count else {
+                window.isHidden = true
+                continue
+            }
+            let group = textGroups[i]
+            let label = textLabels[i]
+            let text = NSMutableAttributedString()
+            for (j, cue) in group.cues.enumerated() {
+                if j > 0 { text.append(NSAttributedString(string: "\n")) }
+                text.append(Self.attributed(cue, size: points, style: style))
+            }
+            let column = ((group.placement?.alignment ?? 2) - 1) % 3 // 0 left, 1 centre, 2 right
+            label.textAlignment = column == 0 ? .left : column == 2 ? .right : .center
+            label.attributedText = text
+            window.isHidden = false
+            let size = label.sizeThatFits(CGSize(width: video.width * 0.84 - padding * 2, height: video.height))
+            let boxed = CGSize(width: size.width + padding * 2, height: size.height + padding * 2)
+            let origin = group.placement.map { Self.origin(of: boxed, placedBy: $0, in: video) }
+                ?? origin(of: boxed, in: video)
+            window.frame = CGRect(origin: origin, size: boxed)
+            label.frame = CGRect(x: padding, y: padding, width: size.width, height: size.height)
+        }
+    }
+
+    /// Where the profile's subtitles go: lifted above the picture's foot (clear of the screen's edge), hung from its
+    /// top, or in the black bar below a wide picture when that's wanted and the text fits there.
+    private func origin(of box: CGSize, in video: CGRect) -> CGPoint {
+        let x = video.midX - box.width / 2
+        let bar = bounds.maxY - video.maxY - safeAreaInsets.bottom
+        if placement.position == .top {
+            return CGPoint(x: x, y: video.minY + max(video.height * 0.06, safeAreaInsets.top + 8))
+        }
+        if placement.inBlackBars, bar >= box.height + 12 {
+            return CGPoint(x: x, y: video.maxY + 6)
+        }
+        // At the bottom, where Apple's own player puts captions; raised, as far up as the web player puts them.
+        let lift = placement.position == .bottom || placement.position == .unknown ? 0.06 : placement.position.lift ?? 0.06
+        return CGPoint(x: x, y: video.maxY - max(video.height * lift, safeAreaInsets.bottom + 8) - box.height)
+    }
+
+    /// Where a styled cue asks to be: anchored by its alignment at its \pos point, or else against the picture's edge
+    /// that alignment names, kept on the picture.
+    private static func origin(of box: CGSize, placedBy placement: SubtitleTextPlacement, in video: CGRect) -> CGPoint {
+        let alignment = min(9, max(1, placement.alignment ?? 2))
+        let column = CGFloat((alignment - 1) % 3) / 2 // 0, 0.5, 1: the share of the box left of its anchor
+        let row: CGFloat = alignment >= 7 ? 0 : alignment >= 4 ? 0.5 : 1 // the share above it
+        let anchor: CGPoint
+        if let position = placement.position {
+            anchor = CGPoint(x: video.minX + position.x * video.width, y: video.minY + position.y * video.height)
+        } else {
+            let margin = CGSize(width: video.width * 0.04, height: video.height * 0.06)
+            anchor = CGPoint(x: video.minX + margin.width + column * (video.width - margin.width * 2),
+                             y: video.minY + margin.height + row * (video.height - margin.height * 2))
+        }
+        let x = min(max(anchor.x - column * box.width, video.minX), video.maxX - box.width)
+        let y = min(max(anchor.y - row * box.height, video.minY), video.maxY - box.height)
+        return CGPoint(x: x, y: y)
     }
 
     private static func attributed(_ cue: SubtitleCue, size: CGFloat, style: CaptionStyle) -> NSAttributedString {
