@@ -16,10 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,17 +44,26 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.core.Library
+import io.github.flexarr.core.libraryOrder
 import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
+import io.github.flexarr.ui.library.icon
+import io.github.flexarr.ui.library.inMenu
 import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.profiles.ProfilePicker
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -63,7 +76,7 @@ import java.time.format.FormatStyle
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(model: AppModel, onServer: () -> Unit) {
+fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> Unit) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
 
@@ -80,6 +93,14 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit) {
                                 Text("Switch", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable({ choosingProfile = true }).padding(6.dp))
                             }
                         }
+                    }
+                }
+            }
+            // Only from servers that can save an order (0.54 on).
+            model.currentProfile?.libraryOrder?.let { order ->
+                item {
+                    Group {
+                        SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Custom", onClick = onLibraryOrder)
                     }
                 }
             }
@@ -159,6 +180,91 @@ fun ServerSettingsScreen(model: AppModel) {
         }
     }
 }
+
+/**
+ * The current profile's libraries in the order the Libraries tab shows them, each moved up or down a place at a time.
+ * Every move saves straight away, so the order follows the profile to every device.
+ */
+@Composable
+fun LibraryOrderSettingsScreen(model: AppModel) {
+    val client = model.client ?: return
+    val navigator = LocalNavigator.current
+    val loader = rememberLoader(model.credentials) { client.libraries().filter { it.inMenu } }
+    // Moved here but maybe not saved yet; null shows the server's order.
+    var moved by remember { mutableStateOf<List<Library>?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    // One save at a time, in the order the moves were made, so the last move is the one that stays.
+    val saving = remember { Mutex() }
+
+    fun save(libraries: List<Library>?) {
+        moved = libraries
+        problem = null
+        model.scope.launch {
+            saving.withLock {
+                try {
+                    val saved = model.currentProfile?.libraryOrder.orEmpty()
+                    model.setLibraryOrder(if (libraries == null) emptyList() else libraryOrder(saved, libraries.map { it.id }))
+                    if (libraries == null) loader.retry()
+                } catch (e: FlexarrException) {
+                    problem = "Couldn’t save the order. ${e.message}"
+                    moved = null
+                    loader.retry()
+                }
+            }
+        }
+    }
+
+    RoomBackground(ambient = null) {
+        Column {
+            PageTitle("Library order", onBack = { navigator.back() })
+            Loaded(loader) { loaded ->
+                val libraries = moved ?: loaded
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                    item {
+                        Group(footer = problem ?: "This order follows ${model.currentProfile?.name ?: "this profile"} to every device. Libraries added later go at the end.") {
+                            libraries.forEachIndexed { index, library ->
+                                if (index > 0) Divider()
+                                OrderRow(
+                                    library,
+                                    onUp = if (index > 0) ({ save(libraries.moved(index, index - 1)) }) else null,
+                                    onDown = if (index < libraries.lastIndex) ({ save(libraries.moved(index, index + 1)) }) else null,
+                                )
+                            }
+                        }
+                    }
+                    if (model.currentProfile?.libraryOrder?.isNotEmpty() == true) {
+                        item {
+                            Group {
+                                Text(
+                                    "Sort by name",
+                                    fontSize = 17.sp,
+                                    color = Flexarr.screen,
+                                    modifier = Modifier.fillMaxWidth().pressable({ save(null) }).padding(horizontal = 16.dp, vertical = 14.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrderRow(library: Library, onUp: (() -> Unit)?, onDown: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(library.icon, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(22.dp))
+        Text(library.name, fontSize = 17.sp, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(onClick = { onUp?.invoke() }, enabled = onUp != null) {
+            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move ${library.name} up", tint = if (onUp != null) Flexarr.screen else Flexarr.aisle)
+        }
+        IconButton(onClick = { onDown?.invoke() }, enabled = onDown != null) {
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move ${library.name} down", tint = if (onDown != null) Flexarr.screen else Flexarr.aisle)
+        }
+    }
+}
+
+private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().apply { add(to, removeAt(from)) }
 
 /** A group of rows on the seat, with an optional heading above and note below, as iPhone's grouped lists. */
 @Composable

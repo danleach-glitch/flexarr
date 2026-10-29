@@ -38,6 +38,7 @@ import io.github.flexarr.ui.detail.DetailScreen
 import io.github.flexarr.ui.home.HomeScreen
 import io.github.flexarr.ui.library.LibrariesScreen
 import io.github.flexarr.ui.library.LibraryScreen
+import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
@@ -96,8 +97,11 @@ fun MainScreen(model: AppModel) {
             NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
                 composable(Tab.Home.route) { HomeScreen(model) }
                 composable(Tab.Libraries.route) { LibrariesScreen(model) }
-                composable(Tab.Settings.route) { SettingsScreen(model, onServer = { nav.navigate("settings/server") }) }
+                composable(Tab.Settings.route) {
+                    SettingsScreen(model, onServer = { nav.navigate("settings/server") }, onLibraryOrder = { nav.navigate("settings/library-order") })
+                }
                 composable("settings/server") { ServerSettingsScreen(model) }
+                composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
                     "library/{id}?sort={sort}",
                     arguments = listOf(navArgument("sort") { type = NavType.StringType; defaultValue = "" }),

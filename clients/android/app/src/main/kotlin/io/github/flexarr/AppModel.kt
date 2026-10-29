@@ -54,6 +54,10 @@ class AppModel(private val context: Context) {
     var watchStateVersion by mutableIntStateOf(0)
         private set
 
+    /** Goes up when the libraries' order changes, so the Libraries tab loads them again. */
+    var librariesVersion by mutableIntStateOf(0)
+        private set
+
     /** The sign-in is saved on this device (not one for this launch only, from the command line). */
     private var saved = phase is Phase.SignedIn
 
@@ -150,6 +154,18 @@ class AppModel(private val context: Context) {
         if (saved) store.saveProfile(null)
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
         profiles = profiles.map { it.copy(isCurrent = false) }
+    }
+
+    /**
+     * Saves the order of the current profile's libraries in the menu (every entry, see [io.github.flexarr.core.libraryOrder])
+     * and keeps the profile the server answers with. Throws if the server refuses.
+     */
+    suspend fun setLibraryOrder(order: List<String>) {
+        val client = client ?: return
+        val profile = currentProfile ?: return
+        val saved = client.setLibraryOrder(profile.id, order)
+        profiles = profiles.map { if (it.id == saved.id) saved.copy(isCurrent = it.isCurrent) else it }
+        librariesVersion++
     }
 
     fun watchStateChanged() {

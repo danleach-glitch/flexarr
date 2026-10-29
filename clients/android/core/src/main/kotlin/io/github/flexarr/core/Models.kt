@@ -377,8 +377,25 @@ data class Profile(
     val isCurrent: Boolean = false,
     /** The picture's server-relative URL, or null to show the initial on the colour. */
     val image: String? = null,
+    /**
+     * The order of the libraries in every app's menu: library ids, and "live-tv" for apps that list Live TV among them.
+     * Empty: by name. Absent from servers before 0.54, which can't save one.
+     */
+    val libraryOrder: List<String>? = null,
 ) {
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
+}
+
+/**
+ * The order to save after the libraries [shown] here were rearranged: [saved] with the shown ones' places refilled in
+ * their new order, so what isn't shown here ("live-tv", libraries this app leaves out) keeps its place among them. Shown
+ * ones the saved order didn't mention yet go at the end.
+ */
+fun libraryOrder(saved: List<String>, shown: List<String>): List<String> {
+    val isShown = shown.map { it.lowercase() }.toSet()
+    val next = shown.iterator()
+    val order = saved.map { if (it.lowercase() in isShown && next.hasNext()) next.next() else it }
+    return order + next.asSequence().toList()
 }
 
 /** What choosing a profile returns: the token to send as `X-Flexarr-Profile` from then on. */
@@ -387,3 +404,6 @@ data class ProfileSelection(val token: String, val profile: Profile)
 
 @Serializable
 internal data class SelectProfileRequest(val pin: String?)
+
+@Serializable
+internal data class LibraryOrderRequest(val order: List<String>)

@@ -130,6 +130,13 @@ class FlexarrClient(
     suspend fun selectProfile(id: String, pin: String? = null): ProfileSelection =
         decode(serializer(), send("POST", "profiles/$id/select", body = json.encodeToString(SelectProfileRequest(pin))))
 
+    /**
+     * Saves the order of [profileId]'s libraries in the menu (see [libraryOrder]); the profile watching may set its own.
+     * Servers before 0.54 answer 404.
+     */
+    suspend fun setLibraryOrder(profileId: String, order: List<String>): Profile =
+        decode(serializer(), send("PUT", "profiles/$profileId/library-order", body = json.encodeToString(LibraryOrderRequest(order))))
+
     // Pairing (connecting without typing the API key)
 
     /** Asks the server for a code to show; someone signed in approves it in the web app. */
