@@ -294,7 +294,7 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         guard media.allSatisfy({ $0.itemCount == 0 }) else { return nil }
         guard !media.isEmpty else {
             title = "Nothing to watch yet"
-            body = "Add your movies, shows and music on the computer where you set up Flexarr: open Flexarr in a browser and go to Settings › Libraries. They appear here once they’re added."
+            body = "Open Flexarr in a browser and add a library in Settings › Libraries."
             folders = []
             return
         }
@@ -312,7 +312,7 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         }
         folders = media.flatMap(\.folders)
         title = "Your library is empty"
-        body = "\(names) \(media.count > 1 ? "are" : "is") set up, but Flexarr hasn’t found any \(wanted) in \(folders.count > 1 ? "its folders" : "its folder") yet. Add some there, or connect Sonarr or Radarr in Flexarr’s settings on the web."
+        body = "Add files to \(folders.count > 1 ? "your library folders" : "your library folder"), or connect Sonarr or Radarr in Flexarr on the web."
     }
 
     private static func kind(_ type: LibraryType) -> String {
