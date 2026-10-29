@@ -333,10 +333,15 @@ public struct FlexarrClient: Sendable {
     /// one starts; this catches up on any missed while the app was closed). Empty from servers before 0.56, which have
     /// no list; anyone but the main profile is refused (403).
     public func waitingPairings() async throws -> [PairingRequest] {
+        try await waitingPairingsIfKept() ?? []
+    }
+
+    /// As `waitingPairings`, but nil from servers before 0.56, so a list of them can say there's none to show.
+    public func waitingPairingsIfKept() async throws -> [PairingRequest]? {
         do {
             return try await get("pairing/waiting")
         } catch FlexarrClientError.http(status: 404, _) {
-            return []
+            return nil
         }
     }
 

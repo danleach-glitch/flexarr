@@ -725,16 +725,26 @@ public struct PairingRequest: Decodable, Sendable, Hashable, Identifiable {
     public var requestedFrom: String? = nil
     /// The network it asked over: "Local", "Tailscale", or something else.
     public var zone: String? = nil
+    /// What kind of device it is, when its app says. Absent from servers before 0.56 and for apps that don't say.
+    public var deviceType: DeviceType? = nil
 
     public var id: String { code }
 
-    public init(code: String, deviceName: String, expiresAt: Date, requestedFrom: String? = nil, zone: String? = nil) {
+    public init(code: String, deviceName: String, expiresAt: Date, requestedFrom: String? = nil, zone: String? = nil,
+                deviceType: DeviceType? = nil) {
         self.code = code
         self.deviceName = deviceName
         self.expiresAt = expiresAt
         self.requestedFrom = requestedFrom
         self.zone = zone
+        self.deviceType = deviceType
     }
+}
+
+/// What kind of device an app runs on, as it tells the server (`X-Flexarr-Device`).
+public enum DeviceType: String, ForwardCompatibleEnum {
+    case appleTv = "AppleTv", iPhone = "IPhone", iPad = "IPad"
+    case androidPhone = "AndroidPhone", androidTablet = "AndroidTablet", androidTv = "AndroidTv", unknown
 }
 
 /// The `pairing-ended` event: the device was allowed (from anywhere), turned away, or its code ran out.

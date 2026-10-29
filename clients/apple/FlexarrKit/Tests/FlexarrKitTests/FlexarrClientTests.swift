@@ -473,6 +473,21 @@ struct PairingPromptTests {
     @Test func serversBeforeThePromptHaveNobodyWaiting() async throws {
         let (client, _) = stubbedClient(.init(status: 404, body: Data()))
         #expect(try await client.waitingPairings().isEmpty)
+        let (kept, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(try await kept.waitingPairingsIfKept() == nil)
+    }
+
+    @Test func saysWhatKindOfDeviceIsWaiting_whenTheServerDoes() async throws {
+        let list = #"""
+        [{"code":"ABC-DEF","deviceName":"Living room","expiresAt":"2026-10-29T12:00:00Z","zone":"Local","deviceType":"AppleTv"},
+         {"code":"GHJ-KLM","deviceName":"Kitchen","expiresAt":"2026-10-29T12:00:00Z","deviceType":"AndroidTv"},
+         {"code":"NPQ-RST","deviceName":"Bedroom","expiresAt":"2026-10-29T12:00:00Z","deviceType":"Toaster"},
+         {"code":"VWX-YZ2","deviceName":"Den","expiresAt":"2026-10-29T12:00:00Z","deviceType":null},
+         {"code":"345-678","deviceName":"Study","expiresAt":"2026-10-29T12:00:00Z"}]
+        """#
+        let (client, _) = stubbedClient(.init(status: 200, body: Data(list.utf8)))
+        let waiting = try await client.waitingPairings()
+        #expect(waiting.map(\.deviceType) == [.appleTv, .androidTv, .unknown, nil, nil])
     }
 
     @Test func approvesAndDeclinesByCode() async throws {

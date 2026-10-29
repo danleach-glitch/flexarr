@@ -14,9 +14,12 @@ final class PushNotifications {
     nonisolated static let videoCategory = "flexarr.video"
     nonisolated static let podcastCategory = "flexarr.podcast"
     nonisolated static let recordingCategory = "flexarr.recording"
-    /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`).
+    /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`); its buttons answer
+    /// without opening the app.
     nonisolated static let pairingCategory = "flexarr.pairing"
     nonisolated static let playAction = "flexarr.play"
+    nonisolated static let allowPairingAction = "flexarr.pairing.allow"
+    nonisolated static let declinePairingAction = "flexarr.pairing.decline"
     nonisolated static let downloadAction = "flexarr.download"
     nonisolated static let playOnTvAction = "flexarr.play-on-tv"
 
@@ -89,13 +92,38 @@ final class PushNotifications {
                                             icon: UNNotificationActionIcon(systemImageName: "arrow.down"))
         let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: "Play on Apple TV", options: [],
                                             icon: UNNotificationActionIcon(systemImageName: "appletv.fill"))
+        // The phone has to be unlocked to answer, and the code to check is in the notification.
+        let allow = UNNotificationAction(identifier: allowPairingAction, title: "Allow", options: [.authenticationRequired],
+                                         icon: UNNotificationActionIcon(systemImageName: "checkmark"))
+        let decline = UNNotificationAction(identifier: declinePairingAction, title: "Don't allow",
+                                           options: [.destructive, .authenticationRequired],
+                                           icon: UNNotificationActionIcon(systemImageName: "xmark"))
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: videoCategory, actions: [play, download, playOnTv], intentIdentifiers: []),
             UNNotificationCategory(identifier: podcastCategory, actions: [play, download], intentIdentifiers: []),
             UNNotificationCategory(identifier: recordingCategory, actions: [play], intentIdentifiers: []),
-            // No buttons: allowing a device means checking its code first, which the app shows.
-            UNNotificationCategory(identifier: pairingCategory, actions: [], intentIdentifiers: []),
+            UNNotificationCategory(identifier: pairingCategory, actions: [allow, decline], intentIdentifiers: []),
         ])
+    }
+
+    /// Takes away the "wants to connect" notification for a device that's stopped waiting.
+    static func removePairingNotifications(for code: String) {
+        Task { await removePairingNotifications { $0 == code } }
+    }
+
+    /// Takes away the "wants to connect" notifications for any device but those still waiting.
+    static func removePairingNotifications(except waiting: Set<String>) {
+        Task { await removePairingNotifications { !waiting.contains($0) } }
+    }
+
+    /// Takes away the "wants to connect" notifications whose code `gone` picks, by the time it returns.
+    static func removePairingNotifications(where gone: @Sendable (String) -> Bool) async {
+        let center = UNUserNotificationCenter.current()
+        let ids = await center.deliveredNotifications().compactMap { delivered -> String? in
+            guard let code = delivered.request.content.userInfo["pairing"] as? String, gone(code) else { return nil }
+            return delivered.request.identifier
+        }
+        if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
     }
 
     func authorization() async -> UNAuthorizationStatus {

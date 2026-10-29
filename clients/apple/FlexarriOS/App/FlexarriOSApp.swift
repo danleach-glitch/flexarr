@@ -76,14 +76,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let content = response.notification.request.content
         var info: [String: String] = [:]
         for case let (key as String, value as String) in content.userInfo { info[key] = value }
-        await respond(to: response.actionIdentifier, category: content.categoryIdentifier, info: info)
+        await respond(to: response.actionIdentifier, category: content.categoryIdentifier, title: content.title, info: info)
     }
 
     @MainActor
-    private func respond(to action: String, category: String, info: [String: String]) async {
+    private func respond(to action: String, category: String, title: String, info: [String: String]) async {
         switch action {
         case UNNotificationDismissActionIdentifier:
             return
+        case PushNotifications.allowPairingAction, PushNotifications.declinePairingAction:
+            guard let code = info["pairing"] else { return }
+            await answerPairing(code, allow: action == PushNotifications.allowPairingAction, title: title)
         case PushNotifications.downloadAction:
             await download(info["play"] ?? info["episode"], podcast: category == PushNotifications.podcastCategory)
         case PushNotifications.playOnTvAction:
@@ -145,6 +148,39 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
         let delivered = (try? await client.play(on: device.id, itemId: itemId))?.delivered ?? false
         if !delivered { await tell("Couldn't play on \(device.name)", "Make sure Flexarr is open on it, then try again.") }
+    }
+
+    /// Allow or Don't allow on a "wants to connect" notification, without opening the app (which may have been woken
+    /// just for this, with no window: the sign-in is the saved one). Says how allowing went in a notification of the
+    /// phone's own, and how turning it away went only if it didn't.
+    @MainActor
+    private func answerPairing(_ code: String, allow: Bool, title: String) async {
+        await PushNotifications.removePairingNotifications { $0 == code }
+        // The server's title is "Living room wants to connect".
+        let suffix = " wants to connect"
+        let name = title.hasSuffix(suffix) ? "“\(title.dropLast(suffix.count))”" : nil
+        let failed = "\(allow ? "Couldn't allow" : "Couldn't turn away") \(name ?? "the device")"
+        guard let client else {
+            await tell(failed, "This \(ThisDevice.name) isn't signed in to Flexarr.")
+            return
+        }
+        do {
+            if allow {
+                try await client.approvePairing(code: code)
+                await tell(name.map { "\($0) is connected" } ?? "Connected", "It'll be ready in a moment.")
+            } else {
+                try await client.declinePairing(code: code)
+            }
+            pairing.stoppedWaiting(code)
+        } catch FlexarrClientError.http(status: 404, _) {
+            pairing.stoppedWaiting(code)
+            // Turning away one that's gone already is what was wanted.
+            if allow { await tell(failed, "That code has run out. The device shows a new one; open Flexarr to allow it.") }
+        } catch FlexarrClientError.http(status: 403, _) {
+            await tell(failed, "Switch to the main profile to allow it.")
+        } catch {
+            await tell(failed, ConnectionError(error).message)
+        }
     }
 
     /// A notification of the phone's own, for a button that couldn't do its job with the app closed.

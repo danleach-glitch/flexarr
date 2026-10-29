@@ -25,6 +25,11 @@ struct PairingPromptView: View {
 
     @ViewBuilder private var asking: some View {
         VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: request.symbol)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color.screen)
+                .accessibilityHidden(true)
+                .padding(.bottom, 4)
             Text("Connect “\(request.deviceName)”?")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)
@@ -99,7 +104,7 @@ struct PairingPromptView: View {
 
 extension View {
     /// Asks about devices waiting to connect, one at a time, over whatever's on screen. Swiping one away leaves it
-    /// waiting; its code running out, or it being allowed somewhere else, closes it.
+    /// waiting; its code running out (`PairingPrompts` keeps the time), or it being allowed somewhere else, closes it.
     func pairingPrompts(_ prompts: PairingPrompts) -> some View {
         sheet(item: Binding(
             get: { prompts.current },
@@ -107,16 +112,10 @@ extension View {
         )) { request in
             PairingPromptView(request: request)
                 .environment(prompts)
-                .presentationDetents([.height(380)])
+                .presentationDetents([.height(420)])
                 .presentationBackground(Color.room)
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled(prompts.step == .working)
-                .task(id: request.code) {
-                    let left = request.expiresAt.timeIntervalSinceNow
-                    if left > 0 { try? await Task.sleep(for: .seconds(left)) }
-                    guard !Task.isCancelled else { return }
-                    prompts.expired(request.code)
-                }
         }
         .alert(prompts.notice ?? "", isPresented: Binding(
             get: { prompts.notice != nil },

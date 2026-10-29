@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @Environment(PushNotifications.self) private var notifications
+    @Environment(PairingPrompts.self) private var pairing
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
     @State private var siriDeviceName: String?
@@ -46,6 +47,11 @@ struct SettingsView: View {
                 } footer: {
                     Text("This \(ThisDevice.name) isn't getting notifications from this server, so you won't hear when something new is ready.")
                 }
+            }
+
+            // The main profile only: the server refuses anyone else the list (and servers before 0.56 keep none).
+            if pairing.listKept == true {
+                WaitingDevicesSection()
             }
 
             Section {
@@ -93,7 +99,9 @@ struct SettingsView: View {
             }
         }
         .settingsPage("Settings")
+        .refreshable { await catchUpOnPairing() }
         .onAppear { siriDeviceName = AppModel.siriDevice == nil ? nil : AppModel.siriDeviceName }
+        .task { await catchUpOnPairing() }
         .task { notificationsAllowed = [.authorized, .provisional].contains(await notifications.authorization()) }
         .alert("Couldn't turn on notifications", isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
             Button("OK", role: .cancel) {}
@@ -122,6 +130,12 @@ struct SettingsView: View {
         } catch {
             notificationProblem = ConnectionError(error).message
         }
+    }
+
+    /// Who's waiting to connect now.
+    private func catchUpOnPairing() async {
+        pairing.use(model.client)
+        await pairing.catchUp()
     }
 
     private var connection: String? {
