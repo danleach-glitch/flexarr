@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Continue Watching on the home screen (ContinueWatchingWidget): four cells by two to start, narrower or wider as
-     it's resized. It asks the server again every half hour, and whenever the app has played something. -->
+     it's resized. It asks the server again every hour, and whenever the app has played something. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_continue_description"
     android:initialLayout="@layout/glance_default_loading_layout"
@@ -12,5 +12,5 @@
     android:targetCellHeight="2"
     android:previewImage="@drawable/widget_preview"
     android:resizeMode="horizontal|vertical"
-    android:updatePeriodMillis="1800000"
+    android:updatePeriodMillis="3600000"
     android:widgetCategory="home_screen" />

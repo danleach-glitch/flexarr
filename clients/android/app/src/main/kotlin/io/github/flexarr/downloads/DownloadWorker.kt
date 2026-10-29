@@ -38,10 +38,11 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
 
     override suspend fun doWork(): Result {
         val id = inputData.getString(ID) ?: return Result.failure()
+        store.ready()
         val local = onMain { store.byId(id) } ?: return Result.success() // deleted meanwhile
         if (local.isDownloaded) return Result.success()
         val client = onMain { store.currentClient } ?: return Result.retry()
-        runCatching { setForeground(foregroundInfo(local, "Getting ready")) }
+        promote(foregroundInfo(local, "Getting ready"))
         return try {
             // The server converts it first: asked after every few seconds until it's ready.
             while (true) {
@@ -59,7 +60,7 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
                 delay(POLL_MS)
             }
             val ready = onMain { store.byId(id) } ?: return Result.success()
-            runCatching { setForeground(foregroundInfo(ready, "Downloading")) }
+            promote(foregroundInfo(ready, "Downloading"))
             fetch(client, ready)
             Result.success()
         } catch (e: CancellationException) {
@@ -90,6 +91,12 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
         val response = client.downloadFileRequest(download.id, already).let { FlexarrClient.sharedHttp.newCall(it).execute() }
         response.use {
             if (it.code == 401) throw FlexarrException.Unauthorized()
+            if (it.code == 416) {
+                // Asked to carry on from the end: the whole file came last time, and the app stopped before naming it.
+                if (isComplete(already, it.header("Content-Range"), download.sizeBytes)) return@use
+                part.delete()
+                throw IOException("The server couldn't carry on from byte $already; starting again")
+            }
             if (it.code != 200 && it.code != 206) throw IOException("The server answered ${it.code} for the file")
             // 206 carries on from where it got to; 200 is the whole file again.
             val resuming = it.code == 206
@@ -112,7 +119,7 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
                             lastShown = now
                             val fraction = written.toDouble() / total
                             onMain { store.progressed(download.id, fraction) }
-                            runCatching { setForeground(foregroundInfo(download, "Downloading", fraction)) }
+                            promote(foregroundInfo(download, "Downloading", fraction))
                         }
                     }
                 }
@@ -124,6 +131,27 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
         destination.delete()
         if (!part.renameTo(destination)) throw IOException("Couldn't keep the downloaded file")
         onMain { store.arrived(download.id, name, destination.length()) }
+    }
+
+    /** Set when Android wouldn't let this transfer show as a foreground service: not asked again. */
+    private var promotionRefused = false
+
+    /**
+     * Shows the transfer as a foreground service, so it can run past Android's ten minutes for background work. Started
+     * from the background (a notification's Download button, the next episode fetched by itself, a retry), Android 12
+     * on may refuse, and Android 15 on allows data sync six hours a day: the transfer then runs as ordinary background
+     * work, and if it's stopped it starts again later from where it got to.
+     */
+    private suspend fun promote(info: ForegroundInfo) {
+        if (promotionRefused) return
+        try {
+            setForeground(info)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            promotionRefused = true
+            flexarrLog.warning("Couldn't show the download as a foreground service; carrying on in the background", e)
+        }
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
@@ -157,6 +185,16 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
     private class NoRoom : IOException("No room on the phone")
 
     companion object {
+        /**
+         * A 416 when asking for what follows [partBytes]: the file is all there if the server's Content-Range
+         * (the total after its slash) or, failing that, the size it gave earlier, is just that long.
+         */
+        internal fun isComplete(partBytes: Long, contentRange: String?, expectedBytes: Long?): Boolean {
+            if (partBytes <= 0) return false
+            val total = contentRange?.substringAfterLast('/', "")?.trim()?.toLongOrNull() ?: expectedBytes
+            return total == partBytes
+        }
+
         const val ID = "id"
         private const val CHANNEL = "downloads"
         private const val POLL_MS = 3_000L
