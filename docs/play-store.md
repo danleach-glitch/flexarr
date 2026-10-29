@@ -42,10 +42,14 @@ upload. As on the App Store, the listing pitches your own streaming service, and
 - **Category:** Entertainment. **Price:** free, in every country Play offers. **Contains ads:** no.
 - **Contact:** website https://flexarr.io; the email is set in Play Console only, so it stays out of this repo.
 - **Privacy policy:** https://flexarr.io/privacy.
-- **Screenshots:** phone (at least 2, 1080×1920 or larger, 9:16), and 7" and 10" tablet, which the listing needs to be
-  offered for tablets. They go in `graphics/phone-screenshots`, `seven-inch-screenshots` and `ten-inch-screenshots`.
-  Google is stricter than Apple about other people's films and artwork in a listing, so take them against the demo
-  server below (the Blender films are CC BY).
+- **Screenshots:** phone (1080×1920, 9:16; Play refuses anything longer than 2:1, so not a modern phone's full
+  screen), 7" tablet (1200×1920) and 10" tablet (1600×2560), in `graphics/phone-screenshots`, `seven-inch-screenshots`
+  and `ten-inch-screenshots`, numbered in the order shown. They're from the real library on the Mini's Showcase
+  profile (the maintainer's choice, as for the App Store), taken on emulators made to those sizes
+  (`Flexarr_Store_Phone`, `Flexarr_Store_Tab7`, `Flexarr_Store_Tab10`) with the debug launch arguments, `noHistory`,
+  and the status bar in demo mode (9:41, full Wi-Fi and battery). Keep out anything an "Everyone" rating or Google's IP
+  policy would trip on: rude gestures, suggestive posters, and Live TV's channel list (it shows the household's TV
+  source and broadcasters' logos). The player is The Grand Budapest Hotel at about 1:05:00.
 
 ## Data safety
 
