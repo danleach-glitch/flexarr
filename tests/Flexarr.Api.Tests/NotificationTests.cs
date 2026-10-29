@@ -448,6 +448,31 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ADeviceAskingToConnect_IsToldToTheMainProfilesPhones()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        var tv = _server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.80");
+
+        var started = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Living room" })).Content.ReadFromJsonAsync<JsonElement>();
+        var code = started.GetProperty("code").GetString()!;
+        // Sent in the background, so the TV isn't kept waiting for it.
+        for (var tries = 0; _relay.Sent.Count == 0 && tries < 100; tries++)
+        {
+            await Task.Delay(50);
+        }
+
+        var sent = Assert.Single(_relay.Sent);
+        var message = JsonDocument.Parse(PushRelay.Open(_key, sent.GetProperty("payload").GetString()!)).RootElement;
+        Assert.Equal("flexarr.pairing", message.GetProperty("c").GetString());
+        Assert.Equal("Living room wants to connect", message.GetProperty("t").GetString());
+        Assert.Contains(code, message.GetProperty("b").GetString(), StringComparison.Ordinal);
+        Assert.Equal(code, message.GetProperty("u").GetProperty("pairing").GetString());
+        Assert.Equal($"pairing-{code}", sent.GetProperty("collapseId").GetString());
+    }
+
+    [Fact]
     public void Sealing_IsCryptoKitsLayout()
     {
         var key = RandomNumberGenerator.GetBytes(32);

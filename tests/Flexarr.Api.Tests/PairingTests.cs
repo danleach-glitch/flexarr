@@ -153,6 +153,66 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task WhatsWaiting_IsListedForTheMainProfile_UntilItsApproved()
+    {
+        var started = await (await Tv("192.168.1.77").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Bedroom" })).Content.ReadFromJsonAsync<JsonElement>();
+        var code = started.GetProperty("code").GetString()!;
+
+        var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
+        var stranger = await Tv("192.168.1.77").GetAsync(Api("/pairing/waiting"));
+        await Admin().PostAsJsonAsync(Api($"/pairing/code/{code}/approve"), new { });
+        var after = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
+
+        var listed = waiting.EnumerateArray().Single(p => p.GetProperty("code").GetString() == code);
+        Assert.Equal(("Bedroom", "192.168.1.77", "Local"),
+            (listed.GetProperty("deviceName").GetString(), listed.GetProperty("requestedFrom").GetString(), listed.GetProperty("zone").GetString()));
+        Assert.Equal(HttpStatusCode.Unauthorized, stranger.StatusCode);
+        Assert.DoesNotContain(after.EnumerateArray(), p => p.GetProperty("code").GetString() == code);
+    }
+
+    [Fact]
+    public async Task TheMainProfilesPhone_HearsDevicesAskingToConnect_OnItsCommandStream()
+    {
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var tv = server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.78");
+        var before = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Kitchen" })).Content.ReadFromJsonAsync<JsonElement>();
+        var session = await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "iPhone" })).Content.ReadFromJsonAsync<JsonElement>();
+        var phone = server.CreateClient();
+        phone.DefaultRequestHeaders.Add("X-Api-Key", session.GetProperty("token").GetString()!);
+
+        using var stream = await phone.GetAsync(Api("/devices/commands"), HttpCompletionOption.ResponseHeadersRead);
+        using var reader = new StreamReader(await stream.Content.ReadAsStreamAsync());
+        Assert.Equal(": connected", await reader.ReadLineAsync());
+
+        // One already waiting is told straight away; a new one as it asks; and each as it's done with.
+        var (name, first) = await NextEventAsync(reader);
+        Assert.Equal(("pairing", "Kitchen"), (name, first.GetProperty("deviceName").GetString()));
+        var after = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Den" })).Content.ReadFromJsonAsync<JsonElement>();
+        var (_, second) = await NextEventAsync(reader);
+        Assert.Equal(after.GetProperty("code").GetString(), second.GetProperty("code").GetString());
+        await admin.PostAsJsonAsync(Api($"/pairing/code/{before.GetProperty("code").GetString()}/decline"), new { });
+        var (ended, gone) = await NextEventAsync(reader);
+        Assert.Equal(("pairing-ended", before.GetProperty("code").GetString()), (ended, gone.GetProperty("code").GetString()));
+    }
+
+    private static async Task<(string Name, JsonElement Data)> NextEventAsync(StreamReader reader)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (true)
+        {
+            var line = await reader.ReadLineAsync(timeout.Token) ?? throw new InvalidOperationException("The stream ended.");
+            if (line.StartsWith("event: ", StringComparison.Ordinal))
+            {
+                var data = await reader.ReadLineAsync(timeout.Token);
+                return (line["event: ".Length..], JsonDocument.Parse(data!["data: ".Length..]).RootElement);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Approval_NeedsAJsonBody()
     {
         var started = await (await Tv("192.168.1.73").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Den" })).Content.ReadFromJsonAsync<JsonElement>();

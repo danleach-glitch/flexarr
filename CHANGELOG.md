@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Connecting devices
+- When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone signed in as the main profile asks "Connect Living room?" with the device's code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The web app asks the same when it's open on the main profile.
+- The connect screens on Apple TV, iPhone and Android now start with approving on your phone, and still explain how to approve from a computer (**Settings › Access › Connect a device**).
+
 ### Android
 - The buttons at the bottom of the welcome pages are their proper size on Samsung phones, with a soft glow as on iPhone, rather than sitting on a large pale block.
 - Connecting the phone to a server no longer gets stuck on "Too many devices are waiting to connect" when the phone sleeps or the Wi-Fi blinks while it shows its code. It keeps waiting on the same code, so approving it in the browser lets the phone straight in.
