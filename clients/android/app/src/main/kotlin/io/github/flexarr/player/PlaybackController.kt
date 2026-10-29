@@ -1019,12 +1019,6 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
     }
 
-    /** At the credits (or, with none marked, near enough the end): watched, as the iPhone app counts it. */
-    private fun isPastCredits(current: PlaybackInfo, at: Double): Boolean {
-        val credits = current.markers.firstOrNull { it.type == MarkerType.Credits }?.start
-        return at > 0 && at >= (credits ?: (current.durationSeconds * 0.92))
-    }
-
     /** Watched from a download: kept with it, finished once it ended or the credits began, and sent to the server later. */
     private fun recordOffline(current: PlaybackInfo, at: Double, ended: Boolean) {
         model.downloads.record(current.item.id, at, finished = ended || isPastCredits(current, at))
@@ -1062,6 +1056,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private const val COUNTDOWN_SECONDS = 5
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
         private const val RECOVERY_INTERVAL_MS = 30_000L
+
+        /** At the credits (or, with none marked, near enough the end): watched, as the iPhone app counts it. */
+        internal fun isPastCredits(current: PlaybackInfo, at: Double): Boolean {
+            val credits = current.markers.firstOrNull { it.type == MarkerType.Credits }?.start
+            return at > 0 && at >= (credits ?: (current.durationSeconds * 0.92))
+        }
         private val DECODER_ERRORS = setOf(
             PlaybackException.ERROR_CODE_DECODING_FAILED,
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
