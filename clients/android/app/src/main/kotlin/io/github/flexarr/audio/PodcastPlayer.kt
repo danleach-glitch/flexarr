@@ -1,7 +1,6 @@
 package io.github.flexarr.audio
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -116,7 +115,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         duration = episode.durationSeconds ?: 0.0
         isLoading = true
         errorMessage = null
-        context.startService(Intent(context, AudioService::class.java))
+        // One thing plays at a time: music stops for the episode.
+        model.music.stop()
+        AudioService.start(context)
         scope.launch {
             try {
                 // Podcasts resume: the server picks the place.
@@ -200,7 +201,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         current = null
         isPlaying = false
         isLoading = false
-        context.stopService(Intent(context, AudioService::class.java))
+        AudioService.stopIfIdle(context)
     }
 
     private fun startTicking() {

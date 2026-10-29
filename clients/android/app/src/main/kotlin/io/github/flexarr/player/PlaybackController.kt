@@ -231,8 +231,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     /** Another title starts: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once). */
     private fun newTitle(subtitlesOff: Boolean) {
-        // A podcast playing stops for the video.
+        // Music or a podcast playing stops for the video.
         model.podcasts.pause()
+        model.music.pause()
         forcedTranscode = false
         viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
         viewerSubtitleKey = debugSubtitleKey

@@ -93,7 +93,7 @@ fun LibrariesScreen(model: AppModel) {
                             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
                                 shown.forEachIndexed { index, library ->
                                     if (index > 0) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
-                                    LibraryRow(library.name, library.icon) { navigator.openLibrary(library.id) }
+                                    LibraryRow(library.name, library.icon) { navigator.openLibrary(library) }
                                 }
                                 // Podcasts are one place however many libraries hold them, and say how to set them up when none does.
                                 if (model.podcastStatus != null) {

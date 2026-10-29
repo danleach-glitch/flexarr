@@ -45,6 +45,9 @@ enum class MediaKind(override val raw: String) : ForwardCompatibleEnum {
     /** Something that plays: a film, an episode or a track (the rest open to their contents). */
     val isPlayable: Boolean get() = this == Movie || this == Episode || this == Track || this == PodcastEpisode
 
+    /** An artist, album or track: listened to, not watched, so the music screens and player take it. */
+    val isMusic: Boolean get() = this == Artist || this == Album || this == Track
+
     object Serializer : ForwardCompatibleEnumSerializer<MediaKind>("MediaKind", entries, Unknown)
 }
 
@@ -164,6 +167,13 @@ data class ItemSummary(
     val seriesId: String? = null,
     /** In a home video library, everything is known by name rather than number. Absent from servers before home videos. */
     val homeVideo: Boolean? = null,
+    /** When it came into the library (ISO 8601, no zone). */
+    val addedAt: String? = null,
+    /** A track's disc and its place on it. */
+    val discNumber: Int? = null,
+    val trackNumber: Int? = null,
+    /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
+    val trackArtist: String? = null,
 )
 
 @Serializable(with = VideoRange.Serializer::class)
@@ -261,6 +271,8 @@ data class HomeRow(
     val style: HomeRowStyle,
     val items: List<ItemSummary>,
     val link: String? = null,
+    /** A `playlists` row's content (`items` is empty then). Absent from servers before playlists. */
+    val playlists: List<PlaylistSummary>? = null,
 )
 
 @Serializable

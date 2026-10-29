@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.audio.MusicPlayer
 import io.github.flexarr.audio.PodcastPlayer
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferences
@@ -69,6 +70,9 @@ class AppModel(private val context: Context) {
 
     /** Podcast episodes, playing on under every screen. */
     val podcasts = PodcastPlayer(context, this)
+
+    /** Music, playing on under every screen; it and podcasts take turns. */
+    val music = MusicPlayer(context, this)
 
     /** Whether this profile has podcasts (null: not known, or a server from before them). */
     var podcastStatus: PodcastStatus? by mutableStateOf(null)
@@ -161,6 +165,7 @@ class AppModel(private val context: Context) {
     }
 
     private fun forget() {
+        music.stop()
         podcasts.stop()
         podcastStatus = null
         upNext = emptyList()
@@ -203,7 +208,8 @@ class AppModel(private val context: Context) {
     /** Back to choosing who's watching. */
     fun switchProfile() {
         val credentials = credentials ?: return
-        // Someone else's podcasts and Up Next.
+        // Someone else's music, podcasts and Up Next.
+        music.stop()
         podcasts.stop()
         upNext = emptyList()
         if (saved) store.saveProfile(null)
