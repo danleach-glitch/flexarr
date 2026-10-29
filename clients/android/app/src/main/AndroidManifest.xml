@@ -27,6 +27,9 @@
         <!-- Music and podcasts in the car. -->
         <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
 
+        <!-- Firebase reaches Google only once notifications are turned on (PushNotifications). -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+
         <!-- Error reports start only when the server's owner has them on (ErrorReports), never by themselves. -->
         <meta-data android:name="io.sentry.auto-init" android:value="false" />
 

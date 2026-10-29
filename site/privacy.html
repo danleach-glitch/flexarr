@@ -51,9 +51,9 @@
   <main>
     <a class="home" href="/">← Flexarr</a>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated 28 October 2026</p>
+    <p class="updated">Last updated 29 October 2026</p>
 
-    <p>Flexarr is a media server you run yourself, with apps for iPhone, iPad, Apple TV and the web. This policy covers
+    <p>Flexarr is a media server you run yourself, with apps for iPhone, iPad, Apple TV, Android and the web. This policy covers
     those apps, Flexarr Server for Mac and this website.</p>
 
     <h2>The apps collect no personal data</h2>
@@ -68,12 +68,14 @@
     <h2>What stays on your device</h2>
     <ul>
       <li>The address of your server and the profile you chose, in the app's settings.</li>
-      <li>Your sign-in key, in the device's Keychain.</li>
+      <li>Your sign-in key, in the device's Keychain (on Android, its Keystore).</li>
       <li>Anything you download for offline, and what you played while offline until it's sent to your server.</li>
     </ul>
-    <p>If you turn on notifications on iPhone, your server sends each one through a small relay at flexarr.io, which
-    passes it to Apple to deliver. It's encrypted on your server and only your phone can read it, so the relay never sees
-    what it says, and it keeps nothing. Apple handles delivery under its own privacy policy. Podcast searches and episodes
+    <p>If you turn on notifications on iPhone or Android, your server sends each one through a small relay at flexarr.io,
+    which passes it to Apple, or on Android to Google's Firebase Cloud Messaging, to deliver. It's encrypted on your
+    server and only your phone can read it, so the relay never sees what it says, and it keeps nothing. Apple and Google
+    handle delivery under their own privacy policies. On Android, Firebase is only started when you turn notifications
+    on: it gives the phone an id for delivering them, which Google sees. Podcast searches and episodes
     go through your server, so podcast hosts see your server rather than each listener. When you speak to Siri, Apple handles the speech under its own privacy policy. When the iPhone app asks for a
     rating, the stars and any review go to Apple, not to Flexarr.</p>
     <p>Deleting the app removes them. The apps ask for local network access only to find and reach your server at home.</p>
@@ -94,8 +96,8 @@
     watches, profile and device names, addresses (IP, server, network), keys and passwords are removed on the server or
     device before anything is sent. Logs and viewing history are never sent. Reports are used only to fix Flexarr,
     never for tracking or advertising, and Sentry deletes them after at most 90 days.</p>
-    <p>That's why the App Store lists crash data, performance data and other diagnostic data for Flexarr. None of it
-    is linked to you, and none of it is used for tracking.</p>
+    <p>That's why the App Store lists crash data, performance data and other diagnostic data for Flexarr, and Google
+    Play lists crash logs and diagnostics. None of it is linked to you, and none of it is used for tracking.</p>
 
     <h2>This website</h2>
     <p>flexarr.io sets no cookies and runs no analytics. It is hosted by Vercel and loads fonts from Google Fonts, which

@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Android
+- The Android app only reaches Google's notification service once you turn notifications on, rather than each time it starts. The privacy policy now covers the Android app.
+
 ## 0.54.0 · 29 October 2026
 
 ### Podcasts
