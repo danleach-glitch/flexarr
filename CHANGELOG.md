@@ -25,6 +25,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Home
 - When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.
+- Latest unwatched shows puts a show up front for a new episode you haven't seen, not because Sonarr upgraded one you've already watched.
 
 ### Siri and Shortcuts
 - Play a film or show, and Shuffle a show, can play as a chosen profile (the new As setting), so a "kids' bedtime episode" shortcut plays their next episode under their name, whoever used the TV last. The device switches to that profile first, and asks for its PIN if it has one. It works on this device and on another one, such as the Apple TV.
