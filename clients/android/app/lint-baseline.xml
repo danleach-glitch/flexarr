@@ -52,7 +52,7 @@
         errorLine2="                                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="70"
+            line="92"
             column="78"/>
     </issue>
 
@@ -63,7 +63,7 @@
         errorLine2="                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="78"
+            line="100"
             column="80"/>
     </issue>
 
@@ -74,7 +74,7 @@
         errorLine2="                                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="89"
+            line="111"
             column="74"/>
     </issue>
 
@@ -85,7 +85,7 @@
         errorLine2="                                                                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="92"
+            line="114"
             column="107"/>
     </issue>
 
@@ -96,7 +96,7 @@
         errorLine2="                                                                   ~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlayerActivity.kt"
-            line="456"
+            line="493"
             column="68"/>
     </issue>
 
@@ -129,195 +129,8 @@
         errorLine2="                                         ~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/ui/MainScreen.kt"
-            line="117"
+            line="121"
             column="42"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, &quot;Flexarr&quot;), LibraryParams.Builder().setExtras(rootHints()).build()))"
-        errorLine2="                                                                                                      ~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="66"
-            column="103"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="    inner class Router(player: Player) : ForwardingPlayer(player) {"
-        errorLine2="                                         ~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="167"
-            column="42"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="    inner class Router(player: Player) : ForwardingPlayer(player) {"
-        errorLine2="                                         ~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="167"
-            column="42"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun getAvailableCommands(): Player.Commands ="
-        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="170"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="            super.getAvailableCommands().buildUpon().addAll(Player.COMMAND_SET_MEDIA_ITEM, Player.COMMAND_CHANGE_MEDIA_ITEMS).build()"
-        errorLine2="                  ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="171"
-            column="19"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="            super.getAvailableCommands().buildUpon().addAll(Player.COMMAND_SET_MEDIA_ITEM, Player.COMMAND_CHANGE_MEDIA_ITEMS).build()"
-        errorLine2="                                         ~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="171"
-            column="42"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="            super.getAvailableCommands().buildUpon().addAll(Player.COMMAND_SET_MEDIA_ITEM, Player.COMMAND_CHANGE_MEDIA_ITEMS).build()"
-        errorLine2="                                                     ~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="171"
-            column="54"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="            super.getAvailableCommands().buildUpon().addAll(Player.COMMAND_SET_MEDIA_ITEM, Player.COMMAND_CHANGE_MEDIA_ITEMS).build()"
-        errorLine2="                                                                                                                              ~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="171"
-            column="127"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun isCommandAvailable(command: Int): Boolean ="
-        errorLine2="                     ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="173"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="            command == Player.COMMAND_SET_MEDIA_ITEM || command == Player.COMMAND_CHANGE_MEDIA_ITEMS || super.isCommandAvailable(command)"
-        errorLine2="                                                                                                              ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="174"
-            column="111"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun setMediaItem(mediaItem: MediaItem) = play(mediaItem.mediaId)"
-        errorLine2="                     ~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="176"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun setMediaItem(mediaItem: MediaItem, startPositionMs: Long) = play(mediaItem.mediaId)"
-        errorLine2="                     ~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="177"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun setMediaItem(mediaItem: MediaItem, resetPosition: Boolean) = play(mediaItem.mediaId)"
-        errorLine2="                     ~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="178"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun setMediaItems(mediaItems: MutableList&lt;MediaItem>) = mediaItems.firstOrNull()?.let { play(it.mediaId) } ?: Unit"
-        errorLine2="                     ~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="179"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun setMediaItems(mediaItems: MutableList&lt;MediaItem>, resetPosition: Boolean) = mediaItems.firstOrNull()?.let { play(it.mediaId) } ?: Unit"
-        errorLine2="                     ~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="180"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun setMediaItems(mediaItems: MutableList&lt;MediaItem>, startIndex: Int, startPositionMs: Long) ="
-        errorLine2="                     ~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="181"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.media3.common.util.UnstableApi` or `@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)`"
-        errorLine1="        override fun prepare() {}"
-        errorLine2="                     ~~~~~~~">
-        <location
-            file="src/main/kotlin/io/github/flexarr/audio/CarLibrary.kt"
-            line="184"
-            column="22"/>
     </issue>
 
     <issue
@@ -327,7 +140,7 @@
         errorLine2="                    ~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/LivePlayerActivity.kt"
-            line="179"
+            line="189"
             column="21"/>
     </issue>
 
@@ -338,7 +151,7 @@
         errorLine2="                    ~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/LivePlayerActivity.kt"
-            line="179"
+            line="189"
             column="21"/>
     </issue>
 
@@ -349,7 +162,7 @@
         errorLine2="                                                        ~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/LivePlayerActivity.kt"
-            line="179"
+            line="189"
             column="57"/>
     </issue>
 
@@ -360,7 +173,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/LivePlayerActivity.kt"
-            line="181"
+            line="191"
             column="21"/>
     </issue>
 
@@ -371,7 +184,7 @@
         errorLine2="                    ~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlayerActivity.kt"
-            line="356"
+            line="389"
             column="21"/>
     </issue>
 
@@ -382,7 +195,7 @@
         errorLine2="                    ~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlayerActivity.kt"
-            line="356"
+            line="389"
             column="21"/>
     </issue>
 
@@ -393,7 +206,7 @@
         errorLine2="                                                        ~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlayerActivity.kt"
-            line="356"
+            line="389"
             column="57"/>
     </issue>
 
@@ -404,7 +217,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlayerActivity.kt"
-            line="358"
+            line="391"
             column="21"/>
     </issue>
 
@@ -415,7 +228,7 @@
         errorLine2="                    ~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlayerActivity.kt"
-            line="360"
+            line="393"
             column="21"/>
     </issue>
 
@@ -668,7 +481,7 @@
         errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/ui/components/Design.kt"
-            line="76"
+            line="85"
             column="45"/>
     </issue>
 
@@ -679,7 +492,7 @@
         errorLine2="                                                                                             ~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/ui/components/Design.kt"
-            line="248"
+            line="288"
             column="94"/>
     </issue>
 
@@ -690,7 +503,7 @@
         errorLine2="                                                                         ~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/ui/podcasts/PodcastCards.kt"
-            line="84"
+            line="85"
             column="74"/>
     </issue>
 
@@ -763,7 +576,7 @@
         errorLine2="                              ~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/ui/detail/DetailScreen.kt"
-            line="127"
+            line="136"
             column="31"/>
     </issue>
 
@@ -774,7 +587,7 @@
         errorLine2="                                        ~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/downloads/DownloadWorker.kt"
-            line="98"
+            line="106"
             column="41"/>
     </issue>
 
@@ -785,7 +598,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="27"
+            line="32"
             column="24"/>
     </issue>
 
@@ -796,7 +609,7 @@
         errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="28"
+            line="33"
             column="24"/>
     </issue>
 
@@ -807,7 +620,7 @@
         errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="29"
+            line="34"
             column="27"/>
     </issue>
 
@@ -818,7 +631,7 @@
         errorLine2="                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="30"
+            line="35"
             column="34"/>
     </issue>
 
@@ -829,7 +642,7 @@
         errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="31"
+            line="36"
             column="23"/>
     </issue>
 
@@ -840,7 +653,7 @@
         errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="32"
+            line="37"
             column="26"/>
     </issue>
 
@@ -851,7 +664,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/AppLink.kt"
-            line="33"
+            line="38"
             column="21"/>
     </issue>
 
@@ -928,7 +741,7 @@
         errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/ui/livetv/LiveTvScreen.kt"
-            line="188"
+            line="184"
             column="25"/>
     </issue>
 
@@ -939,7 +752,7 @@
         errorLine2="                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/player/PlaybackController.kt"
-            line="355"
+            line="430"
             column="53"/>
     </issue>
 
@@ -957,7 +770,7 @@
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        prefs.edit().putBoolean(ON, false).remove(PROFILE).remove(PROFILE_NAME).remove(PROFILE_TOKEN).remove(KEY).remove(SENT_TOKEN).apply()"
+        errorLine1="        prefs.edit().putBoolean(ON, false).remove(PROFILE).remove(PROFILE_NAME).remove(PROFILE_TOKEN).remove(KEY).remove(SENT_TOKEN).remove(SENT_ZONE).apply()"
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/notifications/PushNotifications.kt"
@@ -972,7 +785,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/notifications/PushNotifications.kt"
-            line="174"
+            line="188"
             column="9"/>
     </issue>
 
@@ -983,7 +796,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/notifications/PushNotifications.kt"
-            line="188"
+            line="203"
             column="9"/>
     </issue>
 
@@ -994,7 +807,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/notifications/PushNotifications.kt"
-            line="194"
+            line="209"
             column="9"/>
     </issue>
 
@@ -1005,7 +818,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/io/github/flexarr/notifications/PushNotifications.kt"
-            line="207"
+            line="222"
             column="9"/>
     </issue>
 

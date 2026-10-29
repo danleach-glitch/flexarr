@@ -23,6 +23,7 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MarkerType
@@ -54,11 +55,14 @@ import kotlin.math.ceil
  * through it. The iPhone app's PlaybackController, for the phone.
  */
 class PlaybackController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
+    /** How far back and forward jump, in seconds (Settings › Playback). */
+    val skipSeconds = PlayerSettings.skipSeconds(context)
+
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
-        .setSeekBackIncrementMs(SKIP_MS)
-        .setSeekForwardIncrementMs(SKIP_MS)
+        .setSeekBackIncrementMs(skipSeconds * 1000L)
+        .setSeekForwardIncrementMs(skipSeconds * 1000L)
         .build()
     private val deviceProfile = DeviceCapabilities.profile(context)
     /** [deviceProfile] once the server's version is known, which decides whether it can have fragmented MP4. */
@@ -1054,7 +1058,6 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     companion object {
-        private const val SKIP_MS = 10_000L
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val COUNTDOWN_SECONDS = 5
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"

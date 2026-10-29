@@ -1,5 +1,6 @@
 package io.github.flexarr
 
+import androidx.core.content.edit
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -56,7 +57,7 @@ sealed interface AppLink {
         private fun secret(context: Context): String = cachedSecret ?: synchronized(this) {
             cachedSecret ?: run {
                 val prefs = context.getSharedPreferences("links", Context.MODE_PRIVATE)
-                prefs.getString(SECRET, null) ?: UUID.randomUUID().toString().also { prefs.edit().putString(SECRET, it).apply() }
+                prefs.getString(SECRET, null) ?: UUID.randomUUID().toString().also { prefs.edit { putString(SECRET, it) } }
             }.also { cachedSecret = it }
         }
 

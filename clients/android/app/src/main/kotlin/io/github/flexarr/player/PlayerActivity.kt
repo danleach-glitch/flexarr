@@ -68,9 +68,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
@@ -96,6 +99,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -246,9 +250,9 @@ class PlayerActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             val controller = controller ?: return
             when (intent.getIntExtra(EXTRA_PIP_CONTROL, 0)) {
-                PIP_BACK -> controller.skip(-10)
+                PIP_BACK -> controller.skip(-controller.skipSeconds)
                 PIP_TOGGLE -> controller.togglePlayPause()
-                PIP_FORWARD -> controller.skip(10)
+                PIP_FORWARD -> controller.skip(controller.skipSeconds)
             }
         }
     }
@@ -335,10 +339,10 @@ private class VideoSessionPlayer(private val controller: PlaybackController) : F
 
     override fun isCommandAvailable(command: Int): Boolean = command == Player.COMMAND_SEEK_TO_NEXT || command == Player.COMMAND_SEEK_TO_PREVIOUS || super.isCommandAvailable(command)
 
-    override fun seekToNext() = controller.skip(10)
-    override fun seekToPrevious() = controller.skip(-10)
-    override fun seekForward() = controller.skip(10)
-    override fun seekBack() = controller.skip(-10)
+    override fun seekToNext() = controller.skip(controller.skipSeconds)
+    override fun seekToPrevious() = controller.skip(-controller.skipSeconds)
+    override fun seekForward() = controller.skip(controller.skipSeconds)
+    override fun seekBack() = controller.skip(-controller.skipSeconds)
 }
 
 /**
@@ -408,8 +412,8 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                     onDoubleTap = { offset ->
                         val x = offset.x / size.width
                         when {
-                            x < 0.35f -> { controller.skip(-10); flash = "−10 s"; flashCount++ }
-                            x > 0.65f -> { controller.skip(10); flash = "+10 s"; flashCount++ }
+                            x < 0.35f -> { controller.skip(-controller.skipSeconds); flash = "−${controller.skipSeconds} s"; flashCount++ }
+                            x > 0.65f -> { controller.skip(controller.skipSeconds); flash = "+${controller.skipSeconds} s"; flashCount++ }
                             else -> controller.togglePlayPause()
                         }
                     },
@@ -498,12 +502,12 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             // A film has neither episode button; an episode has both, with the one that goes nowhere dimmed.
             val episode = info?.item?.kind == MediaKind.Episode
             if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode", enabled = info.previous != null) { controller.playPrevious(); onInteract() }
-            GlassButton(Icons.Filled.Replay10, "Back 10 seconds") { controller.skip(-10); onInteract() }
+            SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
             GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }
-            GlassButton(Icons.Filled.Forward10, "Forward 10 seconds") { controller.skip(10); onInteract() }
+            SkipButton(controller.skipSeconds) { controller.skip(controller.skipSeconds); onInteract() }
             if (episode) GlassButton(Icons.Filled.SkipNext, "Next episode", enabled = info.next != null) { controller.playNext(); onInteract() }
         }
 
@@ -597,6 +601,21 @@ internal fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabl
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size((size * 0.5).dp))
+    }
+}
+
+/** Back or forward by [seconds] (negative is back): Material draws 10 and 30; 15 is the arrow with its number on it. */
+@Composable
+private fun SkipButton(seconds: Int, onClick: () -> Unit) {
+    val back = seconds < 0
+    val label = "${if (back) "Back" else "Forward"} ${kotlin.math.abs(seconds)} seconds"
+    when (kotlin.math.abs(seconds)) {
+        10 -> GlassButton(if (back) Icons.Filled.Replay10 else Icons.Filled.Forward10, label, onClick = onClick)
+        30 -> GlassButton(if (back) Icons.Filled.Replay30 else Icons.Filled.Forward30, label, onClick = onClick)
+        else -> Box(Modifier.size(56.dp).glass(CircleShape).clickableNoRipple(onClick, true).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Replay, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(28.dp).graphicsLayer { if (!back) scaleX = -1f })
+            Text("${kotlin.math.abs(seconds)}", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 2.dp))
+        }
     }
 }
 

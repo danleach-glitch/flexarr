@@ -1,5 +1,7 @@
 package io.github.flexarr.audio
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import android.net.Uri
 import android.os.Bundle
 import android.os.Process
@@ -49,6 +51,7 @@ private val log = FlexarrLog("car")
  * Ids: `upnext`, `new`, `podcasts`, `music` (the tabs); `podcast:<id>`, `list:playlist-<id>`, `list:artist-<id>`
  * (opened); `episode:<id>` and `track:<list>:<index>` (played).
  */
+@OptIn(UnstableApi::class)
 class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     private val scope = CoroutineScope(Dispatchers.Main.immediate)
 

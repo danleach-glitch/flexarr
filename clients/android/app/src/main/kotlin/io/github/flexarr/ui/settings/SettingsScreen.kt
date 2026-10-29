@@ -178,7 +178,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
             title = { Text("Sign out of this server?") },
-            text = { Text("This device will need to connect again to use the server.") },
+            text = { Text("This device will need to connect again to use the server, and its downloads will be deleted.") },
             confirmButton = { TextButton(onClick = model::signOut) { Text("Sign out", color = Flexarr.danger) } },
             dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
