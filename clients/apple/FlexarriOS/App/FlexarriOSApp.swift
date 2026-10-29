@@ -242,6 +242,10 @@ struct RootView: View {
             model.music.offlineLibrary = downloads
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if model.client != nil { notifications.refresh() }
+            // Once the profile's chosen, so a phone signed in again hears about the profile it's on.
+            if let credentials = model.credentials, model.currentProfile != nil, !model.needsProfileChoice {
+                await notifications.resume(credentials)
+            }
         }
         .onChange(of: model.phase) { old, new in
             if case .signedIn = old, new == .signedOut {

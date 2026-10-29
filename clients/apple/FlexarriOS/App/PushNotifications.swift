@@ -22,6 +22,15 @@ final class PushNotifications {
     private(set) var isOn = UserDefaults.standard.bool(forKey: Keys.on) {
         didSet { UserDefaults.standard.set(isOn, forKey: Keys.on) }
     }
+    /// They've been turned on here and not turned off since. Signing out (or connecting to another server) leaves it
+    /// set, so the next sign-in turns them back on.
+    private(set) var wanted = UserDefaults.standard.bool(forKey: Keys.wanted) {
+        didSet { UserDefaults.standard.set(wanted, forKey: Keys.wanted) }
+    }
+    /// They were turned off here on purpose, so Settings doesn't offer them again.
+    private(set) var turnedOff = UserDefaults.standard.bool(forKey: Keys.turnedOff) {
+        didSet { UserDefaults.standard.set(turnedOff, forKey: Keys.turnedOff) }
+    }
     /// Who they're for, as the server last said.
     private(set) var profileId = UserDefaults.standard.string(forKey: Keys.profileId) {
         didSet { UserDefaults.standard.set(profileId, forKey: Keys.profileId) }
@@ -47,6 +56,8 @@ final class PushNotifications {
 
     private enum Keys {
         static let on = "notifications.on"
+        static let wanted = "notifications.wanted"
+        static let turnedOff = "notifications.turnedOff"
         static let profileId = "notifications.profile"
         static let profileName = "notifications.profileName"
         static let profileToken = "notifications.profileToken"
@@ -108,6 +119,19 @@ final class PushNotifications {
     func turnOff(_ credentials: ServerCredentials?) async {
         if let credentials { try? await credentials.client.stopNotifications() }
         forget()
+        wanted = false
+        turnedOff = true
+    }
+
+    /// A sign-in with them off, though they were on before it (this phone signed out and back in, say): on again for
+    /// the profile it's on, if iOS still allows them. Quietly; Settings says so if it didn't work.
+    func resume(_ credentials: ServerCredentials) async {
+        guard !isOn, wanted, [.authorized, .provisional].contains(await authorization()) else { return }
+        do {
+            _ = try await register(as: credentials, settings: settings, useCurrentProfile: true)
+        } catch {
+            log.warning("Couldn't turn notifications back on", error: error)
+        }
     }
 
     /// Notifications for another profile from now on (the one `credentials` act as).
@@ -155,7 +179,8 @@ final class PushNotifications {
         try? await client.stopNotifications()
     }
 
-    /// Forgets them here, key and all (the server does too when the phone is signed out).
+    /// Forgets them here, key and all (the server does too when the phone is signed out). `wanted` stays, for the next
+    /// sign-in.
     func forget() {
         isOn = false
         profileId = nil
@@ -228,6 +253,8 @@ final class PushNotifications {
         sentToken = token
         profileToken = credentials.profileToken ?? ""
         isOn = true
+        wanted = true
+        turnedOff = false
         remember(device)
         return device
     }
