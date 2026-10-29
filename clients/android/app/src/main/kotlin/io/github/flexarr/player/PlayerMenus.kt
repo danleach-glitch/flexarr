@@ -65,6 +65,7 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
+import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -394,7 +395,7 @@ internal fun SleepPrompt(controller: PlaybackController) {
  */
 @Composable
 internal fun SubtitleLayer(controller: PlaybackController) {
-    val cues = controller.cues
+    val cues = StyledSubtitles.forScreen(controller.cues)
     if (cues.isEmpty()) return
     val size = controller.videoSize
     BoxWithConstraints(Modifier.fillMaxSize()) {

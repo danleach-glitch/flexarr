@@ -368,6 +368,11 @@ data class SubtitleTrack(
     val url: String? = null,
     /** A subtitle file beside the video (rather than one inside it): only these can be re-synced. Absent from servers before 0.53. */
     val isExternal: Boolean? = null,
+    /**
+     * Styled (ASS/SSA) subtitles as authored, for a player that draws their places and colours itself. Relative to the
+     * server, like [url]; not shifted by the title's subtitle delay. Absent from servers before 0.53, and for plain text.
+     */
+    val styledUrl: String? = null,
 )
 
 @Serializable
