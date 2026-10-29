@@ -173,7 +173,7 @@ fun PodcastEpisodeRow(
         if (download == null) {
             add(MenuAction("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
         } else {
-            add(MenuAction(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) })
+            add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download") { model.downloads.delete(download.id) })
         }
         // Part way through: unplayed forgets the place, so it leaves the listening list.
         if (episode.progress != null) add(MenuAction("Mark as unplayed") { setPlayed(false) })
@@ -194,7 +194,7 @@ fun PodcastEpisodeRow(
             if (download == null) {
                 add(SwipeAction("Download", Icons.Outlined.ArrowCircleDown, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
             } else {
-                add(SwipeAction(if (download.isDownloaded) "Delete download" else "Stop download", Icons.Outlined.Delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
+                add(SwipeAction(if (download.isDownloaded) "Remove download" else "Stop download", Icons.Outlined.Delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
             }
         }
     }
