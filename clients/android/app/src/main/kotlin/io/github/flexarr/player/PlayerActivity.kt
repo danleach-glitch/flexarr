@@ -14,6 +14,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -330,4 +333,4 @@ internal fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape) =
 
 @Composable
 internal fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier =
-    this.then(Modifier.pointerInput(enabled) { if (enabled) detectTapGestures { onClick() } })
+    clickable(remember { MutableInteractionSource() }, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)

@@ -135,6 +135,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     /** The sideloaded subtitle still to be turned on once the player has read its tracks. */
     private var pendingSubtitle: String? = null
     private var audioDelaySave: Job? = null
+    private var lastRecovery = 0L
 
     init {
         player.addListener(object : Player.Listener {
@@ -152,6 +153,15 @@ class PlaybackController(context: Context, private val model: AppModel, private 
             }
 
             override fun onPlayerError(e: PlaybackException) {
+                // A converted stream that stopped (the server restarted, or forgot the conversion after a long jump):
+                // a fresh session from the same place, once in a while, before giving up.
+                val now = System.currentTimeMillis()
+                if (info?.method == PlaybackMethod.Transcode && e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && now - lastRecovery > RECOVERY_INTERVAL_MS) {
+                    lastRecovery = now
+                    Log.w("Flexarr", "Converted stream failed; opening it again", e)
+                    reopen()
+                    return
+                }
                 error = "This couldn’t be played. ${e.errorCodeName.removePrefix("ERROR_CODE_").replace('_', ' ').lowercase()}."
             }
 
@@ -648,6 +658,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val COUNTDOWN_SECONDS = 5
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
+        private const val RECOVERY_INTERVAL_MS = 30_000L
         const val MAX_RATE = 2f
         const val AUDIO_SYNC_STEP = 0.05
         const val AUDIO_SYNC_LIMIT = 2.0

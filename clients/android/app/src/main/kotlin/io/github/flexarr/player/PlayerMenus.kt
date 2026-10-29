@@ -102,10 +102,7 @@ private fun MenuButton(
             badge?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen) }
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            val scope = remember { MenuScope() }
-            scope.page = page
-            scope.openPage = { page = it }
-            scope.content { open = false }
+            MenuScope(page, openPage = { page = it }).content { open = false }
         }
     }
     // The controls stay up while a menu is open.
@@ -117,11 +114,8 @@ private fun MenuButton(
     }
 }
 
-/** Which submenu is showing, so a menu can draw its main list or one of its pages. */
-internal class MenuScope {
-    var page: String? = null
-    var openPage: (String?) -> Unit = {}
-}
+/** Which submenu is showing, so a menu can draw its main list or one of its pages. A new one for each page. */
+internal data class MenuScope(val page: String?, val openPage: (String?) -> Unit)
 
 @Composable
 private fun MenuTitle(text: String) {
