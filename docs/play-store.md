@@ -55,10 +55,14 @@ upload. As on the App Store, the listing pitches your own streaming service, and
 
 What leaves the phone for anyone but the user's own server:
 
-- **Crash logs** and **Diagnostics** (Sentry error reports): collected, not shared, optional (off unless the server's
-  owner turns them on), for App functionality, encrypted in transit, not linked to the user.
-- **Device or other IDs** (the Firebase id for notifications, given only once they're turned on): collected, not shared,
-  optional, for App functionality, encrypted in transit.
+- **Crash logs** and **Diagnostics** (Sentry error reports): collected, not shared, optional, for App functionality,
+  encrypted in transit, not linked to the user. "Optional" is the server owner's choice: reports are off unless they
+  turn them on for their server, and then every phone signed in to it sends them; household members can't turn them
+  off in the app (Settings › Server only shows whether they're on). Say so if Play asks.
+- **Device or other IDs**, for two things: the Firebase id for notifications (given only once they're turned on), and
+  with Sentry reports, the server's install id, a random id that's the same for every report from phones on that
+  server (it groups them; it isn't the device's or the user's). Both collected, not shared, optional (as above),
+  for App functionality, encrypted in transit.
 - Nothing else. Viewing history, profiles and logs go to the user's own server, which isn't the developer's, so they
   aren't "collected". There's no account, so no account deletion to offer: the answer is that users can't create one.
 
@@ -77,8 +81,9 @@ Keep this in step with `site/privacy.html` and the App Store's App Privacy.
   - *Media playback:* podcasts and music play on with the screen off, with controls in the notification and on the
     lock screen. Video: play a podcast episode, lock the phone, show the lock screen controls.
   - *Data sync:* downloads for offline viewing carry on with the app closed, shown as a notification with progress.
-    Video: start a film's download, leave the app, show the notification. If Play pushes back, the alternative is a
-    user-initiated data transfer job (Android 14 on).
+    Video: start a film's download, leave the app, show the notification. This is the one Play is most likely to
+    question (it wants dataSync for syncing, and big user-started transfers as user-initiated data transfer jobs).
+    If Play pushes back, the alternative is a user-initiated data transfer job (Android 14 on).
 - **Android Auto:** opt in under Test and release › Advanced settings › Form factors. Music and podcasts in the car go
   through Google's own Android Auto review, which can take longer than the app's.
 - **News app, health, financial features, government app:** no.
