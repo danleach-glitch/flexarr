@@ -121,7 +121,7 @@ jobs:
           node-version-file: .nvmrc
       - run: node scripts/apps/build.mjs --check
 
-  # The iPhone app's notification relay (push.flexarr.io), deployed by Vercel when relay/ changes.
+  # The apps' notification relay (push.flexarr.io), deployed by Vercel when relay/ changes.
   relay:
     name: Push relay
     needs: changes

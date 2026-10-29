@@ -13,6 +13,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MarkerType
 import io.github.flexarr.core.PlaybackInfo
@@ -37,7 +38,9 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         .setSeekBackIncrementMs(SKIP_MS)
         .setSeekForwardIncrementMs(SKIP_MS)
         .build()
-    private val profile = DeviceCapabilities.profile(context)
+    private val deviceProfile = DeviceCapabilities.profile(context)
+    /** [deviceProfile] once the server's version is known, which decides whether it can have fragmented MP4. */
+    private var serverProfile: DeviceProfile? = null
     private val scope = model.scope
 
     var info: PlaybackInfo? by mutableStateOf(null)
@@ -92,6 +95,8 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false) {
         scope.launch {
             try {
+                val profile = serverProfile ?: DeviceCapabilities.withServer(deviceProfile, runCatching { client.systemStatus().version }.getOrNull())
+                    .also { serverProfile = it }
                 val request = PlaybackRequest(
                     itemId = itemId,
                     profile = profile,

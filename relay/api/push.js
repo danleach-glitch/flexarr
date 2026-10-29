@@ -1,7 +1,9 @@
-// Flexarr's push relay. Flexarr servers can't hold an APNs key, so they post an encrypted payload here and we hand
-// it to Apple. We never see what's inside: the phone decrypts it. See docs/notifications.md ("Relay API").
+// Flexarr's push relay. Flexarr servers can't hold an APNs key or a Firebase service account, so they post an
+// encrypted payload here and we hand it to Apple, or to Google for an Android phone. We never see what's inside: the
+// phone decrypts it. See docs/notifications.md ("Relay API").
 //
-// Environment: APNS_KEY (the .p8 file's contents), APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC (the app's bundle id).
+// Environment: APNS_KEY (the .p8 file's contents), APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC (the app's bundle id); for
+// Android, FCM_SERVICE_ACCOUNT (the Firebase project's service account key, the JSON file's contents).
 // Optional: KV_REST_API_URL and KV_REST_API_TOKEN (an Upstash Redis store, as Vercel's marketplace sets them), so the
 // per-phone limit holds across every instance; without them each warm instance counts on its own.
 
@@ -82,6 +84,60 @@ function sendToApple(environment, token, body, collapseId) {
     req.on('error', reject);
     req.end(body);
   });
+}
+
+// --- Firebase Cloud Messaging (HTTP v1), for Android phones. An OAuth token from the service account, kept for most of
+// its hour.
+
+const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
+let cachedAccess = null;
+
+function serviceAccount() {
+  try {
+    const account = JSON.parse(process.env.FCM_SERVICE_ACCOUNT || '');
+    return account.client_email && account.private_key && account.project_id ? account : null;
+  } catch {
+    return null;
+  }
+}
+
+async function accessToken(account, now = Date.now()) {
+  if (cachedAccess && cachedAccess.email === account.client_email && now < cachedAccess.until) return cachedAccess.token;
+  const iat = Math.floor(now / 1000);
+  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const tokenUri = account.token_uri || 'https://oauth2.googleapis.com/token';
+  const claims = b64url(JSON.stringify({ iss: account.client_email, scope: FCM_SCOPE, aud: tokenUri, iat, exp: iat + 3600 }));
+  const signature = crypto.sign('sha256', Buffer.from(`${header}.${claims}`), account.private_key.replace(/\\n/g, '\n'));
+  const response = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: `${header}.${claims}.${signature.toString('base64url')}`,
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || typeof body.access_token !== 'string') throw new Error(`google token ${response.status}`);
+  cachedAccess = { token: body.access_token, email: account.client_email, until: now + Math.min(body.expires_in || 3600, 3600) * 1000 - 5 * 60_000 };
+  return cachedAccess.token;
+}
+
+// A data message, not a notification one: the app unseals it and shows the notification itself, as the iPhone's
+// extension does. High priority, so a phone that's dozing wakes for it.
+async function sendToGoogle(account, token, payload, collapseId) {
+  const android = { priority: 'HIGH' };
+  if (collapseId) android.collapse_key = collapseId;
+  const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${await accessToken(account)}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ message: { token, data: { e: payload }, android } }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const body = await response.json().catch(() => ({}));
+  const error = body.error || {};
+  const fcm = (error.details || []).find((d) => d && typeof d.errorCode === 'string');
+  return { status: response.status, reason: fcm?.errorCode || error.status };
 }
 
 // --- Best-effort rate limit. Each warm instance counts on its own, which is fine for keeping out the noise.
@@ -167,9 +223,13 @@ module.exports = async (req, res) => {
 
   let input;
   try { input = await readBody(req); } catch { return reply(res, 400, { reason: 'BadRequest' }); }
-  const { token, environment, payload, collapseId } = input || {};
+  const { token, environment, payload, collapseId, platform } = input || {};
 
-  if (typeof token !== 'string' || !/^[0-9a-fA-F]{64,200}$/.test(token)) return reply(res, 400, { reason: 'BadToken' });
+  // Apple's hex device tokens, unless the server says it's an Android phone's Firebase registration token.
+  const android = platform === 'android';
+  if (platform !== undefined && platform !== null && !android) return reply(res, 400, { reason: 'BadPlatform' });
+  const tokenShape = android ? /^[A-Za-z0-9_:-]{32,250}$/ : /^[0-9a-fA-F]{64,200}$/;
+  if (typeof token !== 'string' || !tokenShape.test(token)) return reply(res, 400, { reason: 'BadToken' });
   if (environment !== 'production' && environment !== 'sandbox') return reply(res, 400, { reason: 'BadEnvironment' });
   if (typeof payload !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload) || payload.length % 4 !== 0) {
     return reply(res, 400, { reason: 'BadPayload' });
@@ -184,6 +244,8 @@ module.exports = async (req, res) => {
     console.log('push: phone limit reached');
     return reply(res, 429, { reason: 'TooManyRequests' });
   }
+
+  if (android) return forwardToGoogle(res, token, payload, collapseId);
 
   const { APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC } = process.env;
   if (!APNS_KEY || !APNS_KEY_ID || !APNS_TEAM_ID || !APNS_TOPIC) return reply(res, 503, { reason: 'NotConfigured' });
@@ -212,5 +274,31 @@ module.exports = async (req, res) => {
   return reply(res, 502, { reason: apple.reason || 'Unknown' });
 };
 
+// Google's answers, in the words the servers already know from Apple: Unregistered and BadDeviceToken make a server
+// forget the phone.
+async function forwardToGoogle(res, token, payload, collapseId) {
+  const account = serviceAccount();
+  if (!account) return reply(res, 503, { reason: 'NotConfigured' });
+
+  let google;
+  try {
+    google = await sendToGoogle(account, token, payload, collapseId || undefined);
+  } catch {
+    console.log('push: google unreachable');
+    return reply(res, 502, { reason: 'Unreachable' });
+  }
+  console.log(`push: google ${google.status} ${google.reason || ''}`.trim());
+
+  if (google.status === 200) return reply(res, 200, { ok: true });
+  if (google.reason === 'UNREGISTERED') return reply(res, 410, { reason: 'Unregistered' });
+  // Everything else in the message was checked here, so a refused argument is the token. A token from another
+  // Firebase project is no more use to this one.
+  if (google.reason === 'INVALID_ARGUMENT' || google.reason === 'SENDER_ID_MISMATCH') return reply(res, 400, { reason: 'BadDeviceToken' });
+  if (google.status === 429) return reply(res, 429, { reason: 'TooManyRequests' });
+  if (google.status === 401) cachedAccess = null;
+  return reply(res, 502, { reason: google.reason || 'Unknown' });
+}
+
 module.exports._jwt = jwt;
+module.exports._forget = () => { cachedAccess = null; };
 module.exports._tokenLimited = tokenLimited;

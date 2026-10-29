@@ -1226,6 +1226,13 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired()
                         .HasColumnType("BLOB");
 
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("apple");
+
                     b.Property<bool>("Podcasts")
                         .HasColumnType("INTEGER");
 

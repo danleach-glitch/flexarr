@@ -4,7 +4,7 @@ namespace Flexarr.Core.Notifications;
 
 /// <summary>
 /// A phone that wants notifications, for one profile (the one it was on when they were turned on), and what about.
-/// Its pushes go through a relay to Apple, sealed with <see cref="Key"/> so only the phone can read them.
+/// Its pushes go through a relay to Apple or Google, sealed with <see cref="Key"/> so only the phone can read them.
 /// </summary>
 public sealed class NotificationDevice
 {
@@ -16,8 +16,11 @@ public sealed class NotificationDevice
 
     public required string ProfileId { get; set; }
 
-    /// <summary>Apple's push token for the phone, in hex.</summary>
+    /// <summary>Apple's push token for the phone, in hex, or an Android phone's Firebase registration token.</summary>
     public required string Token { get; set; }
+
+    /// <summary><see cref="NotificationPlatforms.Apple"/> or <see cref="NotificationPlatforms.Android"/>: which push service the relay hands it to.</summary>
+    public string Platform { get; set; } = NotificationPlatforms.Apple;
 
     /// <summary>"production", or "sandbox" for a development build.</summary>
     public required string Environment { get; set; }
@@ -43,6 +46,13 @@ public sealed class NotificationDevice
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Who delivers a phone's notifications: Apple's push service, or Google's (Firebase Cloud Messaging).</summary>
+public static class NotificationPlatforms
+{
+    public const string Apple = "apple";
+    public const string Android = "android";
 }
 
 /// <summary>A film or show a profile asked for from Flexarr, so it can be told when it's in.</summary>

@@ -171,4 +171,11 @@ object ServerVersion {
         val parts = version.split("+", limit = 2)
         return if (parts.size == 2) "${parts[0]} (${parts[1].take(7)})" else version
     }
+
+    /** Whether [version] ("0.53.0", "0.54.0-dev.1a2b3c4", "0.53.1+d4c8…") is [major].[minor].[patch] or later. */
+    fun atLeast(version: String, major: Int, minor: Int, patch: Int = 0): Boolean {
+        val numbers = version.substringBefore('+').substringBefore('-').split('.').map { it.toIntOrNull() ?: return false }
+        if (numbers.size != 3) return false
+        return compareValuesBy(numbers, listOf(major, minor, patch), { it[0] }, { it[1] }, { it[2] }) >= 0
+    }
 }
