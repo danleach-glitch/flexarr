@@ -83,6 +83,7 @@ import io.github.flexarr.ui.components.PillButton
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.ProgressBar
+import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
@@ -113,6 +114,8 @@ fun DetailScreen(model: AppModel, id: String) {
     val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
     var attempt by remember { mutableStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
+    var loadedAt by remember(id) { mutableStateOf<Long?>(null) }
+    RefreshWhenStale(loadedAt) { attempt++ }
 
     LaunchedEffect(id, model.watchStateVersion, attempt) {
         try {
@@ -126,6 +129,7 @@ fun DetailScreen(model: AppModel, id: String) {
             }
             detail = loaded
             error = null
+            loadedAt = System.currentTimeMillis()
             val item = loaded.item
             when (item.kind) {
                 MediaKind.Series -> {

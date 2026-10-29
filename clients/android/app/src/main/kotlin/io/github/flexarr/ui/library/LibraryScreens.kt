@@ -65,6 +65,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.PosterCard
+import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
@@ -151,6 +152,10 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
     var refreshing by remember { mutableStateOf(false) }
     var error by remember(libraryId, sort, genre) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    var loadedAt by remember(libraryId, sort, genre) { mutableStateOf<Long?>(null) }
+    var staleVersion by remember { mutableIntStateOf(0) }
+    // Back to a list more than a minute old: what's on screen is fetched again, keeping the scroll position.
+    RefreshWhenStale(loadedAt) { staleVersion++ }
 
     LaunchedEffect(libraryId, sort, genre, attempt) {
         loading = true
@@ -160,6 +165,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
             items.addAll(page.items)
             total = page.total
             error = null
+            loadedAt = System.currentTimeMillis()
         } catch (e: Exception) {
             if (items.isEmpty()) error = e.message
         } finally {
@@ -168,12 +174,14 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
     }
 
     // After playback or watched changes, fetch what's on screen again so badges update, keeping the scroll position.
-    LaunchedEffect(model.watchStateVersion) {
+    LaunchedEffect(model.watchStateVersion, staleVersion) {
         if (items.isEmpty()) return@LaunchedEffect
         runCatching { client.libraryItems(libraryId, sort, genre, skip = 0, take = items.size.coerceIn(PAGE_SIZE, 500)) }
             .onSuccess { page ->
                 val fresh = page.items.associateBy { it.id }
                 items.replaceAll { fresh[it.id] ?: it }
+                total = page.total
+                loadedAt = System.currentTimeMillis()
             }
     }
 
