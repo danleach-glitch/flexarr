@@ -75,6 +75,8 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.loadPodcastStatus() }
     // Whether the server has Live TV (Libraries lists it).
     LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
+    // Signed in (or as someone else): commands for this device come to this sign-in.
+    LaunchedEffect(model.credentials) { model.listenForCommands() }
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
         Scaffold(

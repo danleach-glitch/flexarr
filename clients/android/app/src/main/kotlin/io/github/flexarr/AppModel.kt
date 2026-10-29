@@ -23,6 +23,8 @@ import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.data.ServerCredentials
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -68,6 +70,16 @@ class AppModel(private val context: Context) {
 
     /** Goes up when the libraries' order changes, so the Libraries tab loads them again. */
     var librariesVersion by mutableIntStateOf(0)
+
+    /** What other devices, the web app and assistants ask this one to play, while the app is in front. */
+    val commands = DeviceCommands(context, this, scope)
+
+    /** Listens for commands while the app is in front (any of its screens, the players included), and signed in. */
+    fun listenForCommands() {
+        val inFront = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        val client = client
+        if (inFront && client != null) commands.start(client) else commands.stop()
+    }
 
     /** Podcast episodes, playing on under every screen. */
     val podcasts = PodcastPlayer(context, this)
@@ -172,6 +184,7 @@ class AppModel(private val context: Context) {
     }
 
     private fun forget() {
+        commands.stop()
         podcasts.stop()
         podcastStatus = null
         upNext = emptyList()

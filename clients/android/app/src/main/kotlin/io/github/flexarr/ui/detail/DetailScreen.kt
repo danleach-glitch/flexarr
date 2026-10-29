@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
@@ -81,6 +82,7 @@ import io.github.flexarr.ui.components.LabeledAction
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.subtitles.SubtitleSearchSheet
+import io.github.flexarr.ui.playon.PlayOnSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.semantics.contentDescription
@@ -236,6 +238,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
     var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
     var savedSubtitles by remember { mutableStateOf<String?>(null) }
+    var choosingScreen by remember(item.id) { mutableStateOf(false) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -271,12 +274,17 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             if (item.kind == MediaKind.Episode && series != null) {
                 LabeledAction("Show", Icons.Filled.VideoLibrary, { navigator.openItem(series.id) }, slot)
             }
+            // Another screen: a film or episode as it is, a show the episode that screen's profile is up to.
+            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series) {
+                LabeledAction("Play on", Icons.Filled.Cast, { choosingScreen = true }, slot)
+            }
             val file = detail.files.firstOrNull()
             if (detail.canSearchSubtitles == true && file != null) {
                 LabeledAction("Subtitles", Icons.Filled.ClosedCaption, { searchingSubtitlesFor = file.id }, slot.semantics { contentDescription = "Search for subtitles" })
             }
         }
     }
+    if (choosingScreen) PlayOnSheet(LocalClient.current, item, onClose = { choosingScreen = false })
     searchingSubtitlesFor?.let { fileId ->
         SubtitleSearchSheet(
             LocalClient.current,

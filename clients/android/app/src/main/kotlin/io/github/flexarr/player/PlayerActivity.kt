@@ -98,6 +98,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import io.github.flexarr.ActivePlayback
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.appModel
 import io.github.flexarr.core.SubtitlePosition
@@ -138,6 +139,7 @@ class PlayerActivity : ComponentActivity() {
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
         // Headphone and Bluetooth buttons, the system's media controls and the corner window's play and pause.
         session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
+        model.commands.active = playback
         ContextCompat.registerReceiver(this, pictureInPictureActions, IntentFilter(ACTION_PIP), ContextCompat.RECEIVER_NOT_EXPORTED)
         startFrom(intent)
         setContent {
@@ -249,8 +251,16 @@ class PlayerActivity : ComponentActivity() {
         if (!isInPictureInPictureMode) controller?.player?.pause()
     }
 
+    /** For another device's pause, resume and stop. */
+    private val playback = object : ActivePlayback {
+        override fun pause() { controller?.player?.pause() }
+        override fun resume() { controller?.player?.play() }
+        override fun stop() = finish()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        if (appModel.commands.active === playback) appModel.commands.active = null
         runCatching { unregisterReceiver(pictureInPictureActions) }
         session?.release()
         session = null

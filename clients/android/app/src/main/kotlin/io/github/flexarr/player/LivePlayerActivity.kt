@@ -79,6 +79,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import io.github.flexarr.ActivePlayback
 import io.github.flexarr.appModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.LiveChannel
@@ -109,6 +110,7 @@ class LivePlayerActivity : ComponentActivity() {
         val client = model.client ?: return finish()
         val controller = LiveTvController(this, model, client, onClose = ::finish).also { controller = it }
         session = MediaSession.Builder(this, controller.player).setId("live").build()
+        model.commands.active = playback
         val channelId = intent.getStringExtra(EXTRA_CHANNEL)!!
         val order = intent.getStringArrayExtra(EXTRA_ORDER).orEmpty().toList()
         // The channels as the screen listed them, fetched now so what's on is current.
@@ -127,8 +129,16 @@ class LivePlayerActivity : ComponentActivity() {
         controller?.player?.pause()
     }
 
+    /** For another device's pause, resume and stop. */
+    private val playback = object : ActivePlayback {
+        override fun pause() { controller?.player?.pause() }
+        override fun resume() { controller?.player?.play() }
+        override fun stop() = finish()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        if (appModel.commands.active === playback) appModel.commands.active = null
         session?.release()
         session = null
         controller?.release()
