@@ -116,6 +116,16 @@ public sealed class PlaybackSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task AStartWithoutAProfile_IsRefused_NotAServerError()
+    {
+        var movie = await AddMovieAsync();
+
+        var response = await Client().PostAsJsonAsync(new Uri("/api/v1/playback", UriKind.Relative), new { itemId = movie });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task SimultaneousStarts_CantTakeMoreThanAProfilesShare()
     {
         var movie = await AddMovieAsync();
