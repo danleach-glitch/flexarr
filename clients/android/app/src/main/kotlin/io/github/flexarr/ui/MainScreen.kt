@@ -27,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -118,7 +121,7 @@ fun MainScreen(model: AppModel) {
                                 selected = tab == currentTab,
                                 onClick = { select(tab) },
                                 icon = { Icon(tab.icon(), contentDescription = null) },
-                                label = { Text(tab.label) },
+                                label = { TabLabel(tab.label) },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = Flexarr.screen,
                                     selectedTextColor = Flexarr.screen,
@@ -142,7 +145,7 @@ fun MainScreen(model: AppModel) {
                             selected = tab == currentTab,
                             onClick = { select(tab) },
                             icon = { Icon(tab.icon(), contentDescription = null) },
-                            label = { Text(tab.label) },
+                            label = { TabLabel(tab.label) },
                             colors = NavigationRailItemDefaults.colors(
                                 selectedIconColor = Flexarr.screen,
                                 selectedTextColor = Flexarr.screen,
@@ -190,6 +193,19 @@ fun MainScreen(model: AppModel) {
         }
     }
 }
+
+/**
+ * A tab's name on one line. It grows with the system's font size up to a third larger, then stops, so "Libraries"
+ * still fits four across at the largest sizes (the screens' own text keeps growing).
+ */
+@Composable
+private fun TabLabel(text: String) {
+    val scale = LocalDensity.current.fontScale
+    val size = if (scale > MAX_TAB_SCALE) 12.sp * (MAX_TAB_SCALE / scale) else 12.sp
+    Text(text, fontSize = size, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+}
+
+private const val MAX_TAB_SCALE = 1.3f
 
 @Composable
 private fun Tab.icon(): Painter = when (this) {

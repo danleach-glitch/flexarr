@@ -1,5 +1,11 @@
 package io.github.flexarr.ui.components
 
+import androidx.compose.foundation.layout.FlowRow
+
+import androidx.compose.foundation.text.TextAutoSize
+
+import androidx.compose.foundation.text.BasicText
+
 import androidx.compose.ui.platform.LocalConfiguration
 
 import androidx.compose.runtime.ReadOnlyComposable
@@ -120,7 +126,8 @@ fun ActionButton(
     ) {
         val tint = if (prominent) Flexarr.room else Flexarr.screen
         if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-        Text(label, color = tint, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1)
+        // At large text sizes the label gets smaller to fit, rather than losing words.
+        BasicText(label, style = TextStyle(color = tint, fontWeight = FontWeight.SemiBold, fontSize = 17.sp), maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 17.sp))
     }
 }
 
@@ -131,7 +138,13 @@ fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifie
         Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(22.dp))
         }
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center, maxLines = 2)
+        // One line, smaller if it must be, so a long word is never split.
+        BasicText(
+            label,
+            style = TextStyle(fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center, fontSize = 12.sp),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp),
+        )
     }
 }
 
@@ -180,7 +193,8 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
 /** "2016   1h 56m   TV-MA": facts separated by space, never middle dots. */
 @Composable
 fun FactsLine(facts: List<String>, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    // On to a second line when the text is large, rather than cutting a fact off.
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         facts.forEach { Text(it, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1) }
     }
 }

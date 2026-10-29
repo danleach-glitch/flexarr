@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -485,7 +486,7 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(Format.timestamp(shown), fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = Flexarr.screen, modifier = Modifier.width(64.dp))
+        Text(Format.timestamp(shown), fontSize = 13.sp, style = TimeStyle, color = Flexarr.screen, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 64.dp))
         BoxWithConstraints(Modifier.weight(1f)) {
             Slider(
                 value = shown.toFloat().coerceIn(0f, duration.toFloat()),
@@ -519,11 +520,14 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
                 }
             }
         }
-        Text("−" + Format.timestamp((controller.duration - shown).coerceAtLeast(0.0)), fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = Flexarr.screen, modifier = Modifier.width(72.dp))
+        Text("−" + Format.timestamp((controller.duration - shown).coerceAtLeast(0.0)), fontSize = 13.sp, style = TimeStyle, color = Flexarr.screen, maxLines = 1, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = 72.dp))
     }
 }
 
 private val PREVIEW_WIDTH = 176.dp
+
+/** The timeline's times: figures of one width, so they don't jitter as they count. */
+internal val TimeStyle = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
 
 /** A round button on translucent dark glass with a hairline edge, so it reads over any picture. */
 @Composable

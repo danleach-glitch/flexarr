@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -308,10 +309,12 @@ private fun LiveTimeline(controller: LiveTvController, onInteract: () -> Unit, m
         Text(
             if (!controller.isBehind && !scrubbing) "LIVE" else "−" + Format.timestamp(behind.coerceAtLeast(0.0)),
             fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace,
+            style = TimeStyle,
+            maxLines = 1,
+            softWrap = false,
             fontWeight = if (controller.isBehind || scrubbing) FontWeight.Normal else FontWeight.Bold,
             color = if (controller.isBehind || scrubbing) Flexarr.screen else Flexarr.danger,
-            modifier = Modifier.width(72.dp),
+            modifier = Modifier.widthIn(min = 72.dp),
         )
     }
 }
