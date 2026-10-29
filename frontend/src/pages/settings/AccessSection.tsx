@@ -70,9 +70,8 @@ function RemoteAccessGroups() {
         note={
           ts.publicAccess ? undefined : (
             <>
-              Tailscale lets your own devices reach Flexarr from anywhere, encrypted, with no ports opened on your router. The iPhone, iPad and Apple
-              TV apps switch to the private address by themselves away from home. Flexarr isn’t on the public internet; to share it, invite someone to
-              your tailnet and give them a profile.
+              Tailscale lets your devices reach Flexarr from anywhere, privately, with nothing opened on your router. The apps switch to it by
+              themselves. To share Flexarr, invite someone to your tailnet and give them a profile.
               {remote.data.cloudflareTunnelRunning && ' A Cloudflare Tunnel runs on this server, but it doesn’t route to Flexarr.'} {you}
             </>
           )
@@ -110,9 +109,8 @@ function RemoteAccessGroups() {
         {inMacApp && (
           <>
             <p className="muted">
-              Flexarr Server can’t switch Tailscale on itself: Mac App Store apps aren’t allowed to control other apps. Install{' '}
-              <a href="https://tailscale.com/download">Tailscale</a> on this Mac and on your devices, signed in to the same account, and they can reach Flexarr
-              at this Mac’s Tailscale address. See <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
+              Mac App Store apps can’t turn Tailscale on. Install{' '}
+              <a href="https://tailscale.com/download">Tailscale</a> on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
             </p>
             {remote.data.tailnetAddress && (
               <SettingRow as="div" label="Private address" help={<code className="remote-address">{remote.data.tailnetAddress}</code>}>
@@ -123,8 +121,8 @@ function RemoteAccessGroups() {
         )}
         {inDocker && (
           <p className="muted">
-            Flexarr runs in a container here, which can’t reach Tailscale on the computer around it, so it can’t turn this on. Run Flexarr without
-            Docker on a computer with Tailscale, or put it behind an HTTPS reverse proxy. See{' '}
+            Flexarr can’t reach Tailscale from inside Docker. Run it outside Docker on a computer with Tailscale, or behind an HTTPS reverse proxy.
+            See{' '}
             <a href="https://flexarr.io/guide/away-from-home">Watch away from home</a>.
           </p>
         )}
@@ -157,7 +155,7 @@ function RemoteAccessGroups() {
       )}
 
       {ts.running && remote.data.links.length > 0 && (
-        <SettingsGroup title="People on your tailnet" note="Each opens as their own profile. Anyone without one is turned away, even though Tailscale lets them reach the server.">
+        <SettingsGroup title="People on your tailnet" note="Each person opens as their own profile. Anyone without one is turned away.">
           {remote.data.links.map((person) => (
             <SettingRow key={person.login} label={person.name} help={person.login}>
               <select

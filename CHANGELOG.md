@@ -8,7 +8,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings › Connections lists every app Flexarr works with (Sonarr, Radarr, Lidarr, Seerr, Bazarr, TMDB and Dispatcharr), so you can see at a glance what's connected. Any that isn't has a Connect button. Running a second Sonarr, Radarr or Lidarr is the + beside the one you have.
 - Settings is easier to read at a glance. Connect buttons are green, like the dot beside a connected app, and switches that are on are green too. Deleting something turns red when you point at it, and the final Delete is a solid red button. Boxes you type in are darker than the panel around them and have a light border. A row's own buttons (edit, rescan, artwork, delete) stay out of sight until you point at them.
 - In Settings › Connections, an app you've connected has Disconnect instead of a bin, because its row stays and you can connect it again. A second Sonarr, Radarr or Lidarr still has Remove, as its row goes.
-- Settings › Connections has shorter help text. Setup steps, such as making Dispatcharr's Streamer user, are under How to set it up.
+- Settings has shorter help text throughout. In Connections, setup steps (such as making Dispatcharr's Streamer user) are under How to set it up, and Media folders' saved mappings are under Path mappings, with Edit mappings.
 
 ### Libraries
 - Film and TV libraries have a Genres view: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre. On the web it's beside Browse and All; on the Apple TV it's in the switch at the top of the library (and can be what a library opens on, in Settings › Libraries); on iPhone and iPad, choose Genres at the top of the library.

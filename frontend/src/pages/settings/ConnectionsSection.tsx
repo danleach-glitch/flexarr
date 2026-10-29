@@ -867,9 +867,8 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
     return (
       <div className="saved-mappings connection-line">
         <span className="setting-text">
-          <span className="muted">
-            {saved.length === 0 ? 'No mappings saved' : saved.length === 1 ? '1 mapping saved' : `${saved.length} mappings saved`}
-          </span>
+          <strong>Path mappings{saved.length ? `: ${saved.length}` : ''}</strong>
+          <span className="muted">Choosing a folder above saves one. Edit them to type a path yourself or remove an old one.</span>
         </span>
         <button
           type="button"
@@ -879,7 +878,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
             setEditing(true)
           }}
         >
-          {saved.length ? 'Edit by hand' : 'Add one by hand'}
+          {saved.length ? 'Edit mappings' : 'Add a mapping'}
         </button>
       </div>
     )

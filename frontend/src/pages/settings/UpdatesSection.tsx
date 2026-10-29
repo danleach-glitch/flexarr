@@ -53,16 +53,16 @@ export function UpdatesSection() {
   return (
     <section>
       <SettingsHeader title="Updates">
-        The version of Flexarr this server runs, and newer releases as they come out. Updating keeps your settings, profiles and watch history.
+        The version this server runs, and new releases. Updating keeps your settings, profiles and history.
       </SettingsHeader>
 
       <SettingsGroup
         title="This server"
         note={
           current?.install === 'Docker'
-            ? 'Docker containers are updated from outside Flexarr, so it tells you about new versions but can’t install them.'
+            ? 'Docker updates Flexarr from outside, so it tells you about new versions but can’t install them.'
             : current?.install === 'MacApp'
-              ? 'The Mac App Store updates Flexarr Server, so Flexarr tells you about new versions but doesn’t install them itself.'
+              ? 'The Mac App Store installs new versions of Flexarr Server.'
               : undefined
         }
         action={
@@ -268,7 +268,7 @@ function Automatic({ updates, onSaved }: { updates: Updates; onSaved: (updates: 
     >
       <ToggleRow
         label="Install updates automatically"
-        help="When a new version comes out, install it between 4 and 5 in the morning, once nothing is playing, being watched live or recording. A busy night waits for the next."
+        help="Between 4 and 5 in the morning, once nothing is playing or recording. A busy night waits for the next."
         checked={updates.automatic}
         onChange={(on) => void save({ automatic: on })}
       />
