@@ -22,8 +22,8 @@ export function NowPlaying() {
   const scrub = useScrub(time, player.seek)
   // The panel is open for one page: following a link from the queue (or anywhere) puts it away.
   const [openOn, setOpenOn] = useState<string | null>(null)
-  const [viewOpen, setViewOpen] = useState(false)
-  const closeView = useCallback(() => setViewOpen(false), [])
+  const { nowPlayingOpen: viewOpen, setNowPlayingOpen: setViewOpen } = player
+  const closeView = useCallback(() => setViewOpen(false), [setViewOpen])
   const queueButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
   const track = player.current

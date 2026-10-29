@@ -2,9 +2,10 @@ import FlexarrKit
 import SwiftUI
 
 /// The music that's playing, as its own tab while there is any: the cover, the track's name, how far it's got, the
-/// transport controls and what comes next. The remote's play/pause works here as everywhere; Menu goes back to the
-/// sidebar with the music on. A Lyrics control, there when the track has any, opens the words as a page of their own,
-/// which Menu closes.
+/// transport controls and what comes next. Play and Shuffle also open it over everything (see `MainTabView`). The
+/// remote's play/pause works here as everywhere; Menu goes back to the sidebar, or closes it over the screen Play was
+/// pressed on, with the music on. A Lyrics control, there when the track has any, opens the words as a page of their
+/// own, which Menu closes.
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model
     @FocusState private var focusedControl: Control?
@@ -14,6 +15,7 @@ struct NowPlayingView: View {
     /// The cover's colours for the visualiser, read once per cover.
     @State private var palette: [CoverPalette.RGB] = []
     @State private var visualiser = AudioSpectrum.isOn
+    @State private var onScreen = false
 
     private enum Control: Hashable { case shuffle, previous, playPause, next, `repeat`, lyrics }
 
@@ -52,7 +54,15 @@ struct NowPlayingView: View {
         .defaultFocus($focusedControl, .playPause)
         .task(id: music.current?.id) { await lyrics.load(music.current, client: model.client) }
         .task(id: PaletteSource(track: music.current?.id, hasArtwork: music.artwork != nil)) { readPalette() }
-        .onAppear { visualiser = AudioSpectrum.isOn }
+        .onAppear {
+            visualiser = AudioSpectrum.isOn
+            onScreen = true
+        }
+        .onDisappear { onScreen = false }
+        // The visualiser is there to be watched: no screensaver over it while the music plays.
+        .onChange(of: onScreen && visualiser && music.isPlaying) { _, awake in
+            UIApplication.shared.isIdleTimerDisabled = awake
+        }
     }
 
     /// The words beside a smaller cover, the track's name and the timeline. Menu comes back here.

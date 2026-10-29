@@ -72,7 +72,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     case 'Album':
       // The album's tracks are fetched when asked for (the card only has the album).
       actions.push(
-        { label: 'Play', run: async () => music.play(await getTracks(item.id), 0) },
+        { label: 'Play', run: async () => music.play(await getTracks(item.id), 0, { openNowPlaying: true }) },
         { label: 'Play next', run: async () => music.playNext(await getTracks(item.id)) },
         { label: 'Add to queue', run: async () => music.enqueue(await getTracks(item.id)) },
         { label: 'Add to playlist…', run: () => openAddToPlaylist(item) },

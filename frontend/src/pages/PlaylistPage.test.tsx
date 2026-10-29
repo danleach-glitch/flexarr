@@ -44,7 +44,7 @@ describe('PlaylistPage', () => {
     expect(titles()).toEqual(['One', 'Two', 'Three'])
 
     fireEvent.click(screen.getByRole('button', { name: 'Play' }))
-    expect(player.play).toHaveBeenLastCalledWith(tracks, 0)
+    expect(player.play).toHaveBeenLastCalledWith(tracks, 0, { openNowPlaying: true })
     fireEvent.click(screen.getByRole('button', { name: /^2\s*Two/ }))
     expect(player.play).toHaveBeenLastCalledWith(tracks, 1)
   })

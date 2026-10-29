@@ -26,7 +26,7 @@ describe('PosterCard', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Play Love Over Gold' }))
-    await waitFor(() => expect(player.play).toHaveBeenCalledWith(tracks, 0))
+    await waitFor(() => expect(player.play).toHaveBeenCalledWith(tracks, 0, { openNowPlaying: true }))
     expect(screen.getByRole('link', { name: 'Love Over Gold' })).toHaveAttribute('href', '/item/album')
   })
 

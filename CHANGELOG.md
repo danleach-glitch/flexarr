@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Music
+- Play and Shuffle on an artist, album, playlist or mix go straight to Now Playing, on the web, iPhone and Apple TV. Picking a single song still leaves you on the list. On Apple TV, starting music no longer drops you back on Home, and Menu on Now Playing takes you back to where you pressed Play.
+- On Apple TV, the screensaver stays off while the music visualiser is on screen and the music is playing.
+
 ### Discover
 - Discover's Popular shows row is now Popular new shows: the most popular shows that started in the past year, rather than long-running ones like Grey's Anatomy and Friends.
 

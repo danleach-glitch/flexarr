@@ -30,7 +30,7 @@ final class MusicTour: XCTestCase {
         pause(6)
     }
 
-    /// Libraries, the music library, an artist, an album, Play, the bar, Now Playing.
+    /// Libraries, the music library, an artist, an album, and Play, which opens Now Playing.
     func testMusic() async throws {
         let libraries = try await client.libraries()
         guard let music = libraries.first(where: { $0.type == .music }) else { throw XCTSkip("no music library") }
@@ -50,13 +50,9 @@ final class MusicTour: XCTestCase {
         app.open(URL(string: "flexarr://item/\(album.id)")!)
         pause(5)
         shot("32-album")
+        // Play goes straight to Now Playing.
         app.buttons["Play"].firstMatch.tap()
-        pause(7)
-        shot("33-album-playing")
-
-        let bar = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Now playing'")).firstMatch
-        XCTAssertTrue(bar.waitForExistence(timeout: 5), "the now-playing bar should be up")
-        bar.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Next"].firstMatch.waitForExistence(timeout: 10), "Play should open Now Playing")
         pause(3)
         shot("34-now-playing")
         app.buttons["Next"].firstMatch.tap()

@@ -213,6 +213,7 @@ struct CollectionRow: View {
 /// ones here playable), all with no connection.
 struct OfflineCollectionView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(DownloadStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -299,11 +300,11 @@ struct OfflineCollectionView: View {
                 FactsLine(facts: facts(collection, tracks: tracks))
             }
             HStack(spacing: 12) {
-                Button { model.playTracks(tracks, albums: [collection.album].compactMap { $0 }) } label: {
+                Button { model.playTracks(tracks, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
                     Label("Play", systemImage: "play.fill")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection), prominent: true))
-                Button { model.playTracks(tracks, shuffled: true, albums: [collection.album].compactMap { $0 }) } label: {
+                Button { model.playTracks(tracks, shuffled: true, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
                     Label("Shuffle", systemImage: "shuffle")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient(collection)))

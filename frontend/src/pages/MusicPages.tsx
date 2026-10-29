@@ -141,10 +141,10 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
-            <button className="button" onClick={() => player.play(tracks, 0)} disabled={tracks.length === 0}>
+            <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
               <Play /> Play
             </button>
-            <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0)} disabled={tracks.length < 2}>
+            <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
               Shuffle
             </button>
             <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => tracks, item)} disabled={tracks.length === 0} />
@@ -226,7 +226,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
     setLoading(true)
     try {
       const tracks = await getTracks(item.id)
-      if (tracks.length > 0) player.play(shuffle ? shuffled(tracks) : tracks, 0)
+      if (tracks.length > 0) player.play(shuffle ? shuffled(tracks) : tracks, 0, { openNowPlaying: true })
     } finally {
       setLoading(false)
     }
@@ -237,7 +237,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
     setLoading(true)
     try {
       const tracks = await getRadio(item.id)
-      if (tracks.length > 0) player.play(tracks, 0)
+      if (tracks.length > 0) player.play(tracks, 0, { openNowPlaying: true })
     } finally {
       setLoading(false)
     }
