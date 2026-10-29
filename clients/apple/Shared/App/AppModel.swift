@@ -41,6 +41,9 @@ final class AppModel {
     }
     /// Up Next or what's playing changed (the iPhone's widgets follow).
     @ObservationIgnored var onPodcastsChange: (() -> Void)?
+    /// A device asking to connect, or one that's stopped asking (from the command stream, signed in as the main
+    /// profile): the iPhone asks whether to allow it. Apple TV leaves it to the phones.
+    @ObservationIgnored var onPairingEvent: (@MainActor (DeviceEvent) -> Void)?
     /// About to sign out, with the sign-in still working: the iPhone stops its notifications.
     @ObservationIgnored var onSignOut: (@MainActor (FlexarrClient) async -> Void)?
     private(set) var profiles: [Profile] = []
@@ -585,7 +588,13 @@ final class AppModel {
             commands.stop()
             return
         }
-        commands.start(client) { [weak self] command in self?.handle(command) }
+        commands.start(client) { [weak self] event in
+            if case .command(let command) = event {
+                self?.handle(command)
+            } else {
+                self?.onPairingEvent?(event)
+            }
+        }
     }
 
     /// Does what another device, the web app or an assistant asked: play a title here, or pause, resume or stop.

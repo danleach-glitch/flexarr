@@ -14,6 +14,8 @@ final class PushNotifications {
     nonisolated static let videoCategory = "flexarr.video"
     nonisolated static let podcastCategory = "flexarr.podcast"
     nonisolated static let recordingCategory = "flexarr.recording"
+    /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`).
+    nonisolated static let pairingCategory = "flexarr.pairing"
     nonisolated static let playAction = "flexarr.play"
     nonisolated static let downloadAction = "flexarr.download"
     nonisolated static let playOnTvAction = "flexarr.play-on-tv"
@@ -91,6 +93,8 @@ final class PushNotifications {
             UNNotificationCategory(identifier: videoCategory, actions: [play, download, playOnTv], intentIdentifiers: []),
             UNNotificationCategory(identifier: podcastCategory, actions: [play, download], intentIdentifiers: []),
             UNNotificationCategory(identifier: recordingCategory, actions: [play], intentIdentifiers: []),
+            // No buttons: allowing a device means checking its code first, which the app shows.
+            UNNotificationCategory(identifier: pairingCategory, actions: [], intentIdentifiers: []),
         ])
     }
 

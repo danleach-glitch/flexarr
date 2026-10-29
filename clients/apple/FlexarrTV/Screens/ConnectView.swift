@@ -139,42 +139,42 @@ private struct PairWithServer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
             if let pairing, let start = pairing.current {
-                // The iPhone's steps, word for word. A new server has nobody to approve the code yet, so setting it
-                // up comes first; the QR code only helps a phone that's signed in already, so it's small, underneath.
+                // The iPhone's steps, word for word: a phone signed in as the main profile is asked to allow it,
+                // and the web app does it without one. A new server has nobody to allow it yet, so setting it up in a
+                // browser comes first; the QR code only helps a phone that's signed in already, so it's small,
+                // underneath.
                 VStack(alignment: .leading, spacing: 26) {
                     Text("Connect this Apple TV")
                         .font(.system(size: 40, weight: .bold))
                         .foregroundStyle(Color.screen)
-                    VStack(alignment: .leading, spacing: 20) {
-                        NumberedStep(1) {
-                            Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
-                        }
-                        if pairing.needsSetup {
+                    if pairing.needsSetup {
+                        VStack(alignment: .leading, spacing: 20) {
+                            NumberedStep(1) {
+                                Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
+                            }
                             NumberedStep(2) {
                                 Text(pairing.setupNeedsCode
                                     ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
                                     : "Click **Set up Flexarr**.")
                             }
+                            NumberedStep(3) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
+                            NumberedStep(4) { Text("Type in this code:") }
                         }
-                        NumberedStep(pairing.needsSetup ? 3 : 2) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
-                        NumberedStep(pairing.needsSetup ? 4 : 3) { Text("Type in this code:") }
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: 20) {
-                        // Regular width, as the web pages show codes (SF Pro Black), so the two read the same.
-                        Text(start.code)
-                            .font(.system(size: 88, weight: .black))
+                        code(start, renewed: pairing.renewedAt != nil)
+                    } else {
+                        Text("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:")
+                            .font(.system(size: 30))
                             .foregroundStyle(Color.screen)
-                            .kerning(6)
-                            .fixedSize()
-                        if pairing.renewedAt != nil {
-                            Label("New code", systemImage: "arrow.clockwise")
-                                .font(.system(size: 30, weight: .semibold))
-                                .foregroundStyle(Color.silver)
-                        }
+                            .fixedSize(horizontal: false, vertical: true)
+                        code(start, renewed: pairing.renewedAt != nil)
+                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Access › Connect a device** and type in the code.")
+                            .font(.system(size: 26))
+                            .foregroundStyle(Color.usher)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     HStack(spacing: 14) {
                         ProgressView()
-                        Text("This screen moves on by itself once you have.")
+                        Text("This screen moves on by itself once it's allowed.")
                             .font(.system(size: 24))
                             .foregroundStyle(Color.usher)
                     }
@@ -203,6 +203,22 @@ private struct PairWithServer: View {
             let pairing = Pairing(server: server)
             self.pairing = pairing
             await pairing.run(model: model)
+        }
+    }
+
+    private func code(_ start: PairingStart, renewed: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 20) {
+            // Regular width, as the web pages show codes (SF Pro Black), so the two read the same.
+            Text(start.code)
+                .font(.system(size: 88, weight: .black))
+                .foregroundStyle(Color.screen)
+                .kerning(6)
+                .fixedSize()
+            if renewed {
+                Label("New code", systemImage: "arrow.clockwise")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(Color.silver)
+            }
         }
     }
 }

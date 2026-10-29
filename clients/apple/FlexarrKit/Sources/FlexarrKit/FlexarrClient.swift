@@ -318,7 +318,7 @@ public struct FlexarrClient: Sendable {
 
     // MARK: Pairing (connecting without typing the API key)
 
-    /// Asks the server for a code to show; someone signed in as the main profile approves it in the web app.
+    /// Asks the server for a code to show; someone signed in as the main profile allows it on their phone or in the web app.
     public func startPairing(deviceName: String) async throws -> PairingStart {
         let data = try await send("POST", "pairing", body: ["deviceName": deviceName])
         return try decode(PairingStart.self, from: data)
@@ -327,6 +327,28 @@ public struct FlexarrClient: Sendable {
     /// Polled while the code is on screen; carries this Apple TV's own token once approved.
     public func pairingStatus(_ id: String) async throws -> PairingStatus {
         try await get("pairing/\(id)")
+    }
+
+    /// Devices showing a code right now, for the main profile's phone to allow or not (the command stream says when
+    /// one starts; this catches up on any missed while the app was closed). Empty from servers before 0.56, which have
+    /// no list; anyone but the main profile is refused (403).
+    public func waitingPairings() async throws -> [PairingRequest] {
+        do {
+            return try await get("pairing/waiting")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return []
+        }
+    }
+
+    /// Lets the device showing `code` in. 404: it's no longer waiting (it may have expired and shows a new code);
+    /// 429: too many allowed this hour, with the server's message.
+    public func approvePairing(code: String) async throws {
+        _ = try await send("POST", "pairing/code/\(code)/approve", body: [String: String]())
+    }
+
+    /// Turns the device showing `code` away; it stops waiting.
+    public func declinePairing(code: String) async throws {
+        _ = try await send("POST", "pairing/code/\(code)/decline", body: [String: String]())
     }
 
     /// Whether the server is new and nobody has set it up in a browser yet (so there's nobody to approve a code).
@@ -368,10 +390,30 @@ public struct FlexarrClient: Sendable {
         return try decode(DeviceCommandResult.self, from: data)
     }
 
-    /// Commands sent to this device, as they arrive, over one long-lived request (server-sent events). Ends when the
-    /// server closes it (a newer connection from this device took over) or the connection drops; the caller opens it
-    /// again. Only a device signed in with its own token has one: with the API key the server answers 403.
+    /// Commands sent to this device, as they arrive (see `deviceEvents`, which this is the commands of).
     public func commandStream() -> AsyncThrowingStream<DeviceCommand, Error> {
+        let events = deviceEvents()
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await event in events {
+                        if case .command(let command) = event { continuation.yield(command) }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// What the server tells this device, as it happens, over one long-lived request (server-sent events): commands
+    /// for it and, signed in as the main profile, devices asking to connect. Ends when the server closes it (a newer
+    /// connection from this device took over) or the connection drops; the caller opens it again. Only a device
+    /// signed in with its own token has one: with the API key the server answers 403. Events it doesn't know (from
+    /// newer servers) are skipped.
+    public func deviceEvents() -> AsyncThrowingStream<DeviceEvent, Error> {
         var request = URLRequest(url: baseURL.appending(path: "api/v1/devices/commands"))
         request.timeoutInterval = 90 // The server writes a comment every 20 seconds.
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
@@ -404,8 +446,19 @@ public struct FlexarrClient: Sendable {
                         if line.last == UInt8(ascii: "\r") { line.removeLast() }
                         let text = String(decoding: line, as: UTF8.self)
                         line.removeAll(keepingCapacity: true)
-                        guard let event = events.feed(text), event.name == "command" else { continue }
-                        continuation.yield(try Self.decoder.decode(DeviceCommand.self, from: Data(event.data.utf8)))
+                        guard let event = events.feed(text) else { continue }
+                        let data = Data(event.data.utf8)
+                        switch event.name {
+                        case "command":
+                            continuation.yield(.command(try Self.decoder.decode(DeviceCommand.self, from: data)))
+                        // A prompt that can't be read is left out rather than ending the stream (and the commands).
+                        case "pairing":
+                            if let request = try? Self.decoder.decode(PairingRequest.self, from: data) { continuation.yield(.pairing(request)) }
+                        case "pairing-ended":
+                            if let ended = try? Self.decoder.decode(PairingEnded.self, from: data) { continuation.yield(.pairingEnded(code: ended.code)) }
+                        default:
+                            continue
+                        }
                     }
                     continuation.finish()
                 } catch {

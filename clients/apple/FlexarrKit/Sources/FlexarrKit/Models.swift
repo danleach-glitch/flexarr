@@ -713,6 +713,46 @@ public struct PairingStatus: Decodable, Sendable, Equatable {
     public let apiKey: String?
 }
 
+/// A device showing a code, asking to connect: what the main profile's phone asks about (the command stream's
+/// `pairing` event, and `GET /pairing/waiting`). Servers before 0.56 send none.
+public struct PairingRequest: Decodable, Sendable, Hashable, Identifiable {
+    /// The code on the device's screen, e.g. "K7M-Q4X": what the person checks before allowing it.
+    public let code: String
+    /// What the device calls itself ("Living room").
+    public let deviceName: String
+    public let expiresAt: Date
+    /// The address it asked from, when the server knows it.
+    public var requestedFrom: String? = nil
+    /// The network it asked over: "Local", "Tailscale", or something else.
+    public var zone: String? = nil
+
+    public var id: String { code }
+
+    public init(code: String, deviceName: String, expiresAt: Date, requestedFrom: String? = nil, zone: String? = nil) {
+        self.code = code
+        self.deviceName = deviceName
+        self.expiresAt = expiresAt
+        self.requestedFrom = requestedFrom
+        self.zone = zone
+    }
+}
+
+/// The `pairing-ended` event: the device was allowed (from anywhere), turned away, or its code ran out.
+struct PairingEnded: Decodable, Sendable {
+    let code: String
+}
+
+/// One thing the server's event stream says to this device.
+public enum DeviceEvent: Sendable, Hashable {
+    /// Something to do here: play, pause, …
+    case command(DeviceCommand)
+    /// A device asking to connect (signed in as the main profile only). Sent as it starts waiting, and for every
+    /// device already waiting when the stream opens.
+    case pairing(PairingRequest)
+    /// That device has stopped waiting: whatever asked about it can go.
+    case pairingEnded(code: String)
+}
+
 /// What `/me` says about this client.
 public struct SignInInfo: Decodable, Sendable, Equatable {
     public let profileId: String
