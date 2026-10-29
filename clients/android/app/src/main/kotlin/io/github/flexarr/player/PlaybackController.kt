@@ -69,6 +69,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     var error: String? by mutableStateOf(null)
         private set
+    /** The error's way on besides Close ("Try again", or "Watch here instead" for a stream another screen took), or null. */
+    var retryLabel: String? by mutableStateOf(null)
+        private set
+    /** A session is being asked for (a title starting, or the same one opened again). */
+    var isOpening by mutableStateOf(false)
+        private set
     var isPlaying by mutableStateOf(false)
         private set
     var isBuffering by mutableStateOf(true)
@@ -161,11 +167,20 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     /** This title's file couldn't be decoded here: it's converted from now on (until another title starts). */
     private var forcedTranscode = false
+    /** The player has closed: nothing more is opened, and a session arriving late is ended. */
+    private var closed = false
+    /** Bumped by every session asked for, so one that arrives after another was asked for is ended rather than played. */
+    private var openGeneration = 0
+    /** What [retry] asks for. */
+    private var retryRequest: ((DeviceProfile) -> PlaybackRequest)? = null
+    /** The last progress report or stop sent: each waits for the one before, so the server hears them in order. */
+    private var reporting: Job? = null
 
     init {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                if (playing) keepTicking()
                 // Paused or playing again: the server hears straight away.
                 if (info != null && player.playbackState == Player.STATE_READY) report(paused = !playing)
                 // Played again from elsewhere (headphones, say) after the sleep timer ran out: awake.
@@ -185,7 +200,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     error = "This download couldn’t be played. Delete it and download it again."
                     return
                 }
-                if (info?.method == PlaybackMethod.Transcode && e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && now - lastRecovery > RECOVERY_INTERVAL_MS) {
+                if (info?.method == PlaybackMethod.Transcode && e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && now - lastRecovery > RECOVERY_INTERVAL_MS && !isOpening) {
                     lastRecovery = now
                     Log.w("Flexarr", "Converted stream failed; opening it again", e)
                     reopen()
@@ -193,13 +208,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 }
                 // The file played as it is, and this device's decoder couldn't cope after all (it claimed a codec it
                 // can't do in practice, say): once, the server's converted stream instead, from the same place.
-                if (info?.method == PlaybackMethod.DirectPlay && !forcedTranscode && e.errorCode in DECODER_ERRORS) {
+                if (info?.method == PlaybackMethod.DirectPlay && !forcedTranscode && e.errorCode in DECODER_ERRORS && !isOpening) {
                     forcedTranscode = true
                     Log.w("Flexarr", "Couldn't decode the file; asking for it converted", e)
                     reopen()
                     return
                 }
-                error = "This couldn’t be played. ${e.errorCodeName.removePrefix("ERROR_CODE_").replace('_', ' ').lowercase()}."
+                Log.w("Flexarr", "Playback failed", e)
+                fail(playerErrorMessage(e), retry = info?.let { reopenRequest(it, player.currentPosition / 1000.0) })
             }
 
             override fun onTracksChanged(tracks: Tracks) {
@@ -249,6 +265,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             return
         }
         newTitle(subtitlesOff = false)
+        // A title being asked for meanwhile isn't wanted any more.
+        openGeneration++
+        isOpening = false
+        isReopening = false
         isOffline = true
         val next = model.downloads.nextDownloaded(download)
         begin(
@@ -285,50 +305,101 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (position != null || size != null || inBlackBars != null) debugPlacement = Triple(position, size, inBlackBars)
     }
 
-    /** Asks the server for a session for [request] (given this device's profile) and starts it. */
+    /**
+     * Asks the server for a session for [request] (given this device's profile) and starts it. The newest ask wins: a
+     * session that arrives after another was asked for, or after the player closed, is ended on the server.
+     */
     private fun open(reopening: Boolean = false, request: (DeviceProfile) -> PlaybackRequest) {
+        if (closed) return
+        val mine = ++openGeneration
+        isOpening = true
+        isReopening = reopening
         scope.launch {
-            if (reopening) isReopening = true
             try {
                 // Whether this server can have fragmented MP4 depends on its version, asked once.
                 val profile = serverProfile ?: DeviceCapabilities.withServer(deviceProfile, runCatching { client.systemStatus().version }.getOrNull())
                     .also { serverProfile = it }
-                begin(client.startPlayback(request(profile)))
+                val started = client.startPlayback(request(profile))
+                if (closed || mine != openGeneration) {
+                    runCatching { client.stopPlayback(started.sessionId) }
+                    return@launch
+                }
+                begin(started)
             } catch (e: Exception) {
-                if (reopening) Log.w("Flexarr", "Couldn't open the stream again", e) else error = e.message
+                if (closed || mine != openGeneration) return@launch
+                // Opened again behind the scenes: the picture plays on as it was, unless its stream had stopped.
+                if (reopening && player.playerError == null) {
+                    Log.w("Flexarr", "Couldn't open the stream again", e)
+                } else {
+                    // A stream another screen took is asked for afresh: the server won't have it replaced.
+                    val takenOver = e is FlexarrException.Http && e.status == 410
+                    val again: (DeviceProfile) -> PlaybackRequest = if (takenOver) { profile -> request(profile).copy(replacesSessionId = null) } else request
+                    fail(e.message ?: "This couldn’t be played.", retry = again, takenOver = takenOver)
+                }
             } finally {
-                isReopening = false
+                if (mine == openGeneration) {
+                    isOpening = false
+                    isReopening = false
+                }
             }
         }
+    }
+
+    /** Playback stopped: [message] over the picture, with Close, and Try again when [retry] can ask for it again. */
+    private fun fail(message: String, retry: ((DeviceProfile) -> PlaybackRequest)?, takenOver: Boolean = false) {
+        error = message
+        retryRequest = retry
+        retryLabel = when {
+            retry == null -> null
+            takenOver -> "Watch here instead"
+            else -> "Try again"
+        }
+    }
+
+    /** The error's Try again: the session asked for again, from where it stopped. */
+    fun retry() {
+        val request = retryRequest ?: return
+        if (isOpening) return
+        error = null
+        retryRequest = null
+        retryLabel = null
+        carriedRate = rate
+        open(request = request)
     }
 
     /** The same title opened again where it is: another audio track, the viewer's subtitles, or moved sound or subtitles. */
     private fun reopen(audioIndex: Int? = null) {
         val current = info ?: return
+        // Another title is being opened already (the next episode, say): that one wins.
+        if (isOpening && !isReopening) return
         carriedRate = rate
         report(paused = true)
-        val at = player.currentPosition / 1000.0
-        open(reopening = true) { profile ->
-            PlaybackRequest(
-                itemId = current.item.id,
-                profile = profile,
-                startPositionSeconds = at,
-                replacesSessionId = current.sessionId,
-                fileId = current.fileId,
-                audioStreamIndex = audioIndex ?: current.selectedAudioIndex,
-                // The viewer's pick ("off" included) wins; otherwise what's showing, and the server decides.
-                subtitleKey = if (viewerChoseSubtitle) viewerSubtitleKey ?: "off" else current.selectedSubtitleKey,
-                forceTranscode = if (forcedTranscode) true else null,
-            )
-        }
+        open(reopening = true, request = reopenRequest(current, player.currentPosition / 1000.0, audioIndex))
+    }
+
+    private fun reopenRequest(current: PlaybackInfo, at: Double, audioIndex: Int? = null): (DeviceProfile) -> PlaybackRequest = { profile ->
+        PlaybackRequest(
+            itemId = current.item.id,
+            profile = profile,
+            startPositionSeconds = at,
+            replacesSessionId = current.sessionId,
+            fileId = current.fileId,
+            audioStreamIndex = audioIndex ?: current.selectedAudioIndex,
+            // The viewer's pick ("off" included) wins; otherwise what's showing, and the server decides.
+            subtitleKey = if (viewerChoseSubtitle) viewerSubtitleKey ?: "off" else current.selectedSubtitleKey,
+            forceTranscode = if (forcedTranscode) true else null,
+        )
     }
 
     private fun begin(started: PlaybackInfo) {
+        if (closed) return
         val sameTitle = info?.item?.id == started.item.id
         previews?.close()
         previews = if (isOffline) null else TrickplayPreviews(client, started.sessionId, scope)
         info = started
         error = null
+        retryRequest = null
+        retryLabel = null
         preferences = started.preferences ?: PlaybackPreferences()
         prompt = PlaybackPrompt.None
         autoSkipped.clear()
@@ -392,10 +463,20 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (sleepPhase != SleepPhase.Asleep) player.play()
         lastReport = System.currentTimeMillis()
         ticker?.cancel()
+        keepTicking()
+    }
+
+    /**
+     * Ticks a few times a second while playing (and while "Still watching?" counts down). Paused, nothing moves but a
+     * seek, which ticks once.
+     */
+    private fun keepTicking() {
+        if (ticker?.isActive == true || closed || info == null) return
         ticker = scope.launch {
             while (isActive) {
-                tick()
                 delay(250)
+                tick()
+                if (!player.isPlaying && sleepPhase != SleepPhase.Asking) break
             }
         }
     }
@@ -441,12 +522,16 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun seekTo(seconds: Double) {
         player.seekTo((seconds * 1000).toLong())
         position = seconds
+        keepTicking()
     }
 
+    /** Ignored while a session is being asked for, so a second tap (or the countdown running out) doesn't open two. */
     fun playNext() {
         val current = info ?: return
         val next = current.next ?: return
-        report(paused = true)
+        if (isOpening) return
+        // Moved on from the credits: watched, as on iPhone.
+        report(paused = true, ended = isPastCredits(current, player.currentPosition / 1000.0))
         if (isOffline) {
             val download = model.downloads.entry(next.id)?.takeIf { it.isDownloaded } ?: return onClose()
             return startOffline(download.id)
@@ -457,7 +542,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             // Got ready during the credits: this session ends, and the next one opens straight away.
             Log.i("Flexarr", "Using the next episode got ready during the credits")
             prepared = null
-            scope.launch { runCatching { client.stopPlayback(current.sessionId) } }
+            send { runCatching { client.stopPlayback(current.sessionId) } }
             newTitle(subtitlesOff)
             begin(ready.info)
             return
@@ -499,7 +584,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     client.startPlayback(PlaybackRequest(itemId = next.id, profile = profile, subtitleKey = if (subtitlesOff) "off" else null, prepare = true))
                 }.getOrNull() ?: return@launch
                 // Still wanted? (Not if this episode was closed, or moved on from, meanwhile.)
-                if (info?.sessionId != current.sessionId || nextCancelled) {
+                if (closed || info?.sessionId != current.sessionId || nextCancelled) {
                     runCatching { client.stopPlayback(ready.sessionId) }
                     return@launch
                 }
@@ -522,6 +607,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     fun playPrevious() {
         val previous = info?.previous ?: return
+        if (isOpening) return
         report(paused = true)
         dropPrepared()
         start(previous.id, fromBeginning = false)
@@ -917,7 +1003,22 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (!model.recordsHistory) return
         val at = player.currentPosition / 1000.0
         if (isOffline) return recordOffline(current, at, ended)
-        scope.launch { runCatching { client.reportProgress(session, at, paused, ended) } }
+        send { runCatching { client.reportProgress(session, at, paused, ended) } }
+    }
+
+    /** Sends [request] after whatever was sent before it, so the server hears pauses, plays and stops in order. */
+    private fun send(request: suspend () -> Unit) {
+        val previous = reporting
+        reporting = scope.launch {
+            previous?.join()
+            request()
+        }
+    }
+
+    /** At the credits (or, with none marked, near enough the end): watched, as the iPhone app counts it. */
+    private fun isPastCredits(current: PlaybackInfo, at: Double): Boolean {
+        val credits = current.markers.firstOrNull { it.type == MarkerType.Credits }?.start
+        return at > 0 && at >= (credits ?: (current.durationSeconds * 0.92))
     }
 
     /** Watched from a download: kept with it, finished once it ended or the credits began, and sent to the server later. */
@@ -929,6 +1030,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
+        closed = true
         ticker?.cancel()
         resync?.cancel()
         previews?.close()
@@ -944,8 +1046,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             return
         }
         if (session != null) {
-            scope.launch {
-                if (model.recordsHistory) runCatching { client.reportProgress(session, at, paused = true) }
+            val records = model.recordsHistory
+            send {
+                if (records) runCatching { client.reportProgress(session, at, paused = true) }
                 runCatching { client.stopPlayback(session) }
                 model.watchStateChanged()
             }
@@ -965,6 +1068,34 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
         )
+        private val PARSING_ERRORS = setOf(
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
+        )
+        private val AUDIO_ERRORS = setOf(
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED,
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED,
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED,
+        )
+
+        /**
+         * Why the player stopped, in words: ExoPlayer's own ("io network connection failed") say little. [subject] is
+         * what was playing ("This", "This channel").
+         */
+        fun playerErrorMessage(e: PlaybackException, subject: String = "This"): String = when (e.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT, PlaybackException.ERROR_CODE_TIMEOUT ->
+                "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again."
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ->
+                "The server stopped sending this. It may have restarted: try again in a moment."
+            in PARSING_ERRORS -> "$subject came in a form the phone couldn’t read."
+            in DECODER_ERRORS -> "This phone couldn’t decode the picture or the sound."
+            in AUDIO_ERRORS -> "The sound couldn’t be played on this phone."
+            else -> "$subject couldn’t be played."
+        }
+
         const val MAX_RATE = 2f
         const val AUDIO_SYNC_STEP = 0.01
         const val AUDIO_SYNC_JUMP = 0.05

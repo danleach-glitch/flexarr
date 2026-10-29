@@ -28,11 +28,14 @@ class TrickplayPreviews(private val client: FlexarrClient, private val sessionId
     private var manifest: TrickplayManifest? = null
 
     /**
-     * The sheets fetched lately, newest last. A sheet is 100 thumbnails (about 23 MB decoded), so only the few around
-     * where the viewer is scrubbing are kept: a whole film's worth would sit beside the video for the session.
+     * The sheets fetched lately, newest last. A sheet is 100 thumbnails (about 12 MB decoded, at 16 bits a pixel), so
+     * only the two around where the viewer is scrubbing are kept: a whole film's worth would sit beside the video for
+     * the session.
      */
     private val sheets = ArrayDeque<Pair<Int, Bitmap>>()
     private val loading = mutableSetOf<Int>()
+    /** When a sheet last failed to arrive, so scrubbing over it doesn't ask again every frame. */
+    private val failedAt = mutableMapOf<Int, Long>()
     private val jobs = mutableListOf<Job>()
     private var cropped: Pair<TrickplayManifest.Place, ImageBitmap>? = null
 
@@ -74,23 +77,29 @@ class TrickplayPreviews(private val client: FlexarrClient, private val sessionId
     }
 
     private fun fetch(sheet: Int) {
+        if (failedAt[sheet]?.let { System.currentTimeMillis() - it < RETRY_MS } == true) return
         if (!loading.add(sheet)) return
         jobs += scope.launch {
             val bitmap = withContext(Dispatchers.IO) {
                 runCatching {
                     val request = Request.Builder().url(client.trickplaySheetUrl(sessionId, sheet)).build()
                     FlexarrClient.sharedHttp.newCall(request).execute().use { response ->
-                        if (response.isSuccessful) BitmapFactory.decodeStream(response.body.byteStream()) else null
+                        // Thumbnails this small look the same in 16-bit colour, at half the memory.
+                        val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+                        if (response.isSuccessful) BitmapFactory.decodeStream(response.body.byteStream(), null, options) else null
                     }
                 }.getOrNull()
             }
             loading.remove(sheet)
-            if (bitmap != null) {
-                sheets.removeAll { it.first == sheet }
-                sheets.addLast(sheet to bitmap)
-                if (sheets.size > SHEETS_KEPT) sheets.removeFirst()
-                version++
+            if (bitmap == null) {
+                failedAt[sheet] = System.currentTimeMillis()
+                return@launch
             }
+            failedAt.remove(sheet)
+            sheets.removeAll { it.first == sheet }
+            sheets.addLast(sheet to bitmap)
+            if (sheets.size > SHEETS_KEPT) sheets.removeFirst()
+            version++
         }
     }
 
@@ -102,6 +111,7 @@ class TrickplayPreviews(private val client: FlexarrClient, private val sessionId
     }
 
     private companion object {
-        const val SHEETS_KEPT = 3
+        const val SHEETS_KEPT = 2
+        const val RETRY_MS = 15_000L
     }
 }
