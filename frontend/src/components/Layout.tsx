@@ -12,6 +12,7 @@ import { AsyncButton } from './AsyncButton'
 import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
 import { NowPlaying } from './NowPlaying'
+import { PairingPrompt } from './PairingPrompt'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
 
@@ -306,6 +307,7 @@ export function Layout() {
         <AddToPlaylistHost />
       </main>
       <NowPlaying />
+      <PairingPrompt />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
     </div>
   )

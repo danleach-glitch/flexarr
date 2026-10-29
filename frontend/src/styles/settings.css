@@ -1275,6 +1275,64 @@
   text-transform: uppercase;
 }
 
+/* A device asking to connect, on whatever page an admin has open: a card under the top bar, clear of the now-playing
+   bar, below dialogs. */
+.pairing-prompt {
+  position: fixed;
+  top: calc(var(--nav-height) + 8px + env(safe-area-inset-top));
+  right: 16px;
+  z-index: 58;
+  display: grid;
+  gap: 8px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 16px 18px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--seat) 96%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+}
+
+.pairing-prompt p {
+  margin: 0;
+}
+
+.pairing-prompt-head {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+}
+
+.pairing-prompt-title {
+  flex: 1;
+  font-size: var(--step-1);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pairing-prompt-close {
+  margin: -10px -10px 0 0;
+}
+
+/* The code in the device's own face, as on Connect a device. */
+.pairing-code {
+  font-family: var(--code-face);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pairing-prompt .form-actions {
+  margin-top: 4px;
+}
+
+@media (max-width: 600px) {
+  .pairing-prompt {
+    left: 16px;
+    width: auto;
+  }
+}
+
 /* Icon, name and badges over one muted line, then the actions; rows split by hairlines. */
 .sign-in-list {
   margin: 0;
