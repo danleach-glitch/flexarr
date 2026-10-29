@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Home
+- When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.
+
 ## 0.53.0 · 29 October 2026
 
 ### Music

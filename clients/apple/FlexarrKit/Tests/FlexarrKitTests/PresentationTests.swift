@@ -206,8 +206,7 @@ struct EmptyHomeMessageTests {
     @Test func saysALibraryIsEmptyAndWhereItLooked() throws {
         let message = try #require(EmptyHomeMessage(libraries: [library("Films", .movies, folders: ["/media/films"]), library("TV", .tvShows, folders: ["/media/tv"])]))
         #expect(message.title == "Your library is empty")
-        #expect(message.body.hasPrefix("Films and TV are set up, but Flexarr hasn’t found any films and shows in its folders yet."))
-        #expect(message.body.contains("connect Sonarr or Radarr"))
+        #expect(message.body == "Add files to your library folders, or connect Sonarr or Radarr in Flexarr on the web.")
         #expect(message.folders == ["/media/films", "/media/tv"])
     }
 

@@ -98,8 +98,7 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
     <section className="welcome">
       <h1>Your library is empty</h1>
       <p>
-        {names} {libraries.length > 1 ? 'are' : 'is'} set up, but Flexarr hasn’t found any {wanted} in {folders.length > 1 ? 'its folders' : 'its folder'} yet.
-        Add some there, or connect Sonarr or Radarr so what they download lands there, then scan again.
+        Add files to {folders.length > 1 ? 'your library folders' : 'your library folder'}, or connect Sonarr or Radarr.
       </p>
       {folders.length > 0 && (
         <ul className="welcome-folders" aria-label="Folders">

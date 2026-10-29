@@ -124,7 +124,7 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
             if (media.isEmpty()) {
                 return EmptyHomeMessage(
                     "Nothing to watch yet",
-                    "Add your movies, shows and music on the computer where you set up Flexarr: open Flexarr in a browser and go to Settings › Libraries. They appear here once they’re added.",
+                    "Open Flexarr in a browser and add a library in Settings › Libraries.",
                     emptyList(),
                 )
             }
@@ -142,11 +142,10 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
                 )
             }
             val folders = media.flatMap { it.folders }
-            val verb = if (media.size > 1) "are" else "is"
-            val where = if (folders.size > 1) "its folders" else "its folder"
+            val where = if (folders.size > 1) "your library folders" else "your library folder"
             return EmptyHomeMessage(
                 "Your library is empty",
-                "$names $verb set up, but Flexarr hasn’t found any $wanted in $where yet. Add some there, or connect Sonarr or Radarr in Flexarr’s settings on the web.",
+                "Add files to $where, or connect Sonarr or Radarr in Flexarr on the web.",
                 folders,
             )
         }

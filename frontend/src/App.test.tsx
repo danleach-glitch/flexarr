@@ -68,7 +68,7 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Your library is empty' })).toBeInTheDocument()
-    expect(screen.getByText(/Movies is set up, but Flexarr hasn’t found any films in its folder yet/)).toBeInTheDocument()
+    expect(screen.getByText('Add files to your library folder, or connect Sonarr or Radarr.')).toBeInTheDocument()
     expect(screen.getByText('/media/movies')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Connect Sonarr or Radarr' })).toHaveAttribute('href', '/settings/connections')
     expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeInTheDocument()
