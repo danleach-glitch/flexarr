@@ -211,6 +211,38 @@ public sealed class PodcastFetcher(HttpClient http)
         static FeedFetch Failed(string error) => new(null, false, null, null, null, error);
     }
 
+    /// <summary>A small text file a feed points to (a chapters file), or null when it can't be read in time or is too big.</summary>
+    public async Task<string?> FetchTextAsync(string url, long limit, CancellationToken ct)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        try
+        {
+            var (response, _, _) = await GetAsync(uri, null, timeout.Token).ConfigureAwait(false);
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > limit)
+                {
+                    return null;
+                }
+
+                await using var body = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+                using var buffer = new MemoryStream();
+                await CopyLimitedAsync(body, buffer, limit, timeout.Token).ConfigureAwait(false);
+                return System.Text.Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or FormatException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+        {
+            return null;
+        }
+    }
+
     /// <summary>Copies at most <paramref name="limit"/> bytes.</summary>
     /// <exception cref="FormatException">There was more.</exception>
     public static async Task CopyLimitedAsync(Stream from, Stream to, long limit, CancellationToken ct)
