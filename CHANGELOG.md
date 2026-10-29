@@ -33,6 +33,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
 - Teletext subtitles in recorded TV have a Teletext page choice in the subtitles menu, as on iPhone: Automatic, or page 888, 777, 150 or 801, for a recording whose subtitles aren't on the page the broadcast marks. It needs the server on this version too.
 - Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
+- flexarr:// links from other apps and the browser open the Android app, as they do the iPhone app: a title's link opens its page, a Live TV channel's opens the guide, and one naming a profile opens "Who's watching?" (asking for its PIN, if it has one). A link from another app never starts anything playing by itself.
 - A library's list keeps up with the server, as on iPhone: when it refreshes after you've watched something or been away a while, titles removed since disappear and new ones appear, rather than only the badges updating.
 
 ### iPhone and Apple TV

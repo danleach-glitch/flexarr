@@ -47,7 +47,10 @@ class MainActivity : ComponentActivity() {
         openLink(intent)
     }
 
-    /** A notification, shortcut or the widget opened the app somewhere ([AppLink]). */
+    /**
+     * A notification, shortcut, the widget or another app's `flexarr://` link opened the app somewhere ([AppLink]);
+     * [AppLink.received] keeps one from another app from playing anything.
+     */
     private fun openLink(intent: Intent) {
         AppLink.received(this, intent)?.let { appModel.pendingLink = it }
     }
