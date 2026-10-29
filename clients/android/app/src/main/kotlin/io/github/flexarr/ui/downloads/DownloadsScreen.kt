@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -421,7 +422,7 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     Box(
-        Modifier.size(40.dp).pressable({
+        Modifier.minimumInteractiveComponentSize().size(40.dp).pressable({
             when {
                 download == null -> model.scope.launch { runCatching { store.downloadEpisode(episodeId) }.onFailure { problem = it.message } }
                 download.phase == LocalPhase.Failed -> problem = download.failure

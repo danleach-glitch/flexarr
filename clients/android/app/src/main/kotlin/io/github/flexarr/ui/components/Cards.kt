@@ -1,7 +1,6 @@
 package io.github.flexarr.ui.components
 
 import io.github.flexarr.appModel
-import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +36,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,14 +68,15 @@ val LocalNavigator = staticCompositionLocalOf<Navigator> { error("No navigator")
 /** Cards in Continue Watching offer to leave it. */
 val LocalInContinueWatching = compositionLocalOf { false }
 
-/** Artwork from the server over [placeholder] (shown while it loads, or when there is none). */
+/** Artwork from the server, with [placeholder] in its place while it loads, or when there is none. */
 @Composable
 fun RemoteImage(path: String?, width: Int, modifier: Modifier = Modifier, placeholder: @Composable () -> Unit) {
-    val client = LocalClient.current
+    val url = LocalClient.current.imageUrl(path, width)
+    var loaded by remember(url) { mutableStateOf(false) }
     Box(modifier) {
-        placeholder()
-        client.imageUrl(path, width)?.let { url ->
-            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        if (!loaded) placeholder()
+        if (url != null) {
+            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(), onSuccess = { loaded = true })
         }
     }
 }
@@ -83,10 +86,12 @@ fun RemoteImage(path: String?, width: Int, modifier: Modifier = Modifier, placeh
 fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = PosterWidth) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
+    val actions = itemActions(item)
     Box(modifier) {
         Column(
             (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
-                .pressable(onClick = { navigator.open(item) }, onLongClick = { menu = true }),
+                .pressable(onClick = { navigator.open(item) }, onLongClick = { menu = true })
+                .menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             PosterArtwork(item)
@@ -95,7 +100,7 @@ fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = Po
                 posterSubtitle(item)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1) }
             }
         }
-        ItemMenu(item, menu, onDismiss = { menu = false })
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 
@@ -131,9 +136,10 @@ fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
 fun WideCard(item: ItemSummary, width: Dp = WideWidth, onClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
+    val actions = itemActions(item, showsDetails = true)
     Box {
         Column(
-            Modifier.width(width).pressable(onClick = { onClick?.invoke() ?: navigator.play(item) }, onLongClick = { menu = true }),
+            Modifier.width(width).pressable(onClick = { onClick?.invoke() ?: navigator.play(item) }, onLongClick = { menu = true }).menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
@@ -152,7 +158,7 @@ fun WideCard(item: ItemSummary, width: Dp = WideWidth, onClick: (() -> Unit)? = 
                 Text(listOfNotNull(item.episodeSubtitle, remaining).joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        ItemMenu(item, menu, onDismiss = { menu = false }, showsDetails = true)
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 
@@ -187,44 +193,61 @@ fun PersonCard(name: String, detail: String?, image: String?, onClick: (() -> Un
     }
 }
 
-/** The long-press menu shared by cards, as iPhone's context menu. */
+/** One thing a card's long-press menu does. */
+class MenuAction(val label: String, val run: () -> Unit)
+
+/**
+ * What the long-press menu shared by cards offers, as iPhone's context menu: [ItemMenu] shows it, and [menuActions]
+ * gives TalkBack the same list.
+ */
 @Composable
-fun ItemMenu(item: ItemSummary, expanded: Boolean, onDismiss: () -> Unit, showsDetails: Boolean = false) {
+fun itemActions(item: ItemSummary, showsDetails: Boolean = false): List<MenuAction> {
     val navigator = LocalNavigator.current
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        fun entry(label: String, action: () -> Unit) = @Composable {
-            DropdownMenuItem(text = { Text(label) }, onClick = {
-                onDismiss()
-                action()
-            })
-        }
+    return buildList {
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
-            entry(if (item.isResumable) "Resume" else "Play") { navigator.play(item) }()
-            if (item.isResumable) entry("Play from beginning") { navigator.play(item, fromBeginning = true) }()
+            add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.play(item) })
+            if (item.isResumable) add(MenuAction("Play from beginning") { navigator.play(item, fromBeginning = true) })
         }
-        if (showsDetails) entry(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) }()
+        if (showsDetails) add(MenuAction(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) })
         // Download at Settings' size (a title's page offers the others).
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
             val download = model.downloads.entry(item.id)
             if (download == null) {
-                entry("Download") { model.scope.launch { runCatching { model.downloads.download(item) } } }()
+                add(MenuAction("Download") { navigator.download(item) })
             } else {
-                entry(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) }()
+                add(MenuAction(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) })
             }
         }
         val watched = item.userData.watched || item.userData.unwatchedCount == 0
-        entry(if (watched) "Mark as unwatched" else "Mark as watched") { navigator.setWatched(item, !watched) }()
+        add(MenuAction(if (watched) "Mark as unwatched" else "Mark as watched") { navigator.setWatched(item, !watched) })
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if (item.isResumable && !watched) {
-            entry("Mark as unwatched") { navigator.setWatched(item, false) }()
+            add(MenuAction("Mark as unwatched") { navigator.setWatched(item, false) })
         } else if (inContinueWatching && item.kind == MediaKind.Episode && !watched) {
-            entry("Remove from Continue Watching") { navigator.removeFromContinueWatching(item) }()
+            add(MenuAction("Remove from Continue Watching") { navigator.removeFromContinueWatching(item) })
         }
         val show = item.seriesTitle
         if (item.kind == MediaKind.Episode && item.seriesId != null && show != null) {
-            entry("Mark $show as watched") { navigator.setShowWatched(item) }()
+            add(MenuAction("Mark $show as watched") { navigator.setShowWatched(item) })
+        }
+    }
+}
+
+/** A card's menu as TalkBack actions, so it's there without the long press. */
+fun Modifier.menuActions(actions: List<MenuAction>): Modifier =
+    semantics { customActions = actions.map { action -> CustomAccessibilityAction(action.label) { action.run(); true } } }
+
+/** The long-press menu shared by cards. */
+@Composable
+fun ItemMenu(actions: List<MenuAction>, expanded: Boolean, onDismiss: () -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        actions.forEach { action ->
+            DropdownMenuItem(text = { Text(action.label) }, onClick = {
+                onDismiss()
+                action.run()
+            })
         }
     }
 }

@@ -74,6 +74,7 @@ import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 
@@ -172,11 +173,13 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
             total = page.total
             error = null
             loadedAt = System.currentTimeMillis()
+        } catch (e: CancellationException) {
+            // A newer load (another sort, say) took over: it says when it's done.
+            throw e
         } catch (e: Exception) {
             if (items.isEmpty()) error = e.message
-        } finally {
-            loading = false
         }
+        loading = false
     }
 
     // After playback or watched changes, fetch what's on screen again so badges update, keeping the scroll position.

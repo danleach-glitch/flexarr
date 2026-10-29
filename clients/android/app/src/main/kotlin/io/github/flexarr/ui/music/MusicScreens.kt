@@ -91,6 +91,7 @@ import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 // The music screens, as the iPhone app's: a library (playlists, new albums, every artist), an artist, an album and a
@@ -143,12 +144,14 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
                 }.awaitAll().flatten().sortedByDescending { it.addedAt.orEmpty() }.take(RECENT_ALBUM_COUNT)
                 browse = MusicBrowse(lists.await(), albums)
             }
+        } catch (e: CancellationException) {
+            // A newer load took over: it says when it's done.
+            throw e
         } catch (e: Exception) {
             if (artists.isEmpty()) error = e.message
-        } finally {
-            loading = false
-            refreshing = false
         }
+        loading = false
+        refreshing = false
     }
 
     fun loadMoreIfNeeded(index: Int) {

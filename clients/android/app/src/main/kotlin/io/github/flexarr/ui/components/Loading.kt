@@ -10,7 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 
 private val flexarrLog = FlexarrLog("screens")
@@ -48,6 +53,24 @@ fun RefreshWhenStale(loadedAt: Long?, refresh: () -> Unit) {
 }
 
 /**
+ * Runs [action] now and then every [periodMs] while the screen is showing, starting over when it comes back: nothing is
+ * polled for a screen under another one, or while the app is away.
+ */
+@Composable
+fun RepeatWhileShowing(periodMs: Long, vararg keys: Any?, action: suspend () -> Unit) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val current by rememberUpdatedState(action)
+    LaunchedEffect(lifecycle, *keys) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                current()
+                delay(periodMs)
+            }
+        }
+    }
+}
+
+/**
  * Runs [load] now and again whenever [keys] change, or the screen comes back to an answer more than a minute old.
  * Reloading keeps what's on screen until the new answer comes, so coming back from the player doesn't flash a
  * spinner, and a reload that fails leaves it there.
@@ -76,7 +99,9 @@ fun <T> rememberLoader(vararg keys: Any?, load: suspend () -> T): Loader<T> {
             refreshing = false
         }
     }
-    return Loader(state, refreshing) { attempt++ }
+    // The same Loader (and Try again) until something changes, so what's handed it doesn't recompose for nothing.
+    val retry: () -> Unit = remember { { attempt++ } }
+    return remember(state, refreshing) { Loader(state, refreshing, retry) }
 }
 
 /** Shows [content] once loaded, a spinner until then, and the error with Try again if it fails. */

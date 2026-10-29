@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +49,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -97,6 +103,8 @@ fun ConnectScreen(model: AppModel) {
         val last = model.store.lastAddress
         mutableStateOf(if (model.signedOutNotice != null && last != null) Step.Pair(server(last)) else Step.Choose)
     }
+    // Back from a code or an address goes back to the servers, as the screen's own Back does, rather than out of the app.
+    BackHandler(enabled = step != Step.Choose) { step = Step.Choose }
 
     RoomBackground(ambient = Flexarr.silver, intensity = 0.22f) {
         Column(
@@ -167,7 +175,7 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
                 }
             }
         }
-        Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.padding(top = 6.dp).pressable(onManual))
+        Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.padding(top = 6.dp).pressable(onManual).minimumInteractiveComponentSize())
     }
 }
 
@@ -275,7 +283,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                 if (needsSetup) {
                     NumberedStep(2) {
                         Text(buildAnnotatedString {
-                            if (setupNeedsCode) append("Type in the setup code from the server's log, then click ")
+                            if (setupNeedsCode) append("Type in the setup code from the server’s log, then click ")
                             else append("Click ")
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Set up Flexarr") }
                             append(".")
@@ -307,8 +315,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             CircularProgressIndicator(color = Flexarr.screen)
         }
         error?.let { ErrorNote(it) }
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text("Back", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack))
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Back", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack).minimumInteractiveComponentSize())
             // Only works if the browser on this phone is signed in already, so it stays out of the way.
             if (shown != null && !needsSetup) {
                 Text(
@@ -316,7 +324,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Flexarr.silver,
-                    modifier = Modifier.pressable({ uri.openUri("${server.address.trimEnd('/')}/link?code=$shown") }),
+                    modifier = Modifier.pressable({ uri.openUri("${server.address.trimEnd('/')}/link?code=$shown") }).minimumInteractiveComponentSize(),
                 )
             }
         }
@@ -339,7 +347,8 @@ private fun NumberedStep(number: Int, content: @Composable () -> Unit) {
 @Composable
 private fun ErrorNote(message: String) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x996B3347)).padding(14.dp),
+        // Read out when it appears.
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x996B3347)).padding(14.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(Icons.Filled.Warning, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
@@ -396,6 +405,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
                 KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = if (usesKey) ImeAction.Next else ImeAction.Go),
                 KeyboardActions(onGo = { connect() }, onNext = { keyFocus.requestFocus() }),
                 Modifier.focusRequester(addressFocus),
+                name = "Server address",
             )
         }
         if (usesKey) {
@@ -407,6 +417,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
                     KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
                     KeyboardActions(onGo = { connect() }),
                     Modifier.focusRequester(keyFocus),
+                    name = "API key",
                     secret = true,
                 )
             }
@@ -430,7 +441,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Flexarr.silver,
-                modifier = Modifier.pressable({ usesKey = true }),
+                modifier = Modifier.pressable({ usesKey = true }).minimumInteractiveComponentSize(),
             )
         }
     }
@@ -452,6 +463,8 @@ private fun Input(
     keyboard: KeyboardOptions,
     actions: KeyboardActions,
     modifier: Modifier,
+    /** What TalkBack calls the field (the title above it isn't part of it). */
+    name: String,
     secret: Boolean = false,
 ) {
     BasicTextField(
@@ -463,9 +476,9 @@ private fun Input(
         keyboardOptions = keyboard,
         keyboardActions = actions,
         visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().semantics { contentDescription = name },
         decorationBox = { field ->
-            if (value.isEmpty()) Text(placeholder, fontSize = 17.sp, color = Flexarr.usher.copy(alpha = 0.6f))
+            if (value.isEmpty()) Text(placeholder, fontSize = 17.sp, color = Flexarr.usher)
             field()
         },
     )

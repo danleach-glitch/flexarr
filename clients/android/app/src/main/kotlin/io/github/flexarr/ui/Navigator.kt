@@ -3,7 +3,9 @@ package io.github.flexarr.ui
 import android.content.Context
 import android.net.Uri
 import androidx.navigation.NavHostController
+import androidx.compose.material3.SnackbarHostState
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
@@ -12,6 +14,7 @@ import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.player.PlayerActivity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
@@ -79,30 +82,55 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     /** A random episode of the show, then random ones after it. */
     fun shuffle(item: ItemSummary) = play(item.id, shuffle = true)
 
-    fun setWatched(item: ItemSummary, watched: Boolean) {
-        val client = model.client ?: return
-        model.scope.launch {
-            runCatching { client.setWatched(item.id, watched) }
-            model.watchStateChanged()
-        }
-    }
+    /**
+     * Something asked for from a card's menu that didn't work, said in a bar along the bottom (MainScreen shows it)
+     * rather than nothing happening.
+     */
+    val notices = SnackbarHostState()
+
+    fun setWatched(item: ItemSummary, watched: Boolean) =
+        changeWatchState(if (watched) "Couldn’t mark this as watched" else "Couldn’t mark this as unwatched") { it.setWatched(item.id, watched) }
 
     /** The show of an episode, all of it. */
     fun setShowWatched(episode: ItemSummary) {
         val show = episode.seriesId ?: return
+        changeWatchState("Couldn’t mark the show as watched") { it.setWatched(show, true) }
+    }
+
+    fun removeFromContinueWatching(item: ItemSummary) =
+        changeWatchState("Couldn’t remove this from Continue Watching") { it.removeFromContinueWatching(item.id) }
+
+    /** A film or episode downloaded at Settings' size. */
+    fun download(item: ItemSummary) {
+        model.scope.launch {
+            try {
+                model.downloads.download(item)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell("Couldn’t download this", e)
+            }
+        }
+    }
+
+    private fun changeWatchState(failure: String, change: suspend (FlexarrClient) -> Unit) {
         val client = model.client ?: return
         model.scope.launch {
-            runCatching { client.setWatched(show, true) }
+            try {
+                change(client)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell(failure, e)
+            }
             model.watchStateChanged()
         }
     }
 
-    fun removeFromContinueWatching(item: ItemSummary) {
-        val client = model.client ?: return
-        model.scope.launch {
-            runCatching { client.removeFromContinueWatching(item.id) }
-            model.watchStateChanged()
-        }
+    /** "Couldn’t download this. The server can’t be reached." */
+    private fun tell(failure: String, error: Exception) {
+        val reason = error.message?.takeIf { it.isNotBlank() }
+        model.scope.launch { notices.showSnackbar(if (reason != null) "$failure. $reason" else "$failure.") }
     }
 
     /** A Home row's link, "/library/{id}?sort=added", as a library to open; null for anything else. */

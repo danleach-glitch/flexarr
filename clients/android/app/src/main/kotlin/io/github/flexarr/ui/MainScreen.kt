@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import io.github.flexarr.ui.components.isWide
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -89,7 +91,9 @@ private enum class Tab(val route: String, val label: String) {
 /** Home, Libraries, Downloads, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
 @Composable
 fun MainScreen(model: AppModel) {
-    val client = model.client ?: return
+    // One client for the sign-in, rather than a new one each time the screen recomposes.
+    val credentials = model.credentials ?: return
+    val client = remember(credentials) { model.client } ?: return
     val nav = rememberNavController()
     val context = LocalContext.current
     val navigator = remember(nav, model) { Navigator(nav, model, context) }
@@ -154,6 +158,9 @@ fun MainScreen(model: AppModel) {
         val rail = isWide
         Scaffold(
             containerColor = Flexarr.room,
+            snackbarHost = {
+                SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen) }
+            },
             bottomBar = {
               Column {
                 // Music or a podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
