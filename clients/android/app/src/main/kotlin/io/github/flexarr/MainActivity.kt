@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Debug builds sign in from the command line, like the Apple apps' launch arguments, for previews and testing:
-     * `adb shell am start -n io.github.flexarr/.MainActivity --es server <url> --es apiKey <key> --ez noHistory true`.
+     * `adb shell am start -n com.danleach.flexarr/io.github.flexarr.MainActivity --es server <url> --es apiKey <key> --ez noHistory true`.
      */
     private fun signInFromLaunch(intent: Intent) {
         if (!BuildConfig.DEBUG) return

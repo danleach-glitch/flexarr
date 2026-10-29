@@ -15,7 +15,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.flexarr"
+        applicationId = "com.danleach.flexarr"
         minSdk = 26
         targetSdk = 36
         versionName = serverVersion
