@@ -16,6 +16,7 @@ junit = "4.13.2"
 sentry = "8.62.0"
 firebase-bom = "35.1.0"
 glance = "1.2.0"
+splashscreen = "1.2.0"
 google-services = "4.5.0"
 
 [libraries]
@@ -49,6 +50,7 @@ firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "fir
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+androidx-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]

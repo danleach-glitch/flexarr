@@ -9,6 +9,14 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <!-- Launching: the mark on the room colour, the same on every Android version (core-splashscreen), then the app. -->
+    <style name="Theme.Flexarr.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/room</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/room</item>
+        <item name="postSplashScreenTheme">@style/Theme.Flexarr</item>
+    </style>
+
     <style name="Theme.Flexarr.Player">
         <item name="android:windowBackground">@android:color/black</item>
     </style>
