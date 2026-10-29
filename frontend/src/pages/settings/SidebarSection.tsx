@@ -13,7 +13,7 @@ export function SidebarSection() {
   const { libraries, reload } = useLibraries()
   // The order moved to here, until the library list comes back in it.
   const [draft, setDraft] = useState<string[]>()
-  const [status, setStatus] = useState<{ saved?: string; error?: string }>({})
+  const [error, setError] = useState<string>()
   // Saved a moment after the last move, so a library moved several places is one save, not several.
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   // What was last saved from here, ahead of the (cached) profiles list.
@@ -29,7 +29,7 @@ export function SidebarSection() {
 
   const change = (ids: string[]) => {
     setDraft(ids)
-    setStatus({})
+    setError(undefined)
     clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       const order = reorderedLibraries(saved.current ?? me.libraryOrder ?? [], ids)
@@ -38,11 +38,10 @@ export function SidebarSection() {
           saved.current = order
           clearApiCache((path) => path.startsWith('/profiles'))
           reload()
-          setStatus({ saved: 'Saved. Your other devices show it next time they load your libraries.' })
         },
         (e: unknown) => {
           setDraft(undefined)
-          setStatus({ error: errorText(e) })
+          setError(errorText(e))
         },
       )
     }, 600)
@@ -51,7 +50,6 @@ export function SidebarSection() {
   return (
     <section>
       <SettingsHeader title="Sidebar">The order of your libraries in the sidebar, and in the menus of the iPhone, Apple TV and Android apps. Drag a library to move it.</SettingsHeader>
-      <SaveStatus {...status} />
       {shown.length > 1 ? (
         <RowList
           title={`${me.name}’s libraries`}
@@ -62,6 +60,8 @@ export function SidebarSection() {
       ) : (
         <p className="muted">With two or more libraries, you can put them in order here.</p>
       )}
+      {/* Only a failed save says anything, under the list so the list never moves. */}
+      <SaveStatus error={error} />
     </section>
   )
 }
