@@ -84,9 +84,22 @@ internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onA
         if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, "Subtitles", onInteract) { close -> SubtitlesMenu(controller, close) }
         val badge = if (controller.rate == 1f) null else PlaybackController.rateLabel(controller.rate)
         MenuButton(Icons.Filled.Speed, "Speed", onInteract, badge = badge) { close -> SpeedMenu(controller, close) }
-        val sleeping = controller.sleep.setting != null
-        MenuButton(if (sleeping) Icons.Filled.Bedtime else Icons.Outlined.Bedtime, "Sleep timer", onInteract) { close -> SleepMenu(controller, close) }
+        SleepMenuButton(controller.sleep, controller.offersEndOfEpisode, onInteract)
     }
+}
+
+/** The sleep timer's menu alone on its glass pill, for a live channel (which has no other menus). */
+@Composable
+internal fun SleepMenuBar(sleep: VideoSleep, onInteract: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.height(44.dp).glass(RoundedCornerShape(22.dp)).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        SleepMenuButton(sleep, offersEndOfEpisode = false, onInteract)
+    }
+}
+
+@Composable
+private fun SleepMenuButton(sleep: VideoSleep, offersEndOfEpisode: Boolean, onInteract: () -> Unit) {
+    val sleeping = sleep.setting != null
+    MenuButton(if (sleeping) Icons.Filled.Bedtime else Icons.Outlined.Bedtime, "Sleep timer", onInteract) { close -> SleepMenu(sleep, offersEndOfEpisode, close) }
 }
 
 /** A menu's icon in its slot; tapping opens its menu (the controls stay up while it's open). */
@@ -293,20 +306,20 @@ private fun SpeedMenu(controller: PlaybackController, close: () -> Unit) {
 
 /** Off, 15 to 60 minutes, End of episode (episodes only); with the minutes left while one runs. */
 @Composable
-private fun SleepMenu(controller: PlaybackController, close: () -> Unit) {
-    val current = controller.sleep.setting
-    MenuTitle(controller.sleep.menuTitle)
+private fun SleepMenu(sleep: VideoSleep, offersEndOfEpisode: Boolean, close: () -> Unit) {
+    val current = sleep.setting
+    MenuTitle(sleep.timer.menuTitle)
     Choice("Off", current == null) {
         close()
-        controller.setSleep(null)
+        sleep.set(null)
     }
     Divider()
     val choices = SleepTimer.minuteChoices.map { SleepTimer.Setting.Minutes(it) } +
-        if (controller.offersEndOfEpisode) listOf(SleepTimer.Setting.EndOfEpisode) else emptyList()
+        if (offersEndOfEpisode) listOf(SleepTimer.Setting.EndOfEpisode) else emptyList()
     choices.forEach { setting ->
         Choice(setting.label, setting == current) {
             close()
-            controller.setSleep(setting)
+            sleep.set(setting)
         }
     }
 }
@@ -350,37 +363,37 @@ internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, 
  * the screen.
  */
 @Composable
-internal fun SleepPrompt(controller: PlaybackController) {
-    val phase = controller.sleepPhase
+internal fun SleepPrompt(sleep: VideoSleep) {
+    val phase = sleep.phase
     val dim by animateFloatAsState(
         when (phase) {
-            PlaybackController.SleepPhase.Off -> 0f
-            PlaybackController.SleepPhase.Asking -> 0.55f
-            PlaybackController.SleepPhase.Asleep -> 0.7f
+            VideoSleep.Phase.Off -> 0f
+            VideoSleep.Phase.Asking -> 0.55f
+            VideoSleep.Phase.Asleep -> 0.7f
         },
-        tween(if (phase == PlaybackController.SleepPhase.Asking) 3_000 else 600),
+        tween(if (phase == VideoSleep.Phase.Asking) 3_000 else 600),
         label = "sleep dim",
     )
     if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
-    AnimatedVisibility(phase != PlaybackController.SleepPhase.Off, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+    AnimatedVisibility(phase != VideoSleep.Phase.Off, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
         Box(
             Modifier.fillMaxSize().pointerInput(phase) {
                 // A tap anywhere is 15 minutes more while it asks, and wakes the screen once it's run out.
                 detectTapGestures {
-                    if (controller.sleepPhase == PlaybackController.SleepPhase.Asking) controller.extendSleep() else controller.wake()
+                    if (sleep.phase == VideoSleep.Phase.Asking) sleep.extend() else sleep.wake()
                 }
             },
             contentAlignment = Alignment.Center,
         ) {
-            if (phase == PlaybackController.SleepPhase.Asleep) {
+            if (phase == VideoSleep.Phase.Asleep) {
                 Text("Paused by the sleep timer", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.alpha(0.6f))
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Still watching?", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(controller.sleepDetail, fontSize = 15.sp, fontWeight = FontWeight.Medium, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 8.dp))
+                    Text(sleep.detail, fontSize = 15.sp, fontWeight = FontWeight.Medium, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 8.dp))
                     Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Pill("Cancel timer", filled = false) { controller.setSleep(null) }
-                        Pill("+15 min", filled = true, icon = Icons.Filled.Bedtime, onClick = controller::extendSleep)
+                        Pill("Cancel timer", filled = false) { sleep.set(null) }
+                        Pill("+15 min", filled = true, icon = Icons.Filled.Bedtime, onClick = sleep::extend)
                     }
                 }
             }

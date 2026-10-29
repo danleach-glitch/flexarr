@@ -39,6 +39,7 @@ import io.github.flexarr.core.SubtitleSyncState
 import io.github.flexarr.core.SubtitleTrack
 import io.github.flexarr.core.DownloadedSubtitles
 import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.prompt
 import io.github.flexarr.core.startSubtitleSync
 import io.github.flexarr.core.subtitleSync
@@ -47,7 +48,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.ceil
 
 /**
  * One title playing: asks the server for a session, plays its stream with ExoPlayer, reports progress, offers Skip
@@ -131,22 +131,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     var isResyncing by mutableStateOf(false)
         private set
 
-    // The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode.
-
-    enum class SleepPhase {
-        Off,
-        /** The last minute: "Still watching?" over the dimmed picture. */
-        Asking,
-        /** Ran out: paused, dimmed until someone touches something. */
-        Asleep,
-    }
-
-    val sleep = SleepTimer(scope).also { it.onExpire = { fallAsleep() } }
-    var sleepPhase by mutableStateOf(SleepPhase.Off)
-        private set
-    /** "Pausing in 0:42" while asking. */
-    var sleepDetail by mutableStateOf("")
-        private set
+    /** The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode. */
+    val sleep = VideoSleep(scope, player, onChange = { updatePrompt() })
 
     private var prompt: PlaybackPrompt = PlaybackPrompt.None
     private var preferences = PlaybackPreferences()
@@ -165,7 +151,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The sideloaded subtitle still to be turned on once the player has read its tracks. */
     private var pendingSubtitle: String? = null
     private var audioDelaySave: Job? = null
+    /** This session's stream has played, so its stopping is a stream that dropped (recovered) rather than one that never worked. */
+    private var hasPlayed = false
     private var lastRecovery = 0L
+    /** What was played before the current title in this sitting, for Previous episode (on shuffle, the server can't say). */
+    private val trail = mutableListOf<ItemSummary>()
     /** Playing a download from this phone, with no session: what's watched goes to the downloads, for the server later. */
     var isOffline by mutableStateOf(false)
         private set
@@ -184,11 +174,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
-                if (playing) keepTicking()
+                if (playing) {
+                    hasPlayed = true
+                    keepTicking()
+                }
                 // Paused or playing again: the server hears straight away.
                 if (info != null && player.playbackState == Player.STATE_READY) report(paused = !playing)
                 // Played again from elsewhere (headphones, say) after the sleep timer ran out: awake.
-                if (playing && sleepPhase == SleepPhase.Asleep) wake()
+                if (playing && sleep.phase == VideoSleep.Phase.Asleep) sleep.wake()
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -197,17 +190,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             }
 
             override fun onPlayerError(e: PlaybackException) {
-                // A converted stream that stopped (the server restarted, or forgot the conversion after a long jump):
-                // a fresh session from the same place, once in a while, before giving up.
-                val now = System.currentTimeMillis()
                 if (isOffline) {
                     error = "This download couldn’t be played. Delete it and download it again."
-                    return
-                }
-                if (info?.method == PlaybackMethod.Transcode && e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && now - lastRecovery > RECOVERY_INTERVAL_MS && !isOpening) {
-                    lastRecovery = now
-                    Log.w("Flexarr", "Converted stream failed; opening it again", e)
-                    reopen()
                     return
                 }
                 // The file played as it is, and this device's decoder couldn't cope after all (it claimed a codec it
@@ -218,6 +202,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     reopen()
                     return
                 }
+                // A stream that was playing stopped, converted or played as it is.
+                if (hasPlayed) return recover(e)
                 Log.w("Flexarr", "Playback failed", e)
                 fail(playerErrorMessage(e), retry = info?.let { reopenRequest(it, player.currentPosition / 1000.0) })
             }
@@ -239,10 +225,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     /**
-     * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. [subtitlesOff]: the
-     * viewer turned subtitles off in the last episode, which carries on into this one.
+     * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it, as a new sitting.
      */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false) {
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null) {
+        // A new sitting: nothing before it for Previous episode.
+        trail.clear()
+        play(itemId, fromBeginning, shuffle, startAt)
+    }
+
+    /**
+     * [start] within this sitting: the next episode, or the one before. [subtitlesOff]: the viewer turned subtitles off
+     * in the last episode, which carries on into this one.
+     */
+    private fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false) {
         isOffline = false
         newTitle(subtitlesOff)
         open { profile ->
@@ -262,6 +257,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * episode if that's downloaded too. Nothing needs the server, so it plays with no connection.
      */
     fun startOffline(downloadId: String) {
+        trail.clear()
+        playOffline(downloadId)
+    }
+
+    private fun playOffline(downloadId: String) {
         val download = model.downloads.byId(downloadId)
         val file = download?.let(model.downloads::file)
         if (download == null || file == null) {
@@ -313,7 +313,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * Asks the server for a session for [request] (given this device's profile) and starts it. The newest ask wins: a
      * session that arrives after another was asked for, or after the player closed, is ended on the server.
      */
-    private fun open(reopening: Boolean = false, request: (DeviceProfile) -> PlaybackRequest) {
+    private fun open(reopening: Boolean = false, attempts: Int = 1, request: (DeviceProfile) -> PlaybackRequest) {
         if (closed) return
         val mine = ++openGeneration
         isOpening = true
@@ -323,7 +323,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 // Whether this server can have fragmented MP4 depends on its version, asked once.
                 val profile = serverProfile ?: DeviceCapabilities.withServer(deviceProfile, runCatching { client.systemStatus().version }.getOrNull())
                     .also { serverProfile = it }
-                val started = client.startPlayback(request(profile))
+                val started = startPlayback(request(profile), attempts) { !closed && mine == openGeneration } ?: return@launch
                 if (closed || mine != openGeneration) {
                     runCatching { client.stopPlayback(started.sessionId) }
                     return@launch
@@ -335,10 +335,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 if (reopening && player.playerError == null) {
                     Log.w("Flexarr", "Couldn't open the stream again", e)
                 } else {
-                    // A stream another screen took is asked for afresh: the server won't have it replaced.
                     val takenOver = e is FlexarrException.Http && e.status == 410
-                    val again: (DeviceProfile) -> PlaybackRequest = if (takenOver) { profile -> request(profile).copy(replacesSessionId = null) } else request
-                    fail(e.message ?: "This couldn’t be played.", retry = again, takenOver = takenOver)
+                    fail(e.message ?: "This couldn’t be played.", retry = request, takenOver = takenOver)
                 }
             } finally {
                 if (mine == openGeneration) {
@@ -349,10 +347,63 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
     }
 
-    /** Playback stopped: [message] over the picture, with Close, and Try again when [retry] can ask for it again. */
+    /**
+     * Asks the server for [request], up to [attempts] times a few seconds apart while it comes back (null: not
+     * [wanted] any more). A busy server, or a stream ended for another screen (410), isn't asked again: it won't be
+     * different in a moment, and asking would only take the stream back from that screen.
+     */
+    private suspend fun startPlayback(request: PlaybackRequest, attempts: Int, wanted: () -> Boolean): PlaybackInfo? {
+        repeat(attempts - 1) {
+            try {
+                return client.startPlayback(request)
+            } catch (e: FlexarrException) {
+                if (e is FlexarrException.Http && (e.status == 503 || e.status == 410)) throw e
+                Log.w("Flexarr", "Couldn't open the stream (attempt ${it + 1} of $attempts)", e)
+            }
+            delay(RECOVERY_RETRY_MS)
+            if (!wanted()) return null
+        }
+        return client.startPlayback(request)
+    }
+
+    /**
+     * A stream that was playing stopped: the server restarted, say, forgot a conversion after a long jump, or the
+     * connection dropped. As on iPhone, a fresh session from where it was, asked for a few times while the server
+     * comes back, before giving up; at most once a minute, as a stream that keeps stopping is a real problem worth
+     * showing. One the server ended so another screen could play says so, with Watch here instead.
+     */
+    private fun recover(e: PlaybackException) {
+        val current = info ?: return
+        // A session is on its way already (another audio track, the next episode): it takes over.
+        if (isOpening) return
+        val failed = current.sessionId
+        val at = player.currentPosition / 1000.0
+        val request = reopenRequest(current, at)
+        val now = System.currentTimeMillis()
+        if (now - lastRecovery <= RECOVERY_INTERVAL_MS) {
+            scope.launch {
+                val takenOver = client.takenOverReason(failed)
+                // The player may have closed, or moved on, while that was out.
+                if (closed || info?.sessionId != failed || isOpening) return@launch
+                Log.w("Flexarr", "Stream stopped again within a minute", e)
+                if (takenOver != null) fail(takenOver, retry = request, takenOver = true) else fail(playerErrorMessage(e), retry = request)
+            }
+            return
+        }
+        Log.w("Flexarr", "Stream stopped; recovering at ${at.toInt()} s", e)
+        lastRecovery = now
+        carriedRate = rate
+        open(reopening = true, attempts = RECOVERY_ATTEMPTS, request = request)
+    }
+
+    /**
+     * Playback stopped: [message] over the picture, with Close, and Try again when [retry] can ask for it again. A
+     * stream another screen took ([takenOver]) offers Watch here instead, asked for afresh without replacing the
+     * session it had, which the server won't do for a while afterwards.
+     */
     private fun fail(message: String, retry: ((DeviceProfile) -> PlaybackRequest)?, takenOver: Boolean = false) {
         error = message
-        retryRequest = retry
+        retryRequest = if (takenOver && retry != null) { profile -> retry(profile).copy(replacesSessionId = null) } else retry
         retryLabel = when {
             retry == null -> null
             takenOver -> "Watch here instead"
@@ -401,6 +452,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         previews?.close()
         previews = if (isOffline) null else TrickplayPreviews(client, started.sessionId, scope)
         info = started
+        hasPlayed = false
         error = null
         retryRequest = null
         retryLabel = null
@@ -464,7 +516,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         carriedRate = null
         setPlayerRate(startRate)
         // Asleep (End of episode stopped the last one): stay paused under the dim.
-        if (sleepPhase != SleepPhase.Asleep) player.play()
+        if (sleep.phase != VideoSleep.Phase.Asleep) player.play()
         lastReport = System.currentTimeMillis()
         ticker?.cancel()
         keepTicking()
@@ -480,7 +532,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             while (isActive) {
                 delay(250)
                 tick()
-                if (!player.isPlaying && sleepPhase != SleepPhase.Asking) break
+                if (!player.isPlaying && sleep.phase != VideoSleep.Phase.Asking) break
             }
         }
     }
@@ -490,7 +542,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val seconds = player.currentPosition / 1000.0
         position = seconds
         if (player.duration > 0) duration = player.duration / 1000.0
-        checkSleep()
+        sleep.check(::untilEndOfEpisode)
         val next = info.prompt(seconds)
         // Skip intros and recaps by themselves when the profile asks, once each.
         if (next is PlaybackPrompt.Skip && (if (next.type == MarkerType.Intro) preferences.skipIntros else preferences.skipRecaps) &&
@@ -538,8 +590,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         report(paused = true, ended = isPastCredits(current, player.currentPosition / 1000.0))
         if (isOffline) {
             val download = model.downloads.entry(next.id)?.takeIf { it.isDownloaded } ?: return onClose()
-            return startOffline(download.id)
+            trail.add(current.item)
+            return playOffline(download.id)
         }
+        trail.add(current.item)
         val subtitlesOff = nextSubtitlesOff(current)
         val ready = prepared
         if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
@@ -552,7 +606,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             return
         }
         dropPrepared()
-        start(next.id, fromBeginning = false, subtitlesOff = subtitlesOff)
+        play(next.id, fromBeginning = false, subtitlesOff = subtitlesOff)
     }
 
     /**
@@ -609,12 +663,22 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         scope.launch { runCatching { client.stopPlayback(ready.info.sessionId) } }
     }
 
+    /**
+     * Back to the episode before this one: the one played before it in this sitting (on shuffle too), else the one
+     * before it in order. Like a music player's back, as on iPhone: a few seconds in, or with nothing before, it starts
+     * this one again instead.
+     */
     fun playPrevious() {
-        val previous = info?.previous ?: return
+        val current = info ?: return
         if (isOpening) return
+        val before = trail.lastOrNull() ?: current.previous
+        // A download goes back to the one before only if that's on the phone too.
+        val download = if (isOffline) before?.let { model.downloads.entry(it.id) }?.takeIf { it.isDownloaded } else null
+        if (player.currentPosition / 1000.0 > RESTART_AFTER_SECONDS || before == null || (isOffline && download == null)) return seekTo(0.0)
+        if (trail.lastOrNull() == before) trail.removeAt(trail.lastIndex)
         report(paused = true)
         dropPrepared()
-        start(previous.id, fromBeginning = false)
+        if (download != null) playOffline(download.id) else play(before.id, fromBeginning = false)
     }
 
     fun promptTapped() {
@@ -641,7 +705,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private fun itemEnded() {
         report(paused = true, ended = true)
         when {
-            sleepHoldsEpisode -> fallAsleep()
+            sleepHoldsEpisode -> sleep.fallAsleep()
             info?.next != null && !nextCancelled -> beginFinishing()
             else -> onClose()
         }
@@ -916,88 +980,23 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     // Sleep timer
 
     /** The sleep timer has this episode stopping at its end, or has run out: no going on to the next by itself. */
-    val sleepHoldsEpisode: Boolean
-        get() = sleep.setting == SleepTimer.Setting.EndOfEpisode || sleepPhase != SleepPhase.Off
+    val sleepHoldsEpisode: Boolean get() = sleep.holdsEpisode
 
     /** End of episode is offered for episodes only. */
     val offersEndOfEpisode: Boolean get() = info?.item?.kind == MediaKind.Episode
 
-    /** The viewer chose a timer (or Off, or Cancel timer) in the menu or the question. */
-    fun setSleep(setting: SleepTimer.Setting?) {
-        sleep.set(setting)
-        if (sleepPhase == SleepPhase.Asking) endAsking()
-        updatePrompt()
-    }
-
-    /** "+15 min": fifteen minutes from now, whatever the timer was (End of episode included). */
-    fun extendSleep() = setSleep(SleepTimer.Setting.Minutes(15))
-
     /**
-     * Checked a few times a second while it runs: the question in the last minute (or as End of episode's credits
-     * start), the sound fading over the last ten seconds, and the stop.
+     * End of episode's stop: at the credits when the profile skips them (and they're marked), else the very end. The
+     * question comes as the credits start, or a minute before the end.
      */
-    private fun checkSleep() {
-        if (sleepPhase == SleepPhase.Asleep) return
-        val setting = sleep.setting
-        if (setting == null) {
-            if (sleepPhase == SleepPhase.Asking) endAsking()
-            return
-        }
-        val left: Double
-        val asking: Boolean
-        when (setting) {
-            is SleepTimer.Setting.Minutes -> {
-                left = sleep.remaining ?: 0.0
-                asking = left <= 60
-            }
-            SleepTimer.Setting.EndOfEpisode -> {
-                val info = info ?: return
-                if (duration <= 0) return
-                // At the credits when the profile skips them (and they're marked), else the very end; the question
-                // comes as the credits start, or a minute before the end.
-                val credits = info.markers.firstOrNull { it.type == MarkerType.Credits }?.start
-                val stopsAtCredits = preferences.skipCredits && info.next != null
-                val stop = if (stopsAtCredits) credits ?: duration else duration
-                val question = if (stopsAtCredits) stop - 60 else credits ?: (stop - 60)
-                left = (stop - position) / rate.coerceAtLeast(0.25f)
-                if (left <= 0.3) return fallAsleep()
-                asking = position >= minOf(question, stop - 10)
-            }
-        }
-        if (asking) {
-            if (sleepPhase == SleepPhase.Off) {
-                sleepPhase = SleepPhase.Asking
-                updatePrompt()
-            }
-            sleepDetail = "Pausing in " + io.github.flexarr.core.Format.timestamp(ceil(left))
-            player.volume = (left / 10).toFloat().coerceIn(0f, 1f)
-        } else if (sleepPhase == SleepPhase.Asking) {
-            endAsking()
-        }
-    }
-
-    /** Back to watching: the question and the dim go, the sound comes back up. */
-    private fun endAsking() {
-        sleepPhase = SleepPhase.Off
-        player.volume = 1f
-        updatePrompt()
-    }
-
-    /** Run out: the picture pauses (its place reported as for any pause) and stays dimmed until someone's there. */
-    private fun fallAsleep() {
-        if (sleepPhase == SleepPhase.Asleep) return
-        if (sleep.setting != null) sleep.set(null)
-        sleepPhase = SleepPhase.Asleep
-        player.pause()
-        updatePrompt()
-    }
-
-    /** Someone's there after the timer ran out: the dim goes (still paused). */
-    fun wake() {
-        if (sleepPhase != SleepPhase.Asleep) return
-        sleepPhase = SleepPhase.Off
-        player.volume = 1f
-        updatePrompt()
+    private fun untilEndOfEpisode(): Pair<Double, Boolean>? {
+        val info = info ?: return null
+        if (duration <= 0) return null
+        val credits = info.markers.firstOrNull { it.type == MarkerType.Credits }?.start
+        val stopsAtCredits = preferences.skipCredits && info.next != null
+        val stop = if (stopsAtCredits) credits ?: duration else duration
+        val question = if (stopsAtCredits) stop - 60 else credits ?: (stop - 60)
+        return (stop - position) / rate.coerceAtLeast(0.25f) to (position >= minOf(question, stop - 10))
     }
 
     private fun report(paused: Boolean, ended: Boolean = false) {
@@ -1061,7 +1060,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val COUNTDOWN_SECONDS = 5
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
-        private const val RECOVERY_INTERVAL_MS = 30_000L
+        // A stream that stops is asked for again 6 times, 3 s apart, at most once a minute, as on iPhone.
+        private const val RECOVERY_INTERVAL_MS = 60_000L
+        private const val RECOVERY_ATTEMPTS = 6
+        private const val RECOVERY_RETRY_MS = 3_000L
+        /** Past this, Previous starts the title again before going to the one before. */
+        private const val RESTART_AFTER_SECONDS = 3.0
         private val DECODER_ERRORS = setOf(
             PlaybackException.ERROR_CODE_DECODING_FAILED,
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,

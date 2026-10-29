@@ -1,24 +1,13 @@
 package io.github.flexarr.player
 
-import android.app.PendingIntent
-import android.app.PictureInPictureParams
-import android.app.RemoteAction
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.drawable.Icon
-import android.os.Build
-import android.util.Rational
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
-import io.github.flexarr.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import android.graphics.Color as AndroidColor
@@ -133,8 +122,7 @@ import java.util.Locale
 class PlayerActivity : ComponentActivity() {
     private var controller: PlaybackController? = null
     private var session: MediaSession? = null
-    /** In the corner window: only the picture and its subtitles show. */
-    private var inPictureInPicture by mutableStateOf(false)
+    private var pictureInPicture: PictureInPicture? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(AndroidColor.TRANSPARENT), SystemBarStyle.dark(AndroidColor.TRANSPARENT))
@@ -151,16 +139,18 @@ class PlayerActivity : ComponentActivity() {
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
         // Headphone and Bluetooth buttons, the system's media controls and the corner window's play and pause.
         session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
+        // Another picture still up (a live channel in the corner, say) gives way: one at a time, as on iPhone.
+        model.commands.active?.stop()
         model.commands.active = playback
-        ContextCompat.registerReceiver(this, pictureInPictureActions, IntentFilter(ACTION_PIP), ContextCompat.RECEIVER_NOT_EXPORTED)
+        val pictureInPicture = pictureInPicture(controller).also { pictureInPicture = it }
         // Made again (the process ended in the background, or the font size or language changed): what was playing then,
         // from where it was, rather than whatever first opened the player.
         startFrom(savedInstanceState?.getBundle(STATE_PLAYING)?.let { Intent(intent).replaceExtras(it) } ?: intent)
         setContent {
             FlexarrTheme {
                 // The corner window keeps the picture's shape, and goes there by itself only while playing.
-                LaunchedEffect(controller.videoSize, controller.isPlaying) { updatePictureInPicture() }
-                PlayerScreen(controller, onClose = ::finish, inPictureInPicture = inPictureInPicture, onPictureInPicture = ::enterPictureInPicture)
+                LaunchedEffect(controller.videoSize, controller.isPlaying) { pictureInPicture.update() }
+                PlayerScreen(controller, onClose = ::finish, inPictureInPicture = pictureInPicture.isActive, onPictureInPicture = ::enterPictureInPicture)
             }
         }
     }
@@ -209,73 +199,27 @@ class PlayerActivity : ComponentActivity() {
         startFrom(intent)
     }
 
-    private val canPictureInPicture: Boolean
-        get() = packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-
-    private fun pictureInPictureParams(): PictureInPictureParams {
-        val controller = controller
-        val size = controller?.videoSize
-        val playing = controller?.isPlaying == true
-        return PictureInPictureParams.Builder().apply {
-            if (size != null && size.width > 0 && size.height > 0) {
-                // Android takes shapes between 1:2.39 and 2.39:1.
-                val ratio = (size.width * size.pixelWidthHeightRatio / size.height).coerceIn(1 / 2.39f, 2.39f)
-                setAspectRatio(Rational((ratio * 1000).toInt(), 1000))
-            }
-            setActions(
-                listOf(
-                    action(R.drawable.ic_pip_replay_10, "Back 10 seconds", PIP_BACK),
-                    if (playing) action(R.drawable.ic_pip_pause, "Pause", PIP_TOGGLE) else action(R.drawable.ic_pip_play, "Play", PIP_TOGGLE),
-                    action(R.drawable.ic_pip_forward_10, "Forward 10 seconds", PIP_FORWARD),
-                ),
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                setAutoEnterEnabled(playing)
-                setSeamlessResizeEnabled(true)
-            }
-        }.build()
-    }
-
-    private fun action(icon: Int, title: String, code: Int): RemoteAction {
-        val intent = PendingIntent.getBroadcast(
-            this,
-            code,
-            Intent(ACTION_PIP).setPackage(packageName).putExtra(EXTRA_PIP_CONTROL, code),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        return RemoteAction(Icon.createWithResource(this, icon), title, title, intent)
-    }
-
-    private val pictureInPictureActions = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val controller = controller ?: return
-            when (intent.getIntExtra(EXTRA_PIP_CONTROL, 0)) {
-                PIP_BACK -> controller.skip(-controller.skipSeconds)
-                PIP_TOGGLE -> controller.togglePlayPause()
-                PIP_FORWARD -> controller.skip(controller.skipSeconds)
-            }
-        }
-    }
-
-    private fun updatePictureInPicture() {
-        if (canPictureInPicture) runCatching { setPictureInPictureParams(pictureInPictureParams()) }
-    }
+    /** The corner window: the picture's shape, the skip interval, and going there by itself only while playing. */
+    private fun pictureInPicture(controller: PlaybackController) = PictureInPicture(this, object : PictureInPicture.Source {
+        override val videoSize get() = controller.videoSize
+        override val isPlaying get() = controller.isPlaying
+        override val skipSeconds get() = controller.skipSeconds
+        override fun skip(seconds: Int) = controller.skip(seconds)
+        override fun togglePlayPause() = controller.togglePlayPause()
+    })
 
     fun enterPictureInPicture() {
-        if (canPictureInPicture) runCatching { enterPictureInPictureMode(pictureInPictureParams()) }
+        pictureInPicture?.enter()
     }
 
-    /** Before Android 12 there's no going there by itself: leaving the app while it plays does it here. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && controller?.isPlaying == true) enterPictureInPicture()
+        pictureInPicture?.userLeaving()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        inPictureInPicture = isInPictureInPictureMode
-        // The corner window was closed (rather than opened out again): so is the player.
-        if (!isInPictureInPictureMode && !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) finish()
+        pictureInPicture?.modeChanged(isInPictureInPictureMode)
     }
 
     override fun onStop() {
@@ -294,7 +238,8 @@ class PlayerActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (appModel.commands.active === playback) appModel.commands.active = null
-        runCatching { unregisterReceiver(pictureInPictureActions) }
+        pictureInPicture?.release()
+        pictureInPicture = null
         session?.release()
         session = null
         controller?.close()
@@ -308,11 +253,6 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_START_AT = "startAt"
         private const val EXTRA_DOWNLOAD = "downloadId"
         private const val STATE_PLAYING = "playing"
-        private const val ACTION_PIP = "io.github.flexarr.PIP_CONTROL"
-        private const val EXTRA_PIP_CONTROL = "control"
-        private const val PIP_BACK = 1
-        private const val PIP_TOGGLE = 2
-        private const val PIP_FORWARD = 3
 
         /** [startAt]: a place to open at (debug launches), rather than where it was left. */
         fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null): Intent =
@@ -329,8 +269,8 @@ class PlayerActivity : ComponentActivity() {
 }
 
 /**
- * The player as headphones, Bluetooth and the system's media controls see it: their next and previous skip ten
- * seconds, as the iPhone's remote commands do for video, and stopping closes the player.
+ * The player as headphones, Bluetooth and the system's media controls see it: their next and previous skip back
+ * and forward (Settings › Playback), as the iPhone's remote commands do for video, and stopping closes the player.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private class VideoSessionPlayer(private val controller: PlaybackController) : ForwardingPlayer(controller.player) {
@@ -348,7 +288,7 @@ private class VideoSessionPlayer(private val controller: PlaybackController) : F
 /**
  * Our controls over the video, as on iPhone: the title, previous and next episode, skip back and forward, play/pause,
  * the timeline, and the Skip Intro / Next Episode pill above it. A tap shows or hides them; a double tap on either
- * side skips ten seconds.
+ * side skips back or forward (Settings › Playback).
  */
 @Composable
 private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, inPictureInPicture: Boolean, onPictureInPicture: () -> Unit) {
@@ -436,7 +376,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             }
         }
 
-        val asleep = controller.sleepPhase != PlaybackController.SleepPhase.Off
+        val asleep = controller.sleep.phase != VideoSleep.Phase.Off
         AnimatedVisibility(controlsVisible && !asleep && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             Controls(controller, onClose, onPictureInPicture, onInteract = { interaction++ }, onAudioSync = {
                 // The panel takes the controls' place until Done.
@@ -467,7 +407,8 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                 ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow, prominent = true)
             }
         }
-        SleepPrompt(controller)
+        SleepPrompt(controller.sleep)
+        ShakeForSleep(controller.sleep)
         controller.subtitleSearchFile?.let { fileId ->
             controller.info?.let { info ->
                 SubtitleSearchSheet(controller.client, info.item.id, fileId, onDownloaded = controller::subtitlesDownloaded, onClose = controller::closeSubtitleSearch)
@@ -499,9 +440,10 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
         }
 
         Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
-            // A film has neither episode button; an episode has both, with the one that goes nowhere dimmed.
+            // A film has neither episode button; an episode has both. Previous always works (with nothing before, it
+            // starts this one again); Next is dimmed at the last.
             val episode = info?.item?.kind == MediaKind.Episode
-            if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode", enabled = info.previous != null) { controller.playPrevious(); onInteract() }
+            if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode") { controller.playPrevious(); onInteract() }
             SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
             GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
                 controller.togglePlayPause()
@@ -606,13 +548,13 @@ internal fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabl
 
 /** Back or forward by [seconds] (negative is back): Material draws 10 and 30; 15 is the arrow with its number on it. */
 @Composable
-private fun SkipButton(seconds: Int, onClick: () -> Unit) {
+internal fun SkipButton(seconds: Int, enabled: Boolean = true, onClick: () -> Unit) {
     val back = seconds < 0
     val label = "${if (back) "Back" else "Forward"} ${kotlin.math.abs(seconds)} seconds"
     when (kotlin.math.abs(seconds)) {
-        10 -> GlassButton(if (back) Icons.Filled.Replay10 else Icons.Filled.Forward10, label, onClick = onClick)
-        30 -> GlassButton(if (back) Icons.Filled.Replay30 else Icons.Filled.Forward30, label, onClick = onClick)
-        else -> Box(Modifier.size(56.dp).glass(CircleShape).clickableNoRipple(onClick, true).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+        10 -> GlassButton(if (back) Icons.Filled.Replay10 else Icons.Filled.Forward10, label, enabled = enabled, onClick = onClick)
+        30 -> GlassButton(if (back) Icons.Filled.Replay30 else Icons.Filled.Forward30, label, enabled = enabled, onClick = onClick)
+        else -> Box(Modifier.size(56.dp).glass(CircleShape).alpha(if (enabled) 1f else 0.35f).clickableNoRipple(onClick, enabled).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Replay, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(28.dp).graphicsLayer { if (!back) scaleX = -1f })
             Text("${kotlin.math.abs(seconds)}", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 2.dp))
         }
