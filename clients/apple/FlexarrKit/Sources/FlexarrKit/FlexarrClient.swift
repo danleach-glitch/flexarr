@@ -299,6 +299,16 @@ public struct FlexarrClient: Sendable {
         try await get("profiles")
     }
 
+    /// Saves the order of a profile's libraries in every app's menu; `libraries()` lists them in it after. Servers
+    /// before 0.54 answer 404.
+    public func setLibraryOrder(profileId: String, order: [String]) async throws -> Profile {
+        try decode(Profile.self, from: try await send("PUT", "profiles/\(profileId)/library-order", body: LibraryOrderBody(order: order)))
+    }
+
+    private struct LibraryOrderBody: Encodable {
+        let order: [String]
+    }
+
     /// Checks the PIN (if the profile has one) and returns the token for `profileToken`.
     /// A wrong PIN is a 403 whose message says so.
     public func selectProfile(_ id: String, pin: String? = nil) async throws -> ProfileSelection {

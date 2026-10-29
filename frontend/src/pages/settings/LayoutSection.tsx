@@ -71,9 +71,21 @@ export function LayoutSection() {
 
 /**
  * A list of rows to turn on or off and put in order: dragged by the grip, or moved with the arrows (from the keyboard,
- * or on a touch screen, where dragging doesn't work).
+ * or on a touch screen, where dragging doesn't work). Without `switches`, only put in order.
  */
-function RowList({ title, rows, onChange, children }: { title: string; rows: RowChoice[]; onChange: (rows: RowChoice[]) => void; children?: ReactNode }) {
+export function RowList({
+  title,
+  rows,
+  onChange,
+  switches = true,
+  children,
+}: {
+  title: string
+  rows: RowChoice[]
+  onChange: (rows: RowChoice[]) => void
+  switches?: boolean
+  children?: ReactNode
+}) {
   const listId = useId()
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
@@ -138,14 +150,14 @@ function RowList({ title, rows, onChange, children }: { title: string; rows: Row
                 <ChevronDown />
               </button>
             </span>
-            <input
+            {switches && <input
               id={`${listId}-${row.id}`}
               type="checkbox"
               role="switch"
               className="switch"
               checked={row.enabled}
               onChange={(e) => onChange(rows.map((r) => (r.id === row.id ? { ...r, enabled: e.target.checked } : r)))}
-            />
+            />}
           </li>
         ))}
       </ol>

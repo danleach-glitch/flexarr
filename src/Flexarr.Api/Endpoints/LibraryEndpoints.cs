@@ -30,8 +30,9 @@ public static class LibraryEndpoints
                 .GroupBy(i => i.LibraryId).Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(g => g.Key, g => g.Count, ct);
             var libraries = await db.Libraries.Include(l => l.Folders).OrderBy(l => l.Name).ToListAsync(ct);
+            var order = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.LibraryOrder).FirstOrDefaultAsync(ct) ?? [];
             var liveTv = options.CurrentValue.LiveTv?.Account is not null;
-            return libraries.Where(l => !(liveTv && RecordingsLibrary.Is(l))).Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
+            return InOrder(libraries, order).Where(l => !(liveTv && RecordingsLibrary.Is(l))).Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
         });
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CancellationToken ct) =>
@@ -132,6 +133,19 @@ public static class LibraryEndpoints
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
+    }
+
+    /// <summary>
+    /// The libraries in the profile's chosen order; any it doesn't mention, such as one added since, after them in the
+    /// order they came (by name).
+    /// </summary>
+    public static List<Library> InOrder(IReadOnlyList<Library> libraries, IReadOnlyList<string> order)
+    {
+        var rank = order.Select((id, i) => (id, i)).GroupBy(r => r.id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().i, StringComparer.OrdinalIgnoreCase);
+        return libraries.Select((l, i) => (l, i))
+            .OrderBy(r => rank.TryGetValue(r.l.Id.ToString(), out var at) ? at : order.Count + r.i)
+            .Select(r => r.l).ToList();
     }
 
     private static LibraryDto ToDto(Library library, int itemCount, ScanProgress progress)

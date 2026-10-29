@@ -15,8 +15,12 @@ namespace Flexarr.Api.Profiles;
 /// <param name="Image">The profile picture's URL, or null to show the initial on the colour.</param>
 /// <param name="RequestShowsLibraryId">The library this profile's show requests go to; null, Seerr's default.</param>
 /// <param name="RequestFilmsLibraryId">The library its film requests go to; null, Seerr's default.</param>
+/// <param name="LibraryOrder">The order of the libraries in the menu (ids, and "live-tv"); empty, by name.</param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
-    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null);
+    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null);
+
+/// <summary>The order of a profile's libraries in the menu: library ids, and "live-tv"; empty goes back to by name.</summary>
+public sealed record LibraryOrderRequest(IReadOnlyList<string> Order);
 
 /// <summary>Where a profile's requests go. Both are set each time; null is wherever Seerr adds them by default.</summary>
 public sealed record RequestLibrariesRequest(Guid? ShowsLibraryId, Guid? FilmsLibraryId);
@@ -132,6 +136,29 @@ public static partial class ProfileEndpoints
 
             profile.RequestShowsLibraryId = request.ShowsLibraryId;
             profile.RequestFilmsLibraryId = request.FilmsLibraryId;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
+        });
+
+        // Like the request libraries, a profile's own choice; every app's menu follows it.
+        group.MapPut("/{id}/library-order", async (string id, LibraryOrderRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (id != current.Id && !current.IsAdmin)
+            {
+                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+            }
+
+            if (request.Order is null || request.Order.Count > 500 || request.Order.Any(e => string.IsNullOrWhiteSpace(e) || e.Length > 64))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["order"] = ["List the libraries by id."] });
+            }
+
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            profile.LibraryOrder = request.Order.Distinct(StringComparer.Ordinal).ToList();
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(profile, current));
         });
@@ -353,7 +380,7 @@ public static partial class ProfileEndpoints
 
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
-            p.RequestFilmsLibraryId);
+            p.RequestFilmsLibraryId, p.LibraryOrder);
 
     private static IResult? Validate(ProfileRequest request)
     {

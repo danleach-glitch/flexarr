@@ -55,6 +55,33 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `saves a profile's library order`() = runTest {
+        server.enqueue(json("""{"id":"kid","name":"Kid","color":"#a9c2ec","libraryOrder":["b","live-tv","a"]}"""))
+        val profile = client().setLibraryOrder("kid", listOf("b", "live-tv", "a"))
+
+        val request = server.takeRequest()
+        assertEquals("PUT", request.method)
+        assertEquals("/api/v1/profiles/kid/library-order", request.url.encodedPath)
+        assertEquals("""{"order":["b","live-tv","a"]}""", request.body?.utf8())
+        assertEquals(listOf("b", "live-tv", "a"), profile.libraryOrder)
+    }
+
+    @Test
+    fun `profiles from servers before library order have none`() = runTest {
+        server.enqueue(json("""[{"id":"main","name":"Dan","color":"#a9c2ec","isMain":true}]"""))
+        assertNull(client().profiles().single().libraryOrder)
+    }
+
+    @Test
+    fun `a new library order keeps what isn't shown in its place`() {
+        // Live TV and a hidden library stay where they were among the shown ones.
+        assertEquals(listOf("c", "live-tv", "a", "hidden", "b"), libraryOrder(listOf("a", "live-tv", "b", "hidden", "c"), listOf("c", "a", "b")))
+        // Libraries the saved order didn't mention (none saved yet, or added since) go at the end.
+        assertEquals(listOf("b", "a"), libraryOrder(emptyList(), listOf("b", "a")))
+        assertEquals(listOf("new", "live-tv", "a"), libraryOrder(listOf("a", "live-tv"), listOf("new", "a")))
+    }
+
+    @Test
     fun `next up is null when everything is watched`() = runTest {
         server.enqueue(MockResponse.Builder().code(204).build())
         assertNull(client().nextUp("show"))

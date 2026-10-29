@@ -56,6 +56,12 @@ struct SettingsView: View {
                 if model.podcastStatus?.available == true {
                     SettingsLink("Podcasts", icon: "mic.fill") { PodcastSettingsView() }
                 }
+                // Servers before 0.54 keep no order.
+                if model.libraryOrder != nil, LibraryMenuEntry.ordered(model: model).count > 1 {
+                    SettingsLink("Library order", icon: "list.bullet", value: model.libraryOrder?.isEmpty == true ? "By name" : "Your own") {
+                        LibraryOrderSettingsView()
+                    }
+                }
                 SettingsLink("Notifications", icon: "bell.fill", value: notifications.isOn ? "On" : "Off") { NotificationSettingsView() }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? "This \(ThisDevice.name)") { SiriSettingsView() }
             }

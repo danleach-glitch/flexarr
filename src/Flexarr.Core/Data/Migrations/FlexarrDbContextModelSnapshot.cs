@@ -1015,6 +1015,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("ImageUpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.PrimitiveCollection<string>("LibraryOrder")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(60)
@@ -1081,6 +1085,7 @@ namespace Flexarr.Core.Data.Migrations
                             Color = "#a9c2ec",
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
                             HiddenLibraryIds = "[]",
+                            LibraryOrder = "[]",
                             Name = "Main profile",
                             PodcastAutoDownload = true,
                             PodcastKeepEpisodes = 3,

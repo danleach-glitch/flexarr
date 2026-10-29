@@ -128,17 +128,16 @@ struct LibrariesView: View {
                 }
             } else {
                 List {
-                    ForEach(model.libraries.filter { $0.type != .podcasts }) { library in
-                        row(library.name, icon: library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : library.type == .homeVideos ? "folder" : "film") {
-                            router.push(.library(library, .title))
+                    // In the profile's order (Settings › Library order). Podcasts are one place however many libraries hold
+                    // them, and say how to set them up when none does.
+                    ForEach(LibraryMenuEntry.ordered(model: model)) { entry in
+                        row(entry.title, icon: entry.symbol) {
+                            switch entry {
+                            case .library(let library): router.push(.library(library, .title))
+                            case .podcasts: router.push(.podcasts)
+                            case .liveTv: router.push(.liveTv)
+                            }
                         }
-                    }
-                    // Podcasts are one place however many libraries hold them, and say how to set them up when none does.
-                    if model.podcastStatus != nil {
-                        row("Podcasts", icon: "mic.fill") { router.push(.podcasts) }
-                    }
-                    if model.hasLiveTv {
-                        row("Live TV", icon: "antenna.radiowaves.left.and.right") { router.push(.liveTv) }
                     }
                 }
                 .scrollContentBackground(.hidden)

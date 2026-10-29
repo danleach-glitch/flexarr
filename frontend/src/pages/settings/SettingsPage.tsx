@@ -22,6 +22,7 @@ import { ProfilesSection } from './ProfilesSection'
 import { RequestsSection } from './RequestsSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
+import { SidebarSection } from './SidebarSection'
 import { UpdatesSection } from './UpdatesSection'
 
 interface Page {
@@ -36,6 +37,7 @@ interface Page {
 const profilePages: Page[] = [
   { id: 'playback', label: 'Playback', render: () => <PlaybackSection /> },
   { id: 'podcasts', label: 'Podcasts', render: () => <PodcastsSection /> },
+  { id: 'sidebar', label: 'Sidebar', render: () => <SidebarSection /> },
 ]
 
 /** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */

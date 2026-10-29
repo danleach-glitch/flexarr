@@ -79,14 +79,13 @@ import java.text.NumberFormat
 fun LibrariesScreen(model: AppModel) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
-    val loader = rememberLoader(model.credentials) { client.libraries() }
+    val loader = rememberLoader(model.credentials, model.librariesVersion) { client.libraries() }
     RoomBackground(ambient = null) {
         Column {
             PageTitle("Libraries")
             Loaded(loader) { libraries ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
-                    // Podcasts have a screen of their own, which comes in a later version.
-                    val shown = libraries.filter { it.type != LibraryType.Podcasts }
+                    val shown = libraries.filter { it.inMenu }
                     LazyColumn(contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
                         item {
                             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
@@ -116,7 +115,10 @@ private fun LibraryRow(name: String, icon: ImageVector, onClick: () -> Unit) {
     }
 }
 
-private val Library.icon
+/** The libraries the Libraries tab lists. Podcasts have a screen of their own, which comes in a later version. */
+internal val Library.inMenu get() = type != LibraryType.Podcasts
+
+internal val Library.icon
     get() = when (type) {
         LibraryType.TvShows -> Icons.Filled.Tv
         LibraryType.Music -> Icons.Filled.MusicNote
