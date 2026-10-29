@@ -98,8 +98,7 @@ export function ConnectionsSection() {
     <ServerName value={settings.hostName}>
       <section>
         <SettingsHeader title="Connections">
-          Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Without them, shows come from
-          TVmaze, and films from TMDB with a free key of your own. Seerr adds Discover and requests, Bazarr subtitles, and Dispatcharr Live TV.
+          The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.
         </SettingsHeader>
 
         <SettingsGroup title="Apps & Integrations" note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}>
@@ -143,7 +142,7 @@ export function ConnectionsSection() {
             kind="Seerr"
             service={settings.seerr}
             notConnected={notConnected('seerr')}
-            description="Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules."
+            description="Discover and one-click requests. Overseerr and Jellyseerr work too."
             placeholder="http://localhost:5055"
             keyHint="In Seerr, under Settings › General"
             removeWarning="Disconnect Seerr? Discover and requests go with it."
@@ -160,7 +159,13 @@ export function ConnectionsSection() {
             kind="Bazarr"
             service={settings.bazarr}
             notConnected={notConnected('bazarr')}
-            description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage. A title you search for gets Bazarr’s first languages profile if it has none, so Bazarr’s own schedule may then fetch subtitles for it too."
+            description="Find and re-sync subtitles from the player."
+            more={
+              <p>
+                It uses the languages and subtitle sites set up in Bazarr, for titles Sonarr and Radarr manage. A title with no languages profile gets
+                Bazarr’s first one, so Bazarr may then fetch subtitles for it on its own schedule too.
+              </p>
+            }
             placeholder="http://localhost:6767"
             keyHint="In Bazarr, under Settings › General"
             removeWarning="Disconnect Bazarr? Searching for subtitles from the player goes with it."
@@ -423,6 +428,7 @@ function ServiceRow({
   service,
   notConnected,
   description,
+  more,
   placeholder,
   keyHint,
   removeWarning,
@@ -438,6 +444,8 @@ function ServiceRow({
   /** Its status while it isn't set up. */
   notConnected: string
   description: string
+  /** More about it, behind a disclosure under the description. */
+  more?: ReactNode
   placeholder: string
   keyHint: string
   removeWarning: string
@@ -474,6 +482,12 @@ function ServiceRow({
           }}
         >
           <p className="muted">{description}</p>
+          {more && (
+            <details className="advice-more muted">
+              <summary>How it works</summary>
+              {more}
+            </details>
+          )}
           <div className="field-row">
             <label className="grow">
               Address
@@ -656,11 +670,17 @@ function DispatcharrRow({
             }).finally(() => setSaving(false))
           }}
         >
-          <p className="muted">
-            TV channels and their guide. In Dispatcharr, add a user for Flexarr at Streamer level and give it a long random XC password: that works as
-            Flexarr’s key, which can only list and play channels (never sign in to Dispatcharr or change it). The channels are the ones Dispatcharr gives
-            that user. Rewinding and recording are set in <Link to="/settings/livetv">Live TV</Link>.
-          </p>
+          <p className="muted">TV channels and their guide.</p>
+          <details className="advice-more muted">
+            <summary>How to set it up</summary>
+            <p>
+              In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only
+              list and play the channels Dispatcharr gives that user.
+            </p>
+            <p>
+              Rewinding and recording are in <Link to="/settings/livetv">Live TV</Link>.
+            </p>
+          </details>
           <div className="field-row">
             <label className="grow">
               Address
@@ -748,8 +768,8 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
         title="Media folders"
         note={
           hasApps
-            ? 'Sonarr, Radarr and Lidarr say where they keep media. In Docker they can see it under other paths than this server does, and Flexarr works out where when it can.'
-            : 'Only needed when another app (Plex, for an import) sees your media under other paths, as it does in Docker.'
+            ? 'Where each app’s folders are on this server. Flexarr works it out when it can.'
+            : 'Only needed when another app, such as Plex for an import, sees your media under other paths (as in Docker).'
         }
       >
         {folders?.map((f) => (
@@ -917,8 +937,8 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
       title="Webhooks"
       note={
         <>
-          Add a Webhook connection in each app, under Settings › Connect, so new downloads show up straight away. In Docker on this computer, use{' '}
-          <code>host.docker.internal</code> in place of <code>{window.location.hostname}</code>.
+          So new downloads show up straight away: in each app, add a Webhook under Settings › Connect. In Docker on this computer, use{' '}
+          <code>host.docker.internal</code> for <code>{window.location.hostname}</code>.
         </>
       }
       action={
