@@ -310,9 +310,9 @@ fun DownloadSettingsScreen(model: AppModel) {
                 Group(
                     header = "Automatic",
                     footer = if (downloads.automaticOnWiFiOnly) {
-                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi. Ones you start yourself use mobile data too."
+                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too."
                     } else {
-                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too."
+                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on."
                     },
                 ) {
                     Toggle("Download the next episode", downloads.downloadsNext, downloads::changeDownloadsNext)
