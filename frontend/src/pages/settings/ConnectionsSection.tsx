@@ -120,6 +120,7 @@ export function ConnectionsSection() {
                     onClose={() => setOpen(undefined)}
                     onSave={(c) => saveArr(i, c)}
                     onRemove={() => saveArr(i, null)}
+                    others={connected.length > 1}
                     onAddAnother={n === connected.length - 1 && !adding ? () => setOpen(`new-${kind}`) : undefined}
                   />
                 )
@@ -145,7 +146,7 @@ export function ConnectionsSection() {
             description="Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules."
             placeholder="http://localhost:5055"
             keyHint="In Seerr, under Settings › General"
-            removeWarning="Remove Seerr? Discover and requests go with it."
+            removeWarning="Disconnect Seerr? Discover and requests go with it."
             status={serviceStatus(seerrStatus)}
             ok={seerrStatus.data?.configured ? seerrStatus.data.reachable : undefined}
             open={open === 'seerr'}
@@ -162,7 +163,7 @@ export function ConnectionsSection() {
             description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage. A title you search for gets Bazarr’s first languages profile if it has none, so Bazarr’s own schedule may then fetch subtitles for it too."
             placeholder="http://localhost:6767"
             keyHint="In Bazarr, under Settings › General"
-            removeWarning="Remove Bazarr? Searching for subtitles from the player goes with it."
+            removeWarning="Disconnect Bazarr? Searching for subtitles from the player goes with it."
             status={serviceStatus(bazarrStatus)}
             ok={bazarrStatus.data?.configured ? bazarrStatus.data.reachable : undefined}
             open={open === 'bazarr'}
@@ -294,6 +295,7 @@ function ArrRow({
   onClose,
   onSave,
   onRemove,
+  others,
   onAddAnother,
 }: {
   connection: DraftConnection
@@ -306,6 +308,8 @@ function ArrRow({
   onClose: () => void
   onSave: (c: DraftConnection) => Promise<void>
   onRemove?: () => Promise<void>
+  /** Others of its kind are connected, so removing this one takes its row away rather than leaving it to connect again. */
+  others?: boolean
   onAddAnother?: () => void
 }) {
   const [draft, setDraft] = useState(connection)
@@ -378,9 +382,14 @@ function ArrRow({
             />
           </label>
           <div className="form-actions">
-            {onRemove && (
-              <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<Trash />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
-            )}
+            {onRemove &&
+              (others ? (
+                <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<Trash />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
+              ) : (
+                <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${connection.name}`} onClick={() => (confirm(`Disconnect ${connection.name}? Its titles stay in your libraries.`) ? onRemove() : undefined)}>
+                  Disconnect
+                </AsyncButton>
+              ))}
             <AsyncButton className="button quiet small" onClick={() => runTest()}>
               {test && test !== 'testing' && test.ok && <Check className="test-ok" />}
               Test
@@ -477,13 +486,9 @@ function ServiceRow({
           </div>
           <div className="form-actions">
             {service && (
-              <IconButton
-                label="Remove"
-                aria-label={`Remove ${kind}`}
-                icon={<Trash />}
-                className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm(removeWarning) && onSave({ baseUrl: '' })}
-              />
+              <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${kind}`} onClick={() => (confirm(removeWarning) ? onSave({ baseUrl: '' }) : undefined)}>
+                Disconnect
+              </AsyncButton>
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
@@ -575,13 +580,14 @@ function TmdbRow({
           )}
           <div className="form-actions">
             {hasKey && (
-              <IconButton
-                label="Remove"
-                aria-label="Remove the TMDB key"
-                icon={<Trash />}
-                className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm('Remove the TMDB key? Films already filled in keep their details.') && onSave('')}
-              />
+              <AsyncButton
+                type="button"
+                className="button danger small form-actions-start"
+                aria-label="Disconnect TMDB"
+                onClick={() => (confirm('Disconnect TMDB? Its key is forgotten, and films already filled in keep their details.') ? onSave('') : undefined)}
+              >
+                Disconnect
+              </AsyncButton>
             )}
             <AsyncButton type="button" className="button quiet small" disabled={!apiKey.trim() && !hasKey} onClick={async () => setTest(await testTmdb(apiKey.trim()))}>
               Test
@@ -677,13 +683,14 @@ function DispatcharrRow({
           </div>
           <div className="form-actions">
             {liveTv && (
-              <IconButton
-                label="Remove"
-                aria-label="Remove Dispatcharr"
-                icon={<Trash />}
-                className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm('Remove Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') && onSave({ baseUrl: '' }, 'Live TV removed')}
-              />
+              <AsyncButton
+                type="button"
+                className="button danger small form-actions-start"
+                aria-label="Disconnect Dispatcharr"
+                onClick={() => (confirm('Disconnect Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') ? onSave({ baseUrl: '' }, 'Live TV disconnected') : undefined)}
+              >
+                Disconnect
+              </AsyncButton>
             )}
             {liveTv && (
               <IconButton label="Refresh channels and guide" icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
