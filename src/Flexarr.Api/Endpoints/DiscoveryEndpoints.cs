@@ -509,12 +509,14 @@ public static partial class DiscoveryEndpoints
 
     /// <summary>
     /// Newest first, leaving out what you've seen: films you've watched, and shows with no unwatched episodes. A show's
-    /// newest episode bubbles it up, rather than listing every episode.
+    /// newest unwatched episode bubbles it up, rather than listing every episode. Only unwatched: an episode's date
+    /// added is its file's, so Sonarr upgrading one you've seen would otherwise bring an old show back to the front.
     /// </summary>
     private static IOrderedQueryable<MediaItem> LatestUnwatched(IQueryable<MediaItem> topLevel, bool movies, string profileId) => movies
         ? topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).OrderByDescending(i => i.AddedAt)
         : topLevel.Where(i => i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)))
-            .OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt));
+            .OrderByDescending(i => i.Children.SelectMany(s => s.Children)
+                .Where(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).Max(e => (DateTime?)e.AddedAt));
 
     /// <summary>
     /// <see cref="LatestUnwatched"/> across libraries, with a title that's in two of them (an HD and a 4K copy) shown
