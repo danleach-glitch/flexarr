@@ -89,6 +89,16 @@ data class SystemStatus(
     val startTime: String? = null,
     /** The server's address for away from home (over Tailscale), once remote access is turned on. */
     val remoteUrl: String? = null,
+    /** Whether the server's owner has turned on error reports (to Sentry) for the apps. Absent from older servers: off. */
+    val errorReports: ErrorReportSetting? = null,
+)
+
+/** The server's error-report switch, which the apps follow: off unless the owner turned it on. */
+@Serializable
+data class ErrorReportSetting(
+    val enabled: Boolean,
+    /** A random id for the server, not tied to anything else: the only "user" an error report carries. */
+    val installId: String? = null,
 )
 
 // Libraries

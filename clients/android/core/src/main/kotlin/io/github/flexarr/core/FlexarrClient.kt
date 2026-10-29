@@ -24,6 +24,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
@@ -252,15 +253,27 @@ class FlexarrClient(
         body: String? = null,
         racesAlternate: Boolean = true,
         http: OkHttpClient = this.http,
-    ): String = withContext(Dispatchers.IO) { exchange(method, path, query, body, racesAlternate, http) }
+    ): String = withContext(Dispatchers.IO) { exchange(method, path, query, body?.toRequestBody(jsonType), racesAlternate, http) }
 
-    private fun request(method: String, path: String, query: Map<String, String>, body: String?, base: HttpUrl): Request {
+    /** As [send], with a body of any type (a plain-text log, say) and its own time limit for the whole call. */
+    internal suspend fun sendBody(
+        method: String,
+        path: String,
+        query: Map<String, String>,
+        body: RequestBody,
+        timeoutSeconds: Long,
+    ): String = withContext(Dispatchers.IO) {
+        val slow = http.newBuilder().callTimeout(timeoutSeconds, TimeUnit.SECONDS).readTimeout(timeoutSeconds, TimeUnit.SECONDS).build()
+        exchange(method, path, query, body, racesAlternate = false, http = slow)
+    }
+
+    private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl): Request {
         val url = base.newBuilder().addPathSegments("api/v1/$path").apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
         return Request.Builder().url(url).header("Accept", "application/json").apply {
             signIn()
-            val requestBody = body?.toRequestBody(jsonType) ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null
+            val requestBody = body ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null
             method(method, requestBody)
         }.build()
     }
@@ -276,7 +289,7 @@ class FlexarrClient(
         method: String,
         path: String,
         query: Map<String, String>,
-        body: String?,
+        body: RequestBody?,
         racesAlternate: Boolean,
         http: OkHttpClient,
     ): String {
@@ -315,7 +328,7 @@ class FlexarrClient(
         method: String,
         path: String,
         query: Map<String, String>,
-        body: String?,
+        body: RequestBody?,
         racesAlternate: Boolean,
         http: OkHttpClient,
     ): Response {

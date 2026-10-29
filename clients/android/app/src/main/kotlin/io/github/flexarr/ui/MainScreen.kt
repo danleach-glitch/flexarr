@@ -66,6 +66,7 @@ import io.github.flexarr.ui.podcasts.PodcastScreen
 import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
+import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
@@ -188,7 +189,8 @@ fun MainScreen(model: AppModel) {
                     )
                 }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
-                composable("settings/server") { ServerSettingsScreen(model) }
+                composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
+                composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
                     "library/{id}?sort={sort}",

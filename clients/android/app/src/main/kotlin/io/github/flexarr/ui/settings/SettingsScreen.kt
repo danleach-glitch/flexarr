@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +60,7 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.libraryOrder
 import io.github.flexarr.core.ServerVersion
+import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loaded
@@ -269,7 +271,7 @@ private fun shortAddress(address: String?): String = address.orEmpty().replace(R
 
 /** Address, server version and what it runs on. */
 @Composable
-fun ServerSettingsScreen(model: AppModel) {
+fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val status = rememberLoader(model.credentials) { client.systemStatus() }
@@ -313,6 +315,18 @@ fun ServerSettingsScreen(model: AppModel) {
                     }
                     Divider()
                     Fact("Libraries", (libraries.state as? Load.Loaded)?.value?.joinToString(", ") { it.name }.orEmpty())
+                }
+            }
+            item {
+                // As the server says now, or as this phone last heard while it can't be asked.
+                val reportsOn = (status.state as? Load.Loaded)?.value?.let { it.errorReports?.enabled == true } ?: ErrorReports.isOn
+                Group(footer = ErrorReports.PRIVACY_NOTE) {
+                    Fact("Error reports", if (reportsOn) "On" else "Off")
+                }
+            }
+            item {
+                Group(footer = "Send this phone’s recent log to your server, to look into a problem.") {
+                    SettingsLink("Send diagnostics", Icons.Filled.MedicalServices, value = null, onClick = onDiagnostics)
                 }
             }
         }

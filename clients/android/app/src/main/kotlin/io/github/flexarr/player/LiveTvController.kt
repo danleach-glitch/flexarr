@@ -1,7 +1,7 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +33,8 @@ import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+
+private val flexarrLog = FlexarrLog("livetv")
 
 /**
  * Watching a live channel: asks the server for it, plays it with the rewind window as the timeline, keeps the server
@@ -110,7 +112,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                     player.prepare()
                     return
                 }
-                Log.w("Flexarr", "Live channel failed", e)
+                flexarrLog.warning("Live channel failed", e)
                 close("This channel couldn’t be played. ${e.errorCodeName.removePrefix("ERROR_CODE_").replace('_', ' ').lowercase()}.")
             }
         })
@@ -149,7 +151,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                 watching = null
                 recordingInTheWay = e.recording to channel
             } catch (e: FlexarrException) {
-                Log.w("Flexarr", "Couldn't start ${channel.name}", e)
+                flexarrLog.warning("Couldn't start ${channel.name}", e)
                 watching = null
                 close(e.message)
             } finally {
@@ -162,7 +164,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     }
 
     private fun present(started: LiveWatch) {
-        Log.i("Flexarr", "Watching ${started.channel.name} (${started.method})")
+        flexarrLog.info("Watching ${started.channel.name} (${started.method})")
         watching = started
         lastChannel?.let { if (it.id != started.channel.id) previousChannel = it }
         lastChannel = started.channel

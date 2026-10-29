@@ -24,6 +24,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Flexarr">
 
+        <!-- Error reports start only when the server's owner has them on (ErrorReports), never by themselves. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

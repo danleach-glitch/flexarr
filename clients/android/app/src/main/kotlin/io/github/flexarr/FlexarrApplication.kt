@@ -12,6 +12,9 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.data.CredentialStore
+import io.github.flexarr.logging.ErrorReports
+import io.github.flexarr.logging.LogHub
 
 class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     lateinit var model: AppModel
@@ -20,6 +23,9 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         FlexarrClient.deviceType = deviceType()
+        LogHub.start(this)
+        // Before anything else can crash: on if this server had reports on last time.
+        ErrorReports.resume(this, CredentialStore(this).load()?.address)
         model = AppModel(this)
         // Commands from other devices are taken while the app is in front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

@@ -24,6 +24,8 @@ import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.downloads.DownloadStore
+import io.github.flexarr.logging.ErrorReports
+import io.github.flexarr.logging.LogHub
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -45,8 +47,14 @@ class AppModel(private val context: Context) {
     /** Outlives any screen: signing out on the server and the last progress report finish after the player closes. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    var phase: Phase by mutableStateOf(store.load()?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
-        private set
+    private var phaseState: Phase by mutableStateOf(store.load()?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
+
+    var phase: Phase
+        get() = phaseState
+        private set(value) {
+            phaseState = value
+            signInChanged()
+        }
 
     /** Said on the connect screen after the server signed this device out. */
     var signedOutNotice: String? by mutableStateOf(null)
@@ -344,5 +352,26 @@ class AppModel(private val context: Context) {
             if (client.me().method != "api-key") return credentials
             credentials.copy(apiKey = client.deviceToken(deviceName))
         }.getOrDefault(credentials)
+    }
+
+    /** The server whose error-report setting was last asked for. */
+    private var reportsServer: String? = null
+
+    /** The log sends to the server signed in to, and error reports follow that server's setting. */
+    private fun signInChanged() {
+        val client = client
+        LogHub.signedIn(client)
+        val address = credentials?.address
+        if (address == null) {
+            reportsServer = null
+            ErrorReports.stop()
+        } else if (address != reportsServer && client != null) {
+            reportsServer = address
+            scope.launch { ErrorReports.refresh(client, address) }
+        }
+    }
+
+    init {
+        signInChanged()
     }
 }

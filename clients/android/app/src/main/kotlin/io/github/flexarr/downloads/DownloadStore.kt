@@ -1,10 +1,10 @@
 package io.github.flexarr.downloads
 
+import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -41,6 +41,8 @@ import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.Request
 import java.io.File
 import java.time.Instant
+
+private val flexarrLog = FlexarrLog("downloads")
 
 /**
  * Downloads on this phone, as the iPhone app's DownloadStore: asking the server to get them ready, fetching them in the
@@ -213,7 +215,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
                 model.watchStateChanged()
             } catch (e: FlexarrException) {
-                Log.w(TAG, "Couldn't send offline progress", e)
+                flexarrLog.warning("Couldn't send offline progress", e)
             }
         }
         // A transfer for everything still to come (one that's running already is left alone).
@@ -255,7 +257,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         )
         all = all.filterNot { it.id == remote.id } + local
         save()
-        Log.i(TAG, "Downloading ${remote.item.title} at ${quality.raw}")
+        flexarrLog.info("Downloading ${remote.item.title} at ${quality.raw}")
         apply(remote)
         enqueue(local, replace = true)
         fetchImage(local, client)?.let { name -> update(local.id) { it.copy(imageFileName = name) } }
@@ -304,7 +306,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     internal fun arrived(id: String, name: String, bytes: Long) {
         update(id) { it.copy(phase = LocalPhase.Downloaded, fileName = name, sizeBytes = bytes, progress = 1.0, failure = null) }
-        Log.i(TAG, "Downloaded $id")
+        flexarrLog.info("Downloaded $id")
         val client = currentClient ?: return
         scope.launch { runCatching { client.markDownloadReceived(id) } }
         byId(id)?.let(::fetchNext)
@@ -342,7 +344,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (!downloadsNext) return
         val next = DownloadRules.nextToFetch(after, all) ?: return
         if (currentClient == null || !isOnline) return
-        scope.launch { runCatching { download(next, after.quality, automatic = true) }.onFailure { Log.w(TAG, "Couldn't fetch the next episode", it) } }
+        scope.launch { runCatching { download(next, after.quality, automatic = true) }.onFailure { flexarrLog.warning("Couldn't fetch the next episode", it) } }
     }
 
     /**
@@ -367,7 +369,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             for (episode in wanted) {
                 if (entry(episode.episodeId) != null || episode.episodeId in declined) continue
                 runCatching { download(episode.episodeId, DownloadQuality.Original, automatic = true) }
-                    .onFailure { Log.w(TAG, "Couldn't fetch a podcast episode by itself", it) }
+                    .onFailure { flexarrLog.warning("Couldn't fetch a podcast episode by itself", it) }
             }
         } finally {
             reconciling = false
@@ -483,7 +485,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             val temporary = File(folder, "$MANIFEST.tmp")
             temporary.writeText(text)
             temporary.renameTo(File(folder, MANIFEST))
-        }.onFailure { Log.e(TAG, "Couldn't save the downloads list", it) }
+        }.onFailure { flexarrLog.error("Couldn't save the downloads list", it) }
     }
 
     /** The saved list, keeping every entry that reads (one an older app wrote in a way this one can't is dropped). */
@@ -491,7 +493,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val file = File(folder, MANIFEST)
         if (!file.exists()) return emptyList()
         val elements = runCatching { FlexarrClient.json.parseToJsonElement(file.readText()) as kotlinx.serialization.json.JsonArray }.getOrNull()
-            ?: return emptyList<LocalDownload>().also { Log.e(TAG, "Couldn't read the downloads list") }
+            ?: return emptyList<LocalDownload>().also { flexarrLog.error("Couldn't read the downloads list") }
         return elements.mapNotNull { runCatching { FlexarrClient.json.decodeFromJsonElement(LocalDownload.serializer(), it) }.getOrNull() }
     }
 

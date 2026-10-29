@@ -1,8 +1,8 @@
 package io.github.flexarr
 
+import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import io.github.flexarr.core.DeviceCommand
 import io.github.flexarr.core.DeviceCommandKind
 import io.github.flexarr.core.FlexarrClient
@@ -18,6 +18,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+private val flexarrLog = FlexarrLog("commands")
 
 /** The player on screen now (a title or a live channel), for commands from elsewhere to pause, resume or stop. */
 interface ActivePlayback {
@@ -50,22 +52,22 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             while (isActive) {
                 try {
                     client.commandStream().collect { command ->
-                        Log.i("Flexarr", "Command ${command.kind.raw} from ${command.sentBy ?: "someone"}")
+                        flexarrLog.info("Command ${command.kind.raw} from ${command.sentBy ?: "someone"}")
                         handle(command)
                         wait = 2_000L
                     }
                     // Ended cleanly: a newer connection from this device took over.
-                    Log.i("Flexarr", "Command stream ended")
+                    flexarrLog.info("Command stream ended")
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: FlexarrException.Http) {
                     if (e.status == 403) {
-                        Log.i("Flexarr", "This sign-in has no command stream; not listening")
+                        flexarrLog.info("This sign-in has no command stream; not listening")
                         listeningFor = null
                         return@launch
                     }
                 } catch (e: Exception) {
-                    Log.i("Flexarr", "Command stream dropped; retrying in ${wait / 1000}s: ${e.message}")
+                    flexarrLog.info("Command stream dropped; retrying in ${wait / 1000}s: ${e.message}")
                 }
                 delay(wait)
                 wait = (wait * 2).coerceAtMost(60_000L)

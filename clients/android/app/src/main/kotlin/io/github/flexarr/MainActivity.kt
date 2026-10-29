@@ -1,10 +1,10 @@
 package io.github.flexarr
 
+import io.github.flexarr.logging.FlexarrLog
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import io.github.flexarr.player.PlayerActivity
 import io.github.flexarr.ui.FlexarrRoot
 import io.github.flexarr.ui.theme.FlexarrTheme
+
+private val flexarrLog = FlexarrLog("launch")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,9 +58,9 @@ class MainActivity : ComponentActivity() {
                 model.loadProfiles()
                 val chosen = model.profiles.firstOrNull { it.id == profile }
                 val result = chosen?.let { runCatching { model.chooseProfile(it) } }
-                Log.i("Flexarr", "Debug launch: profile $profile ${if (chosen == null) "not found among ${model.profiles.size}" else if (result?.isSuccess == true) "chosen" else "failed: ${result?.exceptionOrNull()}"}")
+                flexarrLog.info("Debug launch: profile $profile ${if (chosen == null) "not found among ${model.profiles.size}" else if (result?.isSuccess == true) "chosen" else "failed: ${result?.exceptionOrNull()}"}")
             }
-            Log.i("Flexarr", "Debug launch: playing $play")
+            flexarrLog.info("Debug launch: playing $play")
             if (play != null) {
                 val player = PlayerActivity.intent(this@MainActivity, play, fromBeginning = false, startAt = intent.getIntExtra("at", -1).takeIf { it >= 0 })
                 listOf("subtitle", "subtitlePosition", "subtitleSize").forEach { key -> intent.getStringExtra(key)?.let { player.putExtra(key, it) } }
