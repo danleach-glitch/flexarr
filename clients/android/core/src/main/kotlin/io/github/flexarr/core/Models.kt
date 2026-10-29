@@ -308,6 +308,8 @@ data class PlaybackRequest(
     val subtitleKey: String? = null,
     /** Convert it even though the device says it can play the file (it turned out it couldn't). */
     val forceTranscode: Boolean? = null,
+    /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
+    val prepare: Boolean? = null,
 )
 
 @Serializable

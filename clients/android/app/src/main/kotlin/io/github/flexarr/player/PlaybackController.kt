@@ -208,15 +208,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
     }
 
-    /** Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null) {
-        // A podcast playing stops for the video.
-        model.podcasts.pause()
-        // Another title: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once).
-        forcedTranscode = false
-        viewerChoseSubtitle = debugSubtitleKey != null
-        viewerSubtitleKey = debugSubtitleKey
-        debugSubtitleKey = null
+    /**
+     * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. [subtitlesOff]: the
+     * viewer turned subtitles off in the last episode, which carries on into this one.
+     */
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false) {
+        newTitle(subtitlesOff)
         open { profile ->
             PlaybackRequest(
                 itemId = itemId,
@@ -224,9 +221,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 startPositionSeconds = startAt ?: if (fromBeginning) 0.0 else null,
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
-                subtitleKey = viewerSubtitleKey,
+                subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
             )
         }
+    }
+
+    /** Another title starts: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once). */
+    private fun newTitle(subtitlesOff: Boolean) {
+        // A podcast playing stops for the video.
+        model.podcasts.pause()
+        forcedTranscode = false
+        viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
+        viewerSubtitleKey = debugSubtitleKey
+        debugSubtitleKey = null
     }
 
     private var debugSubtitleKey: String? = null
@@ -369,6 +376,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         if (next != prompt) {
             prompt = next
             updatePrompt()
+            // The credits started: get the next episode ready. Back out of them: let it go.
+            if (next == PlaybackPrompt.NextEpisode) {
+                if (!sleepHoldsEpisode) prepareNext()
+            } else if (!isFinishing) {
+                dropPrepared()
+            }
         }
         if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS && player.isPlaying) report(paused = false)
     }
@@ -383,14 +396,82 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     fun playNext() {
-        val next = info?.next ?: return
+        val current = info ?: return
+        val next = current.next ?: return
         report(paused = true)
-        start(next.id, fromBeginning = false)
+        val subtitlesOff = nextSubtitlesOff(current)
+        val ready = prepared
+        if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
+            // Got ready during the credits: this session ends, and the next one opens straight away.
+            Log.i("Flexarr", "Using the next episode got ready during the credits")
+            prepared = null
+            scope.launch { runCatching { client.stopPlayback(current.sessionId) } }
+            newTitle(subtitlesOff)
+            begin(ready.info)
+            return
+        }
+        dropPrepared()
+        start(next.id, fromBeginning = false, subtitlesOff = subtitlesOff)
+    }
+
+    /**
+     * Subtitles turned off carry on to the next episode; a chosen track is the server's to match there. Forced ones
+     * (foreign dialogue) left on count as off.
+     */
+    private fun nextSubtitlesOff(current: PlaybackInfo): Boolean {
+        if (!viewerChoseSubtitle) return false
+        val key = viewerSubtitleKey ?: return true
+        return current.subtitles.any { it.key == key && it.isForced }
+    }
+
+    // The next episode, got ready during the credits.
+
+    private class Prepared(val info: PlaybackInfo, val subtitlesOff: Boolean)
+
+    private var prepared: Prepared? = null
+    private var preparing: Job? = null
+
+    /**
+     * Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
+     * server says no, and then it starts the usual way.
+     */
+    private fun prepareNext() {
+        val current = info ?: return
+        val next = current.next ?: return
+        if (nextCancelled || prepared?.info?.item?.id == next.id || preparing != null) return
+        val subtitlesOff = nextSubtitlesOff(current)
+        preparing = scope.launch {
+            try {
+                val profile = serverProfile ?: return@launch
+                val ready = runCatching {
+                    client.startPlayback(PlaybackRequest(itemId = next.id, profile = profile, subtitleKey = if (subtitlesOff) "off" else null, prepare = true))
+                }.getOrNull() ?: return@launch
+                // Still wanted? (Not if this episode was closed, or moved on from, meanwhile.)
+                if (info?.sessionId != current.sessionId || nextCancelled) {
+                    runCatching { client.stopPlayback(ready.sessionId) }
+                    return@launch
+                }
+                Log.i("Flexarr", "Next episode ready: ${ready.item.title}")
+                prepared = Prepared(ready, subtitlesOff)
+            } finally {
+                preparing = null
+            }
+        }
+    }
+
+    /** Lets the prepared session go (best effort): it wasn't wanted, or playback ended. */
+    private fun dropPrepared() {
+        preparing?.cancel()
+        preparing = null
+        val ready = prepared ?: return
+        prepared = null
+        scope.launch { runCatching { client.stopPlayback(ready.info.sessionId) } }
     }
 
     fun playPrevious() {
         val previous = info?.previous ?: return
         report(paused = true)
+        dropPrepared()
         start(previous.id, fromBeginning = false)
     }
 
@@ -406,6 +487,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** Not now: stop counting, and if the credits were skipped, let them play. */
     fun cancelNext() {
         nextCancelled = true
+        dropPrepared()
         val ended = player.playbackState == Player.STATE_ENDED
         isFinishing = false
         countdown = null
@@ -427,6 +509,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private fun beginFinishing() {
         if (info?.next == null || isFinishing) return
         isFinishing = true
+        prepareNext()
         countdownJob?.cancel()
         if (preferences.autoPlayNext) {
             countdown = COUNTDOWN_SECONDS
@@ -788,6 +871,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         ticker?.cancel()
         resync?.cancel()
         previews?.close()
+        dropPrepared()
         countdownJob?.cancel()
         sleep.set(null)
         val session = info?.sessionId
