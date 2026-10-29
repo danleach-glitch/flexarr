@@ -23,7 +23,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -140,10 +145,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
     var interaction by remember { mutableIntStateOf(0) }
     var flash by remember { mutableStateOf<String?>(null) }
     var flashCount by remember { mutableIntStateOf(0) }
+    var audioSyncOpen by remember { mutableStateOf(false) }
 
     // Hidden after a while of playing untouched.
-    LaunchedEffect(controlsVisible, interaction, controller.isPlaying) {
-        if (controlsVisible && controller.isPlaying) {
+    LaunchedEffect(controlsVisible, interaction, controller.isPlaying, audioSyncOpen) {
+        if (controlsVisible && controller.isPlaying && !audioSyncOpen) {
             delay(4_000)
             controlsVisible = false
         }
@@ -162,11 +168,14 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     keepScreenOn = true
                     setShutterBackgroundColor(AndroidColor.BLACK)
+                    // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
+                    subtitleView?.visibility = android.view.View.GONE
                     player = controller.player
                 }
             },
             modifier = Modifier.fillMaxSize(),
         )
+        SubtitleLayer(controller)
         Box(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures(
@@ -198,13 +207,21 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
             }
         }
 
-        AnimatedVisibility(controlsVisible && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-            Controls(controller, onClose, onInteract = { interaction++ })
+        val asleep = controller.sleepPhase != PlaybackController.SleepPhase.Off
+        AnimatedVisibility(controlsVisible && !asleep && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+            Controls(controller, onClose, onInteract = { interaction++ }, onAudioSync = { audioSyncOpen = true })
+        }
+        if (audioSyncOpen && !asleep) {
+            AudioSyncPanel(
+                controller,
+                onDone = { audioSyncOpen = false },
+                modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 76.dp),
+            )
         }
         // The pill stays up with or without the controls: it's how you skip.
-        controller.promptTitle?.let { title ->
+        controller.promptTitle?.takeIf { !asleep }?.let { title ->
             Row(
-                Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 92.dp else 32.dp),
+                Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (controller.countingDown) {
@@ -213,11 +230,12 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
                 ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow, prominent = true)
             }
         }
+        SleepPrompt(controller)
     }
 }
 
 @Composable
-private fun Controls(controller: PlaybackController, onClose: () -> Unit, onInteract: () -> Unit) {
+private fun Controls(controller: PlaybackController, onClose: () -> Unit, onInteract: () -> Unit, onAudioSync: () -> Unit) {
     val info = controller.info
     Box(Modifier.fillMaxSize()) {
         // Keep the title and times readable over bright pictures.
@@ -248,7 +266,10 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onInte
             if (episode) GlassButton(Icons.Filled.SkipNext, "Next episode", enabled = info.next != null) { controller.playNext(); onInteract() }
         }
 
-        Timeline(controller, onInteract, Modifier.align(Alignment.BottomCenter))
+        Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
+            MenuBar(controller, onInteract, onAudioSync, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(end = 24.dp))
+            Timeline(controller, onInteract, Modifier)
+        }
     }
 }
 
@@ -294,9 +315,9 @@ private fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enable
     }
 }
 
-private fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape) =
+internal fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape) =
     clip(shape).background(Color.Black.copy(alpha = 0.45f)).border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
 
 @Composable
-private fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier =
+internal fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier =
     this.then(Modifier.pointerInput(enabled) { if (enabled) detectTapGestures { onClick() } })

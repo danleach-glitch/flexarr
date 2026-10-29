@@ -126,6 +126,30 @@ class FlexarrClient(
         send("DELETE", "playback/$sessionId")
     }
 
+    /** The viewer picked subtitles in the player (a track's key, or null for off): remembered for next time. */
+    suspend fun setSubtitle(sessionId: String, key: String?) {
+        send("PUT", "playback/$sessionId/subtitle", body = json.encodeToString(SubtitleChoice(key ?: "off")))
+    }
+
+    suspend fun setPlaybackPreferences(preferences: PlaybackPreferences) {
+        send("PUT", "me/playback-preferences", body = json.encodeToString(preferences))
+    }
+
+    /** Remembers how far this title's subtitles are moved (later when positive); used the next time they're fetched. */
+    suspend fun setSubtitleDelay(itemId: String, seconds: Double) {
+        send("PUT", "items/$itemId/subtitle-delay", body = json.encodeToString(SecondsBody(seconds)))
+    }
+
+    /** Plays a file's sound [seconds] later (earlier when negative, up to two seconds either way), for everyone. */
+    suspend fun setAudioDelay(itemId: String, seconds: Double) {
+        send("PUT", "items/$itemId/audio-delay", body = json.encodeToString(SecondsBody(seconds)))
+    }
+
+    /** Remembers [speed] for the show an episode belongs to, for this profile (1 forgets it). A film's isn't kept. */
+    suspend fun setPlaybackSpeed(itemId: String, speed: Double) {
+        send("PUT", "items/$itemId/playback-speed", body = json.encodeToString(SpeedBody(speed)))
+    }
+
     // Profiles
 
     suspend fun profiles(): List<Profile> = get("profiles")
