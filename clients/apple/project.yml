@@ -28,7 +28,7 @@ packages:
   # Error reports (crashes and errors), only when the server's owner turns them on. Pinned: it runs at launch.
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa
-    exactVersion: 9.30.1
+    exactVersion: 9.32.0
 targets:
   FlexarrTV:
     type: application
