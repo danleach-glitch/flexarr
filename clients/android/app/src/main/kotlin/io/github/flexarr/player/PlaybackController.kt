@@ -23,6 +23,7 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.FlexarrClient
@@ -587,7 +588,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val next = current.next ?: return
         if (isOpening) return
         // Moved on from the credits: watched, as on iPhone.
-        report(paused = true, ended = isPastCredits(current, player.currentPosition / 1000.0))
+        val finished = isPastCredits(current, player.currentPosition / 1000.0)
+        report(paused = true, ended = finished)
+        if (finished && model.recordsHistory) ReviewPrompt.titleFinished(closing = false)
         if (isOffline) {
             val download = model.downloads.entry(next.id)?.takeIf { it.isDownloaded } ?: return onClose()
             trail.add(current.item)
@@ -1034,6 +1037,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         sleep.set(null)
         val session = info?.sessionId
         val at = player.currentPosition / 1000.0
+        info?.let { if (model.recordsHistory && isPastCredits(it, at)) ReviewPrompt.titleFinished(closing = true) }
         player.release()
         if (isOffline) {
             info?.let { if (model.recordsHistory) recordOffline(it, at, ended = false) }
