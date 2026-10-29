@@ -39,6 +39,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.flexarr.AppModel
@@ -93,8 +94,13 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.listenForCommands() }
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
+        // Back can leave a tab's page for another's: the lit tab follows whichever tab's page is showing.
+        val entry by nav.currentBackStackEntryAsState()
+        LaunchedEffect(entry) {
+            Tab.entries.firstOrNull { it.route == entry?.destination?.route }?.let { currentTab = it }
+        }
         fun select(tab: Tab) {
-            if (tab == currentTab) {
+            if (tab == currentTab && nav.currentBackStack.value.any { it.destination.route == tab.route }) {
                 // Tapping the tab you're on goes back to its top, as on iPhone.
                 nav.popBackStack(tab.route, inclusive = false)
             } else {
