@@ -3,6 +3,7 @@ package io.github.flexarr
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -45,8 +46,11 @@ class MainActivity : ComponentActivity() {
         model.scope.launch {
             if (profile != null) {
                 model.loadProfiles()
-                model.profiles.firstOrNull { it.id == profile }?.let { runCatching { model.chooseProfile(it) } }
+                val chosen = model.profiles.firstOrNull { it.id == profile }
+                val result = chosen?.let { runCatching { model.chooseProfile(it) } }
+                Log.i("Flexarr", "Debug launch: profile $profile ${if (chosen == null) "not found among ${model.profiles.size}" else if (result?.isSuccess == true) "chosen" else "failed: ${result?.exceptionOrNull()}"}")
             }
+            Log.i("Flexarr", "Debug launch: playing $play")
             if (play != null) {
                 val player = PlayerActivity.intent(this@MainActivity, play, fromBeginning = false, startAt = intent.getIntExtra("at", -1).takeIf { it >= 0 })
                 listOf("subtitle", "subtitlePosition", "subtitleSize").forEach { key -> intent.getStringExtra(key)?.let { player.putExtra(key, it) } }

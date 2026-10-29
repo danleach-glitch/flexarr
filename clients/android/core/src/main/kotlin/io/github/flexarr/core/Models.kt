@@ -301,6 +301,8 @@ data class PlaybackRequest(
     val audioStreamIndex: Int? = null,
     /** A subtitle track's key, or "off"; null lets the server choose by the profile's preferences. */
     val subtitleKey: String? = null,
+    /** Convert it even though the device says it can play the file (it turned out it couldn't). */
+    val forceTranscode: Boolean? = null,
 )
 
 @Serializable

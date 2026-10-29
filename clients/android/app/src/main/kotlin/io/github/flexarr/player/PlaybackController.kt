@@ -136,6 +136,8 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     private var pendingSubtitle: String? = null
     private var audioDelaySave: Job? = null
     private var lastRecovery = 0L
+    /** This title's file couldn't be decoded here: it's converted from now on (until another title starts). */
+    private var forcedTranscode = false
 
     init {
         player.addListener(object : Player.Listener {
@@ -159,6 +161,14 @@ class PlaybackController(context: Context, private val model: AppModel, private 
                 if (info?.method == PlaybackMethod.Transcode && e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && now - lastRecovery > RECOVERY_INTERVAL_MS) {
                     lastRecovery = now
                     Log.w("Flexarr", "Converted stream failed; opening it again", e)
+                    reopen()
+                    return
+                }
+                // The file played as it is, and this device's decoder couldn't cope after all (it claimed a codec it
+                // can't do in practice, say): once, the server's converted stream instead, from the same place.
+                if (info?.method == PlaybackMethod.DirectPlay && !forcedTranscode && e.errorCode in DECODER_ERRORS) {
+                    forcedTranscode = true
+                    Log.w("Flexarr", "Couldn't decode the file; asking for it converted", e)
                     reopen()
                     return
                 }
@@ -186,6 +196,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         // A podcast playing stops for the video.
         model.podcasts.pause()
         // Another title: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once).
+        forcedTranscode = false
         viewerChoseSubtitle = debugSubtitleKey != null
         viewerSubtitleKey = debugSubtitleKey
         debugSubtitleKey = null
@@ -243,6 +254,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
                 audioStreamIndex = audioIndex ?: current.selectedAudioIndex,
                 // The viewer's pick ("off" included) wins; otherwise what's showing, and the server decides.
                 subtitleKey = if (viewerChoseSubtitle) viewerSubtitleKey ?: "off" else current.selectedSubtitleKey,
+                forceTranscode = if (forcedTranscode) true else null,
             )
         }
     }
@@ -676,6 +688,13 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         private const val COUNTDOWN_SECONDS = 5
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
         private const val RECOVERY_INTERVAL_MS = 30_000L
+        private val DECODER_ERRORS = setOf(
+            PlaybackException.ERROR_CODE_DECODING_FAILED,
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+        )
         const val MAX_RATE = 2f
         const val AUDIO_SYNC_STEP = 0.05
         const val AUDIO_SYNC_LIMIT = 2.0
