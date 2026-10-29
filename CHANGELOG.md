@@ -14,6 +14,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - In Settings › Libraries on the web, a library's buttons stay in one row when its folder paths are long.
 - Settings › Access shows each phone, tablet and TV with its own icon, and says what it is (an iPhone, an Android TV) when you point at it, once its app is up to date.
 
+### Playback
+- A film with a chapter called "Ending" or "Credits" well before its end no longer offers Skip Credits there, or counts as watched from that point. Real end credits, even with a short scene after them, still do.
+- On Apple TV and iPhone, scrubbing through a long film no longer keeps every preview picture in memory, which could make older Apple TVs close the player.
+
 ### Home
 - When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.
 

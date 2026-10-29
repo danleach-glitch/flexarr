@@ -139,6 +139,12 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
                 {
                     kind = MarkerType.Intro;
                 }
+                // End credits run to (nearly) the end, leaving room for a post-credits scene. A film's "Ending" chapter
+                // three quarters in is its climax, not credits to skip.
+                else if (kind == MarkerType.Credits && total > 0 && total - end > Math.Max(300, total * 0.1))
+                {
+                    continue;
+                }
 
                 markers.Add(new DetectedMarker(kind, start, end, "chapters"));
             }

@@ -8,7 +8,10 @@ final class TrickplayPreviews {
     private let client: FlexarrClient
     private let sessionId: String
     private var manifest: TrickplayManifest?
-    private var sheets: [Int: UIImage] = [:]
+    /// The sheets fetched lately, newest last. A sheet is 100 thumbnails (about 23 MB decoded), so only the few around
+    /// where the viewer is scrubbing are kept: a whole film's worth would sit beside the video for the session.
+    private var sheets: [(index: Int, image: UIImage)] = []
+    private static let sheetsKept = 3
     private var loading: Set<Int> = []
     private var task: Task<Void, Never>?
     /// A sheet arrived: whatever is showing a preview should ask again.
@@ -39,7 +42,7 @@ final class TrickplayPreviews {
     /// The thumbnail nearest `seconds`, if its sheet is here (it's fetched otherwise, and `onLoaded` says when).
     func image(at seconds: Double) -> UIImage? {
         guard let manifest, let (sheet, x, y) = manifest.thumbnail(at: seconds) else { return nil }
-        guard let image = sheets[sheet] else {
+        guard let image = sheets.first(where: { $0.index == sheet })?.image else {
             fetch(sheet)
             return nil
         }
@@ -62,7 +65,9 @@ final class TrickplayPreviews {
             guard let self else { return }
             self.loading.remove(sheet)
             if let image {
-                self.sheets[sheet] = image
+                self.sheets.removeAll { $0.index == sheet }
+                self.sheets.append((sheet, image))
+                if self.sheets.count > Self.sheetsKept { self.sheets.removeFirst() }
                 self.onLoaded?()
             }
         }
