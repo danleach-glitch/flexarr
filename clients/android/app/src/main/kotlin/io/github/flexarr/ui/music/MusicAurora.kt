@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleStartEffect
 import io.github.flexarr.audio.AudioSpectrum
 import io.github.flexarr.core.CoverPalette
 import kotlin.math.cos
@@ -41,6 +42,11 @@ fun MusicAurora(colours: List<CoverPalette.Rgb>, spectrum: AudioSpectrum, playin
     val context = LocalContext.current
     val still = remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
     var frameTime by remember { mutableLongStateOf(0L) }
+    // The music is listened to only while this shows (not with the app in the background, or the screen off).
+    LifecycleStartEffect(spectrum) {
+        spectrum.isListening = true
+        onStopOrDispose { spectrum.isListening = false }
+    }
     LaunchedEffect(still) {
         if (still) return@LaunchedEffect
         var last = 0L

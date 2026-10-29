@@ -45,6 +45,8 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
             .setHandleAudioBecomingNoisy(true)
             .setSeekBackIncrementMs(BACK_MS)
             .setSeekForwardIncrementMs(FORWARD_MS)
+            // Heard with the screen off: the phone (and its Wi-Fi, for a stream) stays awake while it plays.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .also { it.addListener(listener) }
     }
@@ -83,6 +85,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            if (playing) startTicking()
             if (sessionId != null && player.playbackState == Player.STATE_READY) report(paused = !playing)
         }
 
@@ -150,6 +153,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
                     )
                     .build()
                 player.setMediaItem(item, (info.startPositionSeconds * 1000).toLong())
+                player.setWakeMode(C.WAKE_MODE_NETWORK)
                 player.setPlaybackSpeed(speed.toFloat())
                 player.prepare()
                 player.play()
@@ -186,6 +190,8 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
             )
             .build()
         player.setMediaItem(item, (start * 1000).toLong())
+        // The phone's own copy: no Wi-Fi to keep awake.
+        player.setWakeMode(C.WAKE_MODE_LOCAL)
         player.setPlaybackSpeed(speed.toFloat())
         player.prepare()
         player.play()
@@ -239,16 +245,21 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         AudioService.stopIfIdle(context)
     }
 
+    /**
+     * Follows the episode while it plays: a few times a second with the app in front, once a second behind it (only the
+     * reports need it then). Paused, nothing moves but a seek, which sets the place itself.
+     */
     private fun startTicking() {
-        ticker?.cancel()
+        if (ticker?.isActive == true) return
         ticker = scope.launch {
             while (isActive) {
                 if ((sessionId != null || playingDownload) && player.playbackState != Player.STATE_IDLE) {
                     position = player.currentPosition / 1000.0
                     if (player.duration > 0) duration = player.duration / 1000.0
                 }
-                if (player.isPlaying && System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS) report(paused = false)
-                delay(250)
+                if (!player.isPlaying) break
+                if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS) report(paused = false)
+                delay(if (appInFront) 250 else 1_000)
             }
         }
     }

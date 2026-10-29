@@ -89,6 +89,11 @@ import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrTheme
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -96,6 +101,8 @@ import kotlinx.coroutines.launch
 class LivePlayerActivity : ComponentActivity() {
     private var controller: LiveTvController? = null
     private var session: MediaSession? = null
+    /** Fetching the channels before the first one starts: closing meanwhile lets it go. */
+    private var loading: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(AndroidColor.TRANSPARENT), SystemBarStyle.dark(AndroidColor.TRANSPARENT))
@@ -115,7 +122,7 @@ class LivePlayerActivity : ComponentActivity() {
         val channelId = intent.getStringExtra(EXTRA_CHANNEL)!!
         val order = intent.getStringArrayExtra(EXTRA_ORDER).orEmpty().toList()
         // The channels as the screen listed them, fetched now so what's on is current.
-        model.scope.launch {
+        loading = model.scope.launch {
             val all = runCatching { client.liveChannels() }.getOrDefault(emptyList()).associateBy { it.id }
             val listed = order.mapNotNull(all::get).ifEmpty { all.values.toList() }
             val channel = all[channelId] ?: return@launch finish()
@@ -142,6 +149,7 @@ class LivePlayerActivity : ComponentActivity() {
         if (appModel.commands.active === playback) appModel.commands.active = null
         session?.release()
         session = null
+        loading?.cancel()
         controller?.release()
         controller = null
     }
@@ -164,9 +172,11 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) 
     var interaction by remember { mutableIntStateOf(0) }
     var choosingChannel by remember { mutableStateOf(false) }
 
-    LaunchedEffect(controlsVisible, interaction, controller.isPlaying, choosingChannel) {
-        if (controlsVisible && controller.isPlaying && !choosingChannel) {
-            delay(4_000)
+    // Hidden after a while of playing untouched (never while TalkBack explores the screen by touch).
+    val hideAfter = controlsTimeout()
+    LaunchedEffect(controlsVisible, interaction, controller.isPlaying, choosingChannel, hideAfter) {
+        if (controlsVisible && controller.isPlaying && !choosingChannel && hideAfter != null) {
+            delay(hideAfter)
             controlsVisible = false
         }
     }
@@ -184,13 +194,14 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) 
             },
             modifier = Modifier.fillMaxSize(),
         )
+        val toggleControls = {
+            controlsVisible = !controlsVisible
+            interaction++
+        }
         Box(
-            Modifier.fillMaxSize().pointerInput(Unit) {
+            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) "Hide controls" else "Show controls") { toggleControls(); true } }.pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = {
-                        controlsVisible = !controlsVisible
-                        interaction++
-                    },
+                    onTap = { toggleControls() },
                     onDoubleTap = { offset ->
                         val x = offset.x / size.width
                         when {
@@ -303,7 +314,10 @@ private fun LiveTimeline(controller: LiveTvController, onInteract: () -> Unit, m
             },
             valueRange = 0f..duration.toFloat(),
             colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).semantics {
+                contentDescription = "Position"
+                stateDescription = if (!controller.isBehind && !scrubbing) "Live" else "${Format.timestamp((duration - shown).coerceAtLeast(0.0))} behind live"
+            },
         )
         val behind = duration - shown
         Text(

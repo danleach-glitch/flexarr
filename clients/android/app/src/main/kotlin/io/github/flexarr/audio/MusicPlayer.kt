@@ -10,6 +10,8 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -37,6 +39,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private val flexarrLog = FlexarrLog("music")
+
+/** The app is on screen, so its players' progress is worth following closely. */
+internal val appInFront: Boolean
+    get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
 /**
  * Plays a queue of tracks through one player: each track is its own server session (started as it comes up, reported
@@ -73,6 +79,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         ExoPlayer.Builder(context, renderers)
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)
+            // Streamed with the screen off: the phone and its Wi-Fi stay awake while it plays.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .also { it.addListener(listener) }
     }
@@ -150,6 +158,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            if (playing) startTicking()
             if (!playing && sessionId != null && player.playbackState == Player.STATE_READY) report(paused = true)
         }
 
@@ -331,16 +340,21 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
+    /**
+     * Follows the track while it plays: a few times a second with the app in front, once a second behind it (only the
+     * reports need it then). Paused, nothing moves but a seek, which sets the place itself.
+     */
     private fun startTicking() {
-        ticker?.cancel()
+        if (ticker?.isActive == true) return
         ticker = scope.launch {
             while (isActive) {
                 if (sessionId != null && player.playbackState != Player.STATE_IDLE) {
                     position = player.currentPosition / 1000.0
                     if (player.duration > 0) duration = player.duration / 1000.0
                 }
-                if (player.isPlaying && System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS) report(paused = false)
-                delay(250)
+                if (!player.isPlaying) break
+                if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS) report(paused = false)
+                delay(if (appInFront) 250 else 1_000)
             }
         }
     }
