@@ -383,7 +383,26 @@ data class SubtitleTrack(
      * server, like [url]; not shifted by the title's subtitle delay. Absent from servers before 0.53, and for plain text.
      */
     val styledUrl: String? = null,
-)
+) {
+    /** DVB teletext, as European broadcasts carry subtitles: the page they're read from can be chosen. */
+    val isTeletext: Boolean get() = codec == "dvb_teletext"
+}
+
+/** Teletext subtitles, which the server converts to WebVTT (Media3 can't read teletext itself). */
+object Teletext {
+    /**
+     * The caption pages broadcasters use most, as the iPhone offers them: 888 (the UK, Ireland, the Netherlands), 777
+     * and 150 (Germany and elsewhere), 801 (Sweden).
+     */
+    val pages = listOf(888, 777, 150, 801)
+
+    /** Servers from 0.55 read a chosen page; older ones only the pages the broadcast marks as subtitles. */
+    fun canChoosePage(serverVersion: String?): Boolean = serverVersion != null && ServerVersion.atLeast(serverVersion, 0, 55)
+
+    /** [url] (a track's WebVTT) read from [page] instead, or as it is with none. */
+    fun url(url: String, page: Int?): String =
+        if (page == null) url else url + (if ('?' in url) '&' else '?') + "page=$page"
+}
 
 @Serializable
 data class Marker(

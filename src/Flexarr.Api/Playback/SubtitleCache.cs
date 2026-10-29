@@ -19,6 +19,7 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDi
     private static readonly TimeSpan Limit = TimeSpan.FromMinutes(10);
 
     private readonly ConcurrentDictionary<Guid, Lazy<Task<IReadOnlyDictionary<string, string>>>> _jobs = new();
+    private readonly ConcurrentDictionary<(Guid File, string Key, int Page), Lazy<Task<string?>>> _pages = new();
     private readonly SemaphoreSlim _converting = new(AtOnce, AtOnce);
 
     public void Prefetch(MediaFile file, IReadOnlyList<SubtitleTrack> tracks)
@@ -41,6 +42,32 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDi
 
         var results = await Job(file, tracks).WaitAsync(ct);
         return results.GetValueOrDefault(track.Key);
+    }
+
+    /// <summary>A teletext track's WebVTT from one page the viewer chose, converted on its own when first asked for.</summary>
+    public async Task<string?> GetTeletextPageAsync(MediaFile file, SubtitleTrack track, int page, CancellationToken ct)
+    {
+        var lazy = _pages.GetOrAdd((file.Id, track.Key, page), key => new Lazy<Task<string?>>(async () =>
+        {
+            using var limit = new CancellationTokenSource(Limit);
+            try
+            {
+                await _converting.WaitAsync(limit.Token);
+                try
+                {
+                    return await Subtitles.TeletextPageToWebVttAsync(file, track, page, PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue), limit.Token);
+                }
+                finally
+                {
+                    _converting.Release();
+                }
+            }
+            finally
+            {
+                _pages.TryRemove(key, out _);
+            }
+        }));
+        return await lazy.Value.WaitAsync(ct);
     }
 
     private Task<IReadOnlyDictionary<string, string>> Job(MediaFile file, IReadOnlyList<SubtitleTrack> tracks)
