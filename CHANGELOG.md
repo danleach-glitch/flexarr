@@ -37,6 +37,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
 - Teletext subtitles in recorded TV have a Teletext page choice in the subtitles menu, as on iPhone: Automatic, or page 888, 777, 150 or 801, for a recording whose subtitles aren't on the page the broadcast marks. It needs the server on this version too.
 - Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
+- Download on a film's or episode's page starts straight away at your size from Settings › Downloads, as on iPhone, rather than first asking which size. Tapping one that's here offers Remove download.
+- Downloads the phone starts by itself (the next episode, new podcast episodes) aren't asked of the server until the phone is on Wi-Fi, when Settings keeps them to Wi-Fi, so the server doesn't get ready what can't come yet. They also hold off while Data Saver is on, as on iPhone in Low Data Mode.
 
 ### iPhone and Apple TV
 - Away from home, the apps only use a secure (https or Tailscale) remote address, and only once they've checked the same server answers there.

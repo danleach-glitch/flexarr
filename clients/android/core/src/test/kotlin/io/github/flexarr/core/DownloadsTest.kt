@@ -72,7 +72,6 @@ class DownloadsTest {
         assertEquals(DownloadStatus.Unknown, newer.status)
         assertEquals(DownloadQuality.Unknown, newer.quality)
         assertEquals(ServerAnswer.None, DownloadRules.answer(local(phase = LocalPhase.Preparing), newer))
-        assertEquals(emptyList<DownloadOption>(), DownloadRules.offered(listOf(DownloadOption(DownloadQuality.Unknown, 1, true))))
     }
 
     @Test

@@ -215,9 +215,6 @@ object DownloadRules {
     fun quality(chosen: DownloadQuality, options: List<DownloadOption>?): DownloadQuality =
         if (chosen == DownloadQuality.Original && options?.firstOrNull { it.quality == DownloadQuality.Original }?.available == false) DownloadQuality.High else chosen
 
-    /** The sizes worth offering, in the server's order: none from a newer server that this app doesn't know. */
-    fun offered(options: List<DownloadOption>): List<DownloadOption> = options.filter { it.quality != DownloadQuality.Unknown }
-
     /** A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. */
     fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>): String? {
         if (download.item.kind != MediaKind.Episode || !download.isDownloaded) return null
