@@ -9,7 +9,11 @@ Every device signs in to your server with a code. The device shows the code, and
 
 When a device asks to connect, every iPhone and Android phone signed in as the main profile asks **Connect “Living room”?**, with the device's code. Check the code matches the one on the device's screen and tap **Allow**. If the device isn't yours, tap **Don't allow**, and it has to ask again with a new code.
 
-The phone asks while Flexarr is open on it. When it isn't, a notification says the device wants to connect, if notifications are turned on for that phone; tap it to get the same question. The web app asks too, when it's open on the main profile.
+The phone asks while Flexarr is open on it. When it isn't, a notification says the device wants to connect, if notifications are turned on for that phone. Choose **Allow** or **Don't allow** on the notification itself (the phone asks to be unlocked first), or tap it to get the same question in the app. The web app asks too, when it's open on the main profile.
+
+To see every device waiting, open **Settings** in the app, or **Settings › Access › Connect a device** on the web. Each one has **Allow** and **Don't allow**.
+
+After **Don't allow**, the device isn't asked about again for 15 minutes. If you turned it away by mistake, type its code into **Connect a device** on the web.
 
 ## iPhone and iPad
 
