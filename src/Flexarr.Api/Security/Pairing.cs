@@ -22,7 +22,9 @@ public sealed record PairingStartDto(string Id, string Code, DateTime ExpiresAt)
 public sealed record PairingStatusDto(string Status, string? ApiKey);
 
 /// <param name="RequestedFrom">The address the TV asked from, so the approver can tell it's theirs.</param>
-public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime ExpiresAt, string? RequestedFrom, NetworkZone Zone);
+/// <param name="ExpiresAt">Moved on while the device is still showing its code (see <see cref="Pairings.Status"/>).</param>
+/// <param name="DeviceType">What kind of device it says it is, when it says.</param>
+public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime ExpiresAt, string? RequestedFrom, NetworkZone Zone, DeviceType? DeviceType = null);
 
 /// <param name="DeviceName">A name to list the TV under instead of the one it gave.</param>
 public sealed record PairingApprovalRequest(string? DeviceName = null);
@@ -58,12 +60,21 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     private const int MaxApprovedPerHour = 10;
     private static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(1);
 
+    /// <summary>With this little left, a code still being shown is given longer (see <see cref="Status"/>).</summary>
+    private static readonly TimeSpan RenewWithin = TimeSpan.FromMinutes(2);
+
+    /// <summary>How long after "Don't allow" the device's next codes aren't asked about.</summary>
+    private static readonly TimeSpan DeclinedQuiet = TimeSpan.FromMinutes(15);
+
     // No 0/O, 1/I/L: codes are read off a TV and typed on a phone.
     private const string Alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly Queue<DateTime> _approvedAt = new();
     private readonly ConcurrentDictionary<Listener, byte> _listeners = new();
+
+    /// <summary>Addresses turned away, and until when their devices aren't asked about.</summary>
+    private readonly ConcurrentDictionary<string, DateTime> _declined = new(StringComparer.Ordinal);
 
     /// <summary>One open command stream of the main profile's. Disposing it (the request ended) stops its notices.</summary>
     public sealed class Listener : IDisposable
@@ -96,7 +107,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     public IReadOnlyList<PairingDetailsDto> Waiting()
     {
         Sweep();
-        return [.. _pending.Values.Where(p => !p.Approved).OrderBy(p => p.ExpiresAt).Select(Details)];
+        return [.. _pending.Values.Where(p => !p.Approved && !p.Quiet).OrderBy(p => p.ExpiresAt).Select(Details)];
     }
 
     private void Tell(PairingNotice notice)
@@ -107,35 +118,52 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         }
     }
 
-    private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address, DeviceType? deviceType)
+    private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address, DeviceType? deviceType, bool quiet)
     {
         public DeviceType? DeviceType { get; } = deviceType;
         public string Id { get; } = id;
         public string Code { get; } = code;
         public string DeviceName { get; set; } = deviceName;
-        public DateTime ExpiresAt { get; } = expiresAt;
+        public DateTime ExpiresAt { get; set; } = expiresAt;
+
+        /// <summary>From a device just turned away: not asked about, though its code can still be typed in.</summary>
+        public bool Quiet { get; } = quiet;
         public NetworkZone Zone { get; } = zone;
         public string? Address { get; } = address;
         public bool Approved { get; set; }
     }
 
-    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, DeviceType? deviceType = null)
+    /// <param name="announced">The details the main profile is told, or null when the device was just turned away.</param>
+    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, out PairingDetailsDto? announced, DeviceType? deviceType = null)
     {
         Sweep();
+        announced = null;
         if (_pending.Count >= MaxWaiting || _pending.Values.Count(p => p.Address == address) >= MaxWaitingPerAddress)
         {
             return null;
         }
 
         var code = new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
+        var now = clock.GetUtcNow().UtcDateTime;
+        var quiet = address is not null && _declined.TryGetValue(address, out var until) && until > now;
         var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, Name(deviceName) ?? "A TV",
-            clock.GetUtcNow().UtcDateTime + Lifetime, zone, address, deviceType);
+            now + Lifetime, zone, address, deviceType, quiet);
         _pending[pending.Id] = pending;
-        Tell(new PairingNotice(Details(pending), null));
+        if (!quiet)
+        {
+            announced = Details(pending);
+            Tell(new PairingNotice(announced, null));
+        }
+
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);
     }
 
-    /// <summary>What the TV polls. Its token is made and handed over once, then the pairing is gone.</summary>
+    /// <summary>
+    /// What the TV polls. Its token is made and handed over once, then the pairing is gone. A device still polling
+    /// near the end of its code's ten minutes is given ten more on the same code, so a TV left on its connect screen
+    /// keeps one code (and one notification on the phones) rather than a new one every ten minutes; a code nobody's
+    /// showing any more still runs out.
+    /// </summary>
     public PairingStatusDto Status(string id)
     {
         Sweep();
@@ -146,6 +174,16 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
         if (!pending.Approved)
         {
+            var now = clock.GetUtcNow().UtcDateTime;
+            if (pending.ExpiresAt - now < RenewWithin)
+            {
+                pending.ExpiresAt = now + Lifetime;
+                if (!pending.Quiet)
+                {
+                    Tell(new PairingNotice(Details(pending), null));
+                }
+            }
+
             return new PairingStatusDto("waiting", null);
         }
 
@@ -160,7 +198,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
     public PairingDetailsDto? Find(string code) => ByCode(code) is { } p ? Details(p) : null;
 
-    private static PairingDetailsDto Details(Pending p) => new(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone);
+    private static PairingDetailsDto Details(Pending p) => new(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone, p.DeviceType);
 
     /// <param name="retryAfter">With <see cref="PairingApproval.TooMany"/>, how long until another may be approved.</param>
     public PairingApproval Approve(string code, string? deviceName, out TimeSpan retryAfter)
@@ -205,12 +243,21 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     /// </summary>
     public static bool UnfitName(string? name) => name is not null && PathComparison.Printable(name) != name;
 
-    /// <summary>"That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one.</summary>
+    /// <summary>
+    /// "That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one. That new one
+    /// (and any other from the same address for a quarter of an hour) isn't asked about, or "Don't allow" would only
+    /// bring the question straight back; it can still be typed into Connect a device.
+    /// </summary>
     public bool Decline(string code)
     {
         if (ByCode(code) is not { } pending || !_pending.TryRemove(pending.Id, out _))
         {
             return false;
+        }
+
+        if (pending.Address is { } address)
+        {
+            _declined[address] = clock.GetUtcNow().UtcDateTime + DeclinedQuiet;
         }
 
         Tell(new PairingNotice(null, Format(pending.Code)));
@@ -231,10 +278,15 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         var now = clock.GetUtcNow().UtcDateTime;
         foreach (var expired in _pending.Values.Where(p => p.ExpiresAt < now))
         {
-            if (_pending.TryRemove(expired.Id, out _) && !expired.Approved)
+            if (_pending.TryRemove(expired.Id, out _) && !expired.Approved && !expired.Quiet)
             {
                 Tell(new PairingNotice(null, Format(expired.Code)));
             }
+        }
+
+        foreach (var (address, until) in _declined.Where(d => d.Value < now))
+        {
+            _declined.TryRemove(new KeyValuePair<string, DateTime>(address, until));
         }
     }
 
@@ -265,14 +317,14 @@ public static class PairingEndpoints
                 return Results.Problem(UnfitNameMessage, statusCode: 400);
             }
 
-            if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), DeviceTypes.Of(http.Request)) is not { } started)
+            if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), out var announced, DeviceTypes.Of(http.Request)) is not { } started)
             {
                 return Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
             }
 
-            if (pairings.Find(started.Code) is { } details)
+            if (announced is not null)
             {
-                alerts.Send(details);
+                alerts.Send(announced);
             }
 
             return Results.Ok(started);

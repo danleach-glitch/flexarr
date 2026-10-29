@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -196,6 +198,56 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
         await admin.PostAsJsonAsync(Api($"/pairing/code/{before.GetProperty("code").GetString()}/decline"), new { });
         var (ended, gone) = await NextEventAsync(reader);
         Assert.Equal(("pairing-ended", before.GetProperty("code").GetString()), (ended, gone.GetProperty("code").GetString()));
+    }
+
+    [Fact]
+    public async Task DontAllow_KeepsTheDevicesNextCodeFromBeingAskedAbout()
+    {
+        var tv = Tv("192.168.1.79");
+        var first = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Spare room" })).Content.ReadFromJsonAsync<JsonElement>();
+        await Admin().PostAsJsonAsync(Api($"/pairing/code/{first.GetProperty("code").GetString()}/decline"), new { });
+
+        // The TV asks again at once, as it does: that code isn't asked about, though it can still be typed in.
+        var again = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Spare room" })).Content.ReadFromJsonAsync<JsonElement>();
+        var code = again.GetProperty("code").GetString()!;
+        var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
+
+        Assert.DoesNotContain(waiting.EnumerateArray(), p => p.GetProperty("code").GetString() == code);
+        Assert.Equal(HttpStatusCode.OK, (await Admin().GetAsync(Api($"/pairing/code/{code}"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ACodeStillOnScreen_KeepsGoing_AndOneNobodysShowingRunsOut()
+    {
+        var clock = new Clock();
+        using var server = new FlexarrApiFactory();
+        using var app = server.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
+        HttpClient Client(string address)
+        {
+            var client = app.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Test-Peer", address);
+            return client;
+        }
+
+        var shown = await (await Client("192.168.1.90").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Shown", })).Content.ReadFromJsonAsync<JsonElement>();
+        var left = await (await Client("192.168.1.91").PostAsJsonAsync(Api("/pairing"), new { deviceName = "Left", })).Content.ReadFromJsonAsync<JsonElement>();
+        for (var minute = 1; minute <= 25; minute++)
+        {
+            clock.Now += TimeSpan.FromMinutes(1);
+            await Client("192.168.1.90").GetAsync(Api($"/pairing/{shown.GetProperty("id").GetString()}"));
+        }
+
+        var still = await Client("192.168.1.90").GetFromJsonAsync<JsonElement>(Api($"/pairing/{shown.GetProperty("id").GetString()}"));
+        var gone = await Client("192.168.1.91").GetFromJsonAsync<JsonElement>(Api($"/pairing/{left.GetProperty("id").GetString()}"));
+        Assert.Equal("waiting", still.GetProperty("status").GetString());
+        Assert.Equal("expired", gone.GetProperty("status").GetString());
+    }
+
+    private sealed class Clock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     private static async Task<(string Name, JsonElement Data)> NextEventAsync(StreamReader reader)
