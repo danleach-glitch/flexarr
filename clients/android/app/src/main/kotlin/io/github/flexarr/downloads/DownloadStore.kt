@@ -226,7 +226,6 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     fun signedOutByServer(address: String): Boolean {
         work.cancelAllWorkByTag(WORK_TAG)
         transferring.clear()
-        listedProgressAt.clear()
         client = null
         if (all.isEmpty()) return false
         prefs.edit { putString(KEPT_FOR, address) }
@@ -401,24 +400,13 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     internal fun progressed(id: String, fraction: Double) {
         val download = byId(id) ?: return
         transferring[id] = fraction
-        // The list itself follows now and then (and when it starts coming down), for anything reading it there; the
-        // fraction isn't saved, as an interrupted transfer works it out again.
-        val now = System.currentTimeMillis()
-        if (download.phase != LocalPhase.Downloading) {
-            listedProgressAt[id] = now
-            update(id) { it.copy(phase = LocalPhase.Downloading, progress = fraction) }
-        } else if (now - (listedProgressAt[id] ?: 0L) >= LISTED_PROGRESS_MS) {
-            listedProgressAt[id] = now
-            update(id, save = false) { it.copy(progress = fraction) }
-        }
+        // The list itself only hears when it starts coming down: screens read the fraction with [progress], and it isn't
+        // saved, as an interrupted transfer works it out again.
+        if (download.phase != LocalPhase.Downloading) update(id) { it.copy(phase = LocalPhase.Downloading, progress = fraction) }
     }
-
-    /** When each transfer's progress last went into [all]. */
-    private val listedProgressAt = mutableMapOf<String, Long>()
 
     internal fun arrived(id: String, name: String, bytes: Long) {
         transferring.remove(id)
-        listedProgressAt.remove(id)
         update(id) { it.copy(phase = LocalPhase.Downloaded, fileName = name, sizeBytes = bytes, progress = 1.0, failure = null) }
         flexarrLog.info("Downloaded $id")
         val client = currentClient ?: return
@@ -428,7 +416,6 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     internal fun failed(id: String, message: String) {
         transferring.remove(id)
-        listedProgressAt.remove(id)
         update(id) { it.copy(phase = LocalPhase.Failed, failure = message) }
     }
 
@@ -504,7 +491,6 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val download = byId(id) ?: return
         work.cancelUniqueWork(workName(id))
         transferring.remove(id)
-        listedProgressAt.remove(id)
         download.fileName?.let { fileIn(folder, it)?.delete() }
         fileIn(folder, "${safeName(id)}.part")?.delete()
         download.imageFileName?.let { fileIn(folder, it)?.delete() }
@@ -552,7 +538,6 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         folder.listFiles()?.forEach { if (it.name != MANIFEST) it.delete() }
         all = emptyList()
         transferring.clear()
-        listedProgressAt.clear()
         save()
         profileId = null
         unsentDeletes = emptySet()
@@ -637,7 +622,6 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val KEPT_FOR = "keptFor"
         private const val WORK_TAG = "flexarr-download"
         private const val SAVE_GAP_MS = 250L
-        private const val LISTED_PROGRESS_MS = 2_000L
         private const val RECORDED_CATCH_UP_MS = 60_000L
 
         /**

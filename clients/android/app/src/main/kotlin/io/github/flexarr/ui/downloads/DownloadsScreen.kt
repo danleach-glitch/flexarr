@@ -229,8 +229,9 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
         store.isWaitingForWiFi(download) -> caption("Waiting for Wi-Fi")
         download.phase == LocalPhase.Preparing -> caption(gettingReady(download.progress))
         download.phase == LocalPhase.Downloading -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            caption("Downloading, ${(download.progress * 100).toInt()}%")
-            LinearProgressIndicator(progress = { download.progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
+            val progress = store.progress(download)
+            caption("Downloading, ${(progress * 100).toInt()}%")
+            LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
         }
         download.phase == LocalPhase.Failed -> Text(download.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -249,13 +250,13 @@ private fun gettingReady(progress: Double) = if (progress > 0 && progress < 1) "
  * an exclamation when it failed.
  */
 @Composable
-fun DownloadStateIcon(download: LocalDownload?, waitingForWiFi: Boolean, size: Dp = 22.dp) {
+fun DownloadStateIcon(download: LocalDownload?, waitingForWiFi: Boolean, size: Dp = 22.dp, progress: Double = download?.progress ?: 0.0) {
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         when {
             waitingForWiFi -> Icon(Icons.Filled.Wifi, contentDescription = null, tint = Flexarr.usher)
             download == null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
-            download.phase == LocalPhase.Downloading -> DownloadRing(download.progress.toFloat())
+            download.phase == LocalPhase.Downloading -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
             else -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
@@ -315,7 +316,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
         waiting -> "Waiting for Wi-Fi"
         download == null -> "Download"
         download.phase == LocalPhase.Preparing -> "Getting ready"
-        download.phase == LocalPhase.Downloading -> "${(download.progress * 100).toInt()}%"
+        download.phase == LocalPhase.Downloading -> "${(store.progress(download) * 100).toInt()}%"
         download.phase == LocalPhase.Downloaded -> "Downloaded"
         else -> "Couldn’t download"
     }
@@ -338,7 +339,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                DownloadStateIcon(download, waiting)
+                DownloadStateIcon(download, waiting, progress = download?.let(store::progress) ?: 0.0)
             }
             androidx.compose.foundation.text.BasicText(
                 label,
@@ -431,7 +432,7 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
         }).semantics { contentDescription = "${downloadDescription(download, waiting)}: $title" },
         contentAlignment = Alignment.Center,
     ) {
-        DownloadStateIcon(download, waiting, size = 20.dp)
+        DownloadStateIcon(download, waiting, size = 20.dp, progress = download?.let(model.downloads::progress) ?: 0.0)
     }
     if (removing && download != null) {
         AlertDialog(
