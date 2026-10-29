@@ -24,8 +24,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -59,7 +57,10 @@ import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.downloads.EpisodeDownloadButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
+import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.LabeledAction
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.ui.components.menuActions
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.pressable
@@ -151,9 +152,25 @@ fun PodcastEpisodeRow(
 ) {
     var notes by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    val download = model.downloads.entry(episode.id)
+    val actions = buildList {
+        add(MenuAction(if (episode.progress != null) "Resume" else "Play") { model.podcasts.play(episode) })
+        add(MenuAction("Play next") { model.addToUpNext(episode.id, next = true) })
+        add(MenuAction("Add to Up Next") { model.addToUpNext(episode.id, next = false) })
+        removeFromUpNext?.let { add(MenuAction("Remove from Up Next", it)) }
+        add(MenuAction(if (episode.isPlayed) "Mark as unplayed" else "Mark as played") { setPlayed(!episode.isPlayed) })
+        if (download == null) {
+            add(MenuAction("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+        } else {
+            add(MenuAction(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) })
+        }
+        // Part way through: unplayed forgets the place, so it leaves the listening list.
+        if (episode.progress != null) add(MenuAction("Mark as unplayed") { setPlayed(false) })
+    }
     Box {
         Row(
-            Modifier.fillMaxWidth().pressable(onClick = { notes = true }, onLongClick = { menu = true }).padding(vertical = if (compact) 10.dp else 12.dp),
+            Modifier.fillMaxWidth().pressable(onClick = { notes = true }, onLongClick = { menu = true }).menuActions(actions)
+                .padding(vertical = if (compact) 10.dp else 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -170,24 +187,7 @@ fun PodcastEpisodeRow(
             EpisodeDownloadButton(model, episode.id, episode.title)
             EpisodePlayButton(model, episode)
         }
-        DropdownMenu(menu, onDismissRequest = { menu = false }) {
-            fun entry(label: String, action: () -> Unit) = @Composable {
-                DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
-            }
-            entry(if (episode.progress != null) "Resume" else "Play") { model.podcasts.play(episode) }()
-            entry("Play next") { model.addToUpNext(episode.id, next = true) }()
-            entry("Add to Up Next") { model.addToUpNext(episode.id, next = false) }()
-            removeFromUpNext?.let { entry("Remove from Up Next", it)() }
-            entry(if (episode.isPlayed) "Mark as unplayed" else "Mark as played") { setPlayed(!episode.isPlayed) }()
-            val download = model.downloads.entry(episode.id)
-            if (download == null) {
-                entry("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } }()
-            } else {
-                entry(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) }()
-            }
-            // Part way through: unplayed forgets the place, so it leaves the listening list.
-            if (episode.progress != null) entry("Mark as unplayed") { setPlayed(false) }()
-        }
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
     if (notes) EpisodeSheet(model, episode, setPlayed, onDismiss = { notes = false })
 }

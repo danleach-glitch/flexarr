@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.profiles
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +39,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -150,7 +155,16 @@ fun ProfilePicker(model: AppModel, marksCurrent: Boolean = false, onChosen: () -
                         }
                     }
                 }
-                error?.let { Text(it, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.danger, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp)) }
+                error?.let {
+                    Text(
+                        it,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Flexarr.danger,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
             }
         }
     }
@@ -171,6 +185,8 @@ private fun PinEntry(
     var checking by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // Back is Cancel: the profiles again, rather than out of the app.
+    BackHandler(onBack = onCancel)
 
     fun submit() {
         if (pin.length < 4 || checking) return
@@ -197,7 +213,8 @@ private fun PinEntry(
             keyboardActions = KeyboardActions(onDone = { submit() }),
             textStyle = TextStyle(fontSize = 22.sp, color = Flexarr.screen, textAlign = TextAlign.Center),
             cursorBrush = SolidColor(Flexarr.screen),
-            modifier = Modifier.width(220.dp).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat).padding(vertical = 12.dp).focusRequester(focus),
+            modifier = Modifier.width(220.dp).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat).padding(vertical = 12.dp).focusRequester(focus)
+                .semantics { contentDescription = "PIN" },
         )
         Text(
             error ?: if (checking) "Checking" else " ",
@@ -205,6 +222,8 @@ private fun PinEntry(
             fontWeight = FontWeight.Medium,
             color = if (error == null) Flexarr.usher else Flexarr.danger,
             textAlign = TextAlign.Center,
+            // A wrong PIN is read out.
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionButton("Cancel", onClick = onCancel)

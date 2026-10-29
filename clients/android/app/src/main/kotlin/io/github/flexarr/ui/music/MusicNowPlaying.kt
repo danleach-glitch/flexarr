@@ -57,6 +57,15 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -98,7 +107,7 @@ fun MusicNowPlayingBar(model: AppModel) {
             .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
     ) {
         Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(width = 36.dp, height = 56.dp).pressable(music::stop), contentAlignment = Alignment.Center) {
+            Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(music::stop), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
             }
             Row(Modifier.weight(1f).pressable({ open = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -115,18 +124,20 @@ fun MusicNowPlayingBar(model: AppModel) {
             }
             RoundButton(Icons.Filled.SkipNext, "Next", enabled = music.hasNext, onClick = music::next)
         }
-        // How far the track has got, along the bottom edge.
-        val fraction = if (music.duration > 0) (music.position / music.duration).toFloat().coerceIn(0f, 1f) else 0f
-        Box(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 4.dp).height(2.dp)) {
-            Box(Modifier.fillMaxWidth(fraction.coerceAtLeast(0.01f)).height(2.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.7f)))
-        }
+        // How far the track has got, along the bottom edge: read as it's drawn, so the bar doesn't recompose each tick.
+        Box(
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 4.dp).height(2.dp).drawBehind {
+                val fraction = if (music.duration > 0) (music.position / music.duration).toFloat().coerceIn(0.01f, 1f) else 0.01f
+                drawRoundRect(Flexarr.screen.copy(alpha = 0.7f), size = Size(size.width * fraction, size.height), cornerRadius = CornerRadius(size.height / 2))
+            },
+        )
     }
     if (open) MusicNowPlayingSheet(model, onDismiss = { open = false })
 }
 
 @Composable
 private fun RoundButton(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Box(Modifier.size(40.dp).clip(CircleShape).alpha(if (enabled) 1f else 0.4f).pressable(onClick, enabled), contentAlignment = Alignment.Center) {
+    Box(Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).alpha(if (enabled) 1f else 0.4f).pressable(onClick, enabled), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(24.dp))
     }
 }
@@ -151,6 +162,8 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
     }
     val found = lyrics?.takeIf { it.first == track.id }?.second
     var showingLyrics by remember { mutableStateOf(false) }
+    // Back from the words goes to the cover, before it closes the sheet.
+    BackHandler(enabled = showingLyrics) { showingLyrics = false }
     val colours = rememberCoverColours(track)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
@@ -158,7 +171,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
             MusicAurora(colours, music.spectrum, music.isPlaying)
             if (showingLyrics && found != null) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Grabber()
+                    Grabber(onDismiss)
                     // The track's name and cover kept small above the words, the controls below.
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         SquareArtwork(track, Modifier.size(56.dp), imageWidth = 185)
@@ -178,7 +191,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
-                    Grabber()
+                    Grabber(onDismiss)
                     // Smaller while paused, as every music app does.
                     val scale by animateFloatAsState(if (music.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = "cover")
                     SquareArtwork(
@@ -202,9 +215,17 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
     }
 }
 
+/** The sheet's handle, which TalkBack offers as Close (the drag that closes it isn't there for TalkBack). */
 @Composable
-private fun Grabber() {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+private fun Grabber(onClose: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().clearAndSetSemantics {
+            contentDescription = "Close"
+            role = Role.Button
+            onClick { onClose(); true }
+        },
+        contentAlignment = Alignment.Center,
+    ) {
         Box(Modifier.padding(top = 10.dp).size(width = 40.dp, height = 5.dp).clip(CircleShape).background(Flexarr.aisle))
     }
 }

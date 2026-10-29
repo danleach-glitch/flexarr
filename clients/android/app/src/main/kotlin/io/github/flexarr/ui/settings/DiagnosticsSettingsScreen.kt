@@ -68,7 +68,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
             } catch (e: FlexarrException) {
                 when {
                     e is FlexarrException.UnexpectedResponse || (e is FlexarrException.Http && e.status in setOf(404, 405)) ->
-                        "This server doesn't take diagnostics yet. Update Flexarr on it, then try again."
+                        "This server doesn’t take diagnostics yet. Update Flexarr on it, then try again."
                     else -> e.message
                 }
             } finally {

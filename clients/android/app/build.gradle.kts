@@ -70,6 +70,11 @@ android {
         }
     }
 
+    // English only for now, so the libraries' own words (Material's, say) don't turn up in other languages beside it.
+    androidResources {
+        localeFilters += "en"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true

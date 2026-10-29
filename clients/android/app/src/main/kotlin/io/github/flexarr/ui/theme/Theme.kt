@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -83,6 +84,21 @@ fun RoomBackground(ambient: Color?, modifier: Modifier = Modifier, intensity: Fl
             if (ambient == null) Modifier
             else Modifier.background(Brush.radialGradient(listOf(ambient.copy(alpha = intensity), Color.Transparent), center = Offset.Zero, radius = radius)),
         ),
+        content = content,
+    )
+}
+
+/**
+ * The room as above, with a wash that changes (Home's, following the featured title): read only when it's drawn, so
+ * the colour easing from one title's to the next repaints the room without recomposing the screen on it.
+ */
+@Composable
+fun RoomBackground(ambient: () -> Color, modifier: Modifier = Modifier, intensity: Float = 0.35f, reach: Dp = 700.dp, content: @Composable BoxScope.() -> Unit) {
+    val radius = with(LocalDensity.current) { reach.toPx() }
+    Box(
+        modifier.fillMaxSize().background(Flexarr.room).drawBehind {
+            drawRect(Brush.radialGradient(listOf(ambient().copy(alpha = intensity), Color.Transparent), center = Offset.Zero, radius = radius))
+        },
         content = content,
     )
 }

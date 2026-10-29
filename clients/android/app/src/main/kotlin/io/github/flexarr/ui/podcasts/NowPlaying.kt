@@ -81,6 +81,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -117,6 +123,7 @@ import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.components.RepeatWhileShowing
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -144,7 +151,7 @@ fun NowPlayingBar(model: AppModel) {
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).padding(end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
+        Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
         }
         Row(Modifier.weight(1f).pressable({ model.showsNowPlaying = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -166,7 +173,7 @@ fun NowPlayingBar(model: AppModel) {
 
 @Composable
 private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Box(Modifier.size(40.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(24.dp))
     }
 }
@@ -207,6 +214,8 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
     val artworkGlow = rememberArtworkGlow(if (episode?.accentColor == null) episode?.artwork?.let { it.thumb ?: it.poster } else null)
     // The episode's chapters, notes and Up Next are showing in the artwork's place.
     var showingDetails by remember { mutableStateOf(false) }
+    // Back from them goes to the artwork, before it closes the sheet.
+    BackHandler(enabled = showingDetails) { showingDetails = false }
     // Where the thumb is while the scrubber is dragged; null when the episode's own position shows.
     var scrubbing by remember { mutableStateOf<Double?>(null) }
     if (episode == null) return
@@ -226,7 +235,14 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Box(Modifier.padding(top = 10.dp).size(width = 40.dp, height = 5.dp).clip(CircleShape).background(Flexarr.aisle))
+                // The sheet's handle, which TalkBack offers as Close (the drag that closes it isn't there for TalkBack).
+                Box(
+                    Modifier.padding(top = 10.dp).size(width = 40.dp, height = 5.dp).clip(CircleShape).background(Flexarr.aisle).clearAndSetSemantics {
+                        contentDescription = "Close"
+                        role = Role.Button
+                        onClick { onDismiss(); true }
+                    },
+                )
                 Crossfade(showingDetails, Modifier.weight(1f), animationSpec = tween(300), label = "details") { details ->
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         if (details) {
@@ -532,12 +548,7 @@ private fun SleepMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
                 player.sleep.endsAt?.let { end ->
                     // Minutes left, counting down.
                     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-                    LaunchedEffect(end) {
-                        while (true) {
-                            now = System.currentTimeMillis()
-                            delay(1_000)
-                        }
-                    }
+                    RepeatWhileShowing(1_000, end) { now = System.currentTimeMillis() }
                     Text(Format.timestamp(((end - now) / 1000.0).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = tint, style = Tabular)
                 }
             }

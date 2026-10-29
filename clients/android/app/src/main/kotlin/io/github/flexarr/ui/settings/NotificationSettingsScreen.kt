@@ -56,7 +56,7 @@ fun NotificationSettingsScreen(model: AppModel) {
     var problem by remember { mutableStateOf<Pair<String, String>?>(null) }
     var testSent by remember { mutableStateOf(false) }
 
-    fun attempt(title: String = "Couldn't change notifications", action: suspend () -> Unit) {
+    fun attempt(title: String = "Couldn’t change notifications", action: suspend () -> Unit) {
         val credentials = model.credentials ?: return
         if (working) return
         working = true
@@ -99,7 +99,7 @@ fun NotificationSettingsScreen(model: AppModel) {
             item { PageTitle("Notifications", onBack = { navigator.back() }) }
             if (!notifications.isAvailable) {
                 item {
-                    Group(footer = "This build of Flexarr was made without Google's notification service, so it can't get notifications. Versions from Google Play can.") {
+                    Group(footer = "This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.") {
                         Fact("Notifications", "Not available")
                     }
                 }
@@ -168,7 +168,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                 item {
                     val settings = notifications.settings
                     Group {
-                        Toggle("Upcoming", settings.upcoming, { save(settings.copy(upcoming = it)) }, detail = "Each morning, what's airing today")
+                        Toggle("Upcoming", settings.upcoming, { save(settings.copy(upcoming = it)) }, detail = "Each morning, what’s airing today")
                         if (settings.upcoming) {
                             Divider()
                             HourPicker(settings.upcomingHour) { save(settings.copy(upcomingHour = it)) }
@@ -182,7 +182,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                             fontSize = 17.sp,
                             color = Flexarr.silver,
                             modifier = Modifier.fillMaxWidth()
-                                .pressable({ attempt("Couldn't send a test notification") { notifications.sendTest(model.credentials!!); testSent = true } }, enabled = !working)
+                                .pressable({ attempt("Couldn’t send a test notification") { notifications.sendTest(model.credentials!!); testSent = true } }, enabled = !working)
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                         )
                     }
