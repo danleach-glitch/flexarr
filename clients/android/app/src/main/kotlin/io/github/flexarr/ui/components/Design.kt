@@ -1,5 +1,9 @@
 package io.github.flexarr.ui.components
 
+import androidx.compose.ui.platform.LocalConfiguration
+
+import androidx.compose.runtime.ReadOnlyComposable
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,9 +62,21 @@ import io.github.flexarr.ui.theme.marquee
 
 /** The shared left edge for heroes, rows and grids. */
 val Edge = 20.dp
+/**
+ * A tablet's width (600 dp and over, as Android's own layouts count it): bigger posters and heroes, two columns of
+ * episodes and a navigation rail, as the iPhone app lays out on iPad (its regular size class).
+ */
+val isWide: Boolean
+    @Composable @ReadOnlyComposable get() = LocalConfiguration.current.screenWidthDp >= 600
+
 /** Posters in a row: a little over three across on a phone. */
-val PosterWidth = 116.dp
-val WideWidth = 260.dp
+val PosterWidth: Dp
+    @Composable @ReadOnlyComposable get() = if (isWide) 160.dp else 116.dp
+val WideWidth: Dp
+    @Composable @ReadOnlyComposable get() = if (isWide) 340.dp else 260.dp
+/** The narrowest a poster gets in a grid. */
+val GridMinimum: Dp
+    @Composable @ReadOnlyComposable get() = if (isWide) 140.dp else 100.dp
 val RowSpacing = 12.dp
 
 /** A press dims a touch and shrinks a little, rather than rippling: cards and buttons alike, as on iPhone. */

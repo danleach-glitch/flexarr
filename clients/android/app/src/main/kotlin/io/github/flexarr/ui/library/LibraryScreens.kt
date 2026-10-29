@@ -60,6 +60,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
@@ -235,7 +236,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
                     },
                 ) {
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(100.dp),
+                        columns = GridCells.Adaptive(GridMinimum),
                         contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),

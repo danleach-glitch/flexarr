@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.SearchResults
+import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
@@ -241,7 +242,7 @@ fun PersonScreen(model: AppModel, id: String, name: String) {
         Column(Modifier.fillMaxSize()) {
             PageTitle("", onBack = navigator::back)
             LazyVerticalGrid(
-                GridCells.Adaptive(100.dp),
+                GridCells.Adaptive(GridMinimum),
                 contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),

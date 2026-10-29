@@ -11,6 +11,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import io.github.flexarr.ui.components.isWide
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,44 +90,71 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.listenForCommands() }
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
+        fun select(tab: Tab) {
+            if (tab == currentTab) {
+                // Tapping the tab you're on goes back to its top, as on iPhone.
+                nav.popBackStack(tab.route, inclusive = false)
+            } else {
+                currentTab = tab
+                nav.navigate(tab.route) {
+                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        }
+        // A tablet has the tabs down the side, as iPad's sidebar-style tab bar keeps the width for the screens.
+        val rail = isWide
         Scaffold(
             containerColor = Flexarr.room,
             bottomBar = {
               Column {
                 // Music or a podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
                 if (model.music.current != null) MusicNowPlayingBar(model) else NowPlayingBar(model)
-                NavigationBar(containerColor = Flexarr.room.copy(alpha = 0.96f)) {
-                    Tab.entries.forEach { tab ->
-                        NavigationBarItem(
-                            selected = tab == currentTab,
-                            onClick = {
-                                if (tab == currentTab) {
-                                    // Tapping the tab you're on goes back to its top, as on iPhone.
-                                    nav.popBackStack(tab.route, inclusive = false)
-                                } else {
-                                    currentTab = tab
-                                    nav.navigate(tab.route) {
-                                        popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            },
-                            icon = { Icon(tab.icon(), contentDescription = null) },
-                            label = { Text(tab.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Flexarr.screen,
-                                selectedTextColor = Flexarr.screen,
-                                unselectedIconColor = Flexarr.usher,
-                                unselectedTextColor = Flexarr.usher,
-                                indicatorColor = Color.Transparent,
-                            ),
-                        )
+                if (!rail) {
+                    NavigationBar(containerColor = Flexarr.room.copy(alpha = 0.96f)) {
+                        Tab.entries.forEach { tab ->
+                            NavigationBarItem(
+                                selected = tab == currentTab,
+                                onClick = { select(tab) },
+                                icon = { Icon(tab.icon(), contentDescription = null) },
+                                label = { Text(tab.label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Flexarr.screen,
+                                    selectedTextColor = Flexarr.screen,
+                                    unselectedIconColor = Flexarr.usher,
+                                    unselectedTextColor = Flexarr.usher,
+                                    indicatorColor = Color.Transparent,
+                                ),
+                            )
+                        }
                     }
                 }
               }
             },
         ) { padding ->
+          Row {
+            if (rail) {
+                NavigationRail(containerColor = Flexarr.room, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
+                    Spacer(Modifier.weight(1f))
+                    Tab.entries.forEach { tab ->
+                        NavigationRailItem(
+                            selected = tab == currentTab,
+                            onClick = { select(tab) },
+                            icon = { Icon(tab.icon(), contentDescription = null) },
+                            label = { Text(tab.label) },
+                            colors = NavigationRailItemDefaults.colors(
+                                selectedIconColor = Flexarr.screen,
+                                selectedTextColor = Flexarr.screen,
+                                unselectedIconColor = Flexarr.usher,
+                                unselectedTextColor = Flexarr.usher,
+                                indicatorColor = Flexarr.seat,
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
+            }
             NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
                 composable(Tab.Home.route) { HomeScreen(model) }
                 composable(Tab.Libraries.route) { LibrariesScreen(model) }
@@ -153,6 +186,7 @@ fun MainScreen(model: AppModel) {
                     arguments = listOf(navArgument("name") { type = NavType.StringType; defaultValue = "" }),
                 ) { entry -> PersonScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("name").orEmpty()) }
             }
+          }
         }
     }
 }

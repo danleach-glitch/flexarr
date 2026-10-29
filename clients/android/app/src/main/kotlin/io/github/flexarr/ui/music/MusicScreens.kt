@@ -69,6 +69,7 @@ import io.github.flexarr.core.playlists
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.core.totalRuntime
 import io.github.flexarr.core.tracks
+import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
@@ -180,7 +181,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
                 artists.isEmpty() -> StatusView()
                 else -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true; attempt++ }) {
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(100.dp),
+                        columns = GridCells.Adaptive(GridMinimum),
                         contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),

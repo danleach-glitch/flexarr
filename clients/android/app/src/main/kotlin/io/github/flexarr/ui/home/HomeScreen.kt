@@ -62,6 +62,7 @@ import io.github.flexarr.ui.livetv.HomeChannelCard
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
+import io.github.flexarr.ui.components.isWide
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
@@ -158,7 +159,7 @@ private fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
         delay(10_000)
         pager.animateScrollToPage((pager.currentPage + 1) % items.size)
     }
-    Box(Modifier.fillMaxWidth().height(560.dp)) {
+    Box(Modifier.fillMaxWidth().height(if (isWide) 620.dp else 560.dp)) {
         HorizontalPager(pager, Modifier.fillMaxSize()) { page -> HeroSlide(home, items[page]) }
         if (items.size > 1) {
             Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

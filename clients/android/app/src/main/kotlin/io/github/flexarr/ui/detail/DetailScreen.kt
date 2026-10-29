@@ -74,6 +74,7 @@ import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.progress
+import io.github.flexarr.ui.components.isWide
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
@@ -175,9 +176,10 @@ fun DetailScreen(model: AppModel, id: String) {
                     attempt++
                 },
             ) {
+                val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId]) }
-                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient)
+                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns)
                 }
             }
             error != null -> StatusView(error, retry = { attempt++ })
@@ -194,7 +196,7 @@ fun DetailScreen(model: AppModel, id: String) {
 private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?) {
     var overviewExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(Modifier.fillMaxWidth().height(420.dp)) {
+        Box(Modifier.fillMaxWidth().height(if (isWide) 520.dp else 420.dp)) {
             RemoteImage(item.artwork.backdrop ?: series?.artwork?.backdrop, 1000, Modifier.fillMaxSize().fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Flexarr.room))
             }
@@ -322,20 +324,24 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     onSeason: (String) -> Unit,
     similar: List<ItemSummary>,
     ambient: Color,
+    /** Episodes side by side on a tablet. */
+    columns: Int,
 ) {
     if (item.kind == MediaKind.Series && detail.children.isNotEmpty()) {
         item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient) }
         if (season == null) {
             item(key = "season-loading") { Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen) } }
         } else {
-            items(season.children, key = { "episode-${it.id}" }) { episode ->
-                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = false, playsOnTap = true)
+            items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->
+                EpisodeColumns(row, columns) { episode -> EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = false, playsOnTap = true) }
             }
         }
     } else if (item.kind == MediaKind.Episode && season != null && season.children.size > 1) {
         item(key = "season-heading") { SectionHeading(season.item.title) }
-        items(season.children, key = { "episode-${it.id}" }) { episode ->
-            EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.id == item.id, playsOnTap = episode.id == item.id)
+        items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->
+            EpisodeColumns(row, columns) { episode ->
+                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.id == item.id, playsOnTap = episode.id == item.id)
+            }
         }
     } else if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && detail.children.isNotEmpty()) {
         // Anything else that holds titles (an album, say, until music has its own screens) lists them.
@@ -395,6 +401,16 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
 }
 
 /** An episode in a season list: still with progress beside the number, title and time, then the overview. */
+/** A row of [columns] episodes, sharing the width (one on a phone). */
+@Composable
+private fun EpisodeColumns(episodes: List<ItemSummary>, columns: Int, content: @Composable (ItemSummary) -> Unit) {
+    if (columns == 1) return content(episodes.single())
+    Row {
+        episodes.forEach { Box(Modifier.weight(1f)) { content(it) } }
+        repeat(columns - episodes.size) { Box(Modifier.weight(1f)) }
+    }
+}
+
 @Composable
 private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boolean, playsOnTap: Boolean) {
     val navigator = LocalNavigator.current
