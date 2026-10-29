@@ -116,6 +116,9 @@ class AppModel(private val context: Context) {
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
         private set
 
+    /** The podcast Now Playing sheet is open: from the bar, or after Play in an episode's notes. */
+    var showsNowPlaying by mutableStateOf(false)
+
     /** The sign-in is saved on this device (not one for this launch only, from the command line). */
     private var saved = phase is Phase.SignedIn
 

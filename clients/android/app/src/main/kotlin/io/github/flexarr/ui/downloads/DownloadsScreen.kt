@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassTop
@@ -233,7 +233,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
         }
         download.phase == LocalPhase.Failed -> Text(download.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
         }
     }
@@ -243,7 +243,8 @@ private fun gettingReady(progress: Double) = if (progress > 0 && progress < 1) "
 
 /**
  * What a download is doing, at a glance, the same everywhere: an arrow to download; an hourglass while the server gets
- * it ready; Wi-Fi while it waits for some; a ring that fills only as the file comes down; a green tick once it's here;
+ * it ready; Wi-Fi while it waits for some; a ring that fills only as the file comes down; a filled green arrow once it's
+ * here (never a tick, which means played);
  * an exclamation when it failed.
  */
 @Composable
@@ -254,7 +255,7 @@ fun DownloadStateIcon(download: LocalDownload?, waitingForWiFi: Boolean, size: D
             download == null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             download.phase == LocalPhase.Downloading -> DownloadRing(download.progress.toFloat())
-            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Flexarr.downloaded)
+            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
             else -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
     }

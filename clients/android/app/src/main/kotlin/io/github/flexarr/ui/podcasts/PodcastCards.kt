@@ -18,10 +18,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -66,6 +66,7 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -213,7 +214,7 @@ fun EpisodePlayButton(model: AppModel, episode: PodcastEpisode) {
     }
 }
 
-/** An episode's whole notes, with Play and Mark as played. */
+/** An episode's whole notes, with Play (which goes on to Now Playing) and Mark as played. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (Boolean) -> Unit, onDismiss: () -> Unit) {
@@ -240,9 +241,13 @@ private fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (B
                 ActionButton(
                     if (isPlaying) "Pause" else if (isCurrent || shown.progress != null) "Resume" else "Play",
                     onClick = {
-                        if (isCurrent) player.togglePlayPause() else {
-                            player.play(shown)
-                            onDismiss()
+                        if (isPlaying) return@ActionButton player.togglePlayPause()
+                        // Playing (or carrying on) goes to the player: the notes give way to Now Playing.
+                        if (isCurrent) player.togglePlayPause() else player.play(shown)
+                        onDismiss()
+                        model.scope.launch {
+                            delay(300) // once this sheet has gone
+                            model.showsNowPlaying = true
                         }
                     },
                     icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -251,10 +256,24 @@ private fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (B
                 )
                 val isPlayed = played ?: shown.isPlayed
                 EpisodeDownloadButton(model, shown.id, shown.title)
-                LabeledAction(if (isPlayed) "Mark as unplayed" else "Mark as played", if (isPlayed) Icons.Outlined.Circle else Icons.Filled.Check, {
-                    setPlayed(!isPlayed)
-                    played = !isPlayed
-                })
+                // Shows where it stands: a green tick once played (tap to undo), an outline tick to mark it.
+                LabeledAction(
+                    if (isPlayed) "Mark as unplayed" else "Mark as played",
+                    if (isPlayed) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                    {
+                        setPlayed(!isPlayed)
+                        played = !isPlayed
+                    },
+                    tint = if (isPlayed) Flexarr.downloaded else Flexarr.screen,
+                    iconSize = if (isPlayed) 30.dp else 22.dp,
+                )
+                if (shown.progress != null && played == null) {
+                    // Part way through: forget the place without marking it played.
+                    LabeledAction("Mark as unplayed", Icons.Outlined.Circle, {
+                        setPlayed(false)
+                        played = false
+                    })
+                }
             }
             shown.overview?.let { notes -> SelectionContainer { Text(notes, fontSize = 17.sp, color = Flexarr.screen.copy(alpha = 0.9f)) } }
         }

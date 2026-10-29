@@ -45,6 +45,8 @@ data class Podcast(
     val overview: String? = null,
     val artwork: Artwork = Artwork(),
     val accentColor: String? = null,
+    /** The show's own website, from its feed. */
+    val link: String? = null,
     val categories: List<String> = emptyList(),
     val explicit: Boolean = false,
     val episodeCount: Int = 0,
@@ -117,6 +119,48 @@ data class PodcastEpisode(
         }
 }
 
+/** Where a chapter of an episode starts, and what it's called. */
+@Serializable
+data class PodcastChapter(val startSeconds: Double, val title: String)
+
+/** Where the chapter playing at [position] is in the list; null before the first starts. */
+fun List<PodcastChapter>.indexAt(position: Double): Int? =
+    indexOfLast { it.startSeconds <= position + 0.5 }.takeIf { it >= 0 }
+
+/** Something to tap in an episode's notes, over [range] of the text: a time to jump to, or a web address. */
+sealed interface NoteLink {
+    val range: IntRange
+
+    data class Seek(override val range: IntRange, val seconds: Double) : NoteLink
+
+    data class Web(override val range: IntRange, val url: String) : NoteLink
+}
+
+/**
+ * The times ("12:34", "1:02:55") in an episode's notes that jump there (only those within the episode, when its
+ * length is known), and the http(s) addresses that open, in the order they come.
+ */
+fun noteLinks(notes: String, durationSeconds: Double?): List<NoteLink> {
+    val web = webPattern.findAll(notes).map { match ->
+        // A full stop or bracket closing the sentence isn't part of the address.
+        val url = match.value.trimEnd('.', ',', ';', ':', '!', '?', ')', ']', '\'', '"')
+        NoteLink.Web(match.range.first until match.range.first + url.length, url)
+    }.toList()
+    val times = timePattern.findAll(notes).mapNotNull { match ->
+        val seconds = match.value.split(":").fold(0.0) { total, part -> total * 60 + part.toInt() }
+        if (durationSeconds != null && seconds >= durationSeconds) return@mapNotNull null
+        // A time inside an address (a YouTube link's t=1:02, say) is the address's.
+        if (web.any { match.range.first in it.range }) return@mapNotNull null
+        NoteLink.Seek(match.range, seconds)
+    }
+    return (web + times).sortedBy { it.range.first }
+}
+
+/** A time on its own ("12:34", "1:02:55"), not part of a longer run of digits and colons. */
+private val timePattern = Regex("""(?<![\d:])(?:\d{1,2}:)?\d{1,2}:[0-5]\d(?![\d:])""")
+
+private val webPattern = Regex("""https?://[^\s<>"]+""", RegexOption.IGNORE_CASE)
+
 /** A show in Apple's podcast directory (search and the charts), and whether it's in the library already. */
 @Serializable
 data class DirectoryPodcast(
@@ -187,6 +231,14 @@ suspend fun FlexarrClient.podcastEpisodes(
 
 /** One episode with all of its notes. */
 suspend fun FlexarrClient.podcastEpisode(id: String): PodcastEpisode = get("podcasts/episodes/$id")
+
+/** The episode's chapters, in order. Servers before chapters answer 404: none. */
+suspend fun FlexarrClient.podcastChapters(episodeId: String): List<PodcastChapter> =
+    try {
+        get("podcasts/episodes/$episodeId/chapters")
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404) emptyList() else throw e
+    }
 
 /** The newest episodes of the shows this profile follows. */
 suspend fun FlexarrClient.newPodcastEpisodes(unplayed: Boolean = false, take: Int = 40): List<PodcastEpisode> =
