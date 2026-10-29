@@ -308,11 +308,18 @@ public static partial class PlaybackEndpoints
         group.MapGet("/{segment:int}.ts", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
             Segment(sid, segment, "video/mp2t", sessions, transcodes, ct));
 
-        group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles, CancellationToken ct) =>
+        // page: teletext's page to read (100–899), for a broadcast whose subtitles aren't on the page it marks as subtitles.
+        group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, int? page, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles,
+            CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session || session.Subtitles.FirstOrDefault(s => s.Key == key) is not { } track)
             {
                 return Results.NotFound();
+            }
+
+            if (page is { } number && (!track.IsTeletext || !Subtitles.IsTeletextPage(number)))
+            {
+                return Results.Problem("Only teletext subtitles have a page, numbered 100 to 899.", statusCode: StatusCodes.Status400BadRequest);
             }
 
             if (!track.IsText)
@@ -321,7 +328,9 @@ public static partial class PlaybackEndpoints
             }
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
-            var path = await subtitles.GetAsync(file, session.Subtitles, track, ct);
+            var path = page is { } chosen
+                ? await subtitles.GetTeletextPageAsync(file, track, chosen, ct)
+                : await subtitles.GetAsync(file, session.Subtitles, track, ct);
             if (path is null)
             {
                 return Results.Problem("These subtitles couldn't be converted.", statusCode: 422);

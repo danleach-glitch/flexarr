@@ -72,6 +72,21 @@ public class SubtitleMemoryTests(FlexarrApiFactory factory) : IClassFixture<Flex
         await client.DeleteAsync(Api($"/playback/{second.Session}"));
     }
 
+    [Fact]
+    public async Task ATeletextPage_IsOnlyForTeletext_AndThreeDigits()
+    {
+        var movie = await AddMovieAsync(("eng", false));
+        var client = Client();
+        var started = await StartAsync(client, movie);
+
+        // A page means nothing to a subtitle file, and isn't a teletext page outside 100–899.
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(Api($"/playback/{started.Session}/subtitles/e2.vtt?page=888"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(Api($"/playback/{started.Session}/subtitles/e2.vtt?page=999"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(Api($"/playback/{started.Session}/subtitles/e2.vtt?page=abc"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(Api($"/playback/{started.Session}/subtitles/e9.vtt?page=888"))).StatusCode);
+        await client.DeleteAsync(Api($"/playback/{started.Session}"));
+    }
+
     private async Task<Guid> AddMovieAsync(params (string Language, bool Forced)[] subtitles)
     {
         using var scope = factory.Services.CreateScope();

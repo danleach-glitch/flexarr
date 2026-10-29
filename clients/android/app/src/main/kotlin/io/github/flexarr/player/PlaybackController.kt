@@ -38,6 +38,7 @@ import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.SubtitleSyncState
 import io.github.flexarr.core.SubtitleTrack
+import io.github.flexarr.core.Teletext
 import io.github.flexarr.core.DownloadedSubtitles
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.core.FlexarrException
@@ -69,6 +70,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val deviceProfile = DeviceCapabilities.profile(context)
     /** [deviceProfile] once the server's version is known, which decides whether it can have fragmented MP4. */
     private var serverProfile: DeviceProfile? = null
+    /** The server reads a chosen teletext page (0.55 on), known with [serverProfile]. */
+    private var serverReadsTeletextPages = false
     private val scope = model.scope
 
     var info: PlaybackInfo? by mutableStateOf(null)
@@ -106,6 +109,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     var subtitlePosition by mutableStateOf(SubtitlePosition.Bottom)
         private set
     var subtitlesInBlackBars by mutableStateOf(false)
+        private set
+    /** The teletext page subtitles are read from, chosen in the menu; null, the ones the broadcast marks as subtitles. */
+    var teletextPage: Int? by mutableStateOf(null)
         private set
     /** What the subtitles say now, drawn by the screen over the picture (or in the black bars). */
     var cues: List<Cue> by mutableStateOf(emptyList())
@@ -322,9 +328,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         isReopening = reopening
         scope.launch {
             try {
-                // Whether this server can have fragmented MP4 depends on its version, asked once.
-                val profile = serverProfile ?: DeviceCapabilities.withServer(deviceProfile, runCatching { client.systemStatus().version }.getOrNull())
-                    .also { serverProfile = it }
+                // Whether this server can have fragmented MP4, or read a chosen teletext page, depends on its version, asked once.
+                val profile = serverProfile ?: runCatching { client.systemStatus().version }.getOrNull().let { version ->
+                    serverReadsTeletextPages = Teletext.canChoosePage(version)
+                    DeviceCapabilities.withServer(deviceProfile, version)
+                }.also { serverProfile = it }
                 val started = startPlayback(request(profile), attempts) { !closed && mine == openGeneration } ?: return@launch
                 if (closed || mine != openGeneration) {
                     runCatching { client.stopPlayback(started.sessionId) }
@@ -481,8 +489,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         // Text subtitles ride beside the stream, each known by its key (styled ones as authored); picture ones come burned in.
         val styled = !isOffline && (started.subtitleDelaySeconds ?: 0.0) == 0.0
+        // Teletext from the page chosen in the menu, if one was.
+        val page = teletextPage.takeIf { !isOffline && serverReadsTeletextPages }
         val sideloaded = started.subtitles.filter { it.isText && it.url != null }.map { track ->
-            StyledSubtitles.configuration(track, SUBTITLE_ID_PREFIX + track.key, styled, client::url)
+            val read = if (track.isTeletext) track.copy(url = Teletext.url(track.url!!, page)) else track
+            StyledSubtitles.configuration(read, SUBTITLE_ID_PREFIX + track.key, styled, client::url)
         }
         // What the system's media controls and headphones' devices show.
         val metadata = MediaMetadata.Builder()
@@ -800,6 +811,23 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             }
             !applySubtitle(track.key) -> pendingSubtitle = track.key
         }
+    }
+
+    /**
+     * The menu offers Teletext page, as on iPhone: teletext subtitles showing, streamed from a server that reads a chosen
+     * page (not a download, whose subtitles are already on the phone).
+     */
+    val canChooseTeletextPage: Boolean
+        get() = !isOffline && serverReadsTeletextPages && subtitleKey?.let { key -> info?.subtitles?.any { it.key == key && it.isTeletext && it.isText } } == true
+
+    /**
+     * Reads teletext subtitles from [page] (null: the ones the broadcast marks as subtitles), for a recording whose
+     * subtitles are on another page. Held for this sitting; the title opens again where it is to fetch them.
+     */
+    fun chooseTeletextPage(page: Int?) {
+        if (isReopening || page == teletextPage) return
+        teletextPage = page
+        reopen()
     }
 
     /** Turns on the sideloaded track for [key]; false if the player hasn't read its tracks yet. */

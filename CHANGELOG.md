@@ -31,6 +31,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - In Android Auto, say "Hey Google, play The Rest Is History on Flexarr" (or an artist, album, song or playlist) and it plays: a podcast you follow picks up at the episode to hear next, "the latest …" plays its newest, and "play my Up Next" plays Up Next. The car's search button finds your podcasts and music too.
 - On the phone, the Google Assistant plays from Flexarr as Siri does on iPhone: "play Heat on Flexarr" plays the film, a show's next episode, a podcast or music, and "continue watching on Flexarr" picks up where you left off. "Search Flexarr for Fargo" opens Search with it typed in, and "open Downloads in Flexarr" goes straight there.
 - Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
+- Teletext subtitles in recorded TV have a Teletext page choice in the subtitles menu, as on iPhone: Automatic, or page 888, 777, 150 or 801, for a recording whose subtitles aren't on the page the broadcast marks. It needs the server on this version too.
 - Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
 
 ### iPhone and Apple TV

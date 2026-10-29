@@ -128,8 +128,7 @@ public static partial class Subtitles
         if (teletext.Count > 0)
         {
             // Its own pass, with the teletext decoder's options: subtitle pages, as text rather than pictures of the page.
-            await ExtractAsync(["-txt_format", "text", "-txt_page", "subtitle"], file.Path,
-                teletext.Select(e => (e.Track, Format: "webvtt", e.Target)).ToList(), done, settings, ct).ConfigureAwait(false);
+            await ExtractAsync(TeletextOptions(), file.Path, teletext.Select(e => (e.Track, Format: "webvtt", e.Target)).ToList(), done, settings, ct).ConfigureAwait(false);
         }
 
         foreach (var (track, target) in captions)
@@ -141,6 +140,40 @@ public static partial class Subtitles
         }
 
         return done;
+    }
+
+    /// <summary>A teletext page number: three digits, the first (the magazine) 1 to 8.</summary>
+    public static bool IsTeletextPage(int page) => page is >= 100 and <= 899;
+
+    /// <summary>
+    /// The teletext decoder's options: <paramref name="page"/>, or with none the pages the broadcast marks as subtitles;
+    /// as text rather than pictures of the page.
+    /// </summary>
+    internal static string[] TeletextOptions(int? page = null) =>
+        ["-txt_format", "text", "-txt_page", page?.ToString(CultureInfo.InvariantCulture) ?? "subtitle"];
+
+    /// <summary>
+    /// A teletext track's WebVTT from one <paramref name="page"/>, for a broadcast whose subtitles aren't on the page it
+    /// marks as subtitles. Cached apart from the track's usual WebVTT; null when it didn't convert.
+    /// </summary>
+    public static async Task<string?> TeletextPageToWebVttAsync(MediaFile file, SubtitleTrack track, int page, TranscodeSettings settings, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(track);
+        if (!track.IsTeletext || !IsTeletextPage(page))
+        {
+            throw new ArgumentException("Only a teletext track has pages, numbered 100 to 899.", nameof(page));
+        }
+
+        var target = CachePath(file, track, settings, $".p{page}.vtt");
+        if (File.Exists(target))
+        {
+            return target;
+        }
+
+        var done = new Dictionary<string, string>(StringComparer.Ordinal);
+        await ExtractAsync(TeletextOptions(page), file.Path, [(track, "webvtt", target)], done, settings, ct).ConfigureAwait(false);
+        return done.GetValueOrDefault(track.Key);
     }
 
     /// <summary>One read of the file, writing each of <paramref name="outputs"/>; the WebVTT ones that land go in <paramref name="done"/>.</summary>
