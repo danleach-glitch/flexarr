@@ -2,7 +2,11 @@ package io.github.flexarr.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.GridView
@@ -70,6 +74,8 @@ import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
 import io.github.flexarr.AppLink
+import io.github.flexarr.ReviewPrompt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
@@ -110,6 +116,15 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Downloads follow the server and profile signed in.
     LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
+    // Google Play's rating prompt, once the player has closed and the app is back in front (ReviewPrompt says when).
+    val activity = LocalActivity.current
+    val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
+    val inFront = lifecycle.isAtLeast(Lifecycle.State.RESUMED)
+    LaunchedEffect(ReviewPrompt.isDue, inFront) {
+        if (!ReviewPrompt.isDue || !inFront || activity == null) return@LaunchedEffect
+        delay(1_500)
+        ReviewPrompt.ask(activity)
+    }
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
         // Back can leave a tab's page for another's: the lit tab follows whichever tab's page is showing.
@@ -235,11 +250,14 @@ fun MainScreen(model: AppModel) {
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
-                    "library/{id}?sort={sort}",
-                    arguments = listOf(navArgument("sort") { type = NavType.StringType; defaultValue = "" }),
+                    "library/{id}?sort={sort}&genre={genre}",
+                    arguments = listOf(
+                        navArgument("sort") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("genre") { type = NavType.StringType; defaultValue = "" },
+                    ),
                 ) { entry ->
                     val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
-                    LibraryScreen(model, entry.arguments?.getString("id")!!, sort)
+                    LibraryScreen(model, entry.arguments?.getString("id")!!, sort, entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() })
                 }
                 composable("livetv") { LiveTvScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }

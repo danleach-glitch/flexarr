@@ -177,6 +177,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
+    // Google Play's in-app rating prompt (ReviewPrompt).
+    implementation(libs.play.review)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

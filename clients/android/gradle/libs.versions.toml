@@ -26,6 +26,7 @@ uiautomator = "2.4.0"
 profileinstaller = "1.4.1"
 google-services = "4.5.0"
 play-publisher = "4.1.1"
+play-review = "2.0.2"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
@@ -57,6 +58,7 @@ sentry-android = { module = "io.sentry:sentry-android-core", version.ref = "sent
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 kotlinx-coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
+play-review = { module = "com.google.android.play:review-ktx", version.ref = "play-review" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 androidx-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }

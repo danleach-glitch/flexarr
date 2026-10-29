@@ -19,6 +19,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When a film or episode's stream drops (the server restarts, or the Wi-Fi blinks), the player picks it up again from where it was, trying for up to 15 seconds, as on iPhone. If someone started watching on another screen and took the stream, it says so and offers Watch here instead.
 - Previous episode starts the episode again if you're more than a few seconds in, and goes back through what you've watched in this sitting, shuffled episodes included.
 - Live TV plays on in picture in picture when you leave the app, and has the sleep timer, with "Still watching?" before it pauses. Shake the phone to answer "Still watching?" with 15 more minutes, while watching anything. The back and forward buttons in Live TV and in picture in picture jump as far as you chose in Settings › Playback.
+- Film and TV libraries have Genres at the top, as on iPhone: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre.
+- The Libraries tab follows your library order for Podcasts and Live TV too, rather than always putting them last. In Settings › Library order, drag a library by its handle to move it, and Podcasts and Live TV are in the list.
+- Home has a New podcasts row after Continue watching: the newest episodes of the shows you follow, each opening its notes with Play.
+- A fresh install opens on three welcome pages saying what Flexarr is, how to set up the free server and how the app finds it.
+- When Android allows notifications but your phone isn't getting them from this server, Settings offers Turn on notifications.
+- Settings has Rate Flexarr, which opens the app's Google Play page, and now and then, after you've watched something to the end, Google Play may ask how you're finding Flexarr.
 
 ## 0.54.0 · 29 October 2026
 
