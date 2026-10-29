@@ -119,12 +119,14 @@ fun WelcomeScreen(onDone: () -> Unit) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = if (index == pager.currentPage) 1f else 0.35f)))
                 }
             }
-            ActionButton(
-                if (last) "Find my server" else "Next",
-                onClick = { if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
-                modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp),
-                prominent = true,
-            )
+            Box(Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
+                ActionButton(
+                    if (last) "Find my server" else "Next",
+                    onClick = { if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    prominent = true,
+                )
+            }
         }
     }
 }
