@@ -275,7 +275,7 @@ function ConnectionLine({
           (connected ? (
             <IconButton label="Edit" aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
           ) : (
-            <button type="button" className="button quiet small" aria-label={`Connect ${name}`} onClick={onOpen}>
+            <button type="button" className="button quiet small go" aria-label={`Connect ${name}`} onClick={onOpen}>
               Connect
             </button>
           ))}
@@ -396,7 +396,7 @@ function ArrRow({
             >
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving}>
+            <AsyncButton type="submit" className={isNew ? 'button small go' : 'button small'} busy={saving}>
               {isNew ? 'Connect' : 'Save'}
             </AsyncButton>
           </div>
@@ -488,7 +488,7 @@ function ServiceRow({
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving}>
+            <AsyncButton type="submit" className={service ? 'button small' : 'button small go'} busy={saving}>
               {service ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
@@ -589,7 +589,7 @@ function TmdbRow({
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving} disabled={!apiKey.trim()}>
+            <AsyncButton type="submit" className={hasKey ? 'button small' : 'button small go'} busy={saving} disabled={!apiKey.trim()}>
               {hasKey ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
@@ -706,7 +706,7 @@ function DispatcharrRow({
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving}>
+            <AsyncButton type="submit" className={liveTv ? 'button small' : 'button small go'} busy={saving}>
               {liveTv ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>

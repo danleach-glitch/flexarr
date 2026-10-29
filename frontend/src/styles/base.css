@@ -126,7 +126,7 @@ code {
 
 .button.quiet {
   background: color-mix(in srgb, var(--screen) 9%, transparent);
-  border-color: color-mix(in srgb, var(--screen) 16%, transparent);
+  border-color: color-mix(in srgb, var(--screen) 22%, transparent);
   color: var(--screen);
   backdrop-filter: blur(12px);
 }
@@ -149,9 +149,43 @@ code {
 }
 
 .button.danger {
-  background: transparent;
-  border-color: var(--aisle);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   color: var(--danger);
+}
+
+.button.danger:hover {
+  background: color-mix(in srgb, var(--danger) 24%, transparent);
+  filter: none;
+}
+
+/* The last step of deleting something, in a dialog that has already said what goes: filled, so it can't be mistaken. */
+.confirm-dialog .button.danger {
+  background: var(--danger);
+  border-color: transparent;
+  color: var(--room);
+}
+
+.confirm-dialog .button.danger:hover {
+  background: var(--danger);
+  filter: brightness(1.08);
+}
+
+/* Connect: setting something up, in the green of a connected app. */
+.button.go {
+  background: var(--go);
+  color: var(--room);
+}
+
+/* Connect on a list row: the green outline only, so a list with several apps to set up stays calm. */
+.button.quiet.go {
+  background: color-mix(in srgb, var(--go) 10%, transparent);
+  border-color: color-mix(in srgb, var(--go) 50%, transparent);
+  color: var(--go);
+}
+
+.button.quiet.go:hover {
+  background: color-mix(in srgb, var(--go) 18%, transparent);
 }
 
 .button:disabled {
@@ -189,6 +223,8 @@ code {
 
 .button.icon.danger-icon:hover {
   color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
 }
 
 /* ---------- Busy: while a button's action is under way, a spinner takes its label's place ---------- */
@@ -204,6 +240,14 @@ code {
 
 .button.danger {
   --spin: var(--danger);
+}
+
+.confirm-dialog .button.danger {
+  --spin: var(--room);
+}
+
+.button.quiet.go {
+  --spin: var(--go);
 }
 
 .text-button {
@@ -314,10 +358,22 @@ input[type='number'],
 select {
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid var(--aisle);
+  border: 1px solid var(--field-line);
   border-radius: var(--radius-control);
-  background: var(--seat);
+  background-color: var(--well);
   color: var(--screen);
+  transition: border-color 0.15s ease;
+}
+
+:is(input[type='text'], input[type='search'], input[type='password'], input[type='url'], input[type='number'], select):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--screen) 38%, transparent);
+}
+
+/* Typing in a field: its border lights up instead of a ring around it. */
+:is(input[type='text'], input[type='search'], input[type='password'], input[type='url'], input[type='number'], select):focus-visible {
+  outline: none;
+  border-color: var(--ambient);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ambient) 28%, transparent);
 }
 
 /* The browser's own arrow sits hard against the text; ours has room either side. */

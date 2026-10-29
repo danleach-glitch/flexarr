@@ -1566,7 +1566,7 @@
 }
 
 .switch:checked {
-  background: var(--silver);
+  background: var(--go);
 }
 
 .switch:checked::after {
@@ -1652,6 +1652,27 @@
 .settings .button.small.icon svg {
   width: 16px;
   height: 16px;
+}
+
+/* A row's own actions (edit, rescan, artwork, delete) stay out of the way until pointed at, so the row's name and
+   status are what you read, and the buttons that do something (Save, Connect) are the only boxes on the page. */
+.settings .button.quiet.small.icon {
+  background: transparent;
+  border-color: transparent;
+  color: color-mix(in srgb, var(--screen) 72%, var(--usher));
+  backdrop-filter: none;
+}
+
+.settings .button.quiet.small.icon:hover:not(:disabled) {
+  background: var(--seat-raised);
+  border-color: var(--aisle);
+  color: var(--screen);
+}
+
+.settings .button.quiet.small.icon.danger-icon:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
 }
 
 .settings input[type='text'],

@@ -18,6 +18,9 @@ Like ambient TV backlighting, every title carries an **ambient colour** extracte
 | `--screen` | `#F2EEE7` | Primary text: warm projected white |
 | `--usher` | `#A39AAE` | Secondary text |
 | `--silver` | `#A9C2EC` | Fallback accent (silver screen) when a title has no ambient colour |
+| `--go` | `#7FD1A0` | Connected, on, set up: status dots, switches that are on, Connect buttons |
+| `--danger` | `#F08A7E` | Destructive actions only (delete, remove, sign out everywhere), never decoration |
+| `--well` | `#141118` | Inside text fields and menus, below the panel, with a light hairline border |
 | `--ambient` | per title | Set inline from artwork; drives glows, focus and primary buttons |
 
 **Type**
@@ -63,4 +66,5 @@ Content is left-aligned throughout and shares one 4vw left edge, so heroes, rows
 2. Everything is reachable by keyboard and arrow keys, with large visible focus (TV remotes and keyboard users get the same experience).
 3. Motion only answers an action: focus glow, a hero crossfade, a row scroll. There are no entrance animations, and `prefers-reduced-motion` is respected.
 4. Plain words: "Play", "Resume from 32:10", "Skip intro". Failures say what happened and what to do.
-5. Avoid these: amber accents (Plex), red (Netflix), all-caps labels, eyebrow text, middle-dot meta strings and arrow-suffixed links.
+5. Colour means something in controls: the ambient/silver fill is the one main action, green sets something up or is on, coral-red deletes, and outlined buttons are everything else. A row's own icon buttons stay quiet until pointed at.
+6. Avoid these: amber accents (Plex), red as an accent (Netflix; red is only for deleting), all-caps labels, eyebrow text, middle-dot meta strings and arrow-suffixed links.
