@@ -7,6 +7,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Podcasts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Podcasts;
@@ -69,6 +70,9 @@ public sealed record PodcastEpisodeDto(
     UserDataDto UserData,
     long? SizeBytes,
     bool HasTranscript);
+
+/// <summary>A named part of an episode, from the feed's chapters file or the times listed in its notes.</summary>
+public sealed record PodcastChapterDto(double StartSeconds, string Title);
 
 /// <param name="PodcastId">Set when the show is in the library already.</param>
 public sealed record DirectoryPodcastDto(long ITunesId, string Title, string? Author, string? Artwork, string? Genre, bool Explicit, int? EpisodeCount,
@@ -197,6 +201,26 @@ public static class PodcastEndpoints
             await Episodes(db.MediaItems.Where(i => i.Id == id && i.Kind == MediaKind.PodcastEpisode), profile.Id, null).FirstOrDefaultAsync(ct) is { } episode
                 ? Results.Ok(episode)
                 : Results.NotFound());
+
+        // The episode's chapters: from the feed's chapters file when it has one, else from times listed in its notes.
+        // Empty when there are none.
+        group.MapGet("/episodes/{id:guid}/chapters", async (Guid id, FlexarrDbContext db, PodcastFetcher fetcher, IMemoryCache cache, CancellationToken ct) =>
+        {
+            var episode = await db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.PodcastEpisode && i.Enclosure != null)
+                .Select(i => new { i.Overview, i.Enclosure!.ChaptersUrl, i.Enclosure.DurationSeconds }).FirstOrDefaultAsync(ct);
+            if (episode is null)
+            {
+                return Results.NotFound();
+            }
+
+            var chapters = episode.ChaptersUrl is { } url ? await ChaptersFileAsync(fetcher, cache, url, ct) : [];
+            if (chapters.Count == 0)
+            {
+                chapters = PodcastChapters.FromNotes(episode.Overview, episode.DurationSeconds);
+            }
+
+            return Results.Ok(chapters.Select(c => new PodcastChapterDto(c.StartSeconds, c.Title)).ToList());
+        });
 
         // What auto-play goes on to after an episode: the first in Up Next, else the show's next episode (the one after
         // it, unplayed), else the newest unplayed episode of the shows this profile follows. 204 when there's nothing
@@ -571,6 +595,24 @@ public static class PodcastEndpoints
                     x.State == null ? null : x.State.LastPlayedAt, null),
                 x.Enclosure.LengthBytes,
                 x.Enclosure.TranscriptUrl != null));
+
+    /// <summary>
+    /// The chapters in a feed's chapters file, kept for a while so playing an episode again doesn't fetch it again. A
+    /// file that can't be read counts as none, and is tried again later.
+    /// </summary>
+    private static async Task<IReadOnlyList<PodcastChapter>> ChaptersFileAsync(PodcastFetcher fetcher, IMemoryCache cache, string url, CancellationToken ct)
+    {
+        var key = "podcast-chapters:" + url;
+        if (cache.TryGetValue(key, out IReadOnlyList<PodcastChapter>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var json = await fetcher.FetchTextAsync(url, PodcastChapters.MaxFileBytes, ct);
+        var chapters = json is null ? [] : PodcastChapters.FromJson(json);
+        cache.Set(key, chapters, json is null ? TimeSpan.FromMinutes(10) : TimeSpan.FromHours(6));
+        return chapters;
+    }
 
     /// <summary>Directory results, with whether each is in the library already and followed by this profile.</summary>
     private static async Task<List<DirectoryPodcastDto>> DirectoryAsync(FlexarrDbContext db, string profileId, IReadOnlyList<DirectoryPodcast> found, CancellationToken ct)

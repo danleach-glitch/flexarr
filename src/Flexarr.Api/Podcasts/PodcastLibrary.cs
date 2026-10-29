@@ -3,6 +3,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Podcasts;
+using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Podcasts;
@@ -15,7 +16,7 @@ public sealed record PodcastAddResult(Guid? PodcastId, string? Error);
 /// Podcasts library (the first one, when there are several) with an item for each episode, so watch state, downloads
 /// and artwork work as they do for everything else. Feeds are shared: subscribing is per profile.
 /// </summary>
-public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher fetcher, TimeProvider clock, ILogger<PodcastLibrary> logger)
+public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher fetcher, ImageCache images, TimeProvider clock, ILogger<PodcastLibrary> logger)
 {
     /// <summary>
     /// Podcasts are part of Flexarr rather than a library someone adds: there's always one Podcasts library, made on
@@ -93,6 +94,7 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
         db.PodcastFeeds.Add(feed);
         Apply(podcast, feed, parsed, artworkUrl, now);
         await ApplyEpisodesAsync(podcast, feed, parsed, now, ct);
+        await AccentAsync(podcast, ct);
         feed.CheckedAt = now;
         feed.NextCheckAt = now + NextCheckIn(feed, now);
         try
@@ -180,6 +182,7 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
             }
         }
 
+        await AccentAsync(podcast, ct);
         feed.NextCheckAt = now + NextCheckIn(feed, now);
         await db.SaveChangesAsync(ct);
         return added;
@@ -201,6 +204,26 @@ public sealed partial class PodcastLibrary(FlexarrDbContext db, PodcastFetcher f
         return quiet < TimeSpan.FromDays(14) ? TimeSpan.FromMinutes(30)
             : quiet < TimeSpan.FromDays(60) ? TimeSpan.FromHours(3)
             : TimeSpan.FromHours(12);
+    }
+
+    /// <summary>
+    /// The show's ambient colour, from its artwork, for the glow behind its pages and Now Playing. Left unset when the
+    /// artwork can't be had just now, so the next refresh tries again.
+    /// </summary>
+    private async Task AccentAsync(MediaItem podcast, CancellationToken ct)
+    {
+        if (podcast.AccentColor is not null || podcast.PosterUrl is not { } poster)
+        {
+            return;
+        }
+
+        try
+        {
+            podcast.AccentColor = await images.AccentColorAsync(poster, ct);
+        }
+        catch (HttpRequestException)
+        {
+        }
     }
 
     private static void Apply(MediaItem podcast, PodcastFeed feed, ParsedFeed parsed, string? directoryArtwork, DateTime now)

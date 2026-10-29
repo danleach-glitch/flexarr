@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from './podcasts'
+import { chapterAt, clockSeconds, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl, notesParts, previousChapterStart } from './podcasts'
 
 const user = (positionSeconds: number, watched = false) => ({ positionSeconds, watched, playCount: 0, lastPlayedAt: null, unwatchedCount: null })
 
@@ -32,5 +32,43 @@ describe('podcast episodes', () => {
     expect(looksLikeFeedUrl(' http://example.com/rss ')).toBe(true)
     expect(looksLikeFeedUrl('the rest is history')).toBe(false)
     expect(looksLikeFeedUrl('https://')).toBe(false)
+  })
+})
+
+describe('episode notes', () => {
+  it('make web addresses links and times jumps', () => {
+    expect(notesParts('Chapters:\n00:00 Intro\n1:02:55 Outro\nMore at https://example.com/show.')).toEqual([
+      { text: 'Chapters:\n' },
+      { time: 0, text: '00:00' },
+      { text: ' Intro\n' },
+      { time: 3775, text: '1:02:55' },
+      { text: ' Outro\nMore at ' },
+      { url: 'https://example.com/show.' },
+    ])
+  })
+
+  it('leave alone times past the end, and longer runs of digits', () => {
+    expect(notesParts('At 50:00 and 12:30:45:10', 600)).toEqual([{ text: 'At 50:00 and 12:30:45:10' }])
+    expect(clockSeconds('12:75')).toBeNull()
+  })
+})
+
+describe('chapters', () => {
+  const chapters = [
+    { startSeconds: 0, title: 'Intro' },
+    { startSeconds: 230, title: 'A gift' },
+    { startSeconds: 312, title: 'Food' },
+  ]
+
+  it('know which is playing', () => {
+    expect(chapterAt(chapters, 100)).toBe(0)
+    expect(chapterAt(chapters, 229.8)).toBe(1)
+    expect(chapterAt([{ startSeconds: 60, title: 'Late' }], 10)).toBeNull()
+  })
+
+  it('go back to the start of this one, or the one before when just started', () => {
+    expect(previousChapterStart(chapters, 280)).toBe(230)
+    expect(previousChapterStart(chapters, 231)).toBe(0)
+    expect(previousChapterStart(chapters, 1)).toBe(0)
   })
 })

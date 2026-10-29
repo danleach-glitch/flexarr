@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Flexarr.Api.Podcasts;
 using Flexarr.Core.Data;
+using Flexarr.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +85,7 @@ public sealed class PodcastTests : IDisposable
         {
             services.AddHttpClient<PodcastFetcher>().ConfigurePrimaryHttpMessageHandler(() => _host);
             services.AddHttpClient<PodcastDirectory>().ConfigurePrimaryHttpMessageHandler(() => _host);
+            services.AddHttpClient<ImageCache>().ConfigurePrimaryHttpMessageHandler(() => _host);
         }));
         _host.Feed(FeedUrl, Feed(3));
         for (var i = 1; i <= 4; i++)
@@ -314,6 +316,42 @@ public sealed class PodcastTests : IDisposable
         // Nothing left: 204.
         await client.PostAsJsonAsync(Api($"items/{id}/watched"), new { watched = true });
         Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync(Api($"podcasts/episodes/{episodes["Episode 3"]}/next"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Chapters_ComeFromTheChaptersFile_ElseFromTheTimesInTheNotes()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        const string url = "https://feeds.example.com/chapters";
+        _host.Feed(url, """
+            <rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>Chaptered</title>
+            <item><title>From a file</title><guid>file</guid><pubDate>Mon, 07 Sep 2026 09:00:00 GMT</pubDate>
+            <description>00:00 Not these
+            10:00 Nor these</description>
+            <enclosure url="https://cdn.example.com/ep1.mp3" type="audio/mpeg"/>
+            <podcast:chapters url="https://cdn.example.com/ch.json" type="application/json+chapters"/></item>
+            <item><title>From the notes</title><guid>notes</guid><pubDate>Mon, 14 Sep 2026 09:00:00 GMT</pubDate>
+            <description>&lt;p&gt;Chapters:&lt;/p&gt;&lt;p&gt;00:00 Intro&lt;br&gt;03:50 The interview&lt;br&gt;52:50 Outro&lt;/p&gt;</description>
+            <enclosure url="https://cdn.example.com/ep2.mp3" type="audio/mpeg"/></item>
+            <item><title>Without</title><guid>none</guid><pubDate>Mon, 21 Sep 2026 09:00:00 GMT</pubDate>
+            <description>Just talk.</description><enclosure url="https://cdn.example.com/ep3.mp3" type="audio/mpeg"/>
+            <podcast:chapters url="https://cdn.example.com/missing.json" type="application/json+chapters"/></item>
+            </channel></rss>
+            """);
+        _host.Json("https://cdn.example.com/ch.json", """{"version":"1.2.0","chapters":[{"startTime":0,"title":"Cold open"},{"startTime":95.5,"title":"Main story"}]}""");
+        var id = (await AddPodcastAsync(client, url)).GetProperty("id").GetString();
+        var episodes = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray()
+            .ToDictionary(e => e.GetProperty("title").GetString()!, e => e.GetProperty("id").GetString()!);
+
+        static IEnumerable<(double, string)> Read(JsonElement list) =>
+            list.EnumerateArray().Select(c => (c.GetProperty("startSeconds").GetDouble(), c.GetProperty("title").GetString()!));
+
+        Assert.Equal([(0, "Cold open"), (95.5, "Main story")], Read(await GetAsync(client, $"podcasts/episodes/{episodes["From a file"]}/chapters")));
+        Assert.Equal([(0, "Intro"), (230, "The interview"), (3170, "Outro")], Read(await GetAsync(client, $"podcasts/episodes/{episodes["From the notes"]}/chapters")));
+        // A chapters file that isn't there, and notes without times: none.
+        Assert.Empty(Read(await GetAsync(client, $"podcasts/episodes/{episodes["Without"]}/chapters")));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(Api($"podcasts/episodes/{Guid.NewGuid()}/chapters"))).StatusCode);
     }
 
     [Fact]

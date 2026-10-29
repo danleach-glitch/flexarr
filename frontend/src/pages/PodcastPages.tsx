@@ -34,6 +34,7 @@ import { Check, ChevronDown, ChevronUp, Close, More, Pause, Play } from '../comp
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
+import { EpisodeNotes } from '../components/EpisodeNotes'
 import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
@@ -840,25 +841,9 @@ function EpisodeDetail() {
           </div>
         </div>
       </header>
-      {e.overview && <Notes text={e.overview} />}
+      {/* While it's playing, times in its notes jump there. */}
+      {e.overview && <EpisodeNotes text={e.overview} duration={e.durationSeconds} onSeek={player.current?.id === e.id ? player.seek : undefined} />}
     </article>
   )
 }
 
-/** An episode's notes, as text with its paragraphs, and web addresses in it made links. */
-function Notes({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s<>"')\]]+)/g)
-  return (
-    <div className="podcast-notes">
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer">
-            {part.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
-          </a>
-        ) : (
-          part
-        ),
-      )}
-    </div>
-  )
-}

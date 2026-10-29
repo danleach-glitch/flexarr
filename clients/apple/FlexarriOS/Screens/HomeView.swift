@@ -63,15 +63,12 @@ struct HomeView: View {
 
     private func content(_ home: Home) -> some View {
         ScrollView(.vertical) {
-            // Above whatever else Home has (Coming soon, channels); the whole screen when there's nothing else.
-            if home.featured.isEmpty, let message = EmptyHomeMessage(libraries: model.libraries) {
-                if newEpisodes.isEmpty && !home.rows.contains(where: \.hasContent) {
-                    EmptyHome(message: message)
-                        .containerRelativeFrame(.vertical)
-                } else {
-                    EmptyHome(message: message)
-                        .padding(.top, 72)
-                }
+            // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
+            // stays out of the way: "nothing to watch" would be wrong.
+            if home.featured.isEmpty, newEpisodes.isEmpty, !home.rows.contains(where: \.hasContent),
+               let message = EmptyHomeMessage(libraries: model.libraries) {
+                EmptyHome(message: message)
+                    .containerRelativeFrame(.vertical)
             }
             LazyVStack(alignment: .leading, spacing: 28) {
                 if !home.featured.isEmpty {

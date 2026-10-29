@@ -218,7 +218,7 @@ private struct PodcastDownloadRow: View {
 
 /// The download button on a title's page: downloads at once, at the size chosen in Settings. Each state looks its
 /// own: an hourglass while the server gets it ready, Wi-Fi while it waits for some, a ring only as it comes down, a
-/// green tick once here, an exclamation (tap for why) when it failed. Once it's on its way or here, tapping offers to
+/// filled green arrow once here, an exclamation (tap for why) when it failed. Once it's on its way or here, tapping offers to
 /// remove it.
 struct DownloadButton: View {
     @Environment(DownloadStore.self) private var store
@@ -288,7 +288,7 @@ struct DownloadButton: View {
 
 /// What a download is doing, at a glance, the same everywhere: an arrow to download; an hourglass while the server
 /// gets it ready; Wi-Fi while it waits for some; a ring that fills only as the file comes down to the phone; a green
-/// tick once it's here; an exclamation when it failed.
+/// filled green arrow once it's here; an exclamation when it failed.
 struct DownloadStateIcon: View {
     let state: LocalDownload.State?
     var waitingForWiFi = false
@@ -306,7 +306,7 @@ struct DownloadStateIcon: View {
             case .downloading(let fraction):
                 DownloadRing(fraction: fraction)
             case .downloaded:
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: "arrow.down.circle.fill")
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(Color.room, Color.downloaded)
             case .failed:

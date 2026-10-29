@@ -133,10 +133,10 @@ fun ActionButton(
 
 /** A round action with its name underneath (the row under Play on a title's page). */
 @Composable
-fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Flexarr.screen, iconSize: Dp = 22.dp) {
     Column(modifier.pressable(onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
         }
         // One line, smaller if it must be, so a long word is never split.
         BasicText(

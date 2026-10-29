@@ -354,7 +354,7 @@ struct EpisodePlayButton: View {
     }
 }
 
-/// An episode's download: an arrow, a ring while it comes, a tick once it's here. Tapping a tick offers to remove it.
+/// An episode's download: an arrow, a ring while it comes, a filled green arrow once it's here. Tapping that offers to remove it.
 /// Downloads asked for here use mobile data too; the ones the phone fetches by itself wait for Wi-Fi.
 struct EpisodeDownloadButton: View {
     @Environment(DownloadStore.self) private var store
@@ -419,6 +419,7 @@ struct EpisodeDownloadButton: View {
 /// An episode's whole notes, with Play, its download and Mark as played.
 struct EpisodeSheet: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
     let episode: PodcastEpisode
     var setPlayed: ((Bool) -> Void)?
@@ -449,11 +450,16 @@ struct EpisodeSheet: View {
                     let isCurrent = model.music.current?.id == shown.id
                     let isPlaying = isCurrent && model.music.isPlaying
                     Button {
-                        if isCurrent {
+                        if isPlaying {
                             model.music.togglePlayPause()
-                        } else {
-                            model.playEpisode(shown.summary)
-                            dismiss()
+                            return
+                        }
+                        // Playing (or carrying on) goes to the player: the notes give way to Now Playing.
+                        if isCurrent { model.music.togglePlayPause() } else { model.playEpisode(shown.summary) }
+                        dismiss()
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(450)) // once this sheet has gone
+                            router.showsNowPlaying = true
                         }
                     } label: {
                         Label(isPlaying ? "Pause" : isCurrent || shown.progress != nil ? "Resume" : "Play",
@@ -472,9 +478,22 @@ struct EpisodeSheet: View {
                             }
                         }
                     } label: {
-                        Label(isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: isPlayed ? "circle" : "checkmark.circle")
+                        // Shows where it stands: a green tick once played (tap to undo), an outline tick to mark it.
+                        Label {
+                            Text(isPlayed ? "Mark as unplayed" : "Mark as played")
+                        } icon: {
+                            if isPlayed {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(Color.room, Color.downloaded)
+                                    .font(.title2)
+                            } else {
+                                Image(systemName: "checkmark.circle")
+                            }
+                        }
                     }
                     .buttonStyle(RoundActionStyle())
+                    .accessibilityValue(isPlayed ? "Played" : "")
                     if shown.progress != nil, played == nil {
                         // Part way through: forget the place without marking it played.
                         Button {

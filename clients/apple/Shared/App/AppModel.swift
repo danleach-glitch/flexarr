@@ -766,6 +766,8 @@ enum Route: Hashable {
 @Observable
 final class Router {
     var path: [Route] = []
+    /// Now Playing is open over this tab (the iPhone's music and podcast player).
+    var showsNowPlaying = false
 
     func push(_ route: Route) {
         path.append(route)

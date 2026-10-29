@@ -4,6 +4,16 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Podcasts
+- Now Playing for a podcast has a fresh look on iPhone, Android and the web. The controls stay put, and a Notes button swaps the cover for the episode's chapters and notes (and, on the phones, Up Next).
+- Episodes with chapters show the one playing above the scrubber, with arrows to skip to the next or back to the last. The scrubber marks where each chapter starts, and the list of chapters takes you to any of them. Chapters come from the show's chapters file or, as most shows do it, from the times listed in its notes.
+- Times written in an episode's notes ("14:26") jump straight there, and web addresses in them open.
+- Now Playing says when the episode will end, at the speed it's playing. Speed, the sleep timer (now a moon) and a new menu sit together in one row. The menu has Go to podcast, Mark as played and Share podcast, plus Download on the phones.
+- The glow behind a podcast takes its colour from the show's artwork.
+- On iPhone and Android, the scrubber is slimmer and thickens while you drag it, Play or Resume in an episode's notes opens Now Playing, and anything downloaded (episodes, music, films) shows a green download arrow rather than a tick, so a tick only means played. A played episode's tick in its notes is green.
+- Home on iPhone and Android no longer says "Nothing to watch yet" above your podcasts when they're all there is.
+- On the web, dragging the scrubber no longer stalls a podcast: it jumps once, where you let go.
+
 ### Settings
 - Settings › Connections lists every app Flexarr works with (Sonarr, Radarr, Lidarr, Seerr, Bazarr, TMDB and Dispatcharr), so you can see at a glance what's connected. Any that isn't has a Connect button. Running a second Sonarr, Radarr or Lidarr is the + beside the one you have.
 - Settings is easier to read at a glance. Connect buttons are green, like the dot beside a connected app, and switches that are on are green too. Deleting something turns red when you point at it, and the final Delete is a solid red button. Boxes you type in are darker than the panel around them and have a light border. A row's own buttons (edit, rescan, artwork, delete) stay out of sight until you point at them.

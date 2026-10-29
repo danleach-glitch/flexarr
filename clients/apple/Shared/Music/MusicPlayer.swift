@@ -105,6 +105,10 @@ final class MusicPlayer {
     private static let reportInterval: TimeInterval = 10
 
     init() {
+        #if DEBUG
+        // `-FlexarrMuted YES`: silent, for trying the player on a Mac someone is working at.
+        player.isMuted = UserDefaults.standard.bool(forKey: "FlexarrMuted")
+        #endif
         player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
         #if os(iOS)
         player.allowsExternalPlayback = true

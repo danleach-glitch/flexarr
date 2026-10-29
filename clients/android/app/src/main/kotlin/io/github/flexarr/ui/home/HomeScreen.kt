@@ -99,8 +99,8 @@ fun HomeScreen(model: AppModel) {
     val client = model.client ?: return
     val loader = rememberLoader(model.credentials, model.watchStateVersion) {
         val home = client.home()
-        // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
-        val empty = if (home.featured.isEmpty()) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
+        // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing.
+        val empty = if (home.featured.isEmpty() && home.rows.none { it.hasContent }) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
         HomeContent(home, empty)
     }
     var featuredIndex by remember { mutableIntStateOf(0) }
@@ -118,7 +118,7 @@ fun HomeScreen(model: AppModel) {
             val home = content.home
             PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry, modifier = Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    // Above whatever else Home has; the whole screen when there's nothing else.
+                    // Only when Home has nothing else at all.
                     content.emptyMessage?.let { message -> item(key = "empty") { EmptyHome(message) } }
                     if (home.featured.isNotEmpty()) {
                         item(key = "hero") { HomeHero(home, onIndex = { featuredIndex = it }) }
@@ -126,7 +126,7 @@ fun HomeScreen(model: AppModel) {
                         item(key = "top") { Box(Modifier.statusBarsPadding()) }
                     }
                     // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    items(home.rows.filter { it.items.isNotEmpty() || !it.playlists.isNullOrEmpty() || !it.channels.isNullOrEmpty() }, key = { it.id }) { row ->
+                    items(home.rows.filter { it.hasContent }, key = { it.id }) { row ->
                         if (row.style == HomeRowStyle.Live) LiveRowView(row) else HomeRowView(model, row)
                     }
                 }
@@ -267,3 +267,7 @@ private fun EmptyHome(message: EmptyHomeMessage) {
         Text("Pull down to refresh.", fontSize = 13.sp, color = Flexarr.usher, fontWeight = FontWeight.Normal)
     }
 }
+
+/** The row has something to show: a row with nothing in it (a kind this app doesn't show yet, say) is left out. */
+private val HomeRow.hasContent: Boolean
+    get() = items.isNotEmpty() || !playlists.isNullOrEmpty() || !channels.isNullOrEmpty()
