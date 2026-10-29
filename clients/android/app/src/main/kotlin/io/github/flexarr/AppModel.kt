@@ -41,8 +41,11 @@ import kotlinx.coroutines.launch
 
 private val flexarrLog = FlexarrLog("signin")
 
-/** Signed in or not, who's watching, and what every screen needs to reach the server. One for the app. */
-class AppModel(private val context: Context) {
+/**
+ * Signed in or not, who's watching, and what every screen needs to reach the server. One for the app, starting from
+ * the [savedSignIn] (read once at launch, as decrypting it takes a moment).
+ */
+class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     sealed interface Phase {
         data object SignedOut : Phase
         data class SignedIn(val credentials: ServerCredentials) : Phase
@@ -53,7 +56,7 @@ class AppModel(private val context: Context) {
     /** Outlives any screen: signing out on the server and the last progress report finish after the player closes. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private var phaseState: Phase by mutableStateOf(store.load()?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
+    private var phaseState: Phase by mutableStateOf(savedSignIn?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
 
     var phase: Phase
         get() = phaseState
@@ -273,8 +276,9 @@ class AppModel(private val context: Context) {
             profiles = list
             serverUnreachable = false
         } catch (e: FlexarrException) {
+            // Unreachable for now: the screens say so and try again (opening on Downloads, once the list's been read).
+            if (e is FlexarrException.Unreachable) downloads.ready()
             serverUnreachable = e is FlexarrException.Unreachable
-            // Unreachable for now: the screens say so and try again.
         } finally {
             profilesLoaded = true
         }
@@ -358,7 +362,7 @@ class AppModel(private val context: Context) {
     /**
      * A request was refused (401). If the server still refuses this sign-in when asked directly, it was signed out
      * there (from the web's Sign-ins list, or a new key): forget it and go back to connecting. One refusal alone could
-     * be a server mid-restart.
+     * be a server mid-restart. Downloads stay, and what was watched on them is sent once this server's signed in again.
      */
     private fun checkSignIn(refused: ServerCredentials) {
         scope.launch {
@@ -369,10 +373,14 @@ class AppModel(private val context: Context) {
                 refused.client().me()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
-                    downloads.signedOut(null)
+                    val kept = downloads.signedOutByServer(refused.address)
                     notifications.forget()
                     forget()
-                    signedOutNotice = "This device was signed out."
+                    signedOutNotice = if (kept) {
+                        "This device was signed out. Its downloads are kept, and catch up when it connects to this server again."
+                    } else {
+                        "This device was signed out."
+                    }
                 }
             } catch (_: Exception) {
                 // Unreachable or restarting: no reason to forget the sign-in.
@@ -398,11 +406,15 @@ class AppModel(private val context: Context) {
     /** The server whose error-report setting was last asked for. */
     private var reportsServer: String? = null
 
-    /** The log sends to the server signed in to, and error reports follow that server's setting. */
+    /**
+     * The log sends to the server signed in to, and error reports follow that server's setting. Downloads kept from a
+     * refused sign-in stay for the same server and go for another.
+     */
     private fun signInChanged() {
         val client = client
         LogHub.signedIn(client)
         val address = credentials?.address
+        address?.let(downloads::signingIn)
         if (address == null) {
             reportsServer = null
             ErrorReports.stop()

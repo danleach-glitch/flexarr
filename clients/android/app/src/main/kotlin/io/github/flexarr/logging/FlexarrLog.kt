@@ -17,6 +17,7 @@ import io.github.flexarr.core.sendLogs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.concurrent.thread
 
 /**
  * One part of the app's log (playback, music, downloads…). Every entry goes to Logcat as before, and to a file on the
@@ -80,21 +81,31 @@ object LogHub {
     const val PLATFORM = "android"
 
     private lateinit var file: ClientLogFile
-    private lateinit var uploader: ClientLogUploader
+    /** Made off the main thread (it reads what was waiting from last time); until then, entries wait in [early]. */
+    @Volatile private var uploader: ClientLogUploader? = null
+    private val early = mutableListOf<ClientLogEntry>()
     @Volatile private var redactor = LogRedactor()
     @Volatile private var client: FlexarrClient? = null
 
     fun start(context: Context) {
         val directory = File(context.cacheDir, "Logs").apply { mkdirs() }
         file = ClientLogFile(directory)
-        uploader = ClientLogUploader(File(directory, "waiting.json"), systemLog = { Log.i("Flexarr.logs", it) }) { entries ->
-            val client = client ?: return@ClientLogUploader ClientLogDelivery.Unavailable
-            try {
-                client.sendLogs(PLATFORM, BuildConfig.VERSION_NAME, entries)
-                ClientLogDelivery.Delivered
-            } catch (e: FlexarrException) {
-                ClientLogDelivery.of(e)
+        thread(name = "flexarr-log-start", isDaemon = true) {
+            val made = ClientLogUploader(File(directory, "waiting.json"), systemLog = { Log.i("Flexarr.logs", it) }) { entries ->
+                val client = client ?: return@ClientLogUploader ClientLogDelivery.Unavailable
+                try {
+                    client.sendLogs(PLATFORM, BuildConfig.VERSION_NAME, entries)
+                    ClientLogDelivery.Delivered
+                } catch (e: FlexarrException) {
+                    ClientLogDelivery.of(e)
+                }
             }
+            synchronized(early) {
+                early.forEach(made::add)
+                early.clear()
+                uploader = made
+            }
+            if (client != null) made.kick()
         }
     }
 
@@ -103,7 +114,9 @@ object LogHub {
         val kept = redactor.redact(entry)
         if (!::file.isInitialized) return kept
         file.append(kept.line)
-        if (kept.level.isSentAutomatically) uploader.add(kept)
+        if (kept.level.isSentAutomatically) {
+            uploader?.add(kept) ?: synchronized(early) { uploader?.add(kept) ?: early.add(kept) }
+        }
         return kept
     }
 
@@ -114,7 +127,7 @@ object LogHub {
     fun signedIn(client: FlexarrClient?) {
         this.client = client
         redactor = redactor.copy(secrets = listOfNotNull(client?.apiKey, client?.profileToken).filter { it.isNotEmpty() })
-        if (client != null && ::uploader.isInitialized) uploader.kick()
+        if (client != null) uploader?.kick()
     }
 
     /** Sends the whole log, with a few lines about this device on top, and returns the server's id for it. */

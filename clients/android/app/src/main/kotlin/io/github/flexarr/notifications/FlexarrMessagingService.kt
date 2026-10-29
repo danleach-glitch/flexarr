@@ -66,7 +66,9 @@ class FlexarrMessagingService : FirebaseMessagingService() {
 
         fun show(context: Context, payload: PushPayload) {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
-            val id = (payload.thread ?: payload.title).hashCode()
+            // Each its own, as on iPhone: a show's new episodes gather under its thread rather than replacing each other
+            // (the same one sent twice still replaces itself).
+            val id = listOf(payload.thread, payload.category, payload.title, payload.body, payload.info).hashCode()
             val info = payload.info
             val opens: AppLink = when (payload.category) {
                 PushPayload.PODCAST -> info["podcast"]?.let { AppLink.Podcast(it) }
@@ -95,9 +97,27 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 else -> null
             }
             download?.let { builder.addAction(0, "Download", DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST)) }
-            runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }
-                .onFailure { log.warning("Couldn't show a notification", it) }
+            runCatching {
+                NotificationManagerCompat.from(context).notify(id, builder.build())
+                payload.thread?.let { thread -> NotificationManagerCompat.from(context).notify(summaryId(thread), summary(context, payload, thread, opens)) }
+            }.onFailure { log.warning("Couldn't show a notification", it) }
         }
+
+        private fun summaryId(thread: String) = "thread:$thread".hashCode()
+
+        /** What a thread's notifications gather under (Android shows them together beneath it); it doesn't alert itself. */
+        private fun summary(context: Context, payload: PushPayload, thread: String, opens: AppLink) =
+            NotificationCompat.Builder(context, if (payload.category == PushPayload.UPCOMING) UPCOMING_CHANNEL else CHANNEL)
+                .setSmallIcon(R.drawable.ic_brand_mark)
+                .setColor(0xFFA9C2EC.toInt())
+                .setContentTitle(payload.title)
+                .setContentText(payload.body)
+                .setGroup(thread)
+                .setGroupSummary(true)
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+                .setAutoCancel(true)
+                .setContentIntent(activity(context, summaryId(thread), opens))
+                .build()
 
         private fun activity(context: Context, request: Int, link: AppLink): PendingIntent =
             PendingIntent.getActivity(context, request, link.intent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

@@ -25,9 +25,11 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         FlexarrClient.deviceType = deviceType()
         LogHub.start(this)
+        // Read once (decrypting it takes a moment) for both.
+        val signIn = CredentialStore(this).load()
         // Before anything else can crash: on if this server had reports on last time.
-        ErrorReports.resume(this, CredentialStore(this).load()?.address)
-        model = AppModel(this)
+        ErrorReports.resume(this, signIn?.address)
+        model = AppModel(this, signIn)
         FlexarrMessagingService.createChannels(this)
         // Commands from other devices are taken while the app is in front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
