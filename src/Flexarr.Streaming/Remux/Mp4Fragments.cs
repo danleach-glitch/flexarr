@@ -19,8 +19,8 @@ public static class Mp4Fragments
         return BinaryPrimitives.ReadUInt32BigEndian(mdhd[(mdhd[0] == 1 ? 20 : 12)..]);
     }
 
-    /// <summary>Where a fragment starts for track 1 (the video), in that track's timescale: its tfdt.</summary>
-    public static ulong? DecodeTime(ReadOnlySpan<byte> fragment)
+    /// <summary>Where a fragment starts for a track (1, the video, unless said), in that track's timescale: its tfdt.</summary>
+    public static ulong? DecodeTime(ReadOnlySpan<byte> fragment, uint trackId = 1)
     {
         var moof = Find(fragment, "moof");
         var rest = moof;
@@ -37,7 +37,7 @@ public static class Mp4Fragments
                 var traf = rest[8..size];
                 var tfhd = Find(traf, "tfhd");
                 var tfdt = Find(traf, "tfdt");
-                if (tfhd.Length >= 8 && BinaryPrimitives.ReadUInt32BigEndian(tfhd[4..]) == 1 && tfdt.Length >= 8)
+                if (tfhd.Length >= 8 && BinaryPrimitives.ReadUInt32BigEndian(tfhd[4..]) == trackId && tfdt.Length >= 8)
                 {
                     return tfdt[0] == 1 && tfdt.Length >= 12 ? BinaryPrimitives.ReadUInt64BigEndian(tfdt[4..]) : BinaryPrimitives.ReadUInt32BigEndian(tfdt[4..]);
                 }

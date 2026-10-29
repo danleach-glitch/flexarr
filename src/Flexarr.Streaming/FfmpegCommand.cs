@@ -120,6 +120,14 @@ public static class FfmpegCommand
         // lets the MP4 muxer write the Dolby Vision configuration box.
         args.AddRange(["-copyts", "-start_at_zero", "-avoid_negative_ts", "disabled", "-strict", "unofficial"]);
         AddAudio(args, plan, audioInput);
+
+        // Nothing is shifted, so sound from before the start (AAC's priming frame, a track that starts early) would
+        // give the first fragment a negative start time, which ExoPlayer refuses. Those packets are dropped instead.
+        if (plan.AudioStreamIndex is not null)
+        {
+            args.AddRange(["-bsf:a", "noise=drop=lt(pts\\,0)"]);
+        }
+
         args.AddRange([
             "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
             "-max_muxing_queue_size", "4096",
