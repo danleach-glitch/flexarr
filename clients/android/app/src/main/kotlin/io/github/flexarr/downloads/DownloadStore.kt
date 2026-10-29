@@ -375,10 +375,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     // Downloading
 
-    /** Downloads a film or episode at [quality] (Settings' size when null): an Original the phone can't play comes at High. */
-    suspend fun download(item: ItemSummary, quality: DownloadQuality? = null) {
+    /** Downloads a film or episode at the size chosen in Settings: an Original the phone can't play comes at High. */
+    suspend fun download(item: ItemSummary) {
         val client = currentClient ?: throw FlexarrException.Unauthorized()
-        val chosen = quality ?: DownloadRules.quality(this.quality, runCatching { client.downloadOptions(item.id) }.getOrNull())
+        // Only an Original needs asking about: the smaller sizes always play.
+        val options = if (quality == DownloadQuality.Original) runCatching { client.downloadOptions(item.id) }.getOrNull() else null
+        val chosen = DownloadRules.quality(quality, options)
         download(item.id, chosen, automatic = false)
     }
 

@@ -166,11 +166,11 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
         val here = status == CollectionStatus.Downloaded
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text(if (here) "Delete this download?" else "Stop this download?") },
+            title = { Text(if (here) "Remove this download?" else "Stop this download?") },
             text = if (here) ({ Text("${Format.bytes(store.bytesUsed(collection))} on this phone.") }) else null,
             confirmButton = {
                 TextButton(onClick = { removing = false; store.removeCollection(collection.id) }) {
-                    Text(if (here) "Delete download" else "Stop download", color = Flexarr.danger)
+                    Text(if (here) "Remove download" else "Stop download", color = Flexarr.danger)
                 }
             },
             dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
@@ -267,7 +267,7 @@ fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Un
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for ${collection.title}", tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text(if (store.status(collection) == CollectionStatus.Downloaded) "Delete download" else "Stop download", color = Flexarr.danger) },
+                    text = { Text(if (store.status(collection) == CollectionStatus.Downloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
                     onClick = { menu = false; store.removeCollection(collection.id) },
                 )
             }
@@ -362,7 +362,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
             }
             if (collection != null) {
                 IconButton(onClick = { removing = true }, modifier = Modifier.clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f))) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Delete download", tint = Flexarr.screen)
+                    Icon(Icons.Filled.Delete, contentDescription = "Remove download", tint = Flexarr.screen)
                 }
             }
         }
@@ -370,14 +370,14 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
     if (removing && collection != null) {
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text("Delete this download?") },
+            title = { Text("Remove this download?") },
             text = { Text("${Format.bytes(store.bytesUsed(collection))} on this phone.") },
             confirmButton = {
                 TextButton(onClick = {
                     removing = false
                     store.removeCollection(collection.id)
                     onBack()
-                }) { Text("Delete download", color = Flexarr.danger) }
+                }) { Text("Remove download", color = Flexarr.danger) }
             },
             dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
             containerColor = Flexarr.seat,

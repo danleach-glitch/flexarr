@@ -61,9 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.flexarr.AppModel
-import io.github.flexarr.core.DownloadOption
 import io.github.flexarr.core.DownloadQuality
-import io.github.flexarr.core.DownloadRules
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LocalDownload
@@ -71,7 +69,6 @@ import io.github.flexarr.core.LocalPhase
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.bytes
-import io.github.flexarr.core.downloadOptions
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.player.PlayerActivity
 import io.github.flexarr.ui.components.Edge
@@ -218,7 +215,7 @@ private fun DownloadListRow(
                     })
                 }
                 DropdownMenuItem(
-                    text = { Text(if (download.isDownloaded) "Delete download" else "Stop download", color = Flexarr.danger) },
+                    text = { Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
                     onClick = { menu = false; store.delete(download.id) },
                 )
             }
@@ -293,24 +290,22 @@ fun downloadDescription(download: LocalDownload?, waitingForWiFi: Boolean): Stri
 }
 
 /**
- * Download on a film's or episode's page, among the round actions under Play. Tapping it offers the sizes the server can
- * make, with about how big each is (Settings' size first); once it's on its way or here, tapping offers to stop or
- * delete it; when it failed, tapping says why and offers to try again.
+ * Download on a film's or episode's page, among the round actions under Play. As on iPhone, tapping it downloads at once,
+ * at the size chosen in Settings (an Original this phone can't play comes at High); once it's on its way or here,
+ * tapping offers to stop or remove it; when it failed, tapping says why and offers to try again.
  */
 @Composable
 fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modifier) {
     val store = model.downloads
     val download = store.entry(item.id)
     val waiting = download?.let(store::isWaitingForWiFi) ?: false
-    var choosing by remember { mutableStateOf(false) }
-    var options by remember(item.id) { mutableStateOf<List<DownloadOption>?>(null) }
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
 
-    fun start(quality: DownloadQuality) {
+    fun start() {
         model.scope.launch {
             try {
-                store.download(item, quality)
+                store.download(item)
             } catch (e: Exception) {
                 problem = e.message ?: "Couldn’t download this."
             }
@@ -331,10 +326,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                 .fillMaxWidth()
                 .pressable({
                     when {
-                        download == null -> {
-                            choosing = true
-                            if (options == null) model.scope.launch { options = runCatching { DownloadRules.offered(model.client!!.downloadOptions(item.id)) }.getOrDefault(emptyList()) }
-                        }
+                        download == null -> start()
                         download.phase == LocalPhase.Failed -> problem = download.failure ?: "Couldn’t download this."
                         else -> removing = true
                     }
@@ -353,45 +345,14 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp),
             )
         }
-        DropdownMenu(choosing, onDismissRequest = { choosing = false }) {
-            val list = options
-            if (list == null) {
-                DropdownMenuItem(text = { Text("Finding sizes…", color = Flexarr.usher) }, onClick = {}, enabled = false)
-            } else if (list.isEmpty()) {
-                // The server didn't say: Settings' size.
-                DropdownMenuItem(text = { Text("Download") }, onClick = { choosing = false; start(DownloadRules.quality(store.quality, null)) })
-            } else {
-                // Settings' size first, then the rest in the server's order.
-                list.sortedBy { if (it.quality == store.quality) 0 else 1 }.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(option.quality.label)
-                                Text(
-                                    when {
-                                        !option.available -> "Won’t play on this phone"
-                                        option.quality == store.quality -> "About ${Format.bytes(option.estimatedBytes)}   Your usual size"
-                                        else -> "About ${Format.bytes(option.estimatedBytes)}"
-                                    },
-                                    fontSize = 12.sp,
-                                    color = Flexarr.usher,
-                                )
-                            }
-                        },
-                        enabled = option.available,
-                        onClick = { choosing = false; start(option.quality) },
-                    )
-                }
-            }
-        }
     }
     if (removing && download != null) {
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text(if (download.isDownloaded) "Delete this download?" else "Stop this download?") },
+            title = { Text(if (download.isDownloaded) "Remove this download?" else "Stop this download?") },
             confirmButton = {
                 TextButton(onClick = { removing = false; store.delete(download.id) }) {
-                    Text(if (download.isDownloaded) "Delete download" else "Stop download", color = Flexarr.danger)
+                    Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger)
                 }
             },
             dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },
@@ -407,7 +368,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                 TextButton(onClick = {
                     problem = null
                     download?.let { store.delete(it.id) }
-                    start(download?.quality ?: DownloadRules.quality(store.quality, null))
+                    start()
                 }) { Text("Try again", color = Flexarr.screen) }
             },
             dismissButton = { TextButton(onClick = { problem = null }) { Text("Cancel", color = Flexarr.screen) } },
@@ -442,10 +403,10 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
     if (removing && download != null) {
         AlertDialog(
             onDismissRequest = { removing = false },
-            title = { Text(if (download.isDownloaded) "Delete this download?" else "Stop this download?") },
+            title = { Text(if (download.isDownloaded) "Remove this download?" else "Stop this download?") },
             confirmButton = {
                 TextButton(onClick = { removing = false; store.delete(download.id) }) {
-                    Text(if (download.isDownloaded) "Delete download" else "Stop download", color = Flexarr.danger)
+                    Text(if (download.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger)
                 }
             },
             dismissButton = { TextButton(onClick = { removing = false }) { Text("Cancel", color = Flexarr.screen) } },

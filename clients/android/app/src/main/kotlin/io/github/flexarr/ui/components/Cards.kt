@@ -211,13 +211,13 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false): List<MenuActi
             if (item.isResumable) add(MenuAction("Play from beginning") { navigator.play(item, fromBeginning = true) })
         }
         if (showsDetails) add(MenuAction(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) })
-        // Download at Settings' size (a title's page offers the others).
+        // Download at Settings' size, as a title's page does.
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
             val download = model.downloads.entry(item.id)
             if (download == null) {
                 add(MenuAction("Download") { navigator.download(item) })
             } else {
-                add(MenuAction(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) })
+                add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download") { model.downloads.delete(download.id) })
             }
         }
         val watched = item.userData.watched || item.userData.unwatchedCount == 0
