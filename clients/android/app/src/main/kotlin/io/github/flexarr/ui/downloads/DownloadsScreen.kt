@@ -320,6 +320,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
     Box(modifier) {
         Column(
             Modifier
+                .fillMaxWidth()
                 .pressable({
                     when {
                         download == null -> {
@@ -357,9 +358,13 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
                     DropdownMenuItem(
                         text = {
                             Column {
-                                Text(option.quality.label + if (option.quality == store.quality) " (usual)" else "")
+                                Text(option.quality.label)
                                 Text(
-                                    if (option.available) "About ${Format.bytes(option.estimatedBytes)}" else "Won’t play on this phone",
+                                    when {
+                                        !option.available -> "Won’t play on this phone"
+                                        option.quality == store.quality -> "About ${Format.bytes(option.estimatedBytes)}   Your usual size"
+                                        else -> "About ${Format.bytes(option.estimatedBytes)}"
+                                    },
                                     fontSize = 12.sp,
                                     color = Flexarr.usher,
                                 )
