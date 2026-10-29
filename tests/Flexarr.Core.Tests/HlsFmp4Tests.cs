@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Flexarr.Streaming;
+using Flexarr.Streaming.Remux;
 
 namespace Flexarr.Core.Tests;
 
@@ -50,6 +51,32 @@ public sealed class HlsFmp4Tests : IDisposable
 
         Assert.Equal(("eac3", 6), (audio.Codec, audio.Channels));
         Assert.InRange(firstSeconds, 5.5, 6.1);
+    }
+
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_ACopiedVideosFirstFragment_StartsNoEarlierThanZero()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // AAC from the converted sound starts a priming frame before zero; ExoPlayer refuses a negative start time.
+        var clip = Path.Combine(_dir, "clip.mkv");
+        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+            "-t", "10", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", clip);
+        var plan = new TranscodePlan(0, 1, 640, 360, 1_000_000, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null,
+            SourceAudioCodec: "pcm_s16le", Fmp4: true, SourceVideoCodec: "h264")
+        {
+            Repackage = new Repackage([0, 5], "avc1", "avc1.64001e", null, "SDR", StripDolbyVision: false),
+        };
+        var output = Directory.CreateDirectory(Path.Combine(_dir, "out")).FullName;
+        var settings = new TranscodeSettings { CacheDirectory = _dir, FfmpegPath = "ffmpeg", HardwareAcceleration = HardwareAcceleration.None };
+        await RunAsync("ffmpeg", [.. FfmpegCommand.Hls(clip, plan, 0, output, settings)]);
+
+        var first = await File.ReadAllBytesAsync(Path.Combine(output, "frag0.m4s"));
+        Assert.Equal(0UL, Mp4Fragments.DecodeTime(first, trackId: 1));
+        Assert.InRange(Mp4Fragments.DecodeTime(first, trackId: 2)!.Value, 0UL, 48_000UL);
     }
 
     /// <summary>Makes the segments from <paramref name="startSegment"/>, and reads the first one (behind its init segment).</summary>
