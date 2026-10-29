@@ -139,6 +139,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Where a notification, shortcut or the widget asked to go, until the screens have gone there. */
     var pendingLink: AppLink? by mutableStateOf(null)
 
+    /** Words the Assistant asked to search for ("search Flexarr for Fargo"), until Search has typed them in. */
+    var pendingSearch: String? by mutableStateOf(null)
+
     /** The podcast Now Playing sheet is open: from the bar, or after Play in an episode's notes. */
     var showsNowPlaying by mutableStateOf(false)
 

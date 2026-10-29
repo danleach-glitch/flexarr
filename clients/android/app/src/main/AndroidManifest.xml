@@ -46,6 +46,25 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- The Assistant: "play Heat on Flexarr", "search Flexarr for Fargo", and App Actions (shortcuts.xml). Nothing
+             of its own shows; it opens the app there (VoiceActivity). -->
+        <activity
+            android:name=".VoiceActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Flexarr.Voice">
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.actions.SEARCH_ACTION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- The player is a task of its own, so in picture in picture the rest of the app can be used beside it, and
              closing the corner window doesn't take the app with it. -->
         <activity
