@@ -1,14 +1,19 @@
 package io.github.flexarr.downloads
 
 import io.github.flexarr.logging.FlexarrLog
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -102,8 +107,18 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     var isOnline by mutableStateOf(true)
         private set
+
+    /** On a network that isn't metered, with Data Saver off for Flexarr: what the iPhone app calls Wi-Fi. */
     var isOnWiFi by mutableStateOf(false)
         private set
+
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
+
+    /** Data Saver is on and Flexarr isn't allowed round it: Android's Low Data Mode. */
+    private var dataSaver = isDataSaverOn()
+
+    /** The default network's, as last heard: kept to work Wi-Fi out again when Data Saver changes. */
+    @Volatile private var capabilities: NetworkCapabilities? = null
 
     /** Podcast episodes whose download was deleted by hand (by episode id): never fetched by themselves again. */
     private var declined: Set<String> = prefs.getStringSet(DECLINED, emptySet())!!.toSet()
@@ -222,6 +237,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     fun isWiFiOnly(download: LocalDownload): Boolean = DownloadRules.isWiFiOnly(download, automaticOnWiFiOnly)
 
+    /** A download may start by itself now: not asked of the server until it can come (see [DownloadNetwork.mayStartAutomatic]). */
+    private val mayStartAutomatic: Boolean get() = DownloadNetwork.mayStartAutomatic(isOnline, isOnWiFi, automaticOnWiFiOnly)
+
     /** Held back until there's Wi-Fi. */
     fun isWaitingForWiFi(download: LocalDownload): Boolean = download.isPending && isWiFiOnly(download) && !isOnWiFi
 
@@ -289,23 +307,49 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** The client the transfers use: the store's, or the app's after a restart in the background. */
     internal val currentClient: FlexarrClient? get() = client ?: model.client
 
+    private fun isDataSaverOn() = connectivity.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+
     private fun watchNetwork() {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        fun update(capabilities: NetworkCapabilities?) {
+        fun update() {
+            val capabilities = capabilities
             val online = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-            val wifi = online && capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+            val unmetered = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED) == true)
+            val saver = isDataSaverOn()
+            val wifi = DownloadNetwork.isWiFi(online, unmetered, saver)
             scope.launch {
                 val cameBack = (online && !isOnline) || (wifi && !isOnWiFi)
+                val saverChanged = saver != dataSaver
                 isOnline = online
                 isOnWiFi = wifi
+                dataSaver = saver
+                // Ones on their way by themselves take the new rule (a transfer under way carries on from where it got to).
+                if (saverChanged) all.filter { it.automatic && it.isPending }.forEach { enqueue(it, replace = true) }
                 if (cameBack) catchUp()
             }
         }
-        update(connectivity.getNetworkCapabilities(connectivity.activeNetwork))
+        capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+        update()
         connectivity.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = update(capabilities)
-            override fun onLost(network: Network) = update(null)
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                this@DownloadStore.capabilities = capabilities
+                update()
+            }
+
+            override fun onLost(network: Network) {
+                this@DownloadStore.capabilities = null
+                update()
+            }
         })
+        // Data Saver turned on or off, or Flexarr let round it: told only to receivers registered while running.
+        ContextCompat.registerReceiver(
+            context,
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) = update()
+            },
+            IntentFilter(ConnectivityManager.ACTION_RESTRICT_BACKGROUND_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     /**
@@ -375,10 +419,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     // Downloading
 
-    /** Downloads a film or episode at [quality] (Settings' size when null): an Original the phone can't play comes at High. */
-    suspend fun download(item: ItemSummary, quality: DownloadQuality? = null) {
+    /** Downloads a film or episode at the size chosen in Settings: an Original the phone can't play comes at High. */
+    suspend fun download(item: ItemSummary) {
         val client = currentClient ?: throw FlexarrException.Unauthorized()
-        val chosen = quality ?: DownloadRules.quality(this.quality, runCatching { client.downloadOptions(item.id) }.getOrNull())
+        // Only an Original needs asking about: the smaller sizes always play.
+        val options = if (quality == DownloadQuality.Original) runCatching { client.downloadOptions(item.id) }.getOrNull() else null
+        val chosen = DownloadRules.quality(quality, options)
         download(item.id, chosen, automatic = false)
     }
 
@@ -428,7 +474,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             return
         }
         if (replace) UserInitiatedTransfers.cancel(context, download.id)
-        val network = if (isWiFiOnly(download)) NetworkType.UNMETERED else NetworkType.CONNECTED
+        val network = if (DownloadNetwork.needsUnmetered(isWiFiOnly(download), download.automatic, dataSaver)) NetworkType.UNMETERED else NetworkType.CONNECTED
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.ID to download.id))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(network).setRequiresStorageNotLow(true).build())
@@ -589,18 +635,21 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     // Next episodes and podcasts
 
-    /** Keeps one episode ahead: when one's downloaded or watched, fetch the next by itself, at the same size. */
+    /**
+     * Keeps one episode ahead: when one's downloaded or watched, fetch the next by itself, at the same size. Kept to
+     * Wi-Fi, it isn't asked for until there's some (coming back to Wi-Fi catches up).
+     */
     private fun fetchNext(after: LocalDownload) {
         if (!downloadsNext) return
         val next = DownloadRules.nextToFetch(after, all) ?: return
-        if (currentClient == null || !isOnline) return
+        if (currentClient == null || !mayStartAutomatic) return
         scope.launch { runCatching { download(next, after.quality, automatic = true) }.onFailure { flexarrLog.warning("Couldn't fetch the next episode", it) } }
     }
 
     /**
      * Holds what the server says the phone should: the newest unplayed episodes of each podcast that auto-downloads.
-     * Missing ones are fetched (waiting for Wi-Fi as Settings says); ones that came by themselves and aren't wanted any
-     * more (played, pushed out by newer ones) go, unless they're part-heard.
+     * Missing ones are fetched, once there's Wi-Fi when Settings keeps them to it; ones that came by themselves and
+     * aren't wanted any more (played, pushed out by newer ones) go, unless they're part-heard.
      */
     suspend fun reconcilePodcasts() {
         val client = currentClient ?: return
@@ -616,6 +665,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             downloads.filter { it.isPodcastEpisode && it.automatic && it.item.id !in ids }.forEach {
                 if (it.unsent == null && (it.finishedAtMillis != null || it.position == 0.0)) remove(it.id, tellServer = true)
             }
+            if (!mayStartAutomatic) return
             for (episode in wanted) {
                 if (entry(episode.episodeId) != null || episode.episodeId in declined) continue
                 runCatching { download(episode.episodeId, DownloadQuality.Original, automatic = true) }

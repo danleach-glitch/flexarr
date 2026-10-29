@@ -259,7 +259,7 @@ fun PodcastScreen(model: AppModel, id: String) {
         AlertDialog(
             onDismissRequest = { unfollowing = false },
             title = { Text("Stop following this show?") },
-            text = { Text("Its new episodes stop coming to Podcasts.") },
+            text = { Text("Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.") },
             confirmButton = { TextButton(onClick = { unfollowing = false; follow(false) }) { Text("Stop following", color = Flexarr.danger) } },
             dismissButton = { TextButton(onClick = { unfollowing = false }) { Text("Cancel") } },
             containerColor = Flexarr.seat,

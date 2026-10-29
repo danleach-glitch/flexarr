@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover's Popular shows row is now Popular new shows: the most popular shows that started in the past year, rather than long-running ones like Grey's Anatomy and Friends.
 
 ### Android
+- Podcast episodes swipe as on iPhone: swipe toward the end to mark one played (or unplayed) or play it next, and toward the start to add it to Up Next or download it. Swiping all the way across marks it played at once, and in Up Next, swiping the other way takes it off. Unfollowing a show now says its new episodes stop coming to this phone and downloaded ones stay.
 - Cast to a Chromecast or Google TV: the Cast button sits beside picture in picture in the player, and in Now Playing for music and podcasts. While casting, the phone shows what's playing with play, pause, skip and a scrubber, and your place is still saved. Stop casting and it carries on on the phone from the same spot. Films and episodes the Chromecast can't play as they are get converted, which needs the server on this version too. Subtitles and Live TV aren't cast yet.
 - The Android app only reaches Google's notification service once you turn notifications on, rather than each time it starts. The privacy policy now covers the Android app.
 - Settings has Playback and Podcasts pages, as on iPhone: turn auto-play and skipping intros, recaps and credits on or off, set subtitle defaults, choose how far the player jumps back and forward (10, 15 or 30 seconds), and set podcast auto-download, how many episodes to keep and the speed. Settings also links to the privacy policy.
@@ -37,6 +38,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
 - Teletext subtitles in recorded TV have a Teletext page choice in the subtitles menu, as on iPhone: Automatic, or page 888, 777, 150 or 801, for a recording whose subtitles aren't on the page the broadcast marks. It needs the server on this version too.
 - Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
+- Download on a film's or episode's page starts straight away at your size from Settings › Downloads, as on iPhone, rather than first asking which size. Tapping one that's here offers Remove download.
+- Downloads the phone starts by itself (the next episode, new podcast episodes) aren't asked of the server until the phone is on Wi-Fi, when Settings keeps them to Wi-Fi, so the server doesn't get ready what can't come yet. They also hold off while Data Saver is on, as on iPhone in Low Data Mode.
+- flexarr:// links from other apps and the browser open the Android app, as they do the iPhone app: a title's link opens its page, a Live TV channel's opens the guide, and one naming a profile opens "Who's watching?" (asking for its PIN, if it has one). A link from another app never starts anything playing by itself.
+- A library's list keeps up with the server, as on iPhone: when it refreshes after you've watched something or been away a while, titles removed since disappear and new ones appear, rather than only the badges updating.
 
 ### iPhone and Apple TV
 - Away from home, the apps only use a secure (https or Tailscale) remote address, and only once they've checked the same server answers there.

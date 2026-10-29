@@ -77,6 +77,7 @@ import io.github.flexarr.AppLink
 import io.github.flexarr.ReviewPrompt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
@@ -145,7 +146,7 @@ fun MainScreen(model: AppModel) {
                 }
             }
         }
-        // A notification, shortcut or the widget asked to go somewhere.
+        // A notification, shortcut, the widget or another app's flexarr:// link asked to go somewhere.
         val linkScope = rememberCoroutineScope()
         LaunchedEffect(model.pendingLink) {
             val link = model.pendingLink ?: return@LaunchedEffect
@@ -154,8 +155,40 @@ fun MainScreen(model: AppModel) {
             linkScope.launch { when (link) {
                 is AppLink.Item -> navigator.openItem(link.id)
                 is AppLink.Play -> {
-                    val item = runCatching { client.item(link.id) }.getOrNull()
-                    if (item != null) navigator.playBest(item.item) else navigator.openItem(link.id)
+                    val item = if (link.shuffle) null else runCatching { client.item(link.id) }.getOrNull()
+                    when {
+                        link.shuffle -> navigator.play(link.id, shuffle = true)
+                        item == null -> navigator.openItem(link.id)
+                        link.startAt != null && item.item.kind.isPlayable -> navigator.play(link.id, startAt = link.startAt)
+                        else -> navigator.playBest(item.item)
+                    }
+                }
+                is AppLink.Live -> {
+                    // Every channel to change through, favourites first; one that's gone leaves the guide open.
+                    val channels = runCatching { client.liveChannels() }.getOrNull().orEmpty()
+                    val channel = channels.firstOrNull { it.id == link.channelId }
+                    if (channel != null) {
+                        navigator.watch(channel, channels.filter { it.isFavourite } + channels.filterNot { it.isFavourite })
+                    } else {
+                        navigator.openLiveTv()
+                    }
+                }
+                AppLink.LiveTv -> navigator.openLiveTv()
+                is AppLink.AsProfile -> {
+                    val profile = model.profiles.firstOrNull { it.id == link.profile }
+                        ?: model.profiles.firstOrNull { it.name.equals(link.profile, ignoreCase = true) }
+                    when {
+                        // An unknown profile, or the one watching: the link goes ahead as things are.
+                        profile == null || profile.isCurrent -> model.pendingLink = link.link
+                        !link.askFirst && !profile.hasPin && runCatching { model.chooseProfile(profile) }.isSuccess ->
+                            model.pendingLink = link.link
+                        else -> {
+                            // "Who's watching?" (with the PIN, if it has one); the link goes ahead once someone's chosen.
+                            model.commands.active?.stop()
+                            model.pendingLink = link.link
+                            model.switchProfile()
+                        }
+                    }
                 }
                 is AppLink.Podcast -> nav.navigate("podcast/${link.id}")
                 is AppLink.PodcastEpisode -> runCatching { client.podcastEpisode(link.id) }.onSuccess {

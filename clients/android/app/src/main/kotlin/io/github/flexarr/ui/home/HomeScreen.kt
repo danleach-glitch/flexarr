@@ -259,7 +259,7 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
                 Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
-                val resume = home.resumes?.get(item.id)
+                val resume = home.resuming(item)
                 ActionButton(
                     if (resume != null || item.isResumable) "Resume" else "Play",
                     onClick = { if (resume != null) navigator.play(resume) else navigator.playBest(item) },

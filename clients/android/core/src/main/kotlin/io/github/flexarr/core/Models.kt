@@ -311,9 +311,20 @@ data class Home(
     val featured: List<ItemSummary>,
     val overviews: Map<String, String?> = emptyMap(),
     val rows: List<HomeRow>,
+    /** What the first featured title resumes (the episode, for a show), when it's from Continue Watching. */
+    val resume: ItemSummary? = null,
     /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
     val resumes: Map<String, ItemSummary>? = null,
-)
+) {
+    /**
+     * What a featured title's Play picks up from, when it's been started: the film itself, or a show's episode. A
+     * server from before [resumes] says so only for the first.
+     */
+    fun resuming(item: ItemSummary): ItemSummary? {
+        resumes?.let { return it[item.id] }
+        return if (item.id == featured.firstOrNull()?.id) resume else null
+    }
+}
 
 // Playback
 
