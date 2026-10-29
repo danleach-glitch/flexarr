@@ -212,7 +212,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 color = Flexarr.screen.copy(alpha = 0.88f),
                 maxLines = if (overviewExpanded) Int.MAX_VALUE else 4,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = Edge).widthIn(max = 680.dp).animateContentSize().pressable({ overviewExpanded = !overviewExpanded }),
+                modifier = Modifier.fillMaxWidth().pressable({ overviewExpanded = !overviewExpanded }).padding(horizontal = Edge).animateContentSize(),
             )
         }
     }
@@ -335,9 +335,10 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
         return
     }
     val state = rememberLazyListState()
-    LaunchedEffect(Unit) {
+    // The chosen season in view (once it's known: the show's next-up episode decides it).
+    LaunchedEffect(selected) {
         val index = seasons.indexOfFirst { it.id == selected }
-        if (index > 0) state.scrollToItem(index)
+        if (index >= 0 && state.layoutInfo.visibleItemsInfo.none { it.index == index && it.offset >= 0 }) state.animateScrollToItem(index)
     }
     LazyRow(state = state, contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient) }
