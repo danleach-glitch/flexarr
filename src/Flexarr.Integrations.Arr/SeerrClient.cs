@@ -40,9 +40,11 @@ public sealed class SeerrClient(HttpClient http)
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     /// <param name="list">trending, movies, tv or movies/upcoming.</param>
-    public async Task<SeerrPage> DiscoverAsync(SeerrInstance seerr, string list, int page, CancellationToken ct)
+    /// <param name="filter">Extra query parameters Seerr passes to TMDB, such as "firstAirDateGte=2025-01-01"; empty for none.</param>
+    public async Task<SeerrPage> DiscoverAsync(SeerrInstance seerr, string list, int page, CancellationToken ct, string filter = "")
     {
-        using var request = Request(seerr, HttpMethod.Get, $"discover/{list}?page={page}");
+        var extra = filter.Length > 0 ? $"&{filter}" : "";
+        using var request = Request(seerr, HttpMethod.Get, $"discover/{list}?page={page}{extra}");
         using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<SeerrPage>(Json, ct).ConfigureAwait(false) ?? new SeerrPage(page, 0, []);

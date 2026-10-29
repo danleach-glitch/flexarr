@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Discover
+- Discover's Popular shows row is now Popular new shows: the most popular shows that started in the past year, rather than long-running ones like Grey's Anatomy and Friends.
+
 ### Android
 - The Android app only reaches Google's notification service once you turn notifications on, rather than each time it starts. The privacy policy now covers the Android app.
 
