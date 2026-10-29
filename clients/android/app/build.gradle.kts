@@ -93,10 +93,12 @@ androidComponents {
 
 // Uploads to Google Play (make android-upload) and the store listing in src/main/play. Play Console signs in with a
 // service account's JSON key: ~/.flexarr-release/play-service-account.json, or its contents in ANDROID_PUBLISHER_CREDENTIALS.
-// Each upload needs a higher version code than any before it, so one that's taken is raised past the highest.
+// Each upload needs a higher version code than any before it, so one that's taken is raised past the highest. That asks
+// Play on every release build, so without a key the plugin stays off and release builds keep their own version code.
+val playKey = File(System.getProperty("user.home"), ".flexarr-release/play-service-account.json")
 play {
-    File(System.getProperty("user.home"), ".flexarr-release/play-service-account.json")
-        .takeIf { it.exists() }?.let { serviceAccountCredentials.set(it) }
+    enabled.set(playKey.exists() || System.getenv("ANDROID_PUBLISHER_CREDENTIALS") != null)
+    if (playKey.exists()) serviceAccountCredentials.set(playKey)
     defaultToAppBundles.set(true)
     track.set(providers.gradleProperty("flexarr.track").orElse("internal"))
     resolutionStrategy.set(ResolutionStrategy.AUTO)
