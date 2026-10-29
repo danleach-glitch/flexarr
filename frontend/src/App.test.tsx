@@ -1143,6 +1143,45 @@ describe('Player watched announcement', () => {
       window.removeEventListener(WATCHED_CHANGED, listener)
     }
   })
+
+  it('goes back to the episode before with Previous at the start of an episode', async () => {
+    const pilot = summary({ id: 'e1', kind: 'Episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, seriesId: 's' })
+    const second = summary({ id: 'e2', kind: 'Episode', title: 'Second', seasonNumber: 1, episodeNumber: 2, seriesId: 's' })
+    const playback = (item: typeof pilot, previous: typeof pilot | null) => ({
+      sessionId: item.id,
+      method: 'DirectPlay',
+      url: `/api/v1/playback/${item.id}/stream`,
+      reasons: [],
+      durationSeconds: 1320,
+      startPositionSeconds: 0,
+      fileId: 'f1',
+      audioTracks: [],
+      selectedAudioIndex: 1,
+      subtitles: [],
+      selectedSubtitleKey: null,
+      subtitleBurnedIn: false,
+      markers: [],
+      item,
+      ancestors: [],
+      next: null,
+      previous,
+      transcodeSummary: null,
+    })
+    mockApi({
+      '/libraries': [],
+      'POST /playback': (init?: RequestInit) => (JSON.parse(String(init?.body)).itemId === 'e1' ? playback(pilot, null) : playback(second, pilot)),
+      'DELETE /playback/e1': undefined,
+      'DELETE /playback/e2': undefined,
+    })
+
+    renderAt('/play/e2')
+    await screen.findByText('Second')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    await screen.findByText('Pilot')
+    // Nothing before the first episode: Previous stays, and starts it again.
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled()
+  })
 })
 
 describe('Profiles', () => {

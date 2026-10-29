@@ -136,6 +136,12 @@ export const Next = (p: IconProps) => (
     <rect x="17" y="5" width="2.6" height="14" rx="1.2" />
   </svg>
 )
+export const Previous = (p: IconProps) => (
+  <svg {...base} {...p} fill="currentColor" stroke="none">
+    <path d="M19 5.5v13a1 1 0 0 1-1.6.8l-9-6.5a1 1 0 0 1 0-1.6l9-6.5A1 1 0 0 1 19 5.5Z" />
+    <rect x="4.4" y="5" width="2.6" height="14" rx="1.2" />
+  </svg>
+)
 export const Film = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="3" y="4" width="18" height="16" rx="2" />
