@@ -104,6 +104,27 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task PlayingAsAProfile_SendsTheEpisodeThatProfileIsUpTo_AndTellsTheDeviceWhose()
+    {
+        var show = await SeedAsync("Taskmaster", ("S01E01", 1, 1), ("S01E02", 1, 2));
+        await WatchAsync(show.Episodes["S01E01"]); // the main profile's; Sam hasn't started
+        var sam = (await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var (id, tv) = await DeviceAsync("Den");
+        var (response, reader) = await ListenAsync(tv);
+
+        var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, profileId = sam });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        Assert.Equal("S01E01", (await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("item").GetProperty("title").GetString());
+        var command = await NextCommandAsync(reader);
+        Assert.Equal(show.Episodes["S01E01"], command.GetProperty("itemId").GetGuid());
+        Assert.Equal(sam, command.GetProperty("profileId").GetString());
+
+        var nobody = await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, profileId = "nobody" });
+        Assert.Equal(HttpStatusCode.NotFound, nobody.StatusCode);
+        response.Dispose();
+    }
+
+    [Fact]
     public async Task PuttingAChannelOnADevice_SendsIt()
     {
         var channel = new Flexarr.Core.LiveTv.LiveChannel { Name = "BBC One", Number = 101, SourceId = 1 };

@@ -4,6 +4,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Settings
+- Settings › Connections lists every app Flexarr works with (Sonarr, Radarr, Lidarr, Seerr, Bazarr, TMDB and Dispatcharr), so you can see at a glance what's connected. Any that isn't has a Connect button. Running a second Sonarr, Radarr or Lidarr is the + beside the one you have.
+
+### Libraries
+- Film and TV libraries have a Genres view: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre. On the web it's beside Browse and All; on the Apple TV it's in the switch at the top of the library (and can be what a library opens on, in Settings › Libraries); on iPhone and iPad, choose Genres at the top of the library.
+
 ### Library order
 - Put your libraries in the order you like, and every device follows it: the web's sidebar, the Apple TV's sidebar, and the Libraries tab on iPhone and Android. Each profile has its own order.
 - On the web it's in Settings › Sidebar (drag a library, or use the arrows); on the Apple TV, Settings › Sidebar as before; on iPhone and Android, Settings › Library order.
@@ -17,9 +23,16 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Playback
 - A film with a chapter called "Ending" or "Credits" well before its end no longer offers Skip Credits there, or counts as watched from that point. Real end credits, even with a short scene after them, still do.
 - On Apple TV and iPhone, scrubbing through a long film no longer keeps every preview picture in memory, which could make older Apple TVs close the player.
+- Previous in the player works like it does for music: a few seconds into an episode it starts it again, and a second press goes to the episode before. In a film, or the first episode, it starts it again. On Apple TV, iPhone and the web, which now has a Previous button too.
+- Audio sync moves the sound in 10 ms steps, so lips and voices can be lined up exactly. Hold − or + (a long press on the Apple TV remote) to move it 50 ms at a time. On the web, Apple TV, iPhone, iPad and Android.
 
 ### Home
 - When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.
+- Latest unwatched shows puts a show up front for a new episode you haven't seen, not because Sonarr upgraded one you've already watched.
+
+### Siri and Shortcuts
+- Play a film or show, and Shuffle a show, can play as a chosen profile (the new As setting), so a "kids' bedtime episode" shortcut plays their next episode under their name, whoever used the TV last. The device switches to that profile first, and asks for its PIN if it has one. It works on this device and on another one, such as the Apple TV.
+- Links can name a profile too: `flexarr://play/<id>?profile=Sam` switches to Sam, then plays. Handy for NFC tags and Home Assistant. `flexarr://play/` with a show's id plays its next episode.
 
 ### Apple TV
 - The Top Shelf shows what's been added recently, below Continue Watching, so it's never blank once you've finished everything or on a new profile. It follows your profile's libraries, as Home does.

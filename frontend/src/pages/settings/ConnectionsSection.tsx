@@ -19,7 +19,7 @@ import {
   type Settings,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Check, Film, Pencil, Refresh, Trash } from '../../components/icons'
+import { Check, Film, Pencil, Plus, Refresh, Trash } from '../../components/icons'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { FolderPicker } from '../../components/FolderPicker'
@@ -32,6 +32,21 @@ import { errorText, useSettings } from './useSettings'
 /** The connections with a form of their own, by the name the open row goes by. */
 type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv'
 
+const arrKinds = ['Sonarr', 'Radarr', 'Lidarr'] as const
+
+/** What each app adds, said beside it while it isn't connected. */
+const purpose: Record<ArrKind | OtherService, string> = {
+  Sonarr: 'Shows',
+  Radarr: 'Films',
+  Lidarr: 'Music',
+  seerr: 'Discover and requests',
+  bazarr: 'Subtitles',
+  tmdb: 'Film details without Radarr',
+  livetv: 'Live TV',
+}
+
+const notConnected = (service: ArrKind | OtherService) => `Not connected · ${purpose[service]}`
+
 interface DraftConnection {
   name: string
   kind: ArrKind
@@ -43,7 +58,8 @@ interface DraftConnection {
 type Save = ReturnType<typeof useSettings>['save']
 
 /**
- * Sonarr, Radarr and Lidarr, then Seerr, Bazarr, TMDB and Dispatcharr (Live TV): a line each saying how it is, opened to change it. Below them, where the
+ * Every app Flexarr works with, always listed: Sonarr, Radarr and Lidarr (as many of each as are connected, with Add another beside the last), then
+ * Seerr, Bazarr, TMDB and Dispatcharr (Live TV). A line each saying how it is, opened to connect or change it. Below them, where the
  * apps' media folders are on this server, and the webhook addresses the apps call when something new arrives.
  */
 export function ConnectionsSection() {
@@ -56,8 +72,8 @@ export function ConnectionsSection() {
   const folders = useApi((signal) => (settings?.arr.length ? getArrFolders(signal) : Promise.resolve(undefined)), [settings])
   // While the channels and guide come in (after a save, or Refresh), keep asking how it's going.
   usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
-  // Which one is open: an index into the list, 'new' for one being added, 'seerr', 'bazarr', 'tmdb' or 'livetv'.
-  const [open, setOpen] = useState<number | 'new' | OtherService>()
+  // Which one is open: an index into the list, `new-Sonarr` (and so on) for one being added, 'seerr', 'bazarr', 'tmdb' or 'livetv'.
+  const [open, setOpen] = useState<number | `new-${ArrKind}` | OtherService>()
   if (!settings) return waiting
 
   const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
@@ -71,19 +87,12 @@ export function ConnectionsSection() {
     if (await save({ arr: list })) setOpen(undefined)
   }
 
-  // Each shows once it's set up, or while it's being added (picked from Add a connection's Kind).
-  const isSet: Record<OtherService, boolean> = { seerr: !!settings.seerr, bazarr: !!settings.bazarr, tmdb: settings.hasTmdbKey === true, livetv: !!settings.liveTv }
-  const shows = (service: OtherService) => isSet[service] || open === service
-  const others = (
-    [
-      { value: 'seerr', label: 'Seerr' },
-      { value: 'bazarr', label: 'Bazarr' },
-      { value: 'tmdb', label: 'TMDB' },
-      { value: 'livetv', label: 'Dispatcharr (Live TV)' },
-    ] as const
-  ).filter((o) => !isSet[o.value])
-
-  const nextKind: ArrKind = (['Sonarr', 'Radarr', 'Lidarr'] as const).find((k) => !settings.arr.some((a) => a.kind === k)) ?? 'Sonarr'
+  /** A name no connection has yet: the app's own for the first, then Radarr 2 and so on (to be changed to, say, Radarr 4K). */
+  function freshName(kind: ArrKind) {
+    let n = 1
+    while (settings!.arr.some((a) => a.name === (n === 1 ? kind : `${kind} ${n}`))) n++
+    return n === 1 ? kind : `${kind} ${n}`
+  }
 
   return (
     <ServerName value={settings.hostName}>
@@ -93,46 +102,46 @@ export function ConnectionsSection() {
           TVmaze, and films from TMDB with a free key of your own. Seerr adds Discover and requests, Bazarr subtitles, and Dispatcharr Live TV.
         </SettingsHeader>
 
-        <SettingsGroup
-          title="Apps & Integrations"
-          note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}
-          action={
-            open !== 'new' && (
-              <button className="button quiet small" onClick={() => setOpen('new')}>
-                Add a connection
-              </button>
-            )
-          }
-        >
-          {settings.arr.map((a, i) => (
-            <ArrRow
-              key={`${a.name}-${i}`}
-              connection={{ ...a, apiKey: '' }}
-              live={status.data?.find((s) => s.name === a.name)}
-              unfound={folders.data?.filter((f) => f.app === a.name && (f.state === 'Suggested' || f.state === 'Missing')).map((f) => f.path)}
-              open={open === i}
-              onOpen={() => setOpen(i)}
-              onClose={() => setOpen(undefined)}
-              onSave={(c) => saveArr(i, c)}
-              onRemove={() => saveArr(i, null)}
-            />
-          ))}
-          {open === 'new' && (
-            <ArrRow
-              connection={{ name: nextKind, kind: nextKind, baseUrl: '', apiKey: '', hasApiKey: false }}
-              isNew
-              open
-              onOpen={() => undefined}
-              onClose={() => setOpen(undefined)}
-              onSave={(c) => saveArr('new', c)}
-              others={[...others]}
-              onPickOther={setOpen}
-            />
-          )}
-          {shows('seerr') && (
+        <SettingsGroup title="Apps & Integrations" note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}>
+          {arrKinds.map((kind) => {
+            const connected = settings.arr.flatMap((a, i) => (a.kind === kind ? [i] : []))
+            const adding = open === `new-${kind}`
+            return [
+              ...connected.map((i, n) => {
+                const a = settings.arr[i]
+                return (
+                  <ArrRow
+                    key={`${a.name}-${i}`}
+                    connection={{ ...a, apiKey: '' }}
+                    live={status.data?.find((s) => s.name === a.name)}
+                    unfound={folders.data?.filter((f) => f.app === a.name && (f.state === 'Suggested' || f.state === 'Missing')).map((f) => f.path)}
+                    open={open === i}
+                    onOpen={() => setOpen(i)}
+                    onClose={() => setOpen(undefined)}
+                    onSave={(c) => saveArr(i, c)}
+                    onRemove={() => saveArr(i, null)}
+                    onAddAnother={n === connected.length - 1 && !adding ? () => setOpen(`new-${kind}`) : undefined}
+                  />
+                )
+              }),
+              // Not connected yet (a line with Connect), or another of this kind being added under the ones there are.
+              (connected.length === 0 || adding) && (
+                <ArrRow
+                  key={`new-${kind}`}
+                  connection={{ name: freshName(kind), kind, baseUrl: '', apiKey: '', hasApiKey: false }}
+                  isNew
+                  open={adding}
+                  onOpen={() => setOpen(`new-${kind}`)}
+                  onClose={() => setOpen(undefined)}
+                  onSave={(c) => saveArr('new', c)}
+                />
+              ),
+            ]
+          })}
           <ServiceRow
             kind="Seerr"
             service={settings.seerr}
+            notConnected={notConnected('seerr')}
             description="Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules."
             placeholder="http://localhost:5055"
             keyHint="In Seerr, under Settings › General"
@@ -146,11 +155,10 @@ export function ConnectionsSection() {
               if (await save({ seerr })) setOpen(undefined)
             }}
           />
-          )}
-          {shows('bazarr') && (
           <ServiceRow
             kind="Bazarr"
             service={settings.bazarr}
+            notConnected={notConnected('bazarr')}
             description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage. A title you search for gets Bazarr’s first languages profile if it has none, so Bazarr’s own schedule may then fetch subtitles for it too."
             placeholder="http://localhost:6767"
             keyHint="In Bazarr, under Settings › General"
@@ -164,8 +172,6 @@ export function ConnectionsSection() {
               if (await save({ bazarr })) setOpen(undefined)
             }}
           />
-          )}
-          {shows('tmdb') && (
           <TmdbRow
             hasKey={settings.hasTmdbKey === true}
             hasRadarr={settings.arr.some((a) => a.kind === 'Radarr')}
@@ -176,15 +182,13 @@ export function ConnectionsSection() {
               if (await save({ tmdb: { apiKey } })) setOpen(undefined)
             }}
           />
-          )}
-          {shows('livetv') && (
           <DispatcharrRow
             liveTv={settings.liveTv ?? null}
             status={
               liveStatus.loading
                 ? 'Checking…'
                 : !liveStatus.data?.configured
-                  ? 'Not set up'
+                  ? notConnected('livetv')
                   : liveStatus.data.refreshing
                     ? 'Bringing in the channels and guide…'
                     : (liveStatus.data.error ?? `Live TV: ${liveStatus.data.channels.toLocaleString()} channels`)
@@ -204,7 +208,6 @@ export function ConnectionsSection() {
               liveStatus.reload()
             }}
           />
-          )}
         </SettingsGroup>
 
         <MediaFolders folders={folders.data} hasApps={settings.arr.length > 0} mappings={settings.pathMappings} save={save} />
@@ -226,8 +229,10 @@ function ConnectionLine({
   status,
   warning,
   baseUrl,
+  connected = true,
   open,
   onOpen,
+  onAddAnother,
 }: {
   kind?: keyof typeof appLogos
   /** In place of an app's logo, for a service with none here. */
@@ -238,12 +243,16 @@ function ConnectionLine({
   /** Something to see to though it's connected: shown under the status, with an amber dot. */
   warning?: ReactNode
   baseUrl: string
+  /** False for an app that isn't set up: Connect in place of Edit. */
+  connected?: boolean
   open: boolean
   onOpen: () => void
+  /** For Sonarr, Radarr and Lidarr, which can have more than one each. */
+  onAddAnother?: () => void
 }) {
   const host = useContext(ServerName)
   return (
-    <div className="connection-line">
+    <div className={connected ? 'connection-line' : 'connection-line unconnected'}>
       <span className={ok && warning ? 'status-dot warn' : ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
       {kind ? (
         <img className="app-logo" src={appLogos[kind]} alt="" />
@@ -261,9 +270,15 @@ function ConnectionLine({
         {warning && <span className="connection-warning">{warning}</span>}
       </span>
       <span className="connection-actions">
-        {!open && (
-          <IconButton label="Edit" aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
-        )}
+        {onAddAnother && <IconButton label={`Add another ${kind}`} icon={<Plus />} onClick={onAddAnother} />}
+        {!open &&
+          (connected ? (
+            <IconButton label="Edit" aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
+          ) : (
+            <button type="button" className="button quiet small" aria-label={`Connect ${name}`} onClick={onOpen}>
+              Connect
+            </button>
+          ))}
       </span>
     </div>
   )
@@ -279,8 +294,7 @@ function ArrRow({
   onClose,
   onSave,
   onRemove,
-  others = [],
-  onPickOther,
+  onAddAnother,
 }: {
   connection: DraftConnection
   live?: ArrStatus
@@ -292,9 +306,7 @@ function ArrRow({
   onClose: () => void
   onSave: (c: DraftConnection) => Promise<void>
   onRemove?: () => Promise<void>
-  /** A new connection's other choices: the apps with a form of their own (Seerr, Bazarr…) that aren't set up yet. */
-  others?: { value: OtherService; label: string }[]
-  onPickOther?: (service: OtherService) => void
+  onAddAnother?: () => void
 }) {
   const [draft, setDraft] = useState(connection)
   const [test, setTest] = useState<ArrStatus | 'testing'>()
@@ -316,7 +328,7 @@ function ArrRow({
     void onSave(draft).finally(() => setSaving(false))
   }
 
-  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · version ${shown.version}` : shown ? shown.error : isNew ? 'New connection' : 'Checking…'
+  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
   return (
     <div className="connection">
       <ConnectionLine
@@ -339,34 +351,14 @@ function ArrRow({
           ) : undefined
         }
         baseUrl={isNew ? '' : connection.baseUrl}
+        connected={!isNew}
         open={open}
         onOpen={onOpen}
+        onAddAnother={onAddAnother}
       />
       {open && (
-        <form className="connection-form" onSubmit={submit} aria-label={isNew ? 'New connection' : `Edit ${connection.name}`}>
+        <form className="connection-form" onSubmit={submit} aria-label={isNew ? `Connect ${connection.kind}` : `Edit ${connection.name}`}>
           <div className="field-row">
-            {isNew && (
-              <label>
-                Kind
-                <select
-                  value={draft.kind}
-                  onChange={(e) => {
-                    const other = others.find((o) => o.value === e.target.value)
-                    if (other) onPickOther?.(other.value)
-                    else update({ kind: e.target.value as ArrKind, name: draft.name === draft.kind ? e.target.value : draft.name })
-                  }}
-                >
-                  <option>Sonarr</option>
-                  <option>Radarr</option>
-                  <option>Lidarr</option>
-                  {others.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
             <label>
               Name
               <input type="text" value={draft.name} required onChange={(e) => update({ name: e.target.value })} />
@@ -405,7 +397,7 @@ function ArrRow({
               Cancel
             </button>
             <AsyncButton type="submit" className="button small" busy={saving}>
-              {isNew ? 'Add' : 'Save'}
+              {isNew ? 'Connect' : 'Save'}
             </AsyncButton>
           </div>
         </form>
@@ -420,6 +412,7 @@ const placeholderUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989
 function ServiceRow({
   kind,
   service,
+  notConnected,
   description,
   placeholder,
   keyHint,
@@ -433,6 +426,8 @@ function ServiceRow({
 }: {
   kind: 'Seerr' | 'Bazarr'
   service: { baseUrl: string; hasApiKey: boolean } | null | undefined
+  /** Its status while it isn't set up. */
+  notConnected: string
   description: string
   placeholder: string
   keyHint: string
@@ -449,11 +444,20 @@ function ServiceRow({
   const [saving, setSaving] = useState(false)
   return (
     <div className="connection">
-      <ConnectionLine kind={kind} name={kind} ok={ok} status={status} baseUrl={service?.baseUrl ?? ''} open={open} onOpen={onOpen} />
+      <ConnectionLine
+        kind={kind}
+        name={kind}
+        ok={ok}
+        status={service ? status : notConnected}
+        baseUrl={service?.baseUrl ?? ''}
+        connected={!!service}
+        open={open}
+        onOpen={onOpen}
+      />
       {open && (
         <form
           className="connection-form"
-          aria-label={`Edit ${kind}`}
+          aria-label={service ? `Edit ${kind}` : `Connect ${kind}`}
           onSubmit={(e) => {
             e.preventDefault()
             setSaving(true)
@@ -485,7 +489,7 @@ function ServiceRow({
               Cancel
             </button>
             <AsyncButton type="submit" className="button small" busy={saving}>
-              Save
+              {service ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
         </form>
@@ -521,10 +525,10 @@ function TmdbRow({
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [test, setTest] = useState<{ ok: boolean; error: string | null }>()
-  const status = test && !test.ok ? (test.error ?? 'TMDB didn’t accept the key') : hasKey ? 'Key saved' : 'Not set up'
+  const status = test && !test.ok ? (test.error ?? 'TMDB didn’t accept the key') : hasKey ? 'Key saved' : notConnected('tmdb')
   return (
     <div className="connection">
-      <ConnectionLine icon={<Film />} name="TMDB" ok={test ? test.ok : hasKey ? true : undefined} status={status} baseUrl="" open={open} onOpen={onOpen} />
+      <ConnectionLine icon={<Film />} name="TMDB" ok={test ? test.ok : hasKey ? true : undefined} status={status} baseUrl="" connected={hasKey} open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
@@ -586,7 +590,7 @@ function TmdbRow({
               Cancel
             </button>
             <AsyncButton type="submit" className="button small" busy={saving} disabled={!apiKey.trim()}>
-              Save
+              {hasKey ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
           <p className="muted field-hint">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
@@ -630,7 +634,7 @@ function DispatcharrRow({
 
   return (
     <div className="connection">
-      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={liveTv?.baseUrl ?? ''} open={open} onOpen={onOpen} />
+      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={liveTv?.baseUrl ?? ''} connected={!!liveTv} open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
@@ -703,7 +707,7 @@ function DispatcharrRow({
               Cancel
             </button>
             <AsyncButton type="submit" className="button small" busy={saving}>
-              Save
+              {liveTv ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
         </form>

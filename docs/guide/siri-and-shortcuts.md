@@ -73,8 +73,21 @@ Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actio
 
 The play and control actions have an **On** setting, where you choose this device or another one signed in to your server. That's handy for a shortcut of your own. A "Film night" shortcut could use Apple's own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use **Play a film or show** with **On** set to that TV.
 
+**Play a film or show** and **Shuffle a show** also have an **As** setting, for the profile to watch as. The device switches to that profile first, so the next episode is that person's and what they watch lands in their Continue Watching, whoever used the TV last. A "Kids' bedtime episode" shortcut can play their show on the TV as their profile. If the profile has a PIN, the device asks for it before playing.
+
 > **Tip**
 > A shortcut you make can have a phrase of its own. Name it, and Siri runs it when you say that name.
+
+## Links
+
+Flexarr's links open the app on the iPhone, iPad or Apple TV they're opened on. Use them with Shortcuts' **Open URLs** action, an NFC tag or Home Assistant:
+
+| Link | What it does |
+| --- | --- |
+| `flexarr://item/<id>` | Shows a title's page. |
+| `flexarr://play/<id>` | Plays a film or episode, or a show's next episode. Add `?t=<seconds>` to start at a time, or `?shuffle=1` to shuffle a show. |
+
+Add `profile=<name>` (or the profile's id) to either to switch to that profile first, for example `flexarr://play/<id>?profile=Sam`. If the profile has a PIN, Flexarr asks for it before going on. A title's id is the last part of its address on the web, after `/item/`.
 
 ## If Siri doesn't understand
 

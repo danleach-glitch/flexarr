@@ -42,13 +42,31 @@ public static class ItemEndpoints
             return new PagedDto<ItemSummaryDto>(total, items);
         }).WithTags("Items");
 
+        // Each genre with a backdrop from one of its best-rated titles here, for the library's Genres tab.
         api.MapGet("/libraries/{id:guid}/genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
-            await db.Genres
-                .Select(g => new { g.Name, Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null) })
+        {
+            var genres = await db.Genres
+                .Select(g => new
+                {
+                    g.Name,
+                    Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null),
+                    Candidates = g.Items.Where(i => i.LibraryId == id && i.ParentId == null && i.BackdropUrl != null)
+                        .OrderByDescending(i => i.CommunityRating ?? 0).ThenByDescending(i => i.Popularity)
+                        .Select(i => new { i.Id, i.MetadataUpdatedAt }).Take(12).ToList(),
+                })
                 .Where(g => g.Count > 0)
                 .OrderByDescending(g => g.Count)
-                .ToListAsync(ct))
-            .WithTags("Items");
+                .ToListAsync(ct);
+
+            // As with Discover's genres: each gets its own cover where it can, since big genres share most titles.
+            var used = new HashSet<Guid>();
+            return genres.Select(g =>
+            {
+                var cover = g.Candidates.FirstOrDefault(c => used.Add(c.Id)) ?? g.Candidates.FirstOrDefault();
+                return new LibraryGenreDto(g.Name, g.Count,
+                    cover is null ? null : ArtworkUrls.For(cover.Id, cover.MetadataUpdatedAt?.Ticks / 10_000_000 ?? 0, false, true, false, false).Backdrop);
+            }).ToList();
+        }).WithTags("Items");
 
         api.MapGet("/items/recent", async (int? take, Guid? libraryId, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await db.MediaItems

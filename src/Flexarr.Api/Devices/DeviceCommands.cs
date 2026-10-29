@@ -24,8 +24,9 @@ public enum DeviceCommandKind
 /// <param name="SentBy">Who asked ("Dan's iPhone"), for the device to show.</param>
 /// <param name="Shuffle">The show's episodes in a random order, one after another.</param>
 /// <param name="ChannelId">With <see cref="DeviceCommandKind.Watch"/>, the Live TV channel to put on.</param>
+/// <param name="ProfileId">With <see cref="DeviceCommandKind.Play"/>, whose to play it as: the device switches to that profile first. Absent: whoever is watching there.</param>
 public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
-    Guid? ChannelId = null)
+    Guid? ChannelId = null, string? ProfileId = null)
 {
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 }

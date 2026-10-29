@@ -26,7 +26,8 @@ public sealed record DeviceDto(string Id, string Name, bool Online, DateTime Las
 /// <param name="ItemId">A film, episode or track to play, or a show, season or album: the next episode (or the first track) is worked out for the device's profile.</param>
 /// <param name="FromBeginning">Start over rather than resume.</param>
 /// <param name="Shuffle">For a show: its episodes in a random order, one after another.</param>
-public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false, bool Shuffle = false);
+/// <param name="ProfileId">Whose to play it as: the device switches to that profile first (asking for its PIN, if it has one). Absent: the device's own.</param>
+public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false, bool Shuffle = false, string? ProfileId = null);
 
 /// <param name="Delivered">The device took the command. False: Flexarr isn't open on it; the command waits a couple of minutes for it to be.</param>
 /// <param name="Item">For play: what will play (the episode, when a show was asked for).</param>
@@ -164,7 +165,13 @@ public static class DeviceEndpoints
             return new PlayOutcome(null, false, "No device with that id is signed in.", 404);
         }
 
-        var profileId = device.ProfileId is { } chosen && await db.Profiles.AnyAsync(p => p.Id == chosen, ct) ? chosen : PlaybackState.DefaultUser;
+        if (request.ProfileId is { } asked && !await db.Profiles.AnyAsync(p => p.Id == asked, ct))
+        {
+            return new PlayOutcome(null, false, "There's no profile with that id.", 404);
+        }
+
+        // The profile asked for, or the one chosen on the device: the next episode is theirs.
+        var profileId = request.ProfileId ?? (device.ProfileId is { } chosen && await db.Profiles.AnyAsync(p => p.Id == chosen, ct) ? chosen : PlaybackState.DefaultUser);
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
         if (item is null)
         {
@@ -181,7 +188,8 @@ public static class DeviceEndpoints
         var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
         var playing = shuffle ? item.Id : target.Id;
         var summary = await db.MediaItems.Where(i => i.Id == playing).Summaries(profileId).FirstAsync(ct);
-        var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle);
+        var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle,
+            ProfileId: request.ProfileId);
         var delivered = commands.Send(device.Id, command);
         return new PlayOutcome(new DeviceCommandResultDto(delivered, device.Name, summary), delivered, null, 0);
     }

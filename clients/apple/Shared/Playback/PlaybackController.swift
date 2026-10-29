@@ -343,9 +343,9 @@ final class PlaybackController: NSObject {
 
     private func updateEpisodeNavigation() {
         guard let info else { return }
-        let hasPrevious = !trail.isEmpty || info.previous != nil || (info.isOffline && false)
         let hasNext = info.next != nil || (info.isOffline && offlineLibrary?.nextInfo(after: info) != nil)
-        screen?.setEpisodeNavigation(hasPrevious: hasPrevious, hasNext: hasNext)
+        // Previous always works: with nothing before, it starts this title again.
+        screen?.setEpisodeNavigation(hasPrevious: true, hasNext: hasNext)
     }
 
     // MARK: Subtitles and audio
@@ -904,6 +904,9 @@ final class PlaybackController: NSObject {
     }
 
     /// Ends this session and plays `info.next` in the same screen.
+    /// Past this, Previous starts the title again before going to the one before.
+    private static let restartAfterSeconds: Double = 3
+
     private func advance() {
         guard let current = info else { return }
         // A downloaded episode moves on to the next downloaded one.
@@ -921,8 +924,14 @@ final class PlaybackController: NSObject {
     }
 
     /// Back to the episode before this one: the one played before it in this sitting, else the one before it in order.
+    /// Like a music player's back: a few seconds in, or with nothing before (a film, a first episode), it starts
+    /// this title again; otherwise it goes to the one before.
     private func previous() {
         guard let current = info else { return }
+        if position > Self.restartAfterSeconds || (trail.isEmpty && current.previous == nil) {
+            screen?.seek(to: 0)
+            return
+        }
         if let last = trail.popLast() {
             if current.isOffline, let screen, let previousInfo = offlineLibrary?.nextInfo(after: current).flatMap({ _ in nil as PlaybackInfo? }) {
                 transport?.stop()

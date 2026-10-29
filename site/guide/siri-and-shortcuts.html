@@ -118,6 +118,7 @@
             <li><a href="#things-to-say">Things to say</a></li>
             <li><a href="#playing-on-your-apple-tv">Playing on your Apple TV</a></li>
             <li><a href="#the-shortcuts-app">The Shortcuts app</a></li>
+            <li><a href="#links">Links</a></li>
             <li><a href="#if-siri-doesn-t-understand">If Siri doesn&#39;t understand</a></li>
           </ol>
         </nav>
@@ -208,8 +209,28 @@
 </tr>
 </tbody></table></div>
 <p>The play and control actions have an <strong>On</strong> setting, where you choose this device or another one signed in to your server. That&#39;s handy for a shortcut of your own. A &quot;Film night&quot; shortcut could use Apple&#39;s own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use <strong>Play a film or show</strong> with <strong>On</strong> set to that TV.</p>
+<p><strong>Play a film or show</strong> and <strong>Shuffle a show</strong> also have an <strong>As</strong> setting, for the profile to watch as. The device switches to that profile first, so the next episode is that person&#39;s and what they watch lands in their Continue Watching, whoever used the TV last. A &quot;Kids&#39; bedtime episode&quot; shortcut can play their show on the TV as their profile. If the profile has a PIN, the device asks for it before playing.</p>
 <blockquote class="callout tip"><p><strong>Tip</strong> A shortcut you make can have a phrase of its own. Name it, and Siri runs it when you say that name.</p>
 </blockquote>
+<h2 id="links"><a class="anchor" href="#links" aria-hidden="true" tabindex="-1">#</a>Links</h2>
+<p>Flexarr&#39;s links open the app on the iPhone, iPad or Apple TV they&#39;re opened on. Use them with Shortcuts&#39; <strong>Open URLs</strong> action, an NFC tag or Home Assistant:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Link</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>flexarr://item/&lt;id&gt;</code></td>
+<td>Shows a title&#39;s page.</td>
+</tr>
+<tr>
+<td><code>flexarr://play/&lt;id&gt;</code></td>
+<td>Plays a film or episode, or a show&#39;s next episode. Add <code>?t=&lt;seconds&gt;</code> to start at a time, or <code>?shuffle=1</code> to shuffle a show.</td>
+</tr>
+</tbody></table></div>
+<p>Add <code>profile=&lt;name&gt;</code> (or the profile&#39;s id) to either to switch to that profile first, for example <code>flexarr://play/&lt;id&gt;?profile=Sam</code>. If the profile has a PIN, Flexarr asks for it before going on. A title&#39;s id is the last part of its address on the web, after <code>/item/</code>.</p>
 <h2 id="if-siri-doesn-t-understand"><a class="anchor" href="#if-siri-doesn-t-understand" aria-hidden="true" tabindex="-1">#</a>If Siri doesn&#39;t understand</h2>
 <ul>
 <li><strong>&quot;Open Flexarr and connect it to your server first.&quot;</strong> The app on this device isn&#39;t signed in. Open it and connect. See <a href="/guide/connect-devices">Connect your devices</a>.</li>

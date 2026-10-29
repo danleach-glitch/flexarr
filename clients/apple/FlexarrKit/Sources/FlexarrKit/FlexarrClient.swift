@@ -347,10 +347,12 @@ public struct FlexarrClient: Sendable {
         try await get("devices")
     }
 
-    /// Tells a device to play a title. A show's or season's id plays the episode that device's profile is up to; the
-    /// result says which, and whether the device took it (Flexarr must be open on it).
-    public func play(on deviceId: String, itemId: String, fromBeginning: Bool = false, shuffle: Bool = false) async throws -> DeviceCommandResult {
-        let data = try await send("POST", "devices/\(deviceId)/play", body: DevicePlayBody(itemId: itemId, fromBeginning: fromBeginning, shuffle: shuffle))
+    /// Tells a device to play a title. A show's or season's id plays the episode that device's profile (or `profileId`,
+    /// which the device switches to first) is up to; the result says which, and whether the device took it (Flexarr
+    /// must be open on it). Servers before 0.54 ignore `profileId`.
+    public func play(on deviceId: String, itemId: String, fromBeginning: Bool = false, shuffle: Bool = false, profileId: String? = nil) async throws -> DeviceCommandResult {
+        let body = DevicePlayBody(itemId: itemId, fromBeginning: fromBeginning, shuffle: shuffle, profileId: profileId)
+        let data = try await send("POST", "devices/\(deviceId)/play", body: body)
         return try decode(DeviceCommandResult.self, from: data)
     }
 
