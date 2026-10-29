@@ -24,6 +24,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Flexarr">
 
+        <!-- Music and podcasts in the car. -->
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
+
         <!-- Error reports start only when the server's owner has them on (ErrorReports), never by themselves. -->
         <meta-data android:name="io.sentry.auto-init" android:value="false" />
 
@@ -64,7 +67,10 @@
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <!-- Android Auto finds the app's music and podcasts here. -->
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
 
