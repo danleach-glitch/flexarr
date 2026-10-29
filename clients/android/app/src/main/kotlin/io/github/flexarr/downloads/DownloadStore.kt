@@ -214,8 +214,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
                 update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
                 model.watchStateChanged()
+            } catch (e: FlexarrException.Http) {
+                // The title's gone from the server: there's nothing left to tell it about.
+                if (e.status == 404) update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                else flexarrLog.warning("Couldn't send offline progress", e)
             } catch (e: FlexarrException) {
-                flexarrLog.warning("Couldn't send offline progress", e)
+                if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
             }
         }
         // A transfer for everything still to come (one that's running already is left alone).
