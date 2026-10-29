@@ -10,6 +10,9 @@ import androidx.compose.runtime.setValue
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import io.github.flexarr.core.displayTitle
+import io.github.flexarr.core.episodeSubtitle
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -319,8 +322,16 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 .setLabel(track.label)
                 .build()
         }
+        // What the system's media controls and headphones' devices show.
+        val metadata = MediaMetadata.Builder()
+            .setTitle(started.item.displayTitle)
+            .setArtist(started.item.episodeSubtitle ?: started.item.year?.toString())
+            .setArtworkUri(client.imageUrl(started.item.artwork.thumb ?: started.item.artwork.backdrop ?: started.item.artwork.poster, 600)?.let(android.net.Uri::parse))
+            .setMediaType(if (started.item.kind == MediaKind.Episode) MediaMetadata.MEDIA_TYPE_TV_SHOW else MediaMetadata.MEDIA_TYPE_MOVIE)
+            .build()
         val media = MediaItem.Builder()
             .setUri(client.url(started.url))
+            .setMediaMetadata(metadata)
             .setSubtitleConfigurations(sideloaded)
             .apply { if (started.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()

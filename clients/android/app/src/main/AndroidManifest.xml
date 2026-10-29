@@ -32,10 +32,17 @@
             </intent-filter>
         </activity>
 
+        <!-- The player is a task of its own, so in picture in picture the rest of the app can be used beside it, and
+             closing the corner window doesn't take the app with it. -->
         <activity
             android:name=".player.PlayerActivity"
+            android:autoRemoveFromRecents="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:taskAffinity="com.danleach.flexarr.player"
             android:theme="@style/Theme.Flexarr.Player" />
 
         <service
