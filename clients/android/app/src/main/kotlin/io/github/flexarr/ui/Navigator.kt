@@ -18,6 +18,8 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title) = nav.navigate("library/$id?sort=${sort.raw}")
 
+    fun openPerson(id: String, name: String) = nav.navigate("person/$id?name=${Uri.encode(name)}")
+
     fun back() = nav.popBackStack()
 
     /** Plays a film or episode from where it was left (or from the beginning). */

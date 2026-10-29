@@ -310,7 +310,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SectionHeading("Cast and crew")
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(cast.take(30)) { credit -> PersonCard(credit.name, credit.character ?: credit.role.raw, credit.image) }
+                    items(cast.take(30)) { credit ->
+                        val navigator = LocalNavigator.current
+                        PersonCard(credit.name, credit.character ?: credit.role.raw, credit.image) { navigator.openPerson(credit.personId, credit.name) }
+                    }
                 }
             }
         }

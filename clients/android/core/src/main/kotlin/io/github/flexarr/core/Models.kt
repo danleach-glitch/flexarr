@@ -227,6 +227,26 @@ data class ItemDetail(
     val childOverviews: Map<String, String?> = emptyMap(),
 )
 
+// People and search
+
+@Serializable
+data class PersonCredit(val item: ItemSummary, val role: CreditRole, val character: String? = null)
+
+@Serializable
+data class Person(val id: String, val name: String, val image: String? = null, val credits: List<PersonCredit> = emptyList())
+
+@Serializable
+data class PersonSummary(val id: String, val name: String, val image: String? = null, val credits: Int)
+
+@Serializable
+data class SearchResults(
+    val titles: List<ItemSummary> = emptyList(),
+    val episodes: List<ItemSummary> = emptyList(),
+    val people: List<PersonSummary> = emptyList(),
+) {
+    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty()
+}
+
 // Home
 
 @Serializable

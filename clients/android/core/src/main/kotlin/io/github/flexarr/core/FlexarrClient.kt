@@ -108,6 +108,10 @@ class FlexarrClient(
         send("POST", "items/$id/watched", body = json.encodeToString(WatchedRequest(watched)))
     }
 
+    suspend fun person(id: String): Person = get("people/$id")
+
+    suspend fun search(query: String): SearchResults = get("search", mapOf("q" to query))
+
     // Playback
 
     suspend fun startPlayback(request: PlaybackRequest): PlaybackInfo =
