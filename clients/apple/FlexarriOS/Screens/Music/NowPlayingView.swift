@@ -4,9 +4,12 @@ import SwiftUI
 /// The music that's playing, as a sheet: the cover, the track's name, a scrubber, the transport controls, AirPlay,
 /// and what comes next. A Lyrics button, there when the track has any, swaps the cover and queue for the words,
 /// which follow the song. A podcast episode gets a podcast's controls instead: back 15 seconds and forward 30, its
-/// speed and a sleep timer.
+/// speed, a sleep timer and a menu of what can be done with it; then its chapters (tapping one goes there) and its
+/// notes, whose times jump there too.
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    @Environment(DownloadStore.self) private var downloads
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Where the thumb is while the viewer drags it; nil when the track's own position shows.
@@ -14,12 +17,16 @@ struct NowPlayingView: View {
     @State private var lyrics = LyricsLoader()
     /// Lyrics are wanted; they show while the track that's playing has some.
     @State private var showingLyrics = false
+    @State private var playing = PlayingEpisode()
+    @State private var notesExpanded = false
+    /// The cover's own colour, for a glow when the server gives none.
+    @State private var artworkGlow: Color?
 
     private var music: MusicPlayer { model.music }
 
     var body: some View {
         ZStack {
-            RoomBackground(ambient: music.current?.glowColor, intensity: 0.45)
+            RoomBackground(ambient: music.current.map(ambient), intensity: 0.45)
             if let track = music.current {
                 if showingLyrics, let found = lyrics.lyrics {
                     lyricsPanel(track, found)
@@ -30,9 +37,14 @@ struct NowPlayingView: View {
                             cover(track)
                                 .padding(.top, 8)
                             titles(track)
+                            if music.isPodcast, !chapters.isEmpty { chapterStrip }
                             scrubber
                             controls
                             extras
+                            if music.isPodcast {
+                                chapterList
+                                notes
+                            }
                             upNext
                         }
                         .padding(.horizontal, 28)
@@ -47,7 +59,22 @@ struct NowPlayingView: View {
         }
         .task(id: music.current?.id) { await lyrics.load(music.isPodcast ? nil : music.current, client: model.client) }
         .task(id: music.current?.id) { if music.isPodcast { await model.loadUpNext() } }
+        .task(id: music.current?.id) {
+            notesExpanded = false
+            await playing.load(music.isPodcast ? music.current?.id : nil, client: model.client)
+        }
+        .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
+    }
+
+    /// The track's own colour, else its cover's.
+    private func ambient(_ track: ItemSummary) -> Color {
+        track.accentColor == nil ? artworkGlow ?? track.glowColor : track.glowColor
+    }
+
+    /// The episode's chapters, once they've come (and only for the episode playing).
+    private var chapters: [PodcastChapter] {
+        playing.episode?.id == music.current?.id ? playing.chapters : []
     }
 
     private var grabber: some View {
@@ -119,8 +146,14 @@ struct NowPlayingView: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
             HStack(spacing: 6) {
-                Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
-                    .lineLimit(1)
+                if music.isPodcast, let show = track.seriesTitle {
+                    Button { goToPodcast() } label: { Text(show).lineLimit(1) }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens the podcast")
+                } else {
+                    Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
+                        .lineLimit(1)
+                }
                 if music.isPlayingOffline {
                     DownloadedMark()
                 }
@@ -131,26 +164,52 @@ struct NowPlayingView: View {
     }
 
     private var scrubber: some View {
-        VStack(spacing: 4) {
-            Slider(value: Binding(
-                get: { scrubbing ?? music.position },
-                set: { scrubbing = $0 }
-            ), in: 0...max(1, music.duration)) { editing in
-                if !editing, let target = scrubbing {
-                    music.seek(to: target)
-                    scrubbing = nil
-                }
-            }
-            .tint(Color.screen)
+        VStack(spacing: 2) {
+            PlayerScrubber(position: music.position, duration: music.duration, chapterStarts: chapters.map(\.startSeconds),
+                           scrubbing: $scrubbing) { music.seek(to: $0) }
             HStack {
                 Text(Format.timestamp(scrubbing ?? music.position))
-                Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if music.isPodcast, music.duration > 0 {
+                    // When it'll finish, at the speed it's playing.
+                    Text("Ends \(Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(date: .omitted, time: .shortened))")
+                }
                 Text(music.duration > 0 ? "-" + Format.timestamp(max(0, music.duration - (scrubbing ?? music.position))) : "")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .font(.caption.weight(.medium))
             .monospacedDigit()
             .foregroundStyle(Color.usher)
         }
+    }
+
+    /// The chapter playing, with the ones either side a tap away.
+    private var chapterStrip: some View {
+        let current = chapters.index(at: scrubbing ?? music.position)
+        return HStack(spacing: 4) {
+            Button {
+                // Back to the start of this chapter, or (near its start already) to the one before.
+                guard let current else { return music.seek(to: 0) }
+                let start = chapters[current].startSeconds
+                music.seek(to: music.position - start > 3 || current == 0 ? start : chapters[current - 1].startSeconds)
+            } label: { Label("Previous chapter", systemImage: "chevron.backward") }
+            .buttonStyle(ChapterStepStyle())
+            Text(current.map { chapters[$0].title } ?? chapters[0].title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.screen)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .contentTransition(.opacity)
+                .animation(.easeOut(duration: 0.2), value: current)
+            Button {
+                let next = (current ?? -1) + 1
+                if chapters.indices.contains(next) { music.seek(to: chapters[next].startSeconds) }
+            } label: { Label("Next chapter", systemImage: "chevron.forward") }
+            .buttonStyle(ChapterStepStyle())
+            .disabled((current ?? -1) + 1 >= chapters.count)
+        }
+        .padding(.horizontal, 4)
+        .background(Capsule().fill(Color.screen.opacity(0.08)))
     }
 
     @ViewBuilder
@@ -204,18 +263,31 @@ struct NowPlayingView: View {
         }
     }
 
-    /// AirPlay, and Lyrics when the track has some; a podcast's speed and sleep timer.
+    @ViewBuilder
     private var extras: some View {
+        if music.isPodcast { podcastExtras } else { musicExtras }
+    }
+
+    /// AirPlay, and Lyrics when the track has some.
+    private var musicExtras: some View {
         HStack(spacing: 36) {
             Spacer()
-            if music.isPodcast { speedMenu }
             RoutePicker().frame(width: 44, height: 44)
-            if music.isPodcast { sleepMenu }
             if lyrics.lyrics != nil {
                 Button { showingLyrics.toggle() } label: { Label("Lyrics", systemImage: "quote.bubble") }
                     .buttonStyle(TransportStyle(size: 44, active: showingLyrics))
             }
             Spacer()
+        }
+    }
+
+    /// Speed, the sleep timer, AirPlay and the episode's menu: four of a kind, evenly spaced, each lit while it's set.
+    private var podcastExtras: some View {
+        HStack(spacing: 0) {
+            speedMenu.frame(maxWidth: .infinity)
+            sleepMenu.frame(maxWidth: .infinity)
+            RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity)
+            episodeMenu.frame(maxWidth: .infinity)
         }
     }
 
@@ -226,10 +298,9 @@ struct NowPlayingView: View {
             }
         } label: {
             Text(speedLabel(music.speed))
-                .font(.subheadline.weight(.bold))
+                .font(.system(size: 16, weight: .semibold))
                 .monospacedDigit()
-                .foregroundStyle(music.speed == 1 ? Color.screen : Color.silver)
-                .frame(minWidth: 44, minHeight: 44)
+                .modifier(ExtraLabel(active: music.speed != 1))
         }
         .accessibilityLabel("Speed, \(speedLabel(music.speed))")
     }
@@ -243,7 +314,7 @@ struct NowPlayingView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: music.sleep.setting == nil ? "bed.double" : "bed.double.fill")
+                Image(systemName: "moon.zzz")
                 if let end = music.sleep.endsAt {
                     // Minutes left, counting down.
                     TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -253,11 +324,136 @@ struct NowPlayingView: View {
                     }
                 }
             }
-            .font(.system(size: 20, weight: .semibold))
-            .foregroundStyle(music.sleep.setting == nil ? Color.screen : Color.silver)
-            .frame(minWidth: 44, minHeight: 44)
+            .font(.system(size: 18, weight: .medium))
+            .modifier(ExtraLabel(active: music.sleep.setting != nil))
         }
         .accessibilityLabel(music.sleep.setting == nil ? "Sleep timer" : "Sleep timer on")
+    }
+
+    /// What can be done with the episode: open its show, mark it played, download it, share the show.
+    private var episodeMenu: some View {
+        Menu {
+            if let track = music.current {
+                Button { goToPodcast() } label: { Label("Go to Podcast", systemImage: "square.stack") }
+                Button {
+                    Task {
+                        await model.setWatched(track, true)
+                        // Played: on to what comes next, as if it had finished.
+                        music.seek(to: max(0, music.duration - 0.5))
+                    }
+                } label: { Label("Mark as Played", systemImage: "checkmark.circle") }
+                if let download = downloads.entry(for: track.id) {
+                    Button(role: .destructive) { downloads.remove(download.id) } label: {
+                        Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: "trash")
+                    }
+                } else if !music.isPlayingOffline {
+                    Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
+                        Label("Download", systemImage: "arrow.down.circle")
+                    }
+                }
+                if let link = playing.podcast?.link.flatMap(URL.init(string:)) {
+                    ShareLink(item: link) { Label("Share Podcast", systemImage: "square.and.arrow.up") }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 18, weight: .semibold))
+                .modifier(ExtraLabel(active: false))
+        }
+        .accessibilityLabel("More")
+    }
+
+    /// Closes Now Playing and opens the show.
+    private func goToPodcast() {
+        guard let podcastId = music.current?.seriesId, let client = model.client else { return }
+        Task {
+            let podcast: Podcast? = if let loaded = playing.podcast, loaded.id == podcastId { loaded } else { try? await client.podcast(podcastId) }
+            guard let podcast else { return }
+            dismiss()
+            router.push(.item(podcast.summary))
+        }
+    }
+
+    /// The episode's chapters: tapping one goes there; the one playing is lit, and those heard are dimmed.
+    @ViewBuilder
+    private var chapterList: some View {
+        if !chapters.isEmpty {
+            let current = chapters.index(at: music.position)
+            VStack(alignment: .leading, spacing: 2) {
+                sectionTitle("Chapters")
+                ForEach(Array(chapters.enumerated()), id: \.offset) { offset, chapter in
+                    Button { music.seek(to: chapter.startSeconds) } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(Format.timestamp(chapter.startSeconds))
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(Color.usher)
+                                .frame(minWidth: 44, alignment: .leading)
+                            Text(chapter.title)
+                                .font(.subheadline.weight(offset == current ? .bold : .regular))
+                                .foregroundStyle(offset == current ? Color.screen : Color.screen.opacity((current ?? -1) > offset ? 0.55 : 0.85))
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            if offset == current {
+                                Image(systemName: music.isPlaying ? "waveform" : "pause.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.silver)
+                                    .symbolEffect(.variableColor.iterative, isActive: music.isPlaying)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(chapter.title), at \(Format.timestamp(chapter.startSeconds))")
+                    .accessibilityAddTraits(offset == current ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    /// The episode's notes: when it came out and how long it is, then a few lines of its notes, all of them with More.
+    /// Times in them jump there, and web addresses open.
+    @ViewBuilder
+    private var notes: some View {
+        if let episode = playing.episode, episode.id == music.current?.id {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle("Episode Notes")
+                FactsLine(facts: [episode.dateLine, episode.durationSeconds.flatMap(Format.runtime(seconds:)), episode.explicit ? "Explicit" : nil].compactMap { $0 })
+                    .font(.caption)
+                    .padding(.horizontal, 12)
+                if let text = episode.overview {
+                    Text(episodeNotes(text, duration: episode.durationSeconds))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.screen.opacity(0.85))
+                        .tint(Color.silver)
+                        .lineLimit(notesExpanded ? nil : 6)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .seeksFromNotes { music.seek(to: $0) }
+                        .padding(.horizontal, 12)
+                    if text.count > 320 || text.filter({ $0 == "\n" }).count > 5 {
+                        Button(notesExpanded ? "Less" : "More") {
+                            withAnimation(.easeOut(duration: 0.25)) { notesExpanded.toggle() }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.silver)
+                        .padding(.horizontal, 12)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.marquee(22, weight: .bold))
+            .foregroundStyle(Color.screen)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
     }
 
     @ViewBuilder
@@ -271,11 +467,7 @@ struct NowPlayingView: View {
         let next = model.upNext.filter { $0.id != music.current?.id }
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Up Next")
-                    .font(.marquee(22, weight: .bold))
-                    .foregroundStyle(Color.screen)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
+                sectionTitle("Up Next")
                 ForEach(next.prefix(20)) { episode in
                     Button { model.playEpisode(episode.summary) } label: {
                         HStack(spacing: 12) {
@@ -341,5 +533,35 @@ private struct TransportStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.7 : 1)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// The podcast row's controls (speed, sleep timer, the menu): the same size and weight, lit with a soft pill while set.
+private struct ExtraLabel: ViewModifier {
+    var active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(active ? Color.room : Color.screen.opacity(0.85))
+            .padding(.horizontal, 10)
+            .frame(minWidth: 44, minHeight: 34)
+            .background { if active { Capsule().fill(Color.silver) } }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+    }
+}
+
+/// The chevrons either side of the chapter's name.
+private struct ChapterStepStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(.iconOnly)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color.screen.opacity(isEnabled ? 0.85 : 0.3))
+            .frame(width: 40, height: 36)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
