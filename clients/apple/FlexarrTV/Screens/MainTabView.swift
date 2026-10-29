@@ -21,13 +21,16 @@ struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: TabID = .home
     @State private var choosingProfile = false
-    /// Home's screens, here so Menu on the sidebar can go back through them (see below).
-    @State private var homeRouter = Router()
-    /// The other tabs' screens, here rather than in each tab's stack so they outlast the sidebar being built afresh
-    /// when music starts (see `.id` below), and Menu on Now Playing finds the screen the music was started from.
+    /// Each tab's screens, here rather than in its stack so they outlast the sidebar being built afresh when music
+    /// starts (see `.id` below), leaving the screen Play was pressed on under Now Playing; and so Menu on the sidebar
+    /// can go back through Home's.
     @State private var routers = TabRouters()
-    /// Where Play or Shuffle took you to Now Playing from: Menu there goes back to it.
-    @State private var nowPlayingReturn: TabID?
+    private var homeRouter: Router { routers[.home] }
+    /// Now Playing over everything, as Play or Shuffle opens it (the Music app's way): Menu closes it, back to where
+    /// it was pressed.
+    @State private var showingNowPlaying = false
+    /// The sidebar has Now Playing: follows the music, once the tabs' screens are out of the way (see `showNowPlayingTab`).
+    @State private var hasNowPlayingTab = false
     @State private var librariesLoaded = false
     /// Where a link (the Top Shelf) opens its title: on its library's tab, so Home stays Home.
     @State private var linkTab: TabID?
@@ -61,10 +64,9 @@ struct MainTabView: View {
             }
             // Music that's playing gets a tab of its own, as the Music app does: the surest way to reach it with
             // the remote from anywhere.
-            if model.music.current != nil {
+            if hasNowPlayingTab {
                 Tab(value: TabID.nowPlaying) {
                     NowPlayingView()
-                        .onExitCommand(perform: nowPlayingReturn.map { tab in { selection = tab } })
                 } label: {
                     Label("Now Playing", systemImage: "waveform")
                 }
@@ -119,15 +121,16 @@ struct MainTabView: View {
         .modifier(SidebarVersion())
         // A tab added or taken away while focus is in a tab's content can leave the sidebar unable to take focus
         // again, so Now Playing coming and going builds the sidebar afresh instead (the selection carries over).
-        .id(model.music.current != nil)
+        .id(hasNowPlayingTab)
         // Menu on the sidebar leaves the app. With screens open on Home, go back through them first.
         .onExitCommand(perform: selection == .home && !homeRouter.path.isEmpty ? { homeRouter.path.removeLast() } : nil)
         // The remote's play/pause button runs the music from any screen (the video player takes it over while it's up).
         .onPlayPauseCommand { if model.music.current != nil { model.music.togglePlayPause() } }
-        .onChange(of: model.music.current == nil) { _, stopped in
-            if stopped, selection == .nowPlaying { selection = nowPlayingReturn ?? .home }
-        }
+        .onChange(of: model.music.current != nil, initial: true) { _, playing in showNowPlayingTab(playing) }
         .onChange(of: model.nowPlayingRequests) { _, _ in showNowPlaying() }
+        .fullScreenCover(isPresented: $showingNowPlaying) {
+            NowPlayingView()
+        }
         .fullScreenCover(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
         }
@@ -147,7 +150,7 @@ struct MainTabView: View {
                 return
             }
             if tab != .home { startFocus = false }
-            if tab != .nowPlaying { nowPlayingReturn = nil }
+            restoreScreens(of: tab)
             guard let hold = linkHold, tab != hold.tab else { return }
             if Date() < hold.until { selection = hold.tab } else { linkHold = nil }
         }
@@ -158,16 +161,47 @@ struct MainTabView: View {
 
     private var tabLibraries: [Library] { TabBarEntry.libraries(model: model) }
 
-    /// Play or Shuffle started music: on to Now Playing, remembering the tab it came from for Menu. When it's the first
-    /// music, the sidebar is built afresh to add the tab, and focus settling on it can take the selection back to
-    /// Home, so the selection is held on Now Playing for a moment as for a link.
+    /// Adds or takes away the Now Playing tab, building the sidebar afresh. A stack built afresh with screens already on
+    /// it builds them without its router and crashes, so the tabs' screens come off for the rebuild and go back on as
+    /// each tab next shows.
+    private func showNowPlayingTab(_ shown: Bool) {
+        guard shown != hasNowPlayingTab else { return }
+        withTransaction(Self.quietly) {
+            routers.putAwayScreens()
+            hasNowPlayingTab = shown
+        }
+        if !shown {
+            showingNowPlaying = false
+            if selection == .nowPlaying { selection = .home }
+        }
+        restoreScreens(of: selection)
+    }
+
+    /// Puts back a tab's screens taken off for a rebuild, a moment after the tab shows: a stack first shown with
+    /// screens already on it builds them without its router too.
+    private func restoreScreens(of tab: TabID) {
+        guard routers.hasPutAway(tab) else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard selection == tab else { return }
+            withTransaction(Self.quietly) { routers.restoreScreens(of: tab) }
+        }
+    }
+
+    private static var quietly: Transaction {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        return transaction
+    }
+
+    /// Play or Shuffle started music: Now Playing over everything. When it's the first music, the sidebar is built afresh
+    /// underneath to add its tab, and focus settling there can take the selection to Home, so the selection is held where
+    /// it was for a moment as for a link.
     private func showNowPlaying() {
-        guard model.music.current != nil, selection != .nowPlaying else { return }
-        let from = selection
-        selection = .nowPlaying
-        nowPlayingReturn = from
+        guard model.music.current != nil else { return }
+        showingNowPlaying = true
         startFocus = false
-        linkHold = (.nowPlaying, Date().addingTimeInterval(1.5))
+        linkHold = (selection, Date().addingTimeInterval(1.5))
     }
 
     /// Picks the tab a link's title opens on and goes to it; that tab's stack then shows the title.
@@ -266,12 +300,29 @@ private struct SidebarVersion: ViewModifier {
 @MainActor
 private final class TabRouters {
     private var routers: [TabID: Router] = [:]
+    /// Screens taken off for the sidebar to be built afresh, until their tab next shows.
+    private var putAway: [TabID: [Route]] = [:]
 
     subscript(tab: TabID) -> Router {
         if let router = routers[tab] { return router }
         let router = Router()
         routers[tab] = router
         return router
+    }
+
+    func putAwayScreens() {
+        for (tab, router) in routers where !router.path.isEmpty {
+            putAway[tab] = router.path
+            router.path = []
+        }
+    }
+
+    func hasPutAway(_ tab: TabID) -> Bool { putAway[tab] != nil }
+
+    /// Unless the tab has been browsed since.
+    func restoreScreens(of tab: TabID) {
+        guard let path = putAway.removeValue(forKey: tab), let router = routers[tab], router.path.isEmpty else { return }
+        router.path = path
     }
 }
 

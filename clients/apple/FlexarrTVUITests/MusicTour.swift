@@ -105,6 +105,40 @@ final class MusicTour: XCTestCase {
         logFocus("after lyrics")
     }
 
+    /// An artist's Shuffle, with nothing playing, opens Now Playing over the artist (not Home, as the sidebar is built
+    /// afresh underneath for the new tab); Menu closes it, back on the artist's Play, which opens it again with music on.
+    func test4ShuffleGoesToNowPlaying() async throws {
+        let libraries = try await client.libraries()
+        guard let music = libraries.first(where: { $0.type == .music }),
+              let artist = try await client.libraryItems(music.id, take: 1).items.first else { throw XCTSkip("no artists") }
+        app.open(URL(string: "flexarr://item/\(artist.id)")!)
+        pause(5)
+        for _ in 0..<3 where !app.buttons["Play"].firstMatch.hasFocus {
+            press(.down, wait: 1.5)
+        }
+        press(.right, wait: 1.5)
+        logFocus("artist")
+        guard app.buttons["Shuffle"].firstMatch.hasFocus else { return XCTFail("the artist's Shuffle should have focus") }
+        shot("46-artist-shuffle-focused")
+        press(.select, wait: 7)
+        shot("47-after-shuffle")
+        logFocus("after shuffle")
+        XCTAssertTrue(app.buttons["Repeat"].exists, "Shuffle should go to Now Playing")
+
+        press(.menu, wait: 3)
+        shot("48-back-from-now-playing")
+        logFocus("after menu")
+        XCTAssertFalse(app.buttons["Repeat"].exists, "Menu should leave Now Playing")
+        XCTAssertTrue(app.staticTexts[artist.title].exists, "Menu should come back to \(artist.title)")
+        // The artist is built afresh under Now Playing (see `MainTabView.showNowPlayingTab`), so focus starts on Play.
+        XCTAssertTrue(app.buttons["Play"].firstMatch.hasFocus, "focus should be on the artist's Play")
+
+        press(.select, wait: 7)
+        shot("49-after-play-while-playing")
+        XCTAssertTrue(app.buttons["Repeat"].exists, "Play with music already on should go to Now Playing")
+        press(.playPause, wait: 1)
+    }
+
     /// The first album in the library whose first track has lyrics.
     private func albumOpeningWithLyrics() async throws -> String? {
         let libraries = try await client.libraries()
