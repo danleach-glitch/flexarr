@@ -79,9 +79,19 @@ public static class RequestEndpoints
     [
         ("trending", "trending", "Trending this week"),
         ("movies", "movies", "Popular films"),
-        ("tv", "tv", "Popular shows"),
+        ("tv", "tv", "Popular new shows"),
         ("upcoming", "movies/upcoming", "Coming to cinemas"),
     ];
+
+    /// <summary>
+    /// TMDB's popular shows are mostly long-running ones (Grey's Anatomy, Friends), so that row keeps to shows that
+    /// started in the last year, up to today so it isn't filled with ones yet to air.
+    /// </summary>
+    internal static string FilterFor(string id, DateOnly today) => id switch
+    {
+        "tv" => $"firstAirDateGte={today.AddYears(-1):yyyy-MM-dd}&firstAirDateLte={today:yyyy-MM-dd}",
+        _ => "",
+    };
 
     public static RouteGroupBuilder MapRequestEndpoints(this RouteGroupBuilder api)
     {
@@ -124,11 +134,12 @@ public static class RequestEndpoints
             var library = await LibraryIndexAsync(db, ct);
             var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
             var rows = new List<ExternalRowDto>();
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
             foreach (var (id, list, title) in Lists)
             {
                 try
                 {
-                    var page = await seerr.DiscoverAsync(instance, list, 1, ct);
+                    var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
                     rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library))
                         .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
                 }
