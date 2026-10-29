@@ -677,6 +677,12 @@ export interface PodcastEpisode {
   hasTranscript: boolean
 }
 
+/** A named part of an episode: from the feed's chapters file, or the times its notes list. */
+export interface PodcastChapter {
+  startSeconds: number
+  title: string
+}
+
 /** A show in Apple's podcast directory. */
 export interface DirectoryPodcast {
   iTunesId: number

@@ -940,17 +940,337 @@ a.np-view-artist:hover {
   color: rgb(255 255 255 / 0.5);
 }
 
+/* A podcast's chapter, with the ones either side a click away. */
+.np-view-chapter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: clamp(20px, 3vh, 32px);
+  padding: 2px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.np-view-chapter .icon-button {
+  width: 40px;
+  height: 36px;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.np-view-chapter .icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.np-view-chapter .icon-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.np-view-chapter-name {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.np-view-chapter-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.np-view-chapter + .np-view-seek {
+  margin-top: 16px;
+}
+
+/* Where each chapter starts, over the scrubber's track. */
+.np-view-seek {
+  position: relative;
+}
+
+.np-view-marks {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 18px;
+  pointer-events: none;
+}
+
+.np-view-marks span {
+  position: absolute;
+  top: 7px;
+  width: 2px;
+  height: 4px;
+  margin-left: -1px;
+  background: rgb(0 0 0 / 0.55);
+  z-index: 1;
+}
+
+/* Thicker while it's pointed at or dragged. */
+.np-view-seek input:is(:hover, :active, :focus-visible)::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.np-view-seek input:is(:hover, :active, :focus-visible)::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.np-view-seek input:is(:hover, :active, :focus-visible)::-webkit-slider-thumb {
+  margin-top: -4px;
+}
+
+/* Speed, sleep timer, notes and the menu: alike, each lit with a soft pill while it's set. */
+.np-view-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: clamp(16px, 2.5vh, 28px);
+}
+
+.np-view-tools .icon-button {
+  width: 48px;
+  height: 40px;
+  border-radius: 999px;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.np-view-tools .icon-button svg {
+  width: 21px;
+  height: 21px;
+}
+
+.np-view-tools .now-playing-speed {
+  width: auto;
+  min-width: 48px;
+  padding: 0 12px;
+  font-size: 15px;
+}
+
+.np-view-tools .icon-button:hover {
+  color: #fff;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.np-view-tools .icon-button:is(.active, [aria-pressed='true']) {
+  color: #0b0a0e;
+  background: rgb(255 255 255 / 0.88);
+}
+
+.np-view-tools .now-playing-count {
+  top: 0;
+  right: 0;
+  background: #fff;
+  color: #0b0a0e;
+}
+
+/* An episode's chapters and notes, in the cover's place. */
+.np-view-details {
+  width: min(60vh, 42vw, 640px);
+  aspect-ratio: 1;
+  padding: 8px 28px 28px;
+  overflow-y: auto;
+  border-radius: 14px;
+  background: rgb(10 8 14 / 0.55);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 40px 120px rgb(0 0 0 / 0.45);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.25) transparent;
+}
+
+.np-view-details h3 {
+  margin: 22px 0 10px;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.np-view-chapters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.np-view-chapters button {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: rgb(255 255 255 / 0.85);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.np-view-chapters button:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.np-view-chapters button.heard {
+  color: rgb(255 255 255 / 0.55);
+}
+
+.np-view-chapters button.current {
+  color: #fff;
+  font-weight: 700;
+}
+
+.np-view-chapter-time {
+  min-width: 52px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.55);
+}
+
+.np-view-chapter-title {
+  flex: 1;
+}
+
+/* The chapter playing: a dot that breathes while it plays. */
+.np-view-chapter-live {
+  width: 8px;
+  height: 8px;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--glow);
+  box-shadow: 0 0 10px var(--glow);
+}
+
+.np-view-chapter-live.playing {
+  animation: np-view-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes np-view-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.np-view-facts {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.np-view-details .podcast-notes {
+  max-width: none;
+  font-size: 15px;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.np-view-details .podcast-notes a {
+  color: #fff;
+  text-decoration-color: rgb(255 255 255 / 0.4);
+}
+
+/* A time in an episode's notes: jumps there. */
+.podcast-notes-time {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ambient);
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.np-view-details .podcast-notes-time {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: rgb(255 255 255 / 0.4);
+  text-underline-offset: 0.2em;
+}
+
+.podcast-notes-time:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 760px) {
   .np-view-stage {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
-    align-content: center;
+    align-content: safe center;
     gap: 32px;
-    padding: 72px 24px calc(32px + env(safe-area-inset-bottom));
+    padding: 64px 24px calc(32px + env(safe-area-inset-bottom));
   }
 
   .np-view-cover {
-    width: min(80vw, 44vh);
+    width: min(80vw, 34vh);
+  }
+
+  /* A phone's height has to hold it all: the title smaller and on two lines, the gaps tighter, and the page
+     scrolling only when a short screen still can't. */
+  .np-view-stage {
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .np-view-title {
+    font-size: clamp(28px, 8vw, 40px);
+    -webkit-line-clamp: 2;
+  }
+
+  .np-view-artist {
+    margin-top: 8px;
+    font-size: 16px;
+  }
+
+  .np-view-chapter {
+    margin-top: 16px;
+  }
+
+  .np-view-seek,
+  .np-view-chapter + .np-view-seek {
+    margin-top: 12px;
+  }
+
+  .np-view-controls {
+    margin-top: 10px;
+  }
+
+  .np-view-tools {
+    margin-top: 8px;
+  }
+
+  .np-view-next {
+    margin-top: 14px;
+  }
+
+  .np-view-details {
+    width: 100%;
+    max-width: 560px;
+    height: 34vh;
+    aspect-ratio: auto;
+    padding: 4px 18px 18px;
+  }
+
+  .np-view-chapter,
+  .np-view-tools {
+    width: 100%;
+  }
+
+  .np-view-tools {
+    justify-content: space-around;
   }
 
   .np-view-info {
@@ -966,6 +1286,10 @@ a.np-view-artist:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .np-view {
+    animation: none;
+  }
+
+  .np-view-chapter-live.playing {
     animation: none;
   }
 }

@@ -41,6 +41,7 @@ import type {
   PlaylistSummary,
   Podcast,
   PodcastCountry,
+  PodcastChapter,
   PodcastEpisode,
   PodcastGenre,
   PodcastPreferences,
@@ -672,6 +673,12 @@ export function getPodcastEpisodes(
 }
 
 export const getPodcastEpisode = (id: string, signal?: AbortSignal) => cachedGet<PodcastEpisode>(`/podcasts/episodes/${id}`, signal)
+/** The episode's chapters, in order; none when it has none (or the server is from before chapters). */
+export const getPodcastChapters = (id: string, signal?: AbortSignal) =>
+  cachedGet<PodcastChapter[]>(`/podcasts/episodes/${id}/chapters`, signal).catch((e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) return []
+    throw e
+  })
 /** What auto-play goes on to after an episode: the show's next, else the newest unplayed of the shows followed. */
 export const getNextEpisode = (id: string) => apiGet<PodcastEpisode | undefined>(`/podcasts/episodes/${id}/next`)
 /** Up Next: the podcast episodes to hear after this one, the same on every device. */
