@@ -225,6 +225,11 @@ data class ItemDetail(
     val files: List<MediaFile> = emptyList(),
     /** Overviews of `children`, keyed by child id (seasons carry their episodes' overviews here). */
     val childOverviews: Map<String, String?> = emptyMap(),
+    /**
+     * Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
+     * file), for `files.first()`, the copy playback picks. Absent from servers before 0.53.
+     */
+    val canSearchSubtitles: Boolean? = null,
 )
 
 // People and search
@@ -326,6 +331,8 @@ data class SubtitleTrack(
     /** Text the player draws itself (from [url], WebVTT); picture-based ones have to be burned into the picture. */
     val isText: Boolean,
     val url: String? = null,
+    /** A subtitle file beside the video (rather than one inside it): only these can be re-synced. Absent from servers before 0.53. */
+    val isExternal: Boolean? = null,
 )
 
 @Serializable
@@ -374,6 +381,11 @@ data class PlaybackInfo(
     val audioDelayInStream: Boolean? = null,
     /** The speed this profile watches the show at (null: normal). Absent from servers before 0.53. */
     val speed: Double? = null,
+    /**
+     * The server can find subtitles for this title (through Bazarr), and re-sync the ones beside its file. Absent from
+     * servers before 0.53.
+     */
+    val canSearchSubtitles: Boolean? = null,
 ) {
     /** The server keeps audio offsets and show speeds (0.53 and later). */
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null

@@ -85,6 +85,7 @@ import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.subtitles.SubtitleSearchSheet
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrTheme
 import kotlinx.coroutines.delay
@@ -173,9 +174,18 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
         }
     }
     LaunchedEffect(flashCount) {
-        if (flash == null) return@LaunchedEffect
-        delay(700)
+        val shown = flash ?: return@LaunchedEffect
+        // A skip's "+10 s" is a blink; words about the subtitles stay long enough to read.
+        delay(if (shown.length <= 6) 700 else 2_500)
         flash = null
+    }
+    // The controller's own messages ("Re-syncing subtitles…"), with the controls up.
+    LaunchedEffect(controller.flash) {
+        val (text, _) = controller.flash ?: return@LaunchedEffect
+        flash = text
+        flashCount++
+        controlsVisible = true
+        interaction++
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -218,7 +228,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
         flash?.let {
-            Text(it, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.align(Alignment.Center).glass(CircleShape).padding(horizontal = 18.dp, vertical = 10.dp))
+            Text(it, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp).glass(CircleShape).padding(horizontal = 18.dp, vertical = 10.dp))
         }
         controller.error?.let { message ->
             Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -259,6 +269,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
             }
         }
         SleepPrompt(controller)
+        controller.subtitleSearchFile?.let { fileId ->
+            controller.info?.let { info ->
+                SubtitleSearchSheet(controller.client, info.item.id, fileId, onDownloaded = controller::subtitlesDownloaded, onClose = controller::closeSubtitleSearch)
+            }
+        }
     }
 }
 

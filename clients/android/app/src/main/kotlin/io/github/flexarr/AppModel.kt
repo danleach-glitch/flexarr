@@ -116,10 +116,10 @@ class AppModel(private val context: Context) {
     }
 
     /** Signs in for this launch only, without saving or swapping the key: debug builds started from the command line. */
-    fun signInForThisLaunch(address: String, apiKey: String) {
+    fun signInForThisLaunch(address: String, apiKey: String, remote: String? = null) {
         val url = FlexarrClient.normalizeAddress(address) ?: return
         saved = false
-        signedIn(ServerCredentials(url.toString(), apiKey))
+        signedIn(ServerCredentials(url.toString(), apiKey, remoteAddress = remote?.let { FlexarrClient.normalizeAddress(it)?.toString() }))
     }
 
     private fun signedIn(credentials: ServerCredentials) {
@@ -142,9 +142,11 @@ class AppModel(private val context: Context) {
         remoteChecked = true
         val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
         val remote = remoteAddress(status.remoteUrl, credentials.address)
-        if (remote == credentials.remoteAddress || this.credentials != credentials) return
+        // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
+        val now = this.credentials ?: return
+        if (remote == now.remoteAddress || now.address != credentials.address || now.apiKey != credentials.apiKey) return
         if (saved) store.saveRemoteAddress(remote)
-        phase = Phase.SignedIn(credentials.copy(remoteAddress = remote))
+        phase = Phase.SignedIn(now.copy(remoteAddress = remote))
     }
 
     /** The server's remote address as a base URL, or null when it has none or it's the address already in use. */

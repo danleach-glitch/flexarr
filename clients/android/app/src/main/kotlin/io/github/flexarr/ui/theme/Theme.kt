@@ -33,6 +33,8 @@ object Flexarr {
     val silver = Color(0xFFA9C2EC)
     /** Errors: a soft coral that reads on the room without shouting. */
     val danger = Color(0xFFF08A7E)
+    /** On the phone, or a good match: the one green. */
+    val downloaded = Color(0xFF6FCF97)
 
     /** Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display. */
     val marquee = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))

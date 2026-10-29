@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shuffle
@@ -77,7 +78,13 @@ import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.LabeledAction
+import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.subtitles.SubtitleSearchSheet
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.ui.components.PersonCard
 import io.github.flexarr.ui.components.PillButton
 import io.github.flexarr.ui.components.PosterCard
@@ -207,7 +214,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 }
             }
         }
-        Actions(item, series, nextUp, season, ambient)
+        Actions(item, series, nextUp, season, ambient, detail)
         detail.overview?.takeIf { it.isNotEmpty() }?.let { overview ->
             Text(
                 overview,
@@ -224,8 +231,11 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
 
 /** Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named. */
 @Composable
-private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color) {
+private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail) {
     val navigator = LocalNavigator.current
+    // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
+    var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
+    var savedSubtitles by remember { mutableStateOf<String?>(null) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -261,7 +271,31 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             if (item.kind == MediaKind.Episode && series != null) {
                 LabeledAction("Show", Icons.Filled.VideoLibrary, { navigator.openItem(series.id) }, slot)
             }
+            val file = detail.files.firstOrNull()
+            if (detail.canSearchSubtitles == true && file != null) {
+                LabeledAction("Subtitles", Icons.Filled.ClosedCaption, { searchingSubtitlesFor = file.id }, slot.semantics { contentDescription = "Search for subtitles" })
+            }
         }
+    }
+    searchingSubtitlesFor?.let { fileId ->
+        SubtitleSearchSheet(
+            LocalClient.current,
+            item.id,
+            fileId,
+            onDownloaded = { saved ->
+                searchingSubtitlesFor = null
+                savedSubtitles = "${saved.label} subtitles saved"
+            },
+            onClose = { searchingSubtitlesFor = null },
+        )
+    }
+    savedSubtitles?.let { message ->
+        AlertDialog(
+            onDismissRequest = { savedSubtitles = null },
+            confirmButton = { TextButton(onClick = { savedSubtitles = null }) { Text("OK") } },
+            text = { Text(message) },
+            containerColor = Flexarr.seat,
+        )
     }
 }
 

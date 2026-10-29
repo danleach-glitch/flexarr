@@ -31,8 +31,13 @@ import io.github.flexarr.core.PlaybackPrompt
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
+import io.github.flexarr.core.SubtitleSyncState
 import io.github.flexarr.core.SubtitleTrack
+import io.github.flexarr.core.DownloadedSubtitles
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.prompt
+import io.github.flexarr.core.startSubtitleSync
+import io.github.flexarr.core.subtitleSync
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -45,7 +50,7 @@ import kotlin.math.ceil
  * Intro and Next Episode, and moves on to the next episode. The audio, subtitle, speed and sleep-timer menus act
  * through it. The iPhone app's PlaybackController, for the phone.
  */
-class PlaybackController(context: Context, private val model: AppModel, private val client: FlexarrClient, private val onClose: () -> Unit) {
+class PlaybackController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
@@ -99,6 +104,15 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         private set
     /** Opening the stream again (another audio track, moved subtitles): the menus wait for it. */
     var isReopening by mutableStateOf(false)
+        private set
+    /** A moment's message in the middle of the picture ("Re-syncing subtitles…"), counted so the same one shows again. */
+    var flash: Pair<String, Int>? by mutableStateOf(null)
+        private set
+    /** Searching for subtitles over the picture (paused meanwhile): the file searched for. */
+    var subtitleSearchFile: String? by mutableStateOf(null)
+        private set
+    /** A re-sync of this title's subtitle file to its audio is under way. */
+    var isResyncing by mutableStateOf(false)
         private set
 
     // The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode.
@@ -551,6 +565,105 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         scope.launch { runCatching { client.setPlaybackPreferences(saved) } }
     }
 
+    // Finding and re-syncing subtitles
+
+    /** The menu offers Search for subtitles: a server with Bazarr, for a title it manages. */
+    val canSearchSubtitles: Boolean get() = info?.canSearchSubtitles == true && info?.fileId != null
+
+    /** The subtitle file beside the video that's showing, which Re-sync to audio lines up; null for one inside it. */
+    val resyncableSubtitle: String?
+        get() = subtitleKey?.takeIf { key -> info?.subtitles?.any { it.key == key && it.isExternal == true } == true }
+
+    private var wasPlayingBeforeSearch = false
+    private var resync: Job? = null
+
+    /** The search over the picture, paused meanwhile. */
+    fun searchSubtitles() {
+        val current = info ?: return
+        if (subtitleSearchFile != null || !canSearchSubtitles) return
+        wasPlayingBeforeSearch = player.isPlaying
+        player.pause()
+        subtitleSearchFile = current.fileId
+    }
+
+    /** Subtitles chosen there are saved beside the file, and the title opens again where it was with them on. */
+    fun subtitlesDownloaded(saved: DownloadedSubtitles) {
+        subtitleSearchFile = null
+        Log.i("Flexarr", "Subtitles downloaded: ${saved.label} (${saved.key})")
+        viewerChoseSubtitle = true
+        viewerSubtitleKey = saved.key
+        reopen()
+    }
+
+    /** Closed with Done: playing carries on if it was. */
+    fun closeSubtitleSearch() {
+        subtitleSearchFile = null
+        if (wasPlayingBeforeSearch) player.play()
+    }
+
+    /**
+     * Asks the server to line the subtitle file [key] up with the audio, then follows it: when it's done the title
+     * opens again where it is (the file has changed), when it fails the viewer is told why. Playing carries on.
+     */
+    fun resyncSubtitles(key: String) {
+        val current = info ?: return
+        val itemId = current.item.id
+        val fileId = current.fileId ?: return
+        if (isResyncing) return
+        isResyncing = true
+        resync = scope.launch {
+            try {
+                try {
+                    client.startSubtitleSync(itemId, fileId, key)
+                } catch (e: FlexarrException.Http) {
+                    // One is already running for this file: follow that.
+                    if (e.status != 409) throw e
+                }
+                showFlash("Re-syncing subtitles…")
+                var misses = 0
+                // A film's re-sync takes a minute or more; given up on after half an hour.
+                repeat(600) {
+                    delay(3_000)
+                    val status = try {
+                        client.subtitleSync(itemId, fileId).also { misses = 0 }
+                    } catch (e: FlexarrException) {
+                        if (++misses >= 5) throw e
+                        return@repeat
+                    }
+                    when (status.state) {
+                        SubtitleSyncState.Running, SubtitleSyncState.Unknown -> return@repeat
+                        SubtitleSyncState.Done -> return@launch resyncDone(itemId, fileId, status.key ?: key)
+                        SubtitleSyncState.Failed -> return@launch resyncFailed(status.error ?: "The subtitles couldn’t be re-synced.")
+                        SubtitleSyncState.Idle -> return@launch resyncFailed("The re-sync stopped before it finished.")
+                    }
+                }
+                resyncFailed("The re-sync is taking too long. Try again later.")
+            } catch (e: FlexarrException) {
+                resyncFailed(e.message ?: "The subtitles couldn’t be re-synced.")
+            }
+        }
+    }
+
+    /** The re-sync finished: still watching that file, it opens again where it is with the re-synced subtitles on. */
+    private fun resyncDone(itemId: String, fileId: String, key: String) {
+        isResyncing = false
+        val current = info ?: return
+        if (current.item.id != itemId || current.fileId != fileId) return
+        showFlash("Subtitles re-synced")
+        viewerChoseSubtitle = true
+        viewerSubtitleKey = key
+        reopen()
+    }
+
+    private fun resyncFailed(message: String) {
+        isResyncing = false
+        showFlash(message)
+    }
+
+    private fun showFlash(text: String) {
+        flash = text to ((flash?.second ?: 0) + 1)
+    }
+
     // Speed
 
     /** A speed chosen in the menu. During an episode it's kept for its show (for this profile); a film's is for now. */
@@ -668,6 +781,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
         ticker?.cancel()
+        resync?.cancel()
         countdownJob?.cancel()
         sleep.set(null)
         val session = info?.sessionId
