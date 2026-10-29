@@ -586,8 +586,8 @@
         errorLine1="            if (total != null &amp;&amp; folder.usableSpace &lt; total - start + RESERVE_BYTES) throw NoRoom()"
         errorLine2="                                        ~~~~~~~~~~~">
         <location
-            file="src/main/kotlin/io/github/flexarr/downloads/DownloadWorker.kt"
-            line="106"
+            file="src/main/kotlin/io/github/flexarr/downloads/DownloadTransfer.kt"
+            line="117"
             column="41"/>
     </issue>
 

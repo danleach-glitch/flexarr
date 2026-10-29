@@ -83,6 +83,8 @@ import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
+import io.github.flexarr.ui.downloads.MusicDownloadButton
+import io.github.flexarr.ui.downloads.MusicDownloadSource
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -250,6 +252,8 @@ private fun MusicHeader(
     busy: Boolean = false,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    /** Beside Play and Shuffle: an album's or playlist's download button. */
+    extra: @Composable () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = Edge, end = Edge), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         art(Modifier)
@@ -260,6 +264,7 @@ private fun MusicHeader(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             ActionButton("Play", onClick = onPlay, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, enabled = canPlay && !busy)
             ActionButton("Shuffle", onClick = onShuffle, icon = Icons.Filled.Shuffle, ambient = ambient, enabled = canShuffle && !busy)
+            extra()
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
         }
     }
@@ -378,6 +383,7 @@ fun AlbumScreen(model: AppModel, id: String) {
                             canShuffle = tracks.size >= 2,
                             onPlay = { music.play(tracks, albums = listOf(item)) },
                             onShuffle = { music.play(tracks, shuffled = true, albums = listOf(item)) },
+                            extra = { MusicDownloadButton(model, MusicDownloadSource.Album(item, tracks)) },
                         )
                     }
                     if (tracks.isEmpty()) {
@@ -397,6 +403,7 @@ fun AlbumScreen(model: AppModel, id: String) {
                                             track, track.trackNumber ?: (offset + 1),
                                             isCurrent = music.current?.id == track.id, isPlaying = music.isPlaying,
                                             subtitle = track.trackArtist,
+                                            isDownloaded = model.downloads.isDownloaded(track.id),
                                         ) {
                                             if (music.current?.id == track.id) music.togglePlayPause()
                                             else music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
@@ -448,6 +455,7 @@ fun PlaylistScreen(model: AppModel, id: String) {
                             canShuffle = tracks.size >= 2,
                             onPlay = { music.play(tracks) },
                             onShuffle = { music.play(tracks, shuffled = true) },
+                            extra = { MusicDownloadButton(model, MusicDownloadSource.Playlist(summary, tracks)) },
                         )
                     }
                     if (tracks.isEmpty()) {
@@ -457,7 +465,7 @@ fun PlaylistScreen(model: AppModel, id: String) {
                     state.value.tracks.forEachIndexed { index, entry ->
                         item(key = entry.entryId) {
                             Box(Modifier.padding(horizontal = Edge - 8.dp).padding(top = if (index == 0) 20.dp else 0.dp)) {
-                                TrackRow(entry.track, index + 1, isCurrent = music.current?.id == entry.track.id, isPlaying = music.isPlaying, subtitle = entry.track.artistName) {
+                                TrackRow(entry.track, index + 1, isCurrent = music.current?.id == entry.track.id, isPlaying = music.isPlaying, subtitle = entry.track.artistName, isDownloaded = model.downloads.isDownloaded(entry.track.id)) {
                                     if (music.current?.id == entry.track.id) music.togglePlayPause() else music.play(tracks, start = index)
                                 }
                             }

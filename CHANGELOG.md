@@ -26,6 +26,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A fresh install opens on three welcome pages saying what Flexarr is, how to set up the free server and how the app finds it.
 - When Android allows notifications but your phone isn't getting them from this server, Settings offers Turn on notifications.
 - Settings has Rate Flexarr, which opens the app's Google Play page, and now and then, after you've watched something to the end, Google Play may ask how you're finding Flexarr.
+- Download albums and playlists on Android, as on iPhone: the download button beside Play and Shuffle fetches every track, Downloads has a Music section, downloaded tracks and albums carry a green arrow, and they play from the phone with no connection. What you listen to offline counts once you're back.
+- On Android 14 and later, downloads you start (including from a notification's Download button) keep going for hours with the app closed, rather than stalling when Android limits background work. They show in Android's list of running apps, where you can stop them.
 
 ## 0.54.0 · 29 October 2026
 

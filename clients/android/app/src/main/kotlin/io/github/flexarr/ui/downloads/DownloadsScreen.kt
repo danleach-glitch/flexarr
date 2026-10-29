@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,19 +87,22 @@ import kotlinx.coroutines.launch
 // The iPhone app's DownloadsView: everything downloaded (or on its way), playable with no connection; and the download
 // button a title's page and a podcast episode's row carry.
 
-/** Films, then each show's episodes, then podcast episodes, with the space they take. */
+/** Films, then each show's episodes, then albums and playlists, then podcast episodes, with the space they take. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(model: AppModel) {
     val store = model.downloads
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
+    // A downloaded album or playlist opens over the list, and Back returns to it.
+    var opened by rememberSaveable { mutableStateOf<String?>(null) }
+    opened?.let { id -> return OfflineCollectionScreen(model, id, onBack = { opened = null }) }
     RoomBackground(ambient = null) {
         Column {
             PageTitle("Downloads")
-            if (store.downloads.isEmpty()) {
+            if (store.downloads.isEmpty() && store.musicCollections.isEmpty()) {
                 StatusView(
-                    "Download films, episodes and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
+                    "Download films, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
                     empty = true,
                 )
                 return@Column
@@ -116,6 +120,7 @@ fun DownloadsScreen(model: AppModel) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     section("Films", store.films) { DownloadRow(model, it) }
                     store.shows.forEach { (show, episodes) -> section(show, episodes) { DownloadRow(model, it) } }
+                    section("Music", store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
                     section("Podcasts", store.podcastEpisodes) { PodcastDownloadRow(model, it) }
                     item {
                         Text(
@@ -131,7 +136,7 @@ fun DownloadsScreen(model: AppModel) {
     }
 }
 
-private fun LazyListScope.section(title: String, downloads: List<LocalDownload>, row: @Composable (LocalDownload) -> Unit) {
+private fun <T> LazyListScope.section(title: String, downloads: List<T>, row: @Composable (T) -> Unit) {
     if (downloads.isEmpty()) return
     item(key = "heading-$title") { SectionHeading(title) }
     item(key = "rows-$title") {
@@ -265,7 +270,7 @@ fun DownloadStateIcon(download: LocalDownload?, waitingForWiFi: Boolean, size: D
 
 /** How much of a file has come down, as a ring that fills, with a stop square in the middle. */
 @Composable
-private fun DownloadRing(fraction: Float) {
+internal fun DownloadRing(fraction: Float) {
     Canvas(Modifier.fillMaxSize().padding(1.dp)) {
         val stroke = 2.dp.toPx()
         val inset = stroke / 2
