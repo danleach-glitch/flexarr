@@ -77,6 +77,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.Paged
 import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
@@ -199,6 +200,58 @@ internal val Library.icon
 
 private const val PAGE_SIZE = 60
 
+/** The most titles the server sends for one request. */
+private const val MAX_PAGE_SIZE = 500
+
+/**
+ * The titles a list already shows, fetched again ([refetch]): what's been added since is in it, and what's gone isn't.
+ * [offset] is how far down the list the pages reached.
+ */
+internal class Refetched(val items: List<ItemSummary>, val offset: Int, val total: Int, private val wanted: Int) {
+    /** That's the whole list now: anything past it has gone. */
+    val complete: Boolean get() = offset >= total
+
+    /** Every title that was shown came back (or the list is shorter now), so the list is up to date. */
+    val upToDate: Boolean get() = offset >= wanted || complete
+
+    /**
+     * The list to show in place of [shown] (as it is now, with any page added meanwhile): the fetched titles, then
+     * whatever the pages didn't reach (one failed, or more were added) as it was, so the scroll position stays put.
+     */
+    fun replacing(shown: List<ItemSummary>): List<ItemSummary> {
+        if (complete) return items
+        val known = items.mapTo(HashSet()) { it.id }
+        return items + shown.drop(offset).filter { it.id !in known }
+    }
+}
+
+/**
+ * Fetches the first [count] titles of a list again, a page of at most [MAX_PAGE_SIZE] at a time, as the iPhone's
+ * library does after playback or a while away. Null when not even the first page came back.
+ */
+internal suspend fun refetch(count: Int, page: suspend (skip: Int, take: Int) -> Paged<ItemSummary>): Refetched? {
+    val wanted = maxOf(count, PAGE_SIZE)
+    val fetched = mutableListOf<ItemSummary>()
+    val known = HashSet<String>()
+    var offset = 0
+    var total: Int? = null
+    while (offset < wanted) {
+        val next = try {
+            page(offset, minOf(wanted - offset, MAX_PAGE_SIZE))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            break
+        }
+        offset += next.items.size
+        // A title added or removed between pages can shift one into the next: it's listed once.
+        next.items.filterTo(fetched) { known.add(it.id) }
+        total = next.total
+        if (next.items.isEmpty() || offset >= next.total) break
+    }
+    return total?.let { Refetched(fetched, offset, it, wanted) }
+}
+
 private enum class Showing { All, Genres }
 
 /**
@@ -249,16 +302,19 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
         loading = false
     }
 
-    // After playback or watched changes, fetch what's on screen again so badges update, keeping the scroll position.
-    LaunchedEffect(model.watchStateVersion, staleVersion) {
+    // After playback or watched changes, or a while away, fetch what's on screen again so badges update and titles
+    // added or removed since show so, keeping the scroll position.
+    LaunchedEffect(libraryId, sort, genre, model.watchStateVersion, staleVersion) {
         if (items.isEmpty()) return@LaunchedEffect
-        runCatching { client.libraryItems(libraryId, sort, genre, skip = 0, take = items.size.coerceIn(PAGE_SIZE, 500)) }
-            .onSuccess { page ->
-                val fresh = page.items.associateBy { it.id }
-                items.replaceAll { fresh[it.id] ?: it }
-                total = page.total
-                loadedAt = System.currentTimeMillis()
-            }
+        val fresh = refetch(items.size) { skip, take -> client.libraryItems(libraryId, sort, genre, skip = skip, take = take) }
+            ?: return@LaunchedEffect
+        val replaced = fresh.replacing(items)
+        if (replaced != items) {
+            items.clear()
+            items.addAll(replaced)
+        }
+        total = fresh.total
+        if (fresh.upToDate) loadedAt = System.currentTimeMillis()
     }
 
     fun loadMoreIfNeeded(index: Int) {

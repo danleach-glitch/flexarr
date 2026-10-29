@@ -40,6 +40,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
 - Download on a film's or episode's page starts straight away at your size from Settings › Downloads, as on iPhone, rather than first asking which size. Tapping one that's here offers Remove download.
 - Downloads the phone starts by itself (the next episode, new podcast episodes) aren't asked of the server until the phone is on Wi-Fi, when Settings keeps them to Wi-Fi, so the server doesn't get ready what can't come yet. They also hold off while Data Saver is on, as on iPhone in Low Data Mode.
+- flexarr:// links from other apps and the browser open the Android app, as they do the iPhone app: a title's link opens its page, a Live TV channel's opens the guide, and one naming a profile opens "Who's watching?" (asking for its PIN, if it has one). A link from another app never starts anything playing by itself.
+- A library's list keeps up with the server, as on iPhone: when it refreshes after you've watched something or been away a while, titles removed since disappear and new ones appear, rather than only the badges updating.
 
 ### iPhone and Apple TV
 - Away from home, the apps only use a secure (https or Tailscale) remote address, and only once they've checked the same server answers there.

@@ -67,8 +67,8 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     /** Plays a film or episode from where it was left (or from the beginning). */
     fun play(item: ItemSummary, fromBeginning: Boolean = false) = play(item.id, fromBeginning)
 
-    fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false) {
-        context.startActivity(PlayerActivity.intent(context, itemId, fromBeginning, shuffle))
+    fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Int? = null) {
+        context.startActivity(PlayerActivity.intent(context, itemId, fromBeginning, shuffle, startAt))
     }
 
     /** A film plays; a show or season plays the episode it's up to, or opens when everything's watched. */
