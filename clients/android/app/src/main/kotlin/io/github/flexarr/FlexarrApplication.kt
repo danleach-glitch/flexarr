@@ -31,6 +31,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         ErrorReports.resume(this, signIn?.address)
         model = AppModel(this, signIn)
         FlexarrMessagingService.createChannels(this)
+        ReviewPrompt.start(this)
         // Commands from other devices are taken while the app is in front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) = model.listenForCommands()
