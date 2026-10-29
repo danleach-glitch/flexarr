@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.ServerAddresses
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -19,9 +20,11 @@ data class ServerCredentials(
     val apiKey: String,
     /** Who's watching; null until someone chooses (the server then acts as the main profile). */
     val profileToken: String? = null,
+    /** The server's address for away from home (over Tailscale), once it has remote access turned on. */
+    val remoteAddress: String? = null,
 ) {
     fun client(onUnauthorized: (() -> Unit)? = null) = FlexarrClient(
-        baseUrl = address.toHttpUrlOrNull()!!,
+        addresses = ServerAddresses.shared(address.toHttpUrlOrNull()!!, remoteAddress?.toHttpUrlOrNull()),
         apiKey = apiKey.ifEmpty { null },
         profileToken = profileToken,
         onUnauthorized = onUnauthorized,
@@ -39,7 +42,7 @@ class CredentialStore(context: Context) {
         val address = prefs.getString(ADDRESS, null) ?: return null
         // A token that can't be read back (the Keystore key was reset) leaves the address, so connecting again is quick.
         val key = prefs.getString(API_KEY, null)?.let { runCatching { decrypt(it) }.getOrNull() } ?: return null
-        return ServerCredentials(address, key, prefs.getString(PROFILE, null))
+        return ServerCredentials(address, key, prefs.getString(PROFILE, null), prefs.getString(REMOTE, null))
     }
 
     /** The last address used, kept after sign-out so the connect screen can prefill it. */
@@ -51,7 +54,13 @@ class CredentialStore(context: Context) {
             .putString(LAST_ADDRESS, credentials.address)
             .putString(API_KEY, encrypt(credentials.apiKey))
             .putString(PROFILE, credentials.profileToken)
+            .putString(REMOTE, credentials.remoteAddress)
             .apply()
+    }
+
+    /** Keeps the server's address for away from home in step with what it says. */
+    fun saveRemoteAddress(address: String?) {
+        prefs.edit().putString(REMOTE, address).apply()
     }
 
     /** Remembers who's watching. The token only works alongside the device's own, so it isn't encrypted. */
@@ -60,7 +69,7 @@ class CredentialStore(context: Context) {
     }
 
     fun clear() {
-        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).apply()
+        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(REMOTE).apply()
     }
 
     private fun secretKey(): SecretKey {
@@ -95,6 +104,7 @@ class CredentialStore(context: Context) {
         const val LAST_ADDRESS = "address.last"
         const val API_KEY = "apiKey"
         const val PROFILE = "profile"
+        const val REMOTE = "address.remote"
         const val KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "flexarr.server"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

@@ -1,8 +1,15 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -20,7 +27,12 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -48,15 +60,28 @@ sealed class FlexarrException(message: String) : Exception(message) {
 /**
  * Talks to a Flexarr server's `/api/v1` REST API, as FlexarrKit's FlexarrClient does for the Apple apps.
  * [apiKey] is this device's own token (or the server's key); [profileToken] who's watching (null acts as the main profile).
+ * [addresses] is where the server is reached, at home or away (see [ServerAddresses]).
  */
 class FlexarrClient(
-    val baseUrl: HttpUrl,
+    val addresses: ServerAddresses,
     val apiKey: String? = null,
     val profileToken: String? = null,
     private val http: OkHttpClient = sharedHttp,
     /** Called whenever the server answers 401, so the app can notice its saved sign-in has stopped working. */
     private val onUnauthorized: (() -> Unit)? = null,
 ) {
+    /** A client for a server with only the one address. */
+    constructor(
+        baseUrl: HttpUrl,
+        apiKey: String? = null,
+        profileToken: String? = null,
+        http: OkHttpClient = sharedHttp,
+        onUnauthorized: (() -> Unit)? = null,
+    ) : this(ServerAddresses(baseUrl, null), apiKey, profileToken, http, onUnauthorized)
+
+    /** The address in use now: streams and artwork are resolved against it. */
+    val baseUrl: HttpUrl get() = addresses.current
+
     // System
 
     suspend fun systemStatus(): SystemStatus = get("system/status")
@@ -212,24 +237,48 @@ class FlexarrClient(
         return withContext(Dispatchers.Default) { decode(serializer<T>(), text) }
     }
 
-    /** The answer's text. Off the main thread throughout: Android refuses network reads on it, the body's included. */
-    internal suspend fun send(method: String, path: String, query: Map<String, String> = emptyMap(), body: String? = null): String =
-        withContext(Dispatchers.IO) { exchange(method, path, query, body) }
+    /**
+     * The answer's text. Off the main thread throughout: Android refuses network reads on it, the body's included.
+     * [racesAlternate]: false for a GET that is slow by nature (a subtitle search), so waiting on it never sends the
+     * same work to the other address too.
+     */
+    internal suspend fun send(
+        method: String,
+        path: String,
+        query: Map<String, String> = emptyMap(),
+        body: String? = null,
+        racesAlternate: Boolean = true,
+        http: OkHttpClient = this.http,
+    ): String = withContext(Dispatchers.IO) { exchange(method, path, query, body, racesAlternate, http) }
 
-    private suspend fun exchange(method: String, path: String, query: Map<String, String>, body: String?): String {
-        val url = baseUrl.newBuilder().addPathSegments("api/v1/$path").apply {
+    private fun request(method: String, path: String, query: Map<String, String>, body: String?, base: HttpUrl): Request {
+        val url = base.newBuilder().addPathSegments("api/v1/$path").apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
-        val request = Request.Builder().url(url).header("Accept", "application/json").apply {
-            apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
-            profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
-            deviceType?.let { header("X-Flexarr-Device", it) }
+        return Request.Builder().url(url).header("Accept", "application/json").apply {
+            signIn()
             val requestBody = body?.toRequestBody(jsonType) ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null
             method(method, requestBody)
         }.build()
+    }
 
+    /** This device's sign-in, who's watching and what it is, on any request to the server. */
+    internal fun Request.Builder.signIn(): Request.Builder = apply {
+        apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
+        profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
+        deviceType?.let { header("X-Flexarr-Device", it) }
+    }
+
+    private suspend fun exchange(
+        method: String,
+        path: String,
+        query: Map<String, String>,
+        body: String?,
+        racesAlternate: Boolean,
+        http: OkHttpClient,
+    ): String {
         val response = try {
-            http.newCall(request).await()
+            reach(method, path, query, body, racesAlternate, http)
         } catch (e: IOException) {
             throw FlexarrException.Unreachable(e)
         }
@@ -248,6 +297,88 @@ class FlexarrClient(
                 }
                 else -> throw FlexarrException.Http(it.code, problemMessage(text))
             }
+        }
+    }
+
+    /**
+     * Sends the request to the address that answered last. With a second address, a GET that can't connect to the
+     * first (or hasn't heard back after [ServerAddresses.ALTERNATE_DELAY_MS]) is also sent there and the first answer
+     * wins; anything else only moves over once the first address has failed to connect, so a write is never sent
+     * twice. Whichever address answers is used from then on.
+     */
+    private suspend fun reach(
+        method: String,
+        path: String,
+        query: Map<String, String>,
+        body: String?,
+        racesAlternate: Boolean,
+        http: OkHttpClient,
+    ): Response {
+        val primary = addresses.current
+        val first = request(method, path, query, body, primary)
+        val alternate = addresses.alternate(primary) ?: return http.newCall(first).await()
+        val second = request(method, path, query, body, alternate)
+        val (response, reached) = if (method == "GET" && racesAlternate) {
+            race(http, first to primary, second to alternate)
+        } else {
+            try {
+                http.newCall(first).await() to primary
+            } catch (e: IOException) {
+                if (!couldNotConnect(e)) throw e
+                http.newCall(second).await() to alternate
+            }
+        }
+        addresses.reached(reached)
+        checkHomeIfDue(http)
+        return response
+    }
+
+    /**
+     * Both requests at once, the second starting after a moment (or at once, if the first can't connect). The first
+     * answer wins, and the other is cancelled. An answer that isn't a connection problem from the first address ends
+     * it: the other address wouldn't say anything different.
+     */
+    private suspend fun race(
+        http: OkHttpClient,
+        first: Pair<Request, HttpUrl>,
+        second: Pair<Request, HttpUrl>,
+    ): Pair<Response, HttpUrl> = coroutineScope {
+        val answers = Channel<Pair<HttpUrl, Result<Response>>>(capacity = 2)
+        val firstFailed = CompletableDeferred<Unit>()
+        val jobs = listOf(
+            launch {
+                val result = runCatching { http.newCall(first.first).await() }
+                if (result.exceptionOrNull()?.let { it is IOException && couldNotConnect(it) } == true) firstFailed.complete(Unit)
+                answers.send(first.second to result)
+            },
+            launch {
+                withTimeoutOrNull(ServerAddresses.ALTERNATE_DELAY_MS) { firstFailed.await() }
+                answers.send(second.second to runCatching { http.newCall(second.first).await() })
+            },
+        )
+        try {
+            repeat(2) {
+                val (url, result) = answers.receive()
+                result.onSuccess { return@coroutineScope it to url }
+                val error = result.exceptionOrNull()!!
+                if (url == first.second && !(error is IOException && couldNotConnect(error))) throw error
+            }
+            throw ConnectException("Neither of the server's addresses answered.")
+        } finally {
+            jobs.forEach { it.cancel() }
+            // An answer that came in second isn't wanted.
+            answers.close()
+            while (true) answers.tryReceive().getOrNull()?.second?.getOrNull()?.close() ?: break
+        }
+    }
+
+    /** While away, sees every few minutes whether home answers again, and goes back to it when it does. */
+    private fun checkHomeIfDue(http: OkHttpClient) {
+        if (!addresses.shouldCheckHome()) return
+        val probe = request("GET", "system/status", emptyMap(), null, addresses.home)
+        val quick = http.newBuilder().callTimeout(5, TimeUnit.SECONDS).build()
+        background.launch {
+            runCatching { quick.newCall(probe).await().use { if (it.code == 200) addresses.reached(addresses.home) } }
         }
     }
 
@@ -284,6 +415,14 @@ class FlexarrClient(
         }
 
         private val jsonType = "application/json".toMediaType()
+
+        /** For checks nobody waits on (whether home answers again). */
+        private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /** The address didn't answer at all (as opposed to answering with an error, or the request being cancelled). */
+        internal fun couldNotConnect(error: IOException): Boolean =
+            error is ConnectException || error is UnknownHostException || error is NoRouteToHostException ||
+                error is SocketTimeoutException || error is SSLException
 
         /** One connection pool for the whole app; clients for different sign-ins share it. */
         val sharedHttp: OkHttpClient = OkHttpClient.Builder()

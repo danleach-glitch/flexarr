@@ -106,7 +106,12 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
             }
             item {
                 Group {
-                    val host = model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
+                    // With an address for away from home, which of the two it's using; otherwise the server's name.
+                    val host = if (model.credentials?.remoteAddress != null) {
+                        if (model.client?.addresses?.isAway == true) "Away" else "At home"
+                    } else {
+                        model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
+                    }
                     SettingsLink("Server", Icons.Filled.Dns, value = host, onClick = onServer)
                 }
             }
@@ -142,6 +147,9 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
     }
 }
 
+/** "192.168.1.20:8383" for "http://192.168.1.20:8383/". */
+private fun shortAddress(address: String?): String = address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/')
+
 /** Address, server version and what it runs on. */
 @Composable
 fun ServerSettingsScreen(model: AppModel) {
@@ -154,8 +162,21 @@ fun ServerSettingsScreen(model: AppModel) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
             item { PageTitle("Server", onBack = { navigator.back() }) }
             item {
-                Group(footer = "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Access on the web.") {
-                    Fact("Address", model.credentials?.address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/'))
+                val remote = model.credentials?.remoteAddress
+                Group(
+                    footer = if (remote == null) {
+                        "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Access on the web; this phone picks the address up by itself."
+                    } else {
+                        "Away from home, this phone reaches the server over Tailscale, which needs to be connected on it."
+                    },
+                ) {
+                    Fact("Address", shortAddress(model.credentials?.address))
+                    if (remote != null) {
+                        Divider()
+                        Fact("Away from home", shortAddress(remote))
+                        Divider()
+                        Fact("Connected", if (client.addresses.isAway) "Away, over Tailscale" else "At home")
+                    }
                 }
             }
             item {

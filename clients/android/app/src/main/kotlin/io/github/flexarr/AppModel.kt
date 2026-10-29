@@ -106,7 +106,9 @@ class AppModel(private val context: Context) {
     suspend fun connect(address: String, apiKey: String) {
         val url = FlexarrClient.normalizeAddress(address) ?: throw FlexarrException.InvalidAddress()
         var credentials = ServerCredentials(url.toString(), apiKey.trim())
-        credentials.client().systemStatus()
+        // The server's address for away from home comes with its status; it's kept beside this one.
+        val status = credentials.client().systemStatus()
+        credentials = credentials.copy(remoteAddress = remoteAddress(status.remoteUrl, credentials.address))
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -126,6 +128,28 @@ class AppModel(private val context: Context) {
         signedOutNotice = null
         phase = Phase.SignedIn(credentials)
     }
+
+    /** Set once this launch has asked the server for its address for away from home. */
+    private var remoteChecked = false
+
+    /**
+     * Keeps the saved address for away from home in step with the server's (remote access turned on or off since, or
+     * a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
+     */
+    suspend fun refreshRemoteAddress() {
+        val credentials = credentials ?: return
+        if (remoteChecked) return
+        remoteChecked = true
+        val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
+        val remote = remoteAddress(status.remoteUrl, credentials.address)
+        if (remote == credentials.remoteAddress || this.credentials != credentials) return
+        if (saved) store.saveRemoteAddress(remote)
+        phase = Phase.SignedIn(credentials.copy(remoteAddress = remote))
+    }
+
+    /** The server's remote address as a base URL, or null when it has none or it's the address already in use. */
+    private fun remoteAddress(remoteUrl: String?, address: String): String? =
+        remoteUrl?.let { FlexarrClient.normalizeAddress(it)?.toString() }?.takeIf { it != address }
 
     fun signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
