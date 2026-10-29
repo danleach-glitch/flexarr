@@ -33,6 +33,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
 - Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
 
+### iPhone and Apple TV
+- Away from home, the apps only use a secure (https or Tailscale) remote address, and only once they've checked the same server answers there.
+
 ## 0.54.0 · 29 October 2026
 
 ### Podcasts

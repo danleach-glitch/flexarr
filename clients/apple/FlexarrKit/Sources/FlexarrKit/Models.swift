@@ -85,6 +85,9 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     /// Whether the server's owner has turned on error reports (to Sentry) for the apps. Absent from older servers,
     /// which means off.
     public var errorReports: ErrorReportSetting?
+    /// The server's own random id, which `FlexarrClient.serverId(at:)` asks another address for before the app sends
+    /// its sign-in there. Absent from servers before 0.55.
+    public var serverId: String? = nil
 }
 
 /// The server's error-report switch, which the apps follow: off unless the owner turned it on.
@@ -699,6 +702,8 @@ public struct SetupStatus: Decodable, Sendable, Equatable {
     public let open: Bool
     /// Setting up asks for the code in the server's log. Absent from servers before 0.52, which don't.
     public var codeRequired: Bool? = nil
+    /// The server's id, as `SystemStatus.serverId`; anyone may ask for it. Absent from servers before 0.55.
+    public var serverId: String? = nil
 }
 
 public struct PairingStatus: Decodable, Sendable, Equatable {
