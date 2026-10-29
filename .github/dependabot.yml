@@ -25,3 +25,10 @@ updates:
   - package-ecosystem: swift
     directory: /clients/apple/FlexarrKit
     schedule: { interval: weekly }
+  # The Apple apps' own packages are pinned in clients/apple/project.yml, which Dependabot can't read:
+  # .github/workflows/pins.yml covers those.
+  - package-ecosystem: gradle # clients/android/gradle/libs.versions.toml
+    directory: /clients/android
+    schedule: { interval: weekly }
+    groups:
+      android: { patterns: ["*"] }
