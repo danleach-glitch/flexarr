@@ -111,6 +111,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** Searching for subtitles over the picture (paused meanwhile): the file searched for. */
     var subtitleSearchFile: String? by mutableStateOf(null)
         private set
+    /** This session's scrubbing previews, once the server has made them. */
+    var previews: TrickplayPreviews? by mutableStateOf(null)
+        private set
     /** A re-sync of this title's subtitle file to its audio is under way. */
     var isResyncing by mutableStateOf(false)
         private set
@@ -275,6 +278,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     private fun begin(started: PlaybackInfo) {
         val sameTitle = info?.item?.id == started.item.id
+        previews?.close()
+        previews = TrickplayPreviews(client, started.sessionId, scope)
         info = started
         error = null
         preferences = started.preferences ?: PlaybackPreferences()
@@ -782,6 +787,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun close() {
         ticker?.cancel()
         resync?.cancel()
+        previews?.close()
         countdownJob?.cancel()
         sleep.set(null)
         val session = info?.sessionId

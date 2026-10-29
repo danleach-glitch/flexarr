@@ -19,7 +19,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -65,6 +68,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -328,24 +332,44 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(Format.timestamp(shown), fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = Flexarr.screen, modifier = Modifier.width(64.dp))
-        Slider(
-            value = shown.toFloat().coerceIn(0f, duration.toFloat()),
-            onValueChange = {
-                scrubbing = true
-                scrubTo = it
-                onInteract()
-            },
-            onValueChangeFinished = {
-                controller.seekTo(scrubTo.toDouble())
-                scrubbing = false
-            },
-            valueRange = 0f..duration.toFloat(),
-            colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
-            modifier = Modifier.weight(1f),
-        )
+        BoxWithConstraints(Modifier.weight(1f)) {
+            Slider(
+                value = shown.toFloat().coerceIn(0f, duration.toFloat()),
+                onValueChange = {
+                    scrubbing = true
+                    scrubTo = it
+                    onInteract()
+                },
+                onValueChangeFinished = {
+                    controller.seekTo(scrubTo.toDouble())
+                    scrubbing = false
+                },
+                valueRange = 0f..duration.toFloat(),
+                colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            // While scrubbing, the picture at the head's place, above it, as on iPhone.
+            val previews = controller.previews
+            if (scrubbing && previews != null && previews.isAvailable) {
+                previews.version // Read so a sheet arriving draws the picture.
+                val image = previews.image(scrubTo.toDouble())
+                val width = PREVIEW_WIDTH
+                val height = width / previews.aspectRatio
+                val fraction = (scrubTo / duration.toFloat()).coerceIn(0f, 1f)
+                val x = (maxWidth * fraction - width / 2).coerceIn(0.dp, (maxWidth - width).coerceAtLeast(0.dp))
+                Box(
+                    Modifier.offset(x = x, y = -height - 8.dp).size(width, height).clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black).border(1.dp, Flexarr.screen.copy(alpha = 0.6f), RoundedCornerShape(8.dp)),
+                ) {
+                    image?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                }
+            }
+        }
         Text("−" + Format.timestamp((controller.duration - shown).coerceAtLeast(0.0)), fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = Flexarr.screen, modifier = Modifier.width(72.dp))
     }
 }
+
+private val PREVIEW_WIDTH = 176.dp
 
 /** A round button on translucent dark glass with a hairline edge, so it reads over any picture. */
 @Composable
