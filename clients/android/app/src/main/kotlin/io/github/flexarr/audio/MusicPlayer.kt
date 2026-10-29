@@ -29,6 +29,7 @@ import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.PlaybackMethod
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.artistName
@@ -37,6 +38,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 
 private val flexarrLog = FlexarrLog("music")
 
@@ -48,8 +50,9 @@ internal val appInFront: Boolean
  * Plays a queue of tracks through one player: each track is its own server session (started as it comes up, reported
  * on as it plays, ended as it finishes), so the server's history and stream limits see music the way they see video.
  * Lives for the app's lifetime so music carries on while the listener browses, and [AudioService] puts it on the lock
- * screen, in the notification shade and on headphones. The iPhone app's MusicPlayer, for music (podcasts have their
- * own [PodcastPlayer] here).
+ * screen, in the notification shade and on headphones. A downloaded track plays from its file instead, with no session
+ * (and no connection needed); what's heard of it is kept with the download, to be told to the server later. The iPhone
+ * app's MusicPlayer, for music (podcasts have their own [PodcastPlayer] here).
  */
 @OptIn(UnstableApi::class)
 class MusicPlayer(private val context: Context, private val model: AppModel) {
@@ -131,6 +134,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         private set
     var errorMessage: String? by mutableStateOf(null)
         private set
+    /** The current track is playing from the phone's own copy. */
+    var isPlayingOffline by mutableStateOf(false)
+        private set
 
     private var client: FlexarrClient? = null
     /** The queue as it was given, for turning shuffle back off. */
@@ -163,7 +169,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
 
         override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_ENDED && sessionId != null) trackEnded()
+            if (state == Player.STATE_ENDED && (sessionId != null || isPlayingOffline)) trackEnded()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -184,7 +190,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
      */
     fun play(tracks: List<ItemSummary>, start: Int = 0, shuffled: Boolean = false, albums: List<ItemSummary> = emptyList()) {
         if (tracks.isEmpty()) return
-        client = model.client ?: return
+        // Signed out by the server, downloaded tracks still play.
+        client = model.client ?: if (tracks.any { model.downloads.isDownloaded(it.id) }) null else return
         original = tracks
         albumTitles = albums.associate { it.id to it.title }
         isShuffled = shuffled
@@ -207,7 +214,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     fun resume() {
         if (current == null) return
         // Stopped for a failure (or the end of the queue): ask for the track again.
-        if (sessionId == null || player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) startCurrent() else player.play()
+        if ((sessionId == null && !isPlayingOffline) || player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) startCurrent() else player.play()
     }
 
     fun next() {
@@ -268,6 +275,11 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     fun stop() {
         if (queue.isEmpty()) return
         generation++
+        // A downloaded track playing with no session keeps its place on the phone, as one streamed does on the server.
+        val track = current
+        if (isPlayingOffline && model.recordsHistory && track != null && player.currentPosition > 0) {
+            model.downloads.record(track.id, player.currentPosition / 1000.0, finished = false)
+        }
         endSession()
         player.stop()
         player.clearMediaItems()
@@ -287,7 +299,6 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     private fun startCurrent() {
         val track = current ?: return
-        val client = client ?: return
         generation++
         val mine = generation
         endSession()
@@ -301,6 +312,14 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         errorMessage = null
         spectrum.reset()
         AudioService.start(context)
+        val download = model.downloads.entry(track.id)?.takeIf { it.isDownloaded }
+        val file = download?.let(model.downloads::file)
+        if (download != null && file != null) return startDownloaded(track, download, file)
+        isPlayingOffline = false
+        val client = client ?: run {
+            isLoading = false
+            return
+        }
         scope.launch {
             try {
                 // Tracks always start over: a half-heard song isn't resumed the way a film is.
@@ -326,6 +345,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     .apply { if (info.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
                     .build()
                 player.setMediaItem(item)
+                player.setWakeMode(C.WAKE_MODE_NETWORK)
                 player.prepare()
                 player.play()
                 lastReport = System.currentTimeMillis()
@@ -340,6 +360,33 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
+    /** Downloaded: its file and its saved cover, no session (and no connection needed). Tracks always start over. */
+    private fun startDownloaded(track: ItemSummary, download: LocalDownload, file: File) {
+        isPlayingOffline = true
+        if (download.durationSeconds > 0) duration = download.durationSeconds
+        val item = MediaItem.Builder()
+            .setUri(Uri.fromFile(file))
+            .setMediaId(track.id)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artistName)
+                    .setAlbumTitle(albumTitle(track))
+                    .setArtworkUri(model.downloads.image(download)?.let(Uri::fromFile))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                    .build(),
+            )
+            .build()
+        player.setMediaItem(item)
+        // The phone's own copy: no Wi-Fi to keep awake.
+        player.setWakeMode(C.WAKE_MODE_LOCAL)
+        player.prepare()
+        player.play()
+        isLoading = false
+        lastReport = System.currentTimeMillis()
+        startTicking()
+    }
+
     /**
      * Follows the track while it plays: a few times a second with the app in front, once a second behind it (only the
      * reports need it then). Paused, nothing moves but a seek, which sets the place itself.
@@ -348,7 +395,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         if (ticker?.isActive == true) return
         ticker = scope.launch {
             while (isActive) {
-                if (sessionId != null && player.playbackState != Player.STATE_IDLE) {
+                if ((sessionId != null || isPlayingOffline) && player.playbackState != Player.STATE_IDLE) {
                     position = player.currentPosition / 1000.0
                     if (player.duration > 0) duration = player.duration / 1000.0
                 }
@@ -370,6 +417,11 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     /** Reports where the track got to and ends its session (best effort; the server times abandoned ones out). */
     private fun endSession() {
+        if (isPlayingOffline) {
+            isPlayingOffline = false
+            ticker?.cancel()
+            return
+        }
         val client = client ?: return
         val session = sessionId ?: return
         sessionId = null
@@ -383,6 +435,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     }
 
     private fun trackEnded() {
+        // Heard through with no session: the play goes to the server when there's a connection.
+        val track = current
+        if (isPlayingOffline && model.recordsHistory && track != null) model.downloads.record(track.id, 0.0, finished = true)
         report(paused = true, ended = true)
         when {
             repeatMode == RepeatMode.One -> startCurrent()

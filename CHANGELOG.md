@@ -16,6 +16,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Live TV guide opens quickly with hundreds of channels, and the app uses less battery in the background.
 - Moving on to the next episode during the credits marks the last one watched, and a "play on this phone" sent for another profile plays on that profile.
 - Away from home, the app only uses a secure (https or Tailscale) remote address, and an address you type for a server on the internet is tried over https first.
+- Download albums and playlists on Android, as on iPhone: the download button beside Play and Shuffle fetches every track, Downloads has a Music section, downloaded tracks and albums carry a green arrow, and they play from the phone with no connection. What you listen to offline counts once you're back.
 
 ## 0.54.0 · 29 October 2026
 
