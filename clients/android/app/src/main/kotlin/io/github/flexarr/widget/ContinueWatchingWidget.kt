@@ -98,7 +98,7 @@ class ContinueWatchingWidget : GlanceAppWidget() {
         fun keptPicture(id: String): Bitmap? = pictureFile(id).takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }
         val fresh = runCatching {
             val client = credentials.client()
-            val items = client.home().rows.firstOrNull { it.id == "continue" }?.items.orEmpty().take(MAX)
+            val items = client.continueWatching(take = MAX)
             // A title already showing keeps the picture saved for it: only new ones are fetched.
             items.map { item -> Shown(entry(item), keptPicture(item.id) ?: picture(context, client, item)) }
         }.onFailure { log.info("Couldn't update Continue Watching on the home screen", it) }.getOrNull()

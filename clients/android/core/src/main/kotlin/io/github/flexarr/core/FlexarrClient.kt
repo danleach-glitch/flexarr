@@ -119,6 +119,9 @@ class FlexarrClient(
 
     suspend fun home(): Home = get("home")
 
+    /** Just the Continue watching row, for the home-screen widget. */
+    suspend fun continueWatching(take: Int): List<ItemSummary> = get("home/continue", mapOf("take" to "$take"))
+
     suspend fun item(id: String): ItemDetail = get("items/$id")
 
     suspend fun similar(id: String): List<ItemSummary> = get("items/$id/similar")
