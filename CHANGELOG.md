@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Settings
+- Settings › Access shows each phone, tablet and TV with its own icon, and says what it is (an iPhone, an Android TV) when you point at it, once its app is up to date.
+
 ### Home
 - When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.
 
