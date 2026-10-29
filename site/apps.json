@@ -6,7 +6,7 @@
       "name": "Server + Web Player",
       "icon": "flexarr",
       "status": "available",
-      "version": "0.54.0",
+      "version": "0.55.0",
       "release": "server",
       "requires": "A computer at home that stays on: 64-bit Intel, AMD or ARM",
       "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],

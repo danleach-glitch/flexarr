@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.55.0 · 29 October 2026
 
 ### Music
 - Play and Shuffle on an artist, album, playlist or mix go straight to Now Playing, on the web, iPhone and Apple TV. Picking a single song still leaves you on the list. On Apple TV, starting music no longer drops you back on Home, and Menu on Now Playing takes you back to where you pressed Play.
