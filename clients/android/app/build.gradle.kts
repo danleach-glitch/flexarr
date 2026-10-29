@@ -1,8 +1,12 @@
+import com.github.triplet.gradle.androidpublisher.ResolutionStrategy
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.play.publisher)
 }
 
 // Notifications come through Firebase, set up from the Firebase project's google-services.json beside this file (its
@@ -12,9 +16,19 @@ if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google
 
 // The app's version is the server's (Directory.Build.props), so it isn't one more place release.sh has to change:
 // 0.52.0 is versionName "0.52.0" and versionCode 52000.
-val serverVersion: String = Regex("<VersionPrefix>([^<]+)</VersionPrefix>")
-    .find(rootDir.resolve("../../Directory.Build.props").readText())!!.groupValues[1]
+// -Pflexarr.version=0.53.0 builds as that version instead: Google Play builds from main between releases pass the next one.
+val serverVersion: String = providers.gradleProperty("flexarr.version").orNull
+    ?: Regex("<VersionPrefix>([^<]+)</VersionPrefix>")
+        .find(rootDir.resolve("../../Directory.Build.props").readText())!!.groupValues[1]
 val versionParts = serverVersion.split(".").map { it.toInt() }
+
+// Google Play builds are signed with the upload key, and Google signs what people download with the app's own key. The
+// keystore and its passwords stay out of the repo: ~/.flexarr-release/android-upload.properties (storeFile, storePassword,
+// keyAlias, keyPassword), or the file FLEXARR_ANDROID_SIGNING names. Without one, release builds come out unsigned.
+val uploadSigning = Properties().apply {
+    val path = System.getenv("FLEXARR_ANDROID_SIGNING") ?: "${System.getProperty("user.home")}/.flexarr-release/android-upload.properties"
+    File(path).takeIf { it.exists() }?.reader()?.use { load(it) }
+}
 
 android {
     namespace = "io.github.flexarr"
@@ -31,6 +45,15 @@ android {
         buildConfigField("boolean", "LAUNCH_ARGUMENTS", "false")
     }
 
+    signingConfigs {
+        if (!uploadSigning.isEmpty) create("upload") {
+            storeFile = file(uploadSigning.getProperty("storeFile"))
+            storePassword = uploadSigning.getProperty("storePassword")
+            keyAlias = uploadSigning.getProperty("keyAlias")
+            keyPassword = uploadSigning.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("boolean", "LAUNCH_ARGUMENTS", "true")
@@ -40,6 +63,7 @@ android {
             if (name == "nonMinifiedRelease" || name == "benchmarkRelease") signingConfig = signingConfigs.getByName("debug")
         }
         release {
+            signingConfig = signingConfigs.findByName("upload")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -65,6 +89,17 @@ androidComponents {
             variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
         }
     }
+}
+
+// Uploads to Google Play (make android-upload) and the store listing in src/main/play. Play Console signs in with a
+// service account's JSON key: ~/.flexarr-release/play-service-account.json, or its contents in ANDROID_PUBLISHER_CREDENTIALS.
+// Each upload needs a higher version code than any before it, so one that's taken is raised past the highest.
+play {
+    File(System.getProperty("user.home"), ".flexarr-release/play-service-account.json")
+        .takeIf { it.exists() }?.let { serviceAccountCredentials.set(it) }
+    defaultToAppBundles.set(true)
+    track.set(providers.gradleProperty("flexarr.track").orElse("internal"))
+    resolutionStrategy.set(ResolutionStrategy.AUTO)
 }
 
 dependencies {
