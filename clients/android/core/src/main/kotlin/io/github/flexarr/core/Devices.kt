@@ -1,6 +1,10 @@
 package io.github.flexarr.core
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -56,6 +60,11 @@ data class DeviceCommand(
     val shuffle: Boolean = false,
     /** With [DeviceCommandKind.Watch], the Live TV channel to put on. */
     val channelId: String? = null,
+    /**
+     * With [DeviceCommandKind.Play], the profile to play it as: switch to it first. Absent from servers before 0.54,
+     * and when it's whoever is watching here.
+     */
+    val profileId: String? = null,
 )
 
 /** What came of telling a device to do something. */
@@ -74,7 +83,13 @@ data class DeviceCommandResult(
 enum class DeviceControl(val raw: String) { Pause("pause"), Resume("resume"), Stop("stop") }
 
 @Serializable
-internal data class DevicePlayBody(val itemId: String, val fromBeginning: Boolean, val shuffle: Boolean)
+internal data class DevicePlayBody(
+    val itemId: String,
+    val fromBeginning: Boolean,
+    val shuffle: Boolean,
+    /** Left out when null (explicitNulls is off): servers before 0.54 don't know it. */
+    val profileId: String? = null,
+)
 
 @Serializable
 internal data class DeviceWatchBody(val channelId: String)
@@ -118,13 +133,20 @@ class ServerSentEvents {
 suspend fun FlexarrClient.devices(): List<Device> = decodeText(serializer(), sendRaw("GET", "devices"))
 
 /**
- * Tells a device to play a title. A show's or season's id plays the episode that device's profile is up to; the result
- * says which, and whether the device took it (Flexarr must be open on it).
+ * Tells a device to play a title. A show's or season's id plays the episode that device's profile (or [profileId], to
+ * play it as someone else there) is up to; the result says which, and whether the device took it (Flexarr must be open
+ * on it). Servers before 0.54 ignore [profileId].
  */
-suspend fun FlexarrClient.playOn(deviceId: String, itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false): DeviceCommandResult =
+suspend fun FlexarrClient.playOn(
+    deviceId: String,
+    itemId: String,
+    fromBeginning: Boolean = false,
+    shuffle: Boolean = false,
+    profileId: String? = null,
+): DeviceCommandResult =
     decodeText(
         serializer(),
-        send("POST", "devices/$deviceId/play", body = FlexarrClient.json.encodeToString(DevicePlayBody(itemId, fromBeginning, shuffle))),
+        send("POST", "devices/$deviceId/play", body = FlexarrClient.json.encodeToString(DevicePlayBody(itemId, fromBeginning, shuffle, profileId))),
     )
 
 /** Puts a Live TV channel on another device. */
@@ -150,26 +172,42 @@ fun FlexarrClient.commandStream(): Flow<DeviceCommand> = flow {
         .signIn()
         .build()
     val call = streamHttp.newCall(request)
-    val response = try {
-        call.execute()
-    } catch (e: IOException) {
-        throw FlexarrException.Unreachable(e)
-    }
-    response.use {
-        when {
-            it.code == 401 -> throw FlexarrException.Unauthorized()
-            !it.isSuccessful -> throw FlexarrException.Http(it.code, null)
-        }
-        val source = it.body.source()
-        val events = ServerSentEvents()
+    coroutineScope {
+        // The connection and its reads block: cancelling the collector (the app going to the background) cancels the
+        // call from beside them, so the connection doesn't live on unseen.
+        val cancelsCall = launch { try { awaitCancellation() } finally { call.cancel() } }
         try {
-            while (true) {
-                val line = source.readUtf8Line() ?: break
-                val event = events.feed(line) ?: continue
-                if (event.name == "command") emit(FlexarrClient.json.decodeFromString(serializer<DeviceCommand>(), event.data))
+            val response = try {
+                call.execute()
+            } catch (e: IOException) {
+                ensureActive()
+                throw FlexarrException.Unreachable(e)
             }
-        } catch (e: IOException) {
-            throw FlexarrException.Unreachable(e)
+            response.use {
+                when {
+                    it.code == 401 -> {
+                        onUnauthorized?.invoke()
+                        throw FlexarrException.Unauthorized()
+                    }
+                    !it.isSuccessful -> throw FlexarrException.Http(it.code, null)
+                }
+                val source = it.body.source()
+                val events = ServerSentEvents()
+                try {
+                    while (true) {
+                        // The server's keep-alive comments every 20 seconds emit nothing, so it's checked here too.
+                        ensureActive()
+                        val line = source.readUtf8Line() ?: break
+                        val event = events.feed(line) ?: continue
+                        if (event.name == "command") emit(FlexarrClient.json.decodeFromString(serializer<DeviceCommand>(), event.data))
+                    }
+                } catch (e: IOException) {
+                    ensureActive()
+                    throw FlexarrException.Unreachable(e)
+                }
+            }
+        } finally {
+            cancelsCall.cancel()
         }
     }
 }.flowOn(Dispatchers.IO)

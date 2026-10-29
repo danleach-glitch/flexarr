@@ -85,7 +85,8 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
     /** Fetches the file into `<id>.part`, carrying on from its end when the server allows, then gives it its name. */
     private suspend fun fetch(client: FlexarrClient, download: LocalDownload) = withContext(Dispatchers.IO) {
         val folder = DownloadStore.folder(applicationContext)
-        val part = File(folder, "${download.id}.part")
+        // Named from the server's id and extension, kept to plain characters so neither can reach outside the folder.
+        val part = DownloadStore.fileIn(folder, "${DownloadStore.safeName(download.id)}.part") ?: throw IOException("Not a download's name")
         val already = if (part.exists()) part.length() else 0L
         val response = client.downloadFileRequest(download.id, already).let { FlexarrClient.sharedHttp.newCall(it).execute() }
         response.use {
@@ -119,8 +120,8 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
             }
             if (total != null && written < total) throw IOException("The file stopped short ($written of $total bytes)")
         }
-        val name = "${download.id}.${download.fileExtension}"
-        val destination = File(folder, name)
+        val name = "${DownloadStore.safeName(download.id)}.${DownloadStore.safeName(download.fileExtension)}"
+        val destination = DownloadStore.fileIn(folder, name) ?: throw IOException("Not a download's name")
         destination.delete()
         if (!part.renameTo(destination)) throw IOException("Couldn't keep the downloaded file")
         onMain { store.arrived(download.id, name, destination.length()) }

@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
 
     /** A notification, shortcut or the widget opened the app somewhere ([AppLink]). */
     private fun openLink(intent: Intent) {
-        AppLink.parse(intent.data)?.let { appModel.pendingLink = it }
+        AppLink.received(this, intent)?.let { appModel.pendingLink = it }
     }
 
     /**

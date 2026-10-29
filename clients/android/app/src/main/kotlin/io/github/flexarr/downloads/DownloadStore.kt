@@ -126,9 +126,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     val bytesUsed: Long get() = all.filter { it.isDownloaded }.sumOf { it.sizeBytes ?: 0 }
 
-    fun file(download: LocalDownload): File? = download.fileName?.let { File(folder, it) }?.takeIf { it.exists() }
+    fun file(download: LocalDownload): File? = download.fileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
-    fun image(download: LocalDownload): File? = download.imageFileName?.let { File(folder, it) }?.takeIf { it.exists() }
+    fun image(download: LocalDownload): File? = download.imageFileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
     fun isWiFiOnly(download: LocalDownload): Boolean = DownloadRules.isWiFiOnly(download, automaticOnWiFiOnly)
 
@@ -329,12 +329,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             else -> art.backdrop ?: art.poster
         }
         val url = client.imageUrl(path, if (download.isPodcastEpisode) 400 else 600) ?: return null
-        val name = "${download.id}.jpg"
+        val name = "${safeName(download.id)}.jpg"
         return withContext(Dispatchers.IO) {
             runCatching {
                 FlexarrClient.sharedHttp.newCall(Request.Builder().url(url).build()).execute().use { response ->
                     if (!response.isSuccessful) return@runCatching null
-                    File(folder, name).outputStream().use { response.body.byteStream().copyTo(it) }
+                    fileIn(folder, name)!!.outputStream().use { response.body.byteStream().copyTo(it) }
                     name
                 }
             }.getOrNull()
@@ -391,9 +391,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private fun remove(id: String, tellServer: Boolean) {
         val download = byId(id) ?: return
         work.cancelUniqueWork(workName(id))
-        download.fileName?.let { File(folder, it).delete() }
-        File(folder, "$id.part").delete()
-        download.imageFileName?.let { File(folder, it).delete() }
+        download.fileName?.let { fileIn(folder, it)?.delete() }
+        fileIn(folder, "${safeName(id)}.part")?.delete()
+        download.imageFileName?.let { fileIn(folder, it)?.delete() }
         all = all.filterNot { it.id == id }
         save()
         if (!tellServer) return
@@ -516,6 +516,13 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
         /** Out of backups: the files are on the server already. */
         fun folder(context: Context): File = File(context.noBackupFilesDir, "downloads")
+
+        /** A part of a file name made from what the server says (an id, an extension): letters, digits, `_` and `-` only. */
+        fun safeName(part: String): String = part.replace(Regex("[^A-Za-z0-9_-]"), "_")
+
+        /** [name] in [folder], or null if it would be anywhere else (a name kept from before can't be trusted blindly). */
+        fun fileIn(folder: File, name: String): File? =
+            File(folder, name).takeIf { it.canonicalFile.parentFile == folder.canonicalFile }
 
         fun workName(id: String) = "download-$id"
     }

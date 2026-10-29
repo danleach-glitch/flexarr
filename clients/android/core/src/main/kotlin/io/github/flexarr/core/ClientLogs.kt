@@ -49,7 +49,7 @@ enum class ClientLogLevel(val tag: String) {
 internal object LogTimeSerializer : KSerializer<Instant> {
     override val descriptor = PrimitiveSerialDescriptor("LogTime", PrimitiveKind.STRING)
     override fun serialize(encoder: Encoder, value: Instant) = encoder.encodeString(format(value))
-    override fun deserialize(decoder: Decoder): Instant = runCatching { Instant.parse(decoder.decodeString()) }.getOrDefault(Instant.now())
+    override fun deserialize(decoder: Decoder): Instant = runCatching { InstantSerializer.parseInstant(decoder.decodeString()) }.getOrDefault(Instant.now())
 
     fun format(value: Instant): String = DateTimeFormatter.ISO_INSTANT.format(value.truncatedTo(ChronoUnit.MILLIS))
 }

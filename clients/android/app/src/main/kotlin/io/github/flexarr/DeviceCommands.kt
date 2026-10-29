@@ -83,12 +83,14 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
 
     /** Does what another device, the web app or an assistant asked: play a title here, or pause, resume or stop. */
     private fun handle(command: DeviceCommand) {
-        val client = model.client ?: return
+        if (model.client == null) return
         when (command.kind) {
             DeviceCommandKind.Play -> {
                 val id = command.itemId ?: return
-                // A podcast episode (the command carries only its id) plays in the podcast player; anything else as video.
                 scope.launch {
+                    if (!switchProfile(command.profileId, id)) return@launch
+                    val client = model.client ?: return@launch
+                    // A podcast episode (the command carries only its id) plays in the podcast player; anything else as video.
                     val episode = runCatching { client.podcastEpisode(id) }.getOrNull()
                     if (episode != null) {
                         model.podcasts.play(episode)
@@ -99,6 +101,7 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             }
             DeviceCommandKind.Watch -> {
                 val id = command.channelId ?: return
+                val client = model.client ?: return
                 // Every channel to change through, favourites first.
                 scope.launch {
                     val channels = runCatching { client.liveChannels() }.getOrNull() ?: return@launch
@@ -112,6 +115,25 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             DeviceCommandKind.Stop -> active?.stop() ?: pauseAudio()
             DeviceCommandKind.Unknown -> Unit
         }
+    }
+
+    /**
+     * A play command for another profile ([profileId]) switches to it first, as the iPhone does: straight away without
+     * a PIN. One with a PIN goes back to "Who's watching?", and the title plays once it's chosen (as a link would). An
+     * unknown profile, or the one watching, plays as things are. False when the title isn't to be played now.
+     */
+    private suspend fun switchProfile(profileId: String?, itemId: String): Boolean {
+        if (profileId == null || profileId == model.currentProfile?.id) return true
+        val profile = model.profiles.firstOrNull { it.id == profileId } ?: return true
+        if (!profile.hasPin) {
+            return runCatching { model.chooseProfile(profile) }
+                .onFailure { flexarrLog.warning("Couldn't switch to the profile a command asked for", it) }
+                .isSuccess
+        }
+        active?.stop()
+        model.pendingLink = AppLink.Play(itemId)
+        model.switchProfile()
+        return false
     }
 
     private fun pauseAudio() {

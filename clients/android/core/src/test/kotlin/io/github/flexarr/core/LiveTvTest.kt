@@ -49,4 +49,15 @@ class LiveTvTest {
         assertEquals(Instant.parse("2026-10-29T02:39:10.305557Z"), InstantSerializer.parseInstant("2026-10-29T02:39:10.305557Z"))
         assertEquals(Instant.parse("2026-10-29T03:00:00Z"), InstantSerializer.parseInstant("2026-10-29T04:00:00+01:00"))
     }
+
+    @Test
+    fun `a time with no zone is UTC, as on the Apple apps`() {
+        assertEquals(Instant.parse("2026-10-29T04:00:00Z"), InstantSerializer.parseInstant("2026-10-29T04:00:00"))
+        assertEquals(Instant.parse("2026-10-29T04:00:00.25Z"), InstantSerializer.parseInstant("2026-10-29T04:00:00.25"))
+        val programme = FlexarrClient.json.decodeFromString(
+            LiveProgramme.serializer(),
+            """{"id":1,"start":"2026-10-29T04:00:00","end":"2026-10-29T05:00:00Z","title":"News"}""",
+        )
+        assertEquals(Instant.parse("2026-10-29T04:00:00Z"), programme.start)
+    }
 }
