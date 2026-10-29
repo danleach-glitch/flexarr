@@ -18,11 +18,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueuePlayNext
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -40,6 +46,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +70,8 @@ import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.menuActions
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.components.SwipeAction
+import io.github.flexarr.ui.components.SwipeActions
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
@@ -137,7 +146,9 @@ fun DirectoryCard(show: DirectoryPodcast, isAdding: Boolean, onClick: () -> Unit
 
 /**
  * An episode in a list: when it came out, its title and the start of its notes, how long is left, with Play (and how far
- * it's got) on the right. Tapping the row opens the whole notes; a long press offers Play next, Up Next and Played.
+ * it's got) on the right. Tapping the row opens the whole notes; a long press offers Play next, Up Next and Played. As on
+ * iPhone, swiping toward the end marks it played (or unplayed: all the way across does it at once) or plays it next, and
+ * toward the start adds it to Up Next or downloads it (in Up Next, takes it off, again all the way across).
  */
 @Composable
 fun PodcastEpisodeRow(
@@ -147,7 +158,7 @@ fun PodcastEpisodeRow(
     compact: Boolean = false,
     /** Marks it played or unplayed in the list's own way (the show page shows it at once). */
     setPlayed: (Boolean) -> Unit,
-    /** In Up Next: the menu offers taking it off. */
+    /** In Up Next: the menu offers taking it off, and so does swiping toward the start, in place of Up Next and download. */
     removeFromUpNext: (() -> Unit)? = null,
 ) {
     var notes by remember { mutableStateOf(false) }
@@ -167,27 +178,49 @@ fun PodcastEpisodeRow(
         // Part way through: unplayed forgets the place, so it leaves the listening list.
         if (episode.progress != null) add(MenuAction("Mark as unplayed") { setPlayed(false) })
     }
-    Box {
-        Row(
-            Modifier.fillMaxWidth().pressable(onClick = { notes = true }, onLongClick = { menu = true }).menuActions(actions)
-                .padding(vertical = if (compact) 10.dp else 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (showsPodcast) {
-                PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185, cornerRadius = 6.dp)
+    // The iPhone's swipe actions, each also in the menu above (so TalkBack has them once, as custom actions).
+    val startSwipe = buildList {
+        add(
+            if (episode.isPlayed) SwipeAction("Unplayed", Icons.AutoMirrored.Filled.Undo, Flexarr.aisle) { setPlayed(false) }
+            else SwipeAction("Played", Icons.Filled.CheckCircle, Flexarr.played) { setPlayed(true) },
+        )
+        if (removeFromUpNext == null) add(SwipeAction("Play next", Icons.Filled.QueuePlayNext, Flexarr.upNext) { model.addToUpNext(episode.id, next = true) })
+    }
+    val endSwipe = buildList {
+        if (removeFromUpNext != null) {
+            add(SwipeAction("Remove from Up Next", Icons.Filled.RemoveCircleOutline, Flexarr.danger, Flexarr.room, removeFromUpNext))
+        } else {
+            add(SwipeAction("Add to Up Next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.upNext) { model.addToUpNext(episode.id, next = false) })
+            if (download == null) {
+                add(SwipeAction("Download", Icons.Outlined.ArrowCircleDown, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+            } else {
+                add(SwipeAction(if (download.isDownloaded) "Delete download" else "Stop download", Icons.Outlined.Delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                val meta = listOfNotNull(if (showsPodcast) episode.podcastTitle else null, dateLine(episode.publishedAt)).joinToString("  ")
-                if (meta.isNotEmpty()) Text(meta, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(episode.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = if (episode.isPlayed) Flexarr.usher else Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (!compact) episode.overview?.let { Text(it, fontSize = 15.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                episode.timeLine?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular, modifier = Modifier.padding(top = if (compact) 0.dp else 2.dp)) }
-            }
-            EpisodeDownloadButton(model, episode.id, episode.title)
-            EpisodePlayButton(model, episode)
         }
-        ItemMenu(actions, menu, onDismiss = { menu = false })
+    }
+    SwipeActions(startSwipe, endSwipe, fullSwipeEnd = removeFromUpNext != null) {
+        Box {
+            Row(
+                Modifier.fillMaxWidth().pressable(onClick = { notes = true }, onLongClick = { menu = true }).menuActions(actions)
+                    .padding(horizontal = Edge).padding(vertical = if (compact) 10.dp else 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showsPodcast) {
+                    PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185, cornerRadius = 6.dp)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    val meta = listOfNotNull(if (showsPodcast) episode.podcastTitle else null, dateLine(episode.publishedAt)).joinToString("  ")
+                    if (meta.isNotEmpty()) Text(meta, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(episode.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = if (episode.isPlayed) Flexarr.usher else Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (!compact) episode.overview?.let { Text(it, fontSize = 15.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                    episode.timeLine?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular, modifier = Modifier.padding(top = if (compact) 0.dp else 2.dp)) }
+                }
+                EpisodeDownloadButton(model, episode.id, episode.title)
+                EpisodePlayButton(model, episode)
+            }
+            ItemMenu(actions, menu, onDismiss = { menu = false })
+        }
     }
     if (notes) EpisodeSheet(model, episode, setPlayed, onDismiss = { notes = false })
 }
@@ -293,6 +326,11 @@ fun dateLine(published: String?): String? {
         else -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
     }
 }
+
+/** A swipe's "played" colour, as podcast apps use (the iPhone's Color.played). */
+val Flexarr.played: Color get() = Color(0xFF6B5BB5)
+/** A swipe's "Up Next" colour (the iPhone's Color.upNext). */
+val Flexarr.upNext: Color get() = Color(0xFF4A6FA5)
 
 /** Marks an episode played or unplayed for screens that don't keep their own list: sent, then screens reload. */
 fun setEpisodePlayed(model: AppModel, episode: PodcastEpisode, played: Boolean) {
