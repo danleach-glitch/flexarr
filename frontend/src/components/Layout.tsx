@@ -52,9 +52,10 @@ export function Layout() {
       window.removeEventListener(PODCAST_PREFERENCES_CHANGED, changed)
     }
   }, [hasPodcasts])
-  // Podcasts aren't a library as such, but they're listed with them (last), unless the profile left them out.
-  const shownLibraries = libraries.filter((l) => l.type !== 'Podcasts')
+  // Podcasts aren't a library as such, but they're listed with them in the profile's order (Settings › Sidebar), unless
+  // the profile left them out.
   const podcastsLink = hasPodcasts && podcastsInSidebar
+  const shownLibraries = libraries.filter((l) => l.type !== 'Podcasts' || podcastsLink)
   // Phones: whether the sidebar has been slid in over the page.
   const [drawer, setDrawer] = useState(false)
   const sidebar = useRef<HTMLElement>(null)
@@ -241,12 +242,19 @@ export function Layout() {
               <Home />
               <span className="sidebar-label">Home</span>
             </NavLink>
-            {(shownLibraries.length > 0 || podcastsLink) && (
+            {shownLibraries.length > 0 && (
               <>
                 <h2 className="sidebar-heading">
                   <span className="sidebar-label">Libraries</span>
                 </h2>
                 {shownLibraries.map((library) => {
+                  if (library.type === 'Podcasts')
+                    return (
+                      <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
+                        <Microphone />
+                        <span className="sidebar-label">Podcasts</span>
+                      </NavLink>
+                    )
                   const Icon = libraryIcons[library.type] ?? Film
                   return (
                     <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
@@ -256,12 +264,6 @@ export function Layout() {
                     </NavLink>
                   )
                 })}
-                {podcastsLink && (
-                  <NavLink to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
-                    <Microphone />
-                    <span className="sidebar-label">Podcasts</span>
-                  </NavLink>
-                )}
               </>
             )}
             <h2 className="sidebar-heading">

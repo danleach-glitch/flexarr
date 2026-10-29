@@ -1134,6 +1134,8 @@ export interface Profile {
   requestShowsLibraryId?: string | null
   /** The library its film requests go to; null is Seerr's default. */
   requestFilmsLibraryId?: string | null
+  /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
+  libraryOrder?: string[]
 }
 
 /** Changing or removing the main profile's PIN takes `currentPin`, or `apiKey` if it's forgotten. */
@@ -1146,6 +1148,8 @@ export const updateProfile = (id: string, profile: ProfileChanges) =>
 /** Where a profile's requests go; null is wherever Seerr adds them by default. */
 export const setRequestLibraries = (id: string, libraries: { showsLibraryId: string | null; filmsLibraryId: string | null }) =>
   request<Profile>('PUT', `/profiles/${id}/request-libraries`, libraries)
+/** The order of a profile's libraries in every app's menu; /libraries lists them in it. */
+export const setLibraryOrder = (id: string, order: string[]) => request<Profile>('PUT', `/profiles/${id}/library-order`, { order })
 export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
 export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${id}/image`, image)
 export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
