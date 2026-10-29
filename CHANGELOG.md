@@ -26,6 +26,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Home
 - When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.
 
+### Siri and Shortcuts
+- Play a film or show, and Shuffle a show, can play as a chosen profile (the new As setting), so a "kids' bedtime episode" shortcut plays their next episode under their name, whoever used the TV last. The device switches to that profile first, and asks for its PIN if it has one. It works on this device and on another one, such as the Apple TV.
+- Links can name a profile too: `flexarr://play/<id>?profile=Sam` switches to Sam, then plays. Handy for NFC tags and Home Assistant. `flexarr://play/` with a show's id plays its next episode.
+
 ### Apple TV
 - The Top Shelf shows what's been added recently, below Continue Watching, so it's never blank once you've finished everything or on a new profile. It follows your profile's libraries, as Home does.
 

@@ -934,9 +934,12 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     public let shuffle: Bool
     /// With `watch`, the Live TV channel to put on.
     public let channelId: String?
+    /// With `play`, the profile to play it as: switch to it first (asking for its PIN, if it has one). Absent from
+    /// servers before 0.54, and when it's whoever is watching here.
+    public let profileId: String?
 
     public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
-                channelId: String? = nil) {
+                channelId: String? = nil, profileId: String? = nil) {
         self.id = id
         self.kind = kind
         self.itemId = itemId
@@ -945,6 +948,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         self.sentAt = sentAt
         self.shuffle = shuffle
         self.channelId = channelId
+        self.profileId = profileId
     }
 
     public init(from decoder: Decoder) throws {
@@ -957,6 +961,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         sentAt = try container.decode(Date.self, forKey: .sentAt)
         shuffle = try container.decodeIfPresent(Bool.self, forKey: .shuffle) ?? false // servers before 0.23 don't send it
         channelId = try container.decodeIfPresent(String.self, forKey: .channelId)
+        profileId = try container.decodeIfPresent(String.self, forKey: .profileId)
     }
 }
 
@@ -984,6 +989,8 @@ struct DevicePlayBody: Codable, Sendable {
     let itemId: String
     let fromBeginning: Bool
     let shuffle: Bool
+    /// Left out when nil: servers before 0.54 don't know it.
+    var profileId: String?
 }
 
 // MARK: - Subtitles
