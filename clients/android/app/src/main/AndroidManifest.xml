@@ -118,6 +118,26 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/continue_watching_widget" />
         </receiver>
 
+        <!-- The podcast widgets: Continue listening and Up Next (PodcastWidgets). -->
+        <receiver
+            android:name=".widget.ContinueListeningWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_listening_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/continue_listening_widget" />
+        </receiver>
+        <receiver
+            android:name=".widget.UpNextWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_up_next_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/up_next_widget" />
+        </receiver>
+
         <!-- WorkManager's service for downloads that run long, typed as Android 14 on asks. -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

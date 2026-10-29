@@ -14,6 +14,7 @@ import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommands
+import androidx.media3.session.SessionError
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -161,10 +162,10 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     /** Searching in the car: what matches is worked out now, and the car told how many there are. */
     override fun onSearch(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, query: String, params: LibraryParams?): ListenableFuture<LibraryResult<Void>> =
         scope.future {
-            val client = model.client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
+            val client = model.client ?: return@future LibraryResult.ofError(SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
             val found = runCatching { search(client, query) }
                 .onFailure { log.warning("Couldn't search for the car", it) }
-                .getOrElse { return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_IO) }
+                .getOrElse { return@future LibraryResult.ofError(SessionError.ERROR_IO) }
             searches[query] = found
             session.notifySearchResultChanged(browser, query, found.size, params)
             LibraryResult.ofVoid()
@@ -178,8 +179,8 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         pageSize: Int,
         params: LibraryParams?,
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future {
-        val client = model.client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
-        val found = searches[query] ?: runCatching { search(client, query) }.getOrElse { return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_IO) }
+        val client = model.client ?: return@future LibraryResult.ofError(SessionError.ERROR_SESSION_AUTHENTICATION_EXPIRED)
+        val found = searches[query] ?: runCatching { search(client, query) }.getOrElse { return@future LibraryResult.ofError(SessionError.ERROR_IO) }
         LibraryResult.ofItemList(ImmutableList.copyOf(found.drop(page * pageSize).take(pageSize)), params)
     }
 

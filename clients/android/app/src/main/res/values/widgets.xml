@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The podcast widgets' names and descriptions in the widget picker (PodcastWidgets). -->
+<resources>
+    <string name="widget_listening_label">Continue listening</string>
+    <string name="widget_listening_description">The podcast episode you’re on, to carry on with</string>
+    <string name="widget_up_next_label">Up Next</string>
+    <string name="widget_up_next_description">The podcast episodes waiting in Up Next</string>
+</resources>
