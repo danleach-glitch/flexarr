@@ -31,6 +31,14 @@ public sealed partial class MarkerDetectionWorker(
     {
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); // Let startup scans go first.
         var detector = new MarkerDetector(options.CurrentValue.FfmpegPath, options.CurrentValue.FfprobePath);
+        try
+        {
+            await DropEarlyChapterCreditsAsync(stoppingToken);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            LogFailed(ex);
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -122,6 +130,28 @@ public sealed partial class MarkerDetectionWorker(
         LogSeason(title, files.Count, found.Values.Count(m => m.Any(x => x.Type == MarkerType.Intro)),
             found.Values.Count(m => m.Any(x => x.Type == MarkerType.Credits)), TimeProvider.System.GetElapsedTime(started).TotalSeconds);
     }
+
+    /// <summary>
+    /// Chapter-title credits found before <see cref="MarkerDetector.FromChapters"/> learnt to leave out ones well before
+    /// the end (a film's "Ending" chapter, mid-climax): the same rule, applied to what's saved.
+    /// </summary>
+    private async Task DropEarlyChapterCreditsAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var dropped = await db.MediaMarkers
+            .Where(m => m.Source == "chapters" && m.Type == MarkerType.Credits)
+            .Where(m => db.MediaFiles.Any(f => f.Id == m.MediaFileId && f.DurationSeconds != null
+                && f.DurationSeconds - m.EndSeconds > (f.DurationSeconds * 0.1 > 300 ? f.DurationSeconds * 0.1 : 300)))
+            .ExecuteDeleteAsync(ct);
+        if (dropped > 0)
+        {
+            LogDroppedCredits(dropped);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Dropped {Count} chapter credits markers that came well before the end")]
+    private partial void LogDroppedCredits(int count);
 
     private static async Task SaveAsync(FlexarrDbContext db, MediaFile file, IEnumerable<DetectedMarker> markers, CancellationToken ct)
     {
