@@ -39,6 +39,7 @@ import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.SubtitleSyncState
 import io.github.flexarr.core.SubtitleTrack
 import io.github.flexarr.core.DownloadedSubtitles
+import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.prompt
@@ -478,14 +479,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         // Moved on to something that isn't an episode: there's no end of episode to stop at.
         if (started.item.kind != MediaKind.Episode && sleep.setting == SleepTimer.Setting.EndOfEpisode) sleep.set(null)
 
-        // Text subtitles ride beside the stream, each known by its key; picture ones come burned in.
+        // Text subtitles ride beside the stream, each known by its key (styled ones as authored); picture ones come burned in.
+        val styled = !isOffline && (started.subtitleDelaySeconds ?: 0.0) == 0.0
         val sideloaded = started.subtitles.filter { it.isText && it.url != null }.map { track ->
-            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(client.url(track.url!!)))
-                .setId(SUBTITLE_ID_PREFIX + track.key)
-                .setMimeType(MimeTypes.TEXT_VTT)
-                .setLanguage(track.language)
-                .setLabel(track.label)
-                .build()
+            StyledSubtitles.configuration(track, SUBTITLE_ID_PREFIX + track.key, styled, client::url)
         }
         // What the system's media controls and headphones' devices show.
         val metadata = MediaMetadata.Builder()

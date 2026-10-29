@@ -58,6 +58,12 @@ class CarLibraryTest {
             val music = children(CarLibrary.MUSIC)
             assertTrue("No music", music.isNotEmpty())
             val tracks = children(music.first().mediaId)
+            // Searching (the car's search screen, and how "play …" is heard): a show followed is found by its name.
+            val showName = shows.first().mediaMetadata.title.toString()
+            onBrowser { browser.search(showName, null) }.get(20, TimeUnit.SECONDS)
+            val found = onBrowser { browser.getSearchResult(showName, 0, 50, null) }.get(20, TimeUnit.SECONDS).value!!
+            assertTrue("$showName not found by searching", found.any { it.mediaId == shows.first().mediaId })
+
             println("CarLibraryTest: ${shows.size} shows, ${episodes.size} episodes in the first, ${music.size} in Music, ${tracks.size} tracks in ${music.first().mediaMetadata.title}")
 
             // The car plays an episode: the app's own podcast player takes it.

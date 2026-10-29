@@ -100,7 +100,14 @@ fun SearchScreen(model: AppModel) {
     // Back with something typed clears it (as iPhone's Cancel), before it leaves Search.
     BackHandler(enabled = query.isNotEmpty()) { query = "" }
     // Opening Search is for typing: the field's ready with the keyboard up.
-    LaunchedEffect(Unit) { if (query.isEmpty()) focus.requestFocus() }
+    LaunchedEffect(Unit) { if (query.isEmpty() && model.pendingSearch == null) focus.requestFocus() }
+    // The Assistant's words ("search Flexarr for Fargo"), typed in for it.
+    LaunchedEffect(model.pendingSearch) {
+        model.pendingSearch?.let {
+            query = it
+            model.pendingSearch = null
+        }
+    }
     LaunchedEffect(query, attempt) {
         val text = query.trim()
         if (text.isEmpty()) {

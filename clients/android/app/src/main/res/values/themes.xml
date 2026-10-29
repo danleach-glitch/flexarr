@@ -17,6 +17,11 @@
         <item name="postSplashScreenTheme">@style/Theme.Flexarr</item>
     </style>
 
+    <!-- The Assistant's way in (VoiceActivity): nothing shows while it works out where to go. -->
+    <style name="Theme.Flexarr.Voice" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <style name="Theme.Flexarr.Player">
         <item name="android:windowBackground">@android:color/black</item>
     </style>

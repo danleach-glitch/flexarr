@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows for Continue listening: a show's picture, the play button, the title and its progress. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path android:fillColor="#1B1720" android:pathData="M20,0h80a20,20 0 0 1 20,20v80a20,20 0 0 1 -20,20h-80a20,20 0 0 1 -20,-20v-80a20,20 0 0 1 20,-20z" />
+    <path android:fillColor="#25202C" android:pathData="M22,12h36a10,10 0 0 1 10,10v36a10,10 0 0 1 -10,10h-36a10,10 0 0 1 -10,-10v-36a10,10 0 0 1 10,-10z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M90,12a18,18 0 1 1 0,36a18,18 0 1 1 0,-36z" />
+    <path android:fillColor="#1B1720" android:pathData="M86,23v14l11,-7z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M12,80h90v6h-90z" />
+    <path android:fillColor="#3A3343" android:pathData="M12,94h96v3h-96z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M12,94h40v3h-40z" />
+    <path android:fillColor="#A39AAE" android:pathData="M12,102h36v5h-36z" />
+</vector>

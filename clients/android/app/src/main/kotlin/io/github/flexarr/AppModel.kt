@@ -30,6 +30,7 @@ import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
 import io.github.flexarr.widget.ContinueWatchingWidget
+import io.github.flexarr.widget.PodcastWidgets
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -140,6 +141,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Where a notification, shortcut or the widget asked to go, until the screens have gone there. */
     var pendingLink: AppLink? by mutableStateOf(null)
 
+    /** Words the Assistant asked to search for ("search Flexarr for Fargo"), until Search has typed them in. */
+    var pendingSearch: String? by mutableStateOf(null)
+
     /** The podcast Now Playing sheet is open: from the bar, or after Play in an episode's notes. */
     var showsNowPlaying by mutableStateOf(false)
 
@@ -248,7 +252,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         profiles = emptyList()
         profilesLoaded = false
         phase = Phase.SignedOut
-        scope.launch { ContinueWatchingWidget.refresh(context) }
+        scope.launch {
+            ContinueWatchingWidget.refresh(context)
+            PodcastWidgets.refresh(context)
+        }
     }
 
     suspend fun loadProfiles() {
@@ -331,18 +338,27 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Puts an episode in Up Next: first (Play next), or last. */
     fun addToUpNext(episodeId: String, next: Boolean) {
         val client = client ?: return
-        scope.launch { runCatching { client.addToUpNext(episodeId, next) }.onSuccess { upNext = it } }
+        scope.launch {
+            runCatching { client.addToUpNext(episodeId, next) }.onSuccess { upNext = it }
+            PodcastWidgets.refresh(context)
+        }
     }
 
     fun removeFromUpNext(episodeId: String) {
         val client = client ?: return
         upNext = upNext.filterNot { it.id == episodeId }
-        scope.launch { runCatching { client.removeFromUpNext(episodeId) } }
+        scope.launch {
+            runCatching { client.removeFromUpNext(episodeId) }
+            PodcastWidgets.refresh(context)
+        }
     }
 
     fun watchStateChanged() {
         watchStateVersion++
-        scope.launch { ContinueWatchingWidget.refresh(context) }
+        scope.launch {
+            ContinueWatchingWidget.refresh(context)
+            PodcastWidgets.refresh(context)
+        }
     }
 
     private var checkingSignIn = false

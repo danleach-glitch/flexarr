@@ -25,6 +25,7 @@ import io.github.flexarr.core.nextEpisode
 import io.github.flexarr.core.setPodcastPreferences
 import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.player.SleepTimer
+import io.github.flexarr.widget.PodcastWidgets
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -87,6 +88,8 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
             isPlaying = playing
             if (playing) startTicking()
             if (sessionId != null && player.playbackState == Player.STATE_READY) report(paused = !playing)
+            // The home screen's play button follows.
+            scope.launch { PodcastWidgets.refresh(context, askServer = false) }
         }
 
         override fun onPlaybackStateChanged(state: Int) {

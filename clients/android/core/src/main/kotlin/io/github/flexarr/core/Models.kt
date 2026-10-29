@@ -280,9 +280,16 @@ data class SearchResults(
     val titles: List<ItemSummary> = emptyList(),
     val episodes: List<ItemSummary> = emptyList(),
     val people: List<PersonSummary> = emptyList(),
+    /** Albums by name (artists are among [titles]). Absent from servers before music search. */
+    val albums: List<ItemSummary> = emptyList(),
+    /** Tracks by name, each with its album's. Absent from servers before music search. */
+    val tracks: List<SearchTrack> = emptyList(),
 ) {
     val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty()
 }
+
+@Serializable
+data class SearchTrack(val item: ItemSummary, val album: String? = null)
 
 // Home
 
@@ -371,6 +378,11 @@ data class SubtitleTrack(
     val url: String? = null,
     /** A subtitle file beside the video (rather than one inside it): only these can be re-synced. Absent from servers before 0.53. */
     val isExternal: Boolean? = null,
+    /**
+     * Styled (ASS/SSA) subtitles as authored, for a player that draws their places and colours itself. Relative to the
+     * server, like [url]; not shifted by the title's subtitle delay. Absent from servers before 0.53, and for plain text.
+     */
+    val styledUrl: String? = null,
 )
 
 @Serializable

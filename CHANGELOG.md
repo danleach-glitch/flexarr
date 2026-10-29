@@ -28,6 +28,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings has Rate Flexarr, which opens the app's Google Play page, and now and then, after you've watched something to the end, Google Play may ask how you're finding Flexarr.
 - Download albums and playlists on Android, as on iPhone: the download button beside Play and Shuffle fetches every track, Downloads has a Music section, downloaded tracks and albums carry a green arrow, and they play from the phone with no connection. What you listen to offline counts once you're back.
 - On Android 14 and later, downloads you start (including from a notification's Download button) keep going for hours with the app closed, rather than stalling when Android limits background work. They show in Android's list of running apps, where you can stop them.
+- In Android Auto, say "Hey Google, play The Rest Is History on Flexarr" (or an artist, album, song or playlist) and it plays: a podcast you follow picks up at the episode to hear next, "the latest …" plays its newest, and "play my Up Next" plays Up Next. The car's search button finds your podcasts and music too.
+- On the phone, the Google Assistant plays from Flexarr as Siri does on iPhone: "play Heat on Flexarr" plays the film, a show's next episode, a podcast or music, and "continue watching on Flexarr" picks up where you left off. "Search Flexarr for Fargo" opens Search with it typed in, and "open Downloads in Flexarr" goes straight there.
+- Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
+- Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
 
 ## 0.54.0 · 29 October 2026
 
