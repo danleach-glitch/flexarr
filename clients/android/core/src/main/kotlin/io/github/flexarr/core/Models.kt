@@ -1,0 +1,389 @@
+package io.github.flexarr.core
+
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+
+// Kotlin mirrors of `frontend/src/api/types.ts`, as FlexarrKit's Models.swift is for the Apple apps. JSON is camelCase,
+// enums are strings and timestamps ISO 8601 (kept as strings until something needs them as times). Only what the app
+// uses is here: the decoder ignores the rest. A field newer than the oldest server the app supports is nullable with
+// a default, noted "Absent from servers before …".
+
+// Enums
+
+/** A string enum that decodes values from a newer server as its `Unknown` instead of failing. */
+interface ForwardCompatibleEnum {
+    val raw: String
+}
+
+open class ForwardCompatibleEnumSerializer<T>(
+    name: String,
+    private val values: List<T>,
+    private val unknown: T,
+) : KSerializer<T> where T : Enum<T>, T : ForwardCompatibleEnum {
+    override val descriptor = PrimitiveSerialDescriptor("io.github.flexarr.$name", PrimitiveKind.STRING)
+    override fun deserialize(decoder: Decoder): T = decoder.decodeString().let { raw -> values.firstOrNull { it.raw == raw } ?: unknown }
+    override fun serialize(encoder: Encoder, value: T) = encoder.encodeString(value.raw)
+}
+
+@Serializable(with = LibraryType.Serializer::class)
+enum class LibraryType(override val raw: String) : ForwardCompatibleEnum {
+    Movies("Movies"), TvShows("TvShows"), Music("Music"), Podcasts("Podcasts"), HomeVideos("HomeVideos"), Unknown("");
+
+    object Serializer : ForwardCompatibleEnumSerializer<LibraryType>("LibraryType", entries, Unknown)
+}
+
+@Serializable(with = MediaKind.Serializer::class)
+enum class MediaKind(override val raw: String) : ForwardCompatibleEnum {
+    Movie("Movie"), Series("Series"), Season("Season"), Episode("Episode"),
+    Artist("Artist"), Album("Album"), Track("Track"),
+    Podcast("Podcast"), PodcastEpisode("PodcastEpisode"), Unknown("");
+
+    /** Something that plays: a film, an episode or a track (the rest open to their contents). */
+    val isPlayable: Boolean get() = this == Movie || this == Episode || this == Track || this == PodcastEpisode
+
+    object Serializer : ForwardCompatibleEnumSerializer<MediaKind>("MediaKind", entries, Unknown)
+}
+
+@Serializable(with = PlaybackMethod.Serializer::class)
+enum class PlaybackMethod(override val raw: String) : ForwardCompatibleEnum {
+    DirectPlay("DirectPlay"), Transcode("Transcode"), Unknown("");
+
+    object Serializer : ForwardCompatibleEnumSerializer<PlaybackMethod>("PlaybackMethod", entries, Unknown)
+}
+
+@Serializable(with = MarkerType.Serializer::class)
+enum class MarkerType(override val raw: String) : ForwardCompatibleEnum {
+    Intro("Intro"), Recap("Recap"), Credits("Credits"), Unknown("");
+
+    object Serializer : ForwardCompatibleEnumSerializer<MarkerType>("MarkerType", entries, Unknown)
+}
+
+@Serializable(with = HomeRowStyle.Serializer::class)
+enum class HomeRowStyle(override val raw: String) : ForwardCompatibleEnum {
+    Poster("poster"), Wide("wide"), Top10("top10"),
+    /** The items are tracks (most played, say): shown as tracks that play, not titles that open. */
+    Tracks("tracks"),
+    /** The profile's playlists; `items` is empty. */
+    Playlists("playlists"),
+    /** Favourite TV channels; `items` is empty. */
+    Live("live"),
+    Unknown("");
+
+    object Serializer : ForwardCompatibleEnumSerializer<HomeRowStyle>("HomeRowStyle", entries, Unknown)
+}
+
+// System
+
+@Serializable
+data class SystemStatus(
+    val appName: String,
+    val version: String,
+    val osDescription: String = "",
+    val startTime: String? = null,
+    /** The server's address for away from home (over Tailscale), once remote access is turned on. */
+    val remoteUrl: String? = null,
+)
+
+// Libraries
+
+@Serializable
+data class Library(
+    val id: String,
+    val name: String,
+    val type: LibraryType,
+    val folders: List<String> = emptyList(),
+    val itemCount: Int,
+    /** A scan under way. */
+    val scan: ScanStatus? = null,
+)
+
+@Serializable
+data class ScanStatus(val path: String, val total: Int, val processed: Int)
+
+@Serializable
+data class Paged<T>(
+    val total: Int,
+    val items: List<T>,
+)
+
+/** Sort orders accepted by `GET /libraries/{id}/items`; `raw` is the query value (none for title). */
+enum class LibrarySort(val raw: String, val label: String) {
+    Title("", "Title"),
+    Added("added", "Recently added"),
+    Year("year", "Year"),
+    Rating("rating", "Rating"),
+}
+
+// Items
+
+@Serializable
+data class Artwork(
+    val poster: String? = null,
+    val backdrop: String? = null,
+    val logo: String? = null,
+    val thumb: String? = null,
+)
+
+@Serializable
+data class UserData(
+    val positionSeconds: Double,
+    val watched: Boolean,
+    val playCount: Int,
+    val unwatchedCount: Int? = null,
+)
+
+@Serializable
+data class ItemSummary(
+    val id: String,
+    val libraryId: String,
+    val parentId: String? = null,
+    val kind: MediaKind,
+    val title: String,
+    val year: Int? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
+    val episodeNumberEnd: Int? = null,
+    val airDate: String? = null,
+    val childCount: Int,
+    val durationSeconds: Double? = null,
+    val resolution: String? = null,
+    val artwork: Artwork,
+    val accentColor: String? = null,
+    val communityRating: Double? = null,
+    val contentRating: String? = null,
+    val runtimeMinutes: Int? = null,
+    val releaseDate: String? = null,
+    val userData: UserData,
+    /** The show for episodes and seasons; the artist for tracks and albums. */
+    val seriesTitle: String? = null,
+    /** The show's id for episodes and seasons. Absent from servers before it existed. */
+    val seriesId: String? = null,
+    /** In a home video library, everything is known by name rather than number. Absent from servers before home videos. */
+    val homeVideo: Boolean? = null,
+)
+
+@Serializable(with = VideoRange.Serializer::class)
+enum class VideoRange(override val raw: String, val label: String) : ForwardCompatibleEnum {
+    Sdr("Sdr", "SDR"), Hdr10("Hdr10", "HDR10"), Hlg("Hlg", "HLG"), DolbyVision("DolbyVision", "Dolby Vision"), Unknown("", "");
+
+    object Serializer : ForwardCompatibleEnumSerializer<VideoRange>("VideoRange", entries, Unknown)
+}
+
+@Serializable
+data class MediaFile(
+    val id: String,
+    val size: Long,
+    val videoCodec: String? = null,
+    val height: Int? = null,
+    val videoRange: VideoRange = VideoRange.Unknown,
+    val audioCodec: String? = null,
+    val audioChannels: Int? = null,
+    /** HDR10+ scene-by-scene metadata on top of the HDR10. Absent from servers before 0.53. */
+    val hdr10Plus: Boolean? = null,
+) {
+    /** "HDR10+", "Dolby Vision, HDR10+"; null for SDR. */
+    val pictureLabel: String?
+        get() {
+            if (videoRange == VideoRange.Sdr || videoRange == VideoRange.Unknown) return null
+            if (hdr10Plus != true) return videoRange.label
+            return if (videoRange == VideoRange.DolbyVision) "Dolby Vision, HDR10+" else "HDR10+"
+        }
+}
+
+@Serializable(with = CreditRole.Serializer::class)
+enum class CreditRole(override val raw: String) : ForwardCompatibleEnum {
+    Actor("Actor"), Director("Director"), Writer("Writer"), Producer("Producer"), Creator("Creator"), Unknown("");
+
+    object Serializer : ForwardCompatibleEnumSerializer<CreditRole>("CreditRole", entries, Unknown)
+}
+
+@Serializable
+data class Credit(
+    val personId: String,
+    val name: String,
+    val role: CreditRole,
+    val character: String? = null,
+    val image: String? = null,
+)
+
+@Serializable
+data class GenreCount(val name: String, val count: Int)
+
+@Serializable
+data class ItemDetail(
+    val item: ItemSummary,
+    val overview: String? = null,
+    val studio: String? = null,
+    val genres: List<String> = emptyList(),
+    val ancestors: List<ItemSummary> = emptyList(),
+    val children: List<ItemSummary> = emptyList(),
+    val credits: List<Credit> = emptyList(),
+    val files: List<MediaFile> = emptyList(),
+    /** Overviews of `children`, keyed by child id (seasons carry their episodes' overviews here). */
+    val childOverviews: Map<String, String?> = emptyMap(),
+)
+
+// Home
+
+@Serializable
+data class HomeRow(
+    val id: String,
+    val title: String,
+    val style: HomeRowStyle,
+    val items: List<ItemSummary>,
+    val link: String? = null,
+)
+
+@Serializable
+data class Home(
+    val featured: List<ItemSummary>,
+    val overviews: Map<String, String?> = emptyMap(),
+    val rows: List<HomeRow>,
+    /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
+    val resumes: Map<String, ItemSummary>? = null,
+)
+
+// Playback
+
+@Serializable
+data class DeviceProfile(
+    val client: String,
+    val containers: List<String>,
+    val videoCodecs: List<String>,
+    val audioCodecs: List<String>,
+    val hdr: Boolean,
+    val maxHeight: Int,
+    val maxAudioChannels: Int,
+    val maxBitrate: Long,
+    /** Converted streams come as HLS in fragmented MP4, which carries FLAC and Dolby Atmos. */
+    val fmp4: Boolean? = null,
+    val dolbyVision: Boolean? = null,
+    val hdr10: Boolean? = null,
+    val hlg: Boolean? = null,
+)
+
+@Serializable
+data class PlaybackRequest(
+    val itemId: String,
+    val profile: DeviceProfile,
+    /** Omit to let the server pick the resume point; 0 starts from the beginning. */
+    val startPositionSeconds: Double? = null,
+    /** This player's previous session, which the new one takes over from. */
+    val replacesSessionId: String? = null,
+    /** With a show's id, a random episode starts; with an episode's, its `next` is a random one. */
+    val shuffle: Boolean? = null,
+)
+
+@Serializable
+data class Marker(
+    val type: MarkerType,
+    val start: Double,
+    val end: Double,
+)
+
+@Serializable
+data class PlaybackInfo(
+    val sessionId: String,
+    val method: PlaybackMethod,
+    /** Relative to the server; resolve with `FlexarrClient.url`. Needs no API key. */
+    val url: String,
+    val durationSeconds: Double,
+    /** Where to start: the resume point, or what the request asked for. */
+    val startPositionSeconds: Double,
+    val markers: List<Marker> = emptyList(),
+    val item: ItemSummary,
+    val ancestors: List<ItemSummary> = emptyList(),
+    val next: ItemSummary? = null,
+    /** The episode before this one, in order: null on shuffle, for the first episode, and from servers before it. */
+    val previous: ItemSummary? = null,
+    val transcodeSummary: String? = null,
+    /** The profile's auto-play and skip preferences. Absent from servers before they existed. */
+    val preferences: PlaybackPreferences? = null,
+    /** A short hash of `sessionId`, for logs. Absent from older servers. */
+    val playbackId: String? = null,
+)
+
+/** How a profile likes to watch: auto-play the next episode, and what to skip without asking. */
+@Serializable
+data class PlaybackPreferences(
+    val autoPlayNext: Boolean = true,
+    val skipIntros: Boolean = false,
+    val skipRecaps: Boolean = false,
+    val skipCredits: Boolean = false,
+)
+
+@Serializable
+internal data class ProgressReport(val positionSeconds: Double, val paused: Boolean, val ended: Boolean)
+
+@Serializable
+internal data class WatchedRequest(val watched: Boolean)
+
+// Pairing and sign-in
+
+/** A code for connecting this device, shown on screen for someone to approve. */
+@Serializable
+data class PairingStart(
+    /** The device's secret handle for polling; never shown. */
+    val id: String,
+    /** What a person approves, e.g. "K7M-Q4X". */
+    val code: String,
+    val expiresAt: String,
+)
+
+/** GET /setup: a new server that nobody has set up in a browser yet. */
+@Serializable
+data class SetupStatus(
+    val open: Boolean,
+    /** Setting up asks for the code in the server's log. Absent from servers before 0.52. */
+    val codeRequired: Boolean? = null,
+)
+
+@Serializable
+data class PairingStatus(
+    /** "waiting", "approved" or "expired". */
+    val status: String,
+    /** Set once, when approved: this device's own token, sent as the API key from then on. */
+    val apiKey: String? = null,
+)
+
+/** What `/me` says about this client. */
+@Serializable
+data class SignInInfo(
+    val profileId: String,
+    /** "api-key" (the server's key itself), "device" (this device's own token), "tailscale" or "local". */
+    val method: String,
+    val isAdmin: Boolean,
+)
+
+@Serializable
+internal data class DeviceToken(val token: String)
+
+// Profiles
+
+/** A person in the household: their own watch history, Continue Watching and (optionally) a PIN. */
+@Serializable
+data class Profile(
+    val id: String,
+    val name: String,
+    /** "#a9c2ec"; the circle behind the initial when there's no picture. */
+    val color: String,
+    val hasPin: Boolean = false,
+    val isMain: Boolean = false,
+    /** The profile the request that fetched this list acted for. */
+    val isCurrent: Boolean = false,
+    /** The picture's server-relative URL, or null to show the initial on the colour. */
+    val image: String? = null,
+) {
+    val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
+}
+
+/** What choosing a profile returns: the token to send as `X-Flexarr-Profile` from then on. */
+@Serializable
+data class ProfileSelection(val token: String, val profile: Profile)
+
+@Serializable
+internal data class SelectProfileRequest(val pin: String?)

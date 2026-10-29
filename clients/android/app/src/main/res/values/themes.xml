@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="room">#1B1720</color>
+
+    <!-- The room colour behind everything, so launching never flashes white. -->
+    <style name="Theme.Flexarr" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/room</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.Flexarr.Player">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
