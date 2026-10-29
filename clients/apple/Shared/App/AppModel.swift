@@ -3,6 +3,8 @@ import Foundation
 import Observation
 import UIKit
 
+private let log = FlexarrLog("signin")
+
 /// App-wide state: the signed-in server, who's watching, their libraries and the player.
 @MainActor
 @Observable
@@ -179,12 +181,14 @@ final class AppModel {
         guard let url = FlexarrClient.normalizeAddress(address) else { throw FlexarrClientError.invalidAddress }
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         var credentials = ServerCredentials(address: url, apiKey: key)
+        let status: SystemStatus
         do {
-            // The server's address for away from home comes with its status; it's kept beside this one.
-            credentials.remoteAddress = try await credentials.client.systemStatus().remoteUrl
+            status = try await credentials.client.systemStatus()
         } catch {
             throw ConnectionError(error)
         }
+        // The server's address for away from home comes with its status; it's kept beside this one.
+        credentials.remoteAddress = await Self.remoteAddress(for: status, address: url)
         let typed = credentials
         credentials = await withOwnToken(credentials)
         do {
@@ -260,12 +264,20 @@ final class AppModel {
         guard !remoteChecked, let credentials else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
-        let remote = status.remoteUrl == credentials.address ? nil : status.remoteUrl
-        guard remote != credentials.remoteAddress, self.credentials == credentials else { return }
-        var updated = credentials
+        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
+        // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
+        guard let now = self.credentials, remote != now.remoteAddress,
+              now.address == credentials.address, now.apiKey == credentials.apiKey else { return }
+        var updated = now
         updated.remoteAddress = remote
         store.saveRemoteAddress(remote)
         phase = .signedIn(updated)
+    }
+
+    /// The server's address for away from home, once it's a Tailscale one with the same server there (see
+    /// `FlexarrClient.remoteAddress`); one that isn't is left out, and said so in the log.
+    private static func remoteAddress(for status: SystemStatus, address: URL, kept: URL? = nil) async -> URL? {
+        await FlexarrClient.remoteAddress(for: status, address: address, kept: kept, refused: { log.warning($0) })
     }
 
     /// The same sign-in with this device's own token in place of the server's API key, if it holds the key

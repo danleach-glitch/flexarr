@@ -65,6 +65,7 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
+import io.github.flexarr.core.Teletext
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.coroutineScope
@@ -224,7 +225,7 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
     }
 }
 
-/** Off and each track; then Timing, Size and Position, as the iPhone's subtitles menu. */
+/** Off and each track; then Teletext page (for teletext), Timing, Size and Position, as the iPhone's subtitles menu. */
 @Composable
 private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () -> Unit) {
     val info = controller.info ?: return
@@ -236,6 +237,15 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
                 Choice(PlaybackController.delayLabel(seconds), seconds == current, enabled = !controller.isReopening) {
                     close()
                     controller.setSubtitleDelay(seconds)
+                }
+            }
+        }
+        "teletext" -> {
+            Back("Teletext page") { openPage(null) }
+            (listOf(null) + Teletext.pages).forEach { number ->
+                Choice(number?.toString() ?: "Automatic", number == controller.teletextPage, enabled = !controller.isReopening) {
+                    close()
+                    controller.chooseTeletextPage(number)
                 }
             }
         }
@@ -270,6 +280,10 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
                 }
             }
             Divider()
+            // Teletext subtitles are on a page of their own, which a recording doesn't always mark.
+            if (controller.canChooseTeletextPage) {
+                Submenu("Teletext page", controller.teletextPage?.toString() ?: "Automatic") { openPage("teletext") }
+            }
             // Burned into the picture, they can't be moved: the server draws them where they fall.
             if (!info.subtitleBurnedIn) Submenu("Timing", PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0)) { openPage("timing") }
             Submenu("Size", controller.subtitleSize.label) { openPage("size") }

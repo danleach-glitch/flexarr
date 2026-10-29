@@ -33,7 +33,7 @@ ASS and SSA subtitles, as most anime has, can carry their own fonts, colours, po
 ### Closed captions and teletext
 
 - **Closed captions** carried inside the video, as American TV recordings have them, are listed as **CC** and work on every device. Flexarr looks for them when it scans a file.
-- **Teletext** subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with **Play files directly** on. The subtitles menu there has a **Teletext page** choice for channels that don't use the usual page, such as 888 in the UK or 150 and 777 in Germany. In a web browser, teletext shows only when the server's FFmpeg can read it, as the Docker image's can; a server on a Mac can't.
+- **Teletext** subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with **Play files directly** on. The subtitles menu there has a **Teletext page** choice for channels that don't use the usual page, such as 888 in the UK or 150 and 777 in Germany. On Android and in a web browser, teletext shows only when the server's FFmpeg can read it, as the Docker image's can; a server on a Mac can't. Android's subtitles menu has the same **Teletext page** choice.
 
 ### Finding subtitles
 
