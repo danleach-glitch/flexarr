@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -353,27 +354,40 @@ internal fun SleepPrompt(controller: PlaybackController) {
 }
 
 /**
- * The subtitles, drawn over the picture (or across the whole screen, so they can sit in the black bars) at the
- * profile's size and height.
+ * The subtitles over the picture at the profile's size and height. With "In the black bars", a wide picture's bar below
+ * takes them instead, when they fit there (as on iPhone); otherwise they stay on the picture.
  */
 @Composable
 internal fun SubtitleLayer(controller: PlaybackController) {
     val cues = controller.cues
     if (cues.isEmpty()) return
     val size = controller.videoSize
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
+        val screenWidth = constraints.maxWidth.toFloat()
+        val screenHeight = constraints.maxHeight.toFloat()
         val ratio = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 16f / 9f
-        val screenRatio = constraints.maxWidth.toFloat() / constraints.maxHeight
-        val picture = if (controller.subtitlesInBlackBars) {
-            Modifier.fillMaxSize()
-        } else if (ratio > screenRatio) {
-            Modifier.width(maxWidth).height(with(density) { (constraints.maxWidth / ratio).toDp() })
-        } else {
-            Modifier.height(maxHeight).width(with(density) { (constraints.maxHeight * ratio).toDp() })
-        }
+        // Where the picture is (fitted, centred), in pixels.
+        val pictureWidth = if (ratio > screenWidth / screenHeight) screenWidth else screenHeight * ratio
+        val pictureHeight = pictureWidth / ratio
+        val pictureTop = (screenHeight - pictureHeight) / 2
         val scale = controller.subtitleSize.percent / 100f
-        val shown = placeCues(cues, controller.subtitlePosition, scale)
+        // Text sized by the picture's height, wherever it's drawn.
+        val textSize = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale * pictureHeight
+        val lines = cues.sumOf { cue -> (cue.text?.count { it == '\n' } ?: 0) + 1 }
+        val margin = with(density) { 6.dp.toPx() }
+        val bar = screenHeight - pictureTop - pictureHeight
+        val inBar = controller.subtitlesInBlackBars && controller.subtitlePosition != SubtitlePosition.Top &&
+            bar >= lines * textSize * LINE_HEIGHT + with(density) { 12.dp.toPx() }
+
+        val regionTop = if (inBar) pictureTop + pictureHeight else pictureTop
+        val regionHeight = if (inBar) bar else pictureHeight
+        val shown = if (inBar) {
+            // Just below the picture, the lines in their own order.
+            cues.map { it.buildUpon().setLine(margin / regionHeight, Cue.LINE_TYPE_FRACTION).setLineAnchor(Cue.ANCHOR_TYPE_START).build() }
+        } else {
+            placeCues(cues, controller.subtitlePosition, scale)
+        }
         AndroidView(
             factory = { context ->
                 SubtitleView(context).apply {
@@ -381,12 +395,16 @@ internal fun SubtitleLayer(controller: PlaybackController) {
                 }
             },
             update = { view ->
-                view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale)
-                // The cues carry their own place (placeCues), measured from the picture's edges.
+                view.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, textSize)
+                // The cues carry their own place, measured from the region's edges.
                 view.setBottomPaddingFraction(0f)
                 view.setCues(shown)
             },
-            modifier = picture,
+            modifier = with(density) {
+                Modifier
+                    .offset(x = ((screenWidth - pictureWidth) / 2).toDp(), y = regionTop.toDp())
+                    .size(width = pictureWidth.toDp(), height = regionHeight.toDp())
+            },
         )
     }
 }
@@ -422,7 +440,7 @@ private fun Pill(label: String, filled: Boolean, icon: ImageVector? = null, onCl
  */
 internal fun placeCues(cues: List<Cue>, position: SubtitlePosition, scale: Float): List<Cue> {
     // One line's share of the picture's height, for stacking cues that say "the line above the last".
-    val lineStep = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale * 1.25f
+    val lineStep = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale * LINE_HEIGHT
     val lift = position.lift
     return cues.map { cue ->
         val fromBottom = when {
@@ -437,6 +455,9 @@ internal fun placeCues(cues: List<Cue>, position: SubtitlePosition, scale: Float
         }
     }
 }
+
+/** A line of subtitles, as a multiple of the text's size. */
+private const val LINE_HEIGHT = 1.25f
 
 /** How far below the picture's top edge subtitles at the top start. */
 private const val TOP_INSET = 0.04f
