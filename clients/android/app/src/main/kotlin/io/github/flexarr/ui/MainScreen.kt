@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -67,6 +68,7 @@ import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
 import io.github.flexarr.AppLink
+import kotlinx.coroutines.launch
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
@@ -123,10 +125,12 @@ fun MainScreen(model: AppModel) {
             }
         }
         // A notification, shortcut or the widget asked to go somewhere.
+        val linkScope = rememberCoroutineScope()
         LaunchedEffect(model.pendingLink) {
             val link = model.pendingLink ?: return@LaunchedEffect
+            // Cleared at once, which restarts this effect: what it does runs on in a scope of its own.
             model.pendingLink = null
-            when (link) {
+            linkScope.launch { when (link) {
                 is AppLink.Item -> navigator.openItem(link.id)
                 is AppLink.Play -> {
                     val item = runCatching { client.item(link.id) }.getOrNull()
@@ -140,7 +144,7 @@ fun MainScreen(model: AppModel) {
                 AppLink.Search -> select(Tab.Search)
                 AppLink.Downloads -> select(Tab.Downloads)
                 AppLink.Home -> select(Tab.Home)
-            }
+            } }
         }
         // With no connection to the server, the app opens on what's downloaded.
         LaunchedEffect(model.serverUnreachable) {

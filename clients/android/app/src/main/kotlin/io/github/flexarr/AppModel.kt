@@ -27,6 +27,7 @@ import io.github.flexarr.downloads.DownloadStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
+import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -228,6 +229,7 @@ class AppModel(private val context: Context) {
         profiles = emptyList()
         profilesLoaded = false
         phase = Phase.SignedOut
+        scope.launch { ContinueWatchingWidget.refresh(context) }
     }
 
     suspend fun loadProfiles() {
@@ -259,7 +261,7 @@ class AppModel(private val context: Context) {
         if (saved) store.saveProfile(selection.token)
         phase = Phase.SignedIn(updated)
         profiles = profiles.map { it.copy(isCurrent = it.id == profile.id) }
-        watchStateVersion++
+        watchStateChanged()
     }
 
     /** Back to choosing who's watching. */
@@ -320,6 +322,7 @@ class AppModel(private val context: Context) {
 
     fun watchStateChanged() {
         watchStateVersion++
+        scope.launch { ContinueWatchingWidget.refresh(context) }
     }
 
     private var checkingSignIn = false

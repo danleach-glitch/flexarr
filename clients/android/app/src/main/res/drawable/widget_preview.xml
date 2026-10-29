@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows: the room with two titles' cards and their progress. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="120dp"
+    android:viewportWidth="250"
+    android:viewportHeight="120">
+    <path android:fillColor="#1B1720" android:pathData="M20,0h210a20,20 0 0 1 20,20v80a20,20 0 0 1 -20,20h-210a20,20 0 0 1 -20,-20v-80a20,20 0 0 1 20,-20z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M12,12h80v8h-80z" />
+    <path android:fillColor="#25202C" android:pathData="M22,28h88a10,10 0 0 1 10,10v32a10,10 0 0 1 -10,10h-88a10,10 0 0 1 -10,-10v-32a10,10 0 0 1 10,-10z" />
+    <path android:fillColor="#25202C" android:pathData="M140,28h88a10,10 0 0 1 10,10v32a10,10 0 0 1 -10,10h-88a10,10 0 0 1 -10,-10v-32a10,10 0 0 1 10,-10z" />
+    <path android:fillColor="#3A3343" android:pathData="M12,85h108v3h-108z" />
+    <path android:fillColor="#A9C2EC" android:pathData="M12,85h70v3h-70z" />
+    <path android:fillColor="#3A3343" android:pathData="M130,85h108v3h-108z" />
+    <path android:fillColor="#A9C2EC" android:pathData="M130,85h30v3h-30z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M12,94h70v6h-70z" />
+    <path android:fillColor="#A39AAE" android:pathData="M12,104h50v5h-50z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M130,94h60v6h-60z" />
+</vector>

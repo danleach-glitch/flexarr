@@ -15,6 +15,7 @@ work = "2.11.2"
 junit = "4.13.2"
 sentry = "8.62.0"
 firebase-bom = "35.1.0"
+glance = "1.2.0"
 google-services = "4.5.0"
 
 [libraries]
@@ -47,6 +48,7 @@ sentry-android = { module = "io.sentry:sentry-android-core", version.ref = "sent
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]

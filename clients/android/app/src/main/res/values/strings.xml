@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Flexarr</string>
+    <string name="widget_continue_description">The films and episodes you’re part way through, to carry on with</string>
+    <string name="shortcut_continue">Continue Watching</string>
+    <string name="shortcut_search">Search</string>
+    <string name="shortcut_downloads">Downloads</string>
 </resources>

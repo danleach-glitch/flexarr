@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.androidx.work.runtime)
     implementation(libs.sentry.android)
+    implementation(libs.glance.appwidget)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
