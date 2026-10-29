@@ -5,9 +5,12 @@ import android.net.Uri
 import androidx.navigation.NavHostController
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.player.LivePlayerActivity
+import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.MediaKind
 import io.github.flexarr.player.PlayerActivity
 import kotlinx.coroutines.launch
 
@@ -18,8 +21,22 @@ import kotlinx.coroutines.launch
 class Navigator(private val nav: NavHostController, private val model: AppModel, private val context: Context) {
     fun openItem(id: String) = nav.navigate("item/$id")
 
-    /** A title as a card knows it: a podcast opens its own page, everything else the title page. */
-    fun open(item: ItemSummary) = if (item.kind == io.github.flexarr.core.MediaKind.Podcast) openPodcast(item.id) else openItem(item.id)
+    /**
+     * A title as a card knows it: a podcast opens its own page, an artist or album theirs (a track its album), and
+     * everything else the title page.
+     */
+    fun open(item: ItemSummary) = when (item.kind) {
+        MediaKind.Podcast -> openPodcast(item.id)
+        MediaKind.Artist -> nav.navigate("artist/${item.id}")
+        MediaKind.Album -> nav.navigate("album/${item.id}")
+        MediaKind.Track -> item.parentId?.let { nav.navigate("album/$it") } ?: Unit
+        else -> openItem(item.id)
+    }
+
+    /** A library from the Libraries tab: music has its own screen (artists, new albums, playlists), the rest a poster grid. */
+    fun openLibrary(library: Library) = if (library.type == LibraryType.Music) nav.navigate("music/${library.id}") else openLibrary(library.id)
+
+    fun openPlaylist(id: String) = nav.navigate("playlist/$id")
 
     fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title) = nav.navigate("library/$id?sort=${sort.raw}")
 

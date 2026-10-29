@@ -104,11 +104,21 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
                     open(LivePlayerActivity.intent(context, channel, channels.filter { it.isFavourite } + channels.filterNot { it.isFavourite }))
                 }
             }
-            DeviceCommandKind.Pause -> active?.pause() ?: model.podcasts.pause()
-            DeviceCommandKind.Resume -> active?.resume()
-            DeviceCommandKind.Stop -> active?.stop() ?: model.podcasts.pause()
+            // With no picture up, what's playing is music or a podcast.
+            DeviceCommandKind.Pause -> active?.pause() ?: pauseAudio()
+            DeviceCommandKind.Resume -> active?.resume() ?: resumeAudio()
+            DeviceCommandKind.Stop -> active?.stop() ?: pauseAudio()
             DeviceCommandKind.Unknown -> Unit
         }
+    }
+
+    private fun pauseAudio() {
+        model.music.pause()
+        model.podcasts.pause()
+    }
+
+    private fun resumeAudio() {
+        if (model.music.current != null) model.music.resume() else if (model.podcasts.current != null && !model.podcasts.player.isPlaying) model.podcasts.togglePlayPause()
     }
 
     private fun open(intent: Intent) {

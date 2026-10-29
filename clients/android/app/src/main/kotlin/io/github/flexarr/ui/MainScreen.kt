@@ -43,6 +43,11 @@ import io.github.flexarr.ui.library.LibrariesScreen
 import io.github.flexarr.ui.library.LibraryScreen
 import io.github.flexarr.ui.livetv.LiveRecordingsScreen
 import io.github.flexarr.ui.livetv.LiveTvScreen
+import io.github.flexarr.ui.music.AlbumScreen
+import io.github.flexarr.ui.music.ArtistScreen
+import io.github.flexarr.ui.music.MusicLibraryScreen
+import io.github.flexarr.ui.music.MusicNowPlayingBar
+import io.github.flexarr.ui.music.PlaylistScreen
 import io.github.flexarr.ui.podcasts.NowPlayingBar
 import io.github.flexarr.ui.podcasts.PodcastBrowseScreen
 import io.github.flexarr.ui.podcasts.PodcastScreen
@@ -83,8 +88,8 @@ fun MainScreen(model: AppModel) {
             containerColor = Flexarr.room,
             bottomBar = {
               Column {
-                // A podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
-                NowPlayingBar(model)
+                // Music or a podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
+                if (model.music.current != null) MusicNowPlayingBar(model) else NowPlayingBar(model)
                 NavigationBar(containerColor = Flexarr.room.copy(alpha = 0.96f)) {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -135,6 +140,10 @@ fun MainScreen(model: AppModel) {
                 }
                 composable("livetv") { LiveTvScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }
+                composable("music/{id}") { MusicLibraryScreen(model, it.arguments?.getString("id")!!) }
+                composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }
+                composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }
+                composable("playlist/{id}") { PlaylistScreen(model, it.arguments?.getString("id")!!) }
                 composable("podcasts") { PodcastsScreen(model) }
                 composable("podcasts/browse") { PodcastBrowseScreen(model) }
                 composable("podcast/{id}") { PodcastScreen(model, it.arguments?.getString("id")!!) }
