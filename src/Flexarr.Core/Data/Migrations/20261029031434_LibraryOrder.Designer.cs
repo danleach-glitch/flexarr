@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261029023200_LibraryOrder")]
+    [Migration("20261029031434_LibraryOrder")]
     partial class LibraryOrder
     {
         /// <inheritdoc />
@@ -1233,6 +1233,13 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<byte[]>("Key")
                         .IsRequired()
                         .HasColumnType("BLOB");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("apple");
 
                     b.Property<bool>("Podcasts")
                         .HasColumnType("INTEGER");
