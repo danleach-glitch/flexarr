@@ -136,6 +136,7 @@ class PushNotifications(private val context: Context) {
         profileId = null
         profileName = null
         prefs.edit().putBoolean(ON, false).remove(PROFILE).remove(PROFILE_NAME).remove(PROFILE_TOKEN).remove(KEY).remove(SENT_TOKEN).apply()
+        if (isAvailable) FirebaseMessaging.getInstance().isAutoInitEnabled = false
     }
 
     // The Firebase token
@@ -151,8 +152,14 @@ class PushNotifications(private val context: Context) {
     /** No token from Firebase. */
     class NoToken : Exception("Couldn't reach Google's notification service. Check this phone is online and try again.")
 
-    private suspend fun token(): String =
-        withTimeoutOrNull(15_000) { runCatching { FirebaseMessaging.getInstance().token.await() }.getOrNull() } ?: throw NoToken()
+    /**
+     * Firebase stays off until notifications are turned on (the manifest says so), so the app doesn't reach Google
+     * otherwise. From then on it keeps the token fresh by itself, until [forget].
+     */
+    private suspend fun token(): String {
+        FirebaseMessaging.getInstance().isAutoInitEnabled = true
+        return withTimeoutOrNull(15_000) { runCatching { FirebaseMessaging.getInstance().token.await() }.getOrNull() } ?: throw NoToken()
+    }
 
     // Registering
 

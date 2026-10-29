@@ -23,6 +23,7 @@ benchmark = "1.5.0"
 uiautomator = "2.4.0"
 profileinstaller = "1.4.1"
 google-services = "4.5.0"
+play-publisher = "4.1.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
@@ -72,3 +73,4 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+play-publisher = { id = "com.github.triplet.play", version.ref = "play-publisher" }

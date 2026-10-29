@@ -1,4 +1,4 @@
-.PHONY: guide apps apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: guide apps apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -139,6 +139,21 @@ mac-upload: ## Archive the Mac app and upload it to App Store Connect
 		'</dict></plist>' > clients/macos/build/ExportOptions.plist
 	xcodebuild -exportArchive -archivePath clients/macos/build/FlexarrServer.xcarchive -exportOptionsPlist clients/macos/build/ExportOptions.plist \
 		-exportPath clients/macos/build/export -allowProvisioningUpdates $(ASC_AUTH)
+
+# The Android app for Google Play, signed with the upload key in ~/.flexarr-release (see docs/play-store.md).
+#   make android-bundle    the signed app bundle, in clients/android/app/build/outputs/bundle/release
+#   make android-upload    upload it to a Play testing track (TRACK=internal by default; alpha is the closed test)
+#   make android-listing   publish the store listing in clients/android/app/src/main/play
+# MARKETING=0.53.0 builds as that version, as for the Apple apps.
+TRACK ?= internal
+ANDROID_JAVA ?= /Applications/Android Studio.app/Contents/jbr/Contents/Home
+ANDROID_GRADLE = cd clients/android && JAVA_HOME="$${JAVA_HOME:-$(ANDROID_JAVA)}" ./gradlew $(if $(MARKETING),-Pflexarr.version=$(MARKETING))
+android-bundle: ## Build the signed Android app bundle for Google Play
+	$(ANDROID_GRADLE) :app:bundleRelease
+android-upload: ## Upload the Android app to a Google Play testing track
+	$(ANDROID_GRADLE) -Pflexarr.track=$(TRACK) :app:publishReleaseBundle
+android-listing: ## Publish the Android app's Google Play listing
+	$(ANDROID_GRADLE) :app:publishReleaseListing
 
 docker: ## Build the container image
 	docker build -t flexarr:dev .
