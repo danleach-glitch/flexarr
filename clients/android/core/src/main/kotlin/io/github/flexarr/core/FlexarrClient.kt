@@ -108,6 +108,10 @@ class FlexarrClient(
         send("POST", "items/$id/watched", body = json.encodeToString(WatchedRequest(watched)))
     }
 
+    suspend fun person(id: String): Person = get("people/$id")
+
+    suspend fun search(query: String): SearchResults = get("search", mapOf("q" to query))
+
     // Playback
 
     suspend fun startPlayback(request: PlaybackRequest): PlaybackInfo =
@@ -120,6 +124,30 @@ class FlexarrClient(
 
     suspend fun stopPlayback(sessionId: String) {
         send("DELETE", "playback/$sessionId")
+    }
+
+    /** The viewer picked subtitles in the player (a track's key, or null for off): remembered for next time. */
+    suspend fun setSubtitle(sessionId: String, key: String?) {
+        send("PUT", "playback/$sessionId/subtitle", body = json.encodeToString(SubtitleChoice(key ?: "off")))
+    }
+
+    suspend fun setPlaybackPreferences(preferences: PlaybackPreferences) {
+        send("PUT", "me/playback-preferences", body = json.encodeToString(preferences))
+    }
+
+    /** Remembers how far this title's subtitles are moved (later when positive); used the next time they're fetched. */
+    suspend fun setSubtitleDelay(itemId: String, seconds: Double) {
+        send("PUT", "items/$itemId/subtitle-delay", body = json.encodeToString(SecondsBody(seconds)))
+    }
+
+    /** Plays a file's sound [seconds] later (earlier when negative, up to two seconds either way), for everyone. */
+    suspend fun setAudioDelay(itemId: String, seconds: Double) {
+        send("PUT", "items/$itemId/audio-delay", body = json.encodeToString(SecondsBody(seconds)))
+    }
+
+    /** Remembers [speed] for the show an episode belongs to, for this profile (1 forgets it). A film's isn't kept. */
+    suspend fun setPlaybackSpeed(itemId: String, speed: Double) {
+        send("PUT", "items/$itemId/playback-speed", body = json.encodeToString(SpeedBody(speed)))
     }
 
     // Profiles
@@ -179,13 +207,13 @@ class FlexarrClient(
 
     // Transport
 
-    private suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T {
+    internal suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T {
         val text = send("GET", path, query)
         return withContext(Dispatchers.Default) { decode(serializer<T>(), text) }
     }
 
     /** The answer's text. Off the main thread throughout: Android refuses network reads on it, the body's included. */
-    private suspend fun send(method: String, path: String, query: Map<String, String> = emptyMap(), body: String? = null): String =
+    internal suspend fun send(method: String, path: String, query: Map<String, String> = emptyMap(), body: String? = null): String =
         withContext(Dispatchers.IO) { exchange(method, path, query, body) }
 
     private suspend fun exchange(method: String, path: String, query: Map<String, String>, body: String?): String {
@@ -223,7 +251,18 @@ class FlexarrClient(
         }
     }
 
-    private fun <T> decode(serializer: KSerializer<T>, text: String): T =
+    /** The answer's text, for callers in this module that read it themselves (an empty answer meaning none). */
+    internal suspend fun sendRaw(method: String, path: String): String = send(method, path)
+
+    internal fun <T> decodeText(serializer: KSerializer<T>, text: String): T = decode(serializer, text)
+
+    /** Sends [body] as JSON and reads the answer as a [T]. */
+    internal suspend inline fun <reified B, reified T> sendDecoding(method: String, path: String, body: B): T {
+        val text = send(method, path, body = body?.let { json.encodeToString(serializer<B>(), it) })
+        return decode(serializer<T>(), text)
+    }
+
+    internal fun <T> decode(serializer: KSerializer<T>, text: String): T =
         try {
             json.decodeFromString(serializer, text)
         } catch (e: IllegalArgumentException) {

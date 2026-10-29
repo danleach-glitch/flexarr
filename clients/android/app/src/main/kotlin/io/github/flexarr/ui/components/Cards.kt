@@ -83,7 +83,7 @@ fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = Po
     Box(modifier) {
         Column(
             (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
-                .pressable(onClick = { navigator.openItem(item.id) }, onLongClick = { menu = true }),
+                .pressable(onClick = { navigator.open(item) }, onLongClick = { menu = true }),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             PosterArtwork(item)
@@ -167,10 +167,10 @@ fun Top10Card(rank: Int, item: ItemSummary, width: Dp = PosterWidth) {
     }
 }
 
-/** Round headshot with name and character, for cast rows. */
+/** Round headshot with name and character, for cast rows; tapping opens everything they're in. */
 @Composable
-fun PersonCard(name: String, detail: String?, image: String?) {
-    Column(Modifier.width(96.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+fun PersonCard(name: String, detail: String?, image: String?, onClick: (() -> Unit)? = null) {
+    Column(Modifier.width(96.dp).then(if (onClick != null) Modifier.pressable(onClick) else Modifier), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RemoteImage(image, 200, Modifier.size(84.dp).clip(CircleShape).background(Flexarr.seat)) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 val initials = name.split(" ").take(2).mapNotNull { it.firstOrNull()?.toString() }.joinToString("")

@@ -14,6 +14,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +26,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -68,7 +76,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.appModel
+import io.github.flexarr.core.SubtitlePosition
+import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.displayTitle
@@ -96,10 +107,19 @@ class PlayerActivity : ComponentActivity() {
         val model = appModel
         val client = model.client ?: return finish()
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
+        if (BuildConfig.DEBUG) {
+            controller.debugSubtitles(
+                key = intent.getStringExtra("subtitle"),
+                position = intent.getStringExtra("subtitlePosition")?.let { raw -> SubtitlePosition.entries.firstOrNull { it.raw == raw } },
+                size = intent.getStringExtra("subtitleSize")?.let { raw -> SubtitleSize.entries.firstOrNull { it.raw == raw } },
+                inBlackBars = if (intent.hasExtra("blackBars")) intent.getBooleanExtra("blackBars", false) else null,
+            )
+        }
         controller.start(
             itemId = intent.getStringExtra(EXTRA_ITEM)!!,
             fromBeginning = intent.getBooleanExtra(EXTRA_FROM_BEGINNING, false),
             shuffle = intent.getBooleanExtra(EXTRA_SHUFFLE, false),
+            startAt = intent.getDoubleExtra(EXTRA_START_AT, -1.0).takeIf { it >= 0 },
         )
         setContent { FlexarrTheme { PlayerScreen(controller, onClose = ::finish) } }
     }
@@ -120,12 +140,15 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_ITEM = "itemId"
         private const val EXTRA_FROM_BEGINNING = "fromBeginning"
         private const val EXTRA_SHUFFLE = "shuffle"
+        private const val EXTRA_START_AT = "startAt"
 
-        fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false): Intent =
+        /** [startAt]: a place to open at (debug launches), rather than where it was left. */
+        fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null): Intent =
             Intent(context, PlayerActivity::class.java)
                 .putExtra(EXTRA_ITEM, itemId)
                 .putExtra(EXTRA_FROM_BEGINNING, fromBeginning)
                 .putExtra(EXTRA_SHUFFLE, shuffle)
+                .apply { if (startAt != null) putExtra(EXTRA_START_AT, startAt.toDouble()) }
     }
 }
 
@@ -140,10 +163,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
     var interaction by remember { mutableIntStateOf(0) }
     var flash by remember { mutableStateOf<String?>(null) }
     var flashCount by remember { mutableIntStateOf(0) }
+    var audioSyncOpen by remember { mutableStateOf(false) }
 
     // Hidden after a while of playing untouched.
-    LaunchedEffect(controlsVisible, interaction, controller.isPlaying) {
-        if (controlsVisible && controller.isPlaying) {
+    LaunchedEffect(controlsVisible, interaction, controller.isPlaying, audioSyncOpen) {
+        if (controlsVisible && controller.isPlaying && !audioSyncOpen) {
             delay(4_000)
             controlsVisible = false
         }
@@ -162,16 +186,21 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     keepScreenOn = true
                     setShutterBackgroundColor(AndroidColor.BLACK)
+                    // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
+                    subtitleView?.visibility = android.view.View.GONE
                     player = controller.player
                 }
             },
             modifier = Modifier.fillMaxSize(),
         )
+        SubtitleLayer(controller)
         Box(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        controlsVisible = !controlsVisible
+                        // With Audio sync open, a tap puts it away and brings the controls back.
+                        controlsVisible = audioSyncOpen || !controlsVisible
+                        audioSyncOpen = false
                         interaction++
                     },
                     onDoubleTap = { offset ->
@@ -198,13 +227,29 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
             }
         }
 
-        AnimatedVisibility(controlsVisible && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-            Controls(controller, onClose, onInteract = { interaction++ })
+        val asleep = controller.sleepPhase != PlaybackController.SleepPhase.Off
+        AnimatedVisibility(controlsVisible && !asleep && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+            Controls(controller, onClose, onInteract = { interaction++ }, onAudioSync = {
+                // The panel takes the controls' place until Done.
+                audioSyncOpen = true
+                controlsVisible = false
+            })
+        }
+        if (audioSyncOpen && !asleep) {
+            AudioSyncPanel(
+                controller,
+                onDone = {
+                    audioSyncOpen = false
+                    controlsVisible = true
+                    interaction++
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 32.dp),
+            )
         }
         // The pill stays up with or without the controls: it's how you skip.
-        controller.promptTitle?.let { title ->
+        controller.promptTitle?.takeIf { !asleep }?.let { title ->
             Row(
-                Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 92.dp else 32.dp),
+                Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (controller.countingDown) {
@@ -213,11 +258,12 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
                 ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow, prominent = true)
             }
         }
+        SleepPrompt(controller)
     }
 }
 
 @Composable
-private fun Controls(controller: PlaybackController, onClose: () -> Unit, onInteract: () -> Unit) {
+private fun Controls(controller: PlaybackController, onClose: () -> Unit, onInteract: () -> Unit, onAudioSync: () -> Unit) {
     val info = controller.info
     Box(Modifier.fillMaxSize()) {
         // Keep the title and times readable over bright pictures.
@@ -248,7 +294,10 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onInte
             if (episode) GlassButton(Icons.Filled.SkipNext, "Next episode", enabled = info.next != null) { controller.playNext(); onInteract() }
         }
 
-        Timeline(controller, onInteract, Modifier.align(Alignment.BottomCenter))
+        Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
+            MenuBar(controller, onInteract, onAudioSync, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(end = 24.dp))
+            Timeline(controller, onInteract, Modifier)
+        }
     }
 }
 
@@ -294,9 +343,9 @@ private fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enable
     }
 }
 
-private fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape) =
+internal fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape) =
     clip(shape).background(Color.Black.copy(alpha = 0.45f)).border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
 
 @Composable
-private fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier =
-    this.then(Modifier.pointerInput(enabled) { if (enabled) detectTapGestures { onClick() } })
+internal fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier =
+    clickable(remember { MutableInteractionSource() }, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)

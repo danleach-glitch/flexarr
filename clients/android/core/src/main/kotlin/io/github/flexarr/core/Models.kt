@@ -227,6 +227,26 @@ data class ItemDetail(
     val childOverviews: Map<String, String?> = emptyMap(),
 )
 
+// People and search
+
+@Serializable
+data class PersonCredit(val item: ItemSummary, val role: CreditRole, val character: String? = null)
+
+@Serializable
+data class Person(val id: String, val name: String, val image: String? = null, val credits: List<PersonCredit> = emptyList())
+
+@Serializable
+data class PersonSummary(val id: String, val name: String, val image: String? = null, val credits: Int)
+
+@Serializable
+data class SearchResults(
+    val titles: List<ItemSummary> = emptyList(),
+    val episodes: List<ItemSummary> = emptyList(),
+    val people: List<PersonSummary> = emptyList(),
+) {
+    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty()
+}
+
 // Home
 
 @Serializable
@@ -276,6 +296,36 @@ data class PlaybackRequest(
     val replacesSessionId: String? = null,
     /** With a show's id, a random episode starts; with an episode's, its `next` is a random one. */
     val shuffle: Boolean? = null,
+    /** The file the session played, when opening the same title again (another audio track, moved subtitles). */
+    val fileId: String? = null,
+    val audioStreamIndex: Int? = null,
+    /** A subtitle track's key, or "off"; null lets the server choose by the profile's preferences. */
+    val subtitleKey: String? = null,
+    /** Convert it even though the device says it can play the file (it turned out it couldn't). */
+    val forceTranscode: Boolean? = null,
+)
+
+@Serializable
+data class AudioTrack(
+    val index: Int,
+    val label: String,
+    val codec: String,
+    val language: String? = null,
+    val channels: Int? = null,
+    val isDefault: Boolean = false,
+)
+
+@Serializable
+data class SubtitleTrack(
+    val key: String,
+    val label: String,
+    val codec: String,
+    val language: String? = null,
+    val isForced: Boolean = false,
+    val isDefault: Boolean = false,
+    /** Text the player draws itself (from [url], WebVTT); picture-based ones have to be burned into the picture. */
+    val isText: Boolean,
+    val url: String? = null,
 )
 
 @Serializable
@@ -305,7 +355,29 @@ data class PlaybackInfo(
     val preferences: PlaybackPreferences? = null,
     /** A short hash of `sessionId`, for logs. Absent from older servers. */
     val playbackId: String? = null,
-)
+    val fileId: String? = null,
+    val audioTracks: List<AudioTrack> = emptyList(),
+    val selectedAudioIndex: Int? = null,
+    val subtitles: List<SubtitleTrack> = emptyList(),
+    /** What the server chose to show: the profile's preference, or the viewer's last pick for this title or show. */
+    val selectedSubtitleKey: String? = null,
+    /** The chosen subtitles are drawn into the picture by the server (picture-based ones). */
+    val subtitleBurnedIn: Boolean = false,
+    /** This title's subtitles are shown this many seconds later (earlier when negative). The server shifts them. */
+    val subtitleDelaySeconds: Double? = null,
+    /**
+     * The file's sound is played this many seconds later (earlier when negative), for the whole household. Absent from
+     * servers before 0.53, which can't move it.
+     */
+    val audioDelaySeconds: Double? = null,
+    /** The server's stream already has the sound moved by [audioDelaySeconds]. Absent from servers before 0.53. */
+    val audioDelayInStream: Boolean? = null,
+    /** The speed this profile watches the show at (null: normal). Absent from servers before 0.53. */
+    val speed: Double? = null,
+) {
+    /** The server keeps audio offsets and show speeds (0.53 and later). */
+    val hasPlayerControls: Boolean get() = audioDelaySeconds != null
+}
 
 /** How a profile likes to watch: auto-play the next episode, and what to skip without asking. */
 @Serializable
@@ -314,7 +386,57 @@ data class PlaybackPreferences(
     val skipIntros: Boolean = false,
     val skipRecaps: Boolean = false,
     val skipCredits: Boolean = false,
+    /** Absent from servers before subtitle sizes; left out when saving, the server keeps the profile's own. */
+    val subtitleSize: SubtitleSize? = null,
+    /** How high subtitles sit over the picture. Absent from servers before 0.53; left out when saving, it's kept. */
+    val subtitlePosition: SubtitlePosition? = null,
+    /** In films wider than the screen, subtitles go in the black bar below the picture. Absent from servers before 0.53. */
+    val subtitlesInBlackBars: Boolean? = null,
 )
+
+@Serializable(with = SubtitleSize.Serializer::class)
+enum class SubtitleSize(override val raw: String, val label: String, val percent: Int) : ForwardCompatibleEnum {
+    Small("Small", "Small", 80), Standard("Standard", "Standard", 100), Large("Large", "Large", 125),
+    ExtraLarge("ExtraLarge", "Extra large", 150), Unknown("", "Standard", 100);
+
+    object Serializer : ForwardCompatibleEnumSerializer<SubtitleSize>("SubtitleSize", entries, Unknown)
+
+    companion object {
+        val choices = listOf(Small, Standard, Large, ExtraLarge)
+    }
+}
+
+@Serializable(with = SubtitlePosition.Serializer::class)
+enum class SubtitlePosition(override val raw: String, val label: String) : ForwardCompatibleEnum {
+    Bottom("Bottom", "Bottom"), Raised("Raised", "Raised"), Higher("Higher", "Higher"), Top("Top", "Top"), Unknown("", "Bottom");
+
+    /**
+     * How far above the picture's foot the bottom of a subtitle sits, as a share of the picture's height (as the web
+     * player places them); null at the top.
+     */
+    val lift: Float?
+        get() = when (this) {
+            Bottom, Unknown -> 0.08f
+            Raised -> 0.16f
+            Higher -> 0.26f
+            Top -> null
+        }
+
+    object Serializer : ForwardCompatibleEnumSerializer<SubtitlePosition>("SubtitlePosition", entries, Unknown)
+
+    companion object {
+        val choices = listOf(Bottom, Raised, Higher, Top)
+    }
+}
+
+@Serializable
+internal data class SubtitleChoice(val key: String)
+
+@Serializable
+internal data class SecondsBody(val seconds: Double)
+
+@Serializable
+internal data class SpeedBody(val speed: Double)
 
 @Serializable
 internal data class ProgressReport(val positionSeconds: Double, val paused: Boolean, val ended: Boolean)

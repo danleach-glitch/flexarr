@@ -1,8 +1,11 @@
 package io.github.flexarr.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -38,6 +41,12 @@ import io.github.flexarr.ui.detail.DetailScreen
 import io.github.flexarr.ui.home.HomeScreen
 import io.github.flexarr.ui.library.LibrariesScreen
 import io.github.flexarr.ui.library.LibraryScreen
+import io.github.flexarr.ui.podcasts.NowPlayingBar
+import io.github.flexarr.ui.podcasts.PodcastBrowseScreen
+import io.github.flexarr.ui.podcasts.PodcastScreen
+import io.github.flexarr.ui.podcasts.PodcastsScreen
+import io.github.flexarr.ui.search.PersonScreen
+import io.github.flexarr.ui.search.SearchScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
@@ -46,10 +55,11 @@ import io.github.flexarr.ui.theme.Flexarr
 private enum class Tab(val route: String, val label: String) {
     Home("home", "Home"),
     Libraries("libraries", "Libraries"),
+    Search("search", "Search"),
     Settings("settings", "Settings"),
 }
 
-/** Home, Libraries and Settings along the bottom, each keeping its own place; titles open on top of them. */
+/** Home, Libraries, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
 @Composable
 fun MainScreen(model: AppModel) {
     val client = model.client ?: return
@@ -59,10 +69,16 @@ fun MainScreen(model: AppModel) {
     // The tab stays lit while a title opened from it is on top.
     var currentTab by rememberSaveable { mutableStateOf(Tab.Home) }
 
+    // Whether this profile has podcasts (Libraries lists them) and how it listens to them.
+    LaunchedEffect(model.credentials) { model.loadPodcastStatus() }
+
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
         Scaffold(
             containerColor = Flexarr.room,
             bottomBar = {
+              Column {
+                // A podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
+                NowPlayingBar(model)
                 NavigationBar(containerColor = Flexarr.room.copy(alpha = 0.96f)) {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -92,11 +108,13 @@ fun MainScreen(model: AppModel) {
                         )
                     }
                 }
+              }
             },
         ) { padding ->
             NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
                 composable(Tab.Home.route) { HomeScreen(model) }
                 composable(Tab.Libraries.route) { LibrariesScreen(model) }
+                composable(Tab.Search.route) { SearchScreen(model) }
                 composable(Tab.Settings.route) {
                     SettingsScreen(model, onServer = { nav.navigate("settings/server") }, onLibraryOrder = { nav.navigate("settings/library-order") })
                 }
@@ -109,7 +127,14 @@ fun MainScreen(model: AppModel) {
                     val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
                     LibraryScreen(model, entry.arguments?.getString("id")!!, sort)
                 }
+                composable("podcasts") { PodcastsScreen(model) }
+                composable("podcasts/browse") { PodcastBrowseScreen(model) }
+                composable("podcast/{id}") { PodcastScreen(model, it.arguments?.getString("id")!!) }
                 composable("item/{id}") { DetailScreen(model, it.arguments?.getString("id")!!) }
+                composable(
+                    "person/{id}?name={name}",
+                    arguments = listOf(navArgument("name") { type = NavType.StringType; defaultValue = "" }),
+                ) { entry -> PersonScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("name").orEmpty()) }
             }
         }
     }
@@ -120,5 +145,6 @@ private fun Tab.icon(): Painter = when (this) {
     // The Flexarr mark stands in for a house.
     Tab.Home -> painterResource(R.drawable.ic_brand_mark)
     Tab.Libraries -> rememberVectorPainter(Icons.Filled.GridView)
+    Tab.Search -> rememberVectorPainter(Icons.Filled.Search)
     Tab.Settings -> rememberVectorPainter(Icons.Filled.Settings)
 }

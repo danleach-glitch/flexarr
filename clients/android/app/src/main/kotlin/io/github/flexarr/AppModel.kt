@@ -9,7 +9,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.audio.PodcastPlayer
+import io.github.flexarr.core.PodcastEpisode
+import io.github.flexarr.core.PodcastPreferences
+import io.github.flexarr.core.PodcastStatus
 import io.github.flexarr.core.Profile
+import io.github.flexarr.core.addToUpNext
+import io.github.flexarr.core.podcastPreferences
+import io.github.flexarr.core.podcastStatus
+import io.github.flexarr.core.removeFromUpNext
+import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.data.ServerCredentials
 import kotlinx.coroutines.CoroutineScope
@@ -45,8 +54,9 @@ class AppModel(private val context: Context) {
         private set
 
     /**
-     * Debug builds started with `--ez noHistory true` play without reporting progress, so trying things against the
-     * household's server doesn't change anyone's watch state.
+     * Debug builds started with `--ez noHistory true` play without reporting progress or remembering choices made while
+     * playing (subtitles, a show's speed, subtitle size and position), so trying things against the household's server
+     * doesn't change anyone's watch state or settings.
      */
     var recordsHistory = true
 
@@ -56,6 +66,19 @@ class AppModel(private val context: Context) {
 
     /** Goes up when the libraries' order changes, so the Libraries tab loads them again. */
     var librariesVersion by mutableIntStateOf(0)
+
+    /** Podcast episodes, playing on under every screen. */
+    val podcasts = PodcastPlayer(context, this)
+
+    /** Whether this profile has podcasts (null: not known, or a server from before them). */
+    var podcastStatus: PodcastStatus? by mutableStateOf(null)
+        private set
+
+    /** How this profile listens to podcasts (its speed, above all), once loaded. */
+    var podcastPreferences: PodcastPreferences? by mutableStateOf(null)
+
+    /** The episodes to hear next, in order, the same on every device. */
+    var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
         private set
 
     /** The sign-in is saved on this device (not one for this launch only, from the command line). */
@@ -112,6 +135,9 @@ class AppModel(private val context: Context) {
     }
 
     private fun forget() {
+        podcasts.stop()
+        podcastStatus = null
+        upNext = emptyList()
         if (saved) store.clear()
         profiles = emptyList()
         profilesLoaded = false
@@ -151,6 +177,9 @@ class AppModel(private val context: Context) {
     /** Back to choosing who's watching. */
     fun switchProfile() {
         val credentials = credentials ?: return
+        // Someone else's podcasts and Up Next.
+        podcasts.stop()
+        upNext = emptyList()
         if (saved) store.saveProfile(null)
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
         profiles = profiles.map { it.copy(isCurrent = false) }
@@ -166,6 +195,33 @@ class AppModel(private val context: Context) {
         val saved = client.setLibraryOrder(profile.id, order)
         profiles = profiles.map { if (it.id == saved.id) saved.copy(isCurrent = it.isCurrent) else it }
         librariesVersion++
+    }
+
+    /** Whether this profile has podcasts and how it listens to them: asked once the profile is known. */
+    suspend fun loadPodcastStatus() {
+        val client = client ?: return
+        podcastStatus = runCatching { client.podcastStatus() }.getOrNull()
+        if (podcastStatus?.available == true) {
+            runCatching { client.podcastPreferences() }.onSuccess { podcastPreferences = it }
+        }
+    }
+
+    suspend fun loadUpNext() {
+        val client = client ?: return
+        if (podcastStatus?.available == false) return
+        runCatching { client.upNext() }.onSuccess { upNext = it }
+    }
+
+    /** Puts an episode in Up Next: first (Play next), or last. */
+    fun addToUpNext(episodeId: String, next: Boolean) {
+        val client = client ?: return
+        scope.launch { runCatching { client.addToUpNext(episodeId, next) }.onSuccess { upNext = it } }
+    }
+
+    fun removeFromUpNext(episodeId: String) {
+        val client = client ?: return
+        upNext = upNext.filterNot { it.id == episodeId }
+        scope.launch { runCatching { client.removeFromUpNext(episodeId) } }
     }
 
     fun watchStateChanged() {
