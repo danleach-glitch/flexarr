@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sign-in stays on this device: its token is encrypted with a Keystore key that never leaves it. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="server.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="server.xml" />
+    </device-transfer>
+</data-extraction-rules>

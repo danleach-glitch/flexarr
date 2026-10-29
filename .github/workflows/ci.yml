@@ -26,6 +26,7 @@ jobs:
       server: ${{ steps.diff.outputs.server }}
       web: ${{ steps.diff.outputs.web }}
       apple: ${{ steps.diff.outputs.apple }}
+      android: ${{ steps.diff.outputs.android }}
       guide: ${{ steps.diff.outputs.guide }}
       apps: ${{ steps.diff.outputs.apps }}
       relay: ${{ steps.diff.outputs.relay }}
@@ -47,6 +48,8 @@ jobs:
           echo "server=$(has '^(src/|tests/|Directory\.|global\.json|dotnet-tools\.json|Flexarr\.slnx|\.editorconfig|CHANGELOG\.md|frontend/package\.json|clients/apple/project\.yml)')" >>"$GITHUB_OUTPUT"
           echo "web=$(has '^(frontend/|\.nvmrc)')" >>"$GITHUB_OUTPUT"
           echo "apple=$(has '^clients/apple/')" >>"$GITHUB_OUTPUT"
+          # The Android app's version is the server's, and its tests read FlexarrKit's fixtures.
+          echo "android=$(has '^(clients/android/|Directory\.Build\.props|clients/apple/FlexarrKit/Tests/FlexarrKitTests/Fixtures/)')" >>"$GITHUB_OUTPUT"
           echo "guide=$(has '^(docs/guide/|scripts/guide/|site/guide/)')" >>"$GITHUB_OUTPUT"
           echo "apps=$(has '^(site/apps\.|scripts/apps/)')" >>"$GITHUB_OUTPUT"
           echo "relay=$(has '^relay/')" >>"$GITHUB_OUTPUT"
@@ -174,11 +177,29 @@ jobs:
             -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
 
+  # The Android app (clients/android, in development): the core's tests, and the app built.
+  android:
+    name: Android
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - run: ./gradlew :core:test :app:assembleDebug
+
   # The one check main's ruleset requires: the jobs above are skipped when a commit doesn't touch their part, and a
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, guide, apps, relay, apple]
+    needs: [changes, server, web, guide, apps, relay, apple, android]
     if: always()
     runs-on: ubuntu-latest
     steps:
