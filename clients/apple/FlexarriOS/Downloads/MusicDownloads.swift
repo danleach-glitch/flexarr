@@ -21,7 +21,7 @@ enum MusicDownloadSource {
 }
 
 /// The round download button beside Play and Shuffle on an album or playlist: downloads every track at once; while
-/// they come, a ring fills; once here, a tick. Tapping again offers to remove it (or to stop it).
+/// they come, a ring fills; once here, a filled green arrow. Tapping again offers to remove it (or to stop it).
 struct MusicDownloadButton: View {
     @Environment(DownloadStore.self) private var store
     let source: MusicDownloadSource
@@ -101,10 +101,10 @@ struct MusicDownloadButton: View {
     }
 }
 
-/// A small green tick that marks something downloaded (a track, an album, a film, an episode).
+/// A small filled green arrow that marks something downloaded (a track, an album, a film, an episode).
 struct DownloadedMark: View {
     var body: some View {
-        Image(systemName: "checkmark.circle.fill")
+        Image(systemName: "arrow.down.circle.fill")
             .font(.caption.weight(.semibold))
             .symbolRenderingMode(.palette)
             .foregroundStyle(Color.room, Color.downloaded)

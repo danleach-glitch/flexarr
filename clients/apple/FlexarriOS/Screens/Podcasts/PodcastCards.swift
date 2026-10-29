@@ -354,7 +354,7 @@ struct EpisodePlayButton: View {
     }
 }
 
-/// An episode's download: an arrow, a ring while it comes, a tick once it's here. Tapping a tick offers to remove it.
+/// An episode's download: an arrow, a ring while it comes, a filled green arrow once it's here. Tapping that offers to remove it.
 /// Downloads asked for here use mobile data too; the ones the phone fetches by itself wait for Wi-Fi.
 struct EpisodeDownloadButton: View {
     @Environment(DownloadStore.self) private var store
