@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { getPodcast, getPodcastChapters, getPodcastEpisode, imageUrl, setWatched } from '../api/client'
 import type { Podcast, PodcastChapter, PodcastEpisode } from '../api/types'
 import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
+import { useScrub } from '../hooks/useScrub'
 import { formatClock, formatDuration } from '../lib/format'
 import { useMusicSettings } from '../lib/musicSettings'
 import { coverPalette, fillPalette, glow, parseHex, type Rgb } from '../lib/palette'
@@ -25,6 +26,7 @@ import { PodcastTools } from './PodcastTools'
 export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const player = useAudioPlayer()
   const time = useAudioTime()
+  const scrub = useScrub(time, player.seek)
   const { visualiser } = useMusicSettings()
   const closeButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
@@ -160,17 +162,16 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
               type="range"
               min={0}
               max={Math.max(1, Math.floor(duration))}
-              value={Math.min(time, Math.floor(duration))}
-              onChange={(e) => player.seek(Number(e.target.value))}
+              value={Math.min(scrub.shown, Math.floor(duration))}
+              {...scrub.inputProps}
               aria-label="Seek"
-              style={{ '--progress': `${duration > 0 ? (Math.min(time, duration) / duration) * 100 : 0}%` } as CSSProperties}
+              className={scrub.scrubbing ? 'scrubbing' : undefined}
+              style={{ '--progress': `${duration > 0 ? (Math.min(scrub.shown, duration) / duration) * 100 : 0}%` } as CSSProperties}
             />
             <div className="np-view-times">
-              <span>{formatClock(time)}</span>
-              {podcast && duration > 0 && (
-<EndsAt remaining={Math.max(0, duration - time) / player.speed} />
-              )}
-              <span>-{formatClock(Math.max(0, duration - time))}</span>
+              <span>{formatClock(scrub.shown)}</span>
+              {podcast && duration > 0 && <EndsAt remaining={Math.max(0, duration - scrub.shown) / player.speed} />}
+              <span>-{formatClock(Math.max(0, duration - scrub.shown))}</span>
             </div>
           </div>
 

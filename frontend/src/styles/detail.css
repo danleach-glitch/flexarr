@@ -1017,17 +1017,17 @@ a.np-view-artist:hover {
 }
 
 /* Thicker while it's pointed at or dragged. */
-.np-view-seek input:is(:hover, :active, :focus-visible)::-webkit-slider-runnable-track {
+.np-view-seek input:is(:hover, :active, :focus-visible, .scrubbing)::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 3px;
 }
 
-.np-view-seek input:is(:hover, :active, :focus-visible)::-moz-range-track {
+.np-view-seek input:is(:hover, :active, :focus-visible, .scrubbing)::-moz-range-track {
   height: 6px;
   border-radius: 3px;
 }
 
-.np-view-seek input:is(:hover, :active, :focus-visible)::-webkit-slider-thumb {
+.np-view-seek input:is(:hover, :active, :focus-visible, .scrubbing)::-webkit-slider-thumb {
   margin-top: -4px;
 }
 

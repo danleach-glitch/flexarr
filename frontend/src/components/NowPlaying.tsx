@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router'
 import { imageUrl } from '../api/client'
 import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
+import { useScrub } from '../hooks/useScrub'
 import { formatClock } from '../lib/format'
 import { Close, Forward30, Fullscreen, Next, Pause, Play, Queue, Replay15 } from './icons'
 import { NowPlayingView } from './NowPlayingView'
@@ -18,6 +19,7 @@ import { QueuePanel } from './QueuePanel'
 export function NowPlaying() {
   const player = useAudioPlayer()
   const time = useAudioTime()
+  const scrub = useScrub(time, player.seek)
   // The panel is open for one page: following a link from the queue (or anywhere) puts it away.
   const [openOn, setOpenOn] = useState<string | null>(null)
   const [viewOpen, setViewOpen] = useState(false)
@@ -125,17 +127,17 @@ export function NowPlaying() {
             )}
           </div>
           <div className="now-playing-seek">
-            <span>{formatClock(time)}</span>
+            <span>{formatClock(scrub.shown)}</span>
             <input
               type="range"
               min={0}
               max={Math.max(1, Math.floor(duration))}
-              value={Math.min(time, Math.floor(duration))}
-              onChange={(e) => player.seek(Number(e.target.value))}
+              value={Math.min(scrub.shown, Math.floor(duration))}
+              {...scrub.inputProps}
               aria-label="Seek"
               disabled={!track}
             />
-            <span>-{formatClock(Math.max(0, duration - time))}</span>
+            <span>-{formatClock(Math.max(0, duration - scrub.shown))}</span>
           </div>
         </div>
         <div className="now-playing-tools">
