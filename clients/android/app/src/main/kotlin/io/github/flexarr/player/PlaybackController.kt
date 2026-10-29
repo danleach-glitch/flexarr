@@ -156,6 +156,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var pendingSubtitle: String? = null
     private var audioDelaySave: Job? = null
     private var lastRecovery = 0L
+    /** Playing a download from this phone, with no session: what's watched goes to the downloads, for the server later. */
+    var isOffline by mutableStateOf(false)
+        private set
     /** This title's file couldn't be decoded here: it's converted from now on (until another title starts). */
     private var forcedTranscode = false
 
@@ -178,6 +181,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 // A converted stream that stopped (the server restarted, or forgot the conversion after a long jump):
                 // a fresh session from the same place, once in a while, before giving up.
                 val now = System.currentTimeMillis()
+                if (isOffline) {
+                    error = "This download couldn’t be played. Delete it and download it again."
+                    return
+                }
                 if (info?.method == PlaybackMethod.Transcode && e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && now - lastRecovery > RECOVERY_INTERVAL_MS) {
                     lastRecovery = now
                     Log.w("Flexarr", "Converted stream failed; opening it again", e)
@@ -216,6 +223,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * viewer turned subtitles off in the last episode, which carries on into this one.
      */
     fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false) {
+        isOffline = false
         newTitle(subtitlesOff)
         open { profile ->
             PlaybackRequest(
@@ -227,6 +235,34 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
             )
         }
+    }
+
+    /**
+     * Plays a download from the phone's own copy, from where it was left: its markers for Skip Intro, and the next
+     * episode if that's downloaded too. Nothing needs the server, so it plays with no connection.
+     */
+    fun startOffline(downloadId: String) {
+        val download = model.downloads.byId(downloadId)
+        val file = download?.let(model.downloads::file)
+        if (download == null || file == null) {
+            error = "This download isn’t on the phone any more."
+            return
+        }
+        newTitle(subtitlesOff = false)
+        isOffline = true
+        val next = model.downloads.nextDownloaded(download)
+        begin(
+            PlaybackInfo(
+                sessionId = "offline-${download.item.id}",
+                method = PlaybackMethod.DirectPlay,
+                url = android.net.Uri.fromFile(file).toString(),
+                durationSeconds = download.durationSeconds,
+                startPositionSeconds = download.startPosition,
+                markers = download.markers,
+                item = download.item,
+                next = next?.item,
+            ),
+        )
     }
 
     /** Another title starts: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once). */
@@ -290,7 +326,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private fun begin(started: PlaybackInfo) {
         val sameTitle = info?.item?.id == started.item.id
         previews?.close()
-        previews = TrickplayPreviews(client, started.sessionId, scope)
+        previews = if (isOffline) null else TrickplayPreviews(client, started.sessionId, scope)
         info = started
         error = null
         preferences = started.preferences ?: PlaybackPreferences()
@@ -327,11 +363,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val metadata = MediaMetadata.Builder()
             .setTitle(started.item.displayTitle)
             .setArtist(started.item.episodeSubtitle ?: started.item.year?.toString())
-            .setArtworkUri(client.imageUrl(started.item.artwork.thumb ?: started.item.artwork.backdrop ?: started.item.artwork.poster, 600)?.let(android.net.Uri::parse))
+            .setArtworkUri(if (isOffline) model.downloads.entry(started.item.id)?.let(model.downloads::image)?.let(android.net.Uri::fromFile) else client.imageUrl(started.item.artwork.thumb ?: started.item.artwork.backdrop ?: started.item.artwork.poster, 600)?.let(android.net.Uri::parse))
             .setMediaType(if (started.item.kind == MediaKind.Episode) MediaMetadata.MEDIA_TYPE_TV_SHOW else MediaMetadata.MEDIA_TYPE_MOVIE)
             .build()
         val media = MediaItem.Builder()
-            .setUri(client.url(started.url))
+            .setUri(if (isOffline) started.url else client.url(started.url))
             .setMediaMetadata(metadata)
             .setSubtitleConfigurations(sideloaded)
             .apply { if (started.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
@@ -411,6 +447,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val current = info ?: return
         val next = current.next ?: return
         report(paused = true)
+        if (isOffline) {
+            val download = model.downloads.entry(next.id)?.takeIf { it.isDownloaded } ?: return onClose()
+            return startOffline(download.id)
+        }
         val subtitlesOff = nextSubtitlesOff(current)
         val ready = prepared
         if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
@@ -450,7 +490,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private fun prepareNext() {
         val current = info ?: return
         val next = current.next ?: return
-        if (nextCancelled || prepared?.info?.item?.id == next.id || preparing != null) return
+        if (isOffline || nextCancelled || prepared?.info?.item?.id == next.id || preparing != null) return
         val subtitlesOff = nextSubtitlesOff(current)
         preparing = scope.launch {
             try {
@@ -871,11 +911,20 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     private fun report(paused: Boolean, ended: Boolean = false) {
-        val session = info?.sessionId ?: return
+        val current = info ?: return
+        val session = current.sessionId
         lastReport = System.currentTimeMillis()
         if (!model.recordsHistory) return
         val at = player.currentPosition / 1000.0
+        if (isOffline) return recordOffline(current, at, ended)
         scope.launch { runCatching { client.reportProgress(session, at, paused, ended) } }
+    }
+
+    /** Watched from a download: kept with it, finished once it ended or the credits began, and sent to the server later. */
+    private fun recordOffline(current: PlaybackInfo, at: Double, ended: Boolean) {
+        val credits = current.markers.firstOrNull { it.type == MarkerType.Credits }?.start
+        val finished = ended || (credits != null && at >= credits) || (current.durationSeconds > 0 && at >= current.durationSeconds - 30)
+        model.downloads.record(current.item.id, at, finished)
     }
 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
@@ -889,6 +938,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val session = info?.sessionId
         val at = player.currentPosition / 1000.0
         player.release()
+        if (isOffline) {
+            info?.let { if (model.recordsHistory) recordOffline(it, at, ended = false) }
+            model.watchStateChanged()
+            return
+        }
         if (session != null) {
             scope.launch {
                 if (model.recordsHistory) runCatching { client.reportProgress(session, at, paused = true) }

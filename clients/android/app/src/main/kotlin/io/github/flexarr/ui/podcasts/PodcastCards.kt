@@ -56,6 +56,7 @@ import io.github.flexarr.core.Podcast
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.downloads.EpisodeDownloadButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.LabeledAction
@@ -165,6 +166,7 @@ fun PodcastEpisodeRow(
                 if (!compact) episode.overview?.let { Text(it, fontSize = 15.sp, color = Flexarr.usher, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                 episode.timeLine?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular, modifier = Modifier.padding(top = if (compact) 0.dp else 2.dp)) }
             }
+            EpisodeDownloadButton(model, episode.id, episode.title)
             EpisodePlayButton(model, episode)
         }
         DropdownMenu(menu, onDismissRequest = { menu = false }) {
@@ -176,6 +178,12 @@ fun PodcastEpisodeRow(
             entry("Add to Up Next") { model.addToUpNext(episode.id, next = false) }()
             removeFromUpNext?.let { entry("Remove from Up Next", it)() }
             entry(if (episode.isPlayed) "Mark as unplayed" else "Mark as played") { setPlayed(!episode.isPlayed) }()
+            val download = model.downloads.entry(episode.id)
+            if (download == null) {
+                entry("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } }()
+            } else {
+                entry(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) }()
+            }
             // Part way through: unplayed forgets the place, so it leaves the listening list.
             if (episode.progress != null) entry("Mark as unplayed") { setPlayed(false) }()
         }
@@ -242,6 +250,7 @@ private fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (B
                     ambient = glowColor(shown.accentColor),
                 )
                 val isPlayed = played ?: shown.isPlayed
+                EpisodeDownloadButton(model, shown.id, shown.title)
                 LabeledAction(if (isPlayed) "Mark as unplayed" else "Mark as played", if (isPlayed) Icons.Outlined.Circle else Icons.Filled.Check, {
                     setPlayed(!isPlayed)
                     played = !isPlayed

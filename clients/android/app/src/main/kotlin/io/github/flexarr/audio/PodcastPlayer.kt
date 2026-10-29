@@ -20,6 +20,7 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferencesUpdate
+import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.nextEpisode
 import io.github.flexarr.core.setPodcastPreferences
 import io.github.flexarr.player.DeviceCapabilities
@@ -70,6 +71,8 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     private var client: FlexarrClient? = null
     private var sessionId: String? = null
+    /** Playing from a download on the phone, with no session: what's heard goes to the downloads, for the server later. */
+    private var playingDownload = false
     /** Bumped by every episode change, so a session that arrives for one skipped past is ended rather than played. */
     private var generation = 0
     private var lastReport = 0L
@@ -96,7 +99,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
     fun play(episode: PodcastEpisode) {
         val client = model.client ?: return
         // Already the one playing (or paused): carry on from where it is.
-        if (current?.id == episode.id && sessionId != null) {
+        if (current?.id == episode.id && (sessionId != null || playingDownload)) {
             if (!player.isPlaying) player.play()
             return
         }
@@ -118,6 +121,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         // One thing plays at a time: music stops for the episode.
         model.music.stop()
         AudioService.start(context)
+        val download = model.downloads.entry(episode.id)?.takeIf { it.isDownloaded }
+        val file = download?.let(model.downloads::file)
+        if (download != null && file != null) return startDownloaded(episode, download, file)
         scope.launch {
             try {
                 // Podcasts resume: the server picks the place.
@@ -159,11 +165,38 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
+    /** From the phone's own copy, where it was left (here, or on another device if the server said so since). */
+    private fun startDownloaded(episode: PodcastEpisode, download: io.github.flexarr.core.LocalDownload, file: java.io.File) {
+        playingDownload = true
+        val start = if (download.unsent != null || download.finishedAtMillis != null) download.startPosition else maxOf(download.startPosition, episode.userData.positionSeconds)
+        position = start
+        if (download.durationSeconds > 0) duration = download.durationSeconds
+        val item = MediaItem.Builder()
+            .setUri(Uri.fromFile(file))
+            .setMediaId(episode.id)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(episode.title)
+                    .setArtist(episode.podcastTitle)
+                    .setArtworkUri(model.downloads.image(download)?.let(Uri::fromFile))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
+                    .build(),
+            )
+            .build()
+        player.setMediaItem(item, (start * 1000).toLong())
+        player.setPlaybackSpeed(speed.toFloat())
+        player.prepare()
+        player.play()
+        isLoading = false
+        lastReport = System.currentTimeMillis()
+        startTicking()
+    }
+
     fun togglePlayPause() {
         if (player.isPlaying) return player.pause()
         val episode = current ?: return
         // Stopped (it ended, or failed): ask for it again.
-        if (sessionId == null || player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) start(episode) else player.play()
+        if ((sessionId == null && !playingDownload) || player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) start(episode) else player.play()
     }
 
     fun pause() {
@@ -208,7 +241,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         ticker?.cancel()
         ticker = scope.launch {
             while (isActive) {
-                if (sessionId != null && player.playbackState != Player.STATE_IDLE) {
+                if ((sessionId != null || playingDownload) && player.playbackState != Player.STATE_IDLE) {
                     position = player.currentPosition / 1000.0
                     if (player.duration > 0) duration = player.duration / 1000.0
                 }
@@ -219,6 +252,12 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
     }
 
     private fun report(paused: Boolean, ended: Boolean = false) {
+        if (playingDownload) {
+            lastReport = System.currentTimeMillis()
+            val episode = current ?: return
+            if (model.recordsHistory) model.downloads.record(episode.id, if (ended) duration else player.currentPosition / 1000.0, ended)
+            return
+        }
         val client = client ?: return
         val session = sessionId ?: return
         lastReport = System.currentTimeMillis()
@@ -229,6 +268,16 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     /** Reports where it got to and ends the session (best effort; the server times abandoned ones out). */
     private fun endSession() {
+        if (playingDownload) {
+            playingDownload = false
+            ticker?.cancel()
+            val episode = current
+            if (episode != null && model.recordsHistory && player.playbackState != Player.STATE_ENDED && player.currentPosition > 0) {
+                model.downloads.record(episode.id, player.currentPosition / 1000.0, finished = false)
+            }
+            model.watchStateChanged()
+            return
+        }
         val client = client ?: return
         val session = sessionId ?: return
         sessionId = null
@@ -257,7 +306,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         val mine = generation
         isLoading = true
         scope.launch {
+            // With no connection, the next downloaded episode of the same show.
             val next = runCatching { client.nextEpisode(episode.id) }.getOrNull()
+                ?: model.downloads.entry(episode.id)?.let { model.downloads.nextDownloadedEpisode(it.item) }?.item?.asPodcastEpisode()
             if (mine != generation) return@launch
             isLoading = false
             // Nothing left: stay on this one, ready to play again.

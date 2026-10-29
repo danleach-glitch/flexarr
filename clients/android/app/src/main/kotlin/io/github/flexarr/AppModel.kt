@@ -23,6 +23,7 @@ import io.github.flexarr.core.podcastStatus
 import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
+import io.github.flexarr.downloads.DownloadStore
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -87,6 +88,13 @@ class AppModel(private val context: Context) {
 
     /** Music, playing on under every screen; it and podcasts take turns. */
     val music = MusicPlayer(context, this)
+
+    /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
+    val downloads = DownloadStore(context, this)
+
+    /** The server couldn't be reached when the profiles were asked for: the app opens on Downloads, if there are any. */
+    var serverUnreachable by mutableStateOf(false)
+        private set
 
     /** Whether this profile has podcasts (null: not known, or a server from before them). */
     var podcastStatus: PodcastStatus? by mutableStateOf(null)
@@ -183,7 +191,10 @@ class AppModel(private val context: Context) {
     fun signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
-        if (saved) client?.let { client -> scope.launch { runCatching { client.signOut() } } }
+        val client = client
+        // Downloads go too: what was watched offline is sent and the server's copies dropped first, while the sign-in works.
+        val downloadsDone = downloads.signedOut(client)
+        if (saved) client?.let { client -> scope.launch { downloadsDone.join(); runCatching { client.signOut() } } }
         forget()
     }
 
@@ -210,7 +221,9 @@ class AppModel(private val context: Context) {
                 phase = Phase.SignedIn(credentials.copy(profileToken = null))
             }
             profiles = list
-        } catch (_: FlexarrException) {
+            serverUnreachable = false
+        } catch (e: FlexarrException) {
+            serverUnreachable = e is FlexarrException.Unreachable
             // Unreachable for now: the screens say so and try again.
         } finally {
             profilesLoaded = true
@@ -305,6 +318,7 @@ class AppModel(private val context: Context) {
                 refused.client().me()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
+                    downloads.signedOut(null)
                     forget()
                     signedOutNotice = "This device was signed out."
                 }

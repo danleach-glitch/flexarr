@@ -15,7 +15,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SwapVert
@@ -43,7 +51,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
+import io.github.flexarr.core.DownloadQuality
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.Format
+import io.github.flexarr.core.bytes
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.libraryOrder
@@ -76,7 +87,7 @@ import java.time.format.FormatStyle
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> Unit) {
+fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> Unit, onDownloads: () -> Unit) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
 
@@ -102,6 +113,12 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
                     Group {
                         SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Custom", onClick = onLibraryOrder)
                     }
+                }
+            }
+            item {
+                Group {
+                    val downloads = model.downloads
+                    SettingsLink("Downloads", Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)
                 }
             }
             item {
@@ -144,6 +161,106 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
         ModalBottomSheet(onDismissRequest = { choosingProfile = false }, containerColor = Flexarr.room) {
             ProfilePicker(model, marksCurrent = true, onChosen = { choosingProfile = false })
         }
+    }
+}
+
+/** "Automatic", "Original", "Small": the size downloads come at, as Settings' row says it. */
+private val DownloadQuality.shortLabel: String
+    get() = when (this) {
+        DownloadQuality.Medium -> "Automatic"
+        DownloadQuality.Small -> "Small"
+        else -> label
+    }
+
+/** The size films and episodes come at, what the phone fetches by itself and when, and the space it all takes. */
+@Composable
+fun DownloadSettingsScreen(model: AppModel) {
+    val navigator = LocalNavigator.current
+    val downloads = model.downloads
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+
+    RoomBackground(ambient = null) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+            item { PageTitle("Downloads", onBack = { navigator.back() }) }
+            item {
+                Group(
+                    header = "Films and episodes",
+                    footer = "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.",
+                ) {
+                    listOf(DownloadQuality.Medium to "Automatic (720p)", DownloadQuality.Original to "Original", DownloadQuality.Small to "Small (480p)").forEachIndexed { index, (quality, label) ->
+                        if (index > 0) Divider()
+                        Choice(label, downloads.quality == quality) { downloads.chooseQuality(quality) }
+                    }
+                }
+            }
+            item {
+                Group(
+                    header = "Automatic",
+                    footer = if (downloads.automaticOnWiFiOnly) {
+                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi. Ones you start yourself use mobile data too."
+                    } else {
+                        "Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too."
+                    },
+                ) {
+                    Toggle("Download the next episode", downloads.downloadsNext, downloads::changeDownloadsNext)
+                    Divider()
+                    Toggle("Automatic downloads on Wi-Fi only", downloads.automaticOnWiFiOnly, downloads::changeAutomaticOnWiFiOnly)
+                }
+            }
+            item {
+                Group(header = "Storage", footer = "Episodes are deleted a day after you finish them.") {
+                    Fact("Space used", if (downloads.bytesUsed == 0L) "None" else Format.bytes(downloads.bytesUsed))
+                    if (downloads.downloads.isNotEmpty()) {
+                        Divider()
+                        Text(
+                            "Delete all downloads",
+                            fontSize = 17.sp,
+                            color = Flexarr.danger,
+                            modifier = Modifier.fillMaxWidth().pressable({ confirmDeleteAll = true }).padding(horizontal = 16.dp, vertical = 14.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            title = { Text("Delete all downloads?") },
+            text = { Text("Everything downloaded to this phone goes. What you watched offline is sent to the server first.") },
+            confirmButton = { TextButton(onClick = { confirmDeleteAll = false; downloads.deleteAll() }) { Text("Delete all", color = Flexarr.danger) } },
+            dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel", color = Flexarr.screen) } },
+            containerColor = Flexarr.seat,
+        )
+    }
+}
+
+/** One of a few choices, ticked when it's the one. */
+@Composable
+private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 16.dp, vertical = 14.dp).semantics { this.selected = selected },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = Flexarr.silver)
+    }
+}
+
+@Composable
+private fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(on, onValueChange = onChange, role = Role.Switch).padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        Switch(
+            checked = on,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(checkedTrackColor = Flexarr.downloaded, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle),
+        )
     }
 }
 

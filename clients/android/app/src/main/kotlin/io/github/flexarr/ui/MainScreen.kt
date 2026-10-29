@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -48,6 +49,7 @@ import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.detail.DetailScreen
+import io.github.flexarr.ui.downloads.DownloadsScreen
 import io.github.flexarr.ui.home.HomeScreen
 import io.github.flexarr.ui.library.LibrariesScreen
 import io.github.flexarr.ui.library.LibraryScreen
@@ -64,6 +66,7 @@ import io.github.flexarr.ui.podcasts.PodcastScreen
 import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
+import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
@@ -72,11 +75,12 @@ import io.github.flexarr.ui.theme.Flexarr
 private enum class Tab(val route: String, val label: String) {
     Home("home", "Home"),
     Libraries("libraries", "Libraries"),
+    Downloads("downloads", "Downloads"),
     Search("search", "Search"),
     Settings("settings", "Settings"),
 }
 
-/** Home, Libraries, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
+/** Home, Libraries, Downloads, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
 @Composable
 fun MainScreen(model: AppModel) {
     val client = model.client ?: return
@@ -92,6 +96,8 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
     // Signed in (or as someone else): commands for this device come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
+    // Downloads follow the server and profile signed in.
+    LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
         // Back can leave a tab's page for another's: the lit tab follows whichever tab's page is showing.
@@ -111,6 +117,10 @@ fun MainScreen(model: AppModel) {
                     restoreState = true
                 }
             }
+        }
+        // With no connection to the server, the app opens on what's downloaded.
+        LaunchedEffect(model.serverUnreachable) {
+            if (model.serverUnreachable && model.downloads.downloads.isNotEmpty() && currentTab == Tab.Home) select(Tab.Downloads)
         }
         // A tablet has the tabs down the side, as iPad's sidebar-style tab bar keeps the width for the screens.
         val rail = isWide
@@ -167,10 +177,17 @@ fun MainScreen(model: AppModel) {
             NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
                 composable(Tab.Home.route) { HomeScreen(model) }
                 composable(Tab.Libraries.route) { LibrariesScreen(model) }
+                composable(Tab.Downloads.route) { DownloadsScreen(model) }
                 composable(Tab.Search.route) { SearchScreen(model) }
                 composable(Tab.Settings.route) {
-                    SettingsScreen(model, onServer = { nav.navigate("settings/server") }, onLibraryOrder = { nav.navigate("settings/library-order") })
+                    SettingsScreen(
+                        model,
+                        onServer = { nav.navigate("settings/server") },
+                        onLibraryOrder = { nav.navigate("settings/library-order") },
+                        onDownloads = { nav.navigate("settings/downloads") },
+                    )
                 }
+                composable("settings/downloads") { DownloadSettingsScreen(model) }
                 composable("settings/server") { ServerSettingsScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
@@ -202,7 +219,7 @@ fun MainScreen(model: AppModel) {
 
 /**
  * A tab's name on one line. It grows with the system's font size up to a third larger, then stops, so "Libraries"
- * still fits four across at the largest sizes (the screens' own text keeps growing).
+ * still fits five across at the largest sizes (the screens' own text keeps growing).
  */
 @Composable
 private fun TabLabel(text: String) {
@@ -218,6 +235,7 @@ private fun Tab.icon(): Painter = when (this) {
     // The Flexarr mark stands in for a house.
     Tab.Home -> painterResource(R.drawable.ic_brand_mark)
     Tab.Libraries -> rememberVectorPainter(Icons.Filled.GridView)
+    Tab.Downloads -> rememberVectorPainter(Icons.Filled.DownloadForOffline)
     Tab.Search -> rememberVectorPainter(Icons.Filled.Search)
     Tab.Settings -> rememberVectorPainter(Icons.Filled.Settings)
 }
