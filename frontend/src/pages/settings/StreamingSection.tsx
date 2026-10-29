@@ -27,7 +27,7 @@ export function StreamingSection() {
   return (
     <section>
       <SettingsHeader title="Streaming">
-        Files a device can play are sent untouched. The rest are converted as they play, on the graphics chip when the server has hardware acceleration.
+        Files a device can play are sent as they are. The rest are converted as they play.
       </SettingsHeader>
       <SettingsGroup title="Converting video" note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : 'For everyone, on every device.'}>
         <SettingRow label="Hardware acceleration" help="Only what this server’s FFmpeg supports is listed.">

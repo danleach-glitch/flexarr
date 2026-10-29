@@ -8,6 +8,11 @@
   --usher: #a39aae;
   --silver: #a9c2ec;
   --danger: #f08a7e;
+  /* Connected, on, working: status dots, switches that are on, and Connect. */
+  --go: #7fd1a0;
+  /* Fields sit below the panel they're in, so they read as places to type rather than more panel. */
+  --well: #141118;
+  --field-line: color-mix(in srgb, var(--screen) 22%, transparent);
   --black: #000;
 
   /* Overridden inline per title from its artwork. */

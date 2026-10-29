@@ -91,8 +91,7 @@ export function BackupSection() {
   return (
     <section>
       <SettingsHeader title="Backup and restore">
-        A backup holds everything Flexarr can’t rebuild from your media: profiles, what everyone’s watched, playlists, collections, settings and sign-ins.
-        Artwork and previews are left out; they come back by themselves.
+        Everything Flexarr can’t rebuild from your media: profiles, watch history, playlists, collections, settings and sign-ins.
       </SettingsHeader>
 
       <SettingsGroup
@@ -147,7 +146,7 @@ export function BackupSection() {
 
       {backups.data && <Automatic nightly={backups.data.nightly} keep={backups.data.keepNightly} folder={backups.data.folderSetting} folderInUse={backups.data.folder} onSaved={backups.reload} />}
 
-      <SettingsGroup title="Settings file" note="Libraries and the server’s settings, without profiles or watch history: for setting up another server, or keeping a copy.">
+      <SettingsGroup title="Settings file" note="Libraries and server settings, without profiles or history. Handy for setting up another server.">
         <SettingRow as="div" label="Export settings" help="Saves a file to this computer.">
           <button className="button quiet small" onClick={() => setDialog({ kind: 'export' })}>
             Export…

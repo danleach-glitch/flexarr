@@ -49,7 +49,7 @@ export function SidebarSection() {
 
   return (
     <section>
-      <SettingsHeader title="Sidebar">The order of your libraries in the sidebar, and in the menus of the iPhone, Apple TV and Android apps. Drag a library to move it.</SettingsHeader>
+      <SettingsHeader title="Sidebar">The order of libraries in the sidebar and the apps’ menus. Drag one to move it.</SettingsHeader>
       {shown.length > 1 ? (
         <RowList
           title={`${me.name}’s libraries`}

@@ -58,7 +58,7 @@ export function LibrariesSection() {
           )
         }
       >
-        Each library is a set of folders holding one kind of media. Flexarr rescans them every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.
+        Folders of one kind of media. Rescanned every 12 hours, and whenever Sonarr, Radarr or Lidarr imports something.
       </SettingsHeader>
       {adding && (
         <AddLibraryForm

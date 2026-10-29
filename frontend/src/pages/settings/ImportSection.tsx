@@ -61,8 +61,7 @@ export function ImportSection() {
   return (
     <section>
       <SettingsHeader title="Bring over from Plex" back={{ to: '/settings/libraries', label: 'Libraries' }}>
-        Copies what you’ve watched, and where you stopped, from Plex Media Server. Plex itself is never changed, and it’s safe to run again: anything watched
-        more recently in Flexarr is kept.
+        Copies what you’ve watched, and where you stopped, from Plex. Plex isn’t changed, and it’s safe to run again.
       </SettingsHeader>
       <div className="panel">
         {source.loading && <p className="muted">Looking for Plex…</p>}

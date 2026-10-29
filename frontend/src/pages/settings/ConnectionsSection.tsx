@@ -98,8 +98,7 @@ export function ConnectionsSection() {
     <ServerName value={settings.hostName}>
       <section>
         <SettingsHeader title="Connections">
-          Flexarr gets artwork, details and trailers from Sonarr, Radarr and Lidarr, so no other accounts are needed. Without them, shows come from
-          TVmaze, and films from TMDB with a free key of your own. Seerr adds Discover and requests, Bazarr subtitles, and Dispatcharr Live TV.
+          The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.
         </SettingsHeader>
 
         <SettingsGroup title="Apps & Integrations" note={saved || saveError ? <SaveStatus saved={saved} error={saveError} /> : undefined}>
@@ -120,6 +119,7 @@ export function ConnectionsSection() {
                     onClose={() => setOpen(undefined)}
                     onSave={(c) => saveArr(i, c)}
                     onRemove={() => saveArr(i, null)}
+                    others={connected.length > 1}
                     onAddAnother={n === connected.length - 1 && !adding ? () => setOpen(`new-${kind}`) : undefined}
                   />
                 )
@@ -142,10 +142,10 @@ export function ConnectionsSection() {
             kind="Seerr"
             service={settings.seerr}
             notConnected={notConnected('seerr')}
-            description="Seerr, Overseerr or Jellyseerr: what’s trending that you don’t have yet, requested in one click under your Seerr rules."
+            description="Discover and one-click requests. Overseerr and Jellyseerr work too."
             placeholder="http://localhost:5055"
             keyHint="In Seerr, under Settings › General"
-            removeWarning="Remove Seerr? Discover and requests go with it."
+            removeWarning="Disconnect Seerr? Discover and requests go with it."
             status={serviceStatus(seerrStatus)}
             ok={seerrStatus.data?.configured ? seerrStatus.data.reachable : undefined}
             open={open === 'seerr'}
@@ -159,10 +159,16 @@ export function ConnectionsSection() {
             kind="Bazarr"
             service={settings.bazarr}
             notConnected={notConnected('bazarr')}
-            description="Find, download and re-sync subtitles from the player, using the languages and subtitle sites set up in Bazarr. Works for what Sonarr and Radarr manage. A title you search for gets Bazarr’s first languages profile if it has none, so Bazarr’s own schedule may then fetch subtitles for it too."
+            description="Find and re-sync subtitles from the player."
+            more={
+              <p>
+                It uses the languages and subtitle sites set up in Bazarr, for titles Sonarr and Radarr manage. A title with no languages profile gets
+                Bazarr’s first one, so Bazarr may then fetch subtitles for it on its own schedule too.
+              </p>
+            }
             placeholder="http://localhost:6767"
             keyHint="In Bazarr, under Settings › General"
-            removeWarning="Remove Bazarr? Searching for subtitles from the player goes with it."
+            removeWarning="Disconnect Bazarr? Searching for subtitles from the player goes with it."
             status={serviceStatus(bazarrStatus)}
             ok={bazarrStatus.data?.configured ? bazarrStatus.data.reachable : undefined}
             open={open === 'bazarr'}
@@ -275,7 +281,7 @@ function ConnectionLine({
           (connected ? (
             <IconButton label="Edit" aria-label={`Edit ${name}`} icon={<Pencil />} onClick={onOpen} />
           ) : (
-            <button type="button" className="button quiet small" aria-label={`Connect ${name}`} onClick={onOpen}>
+            <button type="button" className="button quiet small go" aria-label={`Connect ${name}`} onClick={onOpen}>
               Connect
             </button>
           ))}
@@ -294,6 +300,7 @@ function ArrRow({
   onClose,
   onSave,
   onRemove,
+  others,
   onAddAnother,
 }: {
   connection: DraftConnection
@@ -306,6 +313,8 @@ function ArrRow({
   onClose: () => void
   onSave: (c: DraftConnection) => Promise<void>
   onRemove?: () => Promise<void>
+  /** Others of its kind are connected, so removing this one takes its row away rather than leaving it to connect again. */
+  others?: boolean
   onAddAnother?: () => void
 }) {
   const [draft, setDraft] = useState(connection)
@@ -378,9 +387,14 @@ function ArrRow({
             />
           </label>
           <div className="form-actions">
-            {onRemove && (
-              <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<Trash />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
-            )}
+            {onRemove &&
+              (others ? (
+                <IconButton label="Remove" aria-label={`Remove ${connection.name}`} icon={<Trash />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(`Remove ${connection.name}?`) && onRemove()} />
+              ) : (
+                <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${connection.name}`} onClick={() => (confirm(`Disconnect ${connection.name}? Its titles stay in your libraries.`) ? onRemove() : undefined)}>
+                  Disconnect
+                </AsyncButton>
+              ))}
             <AsyncButton className="button quiet small" onClick={() => runTest()}>
               {test && test !== 'testing' && test.ok && <Check className="test-ok" />}
               Test
@@ -396,7 +410,7 @@ function ArrRow({
             >
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving}>
+            <AsyncButton type="submit" className={isNew ? 'button small go' : 'button small'} busy={saving}>
               {isNew ? 'Connect' : 'Save'}
             </AsyncButton>
           </div>
@@ -414,6 +428,7 @@ function ServiceRow({
   service,
   notConnected,
   description,
+  more,
   placeholder,
   keyHint,
   removeWarning,
@@ -429,6 +444,8 @@ function ServiceRow({
   /** Its status while it isn't set up. */
   notConnected: string
   description: string
+  /** More about it, behind a disclosure under the description. */
+  more?: ReactNode
   placeholder: string
   keyHint: string
   removeWarning: string
@@ -465,6 +482,12 @@ function ServiceRow({
           }}
         >
           <p className="muted">{description}</p>
+          {more && (
+            <details className="advice-more muted">
+              <summary>How it works</summary>
+              {more}
+            </details>
+          )}
           <div className="field-row">
             <label className="grow">
               Address
@@ -477,18 +500,14 @@ function ServiceRow({
           </div>
           <div className="form-actions">
             {service && (
-              <IconButton
-                label="Remove"
-                aria-label={`Remove ${kind}`}
-                icon={<Trash />}
-                className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm(removeWarning) && onSave({ baseUrl: '' })}
-              />
+              <AsyncButton className="button danger small form-actions-start" aria-label={`Disconnect ${kind}`} onClick={() => (confirm(removeWarning) ? onSave({ baseUrl: '' }) : undefined)}>
+                Disconnect
+              </AsyncButton>
             )}
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving}>
+            <AsyncButton type="submit" className={service ? 'button small' : 'button small go'} busy={saving}>
               {service ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
@@ -575,13 +594,14 @@ function TmdbRow({
           )}
           <div className="form-actions">
             {hasKey && (
-              <IconButton
-                label="Remove"
-                aria-label="Remove the TMDB key"
-                icon={<Trash />}
-                className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm('Remove the TMDB key? Films already filled in keep their details.') && onSave('')}
-              />
+              <AsyncButton
+                type="button"
+                className="button danger small form-actions-start"
+                aria-label="Disconnect TMDB"
+                onClick={() => (confirm('Disconnect TMDB? Its key is forgotten, and films already filled in keep their details.') ? onSave('') : undefined)}
+              >
+                Disconnect
+              </AsyncButton>
             )}
             <AsyncButton type="button" className="button quiet small" disabled={!apiKey.trim() && !hasKey} onClick={async () => setTest(await testTmdb(apiKey.trim()))}>
               Test
@@ -589,7 +609,7 @@ function TmdbRow({
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving} disabled={!apiKey.trim()}>
+            <AsyncButton type="submit" className={hasKey ? 'button small' : 'button small go'} busy={saving} disabled={!apiKey.trim()}>
               {hasKey ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
@@ -650,11 +670,17 @@ function DispatcharrRow({
             }).finally(() => setSaving(false))
           }}
         >
-          <p className="muted">
-            TV channels and their guide. In Dispatcharr, add a user for Flexarr at Streamer level and give it a long random XC password: that works as
-            Flexarr’s key, which can only list and play channels (never sign in to Dispatcharr or change it). The channels are the ones Dispatcharr gives
-            that user. Rewinding and recording are set in <Link to="/settings/livetv">Live TV</Link>.
-          </p>
+          <p className="muted">TV channels and their guide.</p>
+          <details className="advice-more muted">
+            <summary>How to set it up</summary>
+            <p>
+              In Dispatcharr, add a user for Flexarr at Streamer level with a long random XC password, and use that password as the key here. It can only
+              list and play the channels Dispatcharr gives that user.
+            </p>
+            <p>
+              Rewinding and recording are in <Link to="/settings/livetv">Live TV</Link>.
+            </p>
+          </details>
           <div className="field-row">
             <label className="grow">
               Address
@@ -677,13 +703,14 @@ function DispatcharrRow({
           </div>
           <div className="form-actions">
             {liveTv && (
-              <IconButton
-                label="Remove"
-                aria-label="Remove Dispatcharr"
-                icon={<Trash />}
-                className="button quiet small icon danger-icon form-actions-start"
-                onClick={() => confirm('Remove Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') && onSave({ baseUrl: '' }, 'Live TV removed')}
-              />
+              <AsyncButton
+                type="button"
+                className="button danger small form-actions-start"
+                aria-label="Disconnect Dispatcharr"
+                onClick={() => (confirm('Disconnect Dispatcharr? Live TV, its channels and everyone’s favourites go with it.') ? onSave({ baseUrl: '' }, 'Live TV disconnected') : undefined)}
+              >
+                Disconnect
+              </AsyncButton>
             )}
             {liveTv && (
               <IconButton label="Refresh channels and guide" icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
@@ -706,7 +733,7 @@ function DispatcharrRow({
             <button type="button" className="button quiet small" onClick={onClose}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving}>
+            <AsyncButton type="submit" className={liveTv ? 'button small' : 'button small go'} busy={saving}>
               {liveTv ? 'Save' : 'Connect'}
             </AsyncButton>
           </div>
@@ -741,8 +768,8 @@ function MediaFolders({ folders, hasApps, mappings, save }: { folders?: ArrFolde
         title="Media folders"
         note={
           hasApps
-            ? 'Sonarr, Radarr and Lidarr say where they keep media. In Docker they can see it under other paths than this server does, and Flexarr works out where when it can.'
-            : 'Only needed when another app (Plex, for an import) sees your media under other paths, as it does in Docker.'
+            ? 'Where each app’s folders are on this server. Flexarr works it out when it can.'
+            : 'Only needed when another app, such as Plex for an import, sees your media under other paths (as in Docker).'
         }
       >
         {folders?.map((f) => (
@@ -840,9 +867,8 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
     return (
       <div className="saved-mappings connection-line">
         <span className="setting-text">
-          <span className="muted">
-            {saved.length === 0 ? 'No mappings saved' : saved.length === 1 ? '1 mapping saved' : `${saved.length} mappings saved`}
-          </span>
+          <strong>Path mappings{saved.length ? `: ${saved.length}` : ''}</strong>
+          <span className="muted">Choosing a folder above saves one. Edit them to type a path yourself or remove an old one.</span>
         </span>
         <button
           type="button"
@@ -852,7 +878,7 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
             setEditing(true)
           }}
         >
-          {saved.length ? 'Edit by hand' : 'Add one by hand'}
+          {saved.length ? 'Edit mappings' : 'Add a mapping'}
         </button>
       </div>
     )
@@ -910,8 +936,8 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
       title="Webhooks"
       note={
         <>
-          Add a Webhook connection in each app, under Settings › Connect, so new downloads show up straight away. In Docker on this computer, use{' '}
-          <code>host.docker.internal</code> in place of <code>{window.location.hostname}</code>.
+          So new downloads show up straight away: in each app, add a Webhook under Settings › Connect. In Docker on this computer, use{' '}
+          <code>host.docker.internal</code> for <code>{window.location.hostname}</code>.
         </>
       }
       action={

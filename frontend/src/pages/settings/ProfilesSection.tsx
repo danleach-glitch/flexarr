@@ -62,7 +62,7 @@ export function ProfilesSection() {
           )
         }
       >
-        Everyone gets their own Continue Watching, history and Up Next. With more than one profile, Flexarr asks who’s watching; a PIN keeps one private.
+        Everyone gets their own Continue Watching, history and Up Next. A PIN keeps a profile private.
       </SettingsHeader>
       <div className="panel profile-list">
         {editing === 'new' && (
