@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "962064142671",
+    "project_id": "flexarr-e963e",
+    "storage_bucket": "flexarr-e963e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962064142671:android:f9f46a0acbf027f3d6f53a",
+        "android_client_info": {
+          "package_name": "com.danleach.flexarr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLBAB_oi77zULLRPd2rVES6QaRHZxvyAk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
