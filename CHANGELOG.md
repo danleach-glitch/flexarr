@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.54.0 · 29 October 2026
 
 ### Podcasts
 - Now Playing for a podcast has a fresh look on iPhone, Android and the web. The controls stay put, and a Notes button swaps the cover for the episode's chapters and notes (and, on the phones, Up Next).
