@@ -11,6 +11,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.github.flexarr.cast.Casting
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.logging.ErrorReports
@@ -30,7 +31,9 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         // Before anything else can crash: on if this server had reports on last time.
         ErrorReports.resume(this, signIn?.address)
         model = AppModel(this, signIn)
+        Casting.start(this, model)
         FlexarrMessagingService.createChannels(this)
+        ReviewPrompt.start(this)
         // Commands from other devices are taken while the app is in front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) = model.listenForCommands()

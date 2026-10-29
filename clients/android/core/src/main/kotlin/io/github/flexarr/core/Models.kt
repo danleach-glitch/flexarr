@@ -93,6 +93,11 @@ data class SystemStatus(
     val remoteUrl: String? = null,
     /** Whether the server's owner has turned on error reports (to Sentry) for the apps. Absent from older servers: off. */
     val errorReports: ErrorReportSetting? = null,
+    /**
+     * The server's own random id, which [FlexarrClient.serverIdAt] asks another address for before the app sends its
+     * sign-in there. Absent from servers before 0.55.
+     */
+    val serverId: String? = null,
 )
 
 /** The server's error-report switch, which the apps follow: off unless the owner turned it on. */
@@ -233,7 +238,12 @@ data class Credit(
 )
 
 @Serializable
-data class GenreCount(val name: String, val count: Int)
+data class GenreCount(
+    val name: String,
+    val count: Int,
+    /** A backdrop from one of the library's titles in the genre, for its tile. Absent from servers before 0.54. */
+    val backdrop: String? = null,
+)
 
 @Serializable
 data class ItemDetail(
@@ -270,9 +280,16 @@ data class SearchResults(
     val titles: List<ItemSummary> = emptyList(),
     val episodes: List<ItemSummary> = emptyList(),
     val people: List<PersonSummary> = emptyList(),
+    /** Albums by name (artists are among [titles]). Absent from servers before music search. */
+    val albums: List<ItemSummary> = emptyList(),
+    /** Tracks by name, each with its album's. Absent from servers before music search. */
+    val tracks: List<SearchTrack> = emptyList(),
 ) {
     val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty()
 }
+
+@Serializable
+data class SearchTrack(val item: ItemSummary, val album: String? = null)
 
 // Home
 
@@ -361,6 +378,11 @@ data class SubtitleTrack(
     val url: String? = null,
     /** A subtitle file beside the video (rather than one inside it): only these can be re-synced. Absent from servers before 0.53. */
     val isExternal: Boolean? = null,
+    /**
+     * Styled (ASS/SSA) subtitles as authored, for a player that draws their places and colours itself. Relative to the
+     * server, like [url]; not shifted by the title's subtitle delay. Absent from servers before 0.53, and for plain text.
+     */
+    val styledUrl: String? = null,
 )
 
 @Serializable
@@ -506,6 +528,8 @@ data class SetupStatus(
     val open: Boolean,
     /** Setting up asks for the code in the server's log. Absent from servers before 0.52. */
     val codeRequired: Boolean? = null,
+    /** The server's id, as [SystemStatus.serverId]; anyone may ask for it. Absent from servers before 0.55. */
+    val serverId: String? = null,
 )
 
 @Serializable
@@ -562,6 +586,19 @@ fun libraryOrder(saved: List<String>, shown: List<String>): List<String> {
     val next = shown.iterator()
     val order = saved.map { if (it.lowercase() in isShown && next.hasNext()) next.next() else it }
     return order + next.asSequence().toList()
+}
+
+/** Live TV's place in a profile's library order. */
+const val LIVE_TV_ORDER_ID = "live-tv"
+
+/**
+ * [entries] in the order of [saved] (ids compared ignoring case); any it doesn't mention, such as a new library, after
+ * them as they came. As FlexarrKit's LibraryOrder.sorted.
+ */
+fun <T> sortedByLibraryOrder(entries: List<T>, saved: List<String>, id: (T) -> String): List<T> {
+    val rank = HashMap<String, Int>()
+    saved.forEachIndexed { index, entry -> rank.putIfAbsent(entry.lowercase(), index) }
+    return entries.withIndex().sortedBy { (index, entry) -> rank[id(entry).lowercase()] ?: (saved.size + index) }.map { it.value }
 }
 
 /** What choosing a profile returns: the token to send as `X-Flexarr-Profile` from then on. */

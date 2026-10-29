@@ -94,6 +94,14 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
             Update(options.DataDirectory, config => config["imageSecret"] = secret);
         }
 
+        if (string.IsNullOrWhiteSpace(options.ServerId))
+        {
+            Directory.CreateDirectory(options.DataDirectory);
+            var id = Guid.NewGuid().ToString("N");
+            options.ServerId = id;
+            Update(options.DataDirectory, config => config["serverId"] = id);
+        }
+
         // Browsers and profile tokens from before per-device sign-ins get a month to move over, counted from now.
         if (options.LegacySignInsUntil is null)
         {

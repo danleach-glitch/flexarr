@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the Assistant listens for to open the app shortcuts' screens (shortcuts.xml, OPEN_APP_FEATURE). -->
+<resources>
+    <string-array name="feature_continue">
+        <item>Continue Watching</item>
+        <item>Continue Listening</item>
+        <item>Home</item>
+    </string-array>
+    <string-array name="feature_search">
+        <item>Search</item>
+    </string-array>
+    <string-array name="feature_downloads">
+        <item>Downloads</item>
+        <item>My downloads</item>
+    </string-array>
+</resources>

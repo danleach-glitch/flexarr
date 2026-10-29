@@ -25,9 +25,27 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import io.github.flexarr.ReviewPrompt
+import io.github.flexarr.ui.library.LibraryMenuEntry
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PrivacyTip
@@ -37,7 +55,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,7 +80,6 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.bytes
 import io.github.flexarr.core.FlexarrException
-import io.github.flexarr.core.Library
 import io.github.flexarr.core.libraryOrder
 import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.logging.ErrorReports
@@ -74,8 +90,6 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
-import io.github.flexarr.ui.library.icon
-import io.github.flexarr.ui.library.inMenu
 import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.profiles.ProfilePicker
 import io.github.flexarr.ui.theme.Flexarr
@@ -106,6 +120,29 @@ fun SettingsScreen(
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val libraries = rememberLoader(model.credentials, model.librariesVersion) { model.client?.libraries().orEmpty() }
+    val notifications = model.notifications
+    // Android lets Flexarr post notifications, so if they're off it's this server that isn't sending them.
+    var notificationsAllowed by remember { mutableStateOf(notifications.isAllowed) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { notificationsAllowed = notifications.isAllowed }
+    var turningOnNotifications by remember { mutableStateOf(false) }
+    var notificationProblem by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun turnOnNotifications() {
+        val credentials = model.credentials ?: return
+        turningOnNotifications = true
+        scope.launch {
+            try {
+                notifications.turnOn(credentials)
+            } catch (e: Exception) {
+                notificationProblem = e.message ?: "Something went wrong."
+            } finally {
+                turningOnNotifications = false
+            }
+        }
+    }
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -123,6 +160,20 @@ fun SettingsScreen(
                     }
                 }
             }
+            if (notifications.isAvailable && notificationsAllowed && !notifications.isOn && !notifications.turnedOff) {
+                item {
+                    Group(footer = "This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.") {
+                        Row(
+                            Modifier.fillMaxWidth().pressable(::turnOnNotifications, enabled = !turningOnNotifications).padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Flexarr.silver)
+                            Text("Turn on notifications", fontSize = 17.sp, color = Flexarr.silver)
+                        }
+                    }
+                }
+            }
             item {
                 Group {
                     SettingsLink("Playback", Icons.Filled.PlayArrow, value = null, onClick = onPlayback)
@@ -133,10 +184,12 @@ fun SettingsScreen(
                         Divider()
                         SettingsLink("Podcasts", Icons.Filled.Mic, value = null, onClick = onPodcasts)
                     }
-                    // Only from servers that can save an order (0.54 on).
-                    model.currentProfile?.libraryOrder?.let { order ->
+                    // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
+                    val order = model.currentProfile?.libraryOrder
+                    val places = (libraries.state as? Load.Loaded)?.value?.let { LibraryMenuEntry.ordered(model, it).size } ?: 0
+                    if (order != null && places > 1) {
                         Divider()
-                        SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Custom", onClick = onLibraryOrder)
+                        SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Your own", onClick = onLibraryOrder)
                     }
                     Divider()
                     SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
@@ -151,6 +204,11 @@ fun SettingsScreen(
                         model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
                     }
                     SettingsLink("Server", Icons.Filled.Dns, value = host, onClick = onServer)
+                }
+            }
+            item {
+                Group {
+                    ExternalLink("Rate Flexarr", Icons.Filled.Star) { ReviewPrompt.openStoreListing(context) }
                 }
             }
             item {
@@ -188,6 +246,15 @@ fun SettingsScreen(
         ModalBottomSheet(onDismissRequest = { choosingProfile = false }, containerColor = Flexarr.room) {
             ProfilePicker(model, marksCurrent = true, onChosen = { choosingProfile = false })
         }
+    }
+    notificationProblem?.let { problem ->
+        AlertDialog(
+            onDismissRequest = { notificationProblem = null },
+            title = { Text("Couldn’t turn on notifications") },
+            text = { Text(problem) },
+            confirmButton = { TextButton(onClick = { notificationProblem = null }) { Text("OK", color = Flexarr.screen) } },
+            containerColor = Flexarr.seat,
+        )
     }
 }
 
@@ -381,29 +448,29 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
 }
 
 /**
- * The current profile's libraries in the order the Libraries tab shows them, each moved up or down a place at a time.
- * Every move saves straight away, so the order follows the profile to every device.
+ * The order of the current profile's places in the Libraries tab (its libraries, Podcasts and Live TV), dragged by the
+ * handles, as on iPhone. Every move saves straight away, so the order follows the profile to its other devices.
  */
 @Composable
 fun LibraryOrderSettingsScreen(model: AppModel) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
-    val loader = rememberLoader(model.credentials) { client.libraries().filter { it.inMenu } }
-    // Moved here but maybe not saved yet; null shows the server's order.
-    var moved by remember { mutableStateOf<List<Library>?>(null) }
+    val loader = rememberLoader(model.credentials) { client.libraries() }
+    // Moved here but maybe not saved yet; null shows the profile's order.
+    var moved by remember { mutableStateOf<List<LibraryMenuEntry>?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     // One save at a time, in the order the moves were made, so the last move is the one that stays.
     val saving = remember { Mutex() }
 
-    fun save(libraries: List<Library>?) {
-        moved = libraries
+    fun save(entries: List<LibraryMenuEntry>?) {
+        moved = entries
         problem = null
         model.scope.launch {
             saving.withLock {
                 try {
                     val saved = model.currentProfile?.libraryOrder.orEmpty()
-                    model.setLibraryOrder(if (libraries == null) emptyList() else libraryOrder(saved, libraries.map { it.id }))
-                    if (libraries == null) loader.retry()
+                    model.setLibraryOrder(if (entries == null) emptyList() else libraryOrder(saved, entries.map { it.id }))
+                    if (entries == null) loader.retry()
                 } catch (e: FlexarrException) {
                     problem = "Couldn’t save the order. ${e.message}"
                     moved = null
@@ -416,19 +483,12 @@ fun LibraryOrderSettingsScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column {
             PageTitle("Library order", onBack = { navigator.back() })
-            Loaded(loader) { loaded ->
-                val libraries = moved ?: loaded
+            Loaded(loader) { libraries ->
+                val entries = moved ?: LibraryMenuEntry.ordered(model, libraries)
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item {
-                        Group(footer = problem ?: "This order follows ${model.currentProfile?.name ?: "this profile"} to every device. Libraries added later go at the end.") {
-                            libraries.forEachIndexed { index, library ->
-                                if (index > 0) Divider()
-                                OrderRow(
-                                    library,
-                                    onUp = if (index > 0) ({ save(libraries.moved(index, index - 1)) }) else null,
-                                    onDown = if (index < libraries.lastIndex) ({ save(libraries.moved(index, index + 1)) }) else null,
-                                )
-                            }
+                        Group(footer = problem ?: "${model.currentProfile?.name ?: "This profile"}’s own. The web, the Apple TV and iPhone list your libraries in this order too.") {
+                            ReorderableEntries(entries, onMove = ::save)
                         }
                     }
                     if (model.currentProfile?.libraryOrder?.isNotEmpty() == true) {
@@ -449,16 +509,84 @@ fun LibraryOrderSettingsScreen(model: AppModel) {
     }
 }
 
+/**
+ * The places, each dragged up or down by its handle and dropped where it goes ([onMove] then has the new order).
+ * TalkBack offers Move up and Move down on each instead.
+ */
 @Composable
-private fun OrderRow(library: Library, onUp: (() -> Unit)?, onDown: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(library.icon, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(22.dp))
-        Text(library.name, fontSize = 17.sp, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = { onUp?.invoke() }, enabled = onUp != null) {
-            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move ${library.name} up", tint = if (onUp != null) Flexarr.screen else Flexarr.aisle)
-        }
-        IconButton(onClick = { onDown?.invoke() }, enabled = onDown != null) {
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move ${library.name} down", tint = if (onDown != null) Flexarr.screen else Flexarr.aisle)
+private fun ReorderableEntries(entries: List<LibraryMenuEntry>, onMove: (List<LibraryMenuEntry>) -> Unit) {
+    var order by remember(entries) { mutableStateOf(entries) }
+    var dragging by remember { mutableStateOf<String?>(null) }
+    var offset by remember { mutableFloatStateOf(0f) }
+    var rowHeight by remember { mutableIntStateOf(0) }
+
+    fun step(id: String, by: Int) {
+        val index = order.indexOfFirst { it.id == id }
+        val to = index + by
+        if (index < 0 || to !in order.indices) return
+        order = order.moved(index, to)
+    }
+
+    Column {
+        order.forEachIndexed { index, entry ->
+            key(entry.id) {
+                if (index > 0) Divider()
+                val lifted = dragging == entry.id
+                Row(
+                    Modifier.fillMaxWidth()
+                        .onSizeChanged { rowHeight = it.height }
+                        .zIndex(if (lifted) 1f else 0f)
+                        .graphicsLayer { translationY = if (lifted) offset else 0f }
+                        .background(if (lifted) Flexarr.aisle else Color.Transparent)
+                        .padding(start = 16.dp, end = 4.dp)
+                        .semantics(mergeDescendants = true) {
+                            customActions = listOfNotNull(
+                                if (index > 0) CustomAccessibilityAction("Move up") { step(entry.id, -1); onMove(order); true } else null,
+                                if (index < order.lastIndex) CustomAccessibilityAction("Move down") { step(entry.id, 1); onMove(order); true } else null,
+                            )
+                        },
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(entry.icon, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(22.dp))
+                    Text(entry.title, fontSize = 17.sp, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.size(48.dp).pointerInput(entry.id) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    dragging = entry.id
+                                    offset = 0f
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    offset += amount.y
+                                    // Past half the next row: it changes places, and the lifted row carries on from there.
+                                    if (offset > rowHeight / 2f && order.last().id != entry.id) {
+                                        step(entry.id, 1)
+                                        offset -= rowHeight
+                                    } else if (offset < -rowHeight / 2f && order.first().id != entry.id) {
+                                        step(entry.id, -1)
+                                        offset += rowHeight
+                                    }
+                                },
+                                onDragEnd = {
+                                    dragging = null
+                                    offset = 0f
+                                    if (order != entries) onMove(order)
+                                },
+                                onDragCancel = {
+                                    dragging = null
+                                    offset = 0f
+                                    order = entries
+                                },
+                            )
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.DragHandle, contentDescription = null, tint = Flexarr.usher)
+                    }
+                }
+            }
         }
     }
 }

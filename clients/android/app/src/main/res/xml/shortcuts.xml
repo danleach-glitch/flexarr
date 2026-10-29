@@ -1,6 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Long-press the app's icon: straight to Search, Continue Watching (on Home) or Downloads, as AppLink addresses. -->
+<!-- Long-press the app's icon: straight to Search, Continue Watching (on Home) or Downloads, as AppLink addresses.
+     The Assistant's App Actions use them too: "open Continue Watching in Flexarr" (OPEN_APP_FEATURE, the shortcuts by
+     the names below), and "search Flexarr for Fargo" (GET_THING), both through VoiceActivity. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
+        <intent
+            android:action="io.github.flexarr.OPEN_FEATURE"
+            android:targetClass="io.github.flexarr.VoiceActivity"
+            android:targetPackage="com.danleach.flexarr">
+            <parameter android:name="feature" android:key="feature" />
+        </intent>
+    </capability>
+    <capability android:name="actions.intent.GET_THING">
+        <intent
+            android:action="com.google.android.gms.actions.SEARCH_ACTION"
+            android:targetClass="io.github.flexarr.VoiceActivity"
+            android:targetPackage="com.danleach.flexarr">
+            <parameter android:name="thing.name" android:key="query" />
+        </intent>
+    </capability>
+
     <shortcut
         android:shortcutId="continue"
         android:enabled="true"
@@ -11,6 +30,9 @@
             android:data="flexarr://home"
             android:targetClass="io.github.flexarr.MainActivity"
             android:targetPackage="com.danleach.flexarr" />
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_continue" />
+        </capability-binding>
     </shortcut>
     <shortcut
         android:shortcutId="search"
@@ -22,6 +44,9 @@
             android:data="flexarr://search"
             android:targetClass="io.github.flexarr.MainActivity"
             android:targetPackage="com.danleach.flexarr" />
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_search" />
+        </capability-binding>
     </shortcut>
     <shortcut
         android:shortcutId="downloads"
@@ -33,5 +58,8 @@
             android:data="flexarr://downloads"
             android:targetClass="io.github.flexarr.MainActivity"
             android:targetPackage="com.danleach.flexarr" />
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_downloads" />
+        </capability-binding>
     </shortcut>
 </shortcuts>

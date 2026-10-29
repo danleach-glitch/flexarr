@@ -81,9 +81,17 @@ Keep this in step with `site/privacy.html` and the App Store's App Privacy.
   - *Media playback:* podcasts and music play on with the screen off, with controls in the notification and on the
     lock screen. Video: play a podcast episode, lock the phone, show the lock screen controls.
   - *Data sync:* downloads for offline viewing carry on with the app closed, shown as a notification with progress.
-    Video: start a film's download, leave the app, show the notification. This is the one Play is most likely to
-    question (it wants dataSync for syncing, and big user-started transfers as user-initiated data transfer jobs).
-    If Play pushes back, the alternative is a user-initiated data transfer job (Android 14 on).
+    On Android 14 on, a download someone asks for (a title's Download button, an album or playlist, a notification's
+    Download button) runs as a user-initiated data transfer job (`RUN_USER_INITIATED_JOBS`, `DownloadJobService`),
+    not as a foreground service. dataSync (WorkManager's `SystemForegroundService`) is left for what the phone
+    fetches by itself (the next episode, a podcast's newest episodes), for every download before Android 14, and for
+    a hand-started one Android wouldn't take as a job (it's only allowed while the app is on screen, or for a few
+    seconds after a notification's button). Video: start a film's download, leave the app, show the notification;
+    then let the next episode download by itself. If Play questions dataSync for downloads, the answer is that
+    user-started transfers already use user-initiated jobs where Android has them, and dataSync covers the automatic
+    ones (which Android doesn't allow as user-initiated jobs) and Android 8 to 13.
+  - *User-initiated data transfer* isn't a foreground service type, so Play doesn't ask about it, but the job shows in
+    the notification and in Android's Task Manager while it runs.
 - **Android Auto:** opt in under Test and release › Advanced settings › Form factors. Music and podcasts in the car go
   through Google's own Android Auto review, which can take longer than the app's.
 - **News app, health, financial features, government app:** no.

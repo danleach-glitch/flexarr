@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -79,6 +80,23 @@ class FlexarrClientTest {
         // Libraries the saved order didn't mention (none saved yet, or added since) go at the end.
         assertEquals(listOf("b", "a"), libraryOrder(emptyList(), listOf("b", "a")))
         assertEquals(listOf("new", "live-tv", "a"), libraryOrder(listOf("a", "live-tv"), listOf("new", "a")))
+    }
+
+    @Test
+    fun `entries follow the library order, with ones it doesn't mention after`() {
+        val entries = listOf("a", "podcasts", "b", "live-tv", "new")
+        assertEquals(listOf("live-tv", "b", "podcasts", "a", "new"), sortedByLibraryOrder(entries, listOf("live-tv", "B", "podcasts", "a")) { it })
+        // No order saved: as they came.
+        assertEquals(entries, sortedByLibraryOrder(entries, emptyList()) { it })
+    }
+
+    @Test
+    fun `genres have a backdrop from servers that send one`() = runTest {
+        server.enqueue(json("""[{"name":"Drama","count":12,"backdrop":"/api/v1/images/x/backdrop"},{"name":"Comedy","count":3}]"""))
+        val genres = client().libraryGenres("films")
+        assertEquals("/api/v1/images/x/backdrop", genres[0].backdrop)
+        assertNull(genres[1].backdrop)
+        assertEquals(3, genres[1].count)
     }
 
     @Test
@@ -165,6 +183,25 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `asks another address which server is there, without the sign-in`() = runTest {
+        server.enqueue(json("""{"open":false,"codeRequired":true,"serverId":"abc123"}"""))
+        server.enqueue(json("""{"open":false}"""))
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
+        val url = server.url("/")
+
+        assertEquals("abc123", FlexarrClient.serverIdAt(url))
+        val request = server.takeRequest()
+        assertEquals("/api/v1/setup", request.url.encodedPath)
+        assertNull(request.headers["X-Api-Key"])
+        assertNull(request.headers["X-Flexarr-Profile"])
+        // A server before 0.55, and something that isn't a Flexarr server: no id.
+        assertNull(FlexarrClient.serverIdAt(url))
+        assertNull(FlexarrClient.serverIdAt(url))
+        server.close()
+        assertTrue(runCatching { FlexarrClient.serverIdAt(url) }.exceptionOrNull() is FlexarrException.Unreachable)
+    }
+
+    @Test
     fun `ids from links are the server's kind`() {
         assertTrue(FlexarrClient.isPlainId("01a16be6-5a0b-790c-8734-28f147909cd9"))
         assertTrue(FlexarrClient.isPlainId("r1"))
@@ -187,5 +224,18 @@ class FlexarrClientTest {
         val client = client()
         assertTrue(runCatching { client.libraries() }.exceptionOrNull() is FlexarrException.UnexpectedResponse)
         assertTrue(runCatching { client.devices() }.exceptionOrNull() is FlexarrException.UnexpectedResponse)
+    }
+
+    // Real time, not the test's: the answer comes from another thread, inside a time limit.
+    @Test
+    fun `a stream another screen took says why`() = runBlocking {
+        server.enqueue(json("""{"title":"Playing somewhere else","status":410,"detail":"Dan started watching on the TV."}""", code = 410))
+        assertEquals("Dan started watching on the TV.", client().takenOverReason("s1"))
+        assertEquals("/api/v1/playback/s1/main.m3u8", server.takeRequest().url.encodedPath)
+
+        server.enqueue(json("""{"title":"Not Found","status":404}""", code = 404))
+        assertNull(client().takenOverReason("s2"))
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/vnd.apple.mpegurl").body("#EXTM3U\n").build())
+        assertNull(client().takenOverReason("s3"))
     }
 }

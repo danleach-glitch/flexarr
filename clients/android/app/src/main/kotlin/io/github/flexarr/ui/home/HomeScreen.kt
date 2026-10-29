@@ -102,20 +102,41 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.core.PodcastEpisode
+import io.github.flexarr.core.newPodcastEpisodes
+import io.github.flexarr.ui.components.ProgressBar
+import io.github.flexarr.ui.podcasts.EpisodeSheet
+import io.github.flexarr.ui.podcasts.PodcastArtwork
+import io.github.flexarr.ui.podcasts.setEpisodePlayed
+import androidx.compose.foundation.layout.width
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 
-private class HomeContent(val home: Home, val emptyMessage: EmptyHomeMessage?)
+private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>, val emptyMessage: EmptyHomeMessage?)
 
-/** Featured titles to swipe through, then the server's rows: Continue Watching, recently added and the rest. */
+/**
+ * Featured titles to swipe through, then the server's rows: Continue Watching, the newest episodes of the podcasts
+ * followed, recently added and the rest.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(model: AppModel) {
     val client = model.client ?: return
     val loader = rememberLoader(model.credentials, model.watchStateVersion) {
-        val home = client.home()
-        // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing.
-        val empty = if (home.featured.isEmpty() && home.rows.none { it.hasContent }) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
-        HomeContent(home, empty)
+        coroutineScope {
+            // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
+            val episodes = async { runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList()) }
+            val home = client.home()
+            val newEpisodes = episodes.await()
+            // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing.
+            val empty = if (home.featured.isEmpty() && newEpisodes.isEmpty() && home.rows.none { it.hasContent }) {
+                runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull()
+            } else {
+                null
+            }
+            HomeContent(home, newEpisodes, empty)
+        }
     }
     var featuredIndex by remember { mutableIntStateOf(0) }
     var choosingProfile by remember { mutableStateOf(false) }
@@ -141,9 +162,14 @@ fun HomeScreen(model: AppModel) {
                         item(key = "top") { Box(Modifier.statusBarsPadding()) }
                     }
                     // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    items(home.rows.filter { it.hasContent }, key = { it.id }) { row ->
-                        if (row.style == HomeRowStyle.Live) LiveRowView(row) else HomeRowView(model, row)
+                    val rows = home.rows.filter { it.hasContent }
+                    val continuing = if (rows.firstOrNull()?.id == "continue") 1 else 0
+                    val row: @Composable (HomeRow) -> Unit = { if (it.style == HomeRowStyle.Live) LiveRowView(it) else HomeRowView(model, it) }
+                    items(rows.take(continuing), key = { it.id }) { row(it) }
+                    if (content.newEpisodes.isNotEmpty()) {
+                        item(key = "new-podcasts") { NewEpisodesRow(model, content.newEpisodes) }
                     }
+                    items(rows.drop(continuing), key = { it.id }) { row(it) }
                 }
             }
         }
@@ -283,6 +309,38 @@ private fun HomeRowView(model: AppModel, row: HomeRow) {
                 }
             }
         }
+    }
+}
+
+/**
+ * The newest unplayed episodes of the podcasts followed: square artwork, the episode and its show. Tapping opens the
+ * episode (its notes, Play, its download), as everywhere else episodes are listed.
+ */
+@Composable
+private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
+    var opened by remember { mutableStateOf<PodcastEpisode?>(null) }
+    val width = PosterWidth * 1.15f
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeading("New podcasts")
+        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+            items(episodes, key = { it.id }) { episode ->
+                Column(
+                    Modifier.width(width).pressable({ opened = episode }, onClickLabel = "Show the episode")
+                        .semantics(mergeDescendants = true) { contentDescription = "${episode.title}, ${episode.podcastTitle}" },
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Box {
+                        PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, imageWidth = 342)
+                        episode.progress?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter).padding(6.dp)) }
+                    }
+                    Text(episode.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(episode.podcastTitle, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+    opened?.let { episode ->
+        EpisodeSheet(model, episode, setPlayed = { setEpisodePlayed(model, episode, it) }, onDismiss = { opened = null })
     }
 }
 

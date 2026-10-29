@@ -7,7 +7,11 @@ using Microsoft.Extensions.Options;
 namespace Flexarr.Api.Security;
 
 /// <param name="CodeRequired">Setting up asks for the code in the server's log (absent from servers before 0.52).</param>
-public sealed record SetupStatusDto(bool Open, bool CodeRequired = true);
+/// <param name="ServerId">
+/// This server's id (<see cref="FlexarrOptions.ServerId"/>), so an app can check that an address it has just learnt
+/// for its server is the same server (absent from servers before 0.55).
+/// </param>
+public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null);
 
 /// <summary>What a browser sends to set the server up.</summary>
 public sealed record SetupClaimDto(string? Code);
@@ -157,7 +161,8 @@ public static class FirstRunEndpoints
     public static RouteGroupBuilder MapFirstRunEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/setup").WithTags("System").AllowAnonymous();
-        group.MapGet("/", (HttpContext http, FirstRun firstRun) => Results.Ok(new SetupStatusDto(firstRun.OpenTo(http))));
+        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options) =>
+            Results.Ok(new SetupStatusDto(firstRun.OpenTo(http), ServerId: options.CurrentValue.ServerId)));
         // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
         group.MapPost("/claim", (HttpContext http, FirstRun firstRun, SignIns signIns, SetupClaimDto? claim) =>
         {

@@ -22,13 +22,15 @@ public sealed class ServerConfigStoreTests : IDisposable
         var saved = JsonNode.Parse(File.ReadAllText(path))!;
         Assert.Equal(32, options.ApiKey!.Length);
         Assert.Equal(options.ApiKey, saved["apiKey"]!.GetValue<string>());
+        Assert.Equal(32, options.ServerId!.Length);
+        Assert.Equal(options.ServerId, saved["serverId"]!.GetValue<string>());
         Assert.Equal("/data", saved["pathMappings"]![0]!["from"]!.GetValue<string>());
     }
 
     [Fact]
     public void KeepsConfiguredApiKey()
     {
-        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook", ImageSecret = "image", LegacySignInsUntil = DateTime.UtcNow };
+        var options = new FlexarrOptions { DataDirectory = _dir, ApiKey = "existing", WebhookSecret = "hook", ImageSecret = "image", ServerId = "server", LegacySignInsUntil = DateTime.UtcNow };
 
         new ServerConfigStore(NullLogger<ServerConfigStore>.Instance).PostConfigure(null, options);
 

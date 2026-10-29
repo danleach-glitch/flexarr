@@ -8,6 +8,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover's Popular shows row is now Popular new shows: the most popular shows that started in the past year, rather than long-running ones like Grey's Anatomy and Friends.
 
 ### Android
+- Cast to a Chromecast or Google TV: the Cast button sits beside picture in picture in the player, and in Now Playing for music and podcasts. While casting, the phone shows what's playing with play, pause, skip and a scrubber, and your place is still saved. Stop casting and it carries on on the phone from the same spot. Films and episodes the Chromecast can't play as they are get converted, which needs the server on this version too. Subtitles and Live TV aren't cast yet.
 - The Android app only reaches Google's notification service once you turn notifications on, rather than each time it starts. The privacy policy now covers the Android app.
 - Settings has Playback and Podcasts pages, as on iPhone: turn auto-play and skipping intros, recaps and credits on or off, set subtitle defaults, choose how far the player jumps back and forward (10, 15 or 30 seconds), and set podcast auto-download, how many episodes to keep and the speed. Settings also links to the privacy policy.
 - If the server signs your phone out, its downloads stay, and anything you watched offline is sent once you connect to that server again.
@@ -16,6 +17,21 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Live TV guide opens quickly with hundreds of channels, and the app uses less battery in the background.
 - Moving on to the next episode during the credits marks the last one watched, and a "play on this phone" sent for another profile plays on that profile.
 - Away from home, the app only uses a secure (https or Tailscale) remote address, and an address you type for a server on the internet is tried over https first.
+- When a film or episode's stream drops (the server restarts, or the Wi-Fi blinks), the player picks it up again from where it was, trying for up to 15 seconds, as on iPhone. If someone started watching on another screen and took the stream, it says so and offers Watch here instead.
+- Previous episode starts the episode again if you're more than a few seconds in, and goes back through what you've watched in this sitting, shuffled episodes included.
+- Live TV plays on in picture in picture when you leave the app, and has the sleep timer, with "Still watching?" before it pauses. Shake the phone to answer "Still watching?" with 15 more minutes, while watching anything. The back and forward buttons in Live TV and in picture in picture jump as far as you chose in Settings › Playback.
+- Film and TV libraries have Genres at the top, as on iPhone: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre.
+- The Libraries tab follows your library order for Podcasts and Live TV too, rather than always putting them last. In Settings › Library order, drag a library by its handle to move it, and Podcasts and Live TV are in the list.
+- Home has a New podcasts row after Continue watching: the newest episodes of the shows you follow, each opening its notes with Play.
+- A fresh install opens on three welcome pages saying what Flexarr is, how to set up the free server and how the app finds it.
+- When Android allows notifications but your phone isn't getting them from this server, Settings offers Turn on notifications.
+- Settings has Rate Flexarr, which opens the app's Google Play page, and now and then, after you've watched something to the end, Google Play may ask how you're finding Flexarr.
+- Download albums and playlists on Android, as on iPhone: the download button beside Play and Shuffle fetches every track, Downloads has a Music section, downloaded tracks and albums carry a green arrow, and they play from the phone with no connection. What you listen to offline counts once you're back.
+- On Android 14 and later, downloads you start (including from a notification's Download button) keep going for hours with the app closed, rather than stalling when Android limits background work. They show in Android's list of running apps, where you can stop them.
+- In Android Auto, say "Hey Google, play The Rest Is History on Flexarr" (or an artist, album, song or playlist) and it plays: a podcast you follow picks up at the episode to hear next, "the latest …" plays its newest, and "play my Up Next" plays Up Next. The car's search button finds your podcasts and music too.
+- On the phone, the Google Assistant plays from Flexarr as Siri does on iPhone: "play Heat on Flexarr" plays the film, a show's next episode, a podcast or music, and "continue watching on Flexarr" picks up where you left off. "Search Flexarr for Fargo" opens Search with it typed in, and "open Downloads in Flexarr" goes straight there.
+- Two podcast widgets for the home screen, as on iPhone: Continue listening (the episode you're on, how long is left, and a play button) and Up Next (the episodes waiting). They keep showing what they last knew when the server can't be reached.
+- Styled subtitles (the ASS and SSA kind, common with anime) keep their look: signs and captions sit where the file puts them, in its colours, bold and italics, while ordinary lines follow your subtitle position and size.
 
 ## 0.54.0 · 29 October 2026
 

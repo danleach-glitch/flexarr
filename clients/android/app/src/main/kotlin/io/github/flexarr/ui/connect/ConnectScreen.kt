@@ -83,7 +83,7 @@ private sealed interface Step {
     data object Manual : Step
 }
 
-private const val INSTALL_URL = "https://flexarr.io/#install"
+internal const val INSTALL_URL = "https://flexarr.io/#install"
 
 /**
  * First run. Servers on the network are listed (they announce themselves): pick one and approve the code it shows, in

@@ -62,6 +62,10 @@ class PushNotifications(private val context: Context) {
     /** They've been turned on here and not turned off since; signing out leaves it set, so the next sign-in turns them back on. */
     private val wanted: Boolean get() = prefs.getBoolean(WANTED, false)
 
+    /** They were turned off here on purpose, so Settings doesn't offer to turn them on again. */
+    var turnedOff by mutableStateOf(prefs.getBoolean(TURNED_OFF, false))
+        private set
+
     /** The token of the profile they're for ("" for none, which the server takes as the main profile). */
     private val profileToken: String? get() = prefs.getString(PROFILE_TOKEN, null)
 
@@ -80,7 +84,8 @@ class PushNotifications(private val context: Context) {
     suspend fun turnOff(credentials: ServerCredentials?) {
         credentials?.let { runCatching { it.client().stopNotifications() } }
         forget()
-        prefs.edit().putBoolean(WANTED, false).apply()
+        prefs.edit().putBoolean(WANTED, false).putBoolean(TURNED_OFF, true).apply()
+        turnedOff = true
     }
 
     /**
@@ -191,8 +196,10 @@ class PushNotifications(private val context: Context) {
             .putString(PROFILE_TOKEN, credentials.profileToken.orEmpty())
             .putBoolean(ON, true)
             .putBoolean(WANTED, true)
+            .putBoolean(TURNED_OFF, false)
             .apply()
         isOn = true
+        turnedOff = false
         remember(device)
         return device
     }
@@ -225,6 +232,7 @@ class PushNotifications(private val context: Context) {
     private companion object {
         const val ON = "on"
         const val WANTED = "wanted"
+        const val TURNED_OFF = "turnedOff"
         const val PROFILE = "profile"
         const val PROFILE_NAME = "profileName"
         const val PROFILE_TOKEN = "profileToken"

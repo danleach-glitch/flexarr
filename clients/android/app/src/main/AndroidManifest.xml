@@ -7,8 +7,13 @@
     <!-- Podcasts play on with the screen off, with their controls on the lock screen. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Downloads carry on with the app closed, shown as a notification while they come. -->
+    <!-- Downloads carry on with the app closed, shown as a notification while they come: those asked for by hand as
+         user-initiated data transfer jobs on Android 14 on, the rest (and all of them before) through WorkManager's
+         data sync service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <!-- A user-initiated download's job lasts through a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The app is upright on phones (MainActivity says so, so tablets can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
@@ -30,6 +35,9 @@
         <!-- Firebase reaches Google only once notifications are turned on (PushNotifications). -->
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
 
+        <!-- Chromecast: the Cast framework's setup (cast/CastOptions.kt). -->
+        <meta-data android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME" android:value="io.github.flexarr.cast.CastOptionsProvider" />
+
         <!-- Error reports start only when the server's owner has them on (ErrorReports), never by themselves. -->
         <meta-data android:name="io.sentry.auto-init" android:value="false" />
 
@@ -46,6 +54,25 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- The Assistant: "play Heat on Flexarr", "search Flexarr for Fargo", and App Actions (shortcuts.xml). Nothing
+             of its own shows; it opens the app there (VoiceActivity). -->
+        <activity
+            android:name=".VoiceActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Flexarr.Voice">
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.actions.SEARCH_ACTION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- The player is a task of its own, so in picture in picture the rest of the app can be used beside it, and
              closing the corner window doesn't take the app with it. -->
         <activity
@@ -59,10 +86,16 @@
             android:taskAffinity="com.danleach.flexarr.player"
             android:theme="@style/Theme.Flexarr.Player" />
 
+        <!-- A task of its own too, for picture in picture. -->
         <activity
             android:name=".player.LivePlayerActivity"
+            android:autoRemoveFromRecents="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:taskAffinity="com.danleach.flexarr.live"
             android:theme="@style/Theme.Flexarr.Player" />
 
         <service
@@ -97,6 +130,33 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/continue_watching_widget" />
+        </receiver>
+
+        <!-- Downloads asked for by hand, on Android 14 on (DownloadJobService). -->
+        <service
+            android:name=".downloads.DownloadJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            tools:targetApi="34" />
+
+        <!-- The podcast widgets: Continue listening and Up Next (PodcastWidgets). -->
+        <receiver
+            android:name=".widget.ContinueListeningWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_listening_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/continue_listening_widget" />
+        </receiver>
+        <receiver
+            android:name=".widget.UpNextWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_up_next_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/up_next_widget" />
         </receiver>
 
         <!-- WorkManager's service for downloads that run long, typed as Android 14 on asks. -->

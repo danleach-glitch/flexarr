@@ -17,21 +17,27 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.CollectionKind
+import io.github.flexarr.core.CollectionRules
+import io.github.flexarr.core.CollectionStatus
 import io.github.flexarr.core.DownloadQuality
 import io.github.flexarr.core.DownloadRules
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.LocalCollection
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.LocalPhase
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.OfflineDownload
+import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.ServerAnswer
 import io.github.flexarr.core.deleteDownload
 import io.github.flexarr.core.downloadOptions
 import io.github.flexarr.core.markDownloadReceived
 import io.github.flexarr.core.offlineDownload
 import io.github.flexarr.core.podcastAutoDownloads
+import io.github.flexarr.core.artistName
 import io.github.flexarr.core.reportOfflineProgress
 import io.github.flexarr.core.requestDownload
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +46,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.Request
 import java.io.File
@@ -49,10 +56,11 @@ private val flexarrLog = FlexarrLog("downloads")
 
 /**
  * Downloads on this phone, as the iPhone app's DownloadStore: asking the server to get them ready, fetching them in the
- * background with WorkManager (carrying on after the app or phone restarts), playing them with no connection, sending
+ * background (carrying on after the app or phone restarts: those asked for by hand as user-initiated jobs on Android 14
+ * on, the rest with WorkManager), playing them with no connection, sending
  * what was watched once there's a connection again, fetching the next episode by itself, keeping the newest episodes of
  * podcasts that auto-download, and deleting episodes a day after they're finished. Downloads the phone starts by itself
- * wait for Wi-Fi unless Settings says otherwise.
+ * wait for Wi-Fi unless Settings says otherwise. Albums and playlists come as collections of track downloads.
  */
 class DownloadStore(private val context: Context, private val model: AppModel) {
     private val prefs = context.getSharedPreferences("downloads", Context.MODE_PRIVATE)
@@ -62,6 +70,16 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Every download on the phone, whoever's it is: empty for the moment it takes to read the saved list at launch. */
     var all: List<LocalDownload> by mutableStateOf(emptyList())
         private set
+
+    /** Every album and playlist on the phone, whoever's it is (their tracks are downloads in [all]). */
+    var collections: List<LocalCollection> by mutableStateOf(emptyList())
+        private set
+
+    /**
+     * Collections whose tracks are still being asked of the server, so one whose requests were cut short shows as
+     * failed as soon as they stop.
+     */
+    private var queueing: Set<String> by mutableStateOf(emptySet())
 
     /** How far each transfer under way has got, kept apart from [all] so the lists don't redraw at every step. */
     private val transferring = mutableStateMapOf<String, Double>()
@@ -112,23 +130,36 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /** Saves waiting to be written, off the main thread; only the newest matters. */
     private val saves = Channel<List<LocalDownload>>(Channel.CONFLATED)
+    private val collectionSaves = Channel<List<LocalCollection>>(Channel.CONFLATED)
 
-    /** Reads the saved list off the main thread, then lets saves through. */
+    /** Reads the saved lists off the main thread, then lets saves through. */
     private val loading: Job = scope.launch {
-        val saved = withContext(Dispatchers.IO) {
+        val (saved, savedCollections) = withContext(Dispatchers.IO) {
             folder.mkdirs()
-            load(File(folder, MANIFEST))
+            load(File(folder, MANIFEST), LocalDownload.serializer()) to load(File(folder, COLLECTIONS), LocalCollection.serializer())
         }
-        if (!clearedBeforeLoad) all = saved
+        if (!clearedBeforeLoad) {
+            all = saved
+            collections = savedCollections
+        }
         loaded = true
-        if (clearedBeforeLoad) save()
+        if (clearedBeforeLoad) {
+            save()
+            saveCollections()
+        }
     }
 
     init {
         // Written one after another, a moment apart, so a burst of changes is one write.
         scope.launch(Dispatchers.IO) {
             for (list in saves) {
-                write(list)
+                write(list, LocalDownload.serializer(), MANIFEST)
+                delay(SAVE_GAP_MS)
+            }
+        }
+        scope.launch(Dispatchers.IO) {
+            for (list in collectionSaves) {
+                write(list, LocalCollection.serializer(), COLLECTIONS)
                 delay(SAVE_GAP_MS)
             }
         }
@@ -155,7 +186,28 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Podcast episodes, newest first. */
     val podcastEpisodes: List<LocalDownload> get() = downloads.filter { it.isPodcastEpisode }.sortedByDescending { it.item.addedAt }
 
+    /** This profile's albums and playlists, newest first. */
+    val musicCollections: List<LocalCollection> get() = collections.filter { it.profileId == profileId }.sortedByDescending { it.createdAtMillis }
+
     fun entry(itemId: String): LocalDownload? = all.firstOrNull { it.profileId == profileId && it.item.id == itemId }
+
+    fun collection(id: String): LocalCollection? = collections.firstOrNull { it.profileId == profileId && it.id == id }
+
+    /** A collection's tracks in its order (those asked for so far). */
+    fun tracks(collection: LocalCollection): List<LocalDownload> = collection.trackIds.mapNotNull(::entry)
+
+    fun status(collection: LocalCollection): CollectionStatus =
+        CollectionRules.status(collection.trackIds.map(::entry), queueing = collection.id in queueing, progress = ::progress)
+
+    fun isDownloaded(trackId: String): Boolean = entry(trackId)?.isDownloaded == true
+
+    /** Every track of this album (or playlist) is here. */
+    fun isCollectionDownloaded(id: String): Boolean = collection(id)?.let { status(it) == CollectionStatus.Downloaded } == true
+
+    fun bytesUsed(collection: LocalCollection): Long = tracks(collection).filter { it.isDownloaded }.sumOf { it.sizeBytes ?: 0 }
+
+    /** A saved picture, by the name a download or collection holds. */
+    fun image(name: String?): File? = name?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
     fun byId(id: String): LocalDownload? = all.firstOrNull { it.id == id }
 
@@ -163,7 +215,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     fun file(download: LocalDownload): File? = download.fileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
-    fun image(download: LocalDownload): File? = download.imageFileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
+    fun image(download: LocalDownload): File? = image(download.imageFileName)
 
     /** How far it's got being got ready or coming down, 0 to 1: up to the moment, for a transfer under way. */
     fun progress(download: LocalDownload): Double = transferring[download.id] ?: download.progress
@@ -225,6 +277,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      */
     fun signedOutByServer(address: String): Boolean {
         work.cancelAllWorkByTag(WORK_TAG)
+        UserInitiatedTransfers.cancelAll(context)
         transferring.clear()
         client = null
         if (all.isEmpty()) return false
@@ -363,7 +416,18 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Podcast episodes come as they are. */
     suspend fun downloadEpisode(episodeId: String) = download(episodeId, DownloadQuality.Original, automatic = false)
 
+    /**
+     * Gives a download a transfer. One asked for by hand runs as a user-initiated job on Android 14 on, when Android
+     * takes one (the app's on screen, or a notification's button was just pressed); the rest go to WorkManager. [replace]
+     * starts a new one; otherwise one that's waiting or running already is left alone.
+     */
     private fun enqueue(download: LocalDownload, replace: Boolean) {
+        if (!replace && UserInitiatedTransfers.isScheduled(context, download.id)) return
+        if (replace && !download.automatic && UserInitiatedTransfers.schedule(context, download)) {
+            work.cancelUniqueWork(workName(download.id))
+            return
+        }
+        if (replace) UserInitiatedTransfers.cancel(context, download.id)
         val network = if (isWiFiOnly(download)) NetworkType.UNMETERED else NetworkType.CONNECTED
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.ID to download.id))
@@ -419,16 +483,27 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         update(id) { it.copy(phase = LocalPhase.Failed, failure = message) }
     }
 
-    /** The picture a download shows, saved beside it: a film's backdrop, an episode's still, a podcast episode's artwork. */
+    /**
+     * The picture a download shows, saved beside it: a film's backdrop, an episode's still, a podcast episode's artwork,
+     * or a track's album cover (one file for the whole album, kept as long as anything uses it).
+     */
     private suspend fun fetchImage(download: LocalDownload, client: FlexarrClient): String? {
         val art = download.item.artwork
+        if (download.item.kind == MediaKind.Track) {
+            val name = CollectionRules.coverName(download.item.parentId ?: download.item.id)
+            return if (image(name) != null) name else fetchImage(art.poster, name, 600, client)
+        }
         val path = when (download.item.kind) {
             MediaKind.Episode -> art.thumb ?: art.backdrop
             MediaKind.PodcastEpisode -> art.thumb ?: art.poster
             else -> art.backdrop ?: art.poster
         }
-        val url = client.imageUrl(path, if (download.isPodcastEpisode) 400 else 600) ?: return null
-        val name = "${safeName(download.id)}.jpg"
+        return fetchImage(path, "${safeName(download.id)}.jpg", if (download.isPodcastEpisode) 400 else 600, client)
+    }
+
+    /** Saves the picture at [path] as [name] in the downloads folder; null when there's none to be had. */
+    private suspend fun fetchImage(path: String?, name: String, width: Int, client: FlexarrClient): String? {
+        val url = client.imageUrl(path, width) ?: return null
         return withContext(Dispatchers.IO) {
             runCatching {
                 FlexarrClient.sharedHttp.newCall(Request.Builder().url(url).build()).execute().use { response ->
@@ -438,6 +513,78 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 }
             }.getOrNull()
         }
+    }
+
+    // Albums and playlists
+
+    /**
+     * Downloads an album: a collection under its cover, and each track in order. Asking again for one that's here (or
+     * partly here) fetches what's missing.
+     */
+    suspend fun download(album: ItemSummary, tracks: List<ItemSummary>) {
+        ready()
+        val profileId = profileId ?: model.currentProfile?.id ?: throw FlexarrException.Unauthorized()
+        val collection = (collection(album.id) ?: LocalCollection(
+            id = album.id,
+            profileId = profileId,
+            kind = CollectionKind.Album,
+            title = album.title,
+            subtitle = album.artistName,
+            accentColor = album.accentColor,
+            createdAtMillis = System.currentTimeMillis(),
+        )).let { it.copy(album = album, imageFileName = it.imageFileName ?: CollectionRules.coverName(album.id)) }
+        download(collection, tracks, album.artwork.poster)
+    }
+
+    /** Downloads a playlist: its tracks as they are now, under its chosen cover (or its tracks' covers, as a mosaic). */
+    suspend fun download(playlist: PlaylistSummary, tracks: List<ItemSummary>) {
+        ready()
+        val profileId = profileId ?: model.currentProfile?.id ?: throw FlexarrException.Unauthorized()
+        val collection = (collection(playlist.id) ?: LocalCollection(
+            id = playlist.id,
+            profileId = profileId,
+            kind = CollectionKind.Playlist,
+            title = playlist.name,
+            accentColor = tracks.firstOrNull()?.accentColor,
+            createdAtMillis = System.currentTimeMillis(),
+        )).let { it.copy(title = playlist.name, imageFileName = it.imageFileName ?: playlist.cover?.let { CollectionRules.playlistCoverName(playlist.id) }) }
+        download(collection, tracks, playlist.cover)
+    }
+
+    private suspend fun download(collection: LocalCollection, tracks: List<ItemSummary>, coverPath: String?) {
+        val client = currentClient ?: throw FlexarrException.Unauthorized()
+        val saved = collection.copy(trackIds = tracks.map { it.id })
+        collections = collections.filterNot { it.id == saved.id && it.profileId == saved.profileId } + saved
+        saveCollections()
+        queueing = queueing + saved.id
+        try {
+            flexarrLog.info("Downloading ${saved.title}: ${tracks.size} tracks")
+            saved.imageFileName?.takeIf { image(it) == null }?.let { fetchImage(coverPath, it, 600, client) }
+            if (saved.kind == CollectionKind.Album && saved.estimatedBytes == null) {
+                runCatching { client.downloadOptions(saved.id).firstOrNull()?.estimatedBytes }.getOrNull()?.let { estimate ->
+                    updateCollection(saved.id) { it.copy(estimatedBytes = estimate) }
+                }
+            }
+            // Tracks have no sizes: each comes as it is (or as AAC, when the phone couldn't play its file).
+            for (track in tracks) download(track.id, DownloadQuality.Original, automatic = false)
+        } finally {
+            queueing = queueing - saved.id
+        }
+    }
+
+    /** Deletes an album or playlist and its tracks, except tracks another of the profile's collections still holds. */
+    fun removeCollection(id: String) {
+        val collection = collection(id) ?: return
+        CollectionRules.tracksToDelete(collection, collections).forEach { trackId -> entry(trackId)?.let { remove(it.id, tellServer = true) } }
+        collections = collections.filterNot { it.id == collection.id && it.profileId == collection.profileId }
+        saveCollections()
+        removeImageIfUnused(collection.imageFileName)
+    }
+
+    /** A picture goes once nothing shows it any more (an album's cover is shared by its tracks and the album). */
+    private fun removeImageIfUnused(name: String?) {
+        if (name == null || all.any { it.imageFileName == name } || collections.any { it.imageFileName == name }) return
+        fileIn(folder, name)?.delete()
     }
 
     // Next episodes and podcasts
@@ -490,12 +637,13 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private fun remove(id: String, tellServer: Boolean) {
         val download = byId(id) ?: return
         work.cancelUniqueWork(workName(id))
+        UserInitiatedTransfers.cancel(context, id)
         transferring.remove(id)
         download.fileName?.let { fileIn(folder, it)?.delete() }
         fileIn(folder, "${safeName(id)}.part")?.delete()
-        download.imageFileName?.let { fileIn(folder, it)?.delete() }
         all = all.filterNot { it.id == id }
         save()
+        removeImageIfUnused(download.imageFileName)
         if (!tellServer) return
         // The server drops its copy (and won't offer a podcast episode again); out of reach, it's told later.
         unsentDeletes = unsentDeletes + id
@@ -517,6 +665,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val client = currentClient
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
         all.map { it.id }.forEach { remove(it, tellServer = true) }
+        val pictures = collections.mapNotNull { it.imageFileName }
+        collections = emptyList()
+        saveCollections()
+        pictures.forEach(::removeImageIfUnused)
         if (client != null && pending.isNotEmpty()) {
             scope.launch {
                 pending.forEach { (itemId, unsent) ->
@@ -534,11 +686,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
         val ids = all.map { it.id }
         work.cancelAllWorkByTag(WORK_TAG)
+        UserInitiatedTransfers.cancelAll(context)
         if (!loaded) clearedBeforeLoad = true
-        folder.listFiles()?.forEach { if (it.name != MANIFEST) it.delete() }
+        folder.listFiles()?.forEach { if (it.name != MANIFEST && it.name != COLLECTIONS) it.delete() }
         all = emptyList()
+        collections = emptyList()
         transferring.clear()
         save()
+        saveCollections()
         profileId = null
         unsentDeletes = emptySet()
         prefs.edit { remove(PROFILE).remove(KEPT_FOR) }
@@ -593,18 +748,28 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (save) save()
     }
 
+    private fun updateCollection(id: String, change: (LocalCollection) -> LocalCollection) {
+        if (collections.none { it.id == id && it.profileId == profileId }) return
+        collections = collections.map { if (it.id == id && it.profileId == profileId) change(it) else it }
+        saveCollections()
+    }
+
     /** Saves the list as it is now: written off the main thread a moment later, with whatever else changed meanwhile. */
     private fun save() {
         if (loaded) saves.trySend(all)
     }
 
-    private fun write(list: List<LocalDownload>) {
+    private fun saveCollections() {
+        if (loaded) collectionSaves.trySend(collections)
+    }
+
+    private fun <T> write(list: List<T>, serializer: KSerializer<T>, name: String) {
         runCatching {
-            val text = FlexarrClient.json.encodeToString(ListSerializer(LocalDownload.serializer()), list)
-            val temporary = File(folder, "$MANIFEST.tmp")
+            val text = FlexarrClient.json.encodeToString(ListSerializer(serializer), list)
+            val temporary = File(folder, "$name.tmp")
             temporary.writeText(text)
-            temporary.renameTo(File(folder, MANIFEST))
-        }.onFailure { flexarrLog.error("Couldn't save the downloads list", it) }
+            temporary.renameTo(File(folder, name))
+        }.onFailure { flexarrLog.error("Couldn't save $name", it) }
     }
 
     private val folder: File get() = folder(context)
@@ -612,6 +777,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     companion object {
         private const val TAG = "Flexarr"
         private const val MANIFEST = "downloads.json"
+        private const val COLLECTIONS = "collections.json"
         private const val PROFILE = "profile"
         private const val QUALITY = "quality"
         private const val NEXT = "next"
@@ -629,10 +795,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
          * dropped). When anything can't be read, the file is first copied aside, so the next save can't overwrite what
          * was there, as the iPhone app's SavedList.
          */
-        internal fun load(file: File, unreadable: (count: Int, keptAs: File?) -> Unit = ::reportUnreadable): List<LocalDownload> {
+        internal fun <T> load(file: File, serializer: KSerializer<T>, unreadable: (count: Int, keptAs: File?) -> Unit = ::reportUnreadable): List<T> {
             if (!file.exists()) return emptyList()
             val elements = runCatching { FlexarrClient.json.parseToJsonElement(file.readText()) as kotlinx.serialization.json.JsonArray }.getOrNull()
-            val items = elements?.mapNotNull { runCatching { FlexarrClient.json.decodeFromJsonElement(LocalDownload.serializer(), it) }.getOrNull() }.orEmpty()
+            val items = elements?.mapNotNull { runCatching { FlexarrClient.json.decodeFromJsonElement(serializer, it) }.getOrNull() }.orEmpty()
             val dropped = elements?.let { it.size - items.size } ?: 1
             if (dropped > 0) {
                 val stamp = Instant.now().toString().replace(":", "-")
@@ -643,7 +809,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
 
         private fun reportUnreadable(count: Int, keptAs: File?) {
-            flexarrLog.error("Couldn't read $count saved downloads entries; the file was kept as ${keptAs?.name ?: "nothing"}")
+            flexarrLog.error("Couldn't read $count saved download entries; the file was kept as ${keptAs?.name ?: "nothing"}")
         }
 
         /** Out of backups: the files are on the server already. */

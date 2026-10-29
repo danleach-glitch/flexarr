@@ -23,7 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.appModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.PlaylistSummary
@@ -41,6 +44,7 @@ import io.github.flexarr.core.releaseYear
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.pressable
+import io.github.flexarr.ui.downloads.DownloadedMark
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
@@ -83,15 +87,21 @@ private fun CardCaption(title: String, subtitle: String?, centred: Boolean = fal
     }
 }
 
-/** An album: square cover with its title and year (or artist) beneath; tapping opens it. */
+/** An album: square cover (marked once it's downloaded) with its title and year (or artist) beneath; tapping opens it. */
 @Composable
 fun AlbumCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = null, showsArtist: Boolean = false) {
     val navigator = LocalNavigator.current
+    val downloads = LocalContext.current.appModel.downloads
     Column(
         modifier.then(if (width != null) Modifier.width(width) else Modifier).pressable({ navigator.open(item) }),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        SquareArtwork(item)
+        Box {
+            SquareArtwork(item)
+            if (downloads.isCollectionDownloaded(item.id)) {
+                DownloadedMark(Modifier.align(Alignment.BottomEnd).padding(5.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.85f)).padding(4.dp))
+            }
+        }
         // The artist under the title, where the albums are from several; the year on an artist's own page.
         CardCaption(item.title, if (showsArtist) item.artistName ?: item.releaseYear?.toString() else item.releaseYear?.toString())
     }
@@ -162,13 +172,26 @@ fun PlaylistCard(playlist: PlaylistSummary, width: Dp) {
     }
 }
 
-/** One line of a tracklist: number (or a speaker while it plays), title, and length. */
+/**
+ * One line of a tracklist: number (or a speaker while it plays), title, a mark if it's downloaded, and length. A dimmed
+ * one isn't playable here (a track of a download that hasn't arrived).
+ */
 @Composable
-fun TrackRow(track: ItemSummary, number: Int, isCurrent: Boolean, isPlaying: Boolean, subtitle: String? = null, onClick: () -> Unit) {
+fun TrackRow(
+    track: ItemSummary,
+    number: Int,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    subtitle: String? = null,
+    isDownloaded: Boolean = false,
+    isDimmed: Boolean = false,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
             .then(if (isCurrent) Modifier.background(Flexarr.screen.copy(alpha = 0.1f)) else Modifier)
-            .pressable(onClick)
+            .alpha(if (isDimmed) 0.45f else 1f)
+            .pressable(onClick, enabled = !isDimmed)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -184,6 +207,7 @@ fun TrackRow(track: ItemSummary, number: Int, isCurrent: Boolean, isPlaying: Boo
             Text(track.title, fontSize = 17.sp, fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             subtitle?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
+        if (isDownloaded) DownloadedMark()
         Spacer(Modifier.width(0.dp))
         track.durationSeconds?.takeIf { it > 0 }?.let { Text(Format.timestamp(it), fontSize = 15.sp, color = Flexarr.usher, style = Tabular) }
     }

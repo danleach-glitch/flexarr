@@ -32,6 +32,13 @@ public sealed class FlexarrOptions
     public string? ImageSecret { get; set; }
 
     /// <summary>
+    /// This server's random id, generated on first run. Not a secret: anyone who can reach the server may read it (GET
+    /// /setup), so an app that learns another address for its server can check it's the same server before sending its
+    /// sign-in there. Separate from the error reports' id, which stays between the server's apps and Sentry.
+    /// </summary>
+    public string? ServerId { get; set; }
+
+    /// <summary>
     /// Reverse proxies (addresses or CIDR ranges, such as "172.17.0.1" for Docker) whose X-Forwarded-For is believed.
     /// This machine is always trusted. Forwarded requests from anywhere else count as coming from the internet.
     /// Read at startup.

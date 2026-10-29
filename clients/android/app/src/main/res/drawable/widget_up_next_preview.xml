@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows for Up Next: the heading and three episodes, each with its picture. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="96dp"
+    android:viewportWidth="250"
+    android:viewportHeight="120">
+    <path android:fillColor="#1B1720" android:pathData="M20,0h210a20,20 0 0 1 20,20v80a20,20 0 0 1 -20,20h-210a20,20 0 0 1 -20,-20v-80a20,20 0 0 1 20,-20z" />
+    <path android:fillColor="#A39AAE" android:pathData="M12,12h44v7h-44z" />
+    <path android:fillColor="#25202C" android:pathData="M18,28h20a6,6 0 0 1 6,6v20a6,6 0 0 1 -6,6h-20a6,6 0 0 1 -6,-6v-20a6,6 0 0 1 6,-6z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M54,34h110v6h-110z" />
+    <path android:fillColor="#A39AAE" android:pathData="M54,46h70v5h-70z" />
+    <path android:fillColor="#25202C" android:pathData="M18,68h20a6,6 0 0 1 6,6v20a6,6 0 0 1 -6,6h-20a6,6 0 0 1 -6,-6v-20a6,6 0 0 1 6,-6z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M54,74h90v6h-90z" />
+    <path android:fillColor="#A39AAE" android:pathData="M54,86h60v5h-60z" />
+</vector>

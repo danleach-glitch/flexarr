@@ -30,6 +30,7 @@ import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
 import io.github.flexarr.widget.ContinueWatchingWidget
+import io.github.flexarr.widget.PodcastWidgets
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -38,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl
 
 private val flexarrLog = FlexarrLog("signin")
 
@@ -139,6 +141,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Where a notification, shortcut or the widget asked to go, until the screens have gone there. */
     var pendingLink: AppLink? by mutableStateOf(null)
 
+    /** Words the Assistant asked to search for ("search Flexarr for Fargo"), until Search has typed them in. */
+    var pendingSearch: String? by mutableStateOf(null)
+
     /** The podcast Now Playing sheet is open: from the bar, or after Play in an episode's notes. */
     var showsNowPlaying by mutableStateOf(false)
 
@@ -182,7 +187,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
         }
         // The server's address for away from home comes with its status; it's kept beside this one.
-        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!.remoteUrl, credentials.address))
+        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address))
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -219,25 +224,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Once a launch too: the server says when the morning's "on today" arrives in this phone's time zone.
         scope.launch { notifications.checkTimeZone() }
         val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
-        val remote = remoteAddress(status.remoteUrl, credentials.address)
+        val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         val now = this.credentials ?: return
         if (remote == now.remoteAddress || now.address != credentials.address || now.apiKey != credentials.apiKey) return
         if (saved) store.saveRemoteAddress(remote)
         phase = Phase.SignedIn(now.copy(remoteAddress = remote))
-    }
-
-    /**
-     * The server's remote address as a base URL, or null when it has none, it's the address already in use, or it isn't
-     * a Tailscale one (see [FlexarrClient.isAcceptableRemote]): every request there carries this sign-in.
-     */
-    private fun remoteAddress(remoteUrl: String?, address: String): String? {
-        val url = remoteUrl?.let { FlexarrClient.normalizeAddress(it) } ?: return null
-        if (!FlexarrClient.isAcceptableRemote(url)) {
-            flexarrLog.warning("The server's address for away from home isn't a Tailscale one; not using it")
-            return null
-        }
-        return url.toString().takeIf { it != address }
     }
 
     fun signOut() {
@@ -260,7 +252,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         profiles = emptyList()
         profilesLoaded = false
         phase = Phase.SignedOut
-        scope.launch { ContinueWatchingWidget.refresh(context) }
+        scope.launch {
+            ContinueWatchingWidget.refresh(context)
+            PodcastWidgets.refresh(context)
+        }
     }
 
     suspend fun loadProfiles() {
@@ -343,18 +338,27 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Puts an episode in Up Next: first (Play next), or last. */
     fun addToUpNext(episodeId: String, next: Boolean) {
         val client = client ?: return
-        scope.launch { runCatching { client.addToUpNext(episodeId, next) }.onSuccess { upNext = it } }
+        scope.launch {
+            runCatching { client.addToUpNext(episodeId, next) }.onSuccess { upNext = it }
+            PodcastWidgets.refresh(context)
+        }
     }
 
     fun removeFromUpNext(episodeId: String) {
         val client = client ?: return
         upNext = upNext.filterNot { it.id == episodeId }
-        scope.launch { runCatching { client.removeFromUpNext(episodeId) } }
+        scope.launch {
+            runCatching { client.removeFromUpNext(episodeId) }
+            PodcastWidgets.refresh(context)
+        }
     }
 
     fun watchStateChanged() {
         watchStateVersion++
-        scope.launch { ContinueWatchingWidget.refresh(context) }
+        scope.launch {
+            ContinueWatchingWidget.refresh(context)
+            PodcastWidgets.refresh(context)
+        }
     }
 
     private var checkingSignIn = false
@@ -426,5 +430,43 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     init {
         signInChanged()
+    }
+
+    companion object {
+        /**
+         * The server's address for away from home, from its [status], as a base URL: every request there carries this
+         * sign-in. Null when it has none, it's the [address] already in use, it isn't a Tailscale one (see
+         * [FlexarrClient.isAcceptableRemote]), or a different server answers there. A new one is only taken once the
+         * server there gives the same id as this one ([SystemStatus.serverId], asked by [idAt] without the sign-in);
+         * while nothing answers there, the address [kept] until now stays, to be checked again next launch. Servers
+         * before 0.55 have no id, so their address is taken without asking.
+         */
+        internal suspend fun remoteAddress(
+            status: SystemStatus,
+            address: String,
+            kept: String? = null,
+            idAt: suspend (HttpUrl) -> String? = { FlexarrClient.serverIdAt(it) },
+            refused: (String) -> Unit = { flexarrLog.warning(it) },
+        ): String? {
+            val url = status.remoteUrl?.let { FlexarrClient.normalizeAddress(it) } ?: return null
+            if (!FlexarrClient.isAcceptableRemote(url)) {
+                refused("The server's address for away from home isn't a Tailscale one; not using it")
+                return null
+            }
+            val remote = url.toString().takeIf { it != address } ?: return null
+            // Checked when it was kept.
+            if (remote == kept) return kept
+            val id = status.serverId ?: return remote
+            val there = try {
+                idAt(url)
+            } catch (_: FlexarrException.Unreachable) {
+                return kept
+            }
+            if (there != id) {
+                refused("A different server answers at the server's address for away from home; not using it")
+                return null
+            }
+            return remote
+        }
     }
 }
