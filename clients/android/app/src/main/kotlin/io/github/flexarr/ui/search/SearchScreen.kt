@@ -193,7 +193,13 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 
 /** A rounded field on the seat colour with a magnifying glass, and a clear button once something's typed. */
 @Composable
-private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, onSearch: () -> Unit) {
+fun SearchField(
+    query: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "Movies, shows, episodes and people",
+    onSearch: () -> Unit,
+) {
     Row(
         modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(10.dp)).background(Flexarr.seat).padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -201,7 +207,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Mod
     ) {
         Icon(Icons.Filled.Search, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) Text("Movies, shows, episodes and people", fontSize = 17.sp, color = Flexarr.usher, maxLines = 1)
+            if (query.isEmpty()) Text(placeholder, fontSize = 17.sp, color = Flexarr.usher, maxLines = 1)
             BasicTextField(
                 query,
                 onValueChange = onChange,

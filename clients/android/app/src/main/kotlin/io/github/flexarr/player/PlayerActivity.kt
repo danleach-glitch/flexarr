@@ -180,7 +180,9 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
             Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        controlsVisible = !controlsVisible
+                        // With Audio sync open, a tap puts it away and brings the controls back.
+                        controlsVisible = audioSyncOpen || !controlsVisible
+                        audioSyncOpen = false
                         interaction++
                     },
                     onDoubleTap = { offset ->
@@ -209,13 +211,21 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit) {
 
         val asleep = controller.sleepPhase != PlaybackController.SleepPhase.Off
         AnimatedVisibility(controlsVisible && !asleep && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-            Controls(controller, onClose, onInteract = { interaction++ }, onAudioSync = { audioSyncOpen = true })
+            Controls(controller, onClose, onInteract = { interaction++ }, onAudioSync = {
+                // The panel takes the controls' place until Done.
+                audioSyncOpen = true
+                controlsVisible = false
+            })
         }
         if (audioSyncOpen && !asleep) {
             AudioSyncPanel(
                 controller,
-                onDone = { audioSyncOpen = false },
-                modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 76.dp),
+                onDone = {
+                    audioSyncOpen = false
+                    controlsVisible = true
+                    interaction++
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 32.dp),
             )
         }
         // The pill stays up with or without the controls: it's how you skip.

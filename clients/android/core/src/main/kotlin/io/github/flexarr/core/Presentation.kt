@@ -30,6 +30,9 @@ object Format {
     }
 
     /** "42m left", "1h 3m left". */
+    /** "1,204", in the device's own way of grouping digits. */
+    fun count(value: Int): String = java.text.NumberFormat.getIntegerInstance().format(value)
+
     fun remaining(seconds: Double): String? = if (seconds < 60) null else runtime(seconds)?.let { "$it left" }
 }
 

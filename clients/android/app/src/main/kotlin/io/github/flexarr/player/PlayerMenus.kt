@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -300,7 +299,7 @@ internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             GlassIcon(Icons.Filled.Remove, "Sound earlier") { controller.setAudioDelay(seconds - PlaybackController.AUDIO_SYNC_STEP) }
             Column(Modifier.width(110.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(PlaybackController.syncLabel(seconds), fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = Color.White)
+                Text(PlaybackController.syncLabel(seconds), fontSize = 24.sp, fontWeight = FontWeight.Bold, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White)
                 Text(
                     if (seconds > 0.0005) "Sound later" else if (seconds < -0.0005) "Sound earlier" else "As the file is",
                     fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f),
@@ -348,7 +347,7 @@ internal fun SleepPrompt(controller: PlaybackController) {
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Still watching?", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(controller.sleepDetail, fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 8.dp))
+                    Text(controller.sleepDetail, fontSize = 15.sp, fontWeight = FontWeight.Medium, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 8.dp))
                     Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Pill("Cancel timer", filled = false) { controller.setSleep(null) }
                         Pill("+15 min", filled = true, icon = Icons.Filled.Bedtime, onClick = controller::extendSleep)

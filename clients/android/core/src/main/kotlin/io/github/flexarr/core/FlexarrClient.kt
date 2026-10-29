@@ -207,13 +207,13 @@ class FlexarrClient(
 
     // Transport
 
-    private suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T {
+    internal suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T {
         val text = send("GET", path, query)
         return withContext(Dispatchers.Default) { decode(serializer<T>(), text) }
     }
 
     /** The answer's text. Off the main thread throughout: Android refuses network reads on it, the body's included. */
-    private suspend fun send(method: String, path: String, query: Map<String, String> = emptyMap(), body: String? = null): String =
+    internal suspend fun send(method: String, path: String, query: Map<String, String> = emptyMap(), body: String? = null): String =
         withContext(Dispatchers.IO) { exchange(method, path, query, body) }
 
     private suspend fun exchange(method: String, path: String, query: Map<String, String>, body: String?): String {
@@ -251,7 +251,18 @@ class FlexarrClient(
         }
     }
 
-    private fun <T> decode(serializer: KSerializer<T>, text: String): T =
+    /** The answer's text, for callers in this module that read it themselves (an empty answer meaning none). */
+    internal suspend fun sendRaw(method: String, path: String): String = send(method, path)
+
+    internal fun <T> decodeText(serializer: KSerializer<T>, text: String): T = decode(serializer, text)
+
+    /** Sends [body] as JSON and reads the answer as a [T]. */
+    internal suspend inline fun <reified B, reified T> sendDecoding(method: String, path: String, body: B): T {
+        val text = send(method, path, body = body?.let { json.encodeToString(serializer<B>(), it) })
+        return decode(serializer<T>(), text)
+    }
+
+    internal fun <T> decode(serializer: KSerializer<T>, text: String): T =
         try {
             json.decodeFromString(serializer, text)
         } catch (e: IllegalArgumentException) {

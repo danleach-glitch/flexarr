@@ -173,6 +173,8 @@ class PlaybackController(context: Context, private val model: AppModel, private 
 
     /** Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. */
     fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false) {
+        // A podcast playing stops for the video.
+        model.podcasts.pause()
         // Another title: the viewer's subtitle pick and speed were for the last one.
         viewerChoseSubtitle = false
         viewerSubtitleKey = null

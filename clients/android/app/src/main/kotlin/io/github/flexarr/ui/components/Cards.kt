@@ -83,7 +83,7 @@ fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = Po
     Box(modifier) {
         Column(
             (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
-                .pressable(onClick = { navigator.openItem(item.id) }, onLongClick = { menu = true }),
+                .pressable(onClick = { navigator.open(item) }, onLongClick = { menu = true }),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             PosterArtwork(item)

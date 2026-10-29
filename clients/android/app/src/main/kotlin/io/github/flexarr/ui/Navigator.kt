@@ -16,9 +16,18 @@ import kotlinx.coroutines.launch
 class Navigator(private val nav: NavHostController, private val model: AppModel, private val context: Context) {
     fun openItem(id: String) = nav.navigate("item/$id")
 
+    /** A title as a card knows it: a podcast opens its own page, everything else the title page. */
+    fun open(item: ItemSummary) = if (item.kind == io.github.flexarr.core.MediaKind.Podcast) openPodcast(item.id) else openItem(item.id)
+
     fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title) = nav.navigate("library/$id?sort=${sort.raw}")
 
     fun openPerson(id: String, name: String) = nav.navigate("person/$id?name=${Uri.encode(name)}")
+
+    fun openPodcasts() = nav.navigate("podcasts")
+
+    fun openPodcast(id: String) = nav.navigate("podcast/$id")
+
+    fun openPodcastBrowse() = nav.navigate("podcasts/browse")
 
     fun back() = nav.popBackStack()
 
