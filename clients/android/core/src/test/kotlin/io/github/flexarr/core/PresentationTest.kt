@@ -1,5 +1,8 @@
 package io.github.flexarr.core
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -57,6 +60,22 @@ class PresentationTest {
         fixture<ItemDetail>("item-series")
         fixture<ItemDetail>("item-season")
         fixture<SystemStatus>("system-status")
+    }
+
+    @Test
+    fun `a server before 0_53 says what only the first featured title resumes`() {
+        // Home as a server before 0.53 sends it: one `resume`, for the first featured title, and no `resumes`.
+        val captured = FlexarrClient.json.parseToJsonElement(javaClass.classLoader!!.getResource("home.json")!!.readText()).jsonObject
+        val featured = captured.getValue("featured").jsonArray
+        val episode = captured.getValue("rows").jsonArray[0].jsonObject.getValue("items").jsonArray[0]
+        val older = JsonObject(captured - "resumes" + ("resume" to episode))
+        val home = FlexarrClient.json.decodeFromJsonElement(serializer<Home>(), older)
+        assertNull(home.resumes)
+        val first = home.featured.first()
+        assertEquals(FlexarrClient.json.decodeFromJsonElement(serializer<ItemSummary>(), episode), home.resuming(first))
+        if (featured.size > 1) assertNull(home.resuming(home.featured[1]))
+        // A newer server's list is what counts, even for the first.
+        assertNull(home.copy(resumes = emptyMap()).resuming(first))
     }
 
     private val markers = listOf(
