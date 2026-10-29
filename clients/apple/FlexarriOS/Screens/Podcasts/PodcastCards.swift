@@ -478,9 +478,22 @@ struct EpisodeSheet: View {
                             }
                         }
                     } label: {
-                        Label(isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: isPlayed ? "circle" : "checkmark.circle")
+                        // Shows where it stands: a green tick once played (tap to undo), an outline tick to mark it.
+                        Label {
+                            Text(isPlayed ? "Mark as unplayed" : "Mark as played")
+                        } icon: {
+                            if isPlayed {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(Color.room, Color.downloaded)
+                                    .font(.title2)
+                            } else {
+                                Image(systemName: "checkmark.circle")
+                            }
+                        }
                     }
                     .buttonStyle(RoundActionStyle())
+                    .accessibilityValue(isPlayed ? "Played" : "")
                     if shown.progress != nil, played == nil {
                         // Part way through: forget the place without marking it played.
                         Button {
