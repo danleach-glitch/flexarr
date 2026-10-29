@@ -1,5 +1,7 @@
 package io.github.flexarr.core
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -417,13 +419,17 @@ data class PlaybackInfo(
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null
 }
 
-/** How a profile likes to watch: auto-play the next episode, and what to skip without asking. */
+/**
+ * How a profile likes to watch: auto-play the next episode, and what to skip without asking. The four switches are
+ * always sent, even at their defaults: the server reads one that's missing as off.
+ */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class PlaybackPreferences(
-    val autoPlayNext: Boolean = true,
-    val skipIntros: Boolean = false,
-    val skipRecaps: Boolean = false,
-    val skipCredits: Boolean = false,
+    @EncodeDefault val autoPlayNext: Boolean = true,
+    @EncodeDefault val skipIntros: Boolean = false,
+    @EncodeDefault val skipRecaps: Boolean = false,
+    @EncodeDefault val skipCredits: Boolean = false,
     /** Absent from servers before subtitle sizes; left out when saving, the server keeps the profile's own. */
     val subtitleSize: SubtitleSize? = null,
     /** How high subtitles sit over the picture. Absent from servers before 0.53; left out when saving, it's kept. */

@@ -74,6 +74,8 @@ import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
+import io.github.flexarr.ui.settings.PlaybackSettingsScreen
+import io.github.flexarr.ui.settings.PodcastSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
@@ -212,11 +214,15 @@ fun MainScreen(model: AppModel) {
                         model,
                         onServer = { nav.navigate("settings/server") },
                         onLibraryOrder = { nav.navigate("settings/library-order") },
+                        onPlayback = { nav.navigate("settings/playback") },
                         onDownloads = { nav.navigate("settings/downloads") },
+                        onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
                     )
                 }
+                composable("settings/playback") { PlaybackSettingsScreen(model) }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
+                composable("settings/podcasts") { PodcastSettingsScreen(model, onNotifications = { nav.navigate("settings/notifications") }) }
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
                 composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
