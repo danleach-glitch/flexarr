@@ -6,7 +6,7 @@ import SwiftUI
 /// the close button stops playback (keeping an episode's place) and takes the bar away.
 struct NowPlayingBar: View {
     @Environment(AppModel.self) private var model
-    @State private var showingNowPlaying = false
+    @Environment(Router.self) private var router
 
     private var music: MusicPlayer { model.music }
 
@@ -25,7 +25,7 @@ struct NowPlayingBar: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Stop and close")
                 .padding(.trailing, -6)
-                Button { showingNowPlaying = true } label: {
+                Button { router.showsNowPlaying = true } label: {
                     HStack(spacing: 12) {
                         ZStack {
                             if let artwork = music.artwork {
@@ -98,9 +98,9 @@ struct NowPlayingBar: View {
             .padding(.bottom, 6)
             #if DEBUG
             // `-FlexarrShowNowPlaying YES` opens Now Playing as soon as something plays (with `-FlexarrPlay <id>`).
-            .task { if UserDefaults.standard.bool(forKey: "FlexarrShowNowPlaying") { showingNowPlaying = true } }
+            .task { if UserDefaults.standard.bool(forKey: "FlexarrShowNowPlaying") { router.showsNowPlaying = true } }
             #endif
-            .sheet(isPresented: $showingNowPlaying) {
+            .sheet(isPresented: Bindable(router).showsNowPlaying) {
                 NowPlayingView()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)

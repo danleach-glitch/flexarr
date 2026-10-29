@@ -419,6 +419,7 @@ struct EpisodeDownloadButton: View {
 /// An episode's whole notes, with Play, its download and Mark as played.
 struct EpisodeSheet: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
     let episode: PodcastEpisode
     var setPlayed: ((Bool) -> Void)?
@@ -449,11 +450,16 @@ struct EpisodeSheet: View {
                     let isCurrent = model.music.current?.id == shown.id
                     let isPlaying = isCurrent && model.music.isPlaying
                     Button {
-                        if isCurrent {
+                        if isPlaying {
                             model.music.togglePlayPause()
-                        } else {
-                            model.playEpisode(shown.summary)
-                            dismiss()
+                            return
+                        }
+                        // Playing (or carrying on) goes to the player: the notes give way to Now Playing.
+                        if isCurrent { model.music.togglePlayPause() } else { model.playEpisode(shown.summary) }
+                        dismiss()
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(450)) // once this sheet has gone
+                            router.showsNowPlaying = true
                         }
                     } label: {
                         Label(isPlaying ? "Pause" : isCurrent || shown.progress != nil ? "Resume" : "Play",
