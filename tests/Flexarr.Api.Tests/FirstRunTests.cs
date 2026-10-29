@@ -133,6 +133,24 @@ public sealed class FirstRunTests : IDisposable
     }
 
     [Fact]
+    public async Task AnyoneCanReadTheServersId_WhichIsTheOneTheSignedInStatusGives()
+    {
+        // An app that's told another address for its server asks there, without its sign-in, before trusting it.
+        var stranger = From("203.0.113.9", webApp: false);
+        var app = From("192.168.1.30", webApp: false);
+        app.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var id = (await stranger.GetFromJsonAsync<JsonElement>(Api("/setup"))).GetProperty("serverId").GetString();
+        var again = (await stranger.GetFromJsonAsync<JsonElement>(Api("/setup"))).GetProperty("serverId").GetString();
+        var status = await app.GetFromJsonAsync<JsonElement>(Api("/system/status"));
+
+        Assert.Matches("^[0-9a-f]{32}$", id);
+        Assert.Equal(id, again);
+        Assert.Equal(id, status.GetProperty("serverId").GetString());
+        Assert.Contains($"\"serverId\": \"{id}\"", await File.ReadAllTextAsync(ServerConfigStore.PathFor(_factory.DataDirectory)), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SigningInWithTheKey_ClosesSetup()
     {
         var browser = From("192.168.1.20");

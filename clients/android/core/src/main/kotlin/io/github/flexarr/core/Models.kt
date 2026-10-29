@@ -93,6 +93,11 @@ data class SystemStatus(
     val remoteUrl: String? = null,
     /** Whether the server's owner has turned on error reports (to Sentry) for the apps. Absent from older servers: off. */
     val errorReports: ErrorReportSetting? = null,
+    /**
+     * The server's own random id, which [FlexarrClient.serverIdAt] asks another address for before the app sends its
+     * sign-in there. Absent from servers before 0.55.
+     */
+    val serverId: String? = null,
 )
 
 /** The server's error-report switch, which the apps follow: off unless the owner turned it on. */
@@ -506,6 +511,8 @@ data class SetupStatus(
     val open: Boolean,
     /** Setting up asks for the code in the server's log. Absent from servers before 0.52. */
     val codeRequired: Boolean? = null,
+    /** The server's id, as [SystemStatus.serverId]; anyone may ask for it. Absent from servers before 0.55. */
+    val serverId: String? = null,
 )
 
 @Serializable

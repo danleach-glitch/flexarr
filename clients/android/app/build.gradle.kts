@@ -86,6 +86,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Unit tests (src/test, `./gradlew :app:testDebugUnitTest`) run on the computer, without a device: plain JVM tests of
+    // the app's own logic, and Robolectric for the few that need Android's classes (a Uri, an Intent). They read the
+    // API's real answers shared with FlexarrKit's tests, as the core's do.
+    sourceSets.getByName("test").resources.srcDir("../../apple/FlexarrKit/Tests/FlexarrKitTests/Fixtures")
+
     // Lint fails the build on new errors; the ones already there when it joined CI are listed in lint-baseline.xml
     // (`./gradlew :app:updateLintBaseline` lists them again, after fixing some).
     lint {
@@ -177,6 +182,9 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.compose.ui.tooling)
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }
