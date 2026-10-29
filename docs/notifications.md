@@ -1,23 +1,26 @@
-# iPhone and iPad notifications
+# Phone notifications
 
-Flexarr tells a phone when something new is ready: a film, a show or new episodes, a podcast episode, a finished
+Flexarr tells a phone (an iPhone or iPad, or an Android phone or tablet) when something new is ready: a film, a show or new episodes, a podcast episode, a finished
 recording, or a request coming in. It can also send a morning list of what's airing that day (off by default).
 
 ## How a notification travels
 
 ```
-Flexarr server ──(encrypted payload)──▶ relay (push.flexarr.io)   ──▶ Apple Push Notification service ──▶ phone
-                                                                                                         │
-                                                         the app's notification extension decrypts it ◀───┘
+Flexarr server ──(encrypted payload)──▶ relay (push.flexarr.io) ──▶ Apple Push Notification service ──▶ iPhone
+                                                                 └─▶ Firebase Cloud Messaging ─────────▶ Android
+                                                                                                          │
+                     the iPhone's notification extension, or the Android app, decrypts it ◀───────────────┘
 ```
 
-- Apple only takes pushes signed with the App Store app's own key, which can't be handed to every server, so the
-  servers send their pushes through a small relay that holds the key (`relay/api/push.js`, the Vercel project flexarr-push at push.flexarr.io, deployed on its own when
-  `relay/` changes).
+- Apple only takes pushes signed with the App Store app's own key, and Google only takes them from the Firebase
+  project's service account, neither of which can be handed to every server, so the servers send their pushes through
+  a small relay that holds them (`relay/api/push.js`, the Vercel project flexarr-push at push.flexarr.io, deployed on
+  its own when `relay/` changes).
 - The relay never sees what a notification says. When notifications are turned on, the phone makes a random
   256-bit key and gives it to its own server. The server encrypts each notification with it (AES-256-GCM). The relay
   forwards only the encrypted payload, under a generic alert ("Something new is ready"), and the extension on the
-  phone decrypts it and fills in the real title, text, artwork and buttons.
+  phone decrypts it and fills in the real title, text, artwork and buttons. To Android it goes as a data message
+  with no alert at all: the app decrypts it and shows the notification itself.
 - A server can use a different relay (`Flexarr:Notifications:RelayUrl`) or none
   (`Flexarr:Notifications:Enabled=false`).
 
@@ -53,8 +56,9 @@ All calls are made by the phone with its own sign-in. The device is the sign-in.
 
 ```json
 {
-  "token": "<APNs device token, hex>",
-  "environment": "production",          // or "sandbox" for development builds
+  "platform": "apple",                  // or "android"; leaving it out means "apple"
+  "token": "<APNs device token, hex>",  // on Android, the Firebase registration token, exactly as given
+  "environment": "production",          // or "sandbox" for development builds (Apple only: Android sends "production")
   "key": "<base64 of 32 random bytes>", // the phone keeps it in the shared keychain
   "timeZone": "Europe/London",
   "films": true, "shows": true, "podcasts": true, "recordings": true, "requests": true,
@@ -76,8 +80,8 @@ reason when the relay or Apple refuses it).
 
 ## The encrypted payload
 
-Base64 of `nonce (12 bytes) | ciphertext | tag (16 bytes)` (CryptoKit's `AES.GCM.SealedBox.combined`), sealing UTF-8
-JSON:
+Base64 of `nonce (12 bytes) | ciphertext | tag (16 bytes)` (CryptoKit's `AES.GCM.SealedBox.combined`; on Android,
+`Cipher.getInstance("AES/GCM/NoPadding")` with a 128-bit tag, the nonce taken off the front), sealing UTF-8 JSON:
 
 ```json
 {
@@ -108,8 +112,12 @@ page can't send through its visitors' browsers).
 Servers from before 0.51.0 post to `https://www.flexarr.io/api/push`, which the site passes on to the relay.
 
 ```json
-{ "token": "<hex>", "environment": "production", "payload": "<base64>", "collapseId": "<≤64 chars, optional>" }
+{ "token": "<hex>", "environment": "production", "payload": "<base64>", "collapseId": "<≤64 chars, optional>",
+  "platform": "android" }
 ```
+
+`platform` is left out for an iPhone (relays from before Android don't know it) and is `"android"` for an Android
+phone, whose `token` is then a Firebase registration token (letters, digits, `-`, `_` and `:`) rather than hex.
 
 The relay sends Apple:
 
@@ -118,12 +126,25 @@ The relay sends Apple:
            "mutable-content": 1 }, "e": "<payload>" }
 ```
 
+and sends Google (FCM's HTTP v1 API, `projects/<project>/messages:send`) a high-priority data message:
+
+```json
+{ "message": { "token": "<token>", "data": { "e": "<payload>" },
+               "android": { "priority": "HIGH", "collapse_key": "<collapseId>" } } }
+```
+
+Google's refusals come back in the same words as Apple's: `UNREGISTERED` as `410 Unregistered`, and
+`INVALID_ARGUMENT` or `SENDER_ID_MISMATCH` (a token from another Firebase project) as `400 BadDeviceToken`.
+
 It answers `200 {"ok":true}`, `410 {"reason":"Unregistered"}` or `400 {"reason":"BadDeviceToken"}` (the server forgets
 the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited (12 a minute to one phone; 600 a minute from one address, as a backstop), or `502`
 with Apple's reason.
 
 The relay needs these environment variables on the flexarr-push Vercel project: `APNS_KEY` (the .p8 file's contents),
 `APNS_KEY_ID`, `APNS_TEAM_ID` (the Apple developer team's ID) and `APNS_TOPIC` (the iPhone app's bundle ID).
+For Android it needs `FCM_SERVICE_ACCOUNT`: the contents of a service account key (the JSON file) for the Firebase
+project the Android app is built with, from the Firebase console under Project settings › Service accounts › Generate
+new private key. Without it, Android pushes get `503 {"reason":"NotConfigured"}`.
 `KV_REST_API_URL` and `KV_REST_API_TOKEN` are optional: with an Upstash Redis store connected (Vercel's marketplace
 sets both), the per-phone limit is counted across every instance of the relay rather than by each one alone. Make the key in the Apple
 Developer site under Certificates, Identifiers & Profiles › Keys, with Apple Push Notifications service enabled. The

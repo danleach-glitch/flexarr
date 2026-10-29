@@ -11,8 +11,9 @@ public sealed record DeviceSignInRequest(string? DeviceName);
 public sealed record SignInRename(string? Name);
 
 /// <param name="IsThisOne">The browser or device asking.</param>
+/// <param name="DeviceType">For a device, what it is; absent until its app says (apps from before 0.54 don't).</param>
 public sealed record SignInDto(string Id, SignInKind Kind, string Name, DateTime CreatedAt, DateTime LastUsedAt, NetworkZone Zone, string? Address,
-    string ProfileId, string? ProfileName, bool IsThisOne);
+    string ProfileId, string? ProfileName, bool IsThisOne, DeviceType? DeviceType = null);
 
 public static class SessionEndpoints
 {
@@ -55,7 +56,7 @@ public static class SessionEndpoints
             }
 
             var (signIn, token) = signIns.Issue(SignInKind.Device, request.DeviceName ?? "", NetworkZones.Of(http),
-                http.Connection.RemoteIpAddress?.ToString(), Chosen(profile));
+                http.Connection.RemoteIpAddress?.ToString(), Chosen(profile), deviceType: DeviceTypes.Of(http.Request));
             return Results.Ok(new { id = signIn.Id, token });
         }).WithTags("System");
 
@@ -67,7 +68,8 @@ public static class SessionEndpoints
             return signIns.List().Select(s =>
             {
                 var profileId = s.ProfileId is { } chosen && names.ContainsKey(chosen) ? chosen : PlaybackState.DefaultUser;
-                return new SignInDto(s.Id, s.Kind, s.Name, s.CreatedAt, s.LastUsedAt, s.Zone, s.Address, profileId, names.GetValueOrDefault(profileId), s.Id == current.SignInId);
+                return new SignInDto(s.Id, s.Kind, s.Name, s.CreatedAt, s.LastUsedAt, s.Zone, s.Address, profileId, names.GetValueOrDefault(profileId), s.Id == current.SignInId,
+                    s.DeviceType);
             }).ToList();
         });
 

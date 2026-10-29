@@ -15,11 +15,13 @@ namespace Flexarr.Api.Devices;
 /// <param name="Paused">Paused on the device (as it last reported).</param>
 public sealed record NowPlayingDto(ItemSummaryDto Item, double PositionSeconds, double DurationSeconds, bool Paused);
 
-/// <summary>An Apple TV, iPhone or iPad signed in to this server, and whether it would take a command right now.</summary>
+/// <summary>An Apple TV, iPhone, iPad or Android device signed in to this server, and whether it would take a command right now.</summary>
 /// <param name="Online">Flexarr is open on it and listening. Offline, a command waits a couple of minutes for it.</param>
 /// <param name="ProfileId">Whose history it plays against: the profile chosen on it.</param>
 /// <param name="IsThisOne">The device asking.</param>
-public sealed record DeviceDto(string Id, string Name, bool Online, DateTime LastUsedAt, string ProfileId, string? ProfileName, bool IsThisOne, NowPlayingDto? NowPlaying);
+/// <param name="DeviceType">What it is, to name and draw it; absent until its app says (apps from before 0.54 don't).</param>
+public sealed record DeviceDto(string Id, string Name, bool Online, DateTime LastUsedAt, string ProfileId, string? ProfileName, bool IsThisOne, NowPlayingDto? NowPlaying,
+    DeviceType? DeviceType = null);
 
 /// <param name="ItemId">A film, episode or track to play, or a show, season or album: the next episode (or the first track) is worked out for the device's profile.</param>
 /// <param name="FromBeginning">Start over rather than resume.</param>
@@ -135,7 +137,7 @@ public static class DeviceEndpoints
             }
 
             list.Add(new DeviceDto(device.Id, device.Name, commands.IsOnline(device.Id), device.LastUsedAt, profileId, names.GetValueOrDefault(profileId),
-                device.Id == current.SignInId, nowPlaying));
+                device.Id == current.SignInId, nowPlaying, device.DeviceType));
         }
 
         return list.OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();

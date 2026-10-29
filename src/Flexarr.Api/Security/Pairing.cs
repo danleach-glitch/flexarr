@@ -55,8 +55,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly Queue<DateTime> _approvedAt = new();
 
-    private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address)
+    private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address, DeviceType? deviceType)
     {
+        public DeviceType? DeviceType { get; } = deviceType;
         public string Id { get; } = id;
         public string Code { get; } = code;
         public string DeviceName { get; set; } = deviceName;
@@ -66,7 +67,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         public bool Approved { get; set; }
     }
 
-    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address)
+    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, DeviceType? deviceType = null)
     {
         Sweep();
         if (_pending.Count >= MaxWaiting || _pending.Values.Count(p => p.Address == address) >= MaxWaitingPerAddress)
@@ -76,7 +77,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
         var code = new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
         var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, Name(deviceName) ?? "A TV",
-            clock.GetUtcNow().UtcDateTime + Lifetime, zone, address);
+            clock.GetUtcNow().UtcDateTime + Lifetime, zone, address, deviceType);
         _pending[pending.Id] = pending;
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);
     }
@@ -100,7 +101,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
             return new PairingStatusDto("expired", null);
         }
 
-        var (_, token) = signIns.Issue(SignInKind.Device, pending.DeviceName, pending.Zone, pending.Address);
+        var (_, token) = signIns.Issue(SignInKind.Device, pending.DeviceName, pending.Zone, pending.Address, deviceType: pending.DeviceType);
         return new PairingStatusDto("approved", token);
     }
 
@@ -197,7 +198,7 @@ public static class PairingEndpoints
                 return Results.Problem(UnfitNameMessage, statusCode: 400);
             }
 
-            return pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString()) is { } started
+            return pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), DeviceTypes.Of(http.Request)) is { } started
                 ? Results.Ok(started)
                 : Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
         });

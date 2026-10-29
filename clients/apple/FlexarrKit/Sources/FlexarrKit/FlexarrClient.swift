@@ -35,6 +35,10 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
 
 /// Talks to a Flexarr server's `/api/v1` REST API. Shared by the tvOS, iOS and macOS apps.
 public struct FlexarrClient: Sendable {
+    /// What this device is ("AppleTv", "IPhone" or "IPad"), sent with every request as `X-Flexarr-Device` so the
+    /// server's lists of devices can name and draw it. Set once at launch; nil sends nothing.
+    public nonisolated(unsafe) static var deviceType: String?
+
     /// The server's addresses; requests go to whichever answered last (see `ServerAddresses`).
     public let addresses: ServerAddresses
     /// The address in use now: streams and artwork are resolved against it.
@@ -259,6 +263,7 @@ public struct FlexarrClient: Sendable {
         var request = URLRequest(url: baseURL.appending(path: "api/v1/offline/\(id)/file"))
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
+        if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
         return request
     }
 
@@ -360,6 +365,7 @@ public struct FlexarrClient: Sendable {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
+        if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
         let prepared = request
         let session = self.session
         let onUnauthorized = self.onUnauthorized
@@ -519,6 +525,9 @@ public struct FlexarrClient: Sendable {
         }
         if let profileToken, !profileToken.isEmpty {
             request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile")
+        }
+        if let deviceType = Self.deviceType {
+            request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device")
         }
         if let bodyData {
             request.httpBody = bodyData

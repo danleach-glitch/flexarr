@@ -54,6 +54,35 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task Devices_SayWhatTheyAre_SoListsCanNameAndDrawThem()
+    {
+        using var asking = new HttpRequestMessage(HttpMethod.Post, Api("/session/device")) { Content = JsonContent.Create(new { deviceName = "Pixel 9" }) };
+        asking.Headers.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        asking.Headers.Add(DeviceTypes.Header, "AndroidPhone");
+        var issued = await (await factory.CreateClient().SendAsync(asking)).Content.ReadFromJsonAsync<JsonElement>();
+        var phoneId = issued.GetProperty("id").GetString()!;
+
+        // An app from before 0.54 says nothing, until it's updated and does; nonsense changes nothing.
+        var tvToken = await DeviceTokenAsync("Living room");
+        var tv = Device(tvToken);
+        async Task<JsonElement> Listed(string name) =>
+            (await Admin().GetFromJsonAsync<JsonElement[]>(Api("/sign-ins")))!.First(s => s.GetProperty("name").GetString() == name);
+        Assert.Equal("AndroidPhone", (await Listed("Pixel 9")).GetProperty("deviceType").GetString());
+        Assert.Equal(JsonValueKind.Null, (await Listed("Living room")).GetProperty("deviceType").ValueKind);
+
+        tv.DefaultRequestHeaders.Add(DeviceTypes.Header, "AppleTv");
+        await tv.GetAsync(Api("/system/status"));
+        var updatedTv = Device(tvToken);
+        updatedTv.DefaultRequestHeaders.Add(DeviceTypes.Header, "3");
+        await updatedTv.GetAsync(Api("/system/status"));
+        Assert.Equal("AppleTv", (await Listed("Living room")).GetProperty("deviceType").GetString());
+
+        // Play on's list says it too.
+        var devices = await Device(tvToken).GetFromJsonAsync<JsonElement[]>(Api("/devices"));
+        Assert.Equal("AndroidPhone", devices!.First(d => d.GetProperty("id").GetString() == phoneId).GetProperty("deviceType").GetString());
+    }
+
+    [Fact]
     public async Task EachBrowser_GetsItsOwnSession_ThatSigningOutEnds()
     {
         var (first, cookie) = await SignInBrowserAsync();

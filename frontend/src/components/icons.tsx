@@ -181,6 +181,18 @@ export const Tv = (p: IconProps) => (
     <path d="m8.5 2.5 3.5 3.5 3.5-3.5" />
   </svg>
 )
+export const Phone = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="6" y="2" width="12" height="20" rx="2.5" />
+    <path d="M11 18h2" />
+  </svg>
+)
+export const Tablet = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="4" y="2" width="16" height="20" rx="2.5" />
+    <path d="M11 18h2" />
+  </svg>
+)
 export const Music = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M9 18V5l11-2v13" />

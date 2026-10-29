@@ -73,9 +73,13 @@ public sealed class ApiKeyAuthenticationHandler(
                 return await SucceedAsync(Methods.ApiKey);
             }
 
-            return signIns.Find(provided, SignInKind.Device) is { } device
-                ? await SucceedAsync(Methods.Device, device)
-                : AuthenticateResult.Fail("Invalid API key");
+            if (signIns.Find(provided, SignInKind.Device) is not { } device)
+            {
+                return AuthenticateResult.Fail("Invalid API key");
+            }
+
+            signIns.NoteDeviceType(device, DeviceTypes.Of(Request));
+            return await SucceedAsync(Methods.Device, device);
         }
 
         // A stale or signed-out cookie is ignored rather than refused, so the other ways still apply.
