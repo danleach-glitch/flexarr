@@ -14,6 +14,7 @@ import io.github.flexarr.ui.connect.ConnectScreen
 import io.github.flexarr.ui.connect.WelcomeScreen
 import io.github.flexarr.ui.connect.rememberWelcomed
 import io.github.flexarr.ui.profiles.ProfilesScreen
+import kotlinx.coroutines.delay
 
 /** The welcome pages (a fresh install), connecting, choosing who's watching, or the app itself. */
 @Composable
@@ -29,6 +30,14 @@ fun FlexarrRoot(model: AppModel) {
                 LaunchedEffect(phase.credentials.address, phase.credentials.apiKey) {
                     model.loadProfiles()
                     model.refreshRemoteAddress()
+                    // A list that couldn't be read (the network not up yet as the app starts, say) is asked for again:
+                    // without it Home has no profile button and nobody can switch.
+                    var wait = 2_000L
+                    while (model.profiles.isEmpty()) {
+                        delay(wait)
+                        model.loadProfiles()
+                        wait = (wait * 2).coerceAtMost(30_000L)
+                    }
                 }
                 when {
                     !model.profilesLoaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }

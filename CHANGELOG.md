@@ -9,6 +9,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Connecting the phone to a server no longer gets stuck on "Too many devices are waiting to connect" when the phone sleeps or the Wi-Fi blinks while it shows its code. It keeps waiting on the same code, so approving it in the browser lets the phone straight in.
 - The carousel at the top of Home no longer sometimes stops halfway between two titles when it moves on by itself.
 - "Who's watching?" and the podcast sheet open at full height, so every profile shows without dragging the sheet up.
+- If the profiles can't be read as the app starts (the network not up yet, say), the app asks again, rather than leaving Home without its profile button until it's restarted.
 
 ## 0.55.0 · 29 October 2026
 
