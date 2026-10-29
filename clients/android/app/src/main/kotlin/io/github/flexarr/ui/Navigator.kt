@@ -41,7 +41,9 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     fun openPlaylist(id: String) = nav.navigate("playlist/$id")
 
-    fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title) = nav.navigate("library/$id?sort=${sort.raw}")
+    /** A library's poster grid; with [genre], just its titles in that genre (from a Genres tile or a genre row). */
+    fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title, genre: String? = null) =
+        nav.navigate("library/$id?sort=${sort.raw}" + genre?.let { "&genre=${Uri.encode(it)}" }.orEmpty())
 
     fun openPerson(id: String, name: String) = nav.navigate("person/$id?name=${Uri.encode(name)}")
 
@@ -139,6 +141,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         val segments = uri.pathSegments
         if (segments.size != 2 || segments[0] != "library") return null
         val sort = LibrarySort.entries.firstOrNull { it.raw == uri.getQueryParameter("sort") } ?: LibrarySort.Title
-        return { openLibrary(segments[1], sort) }
+        val genre = uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() }
+        return { openLibrary(segments[1], sort, genre) }
     }
 }

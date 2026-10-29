@@ -235,11 +235,14 @@ fun MainScreen(model: AppModel) {
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
-                    "library/{id}?sort={sort}",
-                    arguments = listOf(navArgument("sort") { type = NavType.StringType; defaultValue = "" }),
+                    "library/{id}?sort={sort}&genre={genre}",
+                    arguments = listOf(
+                        navArgument("sort") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("genre") { type = NavType.StringType; defaultValue = "" },
+                    ),
                 ) { entry ->
                     val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
-                    LibraryScreen(model, entry.arguments?.getString("id")!!, sort)
+                    LibraryScreen(model, entry.arguments?.getString("id")!!, sort, entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() })
                 }
                 composable("livetv") { LiveTvScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }

@@ -82,6 +82,23 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `entries follow the library order, with ones it doesn't mention after`() {
+        val entries = listOf("a", "podcasts", "b", "live-tv", "new")
+        assertEquals(listOf("live-tv", "b", "podcasts", "a", "new"), sortedByLibraryOrder(entries, listOf("live-tv", "B", "podcasts", "a")) { it })
+        // No order saved: as they came.
+        assertEquals(entries, sortedByLibraryOrder(entries, emptyList()) { it })
+    }
+
+    @Test
+    fun `genres have a backdrop from servers that send one`() = runTest {
+        server.enqueue(json("""[{"name":"Drama","count":12,"backdrop":"/api/v1/images/x/backdrop"},{"name":"Comedy","count":3}]"""))
+        val genres = client().libraryGenres("films")
+        assertEquals("/api/v1/images/x/backdrop", genres[0].backdrop)
+        assertNull(genres[1].backdrop)
+        assertEquals(3, genres[1].count)
+    }
+
+    @Test
     fun `next up is null when everything is watched`() = runTest {
         server.enqueue(MockResponse.Builder().code(204).build())
         assertNull(client().nextUp("show"))
