@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -256,7 +257,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
     var played by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(episode.id) { full = runCatching { client.podcastEpisode(episode.id) }.getOrNull() }
     val shown = full ?: episode
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Flexarr.room) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Edge).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
                 PodcastArtwork(shown.artwork.thumb ?: shown.artwork.poster, shown.podcastTitle, shown.accentColor, Modifier.size(88.dp), imageWidth = 342)
