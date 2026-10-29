@@ -245,7 +245,17 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                 var since = 0
                 // Asked straight away: a new server lets its first device in without anyone approving it.
                 while (true) {
-                    val status = client.pairingStatus(started.id)
+                    // A failed check (the phone asleep, or the Wi-Fi blinking) asks again about the same code rather than
+                    // starting another: the one on screen may already be approved, and the server keeps only three waiting.
+                    val status = try {
+                        client.pairingStatus(started.id).also { error = null }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        error = e.message
+                        delay(2_000)
+                        continue
+                    }
                     val key = status.apiKey
                     if (status.status == "approved" && key != null) {
                         model.connect(server.address, key)
