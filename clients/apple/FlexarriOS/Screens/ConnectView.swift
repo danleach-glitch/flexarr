@@ -192,40 +192,41 @@ private struct PairWithServer: View {
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.screen)
 
-                // Short steps for someone who's never done this. A new server has nobody to approve the code yet, so
-                // setting it up comes first.
-                VStack(alignment: .leading, spacing: 14) {
-                    NumberedStep(1) {
-                        Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
-                    }
-                    if pairing.needsSetup {
+                // Short steps for someone who's never done this: a phone signed in as the main profile is asked to
+                // allow it, and the web app does it without one. A new server has nobody to allow it yet, so setting
+                // it up in a browser comes first.
+                if pairing.needsSetup {
+                    VStack(alignment: .leading, spacing: 14) {
+                        NumberedStep(1) {
+                            Text("On your computer, open **\(server.address.absoluteString)** in a web browser.")
+                        }
                         NumberedStep(2) {
                             Text(pairing.setupNeedsCode
                                 ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
                                 : "Click **Set up Flexarr**.")
                         }
+                        NumberedStep(3) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
+                        NumberedStep(4) { Text("Type in this code:") }
                     }
-                    NumberedStep(pairing.needsSetup ? 3 : 2) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
-                    NumberedStep(pairing.needsSetup ? 4 : 3) { Text("Type in this code:") }
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    // Regular width, not the condensed marquee face: the web pages show codes in the same SF Pro Black.
-                    Text(start.code)
-                        .font(.system(size: 52, weight: .black))
-                        .kerning(2)
-                        .foregroundStyle(Color.screen)
-                        .textSelection(.enabled)
-                    if pairing.renewedAt != nil {
-                        Label("New code", systemImage: "arrow.clockwise")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.silver)
+                    code(start, renewed: pairing.renewedAt != nil)
+                } else {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("On a phone signed in to Flexarr, tap **Allow** when it asks. Check it shows this code:")
+                            .font(.body)
+                            .foregroundStyle(Color.screen)
+                            .fixedSize(horizontal: false, vertical: true)
+                        code(start, renewed: pairing.renewedAt != nil)
+                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Access › Connect a device** and type in the code.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.usher)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                     }
                 }
 
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("This screen moves on by itself once you have.")
+                    Text("This screen moves on by itself once it's allowed.")
                         .font(.footnote)
                         .foregroundStyle(Color.usher)
                 }
@@ -250,6 +251,22 @@ private struct PairWithServer: View {
             let pairing = Pairing(server: server)
             self.pairing = pairing
             await pairing.run(model: model)
+        }
+    }
+
+    private func code(_ start: PairingStart, renewed: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            // Regular width, not the condensed marquee face: the web pages show codes in the same SF Pro Black.
+            Text(start.code)
+                .font(.system(size: 52, weight: .black))
+                .kerning(2)
+                .foregroundStyle(Color.screen)
+                .textSelection(.enabled)
+            if renewed {
+                Label("New code", systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.silver)
+            }
         }
     }
 }

@@ -5,9 +5,10 @@ import android.content.Context
 import android.content.Intent
 import io.github.flexarr.core.DeviceCommand
 import io.github.flexarr.core.DeviceCommandKind
+import io.github.flexarr.core.DeviceEvent
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
-import io.github.flexarr.core.commandStream
+import io.github.flexarr.core.deviceEvents
 import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.player.LivePlayerActivity
@@ -31,6 +32,7 @@ interface ActivePlayback {
 /**
  * Keeps the server's command stream open while the app is in front, so another device (an iPhone saying "play the
  * next episode on the living-room TV" to Siri), the web app or an assistant can play, pause, resume and stop here.
+ * For the main profile it also brings devices asking to connect ([PairingPrompts]).
  * Reconnects when the connection drops, backing off; stops for good when the server says this sign-in has no stream
  * (a sign-in holding the API key itself rather than a token of its own). As the iPhone's DeviceCommandListener.
  */
@@ -41,19 +43,31 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
     /** The player showing now, if any; set by the players as they open and close. */
     var active: ActivePlayback? = null
 
-    /** Listens on [client]'s sign-in. Called again with the same sign-in, it carries on. */
+    /**
+     * Listens on [client]'s sign-in. Called again with the same sign-in, it carries on; as another profile, it starts
+     * again, as only the main profile hears about devices asking to connect.
+     */
     fun start(client: FlexarrClient) {
         val current = listeningFor
-        if (current != null && current.baseUrl == client.baseUrl && current.apiKey == client.apiKey && task?.isActive == true) return
+        if (current != null && current.baseUrl == client.baseUrl && current.apiKey == client.apiKey && current.profileToken == client.profileToken &&
+            task?.isActive == true
+        ) return
         stop()
         listeningFor = client
         task = scope.launch {
             var wait = 2_000L
             while (isActive) {
                 try {
-                    client.commandStream().collect { command ->
-                        flexarrLog.info("Command ${command.kind.raw} from ${command.sentBy ?: "someone"}")
-                        handle(command)
+                    client.deviceEvents().collect { event ->
+                        when (event) {
+                            is DeviceEvent.Command -> {
+                                val command = event.command
+                                flexarrLog.info("Command ${command.kind.raw} from ${command.sentBy ?: "someone"}")
+                                handle(command)
+                            }
+                            is DeviceEvent.Pairing -> model.pairing.arrived(event.device)
+                            is DeviceEvent.PairingEnded -> model.pairing.ended(event.code)
+                        }
                         wait = 2_000L
                     }
                     // Ended cleanly: a newer connection from this device took over.

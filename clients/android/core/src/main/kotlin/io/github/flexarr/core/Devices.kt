@@ -6,6 +6,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.Serializable
@@ -38,6 +40,17 @@ data class Device(
     /** "AppleTv", "IPhone", "AndroidTv"…, to name and draw it. Absent from servers before 0.54. */
     val deviceType: String? = null,
 )
+
+/** "Apple TV", "Android phone"… for a [Device.deviceType]; null for none, or one newer than this app. */
+fun deviceKind(deviceType: String?): String? = when (deviceType) {
+    "AppleTv" -> "Apple TV"
+    "IPhone" -> "iPhone"
+    "IPad" -> "iPad"
+    "AndroidPhone" -> "Android phone"
+    "AndroidTablet" -> "Android tablet"
+    "AndroidTv" -> "Android TV"
+    else -> null
+}
 
 @Serializable(with = DeviceCommandKind.Serializer::class)
 enum class DeviceCommandKind(override val raw: String) : ForwardCompatibleEnum {
@@ -160,12 +173,16 @@ suspend fun FlexarrClient.control(deviceId: String, action: DeviceControl): Devi
 /** The server writes a comment every 20 seconds, so a quiet minute and a half means the connection has gone. */
 private val streamHttp by lazy { FlexarrClient.sharedHttp.newBuilder().readTimeout(90, TimeUnit.SECONDS).build() }
 
+/** Commands sent to this device, as they arrive: [deviceEvents] without the rest. */
+fun FlexarrClient.commandStream(): Flow<DeviceCommand> = deviceEvents().filterIsInstance<DeviceEvent.Command>().map { it.command }
+
 /**
- * Commands sent to this device, as they arrive, over one long-lived request (server-sent events). Ends when the server
- * closes it (a newer connection from this device took over) or the connection drops; the caller opens it again. Only
- * a device signed in with its own token has one: with the API key the server answers 403.
+ * What the server tells this device, as it arrives, over one long-lived request (server-sent events): commands, and
+ * for the main profile, devices asking to connect. Ends when the server closes it (a newer connection from this device
+ * took over) or the connection drops; the caller opens it again. Only a device signed in with its own token has one:
+ * with the API key the server answers 403.
  */
-fun FlexarrClient.commandStream(): Flow<DeviceCommand> = flow {
+fun FlexarrClient.deviceEvents(): Flow<DeviceEvent> = flow {
     val request = Request.Builder()
         .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").build())
         .header("Accept", "text/event-stream")
@@ -199,7 +216,7 @@ fun FlexarrClient.commandStream(): Flow<DeviceCommand> = flow {
                         ensureActive()
                         val line = source.readUtf8Line() ?: break
                         val event = events.feed(line) ?: continue
-                        if (event.name == "command") emit(FlexarrClient.json.decodeFromString(serializer<DeviceCommand>(), event.data))
+                        deviceEvent(event)?.let { emit(it) }
                     }
                 } catch (e: IOException) {
                     ensureActive()

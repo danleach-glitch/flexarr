@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, approvePairing, askForProfile, declinePairing, getPairing, type PairingDetails } from '../api/client'
+import { askedFrom, pairingError, setPairingOpenElsewhere } from '../lib/pairing'
 import { AsyncButton } from './AsyncButton'
 
 /**
@@ -16,7 +17,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
 
   function failed(e: unknown) {
     setNotMain(e instanceof ApiError && e.status === 403)
-    setError(message(e))
+    setError(pairingError(e))
   }
 
   async function look(value: string) {
@@ -43,6 +44,13 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
       current = false
     }
   }, [initialCode])
+
+  // The app-wide prompt leaves this device to this page while it's being asked about here.
+  const asking = details?.code
+  useEffect(() => {
+    setPairingOpenElsewhere(asking)
+    return () => setPairingOpenElsewhere(undefined)
+  }, [asking])
 
   async function allow() {
     if (!details) return
@@ -111,10 +119,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
       <div className="panel connect-tv">
         <h2>Connect {details.deviceName}?</h2>
         <p className="connect-tv-big-code">{details.code}</p>
-        <p className="muted">
-          Asked from {home ? 'your home network' : details.zone === 'Tailnet' ? 'Tailscale' : 'the internet'}
-          {details.requestedFrom ? ` (${details.requestedFrom})` : ''}.
-        </p>
+        <p className="muted">Asked {askedFrom(details)}.</p>
         {home ? (
           <p>
             Only allow this if your device is showing <strong>{details.code}</strong> right now. If someone sent you this link, choose Don’t allow.
@@ -173,10 +178,3 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
     </form>
   )
 }
-
-const message = (e: unknown) =>
-  e instanceof ApiError && e.status === 403
-    ? 'Only the main profile can connect a device.'
-    : e instanceof ApiError && e.messages[0]
-      ? e.messages[0]
-      : String(e)

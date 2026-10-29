@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     let downloads = DownloadStore()
     let notifications = PushNotifications()
+    /// Devices asking to connect, for this phone to allow when it's signed in as the main profile.
+    let pairing = PairingPrompts()
     /// The app model, once the window's up: what a tapped notification plays or opens with.
     weak var model: AppModel? {
         didSet {
@@ -22,6 +24,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 await downloads.sendLeftoverProgress(with: client)
                 await notifications.signedOut(client)
             }
+            model?.onPairingEvent = { [pairing] event in pairing.received(event) }
         }
     }
 
@@ -49,9 +52,23 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         notifications.failedToRegister(error)
     }
 
-    /// In front: notifications still show, as a banner.
+    /// In front: notifications still show, as a banner. Except a device asking to connect, which the app asks about
+    /// itself (the command stream has usually said already; the list is fetched in case it hasn't).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        if notification.request.content.categoryIdentifier == PushNotifications.pairingCategory,
+           await catchUpOnPairing() {
+            return []
+        }
+        return [.banner, .list, .sound]
+    }
+
+    /// Fetches the devices waiting to connect; false when the window isn't up to ask about them.
+    @MainActor
+    private func catchUpOnPairing() async -> Bool {
+        guard let model, model.client != nil, model.profilesLoaded, !model.needsProfileChoice else { return false }
+        pairing.use(model.client)
+        await pairing.catchUp()
+        return true
     }
 
     /// A button on a notification, or a tap on it (which opens what it's about: the title, or the podcast).
@@ -59,21 +76,28 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let content = response.notification.request.content
         var info: [String: String] = [:]
         for case let (key as String, value as String) in content.userInfo { info[key] = value }
-        await respond(to: response.actionIdentifier, category: content.categoryIdentifier, info: info)
+        await respond(to: response.actionIdentifier, category: content.categoryIdentifier, title: content.title, info: info)
     }
 
     @MainActor
-    private func respond(to action: String, category: String, info: [String: String]) async {
+    private func respond(to action: String, category: String, title: String, info: [String: String]) async {
         switch action {
         case UNNotificationDismissActionIdentifier:
             return
+        case PushNotifications.allowPairingAction, PushNotifications.declinePairingAction:
+            guard let code = info["pairing"] else { return }
+            await answerPairing(code, allow: action == PushNotifications.allowPairingAction, title: title)
         case PushNotifications.downloadAction:
             await download(info["play"] ?? info["episode"], podcast: category == PushNotifications.podcastCategory)
         case PushNotifications.playOnTvAction:
             await playOnTv(info["play"] ?? info["item"])
         default:
             guard let model = await appModel() else { return }
-            if action == PushNotifications.playAction, let id = info["play"] ?? info["episode"],
+            // "Living room wants to connect": asks about it here (the window may not have caught up on the sign-in yet).
+            if let code = info["pairing"] {
+                pairing.use(model.client)
+                await pairing.open(code: code)
+            } else if action == PushNotifications.playAction, let id = info["play"] ?? info["episode"],
                let url = URL(string: "flexarr://play/\(id)") {
                 model.open(url: url)
             } else if let podcastId = info["podcast"] {
@@ -124,6 +148,39 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
         let delivered = (try? await client.play(on: device.id, itemId: itemId))?.delivered ?? false
         if !delivered { await tell("Couldn't play on \(device.name)", "Make sure Flexarr is open on it, then try again.") }
+    }
+
+    /// Allow or Don't allow on a "wants to connect" notification, without opening the app (which may have been woken
+    /// just for this, with no window: the sign-in is the saved one). Says how allowing went in a notification of the
+    /// phone's own, and how turning it away went only if it didn't.
+    @MainActor
+    private func answerPairing(_ code: String, allow: Bool, title: String) async {
+        await PushNotifications.removePairingNotifications { $0 == code }
+        // The server's title is "Living room wants to connect".
+        let suffix = " wants to connect"
+        let name = title.hasSuffix(suffix) ? "“\(title.dropLast(suffix.count))”" : nil
+        let failed = "\(allow ? "Couldn't allow" : "Couldn't turn away") \(name ?? "the device")"
+        guard let client else {
+            await tell(failed, "This \(ThisDevice.name) isn't signed in to Flexarr.")
+            return
+        }
+        do {
+            if allow {
+                try await client.approvePairing(code: code)
+                await tell(name.map { "\($0) is connected" } ?? "Connected", "It'll be ready in a moment.")
+            } else {
+                try await client.declinePairing(code: code)
+            }
+            pairing.stoppedWaiting(code)
+        } catch FlexarrClientError.http(status: 404, _) {
+            pairing.stoppedWaiting(code)
+            // Turning away one that's gone already is what was wanted.
+            if allow { await tell(failed, "That code has run out. The device shows a new one; open Flexarr to allow it.") }
+        } catch FlexarrClientError.http(status: 403, _) {
+            await tell(failed, "Switch to the main profile to allow it.")
+        } catch {
+            await tell(failed, ConnectionError(error).message)
+        }
     }
 
     /// A notification of the phone's own, for a button that couldn't do its job with the app closed.
@@ -184,6 +241,7 @@ struct FlexarriOSApp: App {
                 .environment(model)
                 .environment(delegate.downloads)
                 .environment(delegate.notifications)
+                .environment(delegate.pairing)
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }
@@ -196,6 +254,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
     @Environment(PushNotifications.self) private var notifications
+    @Environment(PairingPrompts.self) private var pairing
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
     @State private var reviews = ReviewPrompt()
@@ -279,7 +338,15 @@ struct RootView: View {
         // While in front and signed in, another device (or Siri on one) can play here.
         .task(id: "\(scenePhase == .active)#\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")#\(model.profilesLoaded)#\(model.needsProfileChoice)") {
             model.listenForCommands(scenePhase == .active)
+            // Devices that asked to connect while the app was away (the stream only says as they start).
+            if model.client == nil {
+                pairing.use(nil)
+            } else if scenePhase == .active, model.profilesLoaded, !model.needsProfileChoice {
+                pairing.use(model.client)
+                await pairing.catchUp()
+            }
         }
+        .pairingPrompts(pairing)
         .overlay {
             if model.player.isStarting || model.liveTv.isStarting {
                 ZStack {

@@ -4,6 +4,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Connecting devices
+- When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone signed in as the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first). The web app asks the same when it's open on the main profile.
+- Settings on the iPhone and Android apps, and **Settings › Access › Connect a device** on the web, list the devices waiting to connect, each with **Allow** and **Don't allow**.
+- A device left on its connect screen keeps the same code rather than getting a new one every ten minutes, so the notification on your phone stays right. After **Don't allow**, that device isn't asked about again for a quarter of an hour, though its code can still be typed in on the web.
+- The connect screens on Apple TV, iPhone and Android now start with approving on your phone, and still explain how to approve from a computer (**Settings › Access › Connect a device**).
+
+### Music
+- On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
+
 ### Android
 - The buttons at the bottom of the welcome pages are their proper size on Samsung phones, with a soft glow as on iPhone, rather than sitting on a large pale block.
 - Connecting the phone to a server no longer gets stuck on "Too many devices are waiting to connect" when the phone sleeps or the Wi-Fi blinks while it shows its code. It keeps waiting on the same code, so approving it in the browser lets the phone straight in.

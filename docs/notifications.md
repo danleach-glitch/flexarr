@@ -103,6 +103,14 @@ Categories and their buttons:
 | `flexarr.recording` | Play | `item`, `play` |
 | `flexarr.upcoming` | none | `item` (optional) |
 | `flexarr.test` | none | none |
+| `flexarr.pairing` | Allow, Don't allow (both need the phone unlocked) | `pairing` (the code of the device asking to connect) |
+
+`flexarr.pairing` goes to every phone registered on the main profile, whatever news it's chosen, when a device asks
+to connect (see `PairingAlerts`). Its buttons approve or decline that code with the phone's own sign-in, as the app
+would; tapping it opens the app's "Allow?" prompt for that code, read from `GET /api/v1/pairing/waiting`. While the app
+is open it hears the same on its command stream (`event: pairing` and `event: pairing-ended`) instead. A device still
+showing its code keeps that code, so there's one notification per device, and one turned away isn't announced for a
+quarter of an hour.
 
 ## Relay API
 

@@ -1074,10 +1074,14 @@ export interface PairingDetails {
   /** The address the TV asked from, and which kind of network that is. */
   requestedFrom: string | null
   zone: NetworkZone
+  /** What the device says it is (absent from servers before 0.56, and from apps that don’t say). */
+  deviceType?: DeviceType | null
 }
 
 /** A TV waiting to connect, by the code it shows (main profile only). */
 export const getPairing = (code: string, signal?: AbortSignal) => apiGet<PairingDetails>(`/pairing/code/${encodeURIComponent(code.trim())}`, signal)
+/** Every device showing a code right now, so an admin can be asked without typing it (404 from older servers). */
+export const getWaitingPairings = (signal?: AbortSignal) => apiGet<PairingDetails[]>('/pairing/waiting', signal)
 export const approvePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/approve`, {})
 /** Not now, or not my TV: the code is dropped and the TV shows a new one. */
 export const declinePairing = (code: string) => request<void>('POST', `/pairing/code/${encodeURIComponent(code.trim())}/decline`, {})

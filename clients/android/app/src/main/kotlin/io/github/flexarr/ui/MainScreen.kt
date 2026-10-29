@@ -73,7 +73,9 @@ import io.github.flexarr.ui.podcasts.PodcastScreen
 import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
+import io.github.flexarr.ui.pairing.PairingPrompt
 import io.github.flexarr.AppLink
+import io.github.flexarr.PairingPrompts
 import io.github.flexarr.ReviewPrompt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -81,6 +83,7 @@ import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
+import io.github.flexarr.ui.settings.WaitingDevicesScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.PlaybackSettingsScreen
@@ -115,6 +118,8 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
     // Signed in (or as someone else): commands for this device come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
+    // Whether this profile may manage the server, and so is asked to let devices in.
+    LaunchedEffect(model.credentials) { model.loadSignIn() }
     // Downloads follow the server and profile signed in.
     LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
     // Google Play's rating prompt, once the player has closed and the app is back in front (ReviewPrompt says when).
@@ -198,6 +203,12 @@ fun MainScreen(model: AppModel) {
                 AppLink.Search -> select(Tab.Search)
                 AppLink.Downloads -> select(Tab.Downloads)
                 AppLink.Home -> select(Tab.Home)
+                // The prompt to allow it comes up by itself; a device that's gone is said so.
+                is AppLink.Pairing -> when (model.pairing.open(client, link.code)) {
+                    PairingPrompts.Opened.Asking -> Unit
+                    PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
+                    PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar("Switch to the main profile to allow it.")
+                }
             } }
         }
         // With no connection to the server, the app opens on what's downloaded.
@@ -273,6 +284,7 @@ fun MainScreen(model: AppModel) {
                         onDownloads = { nav.navigate("settings/downloads") },
                         onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
+                        onWaitingDevices = { nav.navigate("settings/waiting-devices") },
                     )
                 }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }
@@ -281,6 +293,7 @@ fun MainScreen(model: AppModel) {
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
                 composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
+                composable("settings/waiting-devices") { WaitingDevicesScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
                     "library/{id}?sort={sort}&genre={genre}",
@@ -309,6 +322,8 @@ fun MainScreen(model: AppModel) {
             }
           }
         }
+        // A device asking to connect, over whichever screen is up.
+        if (model.isAdmin) PairingPrompt(model, client)
     }
 }
 

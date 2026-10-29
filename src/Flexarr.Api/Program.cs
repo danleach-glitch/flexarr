@@ -166,6 +166,7 @@ builder.Services.AddHostedService<UpdateWorker>();
 builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
+builder.Services.AddSingleton<PairingAlerts>();
 builder.Services.AddSingleton<FirstRun>();
 builder.Services.AddSingleton<DeviceCommands>();
 builder.Services.AddHttpClient<PushRelay>(c => c.Timeout = TimeSpan.FromSeconds(20));

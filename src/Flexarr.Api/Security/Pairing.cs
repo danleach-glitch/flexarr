@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using System.Threading.Channels;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Notifications;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Paths;
 using Microsoft.Extensions.Options;
@@ -20,10 +22,18 @@ public sealed record PairingStartDto(string Id, string Code, DateTime ExpiresAt)
 public sealed record PairingStatusDto(string Status, string? ApiKey);
 
 /// <param name="RequestedFrom">The address the TV asked from, so the approver can tell it's theirs.</param>
-public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime ExpiresAt, string? RequestedFrom, NetworkZone Zone);
+/// <param name="ExpiresAt">Moved on while the device is still showing its code (see <see cref="Pairings.Status"/>).</param>
+/// <param name="DeviceType">What kind of device it says it is, when it says.</param>
+public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime ExpiresAt, string? RequestedFrom, NetworkZone Zone, DeviceType? DeviceType = null);
 
 /// <param name="DeviceName">A name to list the TV under instead of the one it gave.</param>
 public sealed record PairingApprovalRequest(string? DeviceName = null);
+
+/// <summary>
+/// What the main profile's devices hear as connections come and go: a device now waiting for approval, or (with
+/// <paramref name="Ended"/>, its code) one approved, declined or expired, so a prompt still showing it can close.
+/// </summary>
+public sealed record PairingNotice(PairingDetailsDto? Waiting, string? Ended);
 
 public enum PairingApproval
 {
@@ -39,7 +49,8 @@ public enum PairingApproval
 /// linking to it); someone signed in as the main profile approves it in the web app; the TV, polling with its secret
 /// id, is handed a token of its own. Codes last ten minutes and only a few can be waiting at once, from any one address
 /// or altogether. At most ten are approved in an hour: each is a sign-in of its own, so a script that got into the
-/// approver's page mustn't be able to make them by the thousand.
+/// approver's page mustn't be able to make them by the thousand. The main profile's phones are told as codes start
+/// (see <see cref="Listen"/> and <see cref="PairingAlerts"/>), so approving is a tap on one of them.
 /// </summary>
 public sealed class Pairings(SignIns signIns, TimeProvider clock)
 {
@@ -49,40 +60,110 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     private const int MaxApprovedPerHour = 10;
     private static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(1);
 
+    /// <summary>With this little left, a code still being shown is given longer (see <see cref="Status"/>).</summary>
+    private static readonly TimeSpan RenewWithin = TimeSpan.FromMinutes(2);
+
+    /// <summary>How long after "Don't allow" the device's next codes aren't asked about.</summary>
+    private static readonly TimeSpan DeclinedQuiet = TimeSpan.FromMinutes(15);
+
     // No 0/O, 1/I/L: codes are read off a TV and typed on a phone.
     private const string Alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     private readonly ConcurrentDictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly Queue<DateTime> _approvedAt = new();
+    private readonly ConcurrentDictionary<Listener, byte> _listeners = new();
 
-    private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address, DeviceType? deviceType)
+    /// <summary>Addresses turned away, and until when their devices aren't asked about.</summary>
+    private readonly ConcurrentDictionary<string, DateTime> _declined = new(StringComparer.Ordinal);
+
+    /// <summary>One open command stream of the main profile's. Disposing it (the request ended) stops its notices.</summary>
+    public sealed class Listener : IDisposable
+    {
+        private readonly Pairings _owner;
+
+        internal Listener(Pairings owner) => _owner = owner;
+
+        internal Channel<PairingNotice> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<PairingNotice>(new UnboundedChannelOptions { SingleReader = true });
+
+        public ChannelReader<PairingNotice> Notices => Channel.Reader;
+
+        public void Dispose() => _owner._listeners.TryRemove(this, out _);
+    }
+
+    /// <summary>Starts hearing about pairings, beginning with every device already waiting.</summary>
+    public Listener Listen()
+    {
+        var listener = new Listener(this);
+        _listeners[listener] = 0;
+        foreach (var waiting in Waiting())
+        {
+            listener.Channel.Writer.TryWrite(new PairingNotice(waiting, null));
+        }
+
+        return listener;
+    }
+
+    /// <summary>Every device waiting for approval, the soonest to expire first.</summary>
+    public IReadOnlyList<PairingDetailsDto> Waiting()
+    {
+        Sweep();
+        return [.. _pending.Values.Where(p => !p.Approved && !p.Quiet).OrderBy(p => p.ExpiresAt).Select(Details)];
+    }
+
+    private void Tell(PairingNotice notice)
+    {
+        foreach (var listener in _listeners.Keys)
+        {
+            listener.Channel.Writer.TryWrite(notice);
+        }
+    }
+
+    private sealed class Pending(string id, string code, string deviceName, DateTime expiresAt, NetworkZone zone, string? address, DeviceType? deviceType, bool quiet)
     {
         public DeviceType? DeviceType { get; } = deviceType;
         public string Id { get; } = id;
         public string Code { get; } = code;
         public string DeviceName { get; set; } = deviceName;
-        public DateTime ExpiresAt { get; } = expiresAt;
+        public DateTime ExpiresAt { get; set; } = expiresAt;
+
+        /// <summary>From a device just turned away: not asked about, though its code can still be typed in.</summary>
+        public bool Quiet { get; } = quiet;
         public NetworkZone Zone { get; } = zone;
         public string? Address { get; } = address;
         public bool Approved { get; set; }
     }
 
-    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, DeviceType? deviceType = null)
+    /// <param name="announced">The details the main profile is told, or null when the device was just turned away.</param>
+    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, out PairingDetailsDto? announced, DeviceType? deviceType = null)
     {
         Sweep();
+        announced = null;
         if (_pending.Count >= MaxWaiting || _pending.Values.Count(p => p.Address == address) >= MaxWaitingPerAddress)
         {
             return null;
         }
 
         var code = new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
+        var now = clock.GetUtcNow().UtcDateTime;
+        var quiet = address is not null && _declined.TryGetValue(address, out var until) && until > now;
         var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, Name(deviceName) ?? "A TV",
-            clock.GetUtcNow().UtcDateTime + Lifetime, zone, address, deviceType);
+            now + Lifetime, zone, address, deviceType, quiet);
         _pending[pending.Id] = pending;
+        if (!quiet)
+        {
+            announced = Details(pending);
+            Tell(new PairingNotice(announced, null));
+        }
+
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);
     }
 
-    /// <summary>What the TV polls. Its token is made and handed over once, then the pairing is gone.</summary>
+    /// <summary>
+    /// What the TV polls. Its token is made and handed over once, then the pairing is gone. A device still polling
+    /// near the end of its code's ten minutes is given ten more on the same code, so a TV left on its connect screen
+    /// keeps one code (and one notification on the phones) rather than a new one every ten minutes; a code nobody's
+    /// showing any more still runs out.
+    /// </summary>
     public PairingStatusDto Status(string id)
     {
         Sweep();
@@ -93,6 +174,16 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
         if (!pending.Approved)
         {
+            var now = clock.GetUtcNow().UtcDateTime;
+            if (pending.ExpiresAt - now < RenewWithin)
+            {
+                pending.ExpiresAt = now + Lifetime;
+                if (!pending.Quiet)
+                {
+                    Tell(new PairingNotice(Details(pending), null));
+                }
+            }
+
             return new PairingStatusDto("waiting", null);
         }
 
@@ -105,8 +196,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         return new PairingStatusDto("approved", token);
     }
 
-    public PairingDetailsDto? Find(string code) =>
-        ByCode(code) is { } p ? new PairingDetailsDto(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone) : null;
+    public PairingDetailsDto? Find(string code) => ByCode(code) is { } p ? Details(p) : null;
+
+    private static PairingDetailsDto Details(Pending p) => new(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone, p.DeviceType);
 
     /// <param name="retryAfter">With <see cref="PairingApproval.TooMany"/>, how long until another may be approved.</param>
     public PairingApproval Approve(string code, string? deviceName, out TimeSpan retryAfter)
@@ -141,6 +233,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
             _approvedAt.Enqueue(now);
         }
 
+        Tell(new PairingNotice(null, Format(pending.Code)));
         return PairingApproval.Approved;
     }
 
@@ -150,8 +243,26 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     /// </summary>
     public static bool UnfitName(string? name) => name is not null && PathComparison.Printable(name) != name;
 
-    /// <summary>"That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one.</summary>
-    public bool Decline(string code) => ByCode(code) is { } pending && _pending.TryRemove(pending.Id, out _);
+    /// <summary>
+    /// "That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one. That new one
+    /// (and any other from the same address for a quarter of an hour) isn't asked about, or "Don't allow" would only
+    /// bring the question straight back; it can still be typed into Connect a device.
+    /// </summary>
+    public bool Decline(string code)
+    {
+        if (ByCode(code) is not { } pending || !_pending.TryRemove(pending.Id, out _))
+        {
+            return false;
+        }
+
+        if (pending.Address is { } address)
+        {
+            _declined[address] = clock.GetUtcNow().UtcDateTime + DeclinedQuiet;
+        }
+
+        Tell(new PairingNotice(null, Format(pending.Code)));
+        return true;
+    }
 
     private static string? Name(string? name) => string.IsNullOrWhiteSpace(name) ? null : name.Trim()[..Math.Min(name.Trim().Length, 60)];
 
@@ -167,7 +278,15 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         var now = clock.GetUtcNow().UtcDateTime;
         foreach (var expired in _pending.Values.Where(p => p.ExpiresAt < now))
         {
-            _pending.TryRemove(expired.Id, out _);
+            if (_pending.TryRemove(expired.Id, out _) && !expired.Approved && !expired.Quiet)
+            {
+                Tell(new PairingNotice(null, Format(expired.Code)));
+            }
+        }
+
+        foreach (var (address, until) in _declined.Where(d => d.Value < now))
+        {
+            _declined.TryRemove(new KeyValuePair<string, DateTime>(address, until));
         }
     }
 
@@ -185,7 +304,7 @@ public static class PairingEndpoints
     public static RouteGroupBuilder MapPairingDeviceEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/pairing").WithTags("Pairing").AllowAnonymous();
-        group.MapPost("/", (PairingStartRequest request, HttpContext http, Pairings pairings, IOptionsMonitor<FlexarrOptions> options) =>
+        group.MapPost("/", (PairingStartRequest request, HttpContext http, Pairings pairings, PairingAlerts alerts, IOptionsMonitor<FlexarrOptions> options) =>
         {
             var zone = NetworkZones.Of(http);
             if (zone == NetworkZone.Internet || !NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts))
@@ -198,9 +317,17 @@ public static class PairingEndpoints
                 return Results.Problem(UnfitNameMessage, statusCode: 400);
             }
 
-            return pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), DeviceTypes.Of(http.Request)) is { } started
-                ? Results.Ok(started)
-                : Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
+            if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), out var announced, DeviceTypes.Of(http.Request)) is not { } started)
+            {
+                return Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
+            }
+
+            if (announced is not null)
+            {
+                alerts.Send(announced);
+            }
+
+            return Results.Ok(started);
         });
         group.MapGet("/{id}", (string id, HttpContext http, Pairings pairings, IOptionsMonitor<FlexarrOptions> options) =>
             NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts)
@@ -212,6 +339,9 @@ public static class PairingEndpoints
     /// <summary>The approver's side: the main profile, signed in to the web app.</summary>
     public static RouteGroupBuilder MapPairingApprovalEndpoints(this RouteGroupBuilder api)
     {
+        // What's waiting, for the web app's prompt (the apps hear it on their command stream; see DeviceEndpoints).
+        api.MapGet("/pairing/waiting", (Pairings pairings) => Results.Ok(pairings.Waiting()))
+            .WithTags("Pairing").RequireAuthorization(FlexarrClaims.AdminPolicy);
         var group = api.MapGroup("/pairing/code").WithTags("Pairing").RequireAuthorization(FlexarrClaims.AdminPolicy);
         group.MapGet("/{code}", (string code, Pairings pairings) =>
             pairings.Find(code) is { } details ? Results.Ok(details) : Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404));

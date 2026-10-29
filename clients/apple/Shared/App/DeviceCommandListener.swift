@@ -5,6 +5,7 @@ private let log = FlexarrLog("commands")
 
 /// Keeps the server's command stream open while the app is in front, so another device (an iPhone saying "play the
 /// next episode on the living room TV" to Siri), the web app or an assistant can play, pause, resume and stop here.
+/// Signed in as the main profile, it also hears about devices asking to connect (the iPhone asks to allow them).
 /// Reconnects when the connection drops, backing off; stops for good when the server says this sign-in has no stream
 /// (an app holding the API key itself rather than a token of its own).
 @MainActor
@@ -12,8 +13,9 @@ final class DeviceCommandListener {
     private var task: Task<Void, Never>?
     private var listeningFor: FlexarrClient?
 
-    /// Listens on `client`'s sign-in, handing each command to `handle`. Called again with the same client, it carries on.
-    func start(_ client: FlexarrClient, handle: @escaping @MainActor (DeviceCommand) -> Void) {
+    /// Listens on `client`'s sign-in, handing each command (and connect prompt) to `handle`. Called again with the
+    /// same client, it carries on.
+    func start(_ client: FlexarrClient, handle: @escaping @MainActor (DeviceEvent) -> Void) {
         if let listeningFor, listeningFor.baseURL == client.baseURL, listeningFor.apiKey == client.apiKey, task?.isCancelled == false { return }
         stop()
         listeningFor = client
@@ -21,9 +23,13 @@ final class DeviceCommandListener {
             var delay: Duration = .seconds(2)
             while !Task.isCancelled {
                 do {
-                    for try await command in client.commandStream() {
-                        log.info("Command \(command.kind.rawValue) from \(command.sentBy ?? "someone")")
-                        handle(command)
+                    for try await event in client.deviceEvents() {
+                        switch event {
+                        case .command(let command): log.info("Command \(command.kind.rawValue) from \(command.sentBy ?? "someone")")
+                        case .pairing(let request): log.info("\(request.deviceName) asks to connect")
+                        case .pairingEnded: break
+                        }
+                        handle(event)
                         delay = .seconds(2)
                     }
                     // Ended cleanly: a newer connection from this device took over (the app was opened twice, say).

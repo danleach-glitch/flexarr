@@ -35,6 +35,7 @@ class AppLinkTest {
         assertEquals(AppLink.Home, parse("flexarr://home"))
         assertEquals(AppLink.Live(id), parse("flexarr://live/$id"))
         assertEquals(AppLink.LiveTv, parse("flexarr://livetv"))
+        assertEquals(AppLink.Pairing("ABC-DEF"), parse("flexarr://pairing/ABC-DEF"))
     }
 
     @Test
@@ -54,7 +55,7 @@ class AppLinkTest {
         val links = listOf(
             AppLink.Item(id), AppLink.Play("r1"), AppLink.Play(id, startAt = 90, shuffle = true), AppLink.Live(id), AppLink.LiveTv,
             AppLink.Podcast(id), AppLink.PodcastEpisode(id), AppLink.Search, AppLink.Downloads, AppLink.Home,
-            AppLink.AsProfile("Kids & co", AppLink.Play(id, startAt = 5)),
+            AppLink.AsProfile("Kids & co", AppLink.Play(id, startAt = 5)), AppLink.Pairing("ABC-DEF"),
         )
         for (link in links) assertEquals(link, AppLink.parse(link.uri))
     }
@@ -72,6 +73,9 @@ class AppLinkTest {
         assertEquals(AppLink.Item(id), parse("flexarr://item/$id?profile=${"x".repeat(101)}"))
         assertNull(parse("flexarr://item"))
         assertNull(parse("flexarr://play/"))
+        // A pairing code is letters, digits and a dash.
+        for (bad in listOf("..", "a%2Fb", "ABC DEF", "x".repeat(33))) assertNull(bad, parse("flexarr://pairing/$bad"))
+        assertNull(parse("flexarr://pairing"))
     }
 
     @Test
@@ -86,7 +90,7 @@ class AppLinkTest {
     fun `the app's own links do what they say`() {
         val links = listOf(
             AppLink.Play(id), AppLink.Play(id, startAt = 30, shuffle = true), AppLink.Live(id), AppLink.PodcastEpisode(id),
-            AppLink.Item(id), AppLink.Home, AppLink.AsProfile("Kids", AppLink.Play(id)),
+            AppLink.Item(id), AppLink.Home, AppLink.AsProfile("Kids", AppLink.Play(id)), AppLink.Pairing("ABC-DEF"),
         )
         for (link in links) {
             assertEquals(link, AppLink.received(context, link.intent(context)))
@@ -108,6 +112,8 @@ class AppLinkTest {
         assertEquals(AppLink.AsProfile("Kids", AppLink.Item(id), askFirst = true), fromOutside(AppLink.AsProfile("Kids", AppLink.Play(id))))
         assertEquals(AppLink.AsProfile("Kids", AppLink.LiveTv, askFirst = true), fromOutside(AppLink.AsProfile("Kids", AppLink.Live(id))))
         assertNull(fromOutside(AppLink.AsProfile("Kids", AppLink.PodcastEpisode(id))))
+        // Only the app's own notification asks whether to let a device in.
+        assertNull(fromOutside(AppLink.Pairing("ABC-DEF")))
         // As a browser sends them.
         val browsed = Intent(Intent.ACTION_VIEW, Uri.parse("flexarr://play/$id?t=754&s=en&shuffle=1&profile=Kids")).addCategory(Intent.CATEGORY_BROWSABLE)
         assertEquals(AppLink.AsProfile("Kids", AppLink.Item(id), askFirst = true), AppLink.received(context, browsed))

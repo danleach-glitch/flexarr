@@ -431,6 +431,86 @@ struct CommandStreamTests {
     }
 }
 
+struct PairingPromptTests {
+    @Test func deviceEvents_carryCommandsAndPairingPrompts_andSkipUnknownOnes() async throws {
+        let body = "event: pairing\ndata: {\"code\":\"ABC-DEF\",\"deviceName\":\"Living room\",\"expiresAt\":\"2026-10-29T12:00:00Z\",\"requestedFrom\":\"192.168.1.70\",\"zone\":\"Local\"}\n\n"
+            + "event: something-new\ndata: {\"x\":1}\n\n"
+            + "event: command\ndata: {\"id\":\"b\",\"kind\":\"Pause\",\"itemId\":null,\"fromBeginning\":false,\"sentBy\":null,\"sentAt\":\"2026-10-25T10:00:05Z\"}\n\n"
+            + "event: pairing\ndata: {\"code\":\"GHJ-KLM\",\"deviceName\":\"Bedroom\",\"expiresAt\":\"2026-10-29T12:00:00Z\"}\n\n"
+            + "event: pairing-ended\ndata: {\"code\":\"ABC-DEF\"}\n\n"
+        let (client, _) = stubbedClient(.init(status: 200, body: Data(body.utf8), contentType: "text/event-stream"))
+        var events: [DeviceEvent] = []
+        for try await event in client.deviceEvents() { events.append(event) }
+        #expect(events.count == 4)
+        guard case .pairing(let first) = events[0] else { Issue.record("expected a pairing prompt first"); return }
+        #expect(first.code == "ABC-DEF")
+        #expect(first.deviceName == "Living room")
+        #expect(first.requestedFrom == "192.168.1.70")
+        #expect(first.zone == "Local")
+        guard case .command(let command) = events[1] else { Issue.record("expected the command next"); return }
+        #expect(command.kind == .pause)
+        guard case .pairing(let second) = events[2] else { Issue.record("expected another prompt"); return }
+        #expect(second.requestedFrom == nil)
+        #expect(second.zone == nil)
+        #expect(events[3] == .pairingEnded(code: "ABC-DEF"))
+
+        // The commands alone, as before.
+        let (commands, _) = stubbedClient(.init(status: 200, body: Data(body.utf8), contentType: "text/event-stream"))
+        var kinds: [DeviceCommandKind] = []
+        for try await command in commands.commandStream() { kinds.append(command.kind) }
+        #expect(kinds == [.pause])
+    }
+
+    @Test func listsTheDevicesWaiting() async throws {
+        let list = #"[{"code":"ABC-DEF","deviceName":"Living room","expiresAt":"2026-10-29T12:00:00Z","requestedFrom":null,"zone":"Tailscale"}]"#
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(list.utf8)))
+        let waiting = try await client.waitingPairings()
+        #expect(waiting.map(\.code) == ["ABC-DEF"])
+        #expect(waiting.first?.zone == "Tailscale")
+        #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/pairing/waiting")
+    }
+
+    @Test func serversBeforeThePromptHaveNobodyWaiting() async throws {
+        let (client, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(try await client.waitingPairings().isEmpty)
+        let (kept, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(try await kept.waitingPairingsIfKept() == nil)
+    }
+
+    @Test func saysWhatKindOfDeviceIsWaiting_whenTheServerDoes() async throws {
+        let list = #"""
+        [{"code":"ABC-DEF","deviceName":"Living room","expiresAt":"2026-10-29T12:00:00Z","zone":"Local","deviceType":"AppleTv"},
+         {"code":"GHJ-KLM","deviceName":"Kitchen","expiresAt":"2026-10-29T12:00:00Z","deviceType":"AndroidTv"},
+         {"code":"NPQ-RST","deviceName":"Bedroom","expiresAt":"2026-10-29T12:00:00Z","deviceType":"Toaster"},
+         {"code":"VWX-YZ2","deviceName":"Den","expiresAt":"2026-10-29T12:00:00Z","deviceType":null},
+         {"code":"345-678","deviceName":"Study","expiresAt":"2026-10-29T12:00:00Z"}]
+        """#
+        let (client, _) = stubbedClient(.init(status: 200, body: Data(list.utf8)))
+        let waiting = try await client.waitingPairings()
+        #expect(waiting.map(\.deviceType) == [.appleTv, .androidTv, .unknown, nil, nil])
+    }
+
+    @Test func approvesAndDeclinesByCode() async throws {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+        try await client.approvePairing(code: "ABC-DEF")
+        try await client.declinePairing(code: "ABC-DEF")
+        let requests = StubProtocol.recorded(host: host)
+        #expect(requests.map(\.httpMethod) == ["POST", "POST"])
+        #expect(requests.map(\.url?.path) == ["/api/v1/pairing/code/ABC-DEF/approve", "/api/v1/pairing/code/ABC-DEF/decline"])
+        #expect(requests.first?.httpBody == Data("{}".utf8))
+    }
+
+    @Test func tooManyApprovalsCarryTheServersMessage() async {
+        let (client, _) = stubbedClient(.init(status: 429, body: Data(#"{"detail":"Too many devices connected this hour."}"#.utf8)))
+        do {
+            try await client.approvePairing(code: "ABC-DEF")
+            Issue.record("expected a 429")
+        } catch {
+            #expect(error as? FlexarrClientError == .http(status: 429, message: "Too many devices connected this hour."))
+        }
+    }
+}
+
 struct MusicClientTests {
     @Test func fetchesAnArtistsTracksInOneRequest() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: try Fixture.data("tracks")))

@@ -273,9 +273,12 @@ public static class DeviceEndpoints
     /// <summary>
     /// The device's stream of commands, as server-sent events ("event: command", JSON data), with a comment every
     /// twenty seconds so proxies keep it open. Only a device signed in with its own token has one; it ends when a
-    /// newer connection from the same device takes over.
+    /// newer connection from the same device takes over. On the main profile it also carries devices asking to
+    /// connect ("event: pairing", <see cref="PairingDetailsDto"/>; every one waiting is sent first) and those done
+    /// with ("event: pairing-ended", the code), so the phone can ask "Allow?" while Flexarr is open on it. Apps from
+    /// before these ignore events they don't know.
     /// </summary>
-    private static async Task StreamAsync(HttpContext http, CurrentProfile current, DeviceCommands commands, CancellationToken ct)
+    private static async Task StreamAsync(HttpContext http, CurrentProfile current, DeviceCommands commands, Pairings pairings, CancellationToken ct)
     {
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.Device || current.SignInId is not { } deviceId)
         {
@@ -293,6 +296,7 @@ public static class DeviceEndpoints
         await http.Response.Body.FlushAsync(ct);
 
         using var listener = commands.Listen(deviceId);
+        using var asking = current.IsAdmin ? pairings.Listen() : null;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -302,7 +306,22 @@ public static class DeviceEndpoints
                 bool more;
                 try
                 {
-                    more = await listener.Commands.WaitToReadAsync(wait.Token);
+                    var command = listener.Commands.WaitToReadAsync(wait.Token).AsTask();
+                    if (asking is null)
+                    {
+                        more = await command;
+                    }
+                    else
+                    {
+                        var notice = asking.Notices.WaitToReadAsync(wait.Token).AsTask();
+                        var first = await Task.WhenAny(command, notice);
+                        more = await first; // the heartbeat's timeout cancels both: a ping, below
+                        await wait.CancelAsync(); // the other wait
+                        if (first == notice && command.IsCompletedSuccessfully)
+                        {
+                            more = command.Result;
+                        }
+                    }
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
@@ -319,6 +338,13 @@ public static class DeviceEndpoints
                 while (listener.Commands.TryRead(out var command))
                 {
                     await http.Response.WriteAsync($"event: command\ndata: {JsonSerializer.Serialize(command, Json)}\n\n", ct);
+                }
+
+                while (asking is not null && asking.Notices.TryRead(out var notice))
+                {
+                    await http.Response.WriteAsync(notice.Waiting is { } waiting
+                        ? $"event: pairing\ndata: {JsonSerializer.Serialize(waiting, Json)}\n\n"
+                        : $"event: pairing-ended\ndata: {JsonSerializer.Serialize(new { code = notice.Ended }, Json)}\n\n", ct);
                 }
 
                 await http.Response.Body.FlushAsync(ct);

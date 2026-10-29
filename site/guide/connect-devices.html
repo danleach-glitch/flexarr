@@ -111,10 +111,11 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Connect your devices</h1>
         <p class="lede">Connect an iPhone, iPad, Apple TV or another browser to your Flexarr server with a short code, and manage the devices signed in to it.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
+            <li><a href="#allow-it-from-your-phone">Allow it from your phone</a></li>
             <li><a href="#iphone-and-ipad">iPhone and iPad</a></li>
             <li><a href="#apple-tv">Apple TV</a></li>
             <li><a href="#other-browsers">Other browsers</a></li>
@@ -125,7 +126,12 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Every device signs in to your server with a code. The device shows the code, and you type it in on the computer where you <a href="/guide/first-setup">set up Flexarr</a>. Each device then gets a sign-in of its own, which you can rename or sign out at any time.</p>
+<p>Every device signs in to your server with a code. The device shows the code, and you allow it: on an iPhone or Android phone that&#39;s already signed in to Flexarr as the main profile, which asks you by itself, or on the computer where you <a href="/guide/first-setup">set up Flexarr</a>. Each device then gets a sign-in of its own, which you can rename or sign out at any time.</p>
+<h2 id="allow-it-from-your-phone"><a class="anchor" href="#allow-it-from-your-phone" aria-hidden="true" tabindex="-1">#</a>Allow it from your phone</h2>
+<p>When a device asks to connect, every iPhone and Android phone signed in as the main profile asks <strong>Connect “Living room”?</strong>, with the device&#39;s code. Check the code matches the one on the device&#39;s screen and tap <strong>Allow</strong>. If the device isn&#39;t yours, tap <strong>Don&#39;t allow</strong>, and it has to ask again with a new code.</p>
+<p>The phone asks while Flexarr is open on it. When it isn&#39;t, a notification says the device wants to connect, if notifications are turned on for that phone. Choose <strong>Allow</strong> or <strong>Don&#39;t allow</strong> on the notification itself (the phone asks to be unlocked first), or tap it to get the same question in the app. The web app asks too, when it&#39;s open on the main profile.</p>
+<p>To see every device waiting, open <strong>Settings</strong> in the app, or <strong>Settings › Access › Connect a device</strong> on the web. Each one has <strong>Allow</strong> and <strong>Don&#39;t allow</strong>.</p>
+<p>After <strong>Don&#39;t allow</strong>, the device isn&#39;t asked about again for 15 minutes. If you turned it away by mistake, type its code into <strong>Connect a device</strong> on the web.</p>
 <h2 id="iphone-and-ipad"><a class="anchor" href="#iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>iPhone and iPad</h2>
 <p>Get the app <a href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener">from the App Store</a>.</p>
 <p>The first time you open it, three short cards explain what Flexarr is, that it plays from your own Flexarr server at home, and how it finds that server on your Wi-Fi. If you haven&#39;t set up a server yet, <strong>Set up at flexarr.io</strong> brings you to this guide. If you have, choose <strong>Skip</strong>, or <strong>Next</strong> through to <strong>Find my server</strong>.</p>
@@ -133,7 +139,7 @@
 <li>When iOS asks whether Flexarr can find devices on your local network, choose <strong>Allow</strong>. Without it, the app can&#39;t see your server.</li>
 <li>Under <strong>Servers on your network</strong>, choose your server.</li>
 <li>The app shows <strong>Connect this iPhone</strong> (or iPad) with a code like <code>ABC-123</code>.</li>
-<li>On your computer, open the server&#39;s address in a browser, go to <strong>Settings › Access › Connect a device</strong>, type in the code and choose <strong>Continue</strong>.</li>
+<li>On another phone signed in to Flexarr, tap <strong>Allow</strong> when it asks (see <a href="#allow-it-from-your-phone">Allow it from your phone</a>). Or, on your computer, open the server&#39;s address in a browser, go to <strong>Settings › Access › Connect a device</strong>, type in the code and choose <strong>Continue</strong>.</li>
 <li>Check that the code matches the one on your phone, and choose <strong>Allow</strong>.</li>
 </ol>
 <p>The app moves on by itself a moment later. If your household has several profiles, it asks who&#39;s watching.</p>
@@ -144,7 +150,7 @@
 <ol>
 <li>Open Flexarr on the Apple TV. It lists <strong>Servers on your network</strong>; choose yours.</li>
 <li>The TV shows <strong>Connect this Apple TV</strong> and a code.</li>
-<li>On your computer, go to <strong>Settings › Access › Connect a device</strong>, type in the code, then choose <strong>Continue</strong> and <strong>Allow</strong>.</li>
+<li>On your phone, tap <strong>Allow</strong> when it asks, checking the code matches. Or, on your computer, go to <strong>Settings › Access › Connect a device</strong>, type in the code, then choose <strong>Continue</strong> and <strong>Allow</strong>.</li>
 </ol>
 <p>The TV also shows a QR code. Scan it with a phone that&#39;s already signed in to Flexarr in its browser, and the approval page opens with the code filled in.</p>
 <blockquote class="callout note"><p><strong>Note</strong> If a code runs out before you&#39;ve typed it, choose <strong>New code</strong> on the device.</p>
