@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
+import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
@@ -22,8 +22,9 @@ const sorts = [
 ] as const
 
 /**
- * Two ways into a library: Browse (a home page of rows for just this library) and All (every title, with sort,
- * genre and letter jumps). Links that sort or filter open All.
+ * Ways into a library: Browse (a home page of rows for just this library), All (every title, with sort, genre and
+ * letter jumps) and, for films and shows, Genres (a tile for each, opening All filtered to it). Links that sort or
+ * filter open All.
  */
 export function LibraryPage() {
   const { id = '' } = useParams()
@@ -37,20 +38,65 @@ export function LibraryPage() {
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
 
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
-  return all ? <LibraryAll key={id} /> : <LibraryBrowse key={id} library={library} />
+  if (all) return <LibraryAll key={id} />
+  if (params.get('view') === 'genres' && hasGenres(library)) return <LibraryGenres key={id} library={library} />
+  return <LibraryBrowse key={id} library={library} />
 }
 
-function ViewSwitch({ library, all }: { library: Library; all: boolean }) {
+const hasGenres = (library: Library) => library.type === 'Movies' || library.type === 'TvShows'
+
+function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'genres' }) {
+  const current = (v: typeof view) => (view === v ? 'page' : undefined)
   return (
     <nav className="view-switch" aria-label={`${library.name} views`}>
-      <Link to={`/library/${library.id}`} aria-current={all ? undefined : 'page'}>
+      <Link to={`/library/${library.id}`} aria-current={current('browse')}>
         Browse
       </Link>
-      <Link to={`/library/${library.id}?view=all`} aria-current={all ? 'page' : undefined}>
+      <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
         {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders' }[library.type]}
       </Link>
+      {hasGenres(library) && (
+        <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
+          Genres
+        </Link>
+      )}
       {library.type === 'Music' && <Link to="/playlists">Playlists</Link>}
     </nav>
+  )
+}
+
+/** A tile for each of the library's genres, with a backdrop from one of its titles; one opens All filtered to it. */
+function LibraryGenres({ library }: { library: Library }) {
+  const { data, error } = useApi((signal) => getLibraryGenres(library.id, signal), [library.id])
+  const noun = library.type === 'Movies' ? ['film', 'films'] : ['show', 'shows']
+  return (
+    <div className="library-page">
+      <header className="library-header">
+        <div className="library-heading">
+          <h1 className="library-title">{library.name}</h1>
+          <ViewSwitch library={library} view="genres" />
+        </div>
+      </header>
+      {error ? (
+        <p className="page-message error">{error.message}</p>
+      ) : !data ? (
+        <div className="genre-grid" aria-busy="true" />
+      ) : data.length === 0 ? (
+        <p className="page-message muted">No genres here yet. They come with each title’s details once a scan has found them.</p>
+      ) : (
+        <div className="genre-grid">
+          {data.map((g) => (
+            <Link key={g.name} to={`/library/${library.id}?genre=${encodeURIComponent(g.name)}`} className="genre-tile">
+              {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
+              <span className="genre-name">{g.name}</span>
+              <span className="genre-count">
+                {g.count} {g.count === 1 ? noun[0] : noun[1]}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -140,7 +186,7 @@ function LibraryBrowse({ library }: { library: Library }) {
   const heading = (
     <>
       <h1 className="library-title">{library.name}</h1>
-      <ViewSwitch library={library} all={false} />
+      <ViewSwitch library={library} view="browse" />
     </>
   )
 
@@ -470,7 +516,7 @@ function LibraryAll() {
         <div>
           <div className="library-heading">
             <h1>{library.name}</h1>
-            <ViewSwitch library={library} all />
+            <ViewSwitch library={library} view="all" />
           </div>
           <p className="muted">
             {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders' }[library.type]}

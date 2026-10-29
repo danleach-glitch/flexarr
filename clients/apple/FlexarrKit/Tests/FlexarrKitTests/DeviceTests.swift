@@ -26,6 +26,9 @@ struct DeviceTests {
         #expect(command.itemId == "019a4c1e-0d8a-7a2e-9f1b-2c3d4e5f6a7b")
         #expect(command.fromBeginning)
         #expect(command.sentBy == "Dan's iPhone")
+        #expect(command.profileId == nil) // whoever is watching there; servers before 0.54 never send it
+        let asSam = try FlexarrClient.decoder.decode(DeviceCommand.self, from: Data(json.replacingOccurrences(of: "\"fromBeginning\"", with: "\"profileId\":\"sam\",\"fromBeginning\"").utf8))
+        #expect(asSam.profileId == "sam")
         // A kind this app doesn't know yet is ignored rather than failing the whole stream.
         let newer = try FlexarrClient.decoder.decode(DeviceCommand.self, from: Data(json.replacingOccurrences(of: "\"Play\"", with: "\"Rewind\"").utf8))
         #expect(newer.kind == .unknown)

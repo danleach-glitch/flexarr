@@ -46,6 +46,10 @@ final class AppModel {
     private(set) var profilesLoaded = false
     /// The household has several profiles and nobody has chosen one on this device yet.
     private(set) var needsProfileChoice = false
+    /// A link (or another device) asked to play as this profile, which has a PIN: "Who's watching?" opens on its PIN.
+    private(set) var linkProfile: Profile?
+    /// What to open once a profile is chosen, for a link that asked for one with a PIN.
+    @ObservationIgnored private var afterProfileChoice: URL?
     /// This launch has already asked who's watching (see `asksWhoIsWatching`).
     @ObservationIgnored private var askedWhoIsWatching = false
     /// Bumped whenever watch state changes (playback ended, marked watched) so screens reload.
@@ -354,6 +358,12 @@ final class AppModel {
         needsProfileChoice = false
         libraries = []
         phase = .signedIn(credentials)
+        // A link that was waiting for this (or, if they chose someone else, whoever is watching now) goes ahead.
+        linkProfile = nil
+        if let link = afterProfileChoice {
+            afterProfileChoice = nil
+            open(url: link)
+        }
     }
 
     private func resetProfiles() {
@@ -555,6 +565,18 @@ final class AppModel {
         switch command.kind {
         case .play:
             guard let client, let id = command.itemId else { return }
+            // As another profile: switched to first, as a link asking for one is.
+            if let profileId = command.profileId, profileId != currentProfile?.id {
+                var link = URLComponents()
+                link.scheme = "flexarr"
+                link.host = "play"
+                link.path = "/\(id)"
+                link.queryItems = [URLQueryItem(name: "profile", value: profileId)]
+                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : [])
+                    + (command.shuffle ? [URLQueryItem(name: "shuffle", value: "1")] : [])
+                if let url = link.url { open(url: url) }
+                return
+            }
             // A podcast episode (the command carries only its id) plays in the podcast player; anything else as video.
             Task {
                 if let episode = try? await client.podcastEpisode(id) {
@@ -592,10 +614,22 @@ final class AppModel {
         }
     }
 
+    /// `flexarr://item/<id>` shows a title; `flexarr://play/<id>` plays one (a show or season: the episode to watch
+    /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on.
+    /// Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
         guard url.scheme == "flexarr", let host = url.host() else { return }
         let id = url.pathComponents.dropFirst().first ?? ""
         guard !id.isEmpty else { return }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let query = components?.queryItems ?? []
+        if let wanted = query.first(where: { $0.name == "profile" })?.value, !wanted.isEmpty {
+            components?.queryItems = query.filter { $0.name != "profile" }
+            if components?.queryItems?.isEmpty == true { components?.queryItems = nil }
+            guard let rest = components?.url else { return }
+            Task { await open(rest, as: wanted) }
+            return
+        }
         switch host {
         case "item":
             // With its summary, which says what library it's in: the Apple TV opens it on that library's tab.
@@ -606,22 +640,45 @@ final class AppModel {
         // flexarr://live/<channel id>: Siri's "Put on BBC One".
         case "live": Task { await watchChannel(id: id) }
         case "play":
-            // flexarr://play/<id>?t=<seconds>&s=<subtitle key> starts at a given time, with those subtitles.
             guard let client else { return }
-            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let start = query.first(where: { $0.name == "t" })?.value.flatMap(Double.init)
             let subtitles = query.first(where: { $0.name == "s" })?.value
             let shuffle = query.first(where: { $0.name == "shuffle" })?.value == "1" // a show's episodes in a random order
-            // A podcast episode (Siri's "Play The Rest Is History") goes to the podcast player.
             Task {
+                // A podcast episode (Siri's "Play The Rest Is History") goes to the podcast player.
                 if let episode = try? await client.podcastEpisode(id) {
                     playEpisode(episode.summary)
-                } else {
-                    player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
+                    return
                 }
+                // A show or season (a link made before the profile was chosen) plays the episode this profile is up to.
+                if !shuffle, let item = try? await client.item(id).item, item.kind == .series || item.kind == .season {
+                    if let next = try? await client.nextUp(id) {
+                        player.play(itemId: next.id, preview: next, startAt: start, client: client, subtitleKey: subtitles)
+                    } else {
+                        pendingRoute = .item(item)
+                    }
+                    return
+                }
+                player.play(itemId: id, preview: nil, startAt: start, client: client, shuffle: shuffle, subtitleKey: subtitles)
             }
         default: break
         }
+    }
+
+    /// Opens `url` as the profile `wanted` (its id, or its name in any case): switched to straight away without a PIN,
+    /// else "Who's watching?" asks for it and the link goes ahead once someone is chosen. An unknown profile, or one
+    /// already watching, opens the link as things are.
+    private func open(_ url: URL, as wanted: String) async {
+        // Opening the app with a link can arrive before the profiles have.
+        for _ in 0..<50 where !profilesLoaded { try? await Task.sleep(for: .milliseconds(200)) }
+        guard let profile = profiles.first(where: { $0.id == wanted }) ?? profiles.first(where: { $0.name.caseInsensitiveCompare(wanted) == .orderedSame })
+        else { return open(url: url) }
+        if profile.isCurrent && !needsProfileChoice { return open(url: url) }
+        if !profile.hasPin, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
+        afterProfileChoice = url
+        linkProfile = profile
+        player.stop()
+        needsProfileChoice = true
     }
 }
 

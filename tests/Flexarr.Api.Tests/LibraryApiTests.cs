@@ -3,6 +3,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Endpoints;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -89,6 +93,53 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
         var page = await Client().GetFromJsonAsync<PagedDto<ItemSummaryDto>>(new Uri($"/api/v1/libraries/{Guid.NewGuid()}/items", UriKind.Relative), Json);
 
         Assert.Equal(0, page!.Total);
+    }
+
+    [Fact]
+    public async Task LibraryGenres_CountThisLibrarysTitles_EachWithItsOwnBackdropWhereThereIsOne()
+    {
+        Guid films, heat, alien;
+        string crime, scifi, drama;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            var other = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            db.AddRange(library, other);
+            // Genre names are unique across the database, which the tests share.
+            var tag = Guid.NewGuid().ToString("N")[..6];
+            var (crimeGenre, scifiGenre, dramaGenre) = (new Genre { Name = $"Crime {tag}" }, new Genre { Name = $"Science Fiction {tag}" }, new Genre { Name = $"Drama {tag}" });
+            MediaItem Film(Library at, string title, double rating, bool backdrop, params Genre[] genres)
+            {
+                var film = new MediaItem
+                {
+                    LibraryId = at.Id, Kind = MediaKind.Movie, Title = title, SortTitle = title.ToLowerInvariant(), CommunityRating = rating,
+                    BackdropUrl = backdrop ? "https://image.example/backdrop.jpg" : null,
+                };
+                film.Genres.AddRange(genres);
+                db.Add(film);
+                return film;
+            }
+
+            var heatFilm = Film(library, "Heat", 8.3, true, crimeGenre, dramaGenre);
+            Film(library, "Collateral", 7.5, true, crimeGenre);
+            var alienFilm = Film(library, "Alien", 8.5, true, scifiGenre);
+            Film(library, "Moon", 7.8, false, scifiGenre);
+            Film(other, "Thief", 7.4, true, crimeGenre, dramaGenre);
+            await db.SaveChangesAsync();
+            (films, heat, alien) = (library.Id, heatFilm.Id, alienFilm.Id);
+            (crime, scifi, drama) = (crimeGenre.Name, scifiGenre.Name, dramaGenre.Name);
+        }
+
+        var genres = await Client().GetFromJsonAsync<List<LibraryGenreDto>>(new Uri($"/api/v1/libraries/{films}/genres", UriKind.Relative), Json);
+        Assert.NotNull(genres);
+
+        // The other library's Thief doesn't count; biggest first.
+        Assert.Equal([(crime, 2), (scifi, 2), (drama, 1)], genres.Select(g => (g.Name, g.Count)).OrderByDescending(g => g.Count).ThenBy(g => g.Name));
+        Assert.Contains(alien.ToString(), genres.Single(g => g.Name == scifi).Backdrop, StringComparison.Ordinal);
+        // Heat is the best-rated crime film here, so crime has it, and drama (Heat's only title) has it as well rather than nothing.
+        Assert.Contains(heat.ToString(), genres.Single(g => g.Name == crime).Backdrop, StringComparison.Ordinal);
+        Assert.Contains(heat.ToString(), genres.Single(g => g.Name == drama).Backdrop, StringComparison.Ordinal);
     }
 
     [Fact]

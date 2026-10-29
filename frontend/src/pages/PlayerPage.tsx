@@ -97,6 +97,49 @@ function syncLabel(seconds: number) {
   if (seconds === 0) return 'In sync'
   return `${seconds > 0 ? '+' : '−'}${Math.abs(seconds)} s`
 }
+
+/**
+ * A stepper button that calls `onStep(false)` when clicked and, while held down, `onStep(true)` over and over (the
+ * bigger step) until let go.
+ */
+function HoldButton({ onStep, ...props }: { onStep: (held: boolean) => void } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'>) {
+  const step = useRef(onStep)
+  useEffect(() => {
+    step.current = onStep
+  })
+  const timer = useRef<number | undefined>(undefined)
+  const jumped = useRef(false)
+  const stop = () => {
+    window.clearTimeout(timer.current)
+    window.clearInterval(timer.current)
+    timer.current = undefined
+  }
+  useEffect(() => stop, [])
+  return (
+    <button
+      {...props}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        stop()
+        jumped.current = false
+        timer.current = window.setTimeout(() => {
+          jumped.current = true
+          step.current(true)
+          timer.current = window.setInterval(() => step.current(true), 250)
+        }, 400)
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
+      // A click that ends a hold isn't a press; Enter and Space still are.
+      onClick={() => {
+        if (jumped.current) jumped.current = false
+        else step.current(false)
+      }}
+    />
+  )
+}
 const HIDE_CHROME_MS = 3000
 const STREAM_STOPPED = 'The stream stopped. The server may have had trouble converting this file.'
 const TAKEN_OVER = 'Someone started watching on another screen, so this one had to stop.'
@@ -834,14 +877,15 @@ export function PlayerPage() {
   useDelayedSound(video, soundHere ? Math.max(0, audioDelay) : 0)
 
   /**
-   * Moves the file's sound by 50 ms (0 puts it back), for everyone who plays it. Played here, a later sound changes at
+   * Moves the file's sound by `by` seconds (0 puts it back), for everyone who plays it. Played here, a later sound changes at
    * once; an earlier one, or a stream the server makes, needs a new stream, asked for when the nudging stops.
    */
   function nudgeSound(by: number) {
     const itemId = playingItem.current
     if (!itemId || !info) return
-    const next = by === 0 ? 0 : Math.round((audioDelay + by) * 1000) / 1000
-    if (Math.abs(next) > MAX_AUDIO_DELAY_SECONDS) return
+    const moved = by === 0 ? 0 : Math.round((audioDelay + by) * 1000) / 1000
+    const next = Math.max(-MAX_AUDIO_DELAY_SECONDS, Math.min(MAX_AUDIO_DELAY_SECONDS, moved))
+    if (next === audioDelay) return
     setAudioDelayState(next)
     const local = info.method === 'DirectPlay' && next >= 0
     window.clearTimeout(syncTimer.current)
@@ -1324,15 +1368,16 @@ export function PlayerPage() {
                       </>
                     )}
                     {/* Fixes the file for everyone, so it's worth saying so. */}
+                    {/* A click moves it 10 ms; held, it jumps 50 ms at a time. */}
                     <h3>Audio sync</h3>
                     <div className="player-menu-stepper">
-                      <button aria-label="Play the sound earlier" onClick={() => nudgeSound(-0.05)}>
+                      <HoldButton aria-label="Play the sound earlier" title="Hold to move faster" onStep={(held) => nudgeSound(held ? -0.05 : -0.01)}>
                         −
-                      </button>
+                      </HoldButton>
                       <span aria-live="polite">{syncLabel(audioDelay)}</span>
-                      <button aria-label="Play the sound later" onClick={() => nudgeSound(0.05)}>
+                      <HoldButton aria-label="Play the sound later" title="Hold to move faster" onStep={(held) => nudgeSound(held ? 0.05 : 0.01)}>
                         +
-                      </button>
+                      </HoldButton>
                       <button aria-label="Reset sync" title="Reset sync" disabled={audioDelay === 0} onClick={() => nudgeSound(0)}>
                         <Reset />
                       </button>

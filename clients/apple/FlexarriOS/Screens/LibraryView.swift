@@ -1,11 +1,17 @@
 import FlexarrKit
 import SwiftUI
 
-/// Poster grid for one library, paged with skip/take, with sort and genre in the toolbar.
+/// Poster grid for one library, paged with skip/take, with sort and genre in the toolbar. A film or TV library also has
+/// Genres: a tile for each, opening its titles in that genre.
 struct LibraryView: View {
     @Environment(AppModel.self) private var model
     let library: Library
     var initialSort: LibrarySort = .title
+    /// Opened from a genre's tile: just its titles, under its name.
+    var initialGenre: String?
+
+    private enum Showing: Hashable { case all, genres }
+    @State private var showing = Showing.all
 
     @State private var sort: LibrarySort = .title
     @State private var genre: String?
@@ -34,58 +40,34 @@ struct LibraryView: View {
         return [GridItem(.adaptive(minimum: minimum, maximum: minimum * 1.45), spacing: 12, alignment: .top)]
     }
 
+    /// Films and shows have genres to browse by; a genre's own page doesn't offer them again.
+    private var hasGenres: Bool { initialGenre == nil && (library.type == .movies || library.type == .tvShows) }
+
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(total == 1 ? "1 title" : "\(total.formatted()) titles")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.usher)
-                    .monospacedDigit()
+                if hasGenres {
+                    Picker("Show", selection: $showing) {
+                        Text(library.type == .tvShows ? "All shows" : "All films").tag(Showing.all)
+                        Text("Genres").tag(Showing.genres)
+                    }
+                    .pickerStyle(.segmented)
                     .padding(.horizontal, Layout.edge)
-                    .opacity(items.isEmpty ? 0 : 1)
-                if let error, items.isEmpty {
-                    StatusView(state: .failed(error) { Task { await reload() } })
-                        .frame(height: 400)
-                } else if items.isEmpty && !isLoading {
-                    StatusView(state: .empty(genre.map { "No \($0) titles here." } ?? "Nothing in this library yet."))
-                        .frame(height: 400)
+                    .padding(.bottom, 4)
+                }
+                if showing == .genres {
+                    LibraryGenreGrid(library: library, genres: genres)
                 } else {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            PosterCard(item: item)
-                                .onAppear { loadMoreIfNeeded(at: index) }
-                        }
-                    }
-                    .padding(.horizontal, Layout.edge)
-                    if isLoading {
-                        ProgressView().frame(maxWidth: .infinity).padding(24)
-                    }
+                    titles
                 }
             }
             .padding(.bottom, 32)
         }
         .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
-        .navigationTitle(library.name)
+        .navigationTitle(initialGenre ?? library.name)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Picker("Sort by", selection: $sort) {
-                        ForEach(LibrarySort.allCases) { option in
-                            Text(option.label).tag(option)
-                        }
-                    }
-                    if !genres.isEmpty {
-                        Picker("Genre", selection: $genre) {
-                            Text("All genres").tag(String?.none)
-                            ForEach(genres, id: \.name) { g in
-                                Text("\(g.name) (\(g.count))").tag(Optional(g.name))
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
-                } label: {
-                    Label("Sort and filter", systemImage: genre == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                }
+            if showing == .all {
+                ToolbarItem(placement: .topBarTrailing) { sortAndFilter }
             }
         }
         .refreshable { await reload() }
@@ -93,6 +75,7 @@ struct LibraryView: View {
             if !didApplyInitialSort {
                 didApplyInitialSort = true
                 sort = initialSort
+                genre = initialGenre
             }
             // Coming back from a detail screen or another tab runs this again. Keep what's loaded, and so the
             // scroll position, only bringing it up to date if something changed here or it's getting old.
@@ -112,6 +95,55 @@ struct LibraryView: View {
         .onChange(of: sort) { Task { await reload() } }
         .onChange(of: genre) { Task { await reload() } }
         .onChange(of: model.refreshToken) { Task { await refreshLoaded() } }
+    }
+
+    @ViewBuilder
+    private var titles: some View {
+        Text(total == 1 ? "1 title" : "\(total.formatted()) titles")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.usher)
+            .monospacedDigit()
+            .padding(.horizontal, Layout.edge)
+            .opacity(items.isEmpty ? 0 : 1)
+        if let error, items.isEmpty {
+            StatusView(state: .failed(error) { Task { await reload() } })
+                .frame(height: 400)
+        } else if items.isEmpty && !isLoading {
+            StatusView(state: .empty(genre.map { "No \($0) titles here." } ?? "Nothing in this library yet."))
+                .frame(height: 400)
+        } else {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    PosterCard(item: item)
+                        .onAppear { loadMoreIfNeeded(at: index) }
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+            if isLoading {
+                ProgressView().frame(maxWidth: .infinity).padding(24)
+            }
+        }
+    }
+
+    private var sortAndFilter: some View {
+        Menu {
+            Picker("Sort by", selection: $sort) {
+                ForEach(LibrarySort.allCases) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+            if !genres.isEmpty {
+                Picker("Genre", selection: $genre) {
+                    Text("All genres").tag(String?.none)
+                    ForEach(genres, id: \.name) { g in
+                        Text("\(g.name) (\(g.count))").tag(Optional(g.name))
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        } label: {
+            Label("Sort and filter", systemImage: genre == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+        }
     }
 
     private func reload() async {
@@ -197,5 +229,62 @@ struct LibraryView: View {
                 total = page.total
             }
         }
+    }
+}
+
+/// A film or TV library's genres as tiles: a backdrop from one of its titles, the name and how many there are.
+private struct LibraryGenreGrid: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    let library: Library
+    let genres: [GenreCount]
+
+    var body: some View {
+        if genres.isEmpty {
+            StatusView(state: .empty("No genres here yet. They come with each title's details once a scan has found them."))
+                .frame(height: 400)
+        } else {
+            let minimum: CGFloat = sizeClass == .regular ? 240 : 150
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: minimum), spacing: 12)], spacing: 12) {
+                ForEach(genres, id: \.name) { genre in
+                    Button { router.push(.library(library, .title, genre: genre.name)) } label: { tile(genre) }
+                        .buttonStyle(CardButtonStyle())
+                        .accessibilityLabel("\(genre.name), \(caption(genre))")
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+        }
+    }
+
+    private func tile(_ genre: GenreCount) -> some View {
+        Color.seat
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .overlay {
+                RemoteImage(url: model.client?.imageURL(genre.backdrop, width: 640)) {
+                    LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+            }
+            .overlay {
+                LinearGradient(colors: [Color.room.opacity(0.92), Color.room.opacity(0.1)], startPoint: .bottom, endPoint: .center)
+            }
+            .overlay(alignment: .bottomLeading) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(genre.name)
+                        .font(.marquee(20, weight: .heavy))
+                        .foregroundStyle(Color.screen)
+                    Text(caption(genre))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Color.usher)
+                }
+                .lineLimit(1)
+                .padding(10)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func caption(_ genre: GenreCount) -> String {
+        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "film" : "films")
+        return "\(genre.count) \(noun)"
     }
 }

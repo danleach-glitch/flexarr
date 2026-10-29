@@ -1,14 +1,16 @@
 import UIKit
 
 /// Nudging a file's sound earlier or later when it's out of step with the picture: a glass panel over the bottom of
-/// the picture, opened from the audio menu. Each press moves it 50 ms (up to two seconds either way). The value is the
-/// household's, kept by the server.
+/// the picture, opened from the audio menu. Each press moves it 10 ms; holding a button (a long press on the Apple TV
+/// remote) keeps moving it in 50 ms jumps until let go, up to two seconds either way. The value is the household's,
+/// kept by the server.
 final class AudioSyncPanel: UIView {
     /// The offset was nudged (or reset): seconds the sound plays later, earlier when negative.
     var onChange: ((Double) -> Void)?
     var onDone: (() -> Void)?
 
-    static let step = 0.05
+    static let step = 0.01
+    static let jump = 0.05
     static let limit = 2.0
 
     private(set) var seconds: Double = 0
@@ -19,6 +21,9 @@ final class AudioSyncPanel: UIView {
     let laterButton: UIButton
     private let resetButton = PlayerControlsView.pill(filled: false)
     private let doneButton = PlayerControlsView.pill(filled: true)
+    /// The 50 ms jumps while a button is held, and when the last hold ended: the release that ends a hold isn't a press.
+    private var repeating: Task<Void, Never>?
+    private var heldUntil = Date.distantPast
 
     override init(frame: CGRect) {
         #if os(tvOS)
@@ -59,6 +64,29 @@ final class AudioSyncPanel: UIView {
         onChange?(clamped)
     }
 
+    @objc private func held(_ hold: UILongPressGestureRecognizer) {
+        let direction: Double = hold.view === earlierButton ? -1 : 1
+        switch hold.state {
+        case .began:
+            repeating?.cancel()
+            nudge(direction * Self.jump)
+            repeating = Task { [weak self] in
+                while (try? await Task.sleep(for: .milliseconds(250))) != nil {
+                    // Put away (Menu, a tap on the picture) with the button still down.
+                    guard let self, !self.isHidden, self.window != nil else { return }
+                    self.nudge(direction * Self.jump)
+                }
+            }
+        case .ended, .cancelled, .failed:
+            guard let repeating else { return }
+            repeating.cancel()
+            self.repeating = nil
+            heldUntil = Date().addingTimeInterval(0.3)
+        default:
+            break
+        }
+    }
+
     private func build() {
         #if os(tvOS)
         backgroundColor = UIColor.black.withAlphaComponent(0.55)
@@ -91,8 +119,18 @@ final class AudioSyncPanel: UIView {
         laterButton.accessibilityLabel = "Sound later"
         resetButton.configuration?.title = "Reset"
         doneButton.configuration?.title = "Done"
-        earlierButton.addAction(UIAction { [weak self] _ in self?.nudge(-Self.step) }, for: .primaryActionTriggered)
-        laterButton.addAction(UIAction { [weak self] _ in self?.nudge(Self.step) }, for: .primaryActionTriggered)
+        for (button, direction) in [(earlierButton, -1.0), (laterButton, 1.0)] {
+            button.addAction(UIAction { [weak self] _ in
+                guard let self, Date() > heldUntil else { return }
+                nudge(direction * Self.step)
+            }, for: .primaryActionTriggered)
+            let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
+            hold.minimumPressDuration = 0.4
+            #if os(tvOS)
+            hold.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
+            #endif
+            button.addGestureRecognizer(hold)
+        }
         resetButton.addAction(UIAction { [weak self] _ in self?.nudge(nil) }, for: .primaryActionTriggered)
         doneButton.addAction(UIAction { [weak self] _ in self?.onDone?() }, for: .primaryActionTriggered)
 

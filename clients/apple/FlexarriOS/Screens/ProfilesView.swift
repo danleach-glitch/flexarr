@@ -48,6 +48,9 @@ struct ProfilePickerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: asking)
+        // A link asked to play as a profile with a PIN: straight to its PIN.
+        .onAppear { if let profile = model.linkProfile, !marksCurrent { asking = profile } }
+        .onChange(of: model.linkProfile) { _, profile in if let profile, !marksCurrent { asking = profile } }
     }
 
     private var choices: some View {

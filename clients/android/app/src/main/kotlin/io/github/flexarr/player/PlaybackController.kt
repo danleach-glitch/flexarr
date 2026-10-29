@@ -696,7 +696,8 @@ class PlaybackController(context: Context, private val model: AppModel, private 
             PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
         )
         const val MAX_RATE = 2f
-        const val AUDIO_SYNC_STEP = 0.05
+        const val AUDIO_SYNC_STEP = 0.01
+        const val AUDIO_SYNC_JUMP = 0.05
         const val AUDIO_SYNC_LIMIT = 2.0
         /** The timings offered for subtitles: a pick opens the stream again (a second or two) with them moved. */
         val delayChoices = listOf(-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0)
