@@ -53,6 +53,9 @@ class FlexarrLog(val category: String) {
         val text = StringBuilder(entry.message)
         entry.error?.let { text.append(" | error: ").append(it) }
         entry.properties.orEmpty().toSortedMap().forEach { (key, value) -> text.append(" | ").append(key).append('=').append(value) }
+        // A release build keeps Logcat (which other tools on the phone can read) to warnings and errors; the log file
+        // here has everything.
+        if (!BuildConfig.DEBUG && (level == ClientLogLevel.Debug || level == ClientLogLevel.Information)) return
         val tag = "Flexarr.$category"
         when (level) {
             ClientLogLevel.Debug -> Log.d(tag, text.toString())

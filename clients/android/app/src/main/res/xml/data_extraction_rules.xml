@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The sign-in stays on this device: its token is encrypted with a Keystore key that never leaves it. -->
+<!-- The sign-in stays on this device: its token is encrypted with a Keystore key that never leaves it. Notifications
+     stay too: their key is sealed the same way, and their Firebase token and profile token are this phone's alone. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="server.xml" />
+        <exclude domain="sharedpref" path="notifications.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="server.xml" />
+        <exclude domain="sharedpref" path="notifications.xml" />
     </device-transfer>
 </data-extraction-rules>

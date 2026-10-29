@@ -135,7 +135,7 @@ class PushNotifications(private val context: Context) {
         isOn = false
         profileId = null
         profileName = null
-        prefs.edit().putBoolean(ON, false).remove(PROFILE).remove(PROFILE_NAME).remove(PROFILE_TOKEN).remove(KEY).remove(SENT_TOKEN).apply()
+        prefs.edit().putBoolean(ON, false).remove(PROFILE).remove(PROFILE_NAME).remove(PROFILE_TOKEN).remove(KEY).remove(SENT_TOKEN).remove(SENT_ZONE).apply()
         if (isAvailable) FirebaseMessaging.getInstance().isAutoInitEnabled = false
     }
 
@@ -147,6 +147,19 @@ class PushNotifications(private val context: Context) {
         val credentials = store.load() ?: return
         runCatching { register(forProfile(credentials), settings, token = token) }
             .onFailure { log.warning("Couldn't send the new Firebase token", it) }
+    }
+
+    /**
+     * The phone has moved time zone since the server last heard (it's sent only when registering): sent again, so the
+     * morning's "on today" comes in the morning here. Once a launch; quietly.
+     */
+    suspend fun checkTimeZone() {
+        val zone = TimeZone.getDefault().id
+        if (!isOn || zone == prefs.getString(SENT_ZONE, null)) return
+        val token = prefs.getString(SENT_TOKEN, null) ?: return
+        val credentials = store.load() ?: return
+        runCatching { register(forProfile(credentials), settings, token = token) }
+            .onFailure { log.warning("Couldn't send the new time zone", it) }
     }
 
     /** No token from Firebase. */
@@ -170,9 +183,11 @@ class PushNotifications(private val context: Context) {
         token: String? = null,
     ): NotificationDevice {
         val firebaseToken = token ?: token()
-        val device = credentials.client().registerForNotifications(firebaseToken, key(), TimeZone.getDefault().id, settings, useCurrentProfile)
+        val zone = TimeZone.getDefault().id
+        val device = credentials.client().registerForNotifications(firebaseToken, key(), zone, settings, useCurrentProfile)
         prefs.edit()
             .putString(SENT_TOKEN, firebaseToken)
+            .putString(SENT_ZONE, zone)
             .putString(PROFILE_TOKEN, credentials.profileToken.orEmpty())
             .putBoolean(ON, true)
             .putBoolean(WANTED, true)
@@ -216,5 +231,6 @@ class PushNotifications(private val context: Context) {
         const val SETTINGS = "settings"
         const val KEY = "key"
         const val SENT_TOKEN = "sentToken"
+        const val SENT_ZONE = "sentTimeZone"
     }
 }

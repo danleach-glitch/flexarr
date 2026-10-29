@@ -28,7 +28,11 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.time.DateTimeException
 import java.net.ConnectException
+import java.net.Inet4Address
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -72,7 +76,7 @@ class FlexarrClient(
     val profileToken: String? = null,
     private val http: OkHttpClient = sharedHttp,
     /** Called whenever the server answers 401, so the app can notice its saved sign-in has stopped working. */
-    private val onUnauthorized: (() -> Unit)? = null,
+    internal val onUnauthorized: (() -> Unit)? = null,
 ) {
     /** A client for a server with only the one address. */
     constructor(
@@ -130,7 +134,7 @@ class FlexarrClient(
     /** The episode to play next for a series or season, or null when everything is watched. */
     suspend fun nextUp(id: String): ItemSummary? {
         val body = send("GET", "items/$id/next-up")
-        return if (body.isEmpty()) null else decode(serializer<ItemSummary>(), body)
+        return if (body.isEmpty()) null else decodeText(serializer<ItemSummary>(), body)
     }
 
     suspend fun setWatched(id: String, watched: Boolean) {
@@ -144,7 +148,7 @@ class FlexarrClient(
     // Playback
 
     suspend fun startPlayback(request: PlaybackRequest): PlaybackInfo =
-        decode(serializer(), send("POST", "playback", body = json.encodeToString(request)))
+        decodeText(serializer(), send("POST", "playback", body = json.encodeToString(request)))
 
     suspend fun reportProgress(sessionId: String, positionSeconds: Double, paused: Boolean, ended: Boolean = false) {
         val report = ProgressReport(positionSeconds.coerceAtLeast(0.0), paused, ended)
@@ -185,20 +189,20 @@ class FlexarrClient(
 
     /** Checks the PIN (if the profile has one) and returns the token for [profileToken]. A wrong PIN is a 403 saying so. */
     suspend fun selectProfile(id: String, pin: String? = null): ProfileSelection =
-        decode(serializer(), send("POST", "profiles/$id/select", body = json.encodeToString(SelectProfileRequest(pin))))
+        decodeText(serializer(), send("POST", "profiles/$id/select", body = json.encodeToString(SelectProfileRequest(pin))))
 
     /**
      * Saves the order of [profileId]'s libraries in the menu (see [libraryOrder]); the profile watching may set its own.
      * Servers before 0.54 answer 404.
      */
     suspend fun setLibraryOrder(profileId: String, order: List<String>): Profile =
-        decode(serializer(), send("PUT", "profiles/$profileId/library-order", body = json.encodeToString(LibraryOrderRequest(order))))
+        decodeText(serializer(), send("PUT", "profiles/$profileId/library-order", body = json.encodeToString(LibraryOrderRequest(order))))
 
     // Pairing (connecting without typing the API key)
 
     /** Asks the server for a code to show; someone signed in approves it in the web app. */
     suspend fun startPairing(deviceName: String): PairingStart =
-        decode(serializer(), send("POST", "pairing", body = json.encodeToString(mapOf("deviceName" to deviceName))))
+        decodeText(serializer(), send("POST", "pairing", body = json.encodeToString(mapOf("deviceName" to deviceName))))
 
     /** Polled while the code is on screen; carries this device's own token once approved. */
     suspend fun pairingStatus(id: String): PairingStatus = get("pairing/$id")
@@ -213,7 +217,7 @@ class FlexarrClient(
 
     /** Swaps the server's API key for a token of this device's own, which can be signed out from the web app. */
     suspend fun deviceToken(deviceName: String): String =
-        decode(serializer<DeviceToken>(), send("POST", "session/device", body = json.encodeToString(mapOf("deviceName" to deviceName)))).token
+        decodeText(serializer<DeviceToken>(), send("POST", "session/device", body = json.encodeToString(mapOf("deviceName" to deviceName)))).token
 
     /** Signs this device out on the server (its token stops working). */
     suspend fun signOut() {
@@ -236,10 +240,8 @@ class FlexarrClient(
 
     // Transport
 
-    internal suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T {
-        val text = send("GET", path, query)
-        return withContext(Dispatchers.Default) { decode(serializer<T>(), text) }
-    }
+    internal suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
+        decodeText(serializer<T>(), send("GET", path, query))
 
     /**
      * The answer's text. Off the main thread throughout: Android refuses network reads on it, the body's included.
@@ -268,6 +270,9 @@ class FlexarrClient(
     }
 
     private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl): Request {
+        // An id from outside the app (a link, say) mustn't climb out of the path it was put in: OkHttp would resolve
+        // `..` against the segments before it. Ids never are one.
+        if (path.split('/').any { isDotSegment(it) }) throw FlexarrException.Http(404, null)
         val url = base.newBuilder().addPathSegments("api/v1/$path").apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
@@ -403,18 +408,23 @@ class FlexarrClient(
     /** The answer's text, for callers in this module that read it themselves (an empty answer meaning none). */
     internal suspend fun sendRaw(method: String, path: String): String = send(method, path)
 
-    internal fun <T> decodeText(serializer: KSerializer<T>, text: String): T = decode(serializer, text)
+    /** Reads an answer off the main thread: a long one (the guide, a big library) would hold up the screen. */
+    internal suspend fun <T> decodeText(serializer: KSerializer<T>, text: String): T = withContext(Dispatchers.Default) { decode(serializer, text) }
 
     /** Sends [body] as JSON and reads the answer as a [T]. */
     internal suspend inline fun <reified B, reified T> sendDecoding(method: String, path: String, body: B): T {
         val text = send(method, path, body = body?.let { json.encodeToString(serializer<B>(), it) })
-        return decode(serializer<T>(), text)
+        return decodeText(serializer<T>(), text)
     }
 
+    /** An answer that doesn't read as [T] (a field missing, a time that isn't one) is [FlexarrException.UnexpectedResponse]. */
     internal fun <T> decode(serializer: KSerializer<T>, text: String): T =
         try {
             json.decodeFromString(serializer, text)
         } catch (e: IllegalArgumentException) {
+            // SerializationException is one of these.
+            throw FlexarrException.UnexpectedResponse().apply { initCause(e) }
+        } catch (e: DateTimeException) {
             throw FlexarrException.UnexpectedResponse().apply { initCause(e) }
         }
 
@@ -449,6 +459,17 @@ class FlexarrClient(
             .build()
 
         /**
+         * Whether [id], from outside the app (a link), looks like one of the server's: letters, digits, `-` and `_`
+         * (a GUID, say). Anything else could reach another of the server's paths once put in one.
+         */
+        fun isPlainId(id: String): Boolean = plainId.matches(id)
+
+        private val plainId = Regex("^[A-Za-z0-9_-]+$")
+
+        /** `.` or `..`, however it's written (OkHttp reads `%2e` as a dot too). */
+        internal fun isDotSegment(segment: String): Boolean = segment.replace("%2e", ".", ignoreCase = true).let { it == "." || it == ".." }
+
+        /**
          * Turns what a person typed ("mini.local", "192.168.1.5:8383", "http://host:8383/") into a base URL.
          * Defaults to http and Flexarr's port 8383 when they're left out.
          */
@@ -466,6 +487,56 @@ class FlexarrClient(
                 .query(null)
                 .fragment(null)
                 .build()
+        }
+
+        /**
+         * The addresses to try, in order, for what a person typed. As [normalizeAddress], except that a host on the
+         * internet typed without a scheme is tried over https first (on 443, unless a port was typed), and only then as
+         * http on Flexarr's port, so a sign-in isn't sent in the clear when it needn't be. A home-network host (a private
+         * or Tailscale address, `.local`, `.ts.net`, a name with no dots) stays as it was.
+         */
+        fun addressCandidates(input: String): List<HttpUrl> {
+            val text = input.trim()
+            val url = normalizeAddress(text) ?: return emptyList()
+            if ("://" in text || isHomeNetworkHost(url.host)) return listOf(url)
+            val portTyped = Regex("^(?:\\[[^]]+]|[^/:]+):\\d+").containsMatchIn(text)
+            val secure = url.newBuilder().scheme("https").port(if (portTyped) url.port else 443).build()
+            return listOf(secure, url)
+        }
+
+        /** A host only reached at home or over Tailscale, where a server is usually plain http on its own port. */
+        fun isHomeNetworkHost(host: String): Boolean {
+            val name = host.lowercase().trimEnd('.')
+            if ('.' !in name && ':' !in name) return true // "mini", "localhost"
+            if (homeSuffixes.any { name.endsWith(it) }) return true
+            val address = ipAddress(name) ?: return false
+            return address.isSiteLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress || isTailscaleAddress(address) ||
+                (address is Inet6Address && (address.address[0].toInt() and 0xfe) == 0xfc) // fc00::/7, IPv6's private range
+        }
+
+        private val homeSuffixes = listOf(".local", ".ts.net", ".lan", ".home", ".internal", ".home.arpa")
+
+        /** 100.64.0.0/10, where Tailscale gives its devices addresses. */
+        private fun isTailscaleAddress(address: InetAddress): Boolean =
+            address is Inet4Address && address.address[0].toInt() == 100 && (address.address[1].toInt() and 0xc0) == 0x40
+
+        /** [host] as an IP address when it is one (never looked up: a name stays a name). */
+        private fun ipAddress(host: String): InetAddress? {
+            val literal = host.removePrefix("[").removeSuffix("]")
+            val isIp = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$").matches(literal) || (':' in literal && Regex("^[0-9a-fA-F:.%]+$").matches(literal))
+            return if (isIp) runCatching { InetAddress.getByName(literal) }.getOrNull() else null
+        }
+
+        /**
+         * Whether [url], which a server gave as its address for away from home, is one the app may send this sign-in
+         * to: https on a Tailscale name (`*.ts.net`, what the server's remote access gives), or a Tailscale address. The
+         * server says it without proving it's the same server, so an answer tampered with on the home network can't
+         * point the app at a host on the internet that would collect the sign-in from then on.
+         */
+        fun isAcceptableRemote(url: HttpUrl): Boolean {
+            val host = url.host.lowercase().trimEnd('.')
+            if (url.isHttps && host.endsWith(".ts.net")) return true
+            return ipAddress(host)?.let(::isTailscaleAddress) == true
         }
 
         /** Reads ASP.NET problem details (`errors`, `detail` or `title`), or a plain `reason`, into one message. */

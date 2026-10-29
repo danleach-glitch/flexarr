@@ -129,4 +129,63 @@ class FlexarrClientTest {
         assertEquals(server.url("/api/v1/items/1/poster?v=2&w=300").toString(), client.imageUrl("/api/v1/items/1/poster?v=2", 300))
         assertNull(client.imageUrl(null, 300))
     }
+
+    @Test
+    fun `an internet host typed without a scheme is tried over https first`() {
+        assertEquals(
+            listOf("https://flexarr.example.com/", "http://flexarr.example.com:8383/"),
+            FlexarrClient.addressCandidates("flexarr.example.com").map { it.toString() },
+        )
+        assertEquals(listOf("https://example.com:9000/", "http://example.com:9000/"), FlexarrClient.addressCandidates("example.com:9000").map { it.toString() })
+        // Typed with a scheme, it's what was asked for.
+        assertEquals(listOf("http://example.com/"), FlexarrClient.addressCandidates("http://example.com").map { it.toString() })
+        assertEquals(emptyList<String>(), FlexarrClient.addressCandidates("not an address").map { it.toString() })
+    }
+
+    @Test
+    fun `home network hosts stay on http and port 8383`() {
+        for (host in listOf("mini.local", "mini", "localhost", "192.168.1.5", "10.0.0.2", "172.20.1.1", "127.0.0.1", "100.101.2.3", "mini.tail1234.ts.net", "nas.lan", "[fd12::1]")) {
+            assertEquals(host, 1, FlexarrClient.addressCandidates(host).size)
+            assertEquals(host, "http", FlexarrClient.addressCandidates(host).single().scheme)
+            assertEquals(host, 8383, FlexarrClient.addressCandidates(host).single().port)
+        }
+        assertEquals(2, FlexarrClient.addressCandidates("8.8.8.8").size)
+        assertEquals(2, FlexarrClient.addressCandidates("100.200.1.1").size) // outside Tailscale's range
+    }
+
+    @Test
+    fun `only a Tailscale address is taken as the server's remote address`() {
+        fun acceptable(url: String) = FlexarrClient.isAcceptableRemote(FlexarrClient.normalizeAddress(url)!!)
+        assertTrue(acceptable("https://mini.tail1234.ts.net:8443"))
+        assertTrue(acceptable("http://100.101.2.3:8383"))
+        assertTrue(!acceptable("http://mini.tail1234.ts.net:8443"))
+        assertTrue(!acceptable("https://flexarr.example.com"))
+        assertTrue(!acceptable("https://ts.net.example.com"))
+        assertTrue(!acceptable("http://192.168.1.5:8383"))
+    }
+
+    @Test
+    fun `ids from links are the server's kind`() {
+        assertTrue(FlexarrClient.isPlainId("01a16be6-5a0b-790c-8734-28f147909cd9"))
+        assertTrue(FlexarrClient.isPlainId("r1"))
+        for (id in listOf("", "..", "a/b", "a%2Fb", "x?y", "a b", "%2e%2e")) assertTrue(id, !FlexarrClient.isPlainId(id))
+    }
+
+    @Test
+    fun `a dot segment never reaches the server`() = runTest {
+        for (id in listOf("..", "%2e%2E", ".")) {
+            val error = runCatching { client().item(id) }.exceptionOrNull()
+            assertTrue("$id: $error", error is FlexarrException.Http && error.status == 404)
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `an answer that doesn't read is an unexpected response, a bad time included`() = runTest {
+        server.enqueue(json("""{"id":"1"}"""))
+        server.enqueue(json("""[{"id":"d","name":"TV","online":true,"lastUsedAt":"yesterday","profileId":"p"}]"""))
+        val client = client()
+        assertTrue(runCatching { client.libraries() }.exceptionOrNull() is FlexarrException.UnexpectedResponse)
+        assertTrue(runCatching { client.devices() }.exceptionOrNull() is FlexarrException.UnexpectedResponse)
+    }
 }
