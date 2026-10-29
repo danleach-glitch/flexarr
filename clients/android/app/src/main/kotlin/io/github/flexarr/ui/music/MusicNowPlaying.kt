@@ -79,6 +79,9 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import io.github.flexarr.AppModel
 import io.github.flexarr.audio.MusicPlayer
+import io.github.flexarr.cast.CastButton
+import io.github.flexarr.cast.CastControls
+import io.github.flexarr.cast.Casting
 import io.github.flexarr.core.CoverPalette
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
@@ -117,12 +120,19 @@ fun MusicNowPlayingBar(model: AppModel) {
                     track.artistName?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
             }
-            if (music.isLoading) {
-                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+            // On a Chromecast: its controls.
+            val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Music) }
+            if (cast != null) {
+                RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", onClick = cast::togglePlayPause)
+                RoundButton(Icons.Filled.SkipNext, "Next", enabled = cast.hasNextTrack, onClick = cast::nextTrack)
             } else {
-                RoundButton(if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (music.isPlaying) "Pause" else "Play", onClick = music::togglePlayPause)
+                if (music.isLoading) {
+                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+                } else {
+                    RoundButton(if (music.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (music.isPlaying) "Pause" else "Play", onClick = music::togglePlayPause)
+                }
+                RoundButton(Icons.Filled.SkipNext, "Next", enabled = music.hasNext, onClick = music::next)
             }
-            RoundButton(Icons.Filled.SkipNext, "Next", enabled = music.hasNext, onClick = music::next)
         }
         // How far the track has got, along the bottom edge: read as it's drawn, so the bar doesn't recompose each tick.
         Box(
@@ -181,8 +191,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                         }
                     }
                     LyricsView(found, music.position, onSeek = music::seek, modifier = Modifier.weight(1f))
-                    Scrubber(music)
-                    Controls(music)
+                    ScrubberAndControls(music)
                     Extras(hasLyrics = true, showingLyrics = true) { showingLyrics = false }
                 }
             } else {
@@ -204,9 +213,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                         val by = listOfNotNull(track.artistName, music.albumTitle(track)).joinToString("  –  ")
                         if (by.isNotEmpty()) Text(by, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Scrubber(music)
-                    music.errorMessage?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
-                    Controls(music)
+                    ScrubberAndControls(music, error = true)
                     Extras(hasLyrics = found != null, showingLyrics = false) { showingLyrics = true }
                     UpNext(music)
                 }
@@ -271,6 +278,16 @@ private fun Scrubber(music: MusicPlayer) {
     }
 }
 
+/** The scrubber and the controls (and what went wrong), or the Chromecast's while the music is on one. */
+@Composable
+private fun ScrubberAndControls(music: MusicPlayer, error: Boolean = false) {
+    val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Music) }
+    if (cast != null) return CastControls(cast)
+    Scrubber(music)
+    if (error) music.errorMessage?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
+    Controls(music)
+}
+
 /** Shuffle, previous, play, next and repeat; shuffle and repeat light up when they're on. */
 @Composable
 private fun Controls(music: MusicPlayer) {
@@ -303,12 +320,13 @@ private fun Transport(icon: ImageVector, label: String, size: Int, active: Boole
     }
 }
 
-/** Lyrics, when the track has some. */
+/** Cast, and Lyrics when the track has some. */
 @Composable
 private fun Extras(hasLyrics: Boolean, showingLyrics: Boolean, onLyrics: () -> Unit) {
-    if (!hasLyrics) return
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Transport(Icons.Filled.LyricsIcon, if (showingLyrics) "Hide lyrics" else "Lyrics", size = 44, active = showingLyrics, onClick = onLyrics)
+    if (!hasLyrics && Casting.shared?.available != true) return
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        CastButton(Modifier.size(44.dp))
+        if (hasLyrics) Transport(Icons.Filled.LyricsIcon, if (showingLyrics) "Hide lyrics" else "Lyrics", size = 44, active = showingLyrics, onClick = onLyrics)
     }
 }
 

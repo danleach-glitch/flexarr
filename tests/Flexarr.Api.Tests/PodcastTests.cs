@@ -266,6 +266,30 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task Streams_CanBeReadByACastReceiversPage_ButTheApiCant()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        var episode = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items")[0].GetProperty("id").GetString();
+        var started = await client.PostAsJsonAsync(Api("playback"), new { itemId = episode, profile = new { } });
+        var playback = await started.Content.ReadFromJsonAsync<JsonElement>();
+
+        // A Chromecast's player is a web page on another origin: the stream (headerless, as it fetches it) says it may.
+        var stream = new HttpRequestMessage(HttpMethod.Get, new Uri(playback.GetProperty("url").GetString()!, UriKind.Relative));
+        stream.Headers.Add("Origin", "https://www.gstatic.com");
+        var answer = await _server.CreateClient().SendAsync(stream);
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal("*", Assert.Single(answer.Headers.GetValues("Access-Control-Allow-Origin")));
+
+        // The API itself still doesn't.
+        Assert.False(started.Headers.Contains("Access-Control-Allow-Origin"));
+        var sid = playback.GetProperty("sessionId").GetString();
+        var progress = await client.PostAsJsonAsync(Api($"playback/{sid}/progress"), new { positionSeconds = 12 });
+        Assert.False(progress.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
+    [Fact]
     public async Task Refreshing_AsksWhetherTheFeedChanged_AndAddsNewEpisodes()
     {
         await AddLibraryAsync();

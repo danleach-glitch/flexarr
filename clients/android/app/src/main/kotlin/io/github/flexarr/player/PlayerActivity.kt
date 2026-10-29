@@ -19,6 +19,10 @@ import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import io.github.flexarr.R
+import io.github.flexarr.cast.Casting
+import io.github.flexarr.cast.CastingScreen
+import io.github.flexarr.cast.GlassCastButton
+import io.github.flexarr.cast.VideoCasting
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import android.graphics.Color as AndroidColor
@@ -133,6 +137,8 @@ import java.util.Locale
 class PlayerActivity : ComponentActivity() {
     private var controller: PlaybackController? = null
     private var session: MediaSession? = null
+    /** Its titles going to a Chromecast while the phone is connected to one. */
+    private var casting: VideoCasting? = null
     /** In the corner window: only the picture and its subtitles show. */
     private var inPictureInPicture by mutableStateOf(false)
 
@@ -149,6 +155,7 @@ class PlayerActivity : ComponentActivity() {
         val model = appModel
         val client = model.client ?: return finish()
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
+        val casting = Casting.shared?.let { VideoCasting(this, controller, it) }.also { casting = it }
         // Headphone and Bluetooth buttons, the system's media controls and the corner window's play and pause.
         session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
         model.commands.active = playback
@@ -160,7 +167,12 @@ class PlayerActivity : ComponentActivity() {
             FlexarrTheme {
                 // The corner window keeps the picture's shape, and goes there by itself only while playing.
                 LaunchedEffect(controller.videoSize, controller.isPlaying) { updatePictureInPicture() }
-                PlayerScreen(controller, onClose = ::finish, inPictureInPicture = inPictureInPicture, onPictureInPicture = ::enterPictureInPicture)
+                casting?.HandOff()
+                if (casting?.showing == true) {
+                    CastingScreen(casting.casting, controller.skipSeconds, onClose = ::finish)
+                } else {
+                    PlayerScreen(controller, onClose = ::finish, inPictureInPicture = inPictureInPicture, onPictureInPicture = ::enterPictureInPicture)
+                }
             }
         }
     }
@@ -297,6 +309,8 @@ class PlayerActivity : ComponentActivity() {
         runCatching { unregisterReceiver(pictureInPictureActions) }
         session?.release()
         session = null
+        casting?.release()
+        casting = null
         controller?.close()
         controller = null
     }
@@ -493,6 +507,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
                     info.transcodeSummary?.let { Text(it.uppercase(Locale.getDefault()), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
                 }
             }
+            GlassCastButton()
             if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 GlassButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", size = 44, onClick = onPictureInPicture)
             }

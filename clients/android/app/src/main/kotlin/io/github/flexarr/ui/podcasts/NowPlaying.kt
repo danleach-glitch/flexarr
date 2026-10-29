@@ -108,6 +108,9 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import io.github.flexarr.AppModel
 import io.github.flexarr.audio.PodcastPlayer
+import io.github.flexarr.cast.CastButton
+import io.github.flexarr.cast.CastControls
+import io.github.flexarr.cast.Casting
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.NoteLink
 import io.github.flexarr.core.Podcast
@@ -161,12 +164,19 @@ fun NowPlayingBar(model: AppModel) {
                 Text(episode.podcastTitle, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (player.isLoading) {
-            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+        // On a Chromecast: its controls.
+        val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Podcast) }
+        if (cast != null) {
+            RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", cast::togglePlayPause)
+            RoundButton(Icons.Filled.Forward30, "Forward 30 seconds") { cast.skip(30) }
         } else {
-            RoundButton(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (player.isPlaying) "Pause" else "Play", player::togglePlayPause)
+            if (player.isLoading) {
+                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+            } else {
+                RoundButton(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (player.isPlaying) "Pause" else "Play", player::togglePlayPause)
+            }
+            RoundButton(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
         }
-        RoundButton(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
     }
     if (model.showsNowPlaying) NowPlayingSheet(model, onDismiss = { model.showsNowPlaying = false })
 }
@@ -269,18 +279,24 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                         }
                     }
                 }
-                if (chapters.isNotEmpty()) ChapterStrip(player, chapters, scrubbing) { showingDetails = true }
-                Scrubber(player, chapters, scrubbing) { scrubbing = it }
-                player.errorMessage?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                    Transport(Icons.Filled.Replay, "Back 15 seconds", badge = "15") { player.skip(-15) }
-                    Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(player::togglePlayPause), contentAlignment = Alignment.Center) {
-                        if (player.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
-                        else Icon(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                // On a Chromecast, its scrubber and controls take the phone's place.
+                val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Podcast) }
+                if (cast != null) {
+                    CastControls(cast)
+                } else {
+                    if (chapters.isNotEmpty()) ChapterStrip(player, chapters, scrubbing) { showingDetails = true }
+                    Scrubber(player, chapters, scrubbing) { scrubbing = it }
+                    player.errorMessage?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                        Transport(Icons.Filled.Replay, "Back 15 seconds", badge = "15") { player.skip(-15) }
+                        Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(player::togglePlayPause), contentAlignment = Alignment.Center) {
+                            if (player.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
+                            else Icon(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
+                        }
+                        Transport(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
                     }
-                    Transport(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
                 }
-                // Speed, the sleep timer, Notes and the episode's menu: four of a kind, evenly spaced, each lit while it's set.
+                // Speed, the sleep timer, Notes, Cast and the episode's menu: of a kind, evenly spaced, each lit while it's set.
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     SpeedMenu(player, Modifier.weight(1f))
                     SleepMenu(player, Modifier.weight(1f))
@@ -289,6 +305,7 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                             Icon(Icons.Outlined.Description, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
                         }
                     }
+                    if (Casting.shared?.available == true) Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { CastButton() }
                     EpisodeMenu(model, episode, loaded?.podcast, ::goToPodcast, Modifier.weight(1f))
                 }
             }
@@ -531,6 +548,7 @@ private fun SpeedMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
                 Choice(PodcastPlayer.speedLabel(speed), speed == player.speed) {
                     open = false
                     player.chooseSpeed(speed)
+                    Casting.shared?.setSpeed(speed)
                 }
             }
         }

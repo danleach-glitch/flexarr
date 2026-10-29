@@ -209,9 +209,18 @@ public static partial class PlaybackEndpoints
         var group = api.MapGroup("/playback/{sid}").WithTags("Streaming").AllowAnonymous()
             .AddEndpointFilter(async (context, next) =>
             {
+                // A Chromecast plays a converted stream with a web page's player, which may read its playlists and
+                // segments only when they say any page can. Reads only, and nothing a page couldn't already fetch
+                // with the address: the session id in it is the credential, not a cookie or key.
+                var http = context.HttpContext;
+                if (HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method))
+                {
+                    http.Response.Headers.AccessControlAllowOrigin = "*";
+                }
+
                 // Whatever's logged while serving the stream says which playback it was.
                 using var _ = Serilog.Context.LogContext.PushProperty("PlaybackId",
-                    Logging.Redactor.ShortHash(context.HttpContext.Request.RouteValues["sid"] as string ?? ""));
+                    Logging.Redactor.ShortHash(http.Request.RouteValues["sid"] as string ?? ""));
                 return await next(context);
             });
 
