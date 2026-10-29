@@ -8,6 +8,9 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.flexarr.core.FlexarrClient
 
 class FlexarrApplication : Application(), SingletonImageLoader.Factory {
@@ -18,6 +21,11 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         FlexarrClient.deviceType = deviceType()
         model = AppModel(this)
+        // Commands from other devices are taken while the app is in front.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) = model.listenForCommands()
+            override fun onStop(owner: LifecycleOwner) = model.commands.stop()
+        })
     }
 
     /** A TV by its UI mode, a tablet by its narrowest side (600 dp and over, as Android's own layouts count it). */

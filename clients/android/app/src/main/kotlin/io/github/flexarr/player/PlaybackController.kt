@@ -10,6 +10,9 @@ import androidx.compose.runtime.setValue
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import io.github.flexarr.core.displayTitle
+import io.github.flexarr.core.episodeSubtitle
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -31,8 +34,13 @@ import io.github.flexarr.core.PlaybackPrompt
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
+import io.github.flexarr.core.SubtitleSyncState
 import io.github.flexarr.core.SubtitleTrack
+import io.github.flexarr.core.DownloadedSubtitles
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.prompt
+import io.github.flexarr.core.startSubtitleSync
+import io.github.flexarr.core.subtitleSync
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -45,7 +53,7 @@ import kotlin.math.ceil
  * Intro and Next Episode, and moves on to the next episode. The audio, subtitle, speed and sleep-timer menus act
  * through it. The iPhone app's PlaybackController, for the phone.
  */
-class PlaybackController(context: Context, private val model: AppModel, private val client: FlexarrClient, private val onClose: () -> Unit) {
+class PlaybackController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
@@ -99,6 +107,18 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         private set
     /** Opening the stream again (another audio track, moved subtitles): the menus wait for it. */
     var isReopening by mutableStateOf(false)
+        private set
+    /** A moment's message in the middle of the picture ("Re-syncing subtitles…"), counted so the same one shows again. */
+    var flash: Pair<String, Int>? by mutableStateOf(null)
+        private set
+    /** Searching for subtitles over the picture (paused meanwhile): the file searched for. */
+    var subtitleSearchFile: String? by mutableStateOf(null)
+        private set
+    /** This session's scrubbing previews, once the server has made them. */
+    var previews: TrickplayPreviews? by mutableStateOf(null)
+        private set
+    /** A re-sync of this title's subtitle file to its audio is under way. */
+    var isResyncing by mutableStateOf(false)
         private set
 
     // The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode.
@@ -191,15 +211,12 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
     }
 
-    /** Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null) {
-        // A podcast playing stops for the video.
-        model.podcasts.pause()
-        // Another title: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once).
-        forcedTranscode = false
-        viewerChoseSubtitle = debugSubtitleKey != null
-        viewerSubtitleKey = debugSubtitleKey
-        debugSubtitleKey = null
+    /**
+     * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. [subtitlesOff]: the
+     * viewer turned subtitles off in the last episode, which carries on into this one.
+     */
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false) {
+        newTitle(subtitlesOff)
         open { profile ->
             PlaybackRequest(
                 itemId = itemId,
@@ -207,9 +224,20 @@ class PlaybackController(context: Context, private val model: AppModel, private 
                 startPositionSeconds = startAt ?: if (fromBeginning) 0.0 else null,
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
-                subtitleKey = viewerSubtitleKey,
+                subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
             )
         }
+    }
+
+    /** Another title starts: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once). */
+    private fun newTitle(subtitlesOff: Boolean) {
+        // Music or a podcast playing stops for the video.
+        model.podcasts.pause()
+        model.music.pause()
+        forcedTranscode = false
+        viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
+        viewerSubtitleKey = debugSubtitleKey
+        debugSubtitleKey = null
     }
 
     private var debugSubtitleKey: String? = null
@@ -261,6 +289,8 @@ class PlaybackController(context: Context, private val model: AppModel, private 
 
     private fun begin(started: PlaybackInfo) {
         val sameTitle = info?.item?.id == started.item.id
+        previews?.close()
+        previews = TrickplayPreviews(client, started.sessionId, scope)
         info = started
         error = null
         preferences = started.preferences ?: PlaybackPreferences()
@@ -293,8 +323,16 @@ class PlaybackController(context: Context, private val model: AppModel, private 
                 .setLabel(track.label)
                 .build()
         }
+        // What the system's media controls and headphones' devices show.
+        val metadata = MediaMetadata.Builder()
+            .setTitle(started.item.displayTitle)
+            .setArtist(started.item.episodeSubtitle ?: started.item.year?.toString())
+            .setArtworkUri(client.imageUrl(started.item.artwork.thumb ?: started.item.artwork.backdrop ?: started.item.artwork.poster, 600)?.let(android.net.Uri::parse))
+            .setMediaType(if (started.item.kind == MediaKind.Episode) MediaMetadata.MEDIA_TYPE_TV_SHOW else MediaMetadata.MEDIA_TYPE_MOVIE)
+            .build()
         val media = MediaItem.Builder()
             .setUri(client.url(started.url))
+            .setMediaMetadata(metadata)
             .setSubtitleConfigurations(sideloaded)
             .apply { if (started.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
@@ -350,6 +388,12 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         if (next != prompt) {
             prompt = next
             updatePrompt()
+            // The credits started: get the next episode ready. Back out of them: let it go.
+            if (next == PlaybackPrompt.NextEpisode) {
+                if (!sleepHoldsEpisode) prepareNext()
+            } else if (!isFinishing) {
+                dropPrepared()
+            }
         }
         if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS && player.isPlaying) report(paused = false)
     }
@@ -364,14 +408,82 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     }
 
     fun playNext() {
-        val next = info?.next ?: return
+        val current = info ?: return
+        val next = current.next ?: return
         report(paused = true)
-        start(next.id, fromBeginning = false)
+        val subtitlesOff = nextSubtitlesOff(current)
+        val ready = prepared
+        if (ready != null && ready.info.item.id == next.id && ready.subtitlesOff == subtitlesOff) {
+            // Got ready during the credits: this session ends, and the next one opens straight away.
+            Log.i("Flexarr", "Using the next episode got ready during the credits")
+            prepared = null
+            scope.launch { runCatching { client.stopPlayback(current.sessionId) } }
+            newTitle(subtitlesOff)
+            begin(ready.info)
+            return
+        }
+        dropPrepared()
+        start(next.id, fromBeginning = false, subtitlesOff = subtitlesOff)
+    }
+
+    /**
+     * Subtitles turned off carry on to the next episode; a chosen track is the server's to match there. Forced ones
+     * (foreign dialogue) left on count as off.
+     */
+    private fun nextSubtitlesOff(current: PlaybackInfo): Boolean {
+        if (!viewerChoseSubtitle) return false
+        val key = viewerSubtitleKey ?: return true
+        return current.subtitles.any { it.key == key && it.isForced }
+    }
+
+    // The next episode, got ready during the credits.
+
+    private class Prepared(val info: PlaybackInfo, val subtitlesOff: Boolean)
+
+    private var prepared: Prepared? = null
+    private var preparing: Job? = null
+
+    /**
+     * Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy
+     * server says no, and then it starts the usual way.
+     */
+    private fun prepareNext() {
+        val current = info ?: return
+        val next = current.next ?: return
+        if (nextCancelled || prepared?.info?.item?.id == next.id || preparing != null) return
+        val subtitlesOff = nextSubtitlesOff(current)
+        preparing = scope.launch {
+            try {
+                val profile = serverProfile ?: return@launch
+                val ready = runCatching {
+                    client.startPlayback(PlaybackRequest(itemId = next.id, profile = profile, subtitleKey = if (subtitlesOff) "off" else null, prepare = true))
+                }.getOrNull() ?: return@launch
+                // Still wanted? (Not if this episode was closed, or moved on from, meanwhile.)
+                if (info?.sessionId != current.sessionId || nextCancelled) {
+                    runCatching { client.stopPlayback(ready.sessionId) }
+                    return@launch
+                }
+                Log.i("Flexarr", "Next episode ready: ${ready.item.title}")
+                prepared = Prepared(ready, subtitlesOff)
+            } finally {
+                preparing = null
+            }
+        }
+    }
+
+    /** Lets the prepared session go (best effort): it wasn't wanted, or playback ended. */
+    private fun dropPrepared() {
+        preparing?.cancel()
+        preparing = null
+        val ready = prepared ?: return
+        prepared = null
+        scope.launch { runCatching { client.stopPlayback(ready.info.sessionId) } }
     }
 
     fun playPrevious() {
         val previous = info?.previous ?: return
         report(paused = true)
+        dropPrepared()
         start(previous.id, fromBeginning = false)
     }
 
@@ -387,6 +499,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     /** Not now: stop counting, and if the credits were skipped, let them play. */
     fun cancelNext() {
         nextCancelled = true
+        dropPrepared()
         val ended = player.playbackState == Player.STATE_ENDED
         isFinishing = false
         countdown = null
@@ -408,6 +521,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     private fun beginFinishing() {
         if (info?.next == null || isFinishing) return
         isFinishing = true
+        prepareNext()
         countdownJob?.cancel()
         if (preferences.autoPlayNext) {
             countdown = COUNTDOWN_SECONDS
@@ -551,6 +665,105 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         scope.launch { runCatching { client.setPlaybackPreferences(saved) } }
     }
 
+    // Finding and re-syncing subtitles
+
+    /** The menu offers Search for subtitles: a server with Bazarr, for a title it manages. */
+    val canSearchSubtitles: Boolean get() = info?.canSearchSubtitles == true && info?.fileId != null
+
+    /** The subtitle file beside the video that's showing, which Re-sync to audio lines up; null for one inside it. */
+    val resyncableSubtitle: String?
+        get() = subtitleKey?.takeIf { key -> info?.subtitles?.any { it.key == key && it.isExternal == true } == true }
+
+    private var wasPlayingBeforeSearch = false
+    private var resync: Job? = null
+
+    /** The search over the picture, paused meanwhile. */
+    fun searchSubtitles() {
+        val current = info ?: return
+        if (subtitleSearchFile != null || !canSearchSubtitles) return
+        wasPlayingBeforeSearch = player.isPlaying
+        player.pause()
+        subtitleSearchFile = current.fileId
+    }
+
+    /** Subtitles chosen there are saved beside the file, and the title opens again where it was with them on. */
+    fun subtitlesDownloaded(saved: DownloadedSubtitles) {
+        subtitleSearchFile = null
+        Log.i("Flexarr", "Subtitles downloaded: ${saved.label} (${saved.key})")
+        viewerChoseSubtitle = true
+        viewerSubtitleKey = saved.key
+        reopen()
+    }
+
+    /** Closed with Done: playing carries on if it was. */
+    fun closeSubtitleSearch() {
+        subtitleSearchFile = null
+        if (wasPlayingBeforeSearch) player.play()
+    }
+
+    /**
+     * Asks the server to line the subtitle file [key] up with the audio, then follows it: when it's done the title
+     * opens again where it is (the file has changed), when it fails the viewer is told why. Playing carries on.
+     */
+    fun resyncSubtitles(key: String) {
+        val current = info ?: return
+        val itemId = current.item.id
+        val fileId = current.fileId ?: return
+        if (isResyncing) return
+        isResyncing = true
+        resync = scope.launch {
+            try {
+                try {
+                    client.startSubtitleSync(itemId, fileId, key)
+                } catch (e: FlexarrException.Http) {
+                    // One is already running for this file: follow that.
+                    if (e.status != 409) throw e
+                }
+                showFlash("Re-syncing subtitles…")
+                var misses = 0
+                // A film's re-sync takes a minute or more; given up on after half an hour.
+                repeat(600) {
+                    delay(3_000)
+                    val status = try {
+                        client.subtitleSync(itemId, fileId).also { misses = 0 }
+                    } catch (e: FlexarrException) {
+                        if (++misses >= 5) throw e
+                        return@repeat
+                    }
+                    when (status.state) {
+                        SubtitleSyncState.Running, SubtitleSyncState.Unknown -> return@repeat
+                        SubtitleSyncState.Done -> return@launch resyncDone(itemId, fileId, status.key ?: key)
+                        SubtitleSyncState.Failed -> return@launch resyncFailed(status.error ?: "The subtitles couldn’t be re-synced.")
+                        SubtitleSyncState.Idle -> return@launch resyncFailed("The re-sync stopped before it finished.")
+                    }
+                }
+                resyncFailed("The re-sync is taking too long. Try again later.")
+            } catch (e: FlexarrException) {
+                resyncFailed(e.message ?: "The subtitles couldn’t be re-synced.")
+            }
+        }
+    }
+
+    /** The re-sync finished: still watching that file, it opens again where it is with the re-synced subtitles on. */
+    private fun resyncDone(itemId: String, fileId: String, key: String) {
+        isResyncing = false
+        val current = info ?: return
+        if (current.item.id != itemId || current.fileId != fileId) return
+        showFlash("Subtitles re-synced")
+        viewerChoseSubtitle = true
+        viewerSubtitleKey = key
+        reopen()
+    }
+
+    private fun resyncFailed(message: String) {
+        isResyncing = false
+        showFlash(message)
+    }
+
+    private fun showFlash(text: String) {
+        flash = text to ((flash?.second ?: 0) + 1)
+    }
+
     // Speed
 
     /** A speed chosen in the menu. During an episode it's kept for its show (for this profile); a film's is for now. */
@@ -668,6 +881,9 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
         ticker?.cancel()
+        resync?.cancel()
+        previews?.close()
+        dropPrepared()
         countdownJob?.cancel()
         sleep.set(null)
         val session = info?.sessionId

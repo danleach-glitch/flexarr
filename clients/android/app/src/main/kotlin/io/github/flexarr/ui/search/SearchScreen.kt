@@ -23,6 +23,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -58,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.SearchResults
+import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
@@ -201,13 +208,14 @@ fun SearchField(
     onSearch: () -> Unit,
 ) {
     Row(
-        modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(10.dp)).background(Flexarr.seat).padding(horizontal = 10.dp),
+        // At least the usual height, taller when the text is set larger.
+        modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(10.dp)).background(Flexarr.seat).padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Search, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) Text(placeholder, fontSize = 17.sp, color = Flexarr.usher, maxLines = 1)
+            if (query.isEmpty()) Text(placeholder, fontSize = 17.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
                 query,
                 onValueChange = onChange,
@@ -216,7 +224,8 @@ fun SearchField(
                 cursorBrush = SolidColor(Flexarr.screen),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                modifier = Modifier.fillMaxWidth(),
+                // TalkBack reads the placeholder as the field's name.
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = placeholder },
             )
         }
         if (query.isNotEmpty()) {
@@ -224,7 +233,7 @@ fun SearchField(
                 Icons.Filled.Cancel,
                 contentDescription = "Clear",
                 tint = Flexarr.usher,
-                modifier = Modifier.size(20.dp).pointerInput(Unit) { detectTapGestures { onChange("") } },
+                modifier = Modifier.size(20.dp).clickable(role = Role.Button, onClickLabel = "Clear") { onChange("") },
             )
         }
     }
@@ -241,7 +250,7 @@ fun PersonScreen(model: AppModel, id: String, name: String) {
         Column(Modifier.fillMaxSize()) {
             PageTitle("", onBack = navigator::back)
             LazyVerticalGrid(
-                GridCells.Adaptive(100.dp),
+                GridCells.Adaptive(GridMinimum),
                 contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),

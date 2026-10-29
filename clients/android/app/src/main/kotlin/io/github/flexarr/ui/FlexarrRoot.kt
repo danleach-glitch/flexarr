@@ -19,7 +19,10 @@ fun FlexarrRoot(model: AppModel) {
         when (val phase = model.phase) {
             AppModel.Phase.SignedOut -> ConnectScreen(model)
             is AppModel.Phase.SignedIn -> {
-                LaunchedEffect(phase.credentials.address, phase.credentials.apiKey) { model.loadProfiles() }
+                LaunchedEffect(phase.credentials.address, phase.credentials.apiKey) {
+                    model.loadProfiles()
+                    model.refreshRemoteAddress()
+                }
                 when {
                     !model.profilesLoaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                     model.needsProfile -> ProfilesScreen(model)

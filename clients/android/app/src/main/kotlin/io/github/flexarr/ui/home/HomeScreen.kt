@@ -58,9 +58,11 @@ import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
+import io.github.flexarr.ui.livetv.HomeChannelCard
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
+import io.github.flexarr.ui.components.isWide
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
@@ -68,7 +70,10 @@ import io.github.flexarr.ui.components.LocalInContinueWatching
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PosterCard
+import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.music.PlaylistCard
+import io.github.flexarr.ui.music.TrackCard
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.TitleArt
@@ -121,8 +126,8 @@ fun HomeScreen(model: AppModel) {
                         item(key = "top") { Box(Modifier.statusBarsPadding()) }
                     }
                     // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    items(home.rows.filter { it.items.isNotEmpty() && it.style != HomeRowStyle.Tracks }, key = { it.id }) { row ->
-                        HomeRowView(row)
+                    items(home.rows.filter { it.items.isNotEmpty() || !it.playlists.isNullOrEmpty() || !it.channels.isNullOrEmpty() }, key = { it.id }) { row ->
+                        if (row.style == HomeRowStyle.Live) LiveRowView(row) else HomeRowView(model, row)
                     }
                 }
             }
@@ -154,7 +159,7 @@ private fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
         delay(10_000)
         pager.animateScrollToPage((pager.currentPage + 1) % items.size)
     }
-    Box(Modifier.fillMaxWidth().height(560.dp)) {
+    Box(Modifier.fillMaxWidth().height(if (isWide) 620.dp else 560.dp)) {
         HorizontalPager(pager, Modifier.fillMaxSize()) { page -> HeroSlide(home, items[page]) }
         if (items.size > 1) {
             Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -209,7 +214,7 @@ private fun Modifier.fadeOut() = graphicsLayer(compositingStrategy = Compositing
 }
 
 @Composable
-private fun HomeRowView(row: HomeRow) {
+private fun HomeRowView(model: AppModel, row: HomeRow) {
     val navigator = LocalNavigator.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeading(row.title, onSeeAll = navigator.libraryLink(row.link))
@@ -222,9 +227,27 @@ private fun HomeRowView(row: HomeRow) {
                 when (row.style) {
                     HomeRowStyle.Wide -> items(row.items, key = { it.id }) { WideCard(it) }
                     HomeRowStyle.Top10 -> itemsIndexed(row.items, key = { _, item -> item.id }) { index, item -> Top10Card(index + 1, item) }
+                    // A row of tracks plays: the one tapped first, the rest of the row after it.
+                    HomeRowStyle.Tracks -> itemsIndexed(row.items, key = { _, item -> item.id }) { index, item ->
+                        TrackCard(model, item, PosterWidth) { model.music.play(row.items, start = index) }
+                    }
+                    HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, PosterWidth) }
                     else -> items(row.items, key = { it.id }) { PosterCard(it) }
                 }
             }
+        }
+    }
+}
+
+/** Favourite channels: each one's logo with how far through what's on, and what's on beneath; the heading opens Live TV. */
+@Composable
+private fun LiveRowView(row: HomeRow) {
+    val navigator = LocalNavigator.current
+    val channels = row.channels.orEmpty()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeading(row.title, onSeeAll = navigator::openLiveTv)
+        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+            items(channels, key = { it.id }) { HomeChannelCard(it, channels) }
         }
     }
 }

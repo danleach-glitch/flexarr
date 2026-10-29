@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Cast
+import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shuffle
@@ -72,17 +74,26 @@ import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.progress
+import io.github.flexarr.ui.components.isWide
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.LabeledAction
+import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.subtitles.SubtitleSearchSheet
+import io.github.flexarr.ui.playon.PlayOnSheet
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.ui.components.PersonCard
 import io.github.flexarr.ui.components.PillButton
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.ProgressBar
+import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
@@ -113,6 +124,8 @@ fun DetailScreen(model: AppModel, id: String) {
     val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
     var attempt by remember { mutableStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
+    var loadedAt by remember(id) { mutableStateOf<Long?>(null) }
+    RefreshWhenStale(loadedAt) { attempt++ }
 
     LaunchedEffect(id, model.watchStateVersion, attempt) {
         try {
@@ -126,6 +139,7 @@ fun DetailScreen(model: AppModel, id: String) {
             }
             detail = loaded
             error = null
+            loadedAt = System.currentTimeMillis()
             val item = loaded.item
             when (item.kind) {
                 MediaKind.Series -> {
@@ -162,9 +176,10 @@ fun DetailScreen(model: AppModel, id: String) {
                     attempt++
                 },
             ) {
+                val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId]) }
-                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient)
+                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns)
                 }
             }
             error != null -> StatusView(error, retry = { attempt++ })
@@ -181,7 +196,7 @@ fun DetailScreen(model: AppModel, id: String) {
 private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?) {
     var overviewExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(Modifier.fillMaxWidth().height(420.dp)) {
+        Box(Modifier.fillMaxWidth().height(if (isWide) 520.dp else 420.dp)) {
             RemoteImage(item.artwork.backdrop ?: series?.artwork?.backdrop, 1000, Modifier.fillMaxSize().fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Flexarr.room))
             }
@@ -203,7 +218,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 }
             }
         }
-        Actions(item, series, nextUp, season, ambient)
+        Actions(item, series, nextUp, season, ambient, detail)
         detail.overview?.takeIf { it.isNotEmpty() }?.let { overview ->
             Text(
                 overview,
@@ -220,8 +235,12 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
 
 /** Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named. */
 @Composable
-private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color) {
+private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail) {
     val navigator = LocalNavigator.current
+    // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
+    var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
+    var savedSubtitles by remember { mutableStateOf<String?>(null) }
+    var choosingScreen by remember(item.id) { mutableStateOf(false) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -257,7 +276,36 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             if (item.kind == MediaKind.Episode && series != null) {
                 LabeledAction("Show", Icons.Filled.VideoLibrary, { navigator.openItem(series.id) }, slot)
             }
+            // Another screen: a film or episode as it is, a show the episode that screen's profile is up to.
+            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series) {
+                LabeledAction("Play on", Icons.Filled.Cast, { choosingScreen = true }, slot)
+            }
+            val file = detail.files.firstOrNull()
+            if (detail.canSearchSubtitles == true && file != null) {
+                LabeledAction("Subtitles", Icons.Filled.ClosedCaption, { searchingSubtitlesFor = file.id }, slot.semantics { contentDescription = "Search for subtitles" })
+            }
         }
+    }
+    if (choosingScreen) PlayOnSheet(LocalClient.current, item, onClose = { choosingScreen = false })
+    searchingSubtitlesFor?.let { fileId ->
+        SubtitleSearchSheet(
+            LocalClient.current,
+            item.id,
+            fileId,
+            onDownloaded = { saved ->
+                searchingSubtitlesFor = null
+                savedSubtitles = "${saved.label} subtitles saved"
+            },
+            onClose = { searchingSubtitlesFor = null },
+        )
+    }
+    savedSubtitles?.let { message ->
+        AlertDialog(
+            onDismissRequest = { savedSubtitles = null },
+            confirmButton = { TextButton(onClick = { savedSubtitles = null }) { Text("OK") } },
+            text = { Text(message) },
+            containerColor = Flexarr.seat,
+        )
     }
 }
 
@@ -276,20 +324,24 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     onSeason: (String) -> Unit,
     similar: List<ItemSummary>,
     ambient: Color,
+    /** Episodes side by side on a tablet. */
+    columns: Int,
 ) {
     if (item.kind == MediaKind.Series && detail.children.isNotEmpty()) {
         item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient) }
         if (season == null) {
             item(key = "season-loading") { Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen) } }
         } else {
-            items(season.children, key = { "episode-${it.id}" }) { episode ->
-                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = false, playsOnTap = true)
+            items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->
+                EpisodeColumns(row, columns) { episode -> EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = false, playsOnTap = true) }
             }
         }
     } else if (item.kind == MediaKind.Episode && season != null && season.children.size > 1) {
         item(key = "season-heading") { SectionHeading(season.item.title) }
-        items(season.children, key = { "episode-${it.id}" }) { episode ->
-            EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.id == item.id, playsOnTap = episode.id == item.id)
+        items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->
+            EpisodeColumns(row, columns) { episode ->
+                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.id == item.id, playsOnTap = episode.id == item.id)
+            }
         }
     } else if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && detail.children.isNotEmpty()) {
         // Anything else that holds titles (an album, say, until music has its own screens) lists them.
@@ -349,6 +401,16 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
 }
 
 /** An episode in a season list: still with progress beside the number, title and time, then the overview. */
+/** A row of [columns] episodes, sharing the width (one on a phone). */
+@Composable
+private fun EpisodeColumns(episodes: List<ItemSummary>, columns: Int, content: @Composable (ItemSummary) -> Unit) {
+    if (columns == 1) return content(episodes.single())
+    Row {
+        episodes.forEach { Box(Modifier.weight(1f)) { content(it) } }
+        repeat(columns - episodes.size) { Box(Modifier.weight(1f)) }
+    }
+}
+
 @Composable
 private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boolean, playsOnTap: Boolean) {
     val navigator = LocalNavigator.current

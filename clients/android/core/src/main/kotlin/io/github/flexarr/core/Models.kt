@@ -45,6 +45,9 @@ enum class MediaKind(override val raw: String) : ForwardCompatibleEnum {
     /** Something that plays: a film, an episode or a track (the rest open to their contents). */
     val isPlayable: Boolean get() = this == Movie || this == Episode || this == Track || this == PodcastEpisode
 
+    /** An artist, album or track: listened to, not watched, so the music screens and player take it. */
+    val isMusic: Boolean get() = this == Artist || this == Album || this == Track
+
     object Serializer : ForwardCompatibleEnumSerializer<MediaKind>("MediaKind", entries, Unknown)
 }
 
@@ -164,6 +167,13 @@ data class ItemSummary(
     val seriesId: String? = null,
     /** In a home video library, everything is known by name rather than number. Absent from servers before home videos. */
     val homeVideo: Boolean? = null,
+    /** When it came into the library (ISO 8601, no zone). */
+    val addedAt: String? = null,
+    /** A track's disc and its place on it. */
+    val discNumber: Int? = null,
+    val trackNumber: Int? = null,
+    /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
+    val trackArtist: String? = null,
 )
 
 @Serializable(with = VideoRange.Serializer::class)
@@ -225,6 +235,11 @@ data class ItemDetail(
     val files: List<MediaFile> = emptyList(),
     /** Overviews of `children`, keyed by child id (seasons carry their episodes' overviews here). */
     val childOverviews: Map<String, String?> = emptyMap(),
+    /**
+     * Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
+     * file), for `files.first()`, the copy playback picks. Absent from servers before 0.53.
+     */
+    val canSearchSubtitles: Boolean? = null,
 )
 
 // People and search
@@ -256,6 +271,10 @@ data class HomeRow(
     val style: HomeRowStyle,
     val items: List<ItemSummary>,
     val link: String? = null,
+    /** A `live` row's channels (`items` is empty then). Absent from servers before Live TV. */
+    val channels: List<LiveChannel>? = null,
+    /** A `playlists` row's content (`items` is empty then). Absent from servers before playlists. */
+    val playlists: List<PlaylistSummary>? = null,
 )
 
 @Serializable
@@ -303,6 +322,8 @@ data class PlaybackRequest(
     val subtitleKey: String? = null,
     /** Convert it even though the device says it can play the file (it turned out it couldn't). */
     val forceTranscode: Boolean? = null,
+    /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
+    val prepare: Boolean? = null,
 )
 
 @Serializable
@@ -326,6 +347,8 @@ data class SubtitleTrack(
     /** Text the player draws itself (from [url], WebVTT); picture-based ones have to be burned into the picture. */
     val isText: Boolean,
     val url: String? = null,
+    /** A subtitle file beside the video (rather than one inside it): only these can be re-synced. Absent from servers before 0.53. */
+    val isExternal: Boolean? = null,
 )
 
 @Serializable
@@ -374,6 +397,11 @@ data class PlaybackInfo(
     val audioDelayInStream: Boolean? = null,
     /** The speed this profile watches the show at (null: normal). Absent from servers before 0.53. */
     val speed: Double? = null,
+    /**
+     * The server can find subtitles for this title (through Bazarr), and re-sync the ones beside its file. Absent from
+     * servers before 0.53.
+     */
+    val canSearchSubtitles: Boolean? = null,
 ) {
     /** The server keeps audio offsets and show speeds (0.53 and later). */
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material3.DropdownMenu
@@ -77,7 +78,7 @@ import kotlinx.coroutines.launch
 internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onAudioSync: () -> Unit, modifier: Modifier = Modifier) {
     val info = controller.info ?: return
     val hasAudio = info.audioTracks.size > 1 || controller.audioSync != null
-    val hasSubtitles = info.subtitles.isNotEmpty()
+    val hasSubtitles = info.subtitles.isNotEmpty() || controller.canSearchSubtitles
     Row(modifier.height(44.dp).glass(RoundedCornerShape(22.dp)).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         if (hasAudio) MenuButton(Icons.Filled.GraphicEq, "Audio", onInteract) { close -> AudioMenu(controller, close, onAudioSync) }
         if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, "Subtitles", onInteract) { close -> SubtitlesMenu(controller, close) }
@@ -138,6 +139,17 @@ private fun Choice(label: String, checked: Boolean, enabled: Boolean = true, onC
         onClick = onClick,
         enabled = enabled,
         leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = "Chosen", tint = Flexarr.screen, modifier = Modifier.size(20.dp)) } },
+    )
+}
+
+/** An entry that does something, with its icon. */
+@Composable
+private fun Action(label: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label, color = Flexarr.screen) },
+        onClick = onClick,
+        enabled = enabled,
+        leadingIcon = { Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(20.dp)) },
     )
 }
 
@@ -248,6 +260,21 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
             if (!info.subtitleBurnedIn) Submenu("Timing", PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0)) { openPage("timing") }
             Submenu("Size", controller.subtitleSize.label) { openPage("size") }
             Submenu("Position", controller.subtitlePosition.label) { openPage("position") }
+            if (controller.canSearchSubtitles) {
+                Divider()
+                Action("Search for subtitles…", Icons.Filled.Search) {
+                    close()
+                    controller.searchSubtitles()
+                }
+                val resyncable = controller.resyncableSubtitle
+                when {
+                    controller.isResyncing -> Action("Re-syncing…", Icons.Filled.GraphicEq, enabled = false) {}
+                    resyncable != null -> Action("Re-sync to audio", Icons.Filled.GraphicEq) {
+                        close()
+                        controller.resyncSubtitles(resyncable)
+                    }
+                }
+            }
         }
     }
 }

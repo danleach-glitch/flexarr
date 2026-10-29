@@ -1,6 +1,7 @@
 package io.github.flexarr
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -17,6 +18,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
+        // Upright on a phone; a tablet turns either way, as an iPad does.
+        requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= 600) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
         if (savedInstanceState == null) signInFromLaunch(intent)
         setContent {
             FlexarrTheme {
@@ -28,6 +35,7 @@ class MainActivity : ComponentActivity() {
     /**
      * Debug builds sign in from the command line, like the Apple apps' launch arguments, for previews and testing:
      * `adb shell am start -n com.danleach.flexarr/io.github.flexarr.MainActivity --es server <url> --es apiKey <key> --ez noHistory true`.
+     * `--es remote <url>` gives the address for away from home up front (try an unreachable `server` to be away).
      * `--es profile <id>` chooses who's watching without the picker, and `--es play <itemId>` (with a position in
      * seconds as `--ei at <seconds>`) opens the player on that title, so a test needn't tap its way there. With it,
      * `--es subtitle <key>`, `--es subtitlePosition Top`, `--es subtitleSize Large` and `--ez blackBars true` set the
@@ -39,7 +47,7 @@ class MainActivity : ComponentActivity() {
         if (intent.hasExtra("noHistory")) model.recordsHistory = !intent.getBooleanExtra("noHistory", false)
         val server = intent.getStringExtra("server")
         val key = intent.getStringExtra("apiKey")
-        if (server != null && key != null) model.signInForThisLaunch(server, key)
+        if (server != null && key != null) model.signInForThisLaunch(server, key, remote = intent.getStringExtra("remote"))
         val profile = intent.getStringExtra("profile")
         val play = intent.getStringExtra("play")
         if (profile == null && play == null) return

@@ -9,6 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.core.LiveTvStatus
+import io.github.flexarr.core.liveTvStatus
+import io.github.flexarr.audio.MusicPlayer
 import io.github.flexarr.audio.PodcastPlayer
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferences
@@ -21,6 +24,8 @@ import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.data.ServerCredentials
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -67,8 +72,21 @@ class AppModel(private val context: Context) {
     /** Goes up when the libraries' order changes, so the Libraries tab loads them again. */
     var librariesVersion by mutableIntStateOf(0)
 
+    /** What other devices, the web app and assistants ask this one to play, while the app is in front. */
+    val commands = DeviceCommands(context, this, scope)
+
+    /** Listens for commands while the app is in front (any of its screens, the players included), and signed in. */
+    fun listenForCommands() {
+        val inFront = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        val client = client
+        if (inFront && client != null) commands.start(client) else commands.stop()
+    }
+
     /** Podcast episodes, playing on under every screen. */
     val podcasts = PodcastPlayer(context, this)
+
+    /** Music, playing on under every screen; it and podcasts take turns. */
+    val music = MusicPlayer(context, this)
 
     /** Whether this profile has podcasts (null: not known, or a server from before them). */
     var podcastStatus: PodcastStatus? by mutableStateOf(null)
@@ -76,6 +94,15 @@ class AppModel(private val context: Context) {
 
     /** How this profile listens to podcasts (its speed, above all), once loaded. */
     var podcastPreferences: PodcastPreferences? by mutableStateOf(null)
+
+    /** Whether the server has Live TV, and how many channels (null: not known, or a server from before it). */
+    var liveTvStatus: LiveTvStatus? by mutableStateOf(null)
+        private set
+
+    /** The live channel being started, for its card to show a spinner. */
+    var liveStartingChannel: String? by mutableStateOf(null)
+
+    val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
@@ -106,7 +133,9 @@ class AppModel(private val context: Context) {
     suspend fun connect(address: String, apiKey: String) {
         val url = FlexarrClient.normalizeAddress(address) ?: throw FlexarrException.InvalidAddress()
         var credentials = ServerCredentials(url.toString(), apiKey.trim())
-        credentials.client().systemStatus()
+        // The server's address for away from home comes with its status; it's kept beside this one.
+        val status = credentials.client().systemStatus()
+        credentials = credentials.copy(remoteAddress = remoteAddress(status.remoteUrl, credentials.address))
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -114,10 +143,10 @@ class AppModel(private val context: Context) {
     }
 
     /** Signs in for this launch only, without saving or swapping the key: debug builds started from the command line. */
-    fun signInForThisLaunch(address: String, apiKey: String) {
+    fun signInForThisLaunch(address: String, apiKey: String, remote: String? = null) {
         val url = FlexarrClient.normalizeAddress(address) ?: return
         saved = false
-        signedIn(ServerCredentials(url.toString(), apiKey))
+        signedIn(ServerCredentials(url.toString(), apiKey, remoteAddress = remote?.let { FlexarrClient.normalizeAddress(it)?.toString() }))
     }
 
     private fun signedIn(credentials: ServerCredentials) {
@@ -127,6 +156,30 @@ class AppModel(private val context: Context) {
         phase = Phase.SignedIn(credentials)
     }
 
+    /** Set once this launch has asked the server for its address for away from home. */
+    private var remoteChecked = false
+
+    /**
+     * Keeps the saved address for away from home in step with the server's (remote access turned on or off since, or
+     * a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
+     */
+    suspend fun refreshRemoteAddress() {
+        val credentials = credentials ?: return
+        if (remoteChecked) return
+        remoteChecked = true
+        val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
+        val remote = remoteAddress(status.remoteUrl, credentials.address)
+        // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
+        val now = this.credentials ?: return
+        if (remote == now.remoteAddress || now.address != credentials.address || now.apiKey != credentials.apiKey) return
+        if (saved) store.saveRemoteAddress(remote)
+        phase = Phase.SignedIn(now.copy(remoteAddress = remote))
+    }
+
+    /** The server's remote address as a base URL, or null when it has none or it's the address already in use. */
+    private fun remoteAddress(remoteUrl: String?, address: String): String? =
+        remoteUrl?.let { FlexarrClient.normalizeAddress(it)?.toString() }?.takeIf { it != address }
+
     fun signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
         // for a sign-in from the command line, which may be the server's own API key.
@@ -135,6 +188,8 @@ class AppModel(private val context: Context) {
     }
 
     private fun forget() {
+        commands.stop()
+        music.stop()
         podcasts.stop()
         podcastStatus = null
         upNext = emptyList()
@@ -177,7 +232,8 @@ class AppModel(private val context: Context) {
     /** Back to choosing who's watching. */
     fun switchProfile() {
         val credentials = credentials ?: return
-        // Someone else's podcasts and Up Next.
+        // Someone else's music, podcasts and Up Next.
+        music.stop()
         podcasts.stop()
         upNext = emptyList()
         if (saved) store.saveProfile(null)
@@ -204,6 +260,11 @@ class AppModel(private val context: Context) {
         if (podcastStatus?.available == true) {
             runCatching { client.podcastPreferences() }.onSuccess { podcastPreferences = it }
         }
+    }
+
+    suspend fun loadLiveTvStatus() {
+        val client = client ?: return
+        liveTvStatus = runCatching { client.liveTvStatus() }.getOrNull()
     }
 
     suspend fun loadUpNext() {

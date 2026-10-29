@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Tv
@@ -59,12 +60,14 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.PosterCard
+import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
@@ -92,12 +95,16 @@ fun LibrariesScreen(model: AppModel) {
                             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
                                 shown.forEachIndexed { index, library ->
                                     if (index > 0) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
-                                    LibraryRow(library.name, library.icon) { navigator.openLibrary(library.id) }
+                                    LibraryRow(library.name, library.icon) { navigator.openLibrary(library) }
                                 }
                                 // Podcasts are one place however many libraries hold them, and say how to set them up when none does.
                                 if (model.podcastStatus != null) {
                                     if (shown.isNotEmpty()) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
                                     LibraryRow("Podcasts", Icons.Filled.Mic) { navigator.openPodcasts() }
+                                }
+                                if (model.hasLiveTv) {
+                                    if (shown.isNotEmpty() || model.podcastStatus != null) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
+                                    LibraryRow("Live TV", Icons.Filled.SettingsInputAntenna) { navigator.openLiveTv() }
                                 }
                             }
                         }
@@ -151,6 +158,10 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
     var refreshing by remember { mutableStateOf(false) }
     var error by remember(libraryId, sort, genre) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    var loadedAt by remember(libraryId, sort, genre) { mutableStateOf<Long?>(null) }
+    var staleVersion by remember { mutableIntStateOf(0) }
+    // Back to a list more than a minute old: what's on screen is fetched again, keeping the scroll position.
+    RefreshWhenStale(loadedAt) { staleVersion++ }
 
     LaunchedEffect(libraryId, sort, genre, attempt) {
         loading = true
@@ -160,6 +171,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
             items.addAll(page.items)
             total = page.total
             error = null
+            loadedAt = System.currentTimeMillis()
         } catch (e: Exception) {
             if (items.isEmpty()) error = e.message
         } finally {
@@ -168,12 +180,14 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
     }
 
     // After playback or watched changes, fetch what's on screen again so badges update, keeping the scroll position.
-    LaunchedEffect(model.watchStateVersion) {
+    LaunchedEffect(model.watchStateVersion, staleVersion) {
         if (items.isEmpty()) return@LaunchedEffect
         runCatching { client.libraryItems(libraryId, sort, genre, skip = 0, take = items.size.coerceIn(PAGE_SIZE, 500)) }
             .onSuccess { page ->
                 val fresh = page.items.associateBy { it.id }
                 items.replaceAll { fresh[it.id] ?: it }
+                total = page.total
+                loadedAt = System.currentTimeMillis()
             }
     }
 
@@ -222,7 +236,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort) 
                     },
                 ) {
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(100.dp),
+                        columns = GridCells.Adaptive(GridMinimum),
                         contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
