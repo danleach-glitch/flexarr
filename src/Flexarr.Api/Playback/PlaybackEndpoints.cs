@@ -22,6 +22,12 @@ public static partial class PlaybackEndpoints
     {
         api.MapPost("/playback", async (PlaybackRequest request, PlaybackService playback, ILogger<PlaybackService> logger, CancellationToken ct) =>
         {
+            // JSON leaves it null when the body has none, whatever the record says.
+            if (request.Profile is null)
+            {
+                return Results.Problem("Say what the player can play: the request needs a profile.", statusCode: 400);
+            }
+
             try
             {
                 if (await playback.StartAsync(request, ct) is not { } info)
