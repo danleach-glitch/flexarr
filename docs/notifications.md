@@ -27,7 +27,9 @@ Each phone gets notifications for one profile: whichever profile it's on when no
 Notifications on the phone). A household sharing profiles on one phone gets one set, not one per profile. Switching
 to another profile doesn't change it; the Settings screen offers to switch notifications to the current profile.
 
-Signing the phone out (or revoking it from the web) stops its notifications.
+Signing the phone out (or revoking it from the web) stops its notifications. The phone remembers they were on, though, and turns them back on
+(for whichever profile it's on) when it next signs in, unless they were turned off in its Settings. If iOS allows
+Flexarr notifications but this server isn't sending any, Settings on the phone offers to turn them on.
 
 ## What counts as new
 

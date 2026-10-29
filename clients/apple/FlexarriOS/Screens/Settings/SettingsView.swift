@@ -1,5 +1,6 @@
 import FlexarrKit
 import SwiftUI
+import UserNotifications
 
 /// Settings as a short list of pages, the way the system's own Settings app works: each row
 /// says where it's set now, and the details live a tap away.
@@ -10,6 +11,10 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
     @State private var siriDeviceName: String?
+    /// iOS lets Flexarr show notifications, so if they're off it's this server that isn't sending them.
+    @State private var notificationsAllowed = false
+    @State private var turningOnNotifications = false
+    @State private var notificationProblem: String?
 
     var body: some View {
         List {
@@ -26,6 +31,20 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.seat)
+                }
+            }
+
+            if notificationsAllowed && !notifications.isOn && !notifications.turnedOff {
+                Section {
+                    Button {
+                        Task { await turnOnNotifications() }
+                    } label: {
+                        Label("Turn on notifications", systemImage: "bell.badge.fill")
+                    }
+                    .disabled(turningOnNotifications)
+                    .listRowBackground(Color.seat)
+                } footer: {
+                    Text("This \(ThisDevice.name) isn't getting notifications from this server, so you won't hear when something new is ready.")
                 }
             }
 
@@ -69,6 +88,12 @@ struct SettingsView: View {
         }
         .settingsPage("Settings")
         .onAppear { siriDeviceName = AppModel.siriDevice == nil ? nil : AppModel.siriDeviceName }
+        .task { notificationsAllowed = [.authorized, .provisional].contains(await notifications.authorization()) }
+        .alert("Couldn't turn on notifications", isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(notificationProblem ?? "")
+        }
         .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { model.signOut() }
             Button("Cancel", role: .cancel) {}
@@ -79,6 +104,17 @@ struct SettingsView: View {
             ProfilePickerView(marksCurrent: true)
                 .presentationDetents([.medium, .large])
                 .presentationBackground(Color.room)
+        }
+    }
+
+    private func turnOnNotifications() async {
+        guard let credentials = model.credentials else { return }
+        turningOnNotifications = true
+        defer { turningOnNotifications = false }
+        do {
+            _ = try await notifications.turnOn(credentials)
+        } catch {
+            notificationProblem = ConnectionError(error).message
         }
     }
 

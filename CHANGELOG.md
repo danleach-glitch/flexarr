@@ -22,6 +22,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Lossless surround is on by itself when the Apple TV is connected to a receiver or soundbar that takes it, which keeps 4K films with TrueHD sound from stuttering. Settings › Playback still turns it off.
 - HLG videos that the Apple TV can't draw itself play from the server instead of showing black.
 - The player's controls no longer sometimes stay on screen while a film plays; they fade away a few seconds after you stop using the remote, as they should.
+- On iPhone, notifications come back on by themselves when you sign in to a server again, if you had them on before.
+- If your iPhone allows Flexarr notifications but isn't getting them from this server, Settings says so, with a button to turn them on.
 
 ### HDR10+
 - Films and episodes with HDR10+ say so: **HDR10+** (or **Dolby Vision, HDR10+**) in their details on the web, iPhone and Apple TV, and in the player's stream info. Files already in your libraries are checked on the next scan.
