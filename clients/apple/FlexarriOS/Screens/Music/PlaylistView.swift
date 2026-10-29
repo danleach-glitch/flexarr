@@ -68,6 +68,7 @@ struct PlaylistCard: View {
 /// one marked and downloaded ones ticked.
 struct PlaylistView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(DownloadStore.self) private var downloads
     @Environment(\.horizontalSizeClass) private var sizeClass
     let playlist: PlaylistSummary
@@ -132,11 +133,11 @@ struct PlaylistView: View {
                 FactsLine(facts: [summary.trackCountLabel, Format.runtime(seconds: summary.durationSeconds)].compactMap { $0 })
             }
             HStack(spacing: 12) {
-                Button { model.playTracks(tracks) } label: {
+                Button { model.playTracks(tracks, showingNowPlaying: router) } label: {
                     Label("Play", systemImage: "play.fill")
                 }
                 .buttonStyle(ActionButtonStyle(prominent: true))
-                Button { model.playTracks(tracks, shuffled: true) } label: {
+                Button { model.playTracks(tracks, shuffled: true, showingNowPlaying: router) } label: {
                     Label("Shuffle", systemImage: "shuffle")
                 }
                 .buttonStyle(ActionButtonStyle())

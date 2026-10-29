@@ -4,6 +4,7 @@ import SwiftUI
 /// An artist: their picture and name, Play and Shuffle for everything they have, and their albums newest first.
 struct ArtistView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @State private var page: MusicPageModel
     @Environment(\.scenePhase) private var scenePhase
     /// Only the screen on show refreshes when the app comes back, not every one left open in a tab or below it.
@@ -81,11 +82,11 @@ struct ArtistView: View {
                 }
             }
             HStack(spacing: 12) {
-                Button { Task { await model.playAll(of: page, shuffled: false) } } label: {
+                Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
                     Label("Play", systemImage: "play.fill")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
-                Button { Task { await model.playAll(of: page, shuffled: true) } } label: {
+                Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
                     Label("Shuffle", systemImage: "shuffle")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))

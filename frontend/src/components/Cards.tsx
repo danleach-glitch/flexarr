@@ -165,7 +165,7 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
             aria-label={`Play ${item.title}`}
             onClick={() =>
               getTracks(item.id).then((tracks) => {
-                if (tracks.length > 0) player.play(tracks, 0)
+                if (tracks.length > 0) player.play(tracks, 0, { openNowPlaying: true })
               })
             }
           >

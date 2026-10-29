@@ -67,12 +67,12 @@ struct AlbumView: View {
                 }
                 FactsLine(facts: facts(item))
                 HStack(spacing: 26) {
-                    Button { model.playTracks(tracks, albums: [item]) } label: {
+                    Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
                         Label("Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
                     .takesFocusFromLink()
-                    Button { model.playTracks(tracks, shuffled: true, albums: [item]) } label: {
+                    Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
                         Label("Shuffle", systemImage: "shuffle")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: ambient))

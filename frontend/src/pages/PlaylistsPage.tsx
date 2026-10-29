@@ -239,10 +239,10 @@ export function PlaylistPage() {
             {total > 0 && <span>{formatDuration(total)}</span>}
           </p>
           <div className="detail-actions">
-            <button className="button" onClick={() => player.play(tracks, 0)} disabled={tracks.length === 0}>
+            <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
               <Play /> Play
             </button>
-            <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0)} disabled={tracks.length < 2}>
+            <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
               Shuffle
             </button>
             <IconButton

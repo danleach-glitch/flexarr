@@ -71,6 +71,7 @@ struct PlaylistCard: View {
 /// A playlist: its picture, name and length, Play and Shuffle, and its tracks in order with the playing one marked.
 struct PlaylistView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     let playlist: PlaylistSummary
     @State private var detail: PlaylistDetail?
     @State private var error: String?
@@ -128,11 +129,11 @@ struct PlaylistView: View {
                     .minimumScaleFactor(0.6)
                 FactsLine(facts: [summary.trackCountLabel, Format.runtime(seconds: summary.durationSeconds)].compactMap { $0 })
                 HStack(spacing: 26) {
-                    Button { model.playTracks(tracks) } label: {
+                    Button { model.playTracks(tracks, showingNowPlaying: router) } label: {
                         Label("Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(prominent: true))
-                    Button { model.playTracks(tracks, shuffled: true) } label: {
+                    Button { model.playTracks(tracks, shuffled: true, showingNowPlaying: router) } label: {
                         Label("Shuffle", systemImage: "shuffle")
                     }
                     .buttonStyle(ActionButtonStyle())

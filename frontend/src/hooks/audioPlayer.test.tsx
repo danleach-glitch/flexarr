@@ -157,6 +157,20 @@ describe('AudioPlayerProvider', () => {
     expect(sessionStorage.getItem(queueStorageKey)).toBeNull()
   })
 
+  it('opens Now Playing for Play and Shuffle, not for a track picked from a list', async () => {
+    playbackApi()
+    const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 1))
+    expect(result.current.nowPlayingOpen).toBe(false)
+    act(() => result.current.play([one, two] as unknown as ItemSummary[], 0, { openNowPlaying: true }))
+    expect(result.current.nowPlayingOpen).toBe(true)
+    act(() => result.current.setNowPlayingOpen(false))
+    // Nothing to play: nothing to show.
+    act(() => result.current.play([], 0, { openNowPlaying: true }))
+    expect(result.current.nowPlayingOpen).toBe(false)
+  })
+
   it('brings a stored queue back paused after a reload, and Play picks up where it was', async () => {
     sessionStorage.setItem(queueStorageKey, JSON.stringify({ ids: ['t1', 't2'], albums: ['album-1'], index: 1, position: 42 }))
     const { requests } = playbackApi({ '/items/album-1': album })

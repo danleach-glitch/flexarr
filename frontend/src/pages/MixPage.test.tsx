@@ -46,7 +46,7 @@ describe('MixPage', () => {
     expect(screen.queryByRole('button', { name: /Rename|Delete|Move/ })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Play' }))
-    expect(player.play).toHaveBeenLastCalledWith(tracks, 0)
+    expect(player.play).toHaveBeenLastCalledWith(tracks, 0, { openNowPlaying: true })
     fireEvent.click(screen.getByRole('button', { name: /^3\s*Creep/ }))
     expect(player.play).toHaveBeenLastCalledWith(tracks, 2)
 

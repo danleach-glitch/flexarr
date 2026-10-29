@@ -60,6 +60,8 @@ final class AppModel {
     var pendingRoute: Route?
     /// Words to search for, from Siri ("Search for Fargo in Flexarr"); the Search tab takes them.
     var pendingSearch: String?
+    /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
+    var nowPlayingRequests = 0
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
@@ -457,6 +459,7 @@ final class AppModel {
             // A Play button on an artist or album plays them; their pages are a click on the card.
             if let tracks = try? await client.tracks(of: item.id), !tracks.isEmpty {
                 music.play(tracks, from: 0, shuffled: false, albums: item.kind == .album ? [item] : [], client: client)
+                showNowPlaying(router)
             }
         case .track:
             playTracks([item])
@@ -526,18 +529,31 @@ final class AppModel {
     // MARK: Music
 
     /// Plays `tracks` from the one at `start` (or a fresh shuffle of them). `albums` lends them their album names.
-    func playTracks(_ tracks: [ItemSummary], from start: Int = 0, shuffled: Bool = false, albums: [ItemSummary] = []) {
-        guard let client else { return }
+    /// Play and Shuffle pass their screen's `router` to show Now Playing too; picking a track leaves you where you are.
+    func playTracks(_ tracks: [ItemSummary], from start: Int = 0, shuffled: Bool = false, albums: [ItemSummary] = [],
+                    showingNowPlaying router: Router? = nil) {
+        guard let client, !tracks.isEmpty else { return }
         music.play(tracks, from: start, shuffled: shuffled, albums: albums, client: client)
+        if let router { showNowPlaying(router) }
     }
 
-    /// Everything an artist or album has, in order or shuffled.
-    func playAll(of page: MusicPageModel, shuffled: Bool) async {
+    /// Everything an artist or album has, in order or shuffled, then Now Playing.
+    func playAll(of page: MusicPageModel, shuffled: Bool, router: Router) async {
         guard let client else { return }
         let tracks = await page.allTracks(client: client)
         guard !tracks.isEmpty else { return }
         let albums = page.item?.kind == .album ? [page.item].compactMap { $0 } : page.albums
         music.play(tracks, shuffled: shuffled, albums: albums, client: client)
+        showNowPlaying(router)
+    }
+
+    /// Music just started from Play or Shuffle: the iPhone opens Now Playing over the tab, Apple TV goes to its tab.
+    private func showNowPlaying(_ router: Router) {
+        #if os(tvOS)
+        nowPlayingRequests += 1
+        #else
+        router.showsNowPlaying = true
+        #endif
     }
 
     func setWatched(_ item: ItemSummary, _ watched: Bool) async {

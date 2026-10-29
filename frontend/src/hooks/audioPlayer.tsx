@@ -220,7 +220,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const play = useCallback((tracks: ItemSummary[], start = 0) => dispatch({ type: 'play', tracks, index: start }), [])
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
+  const play = useCallback((tracks: ItemSummary[], start = 0, options?: { openNowPlaying?: boolean }) => {
+    dispatch({ type: 'play', tracks, index: start })
+    if (options?.openNowPlaying && tracks.length > 0) setNowPlayingOpen(true)
+  }, [])
   const enqueue = useCallback((tracks: ItemSummary[]) => dispatch({ type: 'enqueue', tracks }), [])
   const playNext = useCallback((tracks: ItemSummary[]) => dispatch({ type: 'playNext', tracks }), [])
   const removeFromQueue = useCallback((at: number) => dispatch({ type: 'remove', index: at }), [])
@@ -308,6 +312,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       failure,
       onMusicPage: musicPages > 0,
       play,
+      nowPlayingOpen,
+      setNowPlayingOpen,
       enqueue,
       playNext,
       removeFromQueue,
@@ -335,6 +341,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       failure,
       musicPages,
       play,
+      nowPlayingOpen,
       enqueue,
       playNext,
       removeFromQueue,

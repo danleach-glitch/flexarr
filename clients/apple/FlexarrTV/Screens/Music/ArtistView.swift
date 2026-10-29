@@ -85,12 +85,12 @@ struct ArtistView: View {
                         .frame(maxWidth: 1000, alignment: .leading)
                 }
                 HStack(spacing: 26) {
-                    Button { Task { await model.playAll(of: page, shuffled: false) } } label: {
+                    Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
                         Label("Play", systemImage: "play.fill")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
                     .takesFocusFromLink()
-                    Button { Task { await model.playAll(of: page, shuffled: true) } } label: {
+                    Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
                         Label("Shuffle", systemImage: "shuffle")
                     }
                     .buttonStyle(ActionButtonStyle(ambient: ambient))

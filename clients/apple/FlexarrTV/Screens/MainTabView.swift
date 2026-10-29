@@ -23,6 +23,11 @@ struct MainTabView: View {
     @State private var choosingProfile = false
     /// Home's screens, here so Menu on the sidebar can go back through them (see below).
     @State private var homeRouter = Router()
+    /// The other tabs' screens, here rather than in each tab's stack so they outlast the sidebar being built afresh
+    /// when music starts (see `.id` below), and Menu on Now Playing finds the screen the music was started from.
+    @State private var routers = TabRouters()
+    /// Where Play or Shuffle took you to Now Playing from: Menu there goes back to it.
+    @State private var nowPlayingReturn: TabID?
     @State private var librariesLoaded = false
     /// Where a link (the Top Shelf) opens its title: on its library's tab, so Home stays Home.
     @State private var linkTab: TabID?
@@ -59,6 +64,7 @@ struct MainTabView: View {
             if model.music.current != nil {
                 Tab(value: TabID.nowPlaying) {
                     NowPlayingView()
+                        .onExitCommand(perform: nowPlayingReturn.map { tab in { selection = tab } })
                 } label: {
                     Label("Now Playing", systemImage: "waveform")
                 }
@@ -70,7 +76,7 @@ struct MainTabView: View {
                     Tab(value: entry.tab) {
                         switch entry {
                         case .library(let library):
-                            TabStack(opensLinks: linkTab == entry.tab) {
+                            TabStack(router: routers[entry.tab], opensLinks: linkTab == entry.tab) {
                                 if library.type == .music {
                                     MusicLibraryView(library: library, showsTitle: false)
                                 } else {
@@ -78,7 +84,7 @@ struct MainTabView: View {
                                 }
                             }
                         case .liveTv:
-                            TabStack { LiveTvView(showsTitle: false) }
+                            TabStack(router: routers[entry.tab]) { LiveTvView(showsTitle: false) }
                         }
                     } label: {
                         Label(entry.title, systemImage: entry.symbol)
@@ -89,17 +95,17 @@ struct MainTabView: View {
             // outside a section above them.
             TabSection {
                 Tab(value: TabID.discover) {
-                    TabStack { DiscoverView() }
+                    TabStack(router: routers[.discover]) { DiscoverView() }
                 } label: {
                     Label("Discover", systemImage: "sparkles")
                 }
                 Tab(value: TabID.search, role: .search) {
-                    TabStack { SearchView() }
+                    TabStack(router: routers[.search]) { SearchView() }
                 } label: {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 Tab(value: TabID.settings) {
-                    TabStack { SettingsView() }
+                    TabStack(router: routers[.settings]) { SettingsView() }
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -119,8 +125,9 @@ struct MainTabView: View {
         // The remote's play/pause button runs the music from any screen (the video player takes it over while it's up).
         .onPlayPauseCommand { if model.music.current != nil { model.music.togglePlayPause() } }
         .onChange(of: model.music.current == nil) { _, stopped in
-            if stopped, selection == .nowPlaying { selection = .home }
+            if stopped, selection == .nowPlaying { selection = nowPlayingReturn ?? .home }
         }
+        .onChange(of: model.nowPlayingRequests) { _, _ in showNowPlaying() }
         .fullScreenCover(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
         }
@@ -140,6 +147,7 @@ struct MainTabView: View {
                 return
             }
             if tab != .home { startFocus = false }
+            if tab != .nowPlaying { nowPlayingReturn = nil }
             guard let hold = linkHold, tab != hold.tab else { return }
             if Date() < hold.until { selection = hold.tab } else { linkHold = nil }
         }
@@ -149,6 +157,18 @@ struct MainTabView: View {
     }
 
     private var tabLibraries: [Library] { TabBarEntry.libraries(model: model) }
+
+    /// Play or Shuffle started music: on to Now Playing, remembering the tab it came from for Menu. When it's the first
+    /// music, the sidebar is built afresh to add the tab, and focus settling on it can take the selection back to
+    /// Home, so the selection is held on Now Playing for a moment as for a link.
+    private func showNowPlaying() {
+        guard model.music.current != nil, selection != .nowPlaying else { return }
+        let from = selection
+        selection = .nowPlaying
+        nowPlayingReturn = from
+        startFocus = false
+        linkHold = (.nowPlaying, Date().addingTimeInterval(1.5))
+    }
 
     /// Picks the tab a link's title opens on and goes to it; that tab's stack then shows the title.
     private func routeLink() {
@@ -242,13 +262,26 @@ private struct SidebarVersion: ViewModifier {
     }
 }
 
+/// Each tab's screens, made as a tab first asks for them.
+@MainActor
+private final class TabRouters {
+    private var routers: [TabID: Router] = [:]
+
+    subscript(tab: TabID) -> Router {
+        if let router = routers[tab] { return router }
+        let router = Router()
+        routers[tab] = router
+        return router
+    }
+}
+
 /// A navigation stack per tab with the shared destinations.
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     @State private var ownRouter = Router()
-    /// Home's, owned by `MainTabView` and used as it is (not copied into state here), so the stack and Menu's check
-    /// on the sidebar always look at the same screens.
+    /// One owned by `MainTabView` and used as it is (not copied into state here), so the stack and `MainTabView` always
+    /// look at the same screens and they outlast the sidebar being built afresh.
     private let sharedRouter: Router?
     /// This tab is where the pending link opens (see `MainTabView.routeLink`).
     var opensLinks: Bool
