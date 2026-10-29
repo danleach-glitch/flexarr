@@ -28,6 +28,17 @@ class AudioSpectrum : TeeAudioProcessor.AudioBufferSink {
     var bands: Bands? = null
         private set
 
+    /**
+     * Something is drawing the bands (the visualiser is on screen). Otherwise the sound goes by untouched: there's no
+     * working them out thirty times a second for nobody, with the screen off.
+     */
+    @Volatile
+    var isListening = false
+        set(value) {
+            field = value
+            if (!value) bands = null
+        }
+
     private var sampleRate = 44_100
     private var channels = 2
     private var encoding = C.ENCODING_PCM_16BIT
@@ -47,6 +58,7 @@ class AudioSpectrum : TeeAudioProcessor.AudioBufferSink {
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
+        if (!isListening) return
         // Read without moving the player's own buffer along.
         val bytes = buffer.duplicate().order(ByteOrder.nativeOrder())
         val frames = when (encoding) {

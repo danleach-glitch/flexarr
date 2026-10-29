@@ -35,6 +35,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.platform.LocalAccessibilityManager
+import androidx.compose.runtime.DisposableEffect
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Image
@@ -61,9 +68,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
@@ -89,6 +99,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,7 +153,9 @@ class PlayerActivity : ComponentActivity() {
         session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
         model.commands.active = playback
         ContextCompat.registerReceiver(this, pictureInPictureActions, IntentFilter(ACTION_PIP), ContextCompat.RECEIVER_NOT_EXPORTED)
-        startFrom(intent)
+        // Made again (the process ended in the background, or the font size or language changed): what was playing then,
+        // from where it was, rather than whatever first opened the player.
+        startFrom(savedInstanceState?.getBundle(STATE_PLAYING)?.let { Intent(intent).replaceExtras(it) } ?: intent)
         setContent {
             FlexarrTheme {
                 // The corner window keeps the picture's shape, and goes there by itself only while playing.
@@ -169,6 +182,24 @@ class PlayerActivity : ComponentActivity() {
             shuffle = intent.getBooleanExtra(EXTRA_SHUFFLE, false),
             startAt = intent.getDoubleExtra(EXTRA_START_AT, -1.0).takeIf { it >= 0 },
         )
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val controller = controller ?: return
+        // Still on its way: the intent says what it is.
+        if (controller.isOpening) return
+        val info = controller.info ?: return
+        val playing = if (controller.isOffline) {
+            val download = appModel.downloads.entry(info.item.id) ?: return
+            Bundle().apply { putString(EXTRA_DOWNLOAD, download.id) }
+        } else {
+            Bundle().apply {
+                putString(EXTRA_ITEM, info.item.id)
+                putDouble(EXTRA_START_AT, controller.player.currentPosition / 1000.0)
+            }
+        }
+        outState.putBundle(STATE_PLAYING, playing)
     }
 
     /** Something else chosen to play while this one is open (in the corner, say): it takes over this player. */
@@ -219,9 +250,9 @@ class PlayerActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             val controller = controller ?: return
             when (intent.getIntExtra(EXTRA_PIP_CONTROL, 0)) {
-                PIP_BACK -> controller.skip(-10)
+                PIP_BACK -> controller.skip(-controller.skipSeconds)
                 PIP_TOGGLE -> controller.togglePlayPause()
-                PIP_FORWARD -> controller.skip(10)
+                PIP_FORWARD -> controller.skip(controller.skipSeconds)
             }
         }
     }
@@ -276,6 +307,7 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_SHUFFLE = "shuffle"
         private const val EXTRA_START_AT = "startAt"
         private const val EXTRA_DOWNLOAD = "downloadId"
+        private const val STATE_PLAYING = "playing"
         private const val ACTION_PIP = "io.github.flexarr.PIP_CONTROL"
         private const val EXTRA_PIP_CONTROL = "control"
         private const val PIP_BACK = 1
@@ -307,10 +339,10 @@ private class VideoSessionPlayer(private val controller: PlaybackController) : F
 
     override fun isCommandAvailable(command: Int): Boolean = command == Player.COMMAND_SEEK_TO_NEXT || command == Player.COMMAND_SEEK_TO_PREVIOUS || super.isCommandAvailable(command)
 
-    override fun seekToNext() = controller.skip(10)
-    override fun seekToPrevious() = controller.skip(-10)
-    override fun seekForward() = controller.skip(10)
-    override fun seekBack() = controller.skip(-10)
+    override fun seekToNext() = controller.skip(controller.skipSeconds)
+    override fun seekToPrevious() = controller.skip(-controller.skipSeconds)
+    override fun seekForward() = controller.skip(controller.skipSeconds)
+    override fun seekBack() = controller.skip(-controller.skipSeconds)
 }
 
 /**
@@ -326,10 +358,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
     var flashCount by remember { mutableIntStateOf(0) }
     var audioSyncOpen by remember { mutableStateOf(false) }
 
-    // Hidden after a while of playing untouched.
-    LaunchedEffect(controlsVisible, interaction, controller.isPlaying, audioSyncOpen) {
-        if (controlsVisible && controller.isPlaying && !audioSyncOpen) {
-            delay(4_000)
+    // Hidden after a while of playing untouched (never while TalkBack explores the screen by touch).
+    val hideAfter = controlsTimeout()
+    LaunchedEffect(controlsVisible, interaction, controller.isPlaying, audioSyncOpen, hideAfter) {
+        if (controlsVisible && controller.isPlaying && !audioSyncOpen && hideAfter != null) {
+            delay(hideAfter)
             controlsVisible = false
         }
     }
@@ -366,27 +399,28 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
         SubtitleLayer(controller)
         // In the corner window, the picture is all there is.
         if (inPictureInPicture) return@Box
+        // With Audio sync open, a tap puts it away and brings the controls back.
+        val toggleControls = {
+            controlsVisible = audioSyncOpen || !controlsVisible
+            audioSyncOpen = false
+            interaction++
+        }
         Box(
-            Modifier.fillMaxSize().pointerInput(Unit) {
+            Modifier.fillMaxSize().semantics { onClick(label = if (controlsVisible) "Hide controls" else "Show controls") { toggleControls(); true } }.pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = {
-                        // With Audio sync open, a tap puts it away and brings the controls back.
-                        controlsVisible = audioSyncOpen || !controlsVisible
-                        audioSyncOpen = false
-                        interaction++
-                    },
+                    onTap = { toggleControls() },
                     onDoubleTap = { offset ->
                         val x = offset.x / size.width
                         when {
-                            x < 0.35f -> { controller.skip(-10); flash = "−10 s"; flashCount++ }
-                            x > 0.65f -> { controller.skip(10); flash = "+10 s"; flashCount++ }
+                            x < 0.35f -> { controller.skip(-controller.skipSeconds); flash = "−${controller.skipSeconds} s"; flashCount++ }
+                            x > 0.65f -> { controller.skip(controller.skipSeconds); flash = "+${controller.skipSeconds} s"; flashCount++ }
                             else -> controller.togglePlayPause()
                         }
                     },
                 )
             },
         )
-        if (controller.isBuffering && controller.error == null) {
+        if ((controller.isBuffering || controller.isOpening) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
         flash?.let {
@@ -394,8 +428,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
         }
         controller.error?.let { message ->
             Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
-                ActionButton("Close", onClick = onClose, prominent = true)
+                Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    controller.retryLabel?.let { ActionButton(it, onClick = controller::retry, prominent = true) }
+                    ActionButton("Close", onClick = onClose, prominent = controller.retryLabel == null)
+                }
             }
         }
 
@@ -465,12 +502,12 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
             // A film has neither episode button; an episode has both, with the one that goes nowhere dimmed.
             val episode = info?.item?.kind == MediaKind.Episode
             if (episode) GlassButton(Icons.Filled.SkipPrevious, "Previous episode", enabled = info.previous != null) { controller.playPrevious(); onInteract() }
-            GlassButton(Icons.Filled.Replay10, "Back 10 seconds") { controller.skip(-10); onInteract() }
+            SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
             GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }
-            GlassButton(Icons.Filled.Forward10, "Forward 10 seconds") { controller.skip(10); onInteract() }
+            SkipButton(controller.skipSeconds) { controller.skip(controller.skipSeconds); onInteract() }
             if (episode) GlassButton(Icons.Filled.SkipNext, "Next episode", enabled = info.next != null) { controller.playNext(); onInteract() }
         }
 
@@ -507,7 +544,10 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
                 },
                 valueRange = 0f..duration.toFloat(),
                 colors = SliderDefaults.colors(thumbColor = Flexarr.screen, activeTrackColor = Flexarr.screen, inactiveTrackColor = Flexarr.screen.copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().semantics {
+                    contentDescription = "Position"
+                    stateDescription = "${Format.timestamp(shown)} of ${Format.timestamp(controller.duration)}"
+                },
             )
             // While scrubbing, the picture at the head's place, above it, as on iPhone.
             val previews = controller.previews
@@ -532,6 +572,24 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
 
 private val PREVIEW_WIDTH = 176.dp
 
+/**
+ * How long the controls stay up untouched: 4 seconds, or longer when the system's accessibility settings ask for
+ * more time; null (never hidden) while TalkBack explores the screen by touch, where a tap only reads things out.
+ */
+@Composable
+internal fun controlsTimeout(): Long? {
+    val accessibility = LocalContext.current.getSystemService(AccessibilityManager::class.java)
+    var exploring by remember { mutableStateOf(accessibility?.isTouchExplorationEnabled == true) }
+    DisposableEffect(accessibility) {
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { exploring = it }
+        accessibility?.addTouchExplorationStateChangeListener(listener)
+        onDispose { accessibility?.removeTouchExplorationStateChangeListener(listener) }
+    }
+    if (exploring) return null
+    val timeout = LocalAccessibilityManager.current?.calculateRecommendedTimeoutMillis(4_000, containsIcons = true, containsText = true, containsControls = true) ?: 4_000
+    return timeout.takeIf { it < Int.MAX_VALUE }
+}
+
 /** The timeline's times: figures of one width, so they don't jitter as they count. */
 internal val TimeStyle = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
 
@@ -543,6 +601,21 @@ internal fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabl
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size((size * 0.5).dp))
+    }
+}
+
+/** Back or forward by [seconds] (negative is back): Material draws 10 and 30; 15 is the arrow with its number on it. */
+@Composable
+private fun SkipButton(seconds: Int, onClick: () -> Unit) {
+    val back = seconds < 0
+    val label = "${if (back) "Back" else "Forward"} ${kotlin.math.abs(seconds)} seconds"
+    when (kotlin.math.abs(seconds)) {
+        10 -> GlassButton(if (back) Icons.Filled.Replay10 else Icons.Filled.Forward10, label, onClick = onClick)
+        30 -> GlassButton(if (back) Icons.Filled.Replay30 else Icons.Filled.Forward30, label, onClick = onClick)
+        else -> Box(Modifier.size(56.dp).glass(CircleShape).clickableNoRipple(onClick, true).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Replay, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(28.dp).graphicsLayer { if (!back) scaleX = -1f })
+            Text("${kotlin.math.abs(seconds)}", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 2.dp))
+        }
     }
 }
 

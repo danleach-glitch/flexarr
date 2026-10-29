@@ -64,8 +64,9 @@ private val log = FlexarrLog("widget")
 
 /**
  * Continue Watching on the home screen: the titles part-watched, newest first, each with its picture and how far in;
- * tapping one plays it from there. Asked of the server whenever the widget updates (every half hour, and when
- * something's been watched in the app); what it last showed is kept for when the server can't be reached.
+ * tapping one plays it from there. Asked of the server whenever the widget updates (every hour, and when something's
+ * been watched in the app); what it last showed is kept for when the server can't be reached, and a title's picture is
+ * fetched only when it's new to the widget.
  */
 class ContinueWatchingWidget : GlanceAppWidget() {
     /** Laid out for its real size: one across when small, up to three when wide, the pictures as tall as there's room for. */
@@ -93,20 +94,27 @@ class ContinueWatchingWidget : GlanceAppWidget() {
         val credentials = context.appModel.credentials ?: CredentialStore(context).load() ?: return@withContext State.SignedOut
         val folder = File(context.cacheDir, "widget").apply { mkdirs() }
         val saved = File(folder, "continue.json")
+        fun pictureFile(id: String) = File(folder, "$id.jpg")
+        fun keptPicture(id: String): Bitmap? = pictureFile(id).takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }
         val fresh = runCatching {
             val client = credentials.client()
-            val items = client.home().rows.firstOrNull { it.id == "continue" }?.items.orEmpty().take(MAX)
-            items.map { item -> Shown(entry(item), picture(context, client, item)) }
+            val items = client.continueWatching(take = MAX)
+            // A title already showing keeps the picture saved for it: only new ones are fetched.
+            items.map { item -> Shown(entry(item), keptPicture(item.id) ?: picture(context, client, item)) }
         }.onFailure { log.info("Couldn't update Continue Watching on the home screen", it) }.getOrNull()
         if (fresh != null) {
-            // Kept for when the server can't be reached; pictures beside the list, by id.
-            folder.listFiles()?.forEach { it.delete() }
+            // Kept for when the server can't be reached; pictures beside the list, by id (ones no longer shown go).
+            val keep = fresh.map { pictureFile(it.entry.id).name }.toSet() + saved.name
+            folder.listFiles()?.forEach { if (it.name !in keep) it.delete() }
             saved.writeText(FlexarrClient.json.encodeToString(ListSerializer(Entry.serializer()), fresh.map { it.entry }))
-            fresh.forEach { shown -> shown.picture?.let { File(folder, "${shown.entry.id}.png").outputStream().use { out -> it.compress(Bitmap.CompressFormat.PNG, 90, out) } } }
+            fresh.forEach { shown ->
+                val file = pictureFile(shown.entry.id)
+                if (!file.exists()) shown.picture?.let { file.outputStream().use { out -> it.compress(Bitmap.CompressFormat.JPEG, 85, out) } }
+            }
             return@withContext State.Titles(fresh)
         }
         val kept = runCatching { FlexarrClient.json.decodeFromString(ListSerializer(Entry.serializer()), saved.readText()) }.getOrDefault(emptyList())
-        State.Titles(kept.map { Shown(it, BitmapFactory.decodeFile(File(folder, "${it.id}.png").path)) })
+        State.Titles(kept.map { Shown(it, keptPicture(it.id)) })
     }
 
     private fun entry(item: ItemSummary) = Entry(item.id, item.displayTitle, item.episodeSubtitle, item.progress)

@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import io.github.flexarr.ui.components.isWide
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -74,6 +76,8 @@ import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
+import io.github.flexarr.ui.settings.PlaybackSettingsScreen
+import io.github.flexarr.ui.settings.PodcastSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
@@ -89,7 +93,9 @@ private enum class Tab(val route: String, val label: String) {
 /** Home, Libraries, Downloads, Search and Settings along the bottom, each keeping its own place; titles open on top of them. */
 @Composable
 fun MainScreen(model: AppModel) {
-    val client = model.client ?: return
+    // One client for the sign-in, rather than a new one each time the screen recomposes.
+    val credentials = model.credentials ?: return
+    val client = remember(credentials) { model.client } ?: return
     val nav = rememberNavController()
     val context = LocalContext.current
     val navigator = remember(nav, model) { Navigator(nav, model, context) }
@@ -154,6 +160,9 @@ fun MainScreen(model: AppModel) {
         val rail = isWide
         Scaffold(
             containerColor = Flexarr.room,
+            snackbarHost = {
+                SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen) }
+            },
             bottomBar = {
               Column {
                 // Music or a podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
@@ -212,11 +221,15 @@ fun MainScreen(model: AppModel) {
                         model,
                         onServer = { nav.navigate("settings/server") },
                         onLibraryOrder = { nav.navigate("settings/library-order") },
+                        onPlayback = { nav.navigate("settings/playback") },
                         onDownloads = { nav.navigate("settings/downloads") },
+                        onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
                     )
                 }
+                composable("settings/playback") { PlaybackSettingsScreen(model) }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
+                composable("settings/podcasts") { PodcastSettingsScreen(model, onNotifications = { nav.navigate("settings/notifications") }) }
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
                 composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/notifications") { NotificationSettingsScreen(model) }

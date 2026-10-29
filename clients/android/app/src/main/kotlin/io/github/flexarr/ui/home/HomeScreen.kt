@@ -49,6 +49,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.minimumInteractiveComponentSize
+import android.content.Context
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -107,13 +121,14 @@ fun HomeScreen(model: AppModel) {
     var choosingProfile by remember { mutableStateOf(false) }
 
     val featured = (loader.state as? Load.Loaded)?.value?.home?.featured
-    val ambient by animateColorAsState(
+    // Read only when the room is drawn (RoomBackground), so the 800 ms ease doesn't recompose Home.
+    val ambient = animateColorAsState(
         featured?.getOrNull(featuredIndex % featured.size.coerceAtLeast(1))?.let { glowColor(it.accentColor) } ?: Flexarr.room,
         tween(800),
         label = "ambient",
     )
 
-    RoomBackground(ambient = ambient, intensity = 0.28f) {
+    RoomBackground(ambient = { ambient.value }, intensity = 0.28f) {
         Loaded(loader) { content ->
             val home = content.home
             PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry, modifier = Modifier.fillMaxSize()) {
@@ -134,7 +149,13 @@ fun HomeScreen(model: AppModel) {
         }
         if (model.profiles.size > 1) {
             model.currentProfile?.let { current ->
-                Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp).clip(CircleShape).pressable({ choosingProfile = true })) {
+                // 32 to see, 48 to touch.
+                Box(
+                    Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(4.dp).minimumInteractiveComponentSize().clip(CircleShape)
+                        .pressable({ choosingProfile = true }, onClickLabel = "Switch profile")
+                        .semantics { contentDescription = "Profile: ${current.name}" },
+                    contentAlignment = Alignment.Center,
+                ) {
                     ProfileAvatar(model, current, size = 32)
                 }
             }
@@ -152,15 +173,33 @@ fun HomeScreen(model: AppModel) {
 private fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
     val items = home.featured
     val pager = rememberPagerState { items.size }
-    LaunchedEffect(pager.currentPage) {
+    val context = LocalContext.current
+    // A finger on it holds it where it is.
+    var touching by remember { mutableStateOf(false) }
+    val dragging by pager.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(pager.currentPage, touching || dragging) {
         onIndex(pager.currentPage)
-        // Moves on by itself after a while; a swipe restarts the clock.
-        if (items.size < 2) return@LaunchedEffect
+        // Moves on by itself after a while; a swipe restarts the clock. Not while it's held, nor for someone using
+        // TalkBack (it would move out from under them) or who has turned animations off.
+        if (items.size < 2 || touching || dragging || !movesOnItsOwn(context)) return@LaunchedEffect
         delay(10_000)
-        pager.animateScrollToPage((pager.currentPage + 1) % items.size)
+        if (movesOnItsOwn(context)) pager.animateScrollToPage((pager.currentPage + 1) % items.size)
     }
-    Box(Modifier.fillMaxWidth().height(if (isWide) 620.dp else 560.dp)) {
-        HorizontalPager(pager, Modifier.fillMaxSize()) { page -> HeroSlide(home, items[page]) }
+    val height = if (isWide) 620.dp else 560.dp
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = height).pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                touching = true
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                } while (event.changes.any { it.pressed })
+                touching = false
+            }
+        },
+    ) {
+        // Taller than usual only when large text needs it.
+        HorizontalPager(pager, Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) { page -> HeroSlide(home, items[page], height) }
         if (items.size > 1) {
             Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 repeat(items.size) { index ->
@@ -173,20 +212,21 @@ private fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
 
 /** A featured title: backdrop, clear logo, facts, a line of overview, Play and More info. */
 @Composable
-private fun HeroSlide(home: Home, item: ItemSummary) {
+private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
     val navigator = LocalNavigator.current
     val glow = glowColor(item.accentColor)
-    Box(Modifier.fillMaxSize().pressable({ navigator.openItem(item.id) })) {
+    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.openItem(item.id) }, onClickLabel = "Open")) {
         // Fades out rather than painting the room colour, so there's no seam with the rows below.
         RemoteImage(
             item.artwork.backdrop,
             1000,
-            Modifier.fillMaxSize().fadeOut(),
+            Modifier.matchParentSize().fadeOut(),
         ) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.room))))
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.7f))))
-        Column(Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.7f))))
+        // Room above for the backdrop and the status bar when large text makes the slide grow.
+        Column(Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp, top = 160.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52)
             FactsLine(item.facts)
             home.overviews[item.id]?.let {
@@ -205,6 +245,13 @@ private fun HeroSlide(home: Home, item: ItemSummary) {
             }
         }
     }
+}
+
+/** Whether the featured titles may move on by themselves: not under TalkBack, nor with animations turned off. */
+private fun movesOnItsOwn(context: Context): Boolean {
+    val touchExploring = context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
+    val animations = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+    return !touchExploring && animations != 0f
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom half. */

@@ -43,6 +43,7 @@ import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.playOn
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
@@ -62,6 +63,8 @@ fun PlayOnSheet(client: FlexarrClient, item: ItemSummary, onClose: () -> Unit) {
     LaunchedEffect(item.id) {
         try {
             devices = client.devices().filterNot { it.isThisOne }.sortedWith(compareByDescending<Device> { it.online }.thenByDescending { it.lastUsedAt })
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             error = e.message
         }

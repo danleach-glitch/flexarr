@@ -1,7 +1,10 @@
 package io.github.flexarr.audio
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import android.net.Uri
 import android.os.Bundle
+import android.os.Process
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -10,6 +13,7 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommands
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -47,6 +51,7 @@ private val log = FlexarrLog("car")
  * Ids: `upnext`, `new`, `podcasts`, `music` (the tabs); `podcast:<id>`, `list:playlist-<id>`, `list:artist-<id>`
  * (opened); `episode:<id>` and `track:<list>:<index>` (played).
  */
+@OptIn(UnstableApi::class)
 class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     private val scope = CoroutineScope(Dispatchers.Main.immediate)
 
@@ -60,6 +65,23 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         val tracks = if (list.startsWith("playlist-")) client.playlist(id).tracks.map { it.track } else client.tracks(id)
         trackLists[list] = tracks
         return tracks
+    }
+
+    /**
+     * Who may use the session. The service is open to every app (Android Auto must find it), so only this app, Android
+     * Auto, the Assistant and the system (the lock screen, Bluetooth, anything Android trusts with media) may browse
+     * and choose what plays. Any other app gets the transport controls alone: play, pause, skip and seek what's
+     * already playing, never the library or something new to play.
+     */
+    override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+        if (controller.uid == Process.myUid() || controller.isTrusted || controller.packageName in trustedPackages) {
+            return super.onConnect(session, controller)
+        }
+        log.info("Transport controls only for ${controller.packageName}")
+        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            .setAvailableSessionCommands(SessionCommands.EMPTY)
+            .setAvailablePlayerCommands(transportOnly)
+            .build()
     }
 
     override fun onGetLibraryRoot(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?): ListenableFuture<LibraryResult<MediaItem>> =
@@ -185,6 +207,27 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     }
 
     companion object {
+        /** Android Auto, the Assistant (in the car and on the phone) and the system UI's media controls. */
+        private val trustedPackages = setOf(
+            "com.google.android.projection.gearhead",
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.carassistant",
+            "com.android.systemui",
+        )
+
+        private val transportOnly = Player.Commands.Builder().addAll(
+            Player.COMMAND_PLAY_PAUSE,
+            Player.COMMAND_STOP,
+            Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+            Player.COMMAND_SEEK_BACK,
+            Player.COMMAND_SEEK_FORWARD,
+            Player.COMMAND_SEEK_TO_PREVIOUS,
+            Player.COMMAND_SEEK_TO_NEXT,
+            Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
+            Player.COMMAND_GET_METADATA,
+            Player.COMMAND_GET_TIMELINE,
+        ).build()
+
         const val ROOT = "root"
         const val UP_NEXT = "upnext"
         const val NEW = "new"

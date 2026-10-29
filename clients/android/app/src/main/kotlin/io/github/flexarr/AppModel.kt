@@ -17,6 +17,7 @@ import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferences
 import io.github.flexarr.core.PodcastStatus
 import io.github.flexarr.core.Profile
+import io.github.flexarr.core.SystemStatus
 import io.github.flexarr.core.addToUpNext
 import io.github.flexarr.core.podcastPreferences
 import io.github.flexarr.core.podcastStatus
@@ -25,6 +26,7 @@ import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.downloads.DownloadStore
 import io.github.flexarr.logging.ErrorReports
+import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
 import io.github.flexarr.widget.ContinueWatchingWidget
@@ -37,8 +39,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Signed in or not, who's watching, and what every screen needs to reach the server. One for the app. */
-class AppModel(private val context: Context) {
+private val flexarrLog = FlexarrLog("signin")
+
+/**
+ * Signed in or not, who's watching, and what every screen needs to reach the server. One for the app, starting from
+ * the [savedSignIn] (read once at launch, as decrypting it takes a moment).
+ */
+class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     sealed interface Phase {
         data object SignedOut : Phase
         data class SignedIn(val credentials: ServerCredentials) : Phase
@@ -49,7 +56,7 @@ class AppModel(private val context: Context) {
     /** Outlives any screen: signing out on the server and the last progress report finish after the player closes. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private var phaseState: Phase by mutableStateOf(store.load()?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
+    private var phaseState: Phase by mutableStateOf(savedSignIn?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
 
     var phase: Phase
         get() = phaseState
@@ -158,11 +165,24 @@ class AppModel(private val context: Context) {
      * device's own token first, so the key itself isn't kept here.
      */
     suspend fun connect(address: String, apiKey: String) {
-        val url = FlexarrClient.normalizeAddress(address) ?: throw FlexarrException.InvalidAddress()
-        var credentials = ServerCredentials(url.toString(), apiKey.trim())
+        // A host on the internet is tried over https first, then as typed would have been (see addressCandidates).
+        val candidates = FlexarrClient.addressCandidates(address).ifEmpty { throw FlexarrException.InvalidAddress() }
+        var credentials: ServerCredentials? = null
+        var status: SystemStatus? = null
+        for ((index, url) in candidates.withIndex()) {
+            val trying = ServerCredentials(url.toString(), apiKey.trim())
+            try {
+                status = trying.client().systemStatus()
+                credentials = trying
+                break
+            } catch (e: FlexarrException) {
+                // Not there (or not a Flexarr server there): the next way of reaching it, if there's one left.
+                val tryNext = e is FlexarrException.Unreachable || e is FlexarrException.UnexpectedResponse
+                if (!tryNext || index == candidates.lastIndex) throw e
+            }
+        }
         // The server's address for away from home comes with its status; it's kept beside this one.
-        val status = credentials.client().systemStatus()
-        credentials = credentials.copy(remoteAddress = remoteAddress(status.remoteUrl, credentials.address))
+        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!.remoteUrl, credentials.address))
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -196,6 +216,8 @@ class AppModel(private val context: Context) {
         val credentials = credentials ?: return
         if (remoteChecked) return
         remoteChecked = true
+        // Once a launch too: the server says when the morning's "on today" arrives in this phone's time zone.
+        scope.launch { notifications.checkTimeZone() }
         val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
         val remote = remoteAddress(status.remoteUrl, credentials.address)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
@@ -205,9 +227,18 @@ class AppModel(private val context: Context) {
         phase = Phase.SignedIn(now.copy(remoteAddress = remote))
     }
 
-    /** The server's remote address as a base URL, or null when it has none or it's the address already in use. */
-    private fun remoteAddress(remoteUrl: String?, address: String): String? =
-        remoteUrl?.let { FlexarrClient.normalizeAddress(it)?.toString() }?.takeIf { it != address }
+    /**
+     * The server's remote address as a base URL, or null when it has none, it's the address already in use, or it isn't
+     * a Tailscale one (see [FlexarrClient.isAcceptableRemote]): every request there carries this sign-in.
+     */
+    private fun remoteAddress(remoteUrl: String?, address: String): String? {
+        val url = remoteUrl?.let { FlexarrClient.normalizeAddress(it) } ?: return null
+        if (!FlexarrClient.isAcceptableRemote(url)) {
+            flexarrLog.warning("The server's address for away from home isn't a Tailscale one; not using it")
+            return null
+        }
+        return url.toString().takeIf { it != address }
+    }
 
     fun signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way. Not
@@ -245,8 +276,9 @@ class AppModel(private val context: Context) {
             profiles = list
             serverUnreachable = false
         } catch (e: FlexarrException) {
+            // Unreachable for now: the screens say so and try again (opening on Downloads, once the list's been read).
+            if (e is FlexarrException.Unreachable) downloads.ready()
             serverUnreachable = e is FlexarrException.Unreachable
-            // Unreachable for now: the screens say so and try again.
         } finally {
             profilesLoaded = true
         }
@@ -330,7 +362,7 @@ class AppModel(private val context: Context) {
     /**
      * A request was refused (401). If the server still refuses this sign-in when asked directly, it was signed out
      * there (from the web's Sign-ins list, or a new key): forget it and go back to connecting. One refusal alone could
-     * be a server mid-restart.
+     * be a server mid-restart. Downloads stay, and what was watched on them is sent once this server's signed in again.
      */
     private fun checkSignIn(refused: ServerCredentials) {
         scope.launch {
@@ -341,10 +373,14 @@ class AppModel(private val context: Context) {
                 refused.client().me()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
-                    downloads.signedOut(null)
+                    val kept = downloads.signedOutByServer(refused.address)
                     notifications.forget()
                     forget()
-                    signedOutNotice = "This device was signed out."
+                    signedOutNotice = if (kept) {
+                        "This device was signed out. Its downloads are kept, and catch up when it connects to this server again."
+                    } else {
+                        "This device was signed out."
+                    }
                 }
             } catch (_: Exception) {
                 // Unreachable or restarting: no reason to forget the sign-in.
@@ -370,11 +406,15 @@ class AppModel(private val context: Context) {
     /** The server whose error-report setting was last asked for. */
     private var reportsServer: String? = null
 
-    /** The log sends to the server signed in to, and error reports follow that server's setting. */
+    /**
+     * The log sends to the server signed in to, and error reports follow that server's setting. Downloads kept from a
+     * refused sign-in stay for the same server and go for another.
+     */
     private fun signInChanged() {
         val client = client
         LogHub.signedIn(client)
         val address = credentials?.address
+        address?.let(downloads::signingIn)
         if (address == null) {
             reportsServer = null
             ErrorReports.stop()

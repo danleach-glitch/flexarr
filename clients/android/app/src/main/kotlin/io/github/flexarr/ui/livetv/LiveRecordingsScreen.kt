@@ -27,7 +27,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +57,11 @@ import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
-import kotlinx.coroutines.delay
+import android.content.Context
+import android.text.format.DateFormat
+import io.github.flexarr.ui.components.RepeatWhileShowing
+import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -82,16 +85,13 @@ fun LiveRecordingsScreen(model: AppModel) {
         try {
             recordings = client.recordings()
             failed = null
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (recordings == null) failed = e.message
         }
     }
-    LaunchedEffect(model.credentials) {
-        while (true) {
-            load()
-            delay(30_000)
-        }
-    }
+    RepeatWhileShowing(30_000, model.credentials) { load() }
     fun act(action: suspend (FlexarrClient) -> Unit) {
         scope.launch {
             runCatching { action(client) }
@@ -187,7 +187,7 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
                 if (recording.season != null && recording.episode != null) add("S${recording.season} E${recording.episode}")
                 recording.subtitle?.let(::add)
                 add(recording.channelName)
-                add(day.format(recording.start.atZone(ZoneId.systemDefault())))
+                add(dayFormat(context).format(recording.start.atZone(ZoneId.systemDefault())))
                 recording.size?.let { add(Formatter.formatShortFileSize(context, it)) }
             }
             Text(parts.joinToString(" · "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -212,4 +212,8 @@ private fun RowMenu(label: String, onClick: () -> Unit) {
     }
 }
 
-private val day = DateTimeFormatter.ofPattern("EEE d MMM HH:mm")
+/** "Tue 4 Nov 21:00", in the phone's own order and its 12 or 24-hour clock. */
+private fun dayFormat(context: Context): DateTimeFormatter {
+    val skeleton = if (DateFormat.is24HourFormat(context)) "EEEdMMMHHmm" else "EEEdMMMhmma"
+    return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(Locale.getDefault(), skeleton), Locale.getDefault())
+}

@@ -9,6 +9,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Android
 - The Android app only reaches Google's notification service once you turn notifications on, rather than each time it starts. The privacy policy now covers the Android app.
+- Settings has Playback and Podcasts pages, as on iPhone: turn auto-play and skipping intros, recaps and credits on or off, set subtitle defaults, choose how far the player jumps back and forward (10, 15 or 30 seconds), and set podcast auto-download, how many episodes to keep and the speed. Settings also links to the privacy policy.
+- If the server signs your phone out, its downloads stay, and anything you watched offline is sent once you connect to that server again.
+- Back steps back through connecting and entering a PIN rather than closing the app. Player errors say what went wrong in plain words and offer Try again, and a failed download or Mark as watched from a long-press now says so.
+- TalkBack can bring back the player's controls (which no longer hide while it's on), reads the timeline as "12:30 of 1:45:00", and announces headings, buttons and errors throughout. Small buttons are easier to tap, large text no longer cuts off the top of Home and title pages, and the Home carousel holds still while you touch it, under TalkBack, or with animations off.
+- The Live TV guide opens quickly with hundreds of channels, and the app uses less battery in the background.
+- Moving on to the next episode during the credits marks the last one watched, and a "play on this phone" sent for another profile plays on that profile.
+- Away from home, the app only uses a secure (https or Tailscale) remote address, and an address you type for a server on the internet is tried over https first.
 
 ## 0.54.0 · 29 October 2026
 

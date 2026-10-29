@@ -11,7 +11,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -81,6 +88,8 @@ import io.github.flexarr.ui.downloads.DownloadAction
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.ItemMenu
+import io.github.flexarr.ui.components.itemActions
+import io.github.flexarr.ui.components.menuActions
 import io.github.flexarr.ui.components.LabeledAction
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
@@ -143,16 +152,22 @@ fun DetailScreen(model: AppModel, id: String) {
             error = null
             loadedAt = System.currentTimeMillis()
             val item = loaded.item
-            when (item.kind) {
-                MediaKind.Series -> {
-                    nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
-                    if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
+            coroutineScope {
+                // More like this comes alongside the episodes, rather than after them.
+                val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
+                when (item.kind) {
+                    MediaKind.Series -> {
+                        nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
+                        if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
+                    }
+                    MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
+                    else -> Unit
                 }
-                MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
-                else -> Unit
+                selectedSeasonId?.let { season -> runCatching { client.item(season) }.onSuccess { seasons[season] = it } }
+                alike?.await()?.let { similar = it }
             }
-            selectedSeasonId?.let { season -> runCatching { client.item(season) }.onSuccess { seasons[season] = it } }
-            if (similar.isEmpty() && item.kind != MediaKind.Episode) similar = runCatching { client.similar(item.id) }.getOrDefault(emptyList())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (detail == null) error = e.message
         } finally {
@@ -198,16 +213,18 @@ fun DetailScreen(model: AppModel, id: String) {
 private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?) {
     var overviewExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(Modifier.fillMaxWidth().height(if (isWide) 520.dp else 420.dp)) {
-            RemoteImage(item.artwork.backdrop ?: series?.artwork?.backdrop, 1000, Modifier.fillMaxSize().fadeOut()) {
+        // Taller than usual only when large text needs it.
+        Box(Modifier.fillMaxWidth().heightIn(min = if (isWide) 520.dp else 420.dp)) {
+            RemoteImage(item.artwork.backdrop ?: series?.artwork?.backdrop, 1000, Modifier.matchParentSize().fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Flexarr.room))
             }
             Box(
-                Modifier.fillMaxSize().fadeOut()
+                Modifier.matchParentSize().fadeOut()
                     .background(Brush.linearGradient(listOf(ambient.copy(alpha = 0.1f), ambient.copy(alpha = 0.35f))))
                     .background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.6f))),
             )
-            Column(Modifier.align(Alignment.BottomStart).padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Clear of Back above it, however tall large text makes it.
+            Column(Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (item.kind == MediaKind.Episode && series != null) {
                     TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40)
                     Text(item.episodeSubtitle ?: item.title, style = marquee(28).copy(fontWeight = FontWeight.Bold))
@@ -255,8 +272,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val slot = Modifier.weight(1f)
+        // Sharing the width, until large text would shrink the names to fit: then each its own size, scrolling sideways.
+        val crowded = LocalDensity.current.fontScale > 1.3f
+        Row(if (crowded) Modifier.horizontalScroll(rememberScrollState()) else Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val slot = if (crowded) Modifier.widthIn(min = 72.dp) else Modifier.weight(1f)
             if (playable != null && playable.isResumable) {
                 LabeledAction("Start over", Icons.Filled.Replay, { navigator.play(playable, fromBeginning = true) }, slot)
             }
@@ -421,12 +440,13 @@ private fun EpisodeColumns(episodes: List<ItemSummary>, columns: Int, content: @
 private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boolean, playsOnTap: Boolean) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
+    val actions = itemActions(episode, showsDetails = true)
     Box(Modifier.padding(horizontal = Edge)) {
         Column(
             Modifier.fillMaxWidth().pressable(
                 onClick = { if (playsOnTap) navigator.play(episode) else navigator.openItem(episode.id) },
                 onLongClick = { menu = true },
-            ),
+            ).menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -451,7 +471,7 @@ private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boole
             }
             overview?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis) }
         }
-        ItemMenu(episode, menu, onDismiss = { menu = false }, showsDetails = true)
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 

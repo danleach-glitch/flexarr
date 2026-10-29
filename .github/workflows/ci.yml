@@ -177,7 +177,7 @@ jobs:
             -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
 
-  # The Android app (clients/android, in development): the core's tests, and the app built.
+  # The Android app (clients/android, in development): the core's tests, the app built (debug and release), and lint.
   android:
     name: Android
     needs: changes
@@ -194,6 +194,9 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - run: ./gradlew :core:test :app:assembleDebug
+      # The release build as Google Play gets it, minified but unsigned (the upload key isn't here) and with no Sentry
+      # upload (no token), and lint on it: errors not in app/lint-baseline.xml fail.
+      - run: ./gradlew :app:assembleRelease :app:lintRelease
 
   # The one check main's ruleset requires: the jobs above are skipped when a commit doesn't touch their part, and a
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.

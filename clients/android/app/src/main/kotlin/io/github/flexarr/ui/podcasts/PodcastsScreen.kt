@@ -255,7 +255,7 @@ fun PodcastBrowseScreen(model: AppModel) {
         AlertDialog(
             onDismissRequest = { error = null },
             confirmButton = { TextButton(onClick = { error = null }) { Text("OK") } },
-            title = { Text("Couldn't add this") },
+            title = { Text("Couldn’t add this") },
             text = { Text(message) },
             containerColor = Flexarr.seat,
         )

@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -43,7 +42,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,7 +89,8 @@ import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
-import kotlinx.coroutines.delay
+import io.github.flexarr.ui.components.RepeatWhileShowing
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -130,17 +129,14 @@ fun LiveTvScreen(model: AppModel) {
         try {
             channels = client.liveChannels()
             error = null
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (channels == null) error = e.message
         }
     }
     // What's on moves on: fetched again each minute while the screen is up.
-    LaunchedEffect(model.credentials) {
-        while (true) {
-            load()
-            delay(60_000)
-        }
-    }
+    RepeatWhileShowing(60_000, model.credentials) { load() }
 
     val all = channels.orEmpty()
     val favourites = all.filter { it.isFavourite }
@@ -371,12 +367,9 @@ private fun LiveGuideView(
     suspend fun load() {
         runCatching { client.liveGuide(Instant.now().minusSeconds(3600), GUIDE_HOURS + 2) }.onSuccess { guide = it }
     }
-    LaunchedEffect(Unit) {
-        while (true) {
-            load()
-            now = Instant.now()
-            delay(120_000)
-        }
+    RepeatWhileShowing(120_000) {
+        load()
+        now = Instant.now()
     }
     /** Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done. */
     fun act(action: suspend () -> String?) {
@@ -396,78 +389,84 @@ private fun LiveGuideView(
     val width = perMinute * (GUIDE_HOURS * 60)
     val loaded = guide ?: return StatusView()
     val byChannel = loaded.channels.associateBy { it.id }
+    // One sideways position for every row, so the times and all the channels scroll across together.
     val across = rememberScrollState()
 
-    Row(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
-        // The channels stay put while the programmes scroll across.
-        Column(Modifier.width(channelWidth), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Spacer(Modifier.height(30.dp))
-            channels.forEach { channel ->
+    // Only the channels on screen are laid out: a long guide is hundreds of programmes, each with its menu.
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item(key = "times") {
+            // The channels stay put while the programmes scroll across.
+            Row {
+                Spacer(Modifier.width(channelWidth))
+                Box(Modifier.weight(1f).horizontalScroll(across)) {
+                    // The times along the top, every half hour.
+                    Box(Modifier.height(30.dp).width(width + Edge)) {
+                        repeat(GUIDE_HOURS * 2) { slot ->
+                            Text(
+                                LiveTvController.startTime(LiveProgramme(0, windowStart.plusSeconds(slot * 1800L), windowStart, "")),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                style = Tabular,
+                                color = Flexarr.usher,
+                                modifier = Modifier.offset(x = perMinute * (slot * 30) + 6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        items(channels, key = { it.id }) { channel ->
+            Row {
                 Box(
-                    Modifier.height(rowHeight).padding(horizontal = 6.dp).pressable({ navigator.watch(channel, order) })
+                    Modifier.width(channelWidth).height(rowHeight).padding(horizontal = 6.dp).pressable({ navigator.watch(channel, order) })
                         .semantics(mergeDescendants = true) { contentDescription = "${channel.numberText} ${channel.name}" },
                     contentAlignment = Alignment.Center,
                 ) {
                     ChannelLogo(channel, channelWidth - 12.dp, model.liveStartingChannel == channel.id, textSize = 14)
                     if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveGold, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(9.dp))
                 }
-            }
-        }
-        Box(Modifier.weight(1f).horizontalScroll(across)) {
-            Column(Modifier.width(width + Edge), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                // The times along the top, every half hour.
-                Box(Modifier.height(30.dp).width(width)) {
-                    repeat(GUIDE_HOURS * 2) { slot ->
-                        Text(
-                            LiveTvController.startTime(LiveProgramme(0, windowStart.plusSeconds(slot * 1800L), windowStart, "")),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            style = Tabular,
-                            color = Flexarr.usher,
-                            modifier = Modifier.offset(x = perMinute * (slot * 30) + 6.dp),
-                        )
-                    }
-                }
-                channels.forEach { channel ->
+                Box(Modifier.weight(1f).horizontalScroll(across)) {
                     val programmes = byChannel[channel.id]?.programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
-                    Box(Modifier.height(rowHeight).width(width)) {
-                        if (programmes.isEmpty()) Text("No listings", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
-                        // Laid end to end, with a gap wherever the listings have one.
-                        Row(Modifier.fillMaxHeight()) {
-                            var at = windowStart
-                            programmes.forEach { programme ->
-                                val start = maxOf(programme.start, windowStart, at)
-                                val end = minOf(programme.end, windowEnd)
-                                if (start > at) Spacer(Modifier.width(perMinute * ((start.epochSecond - at.epochSecond) / 60f)))
-                                val slot = perMinute * ((end.epochSecond - start.epochSecond).coerceAtLeast(0) / 60f)
-                                at = maxOf(end, start)
-                                val onNow = programme.start <= now && programme.end > now
-                                GuideCell(
-                                    programme,
-                                    onNow = onNow,
-                                    past = programme.end <= now,
-                                    narrow = slot < 59.dp,
-                                    channel = channel,
-                                    modifier = Modifier.width(slot).fillMaxHeight().padding(end = 3.dp),
-                                    onTap = { if (onNow) navigator.watch(channel, order) else details = programme to channel },
-                                    menu = { close ->
-                                        if (onNow) DropdownMenuItem(text = { Text("Watch") }, onClick = { close(); navigator.watch(channel, order) })
-                                        if (programme.end > now) {
-                                            DropdownMenuItem(text = { Text(recordLabel(programme)) }, onClick = { close(); act { toggleRecording(client, programme, channel.id) } })
-                                            DropdownMenuItem(text = { Text(seriesLabel(programme)) }, onClick = { close(); act { toggleSeries(client, programme, channel.id); null } })
-                                        }
-                                        DropdownMenuItem(
-                                            text = { Text(if (channel.isFavourite) "Remove from Favourites" else "Add to Favourites") },
-                                            onClick = { close(); onFavourite(channel) },
-                                        )
-                                    },
-                                )
+                    Box(Modifier.height(rowHeight).width(width + Edge)) {
+                        Box(Modifier.height(rowHeight).width(width)) {
+                            if (programmes.isEmpty()) Text("No listings", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
+                            // Laid end to end, with a gap wherever the listings have one.
+                            Row(Modifier.fillMaxHeight()) {
+                                var at = windowStart
+                                programmes.forEach { programme ->
+                                    val start = maxOf(programme.start, windowStart, at)
+                                    val end = minOf(programme.end, windowEnd)
+                                    if (start > at) Spacer(Modifier.width(perMinute * ((start.epochSecond - at.epochSecond) / 60f)))
+                                    val slot = perMinute * ((end.epochSecond - start.epochSecond).coerceAtLeast(0) / 60f)
+                                    at = maxOf(end, start)
+                                    val onNow = programme.start <= now && programme.end > now
+                                    GuideCell(
+                                        programme,
+                                        onNow = onNow,
+                                        past = programme.end <= now,
+                                        narrow = slot < 59.dp,
+                                        channel = channel,
+                                        modifier = Modifier.width(slot).fillMaxHeight().padding(end = 3.dp),
+                                        onTap = { if (onNow) navigator.watch(channel, order) else details = programme to channel },
+                                        menu = { close ->
+                                            if (onNow) DropdownMenuItem(text = { Text("Watch") }, onClick = { close(); navigator.watch(channel, order) })
+                                            if (programme.end > now) {
+                                                DropdownMenuItem(text = { Text(recordLabel(programme)) }, onClick = { close(); act { toggleRecording(client, programme, channel.id) } })
+                                                DropdownMenuItem(text = { Text(seriesLabel(programme)) }, onClick = { close(); act { toggleSeries(client, programme, channel.id); null } })
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text(if (channel.isFavourite) "Remove from Favourites" else "Add to Favourites") },
+                                                onClick = { close(); onFavourite(channel) },
+                                            )
+                                        },
+                                    )
+                                }
                             }
-                        }
-                        // Now, as a line down the guide.
-                        val offset = perMinute * ((now.epochSecond - windowStart.epochSecond) / 60f)
-                        if (now >= windowStart && now < windowEnd) {
-                            Box(Modifier.offset(x = offset).width(2.dp).fillMaxHeight().background(Flexarr.danger))
+                            // Now, as a line down the guide.
+                            val offset = perMinute * ((now.epochSecond - windowStart.epochSecond) / 60f)
+                            if (now >= windowStart && now < windowEnd) {
+                                Box(Modifier.offset(x = offset).width(2.dp).fillMaxHeight().background(Flexarr.danger))
+                            }
                         }
                     }
                 }

@@ -94,11 +94,14 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     private var starting: Job? = null
     private var heartbeat: Job? = null
     private var ticker: Job? = null
+    /** The player has closed: nothing more starts, and a channel arriving late is let go. */
+    private var released = false
 
     init {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                if (playing) keepTicking()
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -113,15 +116,9 @@ class LiveTvController(context: Context, private val model: AppModel, val client
                     return
                 }
                 flexarrLog.warning("Live channel failed", e)
-                close("This channel couldn’t be played. ${e.errorCodeName.removePrefix("ERROR_CODE_").replace('_', ' ').lowercase()}.")
+                close(PlaybackController.playerErrorMessage(e, subject = "This channel"))
             }
         })
-        ticker = scope.launch {
-            while (isActive) {
-                tick()
-                delay(500)
-            }
-        }
     }
 
     /** Plays [channel]; [among] is the order Previous and Next go through. */
@@ -131,6 +128,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     }
 
     fun start(channel: LiveChannel) {
+        if (released) return
         // Music or a podcast playing stops for the channel.
         model.podcasts.pause()
         model.music.pause()
@@ -164,6 +162,11 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     }
 
     private fun present(started: LiveWatch) {
+        // Closed while it was on its way.
+        if (released) {
+            scope.launch { runCatching { client.stopLiveChannel(started.viewer) } }
+            return
+        }
         flexarrLog.info("Watching ${started.channel.name} (${started.method})")
         watching = started
         lastChannel?.let { if (it.id != started.channel.id) previousChannel = it }
@@ -181,6 +184,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         player.prepare()
         player.play()
         keepAlive(started.viewer)
+        keepTicking()
     }
 
     private fun showTitle(channel: LiveChannel, programme: LiveProgramme?) {
@@ -190,6 +194,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
 
     /** Paused players fetch nothing, so the server is told the viewer is still here. What's on is refreshed with it. */
     private fun keepAlive(viewer: String) {
+        if (released) return
         heartbeat?.cancel()
         heartbeat = scope.launch {
             var beats = 0
@@ -213,6 +218,20 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         }
     }
 
+    /**
+     * Follows the picture's place in the window twice a second while playing; paused, now and then, as live moves on
+     * without it (for Back to live).
+     */
+    private fun keepTicking() {
+        if (ticker?.isActive == true || released) return
+        ticker = scope.launch {
+            while (isActive && watching != null) {
+                tick()
+                delay(if (player.isPlaying) 500 else 2_000)
+            }
+        }
+    }
+
     private fun tick() {
         if (watching == null) return
         val window = player.duration
@@ -229,6 +248,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     fun seekTo(seconds: Double) {
         player.seekTo((seconds * 1000).toLong())
         position = seconds
+        keepTicking()
     }
 
     fun goLive() {
@@ -291,6 +311,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
 
     /** The player closed: the channel is let go. */
     fun release() {
+        released = true
         ticker?.cancel()
         stopWatching()
         model.liveStartingChannel = null

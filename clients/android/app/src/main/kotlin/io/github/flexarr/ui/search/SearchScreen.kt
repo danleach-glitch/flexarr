@@ -62,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.ui.components.GridMinimum
@@ -96,6 +97,8 @@ fun SearchScreen(model: AppModel) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
+    // Back with something typed clears it (as iPhone's Cancel), before it leaves Search.
+    BackHandler(enabled = query.isNotEmpty()) { query = "" }
     // Opening Search is for typing: the field's ready with the keyboard up.
     LaunchedEffect(Unit) { if (query.isEmpty()) focus.requestFocus() }
     LaunchedEffect(query, attempt) {

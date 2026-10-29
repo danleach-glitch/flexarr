@@ -6,6 +6,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
@@ -35,6 +36,8 @@ import io.github.flexarr.core.reportOfflineProgress
 import io.github.flexarr.core.requestDownload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
@@ -56,9 +59,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private val work = WorkManager.getInstance(context)
     private val scope = model.scope
 
-    /** Every download on the phone, whoever's it is. */
-    var all: List<LocalDownload> by mutableStateOf(load())
+    /** Every download on the phone, whoever's it is: empty for the moment it takes to read the saved list at launch. */
+    var all: List<LocalDownload> by mutableStateOf(emptyList())
         private set
+
+    /** How far each transfer under way has got, kept apart from [all] so the lists don't redraw at every step. */
+    private val transferring = mutableStateMapOf<String, Double>()
 
     /** The profile watching: whose downloads show. Remembered, so they show with no connection too. */
     var profileId: String? by mutableStateOf(prefs.getString(PROFILE, null))
@@ -98,10 +104,39 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private var client: FlexarrClient? = null
     private var reconciling = false
 
+    /** The saved list has been read: nothing is saved before, so it can't be overwritten with an empty one. */
+    private var loaded = false
+
+    /** Everything was deleted (signed out) before the saved list had been read: what it held is gone too. */
+    private var clearedBeforeLoad = false
+
+    /** Saves waiting to be written, off the main thread; only the newest matters. */
+    private val saves = Channel<List<LocalDownload>>(Channel.CONFLATED)
+
+    /** Reads the saved list off the main thread, then lets saves through. */
+    private val loading: Job = scope.launch {
+        val saved = withContext(Dispatchers.IO) {
+            folder.mkdirs()
+            load(File(folder, MANIFEST))
+        }
+        if (!clearedBeforeLoad) all = saved
+        loaded = true
+        if (clearedBeforeLoad) save()
+    }
+
     init {
-        folder.mkdirs()
+        // Written one after another, a moment apart, so a burst of changes is one write.
+        scope.launch(Dispatchers.IO) {
+            for (list in saves) {
+                write(list)
+                delay(SAVE_GAP_MS)
+            }
+        }
         watchNetwork()
     }
+
+    /** Returns once the saved list has been read (at once, after the first moment of a launch). */
+    suspend fun ready() = loading.join()
 
     // What shows
 
@@ -126,9 +161,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     val bytesUsed: Long get() = all.filter { it.isDownloaded }.sumOf { it.sizeBytes ?: 0 }
 
-    fun file(download: LocalDownload): File? = download.fileName?.let { File(folder, it) }?.takeIf { it.exists() }
+    fun file(download: LocalDownload): File? = download.fileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
-    fun image(download: LocalDownload): File? = download.imageFileName?.let { File(folder, it) }?.takeIf { it.exists() }
+    fun image(download: LocalDownload): File? = download.imageFileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
+
+    /** How far it's got being got ready or coming down, 0 to 1: up to the moment, for a transfer under way. */
+    fun progress(download: LocalDownload): Double = transferring[download.id] ?: download.progress
 
     fun isWiFiOnly(download: LocalDownload): Boolean = DownloadRules.isWiFiOnly(download, automaticOnWiFiOnly)
 
@@ -168,6 +206,33 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         scope.launch { catchUp() }
     }
 
+    /**
+     * Signed in to [address] (again, or another profile chosen). Downloads kept from a sign-in the server refused stay
+     * if it's the same server, and catch up from where they were; for another server they go, as signing out would.
+     */
+    fun signingIn(address: String) {
+        val keptFor = prefs.getString(KEPT_FOR, null) ?: return
+        prefs.edit { remove(KEPT_FOR) }
+        if (keptFor == address) return
+        flexarrLog.info("Signed in to another server: deleting the downloads kept from the last one")
+        signedOut(null)
+    }
+
+    /**
+     * The server refused this device's sign-in (signed out from the web's Sign-ins list, or a new key). The downloads
+     * stay, with what was watched offline and not yet sent, for when the device signs in to [address] again; transfers
+     * stop until then. True when there was anything to keep.
+     */
+    fun signedOutByServer(address: String): Boolean {
+        work.cancelAllWorkByTag(WORK_TAG)
+        transferring.clear()
+        client = null
+        if (all.isEmpty()) return false
+        prefs.edit { putString(KEPT_FOR, address) }
+        flexarrLog.info("Signed out by the server: keeping ${all.size} downloads for when it's signed in again")
+        return true
+    }
+
     /** The client the transfers use: the store's, or the app's after a restart in the background. */
     internal val currentClient: FlexarrClient? get() = client ?: model.client
 
@@ -195,6 +260,27 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      * deletes what's finished with, fetches next episodes that are due and keeps podcasts' newest episodes.
      */
     suspend fun catchUp() {
+        // One at a time (everything here runs on the main thread): asked again meanwhile, it goes round once more after.
+        if (catchingUp) {
+            catchUpAgain = true
+            return
+        }
+        catchingUp = true
+        try {
+            do {
+                catchUpAgain = false
+                catchUpOnce()
+            } while (catchUpAgain)
+        } finally {
+            catchingUp = false
+        }
+    }
+
+    private var catchingUp = false
+    private var catchUpAgain = false
+
+    private suspend fun catchUpOnce() {
+        ready()
         DownloadRules.finishedWith(all, System.currentTimeMillis()).forEach { remove(it.id, tellServer = true) }
         val client = currentClient ?: return
         if (!isOnline) return
@@ -222,6 +308,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
             }
         }
+        // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
+        // Unknown and would stay so, filed under Films: what the server says now puts it right, as on iPhone.
+        for (download in all.filter { it.profileId == profileId && it.item.kind == MediaKind.Unknown }) {
+            val remote = runCatching { client.offlineDownload(download.id) }.getOrNull() ?: continue
+            if (remote.item.kind != MediaKind.Unknown) update(download.id) { it.copy(item = remote.item) }
+        }
         // A transfer for everything still to come (one that's running already is left alone).
         all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
         downloads.forEach { fetchNext(after = it) }
@@ -239,6 +331,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /** Asks the server to get a title ready at this size, then fetches it when it is. Already here or on its way: nothing to do. */
     suspend fun download(itemId: String, quality: DownloadQuality, automatic: Boolean) {
+        ready()
         val client = currentClient ?: throw FlexarrException.Unauthorized()
         val profileId = profileId ?: model.currentProfile?.id ?: throw FlexarrException.Unauthorized()
         entry(itemId)?.let { existing ->
@@ -305,10 +398,15 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     }
 
     internal fun progressed(id: String, fraction: Double) {
-        update(id, save = false) { it.copy(phase = LocalPhase.Downloading, progress = fraction) }
+        val download = byId(id) ?: return
+        transferring[id] = fraction
+        // The list itself only hears when it starts coming down: screens read the fraction with [progress], and it isn't
+        // saved, as an interrupted transfer works it out again.
+        if (download.phase != LocalPhase.Downloading) update(id) { it.copy(phase = LocalPhase.Downloading, progress = fraction) }
     }
 
     internal fun arrived(id: String, name: String, bytes: Long) {
+        transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Downloaded, fileName = name, sizeBytes = bytes, progress = 1.0, failure = null) }
         flexarrLog.info("Downloaded $id")
         val client = currentClient ?: return
@@ -317,6 +415,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     }
 
     internal fun failed(id: String, message: String) {
+        transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Failed, failure = message) }
     }
 
@@ -329,12 +428,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             else -> art.backdrop ?: art.poster
         }
         val url = client.imageUrl(path, if (download.isPodcastEpisode) 400 else 600) ?: return null
-        val name = "${download.id}.jpg"
+        val name = "${safeName(download.id)}.jpg"
         return withContext(Dispatchers.IO) {
             runCatching {
                 FlexarrClient.sharedHttp.newCall(Request.Builder().url(url).build()).execute().use { response ->
                     if (!response.isSuccessful) return@runCatching null
-                    File(folder, name).outputStream().use { response.body.byteStream().copyTo(it) }
+                    fileIn(folder, name)!!.outputStream().use { response.body.byteStream().copyTo(it) }
                     name
                 }
             }.getOrNull()
@@ -391,9 +490,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private fun remove(id: String, tellServer: Boolean) {
         val download = byId(id) ?: return
         work.cancelUniqueWork(workName(id))
-        download.fileName?.let { File(folder, it).delete() }
-        File(folder, "$id.part").delete()
-        download.imageFileName?.let { File(folder, it).delete() }
+        transferring.remove(id)
+        download.fileName?.let { fileIn(folder, it)?.delete() }
+        fileIn(folder, "${safeName(id)}.part")?.delete()
+        download.imageFileName?.let { fileIn(folder, it)?.delete() }
         all = all.filterNot { it.id == id }
         save()
         if (!tellServer) return
@@ -413,6 +513,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /** Every download goes (Settings' Delete all). What was watched offline is sent first, while it can be. */
     fun deleteAll() {
+        if (!loaded) clearedBeforeLoad = true
         val client = currentClient
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
         all.map { it.id }.forEach { remove(it, tellServer = true) }
@@ -433,12 +534,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
         val ids = all.map { it.id }
         work.cancelAllWorkByTag(WORK_TAG)
+        if (!loaded) clearedBeforeLoad = true
         folder.listFiles()?.forEach { if (it.name != MANIFEST) it.delete() }
         all = emptyList()
+        transferring.clear()
         save()
         profileId = null
         unsentDeletes = emptySet()
-        prefs.edit { remove(PROFILE) }
+        prefs.edit { remove(PROFILE).remove(KEPT_FOR) }
         this.client = null
         return scope.launch {
             if (client == null) return@launch
@@ -456,8 +559,22 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val download = entry(itemId) ?: return
         update(download.id) { it.recorded(position, finished, System.currentTimeMillis()) }
         if (finished) byId(download.id)?.let(::fetchNext)
-        scope.launch { catchUp() }
+        // Playing records every few seconds: sent at once when it's finished, else at most once a minute (what's
+        // recorded meanwhile goes with it, as catching up sends the latest).
+        if (finished) {
+            scope.launch { catchUp() }
+        } else if (recordedCatchUp?.isActive != true) {
+            val wait = (lastRecordedCatchUp + RECORDED_CATCH_UP_MS - System.currentTimeMillis()).coerceAtLeast(0)
+            recordedCatchUp = scope.launch {
+                delay(wait)
+                lastRecordedCatchUp = System.currentTimeMillis()
+                catchUp()
+            }
+        }
     }
+
+    private var recordedCatchUp: Job? = null
+    private var lastRecordedCatchUp = 0L
 
     /** The next episode of a show, if it's downloaded too. */
     fun nextDownloaded(after: LocalDownload): LocalDownload? = after.nextId?.let(::entry)?.takeIf { it.isDownloaded }
@@ -473,32 +590,21 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private fun update(id: String, save: Boolean = true, change: (LocalDownload) -> LocalDownload) {
         if (all.none { it.id == id }) return
         all = all.map { if (it.id == id) change(it) else it }
-        if (save) save() else saveThrottled()
+        if (save) save()
     }
 
-    private var lastSaved = 0L
-
-    private fun saveThrottled() {
-        if (System.currentTimeMillis() - lastSaved > 2_000) save()
-    }
-
+    /** Saves the list as it is now: written off the main thread a moment later, with whatever else changed meanwhile. */
     private fun save() {
-        lastSaved = System.currentTimeMillis()
-        val text = FlexarrClient.json.encodeToString(ListSerializer(LocalDownload.serializer()), all)
+        if (loaded) saves.trySend(all)
+    }
+
+    private fun write(list: List<LocalDownload>) {
         runCatching {
+            val text = FlexarrClient.json.encodeToString(ListSerializer(LocalDownload.serializer()), list)
             val temporary = File(folder, "$MANIFEST.tmp")
             temporary.writeText(text)
             temporary.renameTo(File(folder, MANIFEST))
         }.onFailure { flexarrLog.error("Couldn't save the downloads list", it) }
-    }
-
-    /** The saved list, keeping every entry that reads (one an older app wrote in a way this one can't is dropped). */
-    private fun load(): List<LocalDownload> {
-        val file = File(folder, MANIFEST)
-        if (!file.exists()) return emptyList()
-        val elements = runCatching { FlexarrClient.json.parseToJsonElement(file.readText()) as kotlinx.serialization.json.JsonArray }.getOrNull()
-            ?: return emptyList<LocalDownload>().also { flexarrLog.error("Couldn't read the downloads list") }
-        return elements.mapNotNull { runCatching { FlexarrClient.json.decodeFromJsonElement(LocalDownload.serializer(), it) }.getOrNull() }
     }
 
     private val folder: File get() = folder(context)
@@ -512,10 +618,43 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val WIFI_ONLY = "wifiOnly"
         private const val DECLINED = "declinedEpisodes"
         private const val UNSENT_DELETES = "unsentDeletes"
+        /** The server whose downloads were kept when it refused this device's sign-in. */
+        private const val KEPT_FOR = "keptFor"
         private const val WORK_TAG = "flexarr-download"
+        private const val SAVE_GAP_MS = 250L
+        private const val RECORDED_CATCH_UP_MS = 60_000L
+
+        /**
+         * The saved list, keeping every entry that reads (one an older or newer app wrote in a way this one can't is
+         * dropped). When anything can't be read, the file is first copied aside, so the next save can't overwrite what
+         * was there, as the iPhone app's SavedList.
+         */
+        internal fun load(file: File, unreadable: (count: Int, keptAs: File?) -> Unit = ::reportUnreadable): List<LocalDownload> {
+            if (!file.exists()) return emptyList()
+            val elements = runCatching { FlexarrClient.json.parseToJsonElement(file.readText()) as kotlinx.serialization.json.JsonArray }.getOrNull()
+            val items = elements?.mapNotNull { runCatching { FlexarrClient.json.decodeFromJsonElement(LocalDownload.serializer(), it) }.getOrNull() }.orEmpty()
+            val dropped = elements?.let { it.size - items.size } ?: 1
+            if (dropped > 0) {
+                val stamp = Instant.now().toString().replace(":", "-")
+                val copy = File(file.parentFile, "${file.nameWithoutExtension}.unreadable-$stamp.json")
+                unreadable(dropped, runCatching { file.copyTo(copy) }.getOrNull())
+            }
+            return items
+        }
+
+        private fun reportUnreadable(count: Int, keptAs: File?) {
+            flexarrLog.error("Couldn't read $count saved downloads entries; the file was kept as ${keptAs?.name ?: "nothing"}")
+        }
 
         /** Out of backups: the files are on the server already. */
         fun folder(context: Context): File = File(context.noBackupFilesDir, "downloads")
+
+        /** A part of a file name made from what the server says (an id, an extension): letters, digits, `_` and `-` only. */
+        fun safeName(part: String): String = part.replace(Regex("[^A-Za-z0-9_-]"), "_")
+
+        /** [name] in [folder], or null if it would be anywhere else (a name kept from before can't be trusted blindly). */
+        fun fileIn(folder: File, name: String): File? =
+            File(folder, name).takeIf { it.canonicalFile.parentFile == folder.canonicalFile }
 
         fun workName(id: String) = "download-$id"
     }

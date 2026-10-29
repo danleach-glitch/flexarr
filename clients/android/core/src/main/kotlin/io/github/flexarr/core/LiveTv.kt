@@ -2,6 +2,7 @@ package io.github.flexarr.core
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
@@ -9,18 +10,32 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
+import java.time.DateTimeException
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 // Live TV from the server's Dispatcharr source: channels, the guide, watching, and the DVR. As FlexarrKit's LiveTv.swift.
 
-/** An ISO 8601 time from the server ("2026-10-29T04:00:00Z", with or without fractions or an offset). */
+/**
+ * An ISO 8601 time from the server ("2026-10-29T04:00:00Z", with or without fractions or an offset). One with no zone
+ * at all is UTC, as FlexarrDate reads it on the Apple apps.
+ */
 object InstantSerializer : KSerializer<Instant> {
     override val descriptor = PrimitiveSerialDescriptor("io.github.flexarr.Instant", PrimitiveKind.STRING)
-    override fun deserialize(decoder: Decoder): Instant = parseInstant(decoder.decodeString())
+    override fun deserialize(decoder: Decoder): Instant =
+        try {
+            parseInstant(decoder.decodeString())
+        } catch (e: DateTimeException) {
+            throw SerializationException("Not a time: ${e.message}", e)
+        }
     override fun serialize(encoder: Encoder, value: Instant) = encoder.encodeString(value.toString())
 
-    fun parseInstant(text: String): Instant = runCatching { Instant.parse(text) }.getOrElse { OffsetDateTime.parse(text).toInstant() }
+    fun parseInstant(text: String): Instant =
+        runCatching { Instant.parse(text) }
+            .recoverCatching { OffsetDateTime.parse(text).toInstant() }
+            .getOrElse { LocalDateTime.parse(text).toInstant(ZoneOffset.UTC) }
 }
 
 /** Whether the server has a Live TV source (Dispatcharr), and how many channels it gave. */

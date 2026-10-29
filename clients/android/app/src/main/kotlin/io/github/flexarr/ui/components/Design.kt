@@ -38,9 +38,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -51,6 +54,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,7 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.AsyncImage
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.ui.theme.Flexarr
@@ -85,15 +94,34 @@ val GridMinimum: Dp
     @Composable @ReadOnlyComposable get() = if (isWide) 140.dp else 100.dp
 val RowSpacing = 12.dp
 
-/** A press dims a touch and shrinks a little, rather than rippling: cards and buttons alike, as on iPhone. */
+/**
+ * A press dims a touch and shrinks a little, rather than rippling: cards and buttons alike, as on iPhone. TalkBack
+ * hears a button, saying [onClickLabel] ("double-tap to …") and [onLongClickLabel] when given.
+ */
 @Composable
-fun Modifier.pressable(onClick: () -> Unit, enabled: Boolean = true, onLongClick: (() -> Unit)? = null): Modifier {
+fun Modifier.pressable(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+    role: Role? = Role.Button,
+    onClickLabel: String? = null,
+    onLongClickLabel: String? = null,
+): Modifier {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val gestures = if (onLongClick == null) {
-        clickable(source, indication = null, enabled = enabled, onClick = onClick)
+        clickable(source, indication = null, enabled = enabled, onClickLabel = onClickLabel, role = role, onClick = onClick)
     } else {
-        combinedClickable(source, indication = null, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
+        combinedClickable(
+            source,
+            indication = null,
+            enabled = enabled,
+            onClickLabel = onClickLabel,
+            role = role,
+            onLongClickLabel = onLongClickLabel ?: "Show more",
+            onLongClick = onLongClick,
+            onClick = onClick,
+        )
     }
     return this.scale(if (pressed) 0.98f else 1f).alpha(if (pressed) 0.75f else 1f).then(gestures)
 }
@@ -151,11 +179,13 @@ fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifie
 /** Small selectable pill for seasons. */
 @Composable
 fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: Color = Flexarr.silver) {
+    // 36 high to see, with the touch area around it the usual 48.
     Box(
-        Modifier.height(36.dp).clip(CircleShape)
+        Modifier.minimumInteractiveComponentSize().height(36.dp).clip(CircleShape)
             .then(if (selected) Modifier.background(ambient.copy(alpha = 0.32f)) else Modifier.background(Color.Transparent))
             .then(if (selected) Modifier else Modifier.border(1.5.dp, Flexarr.aisle, CircleShape))
             .pressable(onClick)
+            .semantics { this.selected = selected }
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -167,9 +197,16 @@ fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: C
 @Composable
 fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -> Unit)? = null) {
     Row(modifier.fillMaxWidth().padding(horizontal = Edge), verticalAlignment = Alignment.Bottom) {
-        Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (onSeeAll != null) {
-            Text("See all", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.pressable(onSeeAll).padding(4.dp))
+            Text(
+                "See all",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Flexarr.usher,
+                // The usual 48 to touch, reaching up beside the heading rather than below it.
+                modifier = Modifier.pressable(onSeeAll, onClickLabel = "See all of $title").padding(start = 12.dp, top = 20.dp).padding(4.dp),
+            )
         }
     }
 }
@@ -185,7 +222,7 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
         }
         // Pages whose content carries its own name (a show, a person) have none here.
         if (title.isNotEmpty()) {
-            Text(title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -228,17 +265,20 @@ fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int) {
         )
     }
     val logo = client.imageUrl(item.artwork.logo, 600)
-    if (logo == null) {
+    // Room kept for the logo while it comes, and the title in its place if it doesn't.
+    var loaded by remember(logo) { mutableStateOf(false) }
+    var failed by remember(logo) { mutableStateOf(false) }
+    if (logo == null || failed) {
         title()
     } else {
-        SubcomposeAsyncImage(
+        AsyncImage(
             model = logo,
             contentDescription = item.title,
             contentScale = ContentScale.Fit,
             alignment = Alignment.BottomStart,
-            modifier = Modifier.widthIn(max = maxWidth).heightIn(max = maxHeight),
-            error = { title() },
-            loading = { Box(Modifier.size(maxWidth, maxHeight / 2)) },
+            modifier = Modifier.widthIn(max = maxWidth).heightIn(max = maxHeight).then(if (loaded) Modifier else Modifier.size(maxWidth, maxHeight / 2)),
+            onSuccess = { loaded = true },
+            onError = { failed = true },
         )
     }
 }
@@ -256,7 +296,7 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
             empty -> Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center)
             else -> {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
-                Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = TextAlign.Center)
+                Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = TextAlign.Center, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 if (retry != null) ActionButton("Try again", onClick = retry, prominent = true)
             }
         }

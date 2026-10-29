@@ -13,12 +13,16 @@ import io.github.flexarr.core.ServerVersion
  * Anything else comes as HLS.
  */
 object DeviceCapabilities {
-    fun profile(context: Context): DeviceProfile {
-        val decoders = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+    /** The types this device has decoders for, asked of the system once: going through them all takes a while. */
+    private val decoders: Set<String> by lazy {
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
             .filterNot { it.isEncoder }
             .flatMap { it.supportedTypes.asList() }
             .map { it.lowercase() }
             .toSet()
+    }
+
+    fun profile(context: Context): DeviceProfile {
         fun having(vararg pairs: Pair<String, String>) = pairs.filter { (mime, _) -> mime in decoders }.map { it.second }
 
         @Suppress("DEPRECATION") // Display.Mode's HDR types are Android 14 and later only.

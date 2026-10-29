@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.DownloadForOffline
@@ -27,6 +28,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
@@ -46,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,11 +91,19 @@ import java.time.format.FormatStyle
 
 /**
  * Settings as a short list of pages, the way the system's own Settings works: each row says where it's set now, and
- * the details live a tap away. Playback, downloads and notifications join it as the app gains them.
+ * the details live a tap away.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> Unit, onDownloads: () -> Unit, onNotifications: () -> Unit) {
+fun SettingsScreen(
+    model: AppModel,
+    onServer: () -> Unit,
+    onLibraryOrder: () -> Unit,
+    onPlayback: () -> Unit,
+    onDownloads: () -> Unit,
+    onPodcasts: () -> Unit,
+    onNotifications: () -> Unit,
+) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
 
@@ -110,22 +123,22 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
                     }
                 }
             }
-            // Only from servers that can save an order (0.54 on).
-            model.currentProfile?.libraryOrder?.let { order ->
-                item {
-                    Group {
-                        SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Custom", onClick = onLibraryOrder)
-                    }
-                }
-            }
             item {
                 Group {
+                    SettingsLink("Playback", Icons.Filled.PlayArrow, value = null, onClick = onPlayback)
+                    Divider()
                     val downloads = model.downloads
                     SettingsLink("Downloads", Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)
-                }
-            }
-            item {
-                Group {
+                    if (model.podcastStatus?.available == true) {
+                        Divider()
+                        SettingsLink("Podcasts", Icons.Filled.Mic, value = null, onClick = onPodcasts)
+                    }
+                    // Only from servers that can save an order (0.54 on).
+                    model.currentProfile?.libraryOrder?.let { order ->
+                        Divider()
+                        SettingsLink("Library order", Icons.Filled.SwapVert, value = if (order.isEmpty()) "By name" else "Custom", onClick = onLibraryOrder)
+                    }
+                    Divider()
                     SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
                 }
             }
@@ -138,6 +151,12 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
                         model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
                     }
                     SettingsLink("Server", Icons.Filled.Dns, value = host, onClick = onServer)
+                }
+            }
+            item {
+                Group {
+                    val uri = LocalUriHandler.current
+                    ExternalLink("Privacy policy", Icons.Filled.PrivacyTip) { uri.openUri(PRIVACY_POLICY_URL) }
                 }
             }
             item {
@@ -159,7 +178,7 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
             title = { Text("Sign out of this server?") },
-            text = { Text("This device will need to connect again to use the server.") },
+            text = { Text("This device will need to connect again to use the server, and its downloads will be deleted.") },
             confirmButton = { TextButton(onClick = model::signOut) { Text("Sign out", color = Flexarr.danger) } },
             dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
@@ -169,6 +188,25 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
         ModalBottomSheet(onDismissRequest = { choosingProfile = false }, containerColor = Flexarr.room) {
             ProfilePicker(model, marksCurrent = true, onChosen = { choosingProfile = false })
         }
+    }
+}
+
+/** What Flexarr's apps collect and why, on flexarr.io. */
+private const val PRIVACY_POLICY_URL = "https://flexarr.io/privacy"
+
+/** A row that leaves the app for a web page, which the browser opens: an icon in a tile, its name, and an arrow out. */
+@Composable
+private fun ExternalLink(title: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(29.dp).clip(RoundedCornerShape(7.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(17.dp))
+        }
+        Text(title, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(18.dp))
     }
 }
 
