@@ -270,9 +270,16 @@ data class SearchResults(
     val titles: List<ItemSummary> = emptyList(),
     val episodes: List<ItemSummary> = emptyList(),
     val people: List<PersonSummary> = emptyList(),
+    /** Albums by name (artists are among [titles]). Absent from servers before music search. */
+    val albums: List<ItemSummary> = emptyList(),
+    /** Tracks by name, each with its album's. Absent from servers before music search. */
+    val tracks: List<SearchTrack> = emptyList(),
 ) {
     val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty()
 }
+
+@Serializable
+data class SearchTrack(val item: ItemSummary, val album: String? = null)
 
 // Home
 

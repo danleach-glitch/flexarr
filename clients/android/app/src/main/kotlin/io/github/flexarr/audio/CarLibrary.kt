@@ -22,6 +22,8 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.matchingSpoken
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastEpisodeSort
 import io.github.flexarr.core.artistName
@@ -48,8 +50,13 @@ private val log = FlexarrLog("car")
  * (the shows followed, each opening its episodes) and Music (playlists, then the newest artists). What's chosen plays through the app's own players, so
  * the phone and the car agree.
  *
- * Ids: `upnext`, `new`, `podcasts`, `music` (the tabs); `podcast:<id>`, `list:playlist-<id>`, `list:artist-<id>`
- * (opened); `episode:<id>` and `track:<list>:<index>` (played).
+ * Ids: `upnext`, `new`, `podcasts`, `music` (the tabs); `podcast:<id>`, `list:playlist-<id>`, `list:artist-<id>`,
+ * `list:album-<id>` (opened); `episode:<id>`, `track:<list>:<index>` and `song:<id>` (a track found by searching, which
+ * plays on through its album) (played); `resume` (carry on with what's loaded, for "Hey Google, play Flexarr").
+ *
+ * Voice ("Hey Google, play The Rest Is History on Flexarr", in the car or on the phone) arrives as an item with no id and
+ * the words as its search query; [VoiceSearch] works out what they mean. The car's search screen lists the podcasts,
+ * playlists, artists, albums and tracks that match.
  */
 @OptIn(UnstableApi::class)
 class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
@@ -58,6 +65,10 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     /** What the car was last shown, so playing one doesn't ask the server again. */
     private val episodes = ConcurrentHashMap<String, PodcastEpisode>()
     private val trackLists = ConcurrentHashMap<String, List<ItemSummary>>()
+    private val foundTracks = ConcurrentHashMap<String, ItemSummary>()
+    /** The car's searches, by what was searched for, kept for when it asks for the results. */
+    private val searches = ConcurrentHashMap<String, List<MediaItem>>()
+    private val voice = VoiceSearch(model)
 
     /** A playlist's tracks in order (`playlist-<id>`), or an artist's, albums oldest first (`artist-<id>`). */
     private suspend fun tracks(client: FlexarrClient, list: String): List<ItemSummary> {
@@ -147,9 +158,90 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         else -> emptyList()
     }
 
-    /** The car's choice arrives as items with only their ids: they're kept as they are and played by [Router]. */
-    override fun onAddMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>): ListenableFuture<MutableList<MediaItem>> =
-        Futures.immediateFuture(mediaItems)
+    /** Searching in the car: what matches is worked out now, and the car told how many there are. */
+    override fun onSearch(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, query: String, params: LibraryParams?): ListenableFuture<LibraryResult<Void>> =
+        scope.future {
+            val client = model.client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
+            val found = runCatching { search(client, query) }
+                .onFailure { log.warning("Couldn't search for the car", it) }
+                .getOrElse { return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_IO) }
+            searches[query] = found
+            session.notifySearchResultChanged(browser, query, found.size, params)
+            LibraryResult.ofVoid()
+        }
+
+    override fun onGetSearchResult(
+        session: MediaLibrarySession,
+        browser: MediaSession.ControllerInfo,
+        query: String,
+        page: Int,
+        pageSize: Int,
+        params: LibraryParams?,
+    ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future {
+        val client = model.client ?: return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_SESSION_AUTHENTICATION_EXPIRED)
+        val found = searches[query] ?: runCatching { search(client, query) }.getOrElse { return@future LibraryResult.ofError(LibraryResult.RESULT_ERROR_IO) }
+        LibraryResult.ofItemList(ImmutableList.copyOf(found.drop(page * pageSize).take(pageSize)), params)
+    }
+
+    /**
+     * What matches [query] that the car can play: podcasts followed, then playlists, artists, albums and tracks, as the
+     * app's search finds them (films and shows stay on the phone).
+     */
+    private suspend fun search(client: FlexarrClient, query: String): List<MediaItem> {
+        val podcasts = voice.podcasts(client, query).map {
+            folder("podcast:${it.id}", it.title, subtitle = it.author, artwork = client.imageUrl(it.artwork.poster, 400), list = true)
+        }
+        val playlists = matchingSpoken(query, client.playlists()) { it.name }.map {
+            folder("list:playlist-${it.id}", it.name, subtitle = "${it.trackCount} songs", artwork = client.imageUrl(it.cover ?: it.covers.firstOrNull(), 400), list = true)
+        }
+        val found = client.search(query)
+        val artists = found.titles.filter { it.kind == MediaKind.Artist }.map {
+            folder("list:artist-${it.id}", it.title, artwork = client.imageUrl(it.artwork.poster, 400), list = true)
+        }
+        val albums = found.albums.map {
+            folder("list:album-${it.id}", it.title, subtitle = it.artistName, artwork = client.imageUrl(it.artwork.poster, 400), list = true)
+        }
+        val tracks = found.tracks.map { match ->
+            foundTracks[match.item.id] = match.item
+            val subtitle = listOfNotNull(match.item.artistName, match.album).joinToString(" · ").ifEmpty { null }
+            playable("song:${match.item.id}", match.item.title, subtitle, client.imageUrl(match.item.artwork.poster, 400), MediaMetadata.MEDIA_TYPE_MUSIC)
+        }
+        return podcasts + playlists + artists + albums + tracks
+    }
+
+    /**
+     * The car's choice arrives as items with only their ids: they're kept as they are and played by [Router]. A spoken
+     * request (no id, the words as its search query, from the car or the Assistant) is worked out first, into the id of
+     * what it chose.
+     */
+    override fun onAddMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>): ListenableFuture<MutableList<MediaItem>> {
+        if (mediaItems.none { it.mediaId.isEmpty() }) return Futures.immediateFuture(mediaItems)
+        return scope.future {
+            val client = model.client ?: return@future mutableListOf()
+            mediaItems.mapNotNull { item ->
+                if (item.mediaId.isNotEmpty()) return@mapNotNull item
+                val choice = runCatching { voice.choose(client, item.requestMetadata.searchQuery, item.requestMetadata.extras, video = false) }
+                    .onFailure { log.warning("Couldn't work out what to play for a spoken request", it) }
+                    .getOrNull()
+                if (choice == null) log.info("Nothing to play for a spoken request")
+                choice?.let(::chosen)
+            }.toMutableList()
+        }
+    }
+
+    /** What [VoiceSearch] chose, as the item the car would have chosen for it. */
+    private fun chosen(choice: VoiceSearch.Choice): MediaItem? = when (choice) {
+        VoiceSearch.Choice.Resume -> MediaItem.Builder().setMediaId(RESUME).build()
+        is VoiceSearch.Choice.Episode -> {
+            episodes[choice.episode.id] = choice.episode
+            MediaItem.Builder().setMediaId("episode:${choice.episode.id}").build()
+        }
+        is VoiceSearch.Choice.Tracks -> {
+            trackLists[choice.list] = choice.tracks
+            MediaItem.Builder().setMediaId("track:${choice.list}:${choice.start}").build()
+        }
+        is VoiceSearch.Choice.Video -> null
+    }
 
     /** Plays what the car chose through the app's own players. */
     fun play(mediaId: String) {
@@ -165,8 +257,22 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
                         val (list, index) = mediaId.removePrefix("track:").split(':').let { it[0] to it[1].toInt() }
                         model.music.play(trackLists[list] ?: tracks(client, list), start = index)
                     }
+                    mediaId.startsWith("song:") -> {
+                        val id = mediaId.substringAfter(':')
+                        chosen(voice.track(client, foundTracks[id] ?: client.item(id).item))?.let { play(it.mediaId) }
+                    }
+                    mediaId == RESUME -> resume()
                 }
             }.onFailure { log.warning("Couldn't play $mediaId from the car", it) }
+        }
+    }
+
+    /** "Play Flexarr": whichever of music or a podcast is loaded carries on. */
+    private fun resume() {
+        if (model.music.current != null) {
+            if (!model.music.isPlaying) model.music.resume()
+        } else if (model.podcasts.current != null && !model.podcasts.isPlaying) {
+            model.podcasts.togglePlayPause()
         }
     }
 
@@ -201,7 +307,7 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         override fun setMediaItems(mediaItems: MutableList<MediaItem>) = mediaItems.firstOrNull()?.let { play(it.mediaId) } ?: Unit
         override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) = mediaItems.firstOrNull()?.let { play(it.mediaId) } ?: Unit
         override fun setMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long) =
-            mediaItems.getOrNull(startIndex)?.let { play(it.mediaId) } ?: Unit
+            (mediaItems.getOrNull(startIndex) ?: mediaItems.firstOrNull())?.let { play(it.mediaId) } ?: Unit
         // The player starts by itself once the app's own player has the item.
         override fun prepare() {}
     }
@@ -233,6 +339,7 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         const val NEW = "new"
         const val PODCASTS = "podcasts"
         const val MUSIC = "music"
+        private const val RESUME = "resume"
 
         // Android Auto's content-style hints: lists for episodes, a grid for shows and playlists.
         private const val BROWSABLE_HINT = "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
@@ -242,10 +349,13 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         private const val COMPLETION_STATUS = "android.media.extra.PLAYBACK_STATUS"
         private const val COMPLETION_PERCENTAGE = "androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE"
         private const val STATUS_PARTIALLY_PLAYED = 1
+        // The car shows its search button (and takes "play …" by voice) only for a library that says it can search.
+        private const val SEARCH_SUPPORTED = "android.media.browse.SEARCH_SUPPORTED"
 
         private fun rootHints() = Bundle().apply {
             putInt(BROWSABLE_HINT, STYLE_GRID)
             putInt(PLAYABLE_HINT, STYLE_LIST)
+            putBoolean(SEARCH_SUPPORTED, true)
         }
 
         private fun folder(id: String, title: String, subtitle: String? = null, artwork: String? = null, list: Boolean = false): MediaItem =

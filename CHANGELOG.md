@@ -16,6 +16,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Live TV guide opens quickly with hundreds of channels, and the app uses less battery in the background.
 - Moving on to the next episode during the credits marks the last one watched, and a "play on this phone" sent for another profile plays on that profile.
 - Away from home, the app only uses a secure (https or Tailscale) remote address, and an address you type for a server on the internet is tried over https first.
+- In Android Auto, say "Hey Google, play The Rest Is History on Flexarr" (or an artist, album, song or playlist) and it plays: a podcast you follow picks up at the episode to hear next, "the latest …" plays its newest, and "play my Up Next" plays Up Next. The car's search button finds your podcasts and music too.
 
 ## 0.54.0 · 29 October 2026
 
