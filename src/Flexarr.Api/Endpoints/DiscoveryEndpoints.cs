@@ -42,6 +42,9 @@ public sealed record SearchResultsDto(
 
 public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
 
+/// <summary>A genre in one library: how many of its titles have it, and a backdrop from one of them (absent before 0.54).</summary>
+public sealed record LibraryGenreDto(string Name, int Count, string? Backdrop);
+
 public static partial class DiscoveryEndpoints
 {
     private const int RowSize = 20;

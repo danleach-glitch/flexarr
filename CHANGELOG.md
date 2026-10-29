@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Libraries
+- Film and TV libraries have a Genres view: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre. On the web it's beside Browse and All; on the Apple TV it's in the switch at the top of the library (and can be what a library opens on, in Settings › Libraries); on iPhone and iPad, choose Genres at the top of the library.
+
 ### Library order
 - Put your libraries in the order you like, and every device follows it: the web's sidebar, the Apple TV's sidebar, and the Libraries tab on iPhone and Android. Each profile has its own order.
 - On the web it's in Settings › Sidebar (drag a library, or use the arrows); on the Apple TV, Settings › Sidebar as before; on iPhone and Android, Settings › Library order.

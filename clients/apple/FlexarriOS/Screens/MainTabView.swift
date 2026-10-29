@@ -96,8 +96,8 @@ struct TabStack<Content: View>: View {
             MusicLibraryView(library: library)
         case .library(let library, _, _) where library.type == .podcasts:
             PodcastsView()
-        case .library(let library, let sort, _):
-            LibraryView(library: library, initialSort: sort)
+        case .library(let library, let sort, let genre):
+            LibraryView(library: library, initialSort: sort, initialGenre: genre)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
         case .podcasts:

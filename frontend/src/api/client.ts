@@ -421,8 +421,9 @@ export function getLibraryItems(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
+/** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
-  cachedGet<{ name: string; count: number }[]>(`/libraries/${id}/genres`, signal)
+  cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/genres`, signal)
 
 export const getHome = (signal?: AbortSignal) => cachedGet<Home>('/home', signal)
 

@@ -96,7 +96,7 @@ struct DiscoverView: View {
                     ForEach(Array(stride(from: 0, to: genres.count, by: GenreTile.across)), id: \.self) { start in
                         GridRow {
                             ForEach(genres[start..<min(start + GenreTile.across, genres.count)]) { genre in
-                                GenreTile(genre: genre) { router.push(.genre(genre.name)) }
+                                GenreTile(name: genre.name, caption: Self.counts(genre), backdrop: genre.backdrop) { router.push(.genre(genre.name)) }
                             }
                         }
                     }
@@ -105,6 +105,13 @@ struct DiscoverView: View {
                 .focusSection()
             }
         }
+    }
+
+    /// "12 films and 3 shows".
+    private static func counts(_ genre: Genre) -> String {
+        [genre.movies > 0 ? (genre.movies == 1 ? "1 film" : "\(genre.movies) films") : nil,
+         genre.shows > 0 ? (genre.shows == 1 ? "1 show" : "\(genre.shows) shows") : nil]
+            .compactMap { $0 }.joined(separator: " and ")
     }
 
     /// Why there are no rows to request from: Seerr isn't connected, or isn't answering.
@@ -320,9 +327,14 @@ extension Availability {
 }
 
 /// A genre: a backdrop from its best-rated title, its name and how much of it there is beneath.
-private struct GenreTile: View {
+/// A genre as a way in: a backdrop from one of its titles, its name and how many there are. Discover's genres, and a
+/// library's Genres view.
+struct GenreTile: View {
     @Environment(AppModel.self) private var model
-    let genre: Genre
+    let name: String
+    let caption: String
+    let backdrop: String?
+    var focus: FocusState<String?>.Binding?
     let action: () -> Void
 
     /// Five across the content width: a genre is a way in, not something to look at, so smaller than a row's cards.
@@ -331,31 +343,25 @@ private struct GenreTile: View {
     static let width: CGFloat = (1920 - 2 * Layout.edge - CGFloat(across - 1) * spacing) / CGFloat(across)
 
     var body: some View {
-        ArtworkButton(ambient: .silver, action: action) {
-            RemoteImage(url: model.client?.imageURL(genre.backdrop, width: 640)) {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: name, action: action) {
+            RemoteImage(url: model.client?.imageURL(backdrop, width: 640)) {
                 LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
             }
             .frame(width: Self.width, height: Self.width * 9 / 16)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
-                Text(genre.name)
+                Text(name)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.85))
                     .lineLimit(1)
-                Text(counts)
+                Text(caption)
                     .font(.system(size: 20))
                     .foregroundStyle(Color.usher)
                     .lineLimit(1)
             }
             .frame(width: Self.width, alignment: .leading)
         }
-    }
-
-    private var counts: String {
-        [genre.movies > 0 ? (genre.movies == 1 ? "1 film" : "\(genre.movies) films") : nil,
-         genre.shows > 0 ? (genre.shows == 1 ? "1 show" : "\(genre.shows) shows") : nil]
-            .compactMap { $0 }.joined(separator: " and ")
     }
 }
 

@@ -120,6 +120,8 @@ public struct Library: Codable, Sendable, Hashable, Identifiable {
 public struct GenreCount: Codable, Sendable, Hashable {
     public let name: String
     public let count: Int
+    /// A backdrop from one of the library's titles in the genre. Absent from servers before 0.54.
+    public var backdrop: String? = nil
 }
 
 public struct Paged<T: Codable & Sendable>: Codable, Sendable {
