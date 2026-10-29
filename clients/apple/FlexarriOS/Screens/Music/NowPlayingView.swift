@@ -4,8 +4,9 @@ import SwiftUI
 /// The music that's playing, as a sheet: the cover, the track's name, a scrubber, the transport controls, AirPlay,
 /// and what comes next. A Lyrics button, there when the track has any, swaps the cover and queue for the words,
 /// which follow the song. A podcast episode gets a podcast's controls instead: back 15 seconds and forward 30, its
-/// speed, a sleep timer and a menu of what can be done with it; then its chapters (tapping one goes there) and its
-/// notes, whose times jump there too.
+/// speed, a sleep timer and a menu of what can be done with it. The episode's page doesn't scroll: its Notes button
+/// swaps the cover for a panel of its chapters (tapping one goes there), its notes (whose times jump there too) and
+/// Up Next, with the controls staying put below.
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -18,7 +19,10 @@ struct NowPlayingView: View {
     /// Lyrics are wanted; they show while the track that's playing has some.
     @State private var showingLyrics = false
     @State private var playing = PlayingEpisode()
-    @State private var notesExpanded = false
+    /// The episode's chapters, notes and Up Next are showing in the cover's place.
+    @State private var showingDetails = false
+    /// Opened from the chapter's name: the details start at the chapters.
+    @State private var openAtChapters = false
     /// The cover's own colour, for a glow when the server gives none.
     @State private var artworkGlow: Color?
 
@@ -30,6 +34,8 @@ struct NowPlayingView: View {
             if let track = music.current {
                 if showingLyrics, let found = lyrics.lyrics {
                     lyricsPanel(track, found)
+                } else if music.isPodcast {
+                    podcastPage(track)
                 } else {
                     ScrollView(.vertical) {
                         VStack(spacing: 24) {
@@ -37,14 +43,9 @@ struct NowPlayingView: View {
                             cover(track)
                                 .padding(.top, 8)
                             titles(track)
-                            if music.isPodcast, !chapters.isEmpty { chapterStrip }
                             scrubber
                             controls
                             extras
-                            if music.isPodcast {
-                                chapterList
-                                notes
-                            }
                             upNext
                         }
                         .padding(.horizontal, 28)
@@ -60,7 +61,6 @@ struct NowPlayingView: View {
         .task(id: music.current?.id) { await lyrics.load(music.isPodcast ? nil : music.current, client: model.client) }
         .task(id: music.current?.id) { if music.isPodcast { await model.loadUpNext() } }
         .task(id: music.current?.id) {
-            notesExpanded = false
             await playing.load(music.isPodcast ? music.current?.id : nil, client: model.client)
         }
         .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
@@ -79,6 +79,77 @@ struct NowPlayingView: View {
 
     private var grabber: some View {
         Capsule().fill(Color.aisle).frame(width: 40, height: 5).padding(.top, 10)
+    }
+
+    /// An episode's page, fixed in place: the cover (or, with Notes, the episode's details in its place), then the title,
+    /// the chapter, the scrubber and the controls.
+    private func podcastPage(_ track: ItemSummary) -> some View {
+        VStack(spacing: 20) {
+            grabber
+            if showingDetails {
+                smallHeader(track) { withAnimation(.easeInOut(duration: 0.3)) { showingDetails = false } }
+                    .padding(.top, 4)
+                details
+                    .frame(maxHeight: .infinity)
+            } else {
+                cover(track)
+                    .frame(maxHeight: .infinity)
+                titles(track)
+            }
+            if !chapters.isEmpty { chapterStrip }
+            scrubber
+            controls
+            extras
+        }
+        .padding(.horizontal, 28)
+        .padding(.bottom, 24)
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// The episode's chapters, notes and Up Next, scrolling in the cover's place. Opening it from the chapter's name
+    /// goes to the chapters.
+    private var details: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 20) {
+                    chapterList.id("chapters")
+                    notes
+                    upNext
+                }
+                .padding(.bottom, 12)
+            }
+            .scrollIndicators(.hidden)
+            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.03),
+                                         .init(color: .black, location: 0.94), .init(color: .clear, location: 1)],
+                                 startPoint: .top, endPoint: .bottom))
+            .onAppear { if openAtChapters { proxy.scrollTo("chapters", anchor: .top); openAtChapters = false } }
+        }
+        .transition(.opacity)
+    }
+
+    /// The track's cover kept small, beside its name; tapping it puts the big cover back.
+    private func smallHeader(_ track: ItemSummary, close: @escaping () -> Void) -> some View {
+        Button(action: close) {
+            HStack(spacing: 14) {
+                artwork(track)
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(.headline)
+                        .foregroundStyle(Color.screen)
+                    Text(track.seriesTitle ?? track.artistName ?? "")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.usher)
+                }
+                .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows the cover")
     }
 
     /// The words, with the track's name and cover kept small above them and the controls kept below.
@@ -194,13 +265,21 @@ struct NowPlayingView: View {
                 music.seek(to: music.position - start > 3 || current == 0 ? start : chapters[current - 1].startSeconds)
             } label: { Label("Previous chapter", systemImage: "chevron.backward") }
             .buttonStyle(ChapterStepStyle())
-            Text(current.map { chapters[$0].title } ?? chapters[0].title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.screen)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-                .contentTransition(.opacity)
-                .animation(.easeOut(duration: 0.2), value: current)
+            Button {
+                openAtChapters = !showingDetails
+                withAnimation(.easeInOut(duration: 0.3)) { showingDetails = true }
+            } label: {
+                Text(current.map { chapters[$0].title } ?? chapters[0].title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .contentShape(Rectangle())
+                    .contentTransition(.opacity)
+                    .animation(.easeOut(duration: 0.2), value: current)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows the chapters")
             Button {
                 let next = (current ?? -1) + 1
                 if chapters.indices.contains(next) { music.seek(to: chapters[next].startSeconds) }
@@ -281,11 +360,21 @@ struct NowPlayingView: View {
         }
     }
 
-    /// Speed, the sleep timer, AirPlay and the episode's menu: four of a kind, evenly spaced, each lit while it's set.
+    /// Speed, the sleep timer, Notes, AirPlay and the episode's menu: five of a kind, evenly spaced, each lit while it's set.
     private var podcastExtras: some View {
         HStack(spacing: 0) {
             speedMenu.frame(maxWidth: .infinity)
             sleepMenu.frame(maxWidth: .infinity)
+            Button {
+                withAnimation(.easeInOut(duration: 0.3)) { showingDetails.toggle() }
+            } label: {
+                Image(systemName: "text.page")
+                    .font(.system(size: 18, weight: .medium))
+                    .modifier(ExtraLabel(active: showingDetails))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showingDetails ? "Hide notes" : "Notes")
+            .frame(maxWidth: .infinity)
             RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity)
             episodeMenu.frame(maxWidth: .infinity)
         }
@@ -413,8 +502,8 @@ struct NowPlayingView: View {
         }
     }
 
-    /// The episode's notes: when it came out and how long it is, then a few lines of its notes, all of them with More.
-    /// Times in them jump there, and web addresses open.
+    /// The episode's notes: when it came out and how long it is, then the notes, whose times jump there and whose web
+    /// addresses open.
     @ViewBuilder
     private var notes: some View {
         if let episode = playing.episode, episode.id == music.current?.id {
@@ -428,20 +517,11 @@ struct NowPlayingView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.screen.opacity(0.85))
                         .tint(Color.silver)
-                        .lineLimit(notesExpanded ? nil : 6)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                         .seeksFromNotes { music.seek(to: $0) }
                         .padding(.horizontal, 12)
-                    if text.count > 320 || text.filter({ $0 == "\n" }).count > 5 {
-                        Button(notesExpanded ? "Less" : "More") {
-                            withAnimation(.easeOut(duration: 0.25)) { notesExpanded.toggle() }
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.silver)
-                        .padding(.horizontal, 12)
-                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
