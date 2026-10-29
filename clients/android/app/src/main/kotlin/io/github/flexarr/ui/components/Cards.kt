@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.components
 
+import io.github.flexarr.appModel
+import kotlinx.coroutines.launch
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -189,6 +192,7 @@ fun PersonCard(name: String, detail: String?, image: String?, onClick: (() -> Un
 fun ItemMenu(item: ItemSummary, expanded: Boolean, onDismiss: () -> Unit, showsDetails: Boolean = false) {
     val navigator = LocalNavigator.current
     val inContinueWatching = LocalInContinueWatching.current
+    val model = androidx.compose.ui.platform.LocalContext.current.appModel
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         fun entry(label: String, action: () -> Unit) = @Composable {
             DropdownMenuItem(text = { Text(label) }, onClick = {
@@ -201,6 +205,15 @@ fun ItemMenu(item: ItemSummary, expanded: Boolean, onDismiss: () -> Unit, showsD
             if (item.isResumable) entry("Play from beginning") { navigator.play(item, fromBeginning = true) }()
         }
         if (showsDetails) entry(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) }()
+        // Download at Settings' size (a title's page offers the others).
+        if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
+            val download = model.downloads.entry(item.id)
+            if (download == null) {
+                entry("Download") { model.scope.launch { runCatching { model.downloads.download(item) } } }()
+            } else {
+                entry(if (download.isDownloaded) "Delete download" else "Stop download") { model.downloads.delete(download.id) }()
+            }
+        }
         val watched = item.userData.watched || item.userData.unwatchedCount == 0
         entry(if (watched) "Mark as unwatched" else "Mark as watched") { navigator.setWatched(item, !watched) }()
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.

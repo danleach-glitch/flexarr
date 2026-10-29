@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.appModel
 import io.github.flexarr.core.CreditRole
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
@@ -76,6 +77,7 @@ import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.progress
 import io.github.flexarr.ui.components.isWide
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.downloads.DownloadAction
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.ItemMenu
@@ -237,6 +239,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
 @Composable
 private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail) {
     val navigator = LocalNavigator.current
+    val model = androidx.compose.ui.platform.LocalContext.current.appModel
     // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
     var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
     var savedSubtitles by remember { mutableStateOf<String?>(null) }
@@ -272,6 +275,9 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                 }
             } else {
                 LabeledAction(if (watched) "Unwatched" else "Watched", if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check, { navigator.setWatched(item, !watched) }, slot)
+            }
+            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
+                DownloadAction(model, item, slot)
             }
             if (item.kind == MediaKind.Episode && series != null) {
                 LabeledAction("Show", Icons.Filled.VideoLibrary, { navigator.openItem(series.id) }, slot)

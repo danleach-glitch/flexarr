@@ -162,6 +162,7 @@ class PlayerActivity : ComponentActivity() {
                 inBlackBars = if (intent.hasExtra("blackBars")) intent.getBooleanExtra("blackBars", false) else null,
             )
         }
+        intent.getStringExtra(EXTRA_DOWNLOAD)?.let { return controller.startOffline(it) }
         controller.start(
             itemId = intent.getStringExtra(EXTRA_ITEM)!!,
             fromBeginning = intent.getBooleanExtra(EXTRA_FROM_BEGINNING, false),
@@ -274,6 +275,7 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_FROM_BEGINNING = "fromBeginning"
         private const val EXTRA_SHUFFLE = "shuffle"
         private const val EXTRA_START_AT = "startAt"
+        private const val EXTRA_DOWNLOAD = "downloadId"
         private const val ACTION_PIP = "io.github.flexarr.PIP_CONTROL"
         private const val EXTRA_PIP_CONTROL = "control"
         private const val PIP_BACK = 1
@@ -287,6 +289,10 @@ class PlayerActivity : ComponentActivity() {
                 .putExtra(EXTRA_FROM_BEGINNING, fromBeginning)
                 .putExtra(EXTRA_SHUFFLE, shuffle)
                 .apply { if (startAt != null) putExtra(EXTRA_START_AT, startAt.toDouble()) }
+
+        /** Plays a download from the phone, with no connection needed. */
+        fun offlineIntent(context: Context, downloadId: String): Intent =
+            Intent(context, PlayerActivity::class.java).putExtra(EXTRA_DOWNLOAD, downloadId)
     }
 }
 
