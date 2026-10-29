@@ -372,12 +372,8 @@ internal fun SubtitleLayer(controller: PlaybackController) {
         } else {
             Modifier.height(maxHeight).width(with(density) { (constraints.maxHeight * ratio).toDp() })
         }
-        val lift = controller.subtitlePosition.lift
-        val shown = if (lift != null) cues else cues.map { cue ->
-            // At the top: cues the file doesn't place itself go to the top edge.
-            if (cue.line == Cue.DIMEN_UNSET) cue.buildUpon().setLine(0.04f, Cue.LINE_TYPE_FRACTION).setLineAnchor(Cue.ANCHOR_TYPE_START).build() else cue
-        }
         val scale = controller.subtitleSize.percent / 100f
+        val shown = placeCues(cues, controller.subtitlePosition, scale)
         AndroidView(
             factory = { context ->
                 SubtitleView(context).apply {
@@ -386,7 +382,8 @@ internal fun SubtitleLayer(controller: PlaybackController) {
             },
             update = { view ->
                 view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale)
-                view.setBottomPaddingFraction(lift ?: SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+                // The cues carry their own place (placeCues), measured from the picture's edges.
+                view.setBottomPaddingFraction(0f)
                 view.setCues(shown)
             },
             modifier = picture,
@@ -417,3 +414,29 @@ private fun Pill(label: String, filled: Boolean, icon: ImageVector? = null, onCl
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = tint)
     }
 }
+
+/**
+ * Puts the cues a file leaves to the player (WebVTT's "auto" lines, counted from the bottom) where the profile wants
+ * them: the bottom of the last line [SubtitlePosition.lift] of the picture's height above its foot, as the web and the
+ * Apple apps place them, or at the top. Cues the file places itself (a sign's translation, say) stay where they are.
+ */
+internal fun placeCues(cues: List<Cue>, position: SubtitlePosition, scale: Float): List<Cue> {
+    // One line's share of the picture's height, for stacking cues that say "the line above the last".
+    val lineStep = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale * 1.25f
+    val lift = position.lift
+    return cues.map { cue ->
+        val fromBottom = when {
+            cue.line == Cue.DIMEN_UNSET -> 0
+            cue.lineType == Cue.LINE_TYPE_NUMBER && cue.line < 0 -> (-cue.line).toInt() - 1
+            else -> return@map cue
+        }
+        if (lift != null) {
+            cue.buildUpon().setLine(1f - lift - fromBottom * lineStep, Cue.LINE_TYPE_FRACTION).setLineAnchor(Cue.ANCHOR_TYPE_END).build()
+        } else {
+            cue.buildUpon().setLine(TOP_INSET + fromBottom * lineStep, Cue.LINE_TYPE_FRACTION).setLineAnchor(Cue.ANCHOR_TYPE_START).build()
+        }
+    }
+}
+
+/** How far below the picture's top edge subtitles at the top start. */
+private const val TOP_INSET = 0.04f

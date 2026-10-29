@@ -76,7 +76,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.appModel
+import io.github.flexarr.core.SubtitlePosition
+import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.displayTitle
@@ -104,10 +107,19 @@ class PlayerActivity : ComponentActivity() {
         val model = appModel
         val client = model.client ?: return finish()
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
+        if (BuildConfig.DEBUG) {
+            controller.debugSubtitles(
+                key = intent.getStringExtra("subtitle"),
+                position = intent.getStringExtra("subtitlePosition")?.let { raw -> SubtitlePosition.entries.firstOrNull { it.raw == raw } },
+                size = intent.getStringExtra("subtitleSize")?.let { raw -> SubtitleSize.entries.firstOrNull { it.raw == raw } },
+                inBlackBars = if (intent.hasExtra("blackBars")) intent.getBooleanExtra("blackBars", false) else null,
+            )
+        }
         controller.start(
             itemId = intent.getStringExtra(EXTRA_ITEM)!!,
             fromBeginning = intent.getBooleanExtra(EXTRA_FROM_BEGINNING, false),
             shuffle = intent.getBooleanExtra(EXTRA_SHUFFLE, false),
+            startAt = intent.getDoubleExtra(EXTRA_START_AT, -1.0).takeIf { it >= 0 },
         )
         setContent { FlexarrTheme { PlayerScreen(controller, onClose = ::finish) } }
     }
@@ -128,12 +140,15 @@ class PlayerActivity : ComponentActivity() {
         private const val EXTRA_ITEM = "itemId"
         private const val EXTRA_FROM_BEGINNING = "fromBeginning"
         private const val EXTRA_SHUFFLE = "shuffle"
+        private const val EXTRA_START_AT = "startAt"
 
-        fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false): Intent =
+        /** [startAt]: a place to open at (debug launches), rather than where it was left. */
+        fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null): Intent =
             Intent(context, PlayerActivity::class.java)
                 .putExtra(EXTRA_ITEM, itemId)
                 .putExtra(EXTRA_FROM_BEGINNING, fromBeginning)
                 .putExtra(EXTRA_SHUFFLE, shuffle)
+                .apply { if (startAt != null) putExtra(EXTRA_START_AT, startAt.toDouble()) }
     }
 }
 

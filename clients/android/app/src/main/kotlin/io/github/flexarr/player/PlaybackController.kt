@@ -182,21 +182,32 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     }
 
     /** Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it. */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false) {
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null) {
         // A podcast playing stops for the video.
         model.podcasts.pause()
-        // Another title: the viewer's subtitle pick and speed were for the last one.
-        viewerChoseSubtitle = false
-        viewerSubtitleKey = null
+        // Another title: the viewer's subtitle pick and speed were for the last one (a debug launch's pick holds once).
+        viewerChoseSubtitle = debugSubtitleKey != null
+        viewerSubtitleKey = debugSubtitleKey
+        debugSubtitleKey = null
         open { profile ->
             PlaybackRequest(
                 itemId = itemId,
                 profile = profile,
-                startPositionSeconds = if (fromBeginning) 0.0 else null,
+                startPositionSeconds = startAt ?: if (fromBeginning) 0.0 else null,
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
+                subtitleKey = viewerSubtitleKey,
             )
         }
+    }
+
+    private var debugSubtitleKey: String? = null
+    private var debugPlacement: Triple<SubtitlePosition?, SubtitleSize?, Boolean?>? = null
+
+    /** Debug launches: subtitles as if chosen in the menu (not saved), so a test can look at them straight away. */
+    fun debugSubtitles(key: String?, position: SubtitlePosition?, size: SubtitleSize?, inBlackBars: Boolean?) {
+        debugSubtitleKey = key
+        if (position != null || size != null || inBlackBars != null) debugPlacement = Triple(position, size, inBlackBars)
     }
 
     /** Asks the server for a session for [request] (given this device's profile) and starts it. */
@@ -252,6 +263,11 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         subtitleSize = preferences.subtitleSize ?: SubtitleSize.Standard
         subtitlePosition = preferences.subtitlePosition ?: SubtitlePosition.Bottom
         subtitlesInBlackBars = preferences.subtitlesInBlackBars ?: false
+        debugPlacement?.let { (position, size, inBlackBars) ->
+            position?.let { subtitlePosition = it }
+            size?.let { subtitleSize = it }
+            inBlackBars?.let { subtitlesInBlackBars = it }
+        }
         audioSync = if (started.hasPlayerControls) started.audioDelaySeconds else null
         // Moved on to something that isn't an episode: there's no end of episode to stop at.
         if (started.item.kind != MediaKind.Episode && sleep.setting == SleepTimer.Setting.EndOfEpisode) sleep.set(null)
@@ -453,7 +469,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         viewerChoseSubtitle = true
         viewerSubtitleKey = track?.key
         subtitleKey = track?.key
-        scope.launch { runCatching { client.setSubtitle(current.sessionId, track?.key) } }
+        if (model.recordsHistory) scope.launch { runCatching { client.setSubtitle(current.sessionId, track?.key) } }
         when {
             // Picture-based ones are burned into the picture by the server; and one burned in now has to go.
             track != null && !track.isText -> reopen()
@@ -518,6 +534,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
     }
 
     private fun savePreferences() {
+        if (!model.recordsHistory) return
         val saved = preferences
         scope.launch { runCatching { client.setPlaybackPreferences(saved) } }
     }
@@ -529,7 +546,7 @@ class PlaybackController(context: Context, private val model: AppModel, private 
         if (rate == this.rate) return
         setPlayerRate(rate)
         val current = info ?: return
-        if (!current.hasPlayerControls || current.item.kind != MediaKind.Episode) return
+        if (!current.hasPlayerControls || current.item.kind != MediaKind.Episode || !model.recordsHistory) return
         scope.launch {
             runCatching { client.setPlaybackSpeed(current.item.id, rate.toDouble()) }
                 .onFailure { Log.w("Flexarr", "Couldn't remember the show's speed", it) }

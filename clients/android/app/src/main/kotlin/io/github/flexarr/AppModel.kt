@@ -54,8 +54,9 @@ class AppModel(private val context: Context) {
         private set
 
     /**
-     * Debug builds started with `--ez noHistory true` play without reporting progress, so trying things against the
-     * household's server doesn't change anyone's watch state.
+     * Debug builds started with `--ez noHistory true` play without reporting progress or remembering choices made while
+     * playing (subtitles, a show's speed, subtitle size and position), so trying things against the household's server
+     * doesn't change anyone's watch state or settings.
      */
     var recordsHistory = true
 
