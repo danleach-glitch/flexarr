@@ -10,11 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.PhoneIphone
-import androidx.compose.material.icons.filled.TabletAndroid
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,6 +37,7 @@ import io.github.flexarr.core.devices
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.playOn
 import io.github.flexarr.ui.components.pressable
+import io.github.flexarr.ui.pairing.deviceIcon
 import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -123,13 +119,7 @@ private fun DeviceRow(device: Device, sending: Boolean, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val icon = when (device.deviceType) {
-            "IPhone" -> Icons.Filled.PhoneIphone
-            "AndroidPhone" -> Icons.Filled.PhoneAndroid
-            "IPad", "AndroidTablet" -> Icons.Filled.TabletAndroid
-            else -> Icons.Filled.Tv
-        }
-        Icon(icon, contentDescription = null, tint = if (device.online) Flexarr.silver else Flexarr.usher, modifier = Modifier.size(26.dp))
+        Icon(deviceIcon(device.deviceType), contentDescription = null, tint = if (device.online) Flexarr.silver else Flexarr.usher, modifier = Modifier.size(26.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(device.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val detail = when {

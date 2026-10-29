@@ -127,6 +127,7 @@
             </intent-filter>
         </service>
         <receiver android:name=".notifications.DownloadReceiver" android:exported="false" />
+        <receiver android:name=".notifications.PairingReceiver" android:exported="false" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="new" />
 
         <!-- Continue Watching on the home screen. -->

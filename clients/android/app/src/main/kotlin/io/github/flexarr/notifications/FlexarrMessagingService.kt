@@ -26,8 +26,11 @@ import com.google.firebase.messaging.RemoteMessage
 import io.github.flexarr.AppLink
 import io.github.flexarr.R
 import io.github.flexarr.appModel
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.PushPayload
 import io.github.flexarr.logging.FlexarrLog
+import io.github.flexarr.ui.pairing.pairingProblem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -119,8 +122,9 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         private fun pairingId(code: String) = "pairing:$code".hashCode()
 
         /**
-         * A device asking to connect: opens the app straight to the prompt to allow it. Not shown while the app is
-         * asking about it already, and taken away once it's let in, turned away or its code runs out.
+         * A device asking to connect: Allow and Don't allow answer from the notification (on a locked phone, once it's
+         * unlocked), and a tap opens the app straight to the prompt. Not shown while the app is asking about it already,
+         * and taken away once it's let in, turned away or its code runs out.
          */
         private fun showPairing(context: Context, payload: PushPayload) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
@@ -130,7 +134,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             if (code != null && inFront && model.isAdmin && model.pairing.isWaiting(code)) return
             val opens = code?.let { AppLink.Pairing(it) } ?: AppLink.Home
             val id = code?.let(::pairingId) ?: listOf(payload.category, payload.title, payload.body).hashCode()
-            val notification = NotificationCompat.Builder(context, DEVICES_CHANNEL)
+            val builder = NotificationCompat.Builder(context, DEVICES_CHANNEL)
                 .setSmallIcon(R.drawable.ic_brand_mark)
                 .setColor(0xFFA9C2EC.toInt())
                 .setContentTitle(payload.title)
@@ -140,6 +144,38 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
                 .setAutoCancel(true)
                 // Codes last minutes, not hours.
+                .setTimeoutAfter(15 * 60 * 1000L)
+                .setContentIntent(activity(context, id, opens))
+            if (code != null) {
+                // Its name, for "“Living room” is connected": as the app heard it, else from the title the server wrote.
+                val name = model.pairing.waiting.firstOrNull { it.code == code }?.deviceName
+                    ?: payload.title.removeSuffix(" wants to connect").takeIf { it != payload.title && it.isNotBlank() }
+                builder.addAction(PairingReceiver.action(context, "Allow", code, name, allow = true))
+                builder.addAction(PairingReceiver.action(context, "Don’t allow", code, name, allow = false))
+            }
+            runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }
+                .onFailure { log.warning("Couldn't show a notification", it) }
+        }
+
+        /**
+         * What came of Allow on a pairing notification, in its place: connected, or why not (a tap opens the app, to
+         * try there). Its own id, so the device leaving the waiting list doesn't take it away too.
+         */
+        internal fun showPairingAnswer(context: Context, code: String, title: String, text: String, opens: AppLink) {
+            cancelPairing(context, code)
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+            val id = "pairing-answer:$code".hashCode()
+            val notification = NotificationCompat.Builder(context, DEVICES_CHANNEL)
+                .setSmallIcon(R.drawable.ic_brand_mark)
+                .setColor(0xFFA9C2EC.toInt())
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
+                // Said once, without sounding again.
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .setAutoCancel(true)
                 .setTimeoutAfter(15 * 60 * 1000L)
                 .setContentIntent(activity(context, id, opens))
                 .build()
@@ -208,5 +244,66 @@ class DownloadReceiver : BroadcastReceiver() {
                 Intent(context, DownloadReceiver::class.java).putExtra(ID, id).putExtra(PODCAST, podcast).putExtra(NOTIFICATION, notification),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
+    }
+}
+
+/**
+ * A pairing notification's Allow and Don't allow: answered with this phone's sign-in without opening the app, as on
+ * iPhone. On Android 12 and later a locked phone asks to be unlocked first. Allow says what came of it in the
+ * notification's place; Don't allow just takes it away.
+ */
+class PairingReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val code = intent.getStringExtra(CODE) ?: return
+        val allow = intent.getBooleanExtra(ALLOW, false)
+        val name = intent.getStringExtra(NAME)
+        val model = context.appModel
+        val client = model.client
+        FlexarrMessagingService.cancelPairing(context, code)
+        if (client == null) {
+            if (allow) FlexarrMessagingService.showPairingAnswer(context, code, "Couldn’t allow it", "Open Flexarr to allow it.", AppLink.Home)
+            return
+        }
+        val pending = goAsync()
+        model.scope.launch {
+            try {
+                if (allow) {
+                    model.pairing.allow(client, code)
+                    model.pairing.finished(code)
+                    val title = name?.let { "“$it” is connected" } ?: "It’s connected"
+                    FlexarrMessagingService.showPairingAnswer(context, code, title, "It’ll be ready in a moment.", AppLink.Home)
+                } else {
+                    model.pairing.decline(client, code)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.warning("Couldn't answer a device asking to connect", e)
+                if (allow) {
+                    // Gone or not this profile's to allow: the app, rather than the prompt for a code that's no use.
+                    val retry = (e as? FlexarrException.Http)?.status !in setOf(403, 404)
+                    val title = name?.let { "Couldn’t allow “$it”" } ?: "Couldn’t allow it"
+                    FlexarrMessagingService.showPairingAnswer(context, code, title, pairingProblem(e, outside = true), if (retry) AppLink.Pairing(code) else AppLink.Home)
+                }
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    companion object {
+        private const val CODE = "code"
+        private const val NAME = "name"
+        private const val ALLOW = "allow"
+
+        fun action(context: Context, title: String, code: String, name: String?, allow: Boolean): NotificationCompat.Action {
+            val intent = Intent(context, PairingReceiver::class.java).putExtra(CODE, code).putExtra(ALLOW, allow).putExtra(NAME, name)
+            // One per code and answer, so each notification's buttons carry their own.
+            val request = "pairing:$code:${if (allow) "allow" else "decline"}".hashCode()
+            val pending = PendingIntent.getBroadcast(context, request, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            return NotificationCompat.Action.Builder(0, title, pending)
+                .setAuthenticationRequired(true)
+                .build()
+        }
     }
 }

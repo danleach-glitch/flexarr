@@ -75,6 +75,7 @@ import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
 import io.github.flexarr.ui.pairing.PairingPrompt
 import io.github.flexarr.AppLink
+import io.github.flexarr.PairingPrompts
 import io.github.flexarr.ReviewPrompt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,6 +83,7 @@ import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
+import io.github.flexarr.ui.settings.WaitingDevicesScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.PlaybackSettingsScreen
@@ -202,8 +204,10 @@ fun MainScreen(model: AppModel) {
                 AppLink.Downloads -> select(Tab.Downloads)
                 AppLink.Home -> select(Tab.Home)
                 // The prompt to allow it comes up by itself; a device that's gone is said so.
-                is AppLink.Pairing -> if (!model.pairing.open(client, link.code)) {
-                    navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
+                is AppLink.Pairing -> when (model.pairing.open(client, link.code)) {
+                    PairingPrompts.Opened.Asking -> Unit
+                    PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
+                    PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar("Switch to the main profile to allow it.")
                 }
             } }
         }
@@ -280,6 +284,7 @@ fun MainScreen(model: AppModel) {
                         onDownloads = { nav.navigate("settings/downloads") },
                         onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
+                        onWaitingDevices = { nav.navigate("settings/waiting-devices") },
                     )
                 }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }
@@ -288,6 +293,7 @@ fun MainScreen(model: AppModel) {
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
                 composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
+                composable("settings/waiting-devices") { WaitingDevicesScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
                     "library/{id}?sort={sort}&genre={genre}",

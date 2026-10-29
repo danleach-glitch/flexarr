@@ -20,17 +20,45 @@ data class WaitingDevice(
     val requestedFrom: String? = null,
     /** "Local" (the home network), "Tailscale", or something else (somewhere else). */
     val zone: String? = null,
+    /** "AppleTv", "IPhone", "AndroidTv"…, as [Device.deviceType]. Absent from servers before 0.54; unknown ones are let be. */
+    val deviceType: String? = null,
 ) {
-    /** Where it's asking from, in a sentence: "It's asking from your home network (192.168.1.70)." */
-    val whereFrom: String
+    /** "Apple TV", "Android phone"…; null when the server didn't say, or said something this app doesn't know. */
+    val kind: String? get() = deviceKind(deviceType)
+
+    /** "asking from your home network (192.168.1.70)", "asking over Tailscale"… */
+    private val asking: String
         get() {
             val address = requestedFrom?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
             return when (zone) {
-                "Local" -> "It’s asking from your home network$address."
-                "Tailscale" -> "It’s asking over Tailscale$address."
-                else -> if (requestedFrom.isNullOrBlank()) "It’s asking from outside your home network." else "It’s asking from $requestedFrom, outside your home network."
+                "Local" -> "asking from your home network$address"
+                "Tailscale" -> "asking over Tailscale$address"
+                else -> if (requestedFrom.isNullOrBlank()) "asking from outside your home network" else "asking from $requestedFrom, outside your home network"
             }
         }
+
+    /** Where it's asking from, in a sentence: "It's asking from your home network (192.168.1.70)." */
+    val whereFrom: String get() = "It’s $asking."
+
+    /** What it is and where it's asking from: "Apple TV · asking from your home network (192.168.1.70)", else [whereFrom]. */
+    val summary: String get() = kind?.let { "$it · $asking" } ?: whereFrom
+
+    /** Short, for a list: "Apple TV · home network", "Tailscale", "outside your home network". */
+    val shortSummary: String
+        get() {
+            val network = when (zone) {
+                "Local" -> "home network"
+                "Tailscale" -> "Tailscale"
+                else -> "outside your home network"
+            }
+            return listOfNotNull(kind, network).joinToString(" · ")
+        }
+}
+
+/** [device] in [this] list: in place of the one with its code (a code still on screen lasts longer), else at the end. */
+fun List<WaitingDevice>.updating(device: WaitingDevice): List<WaitingDevice> {
+    val index = indexOfFirst { it.code == device.code }
+    return if (index < 0) this + device else toMutableList().also { it[index] = device }
 }
 
 @Serializable

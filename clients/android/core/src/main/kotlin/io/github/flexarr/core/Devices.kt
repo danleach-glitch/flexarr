@@ -41,6 +41,17 @@ data class Device(
     val deviceType: String? = null,
 )
 
+/** "Apple TV", "Android phone"… for a [Device.deviceType]; null for none, or one newer than this app. */
+fun deviceKind(deviceType: String?): String? = when (deviceType) {
+    "AppleTv" -> "Apple TV"
+    "IPhone" -> "iPhone"
+    "IPad" -> "iPad"
+    "AndroidPhone" -> "Android phone"
+    "AndroidTablet" -> "Android tablet"
+    "AndroidTv" -> "Android TV"
+    else -> null
+}
+
 @Serializable(with = DeviceCommandKind.Serializer::class)
 enum class DeviceCommandKind(override val raw: String) : ForwardCompatibleEnum {
     Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Unknown("");

@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.PhoneIphone
+import androidx.compose.material.icons.filled.TabletAndroid
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -25,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -55,6 +60,21 @@ fun PairingPrompt(model: AppModel, client: FlexarrClient) {
     key(device.code) { PairingSheet(model, client, device) }
 }
 
+/** A TV, phone or tablet, as its [WaitingDevice.deviceType] or [io.github.flexarr.core.Device.deviceType] says; a TV when it doesn't. */
+fun deviceIcon(deviceType: String?): ImageVector = when (deviceType) {
+    "IPhone" -> Icons.Filled.PhoneIphone
+    "AndroidPhone" -> Icons.Filled.PhoneAndroid
+    "IPad", "AndroidTablet" -> Icons.Filled.TabletAndroid
+    else -> Icons.Filled.Tv
+}
+
+/** Why allowing (or turning away) a device didn't work, in a sentence; [outside] the app, from a notification's button. */
+fun pairingProblem(e: Exception, outside: Boolean = false): String = when ((e as? FlexarrException.Http)?.status) {
+    404 -> if (outside) "That code has run out. The device shows a new one; open Flexarr to allow it." else "It may have expired; the device shows a new code."
+    403 -> "Switch to the main profile to allow it."
+    else -> e.message ?: "Something went wrong."
+}
+
 private sealed interface Answer {
     data object Asking : Answer
     data object Sending : Answer
@@ -77,7 +97,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
 
     fun failed(e: Exception): Answer.Failed {
         val gone = e is FlexarrException.Http && e.status == 404
-        return Answer.Failed(if (gone) "It may have expired; the device shows a new code." else e.message ?: "Something went wrong.", gone)
+        return Answer.Failed(pairingProblem(e), gone)
     }
 
     fun allow() {
@@ -124,9 +144,12 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
             Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Connect “${device.deviceName}”?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
-                Text(device.whereFrom, fontSize = 15.sp, color = Flexarr.usher)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(deviceIcon(device.deviceType), contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(34.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Connect “${device.deviceName}”?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                    Text(device.summary, fontSize = 15.sp, color = Flexarr.usher)
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Check its screen shows", fontSize = 17.sp, color = Flexarr.screen)

@@ -104,4 +104,35 @@ class PairingTest {
             assertEquals(3, server.requestCount)
         }
     }
+
+    @Test
+    fun `what kind of device is asking, from servers that say and ones that don't`() {
+        val tv = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting.replace("}", ""","deviceType":"AppleTv"}"""))
+        assertEquals("Apple TV", tv.kind)
+        assertEquals("Apple TV · asking from your home network (192.168.1.70)", tv.summary)
+        assertEquals("Apple TV · home network", tv.shortSummary)
+        assertEquals("Android phone · Tailscale", tv.copy(deviceType = "AndroidPhone", zone = "Tailscale").shortSummary)
+        // Before servers said: the sentence as it was.
+        val older = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting)
+        assertEquals(null, older.deviceType)
+        assertEquals(null, older.kind)
+        assertEquals("It’s asking from your home network (192.168.1.70).", older.summary)
+        assertEquals("home network", older.shortSummary)
+        // A kind newer than this app reads, and is let be.
+        val newer = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting.replace("}", ""","deviceType":"Toaster"}"""))
+        assertEquals("Toaster", newer.deviceType)
+        assertEquals(null, newer.kind)
+        assertEquals(older.whereFrom, newer.summary)
+    }
+
+    @Test
+    fun `a code still on screen lasts longer, in its place`() {
+        val first = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting)
+        val second = first.copy(code = "GHI-JKL", deviceName = "Bedroom")
+        val later = Instant.parse("2026-10-29T12:10:00Z")
+        val list = listOf(first, second).updating(first.copy(expiresAt = later))
+        assertEquals(listOf("ABC-DEF", "GHI-JKL"), list.map { it.code })
+        assertEquals(later, list[0].expiresAt)
+        assertEquals(listOf("ABC-DEF", "GHI-JKL", "MNO-PQR"), list.updating(first.copy(code = "MNO-PQR")).map { it.code })
+    }
 }
