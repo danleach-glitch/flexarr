@@ -7,7 +7,7 @@ import org.junit.Test
 /** A 416 when carrying on a download: finished, or start again. */
 class DownloadWorkerTest {
     private fun complete(partBytes: Long, contentRange: String?, expectedBytes: Long? = null) =
-        DownloadWorker.isComplete(partBytes, contentRange, expectedBytes)
+        DownloadTransfer.isComplete(partBytes, contentRange, expectedBytes)
 
     @Test
     fun `the whole file is there when the server's total is what's been saved`() {

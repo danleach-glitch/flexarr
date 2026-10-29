@@ -44,7 +44,7 @@ class DownloadStoreTest {
     /** Each time the list couldn't all be read: how many entries, and where the file was copied. */
     private val reports = mutableListOf<Pair<Int, File?>>()
 
-    private fun load() = DownloadStore.load(manifest) { count, keptAs -> reports += count to keptAs }
+    private fun load() = DownloadStore.load(manifest, LocalDownload.serializer()) { count, keptAs -> reports += count to keptAs }
 
     @Test
     fun `no list yet is no downloads`() {
