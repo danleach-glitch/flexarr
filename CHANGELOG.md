@@ -18,6 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A film with a chapter called "Ending" or "Credits" well before its end no longer offers Skip Credits there, or counts as watched from that point. Real end credits, even with a short scene after them, still do.
 - On Apple TV and iPhone, scrubbing through a long film no longer keeps every preview picture in memory, which could make older Apple TVs close the player.
 - Previous in the player works like it does for music: a few seconds into an episode it starts it again, and a second press goes to the episode before. In a film, or the first episode, it starts it again. On Apple TV, iPhone and the web, which now has a Previous button too.
+- Audio sync moves the sound in 10 ms steps, so lips and voices can be lined up exactly. Hold − or + (a long press on the Apple TV remote) to move it 50 ms at a time. On the web, Apple TV, iPhone, iPad and Android.
 
 ### Home
 - When a library is empty, Home says so in one short line: add files to the library folder, or connect Sonarr or Radarr.

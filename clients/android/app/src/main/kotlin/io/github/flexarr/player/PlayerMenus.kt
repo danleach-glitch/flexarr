@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,7 +65,9 @@ import androidx.media3.ui.SubtitleView
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.ui.theme.Flexarr
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // The player's menus for audio, subtitles, speed and the sleep timer, and what they open: the iPhone player's
 // UIMenus, Audio sync panel and "Still watching?" question (PlayerViewController and PlayerPanels.swift).
@@ -279,8 +286,8 @@ private fun SleepMenu(controller: PlaybackController, close: () -> Unit) {
 
 /**
  * Nudging a file's sound earlier or later when it's out of step with the picture: a glass panel over the bottom of
- * the picture, opened from the audio menu. Each press moves it 50 ms (up to two seconds either way). The value is the
- * household's, kept by the server.
+ * the picture, opened from the audio menu. Each press moves it 10 ms; holding a button keeps moving it in 50 ms jumps
+ * until let go, up to two seconds either way. The value is the household's, kept by the server.
  */
 @Composable
 internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, modifier: Modifier = Modifier) {
@@ -292,7 +299,8 @@ internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, 
     ) {
         Text("Audio sync", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlassIcon(Icons.Filled.Remove, "Sound earlier") { controller.setAudioDelay(seconds - PlaybackController.AUDIO_SYNC_STEP) }
+            // The latest value, not this composition's: a hold jumps several times before it recomposes.
+            HoldGlassIcon(Icons.Filled.Remove, "Sound earlier") { step -> controller.audioSync?.let { controller.setAudioDelay(it - step) } }
             Column(Modifier.width(110.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(PlaybackController.syncLabel(seconds), fontSize = 24.sp, fontWeight = FontWeight.Bold, style = io.github.flexarr.ui.podcasts.Tabular, color = Color.White)
                 Text(
@@ -300,7 +308,7 @@ internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, 
                     fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f),
                 )
             }
-            GlassIcon(Icons.Filled.Add, "Sound later") { controller.setAudioDelay(seconds + PlaybackController.AUDIO_SYNC_STEP) }
+            HoldGlassIcon(Icons.Filled.Add, "Sound later") { step -> controller.audioSync?.let { controller.setAudioDelay(it + step) } }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Pill("Reset", filled = false) { controller.setAudioDelay(0.0) }
@@ -413,6 +421,37 @@ internal fun SubtitleLayer(controller: PlaybackController) {
 private fun GlassIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
     Box(Modifier.size(40.dp).glass(CircleShape).clickableNoRipple(onClick), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** A [GlassIcon] that moves by [PlaybackController.AUDIO_SYNC_STEP] when tapped and by [PlaybackController.AUDIO_SYNC_JUMP] over and over while held. */
+@Composable
+private fun HoldGlassIcon(icon: ImageVector, label: String, onStep: (Double) -> Unit) {
+    val step by rememberUpdatedState(onStep)
+    Box(
+        Modifier.size(40.dp).glass(CircleShape)
+            .semantics { role = Role.Button; onClick(label) { step(PlaybackController.AUDIO_SYNC_STEP); true } }
+            .pointerInput(Unit) {
+                coroutineScope {
+                    detectTapGestures(onPress = {
+                        var jumped = false
+                        val hold = launch {
+                            delay(400)
+                            while (true) {
+                                jumped = true
+                                step(PlaybackController.AUDIO_SYNC_JUMP)
+                                delay(250)
+                            }
+                        }
+                        val released = tryAwaitRelease()
+                        hold.cancel()
+                        if (released && !jumped) step(PlaybackController.AUDIO_SYNC_STEP)
+                    })
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
     }
 }
 
