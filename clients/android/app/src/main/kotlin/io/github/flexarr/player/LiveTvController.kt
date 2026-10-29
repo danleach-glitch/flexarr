@@ -13,8 +13,10 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveChannel
@@ -42,13 +44,19 @@ private val flexarrLog = FlexarrLog("livetv")
  * listed). "Back to live" appears once the picture is well behind. The iPhone app's LiveTvController.
  */
 class LiveTvController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
+    /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
+    val skipSeconds = PlayerSettings.skipSeconds(context)
+
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
-        .setSeekBackIncrementMs(10_000)
-        .setSeekForwardIncrementMs(10_000)
+        .setSeekBackIncrementMs(skipSeconds * 1000L)
+        .setSeekForwardIncrementMs(skipSeconds * 1000L)
         .build()
     private val scope = model.scope
+
+    /** The sleep timer, as over a film (minutes only: a channel has no end of episode). It carries on across channels. */
+    val sleep = VideoSleep(scope, player)
     /** This device takes Dolby Digital, so a channel's 5.1 can come as it is. */
     private val surround = "ac3" in DeviceCapabilities.profile(context).audioCodecs
 
@@ -86,6 +94,9 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     /** Well behind live: "Back to live" shows. */
     var isBehind by mutableStateOf(false)
         private set
+    /** The picture's size, for the corner window's shape. */
+    var videoSize: VideoSize by mutableStateOf(VideoSize.UNKNOWN)
+        private set
 
     /** The channel before this one, to flip between two (Last watched in the channel list). */
     var previousChannel: LiveChannel? = null
@@ -102,6 +113,12 @@ class LiveTvController(context: Context, private val model: AppModel, val client
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 if (playing) keepTicking()
+                // Played again from elsewhere (headphones, say) after the sleep timer ran out: awake.
+                if (playing && sleep.phase == VideoSleep.Phase.Asleep) sleep.wake()
+            }
+
+            override fun onVideoSizeChanged(size: VideoSize) {
+                videoSize = size
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -182,7 +199,8 @@ class LiveTvController(context: Context, private val model: AppModel, val client
             MediaItem.Builder().setUri(client.url(started.playlist)).setMimeType(MimeTypes.APPLICATION_M3U8).setMediaMetadata(metadata).build(),
         )
         player.prepare()
-        player.play()
+        // Asleep (the sleep timer ran out): stay paused under the dim.
+        if (sleep.phase != VideoSleep.Phase.Asleep) player.play()
         keepAlive(started.viewer)
         keepTicking()
     }
@@ -227,13 +245,15 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         ticker = scope.launch {
             while (isActive && watching != null) {
                 tick()
-                delay(if (player.isPlaying) 500 else 2_000)
+                // Quicker while "Still watching?" counts down and fades the sound.
+                delay(if (sleep.phase == VideoSleep.Phase.Asking) 250 else if (player.isPlaying) 500 else 2_000)
             }
         }
     }
 
     private fun tick() {
         if (watching == null) return
+        sleep.check()
         val window = player.duration
         if (window <= 0 || window == C.TIME_UNSET) return
         duration = window / 1000.0
@@ -313,6 +333,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     fun release() {
         released = true
         ticker?.cancel()
+        sleep.set(null)
         stopWatching()
         model.liveStartingChannel = null
         player.release()

@@ -59,10 +59,16 @@
             android:taskAffinity="com.danleach.flexarr.player"
             android:theme="@style/Theme.Flexarr.Player" />
 
+        <!-- A task of its own too, for picture in picture. -->
         <activity
             android:name=".player.LivePlayerActivity"
+            android:autoRemoveFromRecents="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:taskAffinity="com.danleach.flexarr.live"
             android:theme="@style/Theme.Flexarr.Player" />
 
         <service

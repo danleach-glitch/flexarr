@@ -16,6 +16,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Live TV guide opens quickly with hundreds of channels, and the app uses less battery in the background.
 - Moving on to the next episode during the credits marks the last one watched, and a "play on this phone" sent for another profile plays on that profile.
 - Away from home, the app only uses a secure (https or Tailscale) remote address, and an address you type for a server on the internet is tried over https first.
+- When a film or episode's stream drops (the server restarts, or the Wi-Fi blinks), the player picks it up again from where it was, trying for up to 15 seconds, as on iPhone. If someone started watching on another screen and took the stream, it says so and offers Watch here instead.
+- Previous episode starts the episode again if you're more than a few seconds in, and goes back through what you've watched in this sitting, shuffled episodes included.
+- Live TV plays on in picture in picture when you leave the app, and has the sleep timer, with "Still watching?" before it pauses. Shake the phone to answer "Still watching?" with 15 more minutes, while watching anything. The back and forward buttons in Live TV and in picture in picture jump as far as you chose in Settings › Playback.
 
 ## 0.54.0 · 29 October 2026
 

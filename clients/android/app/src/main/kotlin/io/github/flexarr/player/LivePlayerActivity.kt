@@ -3,6 +3,8 @@ package io.github.flexarr.player
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,6 +20,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,12 +41,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,6 +73,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -97,10 +104,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** A live channel, full screen and sideways, with the rewind window as its timeline. Closing it lets the channel go. */
+/**
+ * A live channel, full screen and sideways, with the rewind window as its timeline. Closing it lets the channel go.
+ * Leaving the app while it plays carries on in picture in picture, as a film does.
+ */
 class LivePlayerActivity : ComponentActivity() {
     private var controller: LiveTvController? = null
     private var session: MediaSession? = null
+    private var pictureInPicture: PictureInPicture? = null
     /** Fetching the channels before the first one starts: closing meanwhile lets it go. */
     private var loading: Job? = null
 
@@ -118,23 +129,64 @@ class LivePlayerActivity : ComponentActivity() {
         val client = model.client ?: return finish()
         val controller = LiveTvController(this, model, client, onClose = ::finish).also { controller = it }
         session = MediaSession.Builder(this, controller.player).setId("live").build()
+        // Another picture still up (a film in the corner, say) gives way: one at a time, as on iPhone.
+        model.commands.active?.stop()
         model.commands.active = playback
-        val channelId = intent.getStringExtra(EXTRA_CHANNEL)!!
+        val pictureInPicture = PictureInPicture(this, object : PictureInPicture.Source {
+            override val videoSize get() = controller.videoSize
+            override val isPlaying get() = controller.isPlaying
+            override val skipSeconds get() = controller.skipSeconds
+            override val canSkipForward get() = controller.isBehind
+            override fun skip(seconds: Int) = controller.skip(seconds)
+            override fun togglePlayPause() = controller.togglePlayPause()
+        }).also { pictureInPicture = it }
+        watchFrom(intent)
+        setContent {
+            FlexarrTheme {
+                // The corner window keeps the picture's shape, and goes there by itself only while playing.
+                LaunchedEffect(controller.videoSize, controller.isPlaying, controller.isBehind) { pictureInPicture.update() }
+                LivePlayerScreen(controller, onClose = ::finish, inPictureInPicture = pictureInPicture.isActive, onPictureInPicture = pictureInPicture::enter)
+            }
+        }
+    }
+
+    /** The intent's channel, among the channels as the screen listed them (fetched now, so what's on is current). */
+    private fun watchFrom(intent: Intent) {
+        val controller = controller ?: return
+        val client = controller.client
+        val channelId = intent.getStringExtra(EXTRA_CHANNEL) ?: return
         val order = intent.getStringArrayExtra(EXTRA_ORDER).orEmpty().toList()
-        // The channels as the screen listed them, fetched now so what's on is current.
-        loading = model.scope.launch {
+        loading?.cancel()
+        loading = appModel.scope.launch {
             val all = runCatching { client.liveChannels() }.getOrDefault(emptyList()).associateBy { it.id }
             val listed = order.mapNotNull(all::get).ifEmpty { all.values.toList() }
             val channel = all[channelId] ?: return@launch finish()
             controller.watch(channel, listed)
         }
-        setContent { FlexarrTheme { LivePlayerScreen(controller, onClose = ::finish) } }
+    }
+
+    /** Another channel chosen while this one is open (in the corner, say): it changes to that. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        watchFrom(intent)
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        pictureInPicture?.userLeaving()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        pictureInPicture?.modeChanged(isInPictureInPictureMode)
     }
 
     override fun onStop() {
         super.onStop()
-        // The channel stays held (the heartbeat says so) while paused in the background.
-        controller?.player?.pause()
+        // In the background (or the screen off) it pauses, the channel still held (the heartbeat says so). In the
+        // corner it plays on.
+        if (!isInPictureInPictureMode) controller?.player?.pause()
     }
 
     /** For another device's pause, resume and stop. */
@@ -150,6 +202,8 @@ class LivePlayerActivity : ComponentActivity() {
         session?.release()
         session = null
         loading?.cancel()
+        pictureInPicture?.release()
+        pictureInPicture = null
         controller?.release()
         controller = null
     }
@@ -167,7 +221,7 @@ class LivePlayerActivity : ComponentActivity() {
 }
 
 @Composable
-private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) {
+private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, inPictureInPicture: Boolean, onPictureInPicture: () -> Unit) {
     var controlsVisible by remember { mutableStateOf(true) }
     var interaction by remember { mutableIntStateOf(0) }
     var choosingChannel by remember { mutableStateOf(false) }
@@ -194,6 +248,8 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) 
             },
             modifier = Modifier.fillMaxSize(),
         )
+        // In the corner window, the picture is all there is.
+        if (inPictureInPicture) return@Box
         val toggleControls = {
             controlsVisible = !controlsVisible
             interaction++
@@ -205,8 +261,8 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) 
                     onDoubleTap = { offset ->
                         val x = offset.x / size.width
                         when {
-                            x < 0.35f -> controller.skip(-10)
-                            x > 0.65f -> controller.skip(10)
+                            x < 0.35f -> controller.skip(-controller.skipSeconds)
+                            x > 0.65f -> controller.skip(controller.skipSeconds)
                             else -> controller.togglePlayPause()
                         }
                     },
@@ -222,15 +278,18 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) 
                 ActionButton("Close", onClick = onClose, prominent = true)
             }
         }
-        AnimatedVisibility(controlsVisible && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-            LiveControls(controller, onClose, onInteract = { interaction++ }, onChannels = { choosingChannel = true })
+        val asleep = controller.sleep.phase != VideoSleep.Phase.Off
+        AnimatedVisibility(controlsVisible && !asleep && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+            LiveControls(controller, onClose, onPictureInPicture, onInteract = { interaction++ }, onChannels = { choosingChannel = true })
         }
         // Behind live: the way back, with or without the controls.
-        if (controller.isBehind && controller.error == null) {
-            Box(Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 96.dp else 32.dp)) {
+        if (controller.isBehind && controller.error == null && !asleep) {
+            Box(Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp)) {
                 ActionButton("Back to live", onClick = controller::goLive, prominent = true)
             }
         }
+        SleepPrompt(controller.sleep)
+        ShakeForSleep(controller.sleep)
     }
 
     if (choosingChannel) {
@@ -257,7 +316,7 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit) 
 }
 
 @Composable
-private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onInteract: () -> Unit, onChannels: () -> Unit) {
+private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onPictureInPicture: () -> Unit, onInteract: () -> Unit, onChannels: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().height(140.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent))))
         Box(Modifier.fillMaxWidth().height(160.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))))
@@ -270,21 +329,27 @@ private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onIn
                 controller.detail?.let { Text(it.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
             GlassButton(Icons.AutoMirrored.Filled.List, "Channels", size = 44) { onChannels(); onInteract() }
+            if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                GlassButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", size = 44, onClick = onPictureInPicture)
+            }
         }
 
         Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
             val many = controller.channels.size > 1
             GlassButton(Icons.Filled.KeyboardArrowUp, "Previous channel", enabled = many) { controller.step(-1); onInteract() }
-            GlassButton(Icons.Filled.Replay10, "Back 10 seconds") { controller.skip(-10); onInteract() }
+            SkipButton(-controller.skipSeconds) { controller.skip(-controller.skipSeconds); onInteract() }
             GlassButton(if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (controller.isPlaying) "Pause" else "Play", size = 76) {
                 controller.togglePlayPause()
                 onInteract()
             }
-            GlassButton(Icons.Filled.Forward10, "Forward 10 seconds", enabled = controller.isBehind) { controller.skip(10); onInteract() }
+            SkipButton(controller.skipSeconds, enabled = controller.isBehind) { controller.skip(controller.skipSeconds); onInteract() }
             GlassButton(Icons.Filled.KeyboardArrowDown, "Next channel", enabled = many) { controller.step(1); onInteract() }
         }
 
-        LiveTimeline(controller, onInteract, Modifier.align(Alignment.BottomCenter))
+        Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
+            SleepMenuBar(controller.sleep, onInteract, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(end = 24.dp))
+            LiveTimeline(controller, onInteract, Modifier)
+        }
     }
 }
 
