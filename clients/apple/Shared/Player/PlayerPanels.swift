@@ -22,7 +22,7 @@ final class AudioSyncPanel: UIView {
     private let resetButton = PlayerControlsView.pill(filled: false)
     private let doneButton = PlayerControlsView.pill(filled: true)
     /// The 50 ms jumps while a button is held, and when the last hold ended: the release that ends a hold isn't a press.
-    private var repeatTimer: Timer?
+    private var repeating: Task<Void, Never>?
     private var heldUntil = Date.distantPast
 
     override init(frame: CGRect) {
@@ -68,19 +68,19 @@ final class AudioSyncPanel: UIView {
         let direction: Double = hold.view === earlierButton ? -1 : 1
         switch hold.state {
         case .began:
-            repeatTimer?.invalidate()
+            repeating?.cancel()
             nudge(direction * Self.jump)
-            repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] timer in
-                MainActor.assumeIsolated {
+            repeating = Task { [weak self] in
+                while (try? await Task.sleep(for: .milliseconds(250))) != nil {
                     // Put away (Menu, a tap on the picture) with the button still down.
-                    guard let self, !self.isHidden, self.window != nil else { return timer.invalidate() }
+                    guard let self, !self.isHidden, self.window != nil else { return }
                     self.nudge(direction * Self.jump)
                 }
             }
         case .ended, .cancelled, .failed:
-            guard repeatTimer != nil else { return }
-            repeatTimer?.invalidate()
-            repeatTimer = nil
+            guard let repeating else { return }
+            repeating.cancel()
+            self.repeating = nil
             heldUntil = Date().addingTimeInterval(0.3)
         default:
             break
