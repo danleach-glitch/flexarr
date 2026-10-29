@@ -41,6 +41,8 @@ import io.github.flexarr.ui.detail.DetailScreen
 import io.github.flexarr.ui.home.HomeScreen
 import io.github.flexarr.ui.library.LibrariesScreen
 import io.github.flexarr.ui.library.LibraryScreen
+import io.github.flexarr.ui.livetv.LiveRecordingsScreen
+import io.github.flexarr.ui.livetv.LiveTvScreen
 import io.github.flexarr.ui.podcasts.NowPlayingBar
 import io.github.flexarr.ui.podcasts.PodcastBrowseScreen
 import io.github.flexarr.ui.podcasts.PodcastScreen
@@ -71,6 +73,8 @@ fun MainScreen(model: AppModel) {
 
     // Whether this profile has podcasts (Libraries lists them) and how it listens to them.
     LaunchedEffect(model.credentials) { model.loadPodcastStatus() }
+    // Whether the server has Live TV (Libraries lists it).
+    LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
 
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
         Scaffold(
@@ -127,6 +131,8 @@ fun MainScreen(model: AppModel) {
                     val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
                     LibraryScreen(model, entry.arguments?.getString("id")!!, sort)
                 }
+                composable("livetv") { LiveTvScreen(model) }
+                composable("livetv/recordings") { LiveRecordingsScreen(model) }
                 composable("podcasts") { PodcastsScreen(model) }
                 composable("podcasts/browse") { PodcastBrowseScreen(model) }
                 composable("podcast/{id}") { PodcastScreen(model, it.arguments?.getString("id")!!) }

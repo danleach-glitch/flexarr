@@ -261,6 +261,8 @@ data class HomeRow(
     val style: HomeRowStyle,
     val items: List<ItemSummary>,
     val link: String? = null,
+    /** A `live` row's channels (`items` is empty then). Absent from servers before Live TV. */
+    val channels: List<LiveChannel>? = null,
 )
 
 @Serializable

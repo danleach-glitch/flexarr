@@ -45,6 +45,12 @@
             android:taskAffinity="com.danleach.flexarr.player"
             android:theme="@style/Theme.Flexarr.Player" />
 
+        <activity
+            android:name=".player.LivePlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:exported="false"
+            android:theme="@style/Theme.Flexarr.Player" />
+
         <service
             android:name=".audio.AudioService"
             android:exported="true"

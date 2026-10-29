@@ -517,7 +517,7 @@ private val PREVIEW_WIDTH = 176.dp
 
 /** A round button on translucent dark glass with a hairline edge, so it reads over any picture. */
 @Composable
-private fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun GlassButton(icon: ImageVector, label: String, size: Int = 56, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         Modifier.size(size.dp).glass(CircleShape).alpha(if (enabled) 1f else 0.35f).clickableNoRipple(onClick, enabled),
         contentAlignment = Alignment.Center,

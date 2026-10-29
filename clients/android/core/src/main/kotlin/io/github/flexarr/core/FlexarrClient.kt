@@ -45,6 +45,9 @@ sealed class FlexarrException(message: String) : Exception(message) {
 
     class Http(val status: Int, message: String?) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
+    /** A live channel can't be watched: every stream is recording, [recording] among them. */
+    class RecordingInTheWayException(val recording: RecordingInTheWay) : FlexarrException(recording.message)
+
     /** The response was not what a Flexarr server sends (for example an HTML page). */
     class UnexpectedResponse : FlexarrException("That address answered, but not like a Flexarr server. Check the host name and port.")
 
@@ -295,6 +298,8 @@ class FlexarrClient(
                     onUnauthorized?.invoke()
                     throw FlexarrException.Unauthorized()
                 }
+                it.code == 409 && RecordingInTheWay.parse(text) != null ->
+                    throw FlexarrException.RecordingInTheWayException(RecordingInTheWay.parse(text)!!)
                 else -> throw FlexarrException.Http(it.code, problemMessage(text))
             }
         }

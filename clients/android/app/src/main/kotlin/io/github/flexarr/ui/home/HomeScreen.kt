@@ -58,6 +58,7 @@ import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
+import io.github.flexarr.ui.livetv.HomeChannelCard
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
@@ -121,8 +122,8 @@ fun HomeScreen(model: AppModel) {
                         item(key = "top") { Box(Modifier.statusBarsPadding()) }
                     }
                     // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    items(home.rows.filter { it.items.isNotEmpty() && it.style != HomeRowStyle.Tracks }, key = { it.id }) { row ->
-                        HomeRowView(row)
+                    items(home.rows.filter { (it.items.isNotEmpty() && it.style != HomeRowStyle.Tracks) || !it.channels.isNullOrEmpty() }, key = { it.id }) { row ->
+                        if (row.style == HomeRowStyle.Live) LiveRowView(row) else HomeRowView(row)
                     }
                 }
             }
@@ -225,6 +226,19 @@ private fun HomeRowView(row: HomeRow) {
                     else -> items(row.items, key = { it.id }) { PosterCard(it) }
                 }
             }
+        }
+    }
+}
+
+/** Favourite channels: each one's logo with how far through what's on, and what's on beneath; the heading opens Live TV. */
+@Composable
+private fun LiveRowView(row: HomeRow) {
+    val navigator = LocalNavigator.current
+    val channels = row.channels.orEmpty()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeading(row.title, onSeeAll = navigator::openLiveTv)
+        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+            items(channels, key = { it.id }) { HomeChannelCard(it, channels) }
         }
     }
 }

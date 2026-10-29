@@ -6,6 +6,8 @@ import androidx.navigation.NavHostController
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LibrarySort
+import io.github.flexarr.core.LiveChannel
+import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.player.PlayerActivity
 import kotlinx.coroutines.launch
 
@@ -28,6 +30,15 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun openPodcast(id: String) = nav.navigate("podcast/$id")
 
     fun openPodcastBrowse() = nav.navigate("podcasts/browse")
+
+    fun openLiveTv() = nav.navigate("livetv")
+
+    fun openRecordings() = nav.navigate("livetv/recordings")
+
+    /** Watches a live channel; Previous and Next go through [order], as the screen listed them. */
+    fun watch(channel: LiveChannel, order: List<LiveChannel>) {
+        context.startActivity(LivePlayerActivity.intent(context, channel, order))
+    }
 
     fun back() = nav.popBackStack()
 

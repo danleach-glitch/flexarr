@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Tv
@@ -99,6 +100,10 @@ fun LibrariesScreen(model: AppModel) {
                                 if (model.podcastStatus != null) {
                                     if (shown.isNotEmpty()) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
                                     LibraryRow("Podcasts", Icons.Filled.Mic) { navigator.openPodcasts() }
+                                }
+                                if (model.hasLiveTv) {
+                                    if (shown.isNotEmpty() || model.podcastStatus != null) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
+                                    LibraryRow("Live TV", Icons.Filled.SettingsInputAntenna) { navigator.openLiveTv() }
                                 }
                             }
                         }

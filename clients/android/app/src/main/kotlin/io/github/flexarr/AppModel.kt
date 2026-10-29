@@ -9,6 +9,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.core.LiveTvStatus
+import io.github.flexarr.core.liveTvStatus
 import io.github.flexarr.audio.PodcastPlayer
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferences
@@ -76,6 +78,15 @@ class AppModel(private val context: Context) {
 
     /** How this profile listens to podcasts (its speed, above all), once loaded. */
     var podcastPreferences: PodcastPreferences? by mutableStateOf(null)
+
+    /** Whether the server has Live TV, and how many channels (null: not known, or a server from before it). */
+    var liveTvStatus: LiveTvStatus? by mutableStateOf(null)
+        private set
+
+    /** The live channel being started, for its card to show a spinner. */
+    var liveStartingChannel: String? by mutableStateOf(null)
+
+    val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
@@ -230,6 +241,11 @@ class AppModel(private val context: Context) {
         if (podcastStatus?.available == true) {
             runCatching { client.podcastPreferences() }.onSuccess { podcastPreferences = it }
         }
+    }
+
+    suspend fun loadLiveTvStatus() {
+        val client = client ?: return
+        liveTvStatus = runCatching { client.liveTvStatus() }.getOrNull()
     }
 
     suspend fun loadUpNext() {
