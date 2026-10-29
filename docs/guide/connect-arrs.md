@@ -24,14 +24,15 @@ You need two things for each app: its **address** and its **API key**.
 ![Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with their media folders below](../../site/guide/img/connections.webp "Settings › Connections")
 
 1. In Flexarr, go to **Settings › Connections**.
-2. Under **Apps**, choose **Add a connection**.
-3. Pick the **Kind**: Sonarr, Radarr or Lidarr. Give it a **Name** if you run more than one of a kind, such as "Radarr 4K".
-4. Type its **Address**, such as `http://192.168.1.20:7878`.
-5. Paste its **API key**.
-6. Choose **Test**. A tick means Flexarr reached it; otherwise you'll see what went wrong.
-7. Choose **Add**.
+2. Every app Flexarr works with is listed under **Apps & Integrations**. Find the one you want and choose **Connect**.
+3. Type its **Address**, such as `http://192.168.1.20:7878`.
+4. Paste its **API key**.
+5. Choose **Test**. A tick means Flexarr reached it; otherwise you'll see what went wrong.
+6. Choose **Connect**.
 
 Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change or remove it.
+
+If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K films, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K".
 
 ### The address
 

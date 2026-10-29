@@ -353,6 +353,12 @@ export const Picture = (p: IconProps) => (
   </svg>
 )
 /** Remove: a bin. */
+/** Plus: add another. */
+export const Plus = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+)
 export const Trash = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M4 7h16" />
