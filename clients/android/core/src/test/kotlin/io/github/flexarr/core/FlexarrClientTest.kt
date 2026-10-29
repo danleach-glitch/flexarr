@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -187,5 +188,18 @@ class FlexarrClientTest {
         val client = client()
         assertTrue(runCatching { client.libraries() }.exceptionOrNull() is FlexarrException.UnexpectedResponse)
         assertTrue(runCatching { client.devices() }.exceptionOrNull() is FlexarrException.UnexpectedResponse)
+    }
+
+    // Real time, not the test's: the answer comes from another thread, inside a time limit.
+    @Test
+    fun `a stream another screen took says why`() = runBlocking {
+        server.enqueue(json("""{"title":"Playing somewhere else","status":410,"detail":"Dan started watching on the TV."}""", code = 410))
+        assertEquals("Dan started watching on the TV.", client().takenOverReason("s1"))
+        assertEquals("/api/v1/playback/s1/main.m3u8", server.takeRequest().url.encodedPath)
+
+        server.enqueue(json("""{"title":"Not Found","status":404}""", code = 404))
+        assertNull(client().takenOverReason("s2"))
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/vnd.apple.mpegurl").body("#EXTM3U\n").build())
+        assertNull(client().takenOverReason("s3"))
     }
 }

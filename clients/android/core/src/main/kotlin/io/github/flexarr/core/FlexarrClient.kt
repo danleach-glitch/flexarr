@@ -162,6 +162,22 @@ class FlexarrClient(
         send("DELETE", "playback/$sessionId")
     }
 
+    /**
+     * Why the server ended this session's converted stream so another screen could play, if it did: its playlist
+     * answers 410 with the reason. Null otherwise (it's still there, it's a file played as it is, or the server
+     * didn't answer within a few seconds), so a hung server doesn't keep the player waiting.
+     */
+    suspend fun takenOverReason(sessionId: String): String? = withTimeoutOrNull(5_000) {
+        try {
+            send("GET", "playback/$sessionId/main.m3u8", racesAlternate = false)
+            null
+        } catch (e: FlexarrException.Http) {
+            if (e.status == 410) e.message else null
+        } catch (_: FlexarrException) {
+            null
+        }
+    }
+
     /** The viewer picked subtitles in the player (a track's key, or null for off): remembered for next time. */
     suspend fun setSubtitle(sessionId: String, key: String?) {
         send("PUT", "playback/$sessionId/subtitle", body = json.encodeToString(SubtitleChoice(key ?: "off")))
