@@ -10,7 +10,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Times written in an episode's notes ("14:26") jump straight there, and web addresses in them open.
 - Now Playing says when the episode will end, at the speed it's playing. Speed, the sleep timer (now a moon) and a new menu sit together in one row. The menu has Go to podcast, Mark as played and Share podcast, plus Download on iPhone.
 - The glow behind a podcast takes its colour from the show's artwork.
-- On iPhone, the scrubber is slimmer and thickens while you drag it, Play or Resume in an episode's notes opens Now Playing, and downloaded episodes show a green download arrow rather than a tick, which now means played (a played episode's tick in its notes is green).
+- On iPhone, the scrubber is slimmer and thickens while you drag it, Play or Resume in an episode's notes opens Now Playing, and anything downloaded (episodes, music, films) shows a green download arrow rather than a tick, so a tick only means played. A played episode's tick in its notes is green.
 - Home on iPhone no longer says "Nothing to watch yet" above your podcasts when they're all there is.
 
 ### Settings
