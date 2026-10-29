@@ -66,6 +66,12 @@ public sealed class Profile
     /// <summary>The film library films this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestFilmsLibraryId { get; set; }
 
+    /// <summary>
+    /// The order of the libraries in every app's menu: library ids, and "live-tv" for Live TV where an app lists it
+    /// among them. Libraries it doesn't mention (a new one) follow, by name. Empty: all by name.
+    /// </summary>
+    public List<string> LibraryOrder { get; set; } = [];
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
