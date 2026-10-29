@@ -34,6 +34,8 @@ sealed interface AppLink {
     data object Downloads : AppLink
     /** Home, where Continue Watching is. */
     data object Home : AppLink
+    /** Asks whether to let in the device showing [code] (a notification that it's asking to connect). */
+    data class Pairing(val code: String) : AppLink
     /**
      * [link] as the profile [profile] (its id, or its name in any case): switched to first, straight away when it has
      * no PIN, else through "Who's watching?", which asks for it. [askFirst] (a link from another app) always goes
@@ -55,6 +57,7 @@ sealed interface AppLink {
             Search -> Uri.parse("flexarr://search")
             Downloads -> Uri.parse("flexarr://downloads")
             Home -> Uri.parse("flexarr://home")
+            is Pairing -> Uri.parse("flexarr://pairing/${Uri.encode(code)}")
             is AsProfile -> link.uri.buildUpon().appendQueryParameter("profile", profile).build()
         }
 
@@ -99,6 +102,8 @@ sealed interface AppLink {
             is Live -> LiveTv
             // An episode has no page of its own to open by its id alone.
             is PodcastEpisode -> null
+            // Only Flexarr's own notification asks whether to let a device in.
+            is Pairing -> null
             is AsProfile -> fromOutside(link.link)?.let { AsProfile(link.profile, it, askFirst = true) }
             else -> link
         }
@@ -123,6 +128,7 @@ sealed interface AppLink {
                 "search" -> Search
                 "downloads" -> Downloads
                 "home" -> Home
+                "pairing" -> uri.pathSegments.firstOrNull()?.takeIf { code -> code.length <= MAX_CODE && code.all { it.isLetterOrDigit() || it == '-' } }?.let(::Pairing)
                 else -> null
             } ?: return null
             // The iPhone's `s=<subtitle key>` is let be: the player chooses subtitles as it always does.
@@ -132,5 +138,6 @@ sealed interface AppLink {
         }
 
         private const val MAX_PROFILE = 100
+        private const val MAX_CODE = 32
     }
 }

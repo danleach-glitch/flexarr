@@ -133,6 +133,8 @@ data class PushPayload(
         const val PODCAST = "flexarr.podcast"
         const val RECORDING = "flexarr.recording"
         const val UPCOMING = "flexarr.upcoming"
+        /** A device asking to connect (to the main profile's phones); `pairing` in [info] is the code it shows. */
+        const val PAIRING = "flexarr.pairing"
 
         private const val NONCE = 12
         private const val TAG_BITS = 128

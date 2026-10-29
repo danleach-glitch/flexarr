@@ -73,6 +73,7 @@ import io.github.flexarr.ui.podcasts.PodcastScreen
 import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
+import io.github.flexarr.ui.pairing.PairingPrompt
 import io.github.flexarr.AppLink
 import io.github.flexarr.ReviewPrompt
 import kotlinx.coroutines.delay
@@ -115,6 +116,8 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
     // Signed in (or as someone else): commands for this device come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
+    // Whether this profile may manage the server, and so is asked to let devices in.
+    LaunchedEffect(model.credentials) { model.loadSignIn() }
     // Downloads follow the server and profile signed in.
     LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
     // Google Play's rating prompt, once the player has closed and the app is back in front (ReviewPrompt says when).
@@ -198,6 +201,10 @@ fun MainScreen(model: AppModel) {
                 AppLink.Search -> select(Tab.Search)
                 AppLink.Downloads -> select(Tab.Downloads)
                 AppLink.Home -> select(Tab.Home)
+                // The prompt to allow it comes up by itself; a device that's gone is said so.
+                is AppLink.Pairing -> if (!model.pairing.open(client, link.code)) {
+                    navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
+                }
             } }
         }
         // With no connection to the server, the app opens on what's downloaded.
@@ -309,6 +316,8 @@ fun MainScreen(model: AppModel) {
             }
           }
         }
+        // A device asking to connect, over whichever screen is up.
+        if (model.isAdmin) PairingPrompt(model, client)
     }
 }
 

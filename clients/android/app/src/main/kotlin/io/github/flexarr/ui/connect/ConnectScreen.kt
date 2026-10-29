@@ -218,8 +218,9 @@ private fun Badge(title: String, icon: androidx.compose.ui.graphics.vector.Image
 }
 
 /**
- * Connecting by code: the server hands out a short code, someone signed in to Flexarr approves it (Settings › Access ›
- * Connect a device), and this device gets a sign-in of its own. Codes that run out are replaced.
+ * Connecting by code: the server hands out a short code, someone approves it (a phone signed in as the main profile is
+ * asked; on a computer, Settings › Access › Connect a device), and this device gets a sign-in of its own. Codes that run
+ * out are replaced.
  */
 @Composable
 private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: () -> Unit) {
@@ -280,17 +281,17 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
         val shown = code
         if (shown != null) {
             Text("Connect this device", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
-            // Short steps for someone who's never done this. A new server has nobody to approve the code yet, so setting
-            // it up comes first.
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                NumberedStep(1) {
-                    Text(buildAnnotatedString {
-                        append("On your computer, open ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address) }
-                        append(" in a web browser.")
-                    })
-                }
-                if (needsSetup) {
+            if (needsSetup) {
+                // Short steps for someone who's never done this. A new server has nobody to approve the code yet, so
+                // setting it up comes first.
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    NumberedStep(1) {
+                        Text(buildAnnotatedString {
+                            append("On your computer, open ")
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address) }
+                            append(" in a web browser.")
+                        })
+                    }
                     NumberedStep(2) {
                         Text(buildAnnotatedString {
                             if (setupNeedsCode) append("Type in the setup code from the server’s log, then click ")
@@ -299,19 +300,30 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                             append(".")
                         })
                     }
+                    NumberedStep(3) {
+                        Text(buildAnnotatedString {
+                            append("Go to ")
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings") }
+                            append(", then ")
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Access") }
+                            append(", then ")
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Connect a device") }
+                            append(".")
+                        })
+                    }
+                    NumberedStep(4) { Text("Type in this code:") }
                 }
-                NumberedStep(if (needsSetup) 3 else 2) {
-                    Text(buildAnnotatedString {
-                        append("Go to ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings") }
-                        append(", then ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Access") }
-                        append(", then ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Connect a device") }
-                        append(".")
-                    })
-                }
-                NumberedStep(if (needsSetup) 4 else 3) { Text("Type in this code:") }
+            } else {
+                // A phone signed in as the main profile is asked to allow it; a computer is the way round.
+                Text(
+                    buildAnnotatedString {
+                        append("On a phone signed in to Flexarr, tap ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Allow") }
+                        append(" when it asks — check it shows this code:")
+                    },
+                    fontSize = 17.sp,
+                    color = Flexarr.screen,
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(shown, fontSize = 52.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Flexarr.screen)
@@ -320,6 +332,19 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
                 Text("This screen moves on by itself once you have.", fontSize = 13.sp, color = Flexarr.usher)
+            }
+            if (!needsSetup) {
+                Text(
+                    buildAnnotatedString {
+                        append("Or on a computer, open ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address) }
+                        append(", go to ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings › Access › Connect a device") }
+                        append(" and type the code.")
+                    },
+                    fontSize = 15.sp,
+                    color = Flexarr.usher,
+                )
             }
         } else if (error == null) {
             CircularProgressIndicator(color = Flexarr.screen)

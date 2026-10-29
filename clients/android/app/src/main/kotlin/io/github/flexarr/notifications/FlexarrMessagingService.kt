@@ -1,15 +1,21 @@
 package io.github.flexarr.notifications
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.graphics.Bitmap
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
@@ -52,8 +58,9 @@ class FlexarrMessagingService : FirebaseMessagingService() {
     companion object {
         private const val CHANNEL = "new"
         private const val UPCOMING_CHANNEL = "upcoming"
+        private const val DEVICES_CHANNEL = "devices"
 
-        /** The channels Android's settings list: what's new, and the morning list (quieter). */
+        /** The channels Android's settings list: what's new, the morning list (quieter), and devices asking to connect (urgent). */
         fun createChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "New in your library", NotificationManager.IMPORTANCE_DEFAULT).apply {
@@ -62,10 +69,14 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, "Upcoming", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Each morning, what's airing today"
             })
+            manager.createNotificationChannel(NotificationChannel(DEVICES_CHANNEL, "Devices asking to connect", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "A TV, phone or tablet waiting for you to let it in"
+            })
         }
 
         fun show(context: Context, payload: PushPayload) {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+            if (payload.category == PushPayload.PAIRING) return showPairing(context, payload)
             // Each its own, as on iPhone: a show's new episodes gather under its thread rather than replacing each other
             // (the same one sent twice still replaces itself).
             val id = listOf(payload.thread, payload.category, payload.title, payload.body, payload.info).hashCode()
@@ -104,6 +115,42 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         }
 
         private fun summaryId(thread: String) = "thread:$thread".hashCode()
+
+        private fun pairingId(code: String) = "pairing:$code".hashCode()
+
+        /**
+         * A device asking to connect: opens the app straight to the prompt to allow it. Not shown while the app is
+         * asking about it already, and taken away once it's let in, turned away or its code runs out.
+         */
+        private fun showPairing(context: Context, payload: PushPayload) {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+            val code = payload.info["pairing"]
+            val model = context.appModel
+            val inFront = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            if (code != null && inFront && model.isAdmin && model.pairing.isWaiting(code)) return
+            val opens = code?.let { AppLink.Pairing(it) } ?: AppLink.Home
+            val id = code?.let(::pairingId) ?: listOf(payload.category, payload.title, payload.body).hashCode()
+            val notification = NotificationCompat.Builder(context, DEVICES_CHANNEL)
+                .setSmallIcon(R.drawable.ic_brand_mark)
+                .setColor(0xFFA9C2EC.toInt())
+                .setContentTitle(payload.title)
+                .setContentText(payload.body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(payload.body))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
+                .setAutoCancel(true)
+                // Codes last minutes, not hours.
+                .setTimeoutAfter(15 * 60 * 1000L)
+                .setContentIntent(activity(context, id, opens))
+                .build()
+            runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
+                .onFailure { log.warning("Couldn't show a notification", it) }
+        }
+
+        /** Takes away the notification about the device showing [code], if there is one. */
+        fun cancelPairing(context: Context, code: String) {
+            NotificationManagerCompat.from(context).cancel(pairingId(code))
+        }
 
         /** What a thread's notifications gather under (Android shows them together beneath it); it doesn't alert itself. */
         private fun summary(context: Context, payload: PushPayload, thread: String, opens: AppLink) =
