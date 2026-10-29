@@ -165,12 +165,12 @@ private suspend fun loadHome(client: FlexarrClient): PodcastsHome = coroutineSco
     PodcastsHome(client.podcasts(), continuing.await(), fresh.await())
 }
 
-/** An episode row on the shared edge, with a quiet separator beneath. */
+/** An episode row with a quiet separator beneath, on the shared edge (the row keeps to it itself, so a swipe's buttons reach the screen's). */
 @Composable
 fun EpisodeListRow(content: @Composable () -> Unit) {
-    Column(Modifier.padding(horizontal = Edge)) {
+    Column {
         content()
-        HorizontalDivider(color = Flexarr.aisle.copy(alpha = 0.6f))
+        HorizontalDivider(Modifier.padding(horizontal = Edge), color = Flexarr.aisle.copy(alpha = 0.6f))
     }
 }
 
