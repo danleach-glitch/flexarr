@@ -217,7 +217,7 @@ fun EpisodePlayButton(model: AppModel, episode: PodcastEpisode) {
 /** An episode's whole notes, with Play (which goes on to Now Playing) and Mark as played. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (Boolean) -> Unit, onDismiss: () -> Unit) {
+internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (Boolean) -> Unit, onDismiss: () -> Unit) {
     val client = LocalClient.current
     var full by remember { mutableStateOf<PodcastEpisode?>(null) }
     var played by remember { mutableStateOf<Boolean?>(null) }
