@@ -154,7 +154,10 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
             Box(Modifier.weight(1f))
             trailing()
         }
-        Text(title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Pages whose content carries its own name (a show, a person) have none here.
+        if (title.isNotEmpty()) {
+            Text(title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
