@@ -16,6 +16,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The Live TV guide opens quickly with hundreds of channels, and the app uses less battery in the background.
 - Moving on to the next episode during the credits marks the last one watched, and a "play on this phone" sent for another profile plays on that profile.
 - Away from home, the app only uses a secure (https or Tailscale) remote address, and an address you type for a server on the internet is tried over https first.
+- Film and TV libraries have Genres at the top, as on iPhone: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre.
+- The Libraries tab follows your library order for Podcasts and Live TV too, rather than always putting them last. In Settings › Library order, drag a library by its handle to move it, and Podcasts and Live TV are in the list.
+- Home has a New podcasts row after Continue watching: the newest episodes of the shows you follow, each opening its notes with Play.
+- A fresh install opens on three welcome pages saying what Flexarr is, how to set up the free server and how the app finds it.
+- When Android allows notifications but your phone isn't getting them from this server, Settings offers Turn on notifications.
+- Settings has Rate Flexarr, which opens the app's Google Play page, and now and then, after you've watched something to the end, Google Play may ask how you're finding Flexarr.
 
 ## 0.54.0 · 29 October 2026
 
