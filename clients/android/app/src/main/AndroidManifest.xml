@@ -7,8 +7,13 @@
     <!-- Podcasts play on with the screen off, with their controls on the lock screen. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Downloads carry on with the app closed, shown as a notification while they come. -->
+    <!-- Downloads carry on with the app closed, shown as a notification while they come: those asked for by hand as
+         user-initiated data transfer jobs on Android 14 on, the rest (and all of them before) through WorkManager's
+         data sync service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <!-- A user-initiated download's job lasts through a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The app is upright on phones (MainActivity says so, so tablets can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
@@ -98,6 +103,13 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/continue_watching_widget" />
         </receiver>
+
+        <!-- Downloads asked for by hand, on Android 14 on (DownloadJobService). -->
+        <service
+            android:name=".downloads.DownloadJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            tools:targetApi="34" />
 
         <!-- WorkManager's service for downloads that run long, typed as Android 14 on asks. -->
         <service

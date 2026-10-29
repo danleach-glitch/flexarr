@@ -56,7 +56,8 @@ private val flexarrLog = FlexarrLog("downloads")
 
 /**
  * Downloads on this phone, as the iPhone app's DownloadStore: asking the server to get them ready, fetching them in the
- * background with WorkManager (carrying on after the app or phone restarts), playing them with no connection, sending
+ * background (carrying on after the app or phone restarts: those asked for by hand as user-initiated jobs on Android 14
+ * on, the rest with WorkManager), playing them with no connection, sending
  * what was watched once there's a connection again, fetching the next episode by itself, keeping the newest episodes of
  * podcasts that auto-download, and deleting episodes a day after they're finished. Downloads the phone starts by itself
  * wait for Wi-Fi unless Settings says otherwise. Albums and playlists come as collections of track downloads.
@@ -276,6 +277,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      */
     fun signedOutByServer(address: String): Boolean {
         work.cancelAllWorkByTag(WORK_TAG)
+        UserInitiatedTransfers.cancelAll(context)
         transferring.clear()
         client = null
         if (all.isEmpty()) return false
@@ -414,7 +416,18 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Podcast episodes come as they are. */
     suspend fun downloadEpisode(episodeId: String) = download(episodeId, DownloadQuality.Original, automatic = false)
 
+    /**
+     * Gives a download a transfer. One asked for by hand runs as a user-initiated job on Android 14 on, when Android
+     * takes one (the app's on screen, or a notification's button was just pressed); the rest go to WorkManager. [replace]
+     * starts a new one; otherwise one that's waiting or running already is left alone.
+     */
     private fun enqueue(download: LocalDownload, replace: Boolean) {
+        if (!replace && UserInitiatedTransfers.isScheduled(context, download.id)) return
+        if (replace && !download.automatic && UserInitiatedTransfers.schedule(context, download)) {
+            work.cancelUniqueWork(workName(download.id))
+            return
+        }
+        if (replace) UserInitiatedTransfers.cancel(context, download.id)
         val network = if (isWiFiOnly(download)) NetworkType.UNMETERED else NetworkType.CONNECTED
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.ID to download.id))
@@ -624,6 +637,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     private fun remove(id: String, tellServer: Boolean) {
         val download = byId(id) ?: return
         work.cancelUniqueWork(workName(id))
+        UserInitiatedTransfers.cancel(context, id)
         transferring.remove(id)
         download.fileName?.let { fileIn(folder, it)?.delete() }
         fileIn(folder, "${safeName(id)}.part")?.delete()
@@ -672,6 +686,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
         val ids = all.map { it.id }
         work.cancelAllWorkByTag(WORK_TAG)
+        UserInitiatedTransfers.cancelAll(context)
         if (!loaded) clearedBeforeLoad = true
         folder.listFiles()?.forEach { if (it.name != MANIFEST && it.name != COLLECTIONS) it.delete() }
         all = emptyList()
