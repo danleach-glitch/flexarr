@@ -29,6 +29,7 @@ import {
   Next,
   Pause,
   Play,
+  Previous,
   Replay10,
   Reset,
   Sleep,
@@ -731,6 +732,13 @@ export function PlayerPage() {
     if (info?.next) navigate(`/play/${info.next.id}?t=0${shuffle ? '&shuffle=1' : ''}`, { replace: true })
   }, [info, navigate, shuffle])
 
+  // Like a music player's back: a few seconds in, or with nothing before (a film, a first episode), it starts this
+  // title again; otherwise it goes to the episode before.
+  const playPrevious = () => {
+    if (info?.previous && (video.current?.currentTime ?? 0) <= 3) navigate(`/play/${info.previous.id}?t=0`, { replace: true })
+    else seekTo(0)
+  }
+
   // Skip intros and recaps by themselves when the profile asks, once each.
   useEffect(() => {
     if (!skippable || error) return
@@ -1204,6 +1212,9 @@ export function PlayerPage() {
           </button>
           <button className="icon-button" onClick={() => seekBy(10)} aria-label="Forward 10 seconds">
             <Forward10 />
+          </button>
+          <button className="icon-button" onClick={playPrevious} aria-label="Previous">
+            <Previous />
           </button>
           {info?.next && (
             <button className="icon-button" onClick={playNext} aria-label="Next episode">

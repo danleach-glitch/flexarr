@@ -156,7 +156,7 @@ final class PlayerControlsView: UIView {
         remainingLabel.text = duration > 0 ? "−" + ScrubberView.clock(max(0, duration - shown)) : ""
     }
 
-    /// A film has neither button; an episode has both, with the one that goes nowhere dimmed.
+    /// Both buttons when either goes somewhere (Previous always does, starting the title again), the other dimmed.
     func setEpisodeNavigation(hasPrevious: Bool, hasNext: Bool) {
         let episode = hasPrevious || hasNext
         #if os(iOS)
