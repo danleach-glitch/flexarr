@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.53.0 · 29 October 2026
 
 ### Music
 - In the web app, click the cover in the music bar to open Now Playing across the whole window: a big cover, the controls and what's up next, with soft light in the cover's colours moving in time with the music behind it. Escape closes it. The light can be turned off in Settings › Playback › Music in this browser.
