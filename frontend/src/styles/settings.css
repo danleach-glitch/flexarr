@@ -1326,6 +1326,30 @@
   margin-top: 4px;
 }
 
+.pairing-prompt-head .sign-in-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.pairing-prompt-head .sign-in-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Settings › Access › Connect a device: every device asking right now, above the code box. */
+.waiting-pairings {
+  display: grid;
+  gap: 12px;
+}
+
+.waiting-pairings h2 {
+  font-size: var(--step-1);
+}
+
+.waiting-pairings p {
+  margin: 0;
+}
+
 @media (max-width: 600px) {
   .pairing-prompt {
     left: 16px;

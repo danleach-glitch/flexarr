@@ -1074,6 +1074,8 @@ export interface PairingDetails {
   /** The address the TV asked from, and which kind of network that is. */
   requestedFrom: string | null
   zone: NetworkZone
+  /** What the device says it is (absent from servers before 0.56, and from apps that don’t say). */
+  deviceType?: DeviceType | null
 }
 
 /** A TV waiting to connect, by the code it shows (main profile only). */

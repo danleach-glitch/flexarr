@@ -5,6 +5,7 @@ import { SessionContext } from '../hooks/sessionContext'
 import { setPairingOpenElsewhere } from '../lib/pairing'
 import { mockApi } from '../test/mockApi'
 import { PairingPrompt } from './PairingPrompt'
+import { WaitingPairings } from './WaitingPairings'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -105,5 +106,30 @@ describe('Pairing prompt', () => {
     renderAs(admin)
     expect(await screen.findByText('Connect “Bedroom”?')).toBeInTheDocument()
     expect(screen.queryByText('Connect “Living room”?')).not.toBeInTheDocument()
+  })
+
+  it('says what kind of device is asking', async () => {
+    mockApi({ '/pairing/waiting': [{ ...livingRoom(), deviceType: 'AppleTv' }] })
+    renderAs(admin)
+    expect(await screen.findByText('Apple TV · asking from your home network (192.168.1.70)')).toBeInTheDocument()
+  })
+
+  it('ignores a kind of device newer than this page', async () => {
+    mockApi({ '/pairing/waiting': [{ ...livingRoom(), deviceType: 'Toaster' }] })
+    renderAs(admin)
+    expect(await screen.findByText('It’s asking from your home network (192.168.1.70).')).toBeInTheDocument()
+  })
+
+  it('keeps out of the way of the Waiting to connect list, looking once for both', async () => {
+    const fetchMock = mockApi({ '/pairing/waiting': [livingRoom()] })
+    render(
+      <SessionContext.Provider value={{ me: admin, profiles: undefined }}>
+        <PairingPrompt />
+        <WaitingPairings />
+      </SessionContext.Provider>,
+    )
+    expect(await screen.findByText('Living room')).toBeInTheDocument()
+    expect(screen.queryByText('Connect “Living room”?')).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
