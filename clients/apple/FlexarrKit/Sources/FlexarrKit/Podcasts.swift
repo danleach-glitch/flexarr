@@ -141,6 +141,24 @@ public struct PodcastEpisode: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// A named part of an episode: from the feed's chapters file, or the times its notes list.
+public struct PodcastChapter: Codable, Sendable, Hashable {
+    public let startSeconds: Double
+    public let title: String
+
+    public init(startSeconds: Double, title: String) {
+        self.startSeconds = startSeconds
+        self.title = title
+    }
+}
+
+extension [PodcastChapter] {
+    /// Where the chapter playing at `position` is in the list; nil before the first starts.
+    public func index(at position: Double) -> Int? {
+        lastIndex { $0.startSeconds <= position + 0.5 }
+    }
+}
+
 /// A show in Apple's podcast directory (search and the charts), and whether it's in the library already.
 public struct DirectoryPodcast: Codable, Sendable, Hashable, Identifiable {
     public let iTunesId: Int64
@@ -231,6 +249,15 @@ extension FlexarrClient {
     /// One episode with all of its notes.
     public func podcastEpisode(_ id: String) async throws -> PodcastEpisode {
         try await get("podcasts/episodes/\(id)")
+    }
+
+    /// The episode's chapters, in order; none when it has none. Absent from servers before 0.54, which have none.
+    public func podcastChapters(_ episodeId: String) async throws -> [PodcastChapter] {
+        do {
+            return try await get("podcasts/episodes/\(episodeId)/chapters")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return []
+        }
     }
 
     /// The newest episodes of the shows this profile follows.

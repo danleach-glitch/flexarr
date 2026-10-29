@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Flexarr.Api.Podcasts;
 using Flexarr.Core.Data;
+using Flexarr.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +85,7 @@ public sealed class PodcastTests : IDisposable
         {
             services.AddHttpClient<PodcastFetcher>().ConfigurePrimaryHttpMessageHandler(() => _host);
             services.AddHttpClient<PodcastDirectory>().ConfigurePrimaryHttpMessageHandler(() => _host);
+            services.AddHttpClient<ImageCache>().ConfigurePrimaryHttpMessageHandler(() => _host);
         }));
         _host.Feed(FeedUrl, Feed(3));
         for (var i = 1; i <= 4; i++)

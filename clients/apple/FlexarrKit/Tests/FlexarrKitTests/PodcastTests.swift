@@ -144,6 +144,19 @@ struct PodcastClientTests {
         #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/podcasts/episodes/e1/next")
     }
 
+    @Test func readsChapters_andAnOlderServerHasNone() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(#"[{"startSeconds":0,"title":"Intro"},{"startSeconds":230,"title":"A gift"}]"#.utf8)))
+
+        let chapters = try await client.podcastChapters("e1")
+        #expect(chapters == [PodcastChapter(startSeconds: 0, title: "Intro"), PodcastChapter(startSeconds: 230, title: "A gift")])
+        #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/podcasts/episodes/e1/chapters")
+        #expect(chapters.index(at: 100) == 0)
+        #expect(chapters.index(at: 229.8) == 1)
+
+        let (older, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(try await older.podcastChapters("e1").isEmpty)
+    }
+
     @Test func savesPreferences() async throws {
         let (client, host) = stubbedClient(.init(status: 200, body: Data(#"{"autoDownload":false,"keepEpisodes":5,"speed":1.5}"#.utf8)))
 
