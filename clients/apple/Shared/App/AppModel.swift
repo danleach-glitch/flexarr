@@ -375,6 +375,27 @@ final class AppModel {
         liveTvStatus = try? await client.liveTvStatus()
     }
 
+    /// The order of this profile's libraries in the menu, the same on every device; nil from servers before 0.54,
+    /// which keep none.
+    var libraryOrder: [String]? { currentProfile?.libraryOrder }
+
+    /// Puts the `shown` entries (library ids, and `LibraryOrder.liveTv`) in this order for the profile, here straight
+    /// away and on its other devices once saved. Entries this app doesn't show keep their places.
+    func setLibraryOrder(_ shown: [String]) {
+        guard let client, var profile = currentProfile, let saved = profile.libraryOrder else { return }
+        let order = LibraryOrder.reordered(saved: saved, shown: shown)
+        profile.libraryOrder = order
+        profiles = profiles.map { $0.id == profile.id ? profile : $0 }
+        libraries = LibraryOrder.sorted(libraries, by: order, id: \.id)
+        Task {
+            if (try? await client.setLibraryOrder(profileId: profile.id, order: order)) == nil {
+                // Not saved: back to what the server has.
+                await loadProfiles()
+                await loadLibraries()
+            }
+        }
+    }
+
     /// Live TV has a place once the server has a source with channels.
     var hasLiveTv: Bool { liveTvStatus.map { $0.configured && $0.channels > 0 } ?? false }
 
@@ -697,6 +718,6 @@ final class Router {
 private extension Profile {
     func marked(current: Bool) -> Profile {
         Profile(id: id, name: name, color: color, hasPin: hasPin, isMain: isMain, isCurrent: current,
-                hiddenLibraryIds: hiddenLibraryIds, image: image)
+                hiddenLibraryIds: hiddenLibraryIds, image: image, libraryOrder: libraryOrder)
     }
 }

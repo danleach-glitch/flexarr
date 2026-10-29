@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The order of the libraries and Live TV in the sidebar. Select one to pick it up, move it with up and down, and
-/// select again to put it down, as when arranging apps on the Apple TV's Home screen.
+/// The order of the libraries and Live TV in the sidebar, for the profile on every device. Select one to pick it up,
+/// move it with up and down, and select again to put it down, as when arranging apps on the Apple TV's Home screen.
 struct TabBarSettingsView: View {
     @Environment(AppModel.self) private var model
     @AppStorage(TabBarEntry.storageKey) private var stored = ""
@@ -12,7 +12,8 @@ struct TabBarSettingsView: View {
     private var entries: [TabBarEntry] { TabBarEntry.ordered(model: model, stored: stored) }
 
     var body: some View {
-        SettingsPage(title: "Sidebar", summary: "Home is always first, and Discover, Search and Settings last.") {
+        SettingsPage(title: "Sidebar", summary: model.libraryOrder == nil ? "Home is always first, and Discover, Search and Settings last."
+                     : "Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.") {
             SettingsGroupLabel("Between Home and Search")
             ForEach(entries) { entry in
                 SettingsRow(title: entry.title, symbol: entry.symbol, value: moving == entry.id ? "Move up or down" : nil,
@@ -35,7 +36,7 @@ struct TabBarSettingsView: View {
             var order = entries
             guard let from = order.firstIndex(where: { $0.id == picked }) else { return }
             order.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { stored = TabBarEntry.storing(order) }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { TabBarEntry.save(order, model: model, stored: &stored) }
             focused = picked
         }
         .onDisappear { moving = nil }

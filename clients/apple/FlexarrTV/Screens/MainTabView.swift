@@ -127,7 +127,9 @@ struct MainTabView: View {
         .task {
             await model.loadLibraries()
             librariesLoaded = true
+            TabBarEntry.adoptStoredOrder(model: model, stored: tabBarOrder)
         }
+        .onChange(of: model.currentProfile?.id) { _, _ in TabBarEntry.adoptStoredOrder(model: model, stored: tabBarOrder) }
         .onAppear(perform: routeLink)
         .onChange(of: model.pendingRoute) { _, _ in routeLink() }
         .onChange(of: librariesLoaded) { _, _ in routeLink() }

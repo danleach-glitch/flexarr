@@ -4,6 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Library order
+
+- Put your libraries in the order you like, and every device follows it: the web's sidebar, the Apple TV's sidebar, and the Libraries tab on iPhone and Android. Each profile has its own order.
+- On the web it's in Settings › Sidebar (drag a library, or use the arrows); on the Apple TV, Settings › Sidebar as before; on iPhone and Android, Settings › Library order.
+- An order you'd already set on the Apple TV carries over to your profile the first time you open the app.
+- On the web, Podcasts now takes its place among your libraries in that order, instead of always coming last.
+
 ### Settings
 - Settings › Access shows each phone, tablet and TV with its own icon, and says what it is (an iPhone, an Android TV) when you point at it, once its app is up to date.
 

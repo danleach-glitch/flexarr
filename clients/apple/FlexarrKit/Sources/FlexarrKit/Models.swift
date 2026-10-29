@@ -733,9 +733,12 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     public let hiddenLibraryIds: [String]
     /// The picture's server-relative URL, or nil to show the initial on the colour.
     public let image: String?
+    /// The order of the libraries in every app's menu: library ids, and "live-tv" for Live TV's place. Empty, by
+    /// name. Absent from servers before 0.54, which keep no order: the Apple TV then keeps its own.
+    public var libraryOrder: [String]? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
-                isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil) {
+                isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -744,11 +747,35 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
         self.isCurrent = isCurrent
         self.hiddenLibraryIds = hiddenLibraryIds
         self.image = image
+        self.libraryOrder = libraryOrder
     }
 
     /// The first letter, shown when there's no picture.
     public var initial: String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
+    }
+}
+
+public enum LibraryOrder {
+    /// Live TV's place in a profile's library order.
+    public static let liveTv = "live-tv"
+
+    /// The profile's order after the `shown` entries were put in a new order. Entries this app doesn't show (Live TV
+    /// on iPhone, a library hidden from it) keep the places they had; the shown ones fill the rest in their new order,
+    /// and any the saved order didn't have yet follow.
+    public static func reordered(saved: [String], shown: [String]) -> [String] {
+        let showing = Set(shown)
+        var next = shown[...]
+        let order = saved.compactMap { showing.contains($0) ? next.popFirst() : $0 }
+        return order + next
+    }
+
+    /// `entries` in the order of `saved`; any it doesn't mention, such as a new library, after them as they came.
+    public static func sorted<T>(_ entries: [T], by saved: [String], id: (T) -> String) -> [T] {
+        let rank = Dictionary(saved.enumerated().map { ($1.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        return entries.enumerated()
+            .sorted { (rank[id($0.element).lowercased()] ?? saved.count + $0.offset) < (rank[id($1.element).lowercased()] ?? saved.count + $1.offset) }
+            .map(\.element)
     }
 }
 
