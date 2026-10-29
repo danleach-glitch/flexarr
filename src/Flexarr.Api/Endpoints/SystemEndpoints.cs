@@ -11,8 +11,12 @@ namespace Flexarr.Api.Endpoints;
 /// it beside the address they were connected with and use it when that one can't be reached.
 /// </param>
 /// <param name="ErrorReports">Whether the apps send error reports (Settings › Logs), and this server's random id for them.</param>
+/// <param name="ServerId">
+/// This server's id, which GET /setup also gives without signing in: before an app sends its sign-in to
+/// <paramref name="RemoteUrl"/>, it checks the server there answers with the same one.
+/// </param>
 public sealed record SystemStatus(string AppName, string Version, string OsDescription, string RuntimeVersion, DateTimeOffset StartTime, string? RemoteUrl,
-    ErrorReportStatus ErrorReports);
+    ErrorReportStatus ErrorReports, string? ServerId);
 
 public sealed record ErrorReportStatus(bool Enabled, string? InstallId);
 
@@ -44,7 +48,8 @@ public static class SystemEndpoints
             RuntimeInformation.FrameworkDescription,
             StartTime,
             await tailscale.RemoteUrlAsync(http.Connection.LocalPort > 0 ? http.Connection.LocalPort : 8383, ct),
-            options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null)));
+            options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null),
+            options.CurrentValue.ServerId));
 
         return api;
     }

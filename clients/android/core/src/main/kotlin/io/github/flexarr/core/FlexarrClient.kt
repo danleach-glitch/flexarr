@@ -542,6 +542,20 @@ class FlexarrClient(
             return ipAddress(host)?.let(::isTailscaleAddress) == true
         }
 
+        /**
+         * Which server answers at [url], asked without any sign-in (GET /setup): its id ([SystemStatus.serverId]), or
+         * null when it gave none (a server before 0.55, or not a Flexarr server at all). Throws
+         * [FlexarrException.Unreachable] when nothing answered there, which says nothing either way.
+         */
+        suspend fun serverIdAt(url: HttpUrl, http: OkHttpClient = sharedHttp.newBuilder().callTimeout(5, TimeUnit.SECONDS).build()): String? =
+            try {
+                FlexarrClient(url, http = http).get<SetupStatus>("setup").serverId
+            } catch (e: FlexarrException.Unreachable) {
+                throw e
+            } catch (_: FlexarrException) {
+                null
+            }
+
         /** Reads ASP.NET problem details (`errors`, `detail` or `title`), or a plain `reason`, into one message. */
         internal fun problemMessage(text: String): String? {
             val problem = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null

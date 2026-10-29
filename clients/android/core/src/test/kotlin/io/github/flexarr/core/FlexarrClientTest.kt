@@ -165,6 +165,25 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `asks another address which server is there, without the sign-in`() = runTest {
+        server.enqueue(json("""{"open":false,"codeRequired":true,"serverId":"abc123"}"""))
+        server.enqueue(json("""{"open":false}"""))
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
+        val url = server.url("/")
+
+        assertEquals("abc123", FlexarrClient.serverIdAt(url))
+        val request = server.takeRequest()
+        assertEquals("/api/v1/setup", request.url.encodedPath)
+        assertNull(request.headers["X-Api-Key"])
+        assertNull(request.headers["X-Flexarr-Profile"])
+        // A server before 0.55, and something that isn't a Flexarr server: no id.
+        assertNull(FlexarrClient.serverIdAt(url))
+        assertNull(FlexarrClient.serverIdAt(url))
+        server.close()
+        assertTrue(runCatching { FlexarrClient.serverIdAt(url) }.exceptionOrNull() is FlexarrException.Unreachable)
+    }
+
+    @Test
     fun `ids from links are the server's kind`() {
         assertTrue(FlexarrClient.isPlainId("01a16be6-5a0b-790c-8734-28f147909cd9"))
         assertTrue(FlexarrClient.isPlainId("r1"))
