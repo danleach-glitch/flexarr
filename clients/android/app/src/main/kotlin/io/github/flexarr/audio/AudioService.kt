@@ -4,18 +4,20 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.media3.common.Player
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import io.github.flexarr.MainActivity
 import io.github.flexarr.appModel
 
 /**
  * Keeps music or a podcast playing with the app in the background or the screen off, and puts its controls on the lock
  * screen, in the notification shade and on headphones. The players themselves belong to the app ([MusicPlayer] and
- * [PodcastPlayer]); this only publishes whichever is playing.
+ * [PodcastPlayer]); this only publishes whichever is playing. It's also what Android Auto browses ([CarLibrary]).
  */
-class AudioService : MediaSessionService() {
-    private var session: MediaSession? = null
+class AudioService : MediaLibraryService() {
+    private var session: MediaLibrarySession? = null
+    private lateinit var library: CarLibrary
 
     override fun onCreate() {
         super.onCreate()
@@ -26,12 +28,13 @@ class AudioService : MediaSessionService() {
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, activePlayer()).setSessionActivity(open).build().also { addSession(it) }
+        library = CarLibrary(appModel)
+        session = MediaLibrarySession.Builder(this, library.Router(activePlayer()), library).setSessionActivity(open).build().also { addSession(it) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Music and podcasts take turns: the session follows whichever started last.
-        session?.let { session -> activePlayer().let { if (session.player !== it) session.player = it } }
+        session?.let { session -> activePlayer().let { if ((session.player as? CarLibrary.Router)?.wrapped !== it) session.player = library.Router(it) } }
         return super.onStartCommand(intent, flags, startId)
     }
 
@@ -41,7 +44,7 @@ class AudioService : MediaSessionService() {
         return if (model.music.current != null) model.music.sessionPlayer else model.podcasts.player
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     /** Swiped away from recent apps: carry on if it's playing, otherwise there's nothing to keep. */
     override fun onTaskRemoved(rootIntent: Intent?) {

@@ -26,6 +26,8 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +61,7 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.libraryOrder
 import io.github.flexarr.core.ServerVersion
+import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loaded
@@ -87,7 +90,7 @@ import java.time.format.FormatStyle
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> Unit, onDownloads: () -> Unit) {
+fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> Unit, onDownloads: () -> Unit, onNotifications: () -> Unit) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
 
@@ -119,6 +122,11 @@ fun SettingsScreen(model: AppModel, onServer: () -> Unit, onLibraryOrder: () -> 
                 Group {
                     val downloads = model.downloads
                     SettingsLink("Downloads", Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)
+                }
+            }
+            item {
+                Group {
+                    SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
                 }
             }
             item {
@@ -238,7 +246,7 @@ fun DownloadSettingsScreen(model: AppModel) {
 
 /** One of a few choices, ticked when it's the one. */
 @Composable
-private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 16.dp, vertical = 14.dp).semantics { this.selected = selected },
         verticalAlignment = Alignment.CenterVertically,
@@ -249,13 +257,16 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
+internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, detail: String? = null, enabled: Boolean = true) {
     Row(
-        Modifier.fillMaxWidth().toggleable(on, onValueChange = onChange, role = Role.Switch).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().toggleable(on, enabled = enabled, onValueChange = onChange, role = Role.Switch).padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 17.sp, color = Flexarr.screen)
+            detail?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher) }
+        }
         Switch(
             checked = on,
             onCheckedChange = null,
@@ -269,7 +280,7 @@ private fun shortAddress(address: String?): String = address.orEmpty().replace(R
 
 /** Address, server version and what it runs on. */
 @Composable
-fun ServerSettingsScreen(model: AppModel) {
+fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val status = rememberLoader(model.credentials) { client.systemStatus() }
@@ -313,6 +324,18 @@ fun ServerSettingsScreen(model: AppModel) {
                     }
                     Divider()
                     Fact("Libraries", (libraries.state as? Load.Loaded)?.value?.joinToString(", ") { it.name }.orEmpty())
+                }
+            }
+            item {
+                // As the server says now, or as this phone last heard while it can't be asked.
+                val reportsOn = (status.state as? Load.Loaded)?.value?.let { it.errorReports?.enabled == true } ?: ErrorReports.isOn
+                Group(footer = ErrorReports.PRIVACY_NOTE) {
+                    Fact("Error reports", if (reportsOn) "On" else "Off")
+                }
+            }
+            item {
+                Group(footer = "Send this phone’s recent log to your server, to look into a problem.") {
+                    SettingsLink("Send diagnostics", Icons.Filled.MedicalServices, value = null, onClick = onDiagnostics)
                 }
             }
         }
@@ -406,7 +429,7 @@ private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().app
 
 /** A group of rows on the seat, with an optional heading above and note below, as iPhone's grouped lists. */
 @Composable
-private fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
+internal fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         header?.let { Text(it.uppercase(), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) { content() }
@@ -415,11 +438,11 @@ private fun Group(header: String? = null, footer: String? = null, content: @Comp
 }
 
 @Composable
-private fun Divider() = HorizontalDivider(Modifier.padding(start = 16.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
+internal fun Divider() = HorizontalDivider(Modifier.padding(start = 16.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
 
 /** A row on the Settings list: an icon in a tile, the page's name and, on the right, how it's set now. */
 @Composable
-private fun SettingsLink(title: String, icon: ImageVector, value: String?, onClick: () -> Unit) {
+internal fun SettingsLink(title: String, icon: ImageVector, value: String?, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -435,7 +458,7 @@ private fun SettingsLink(title: String, icon: ImageVector, value: String?, onCli
 }
 
 @Composable
-private fun Fact(label: String, value: String) {
+internal fun Fact(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(label, fontSize = 17.sp, color = Flexarr.screen)
         Text(value, fontSize = 17.sp, color = Flexarr.usher, textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

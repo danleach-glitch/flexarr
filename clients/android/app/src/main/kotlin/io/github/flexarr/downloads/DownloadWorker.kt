@@ -1,11 +1,11 @@
 package io.github.flexarr.downloads
 
+import io.github.flexarr.logging.FlexarrLog
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -25,6 +25,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+
+private val flexarrLog = FlexarrLog("downloads")
 
 /**
  * One download's transfer, run by WorkManager so it carries on with the app closed and starts again after a restart:
@@ -70,7 +72,7 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
             Result.success()
         } catch (e: Exception) {
             // Out of reach, or the connection dropped: tried again later, from where it got to.
-            Log.w("Flexarr", "Download $id stopped; trying again later", e)
+            flexarrLog.warning("Download $id stopped; trying again later", e)
             if (runAttemptCount >= MAX_ATTEMPTS) {
                 onMain { store.failed(id, "The download stopped. Try again.") }
                 Result.success()

@@ -1,8 +1,8 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +29,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+private val flexarrLog = FlexarrLog("podcasts")
 
 /**
  * Podcast episodes, playing on under every screen and with the screen off: they resume, play faster or slower, skip
@@ -89,7 +91,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.w("Flexarr", "Podcast episode failed", error)
+            flexarrLog.warning("Podcast episode failed", error)
             errorMessage = "This episode couldn’t be played."
             endSession()
         }
@@ -157,7 +159,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
                 model.loadUpNext()
             } catch (e: Exception) {
                 if (mine != generation) return@launch
-                Log.w("Flexarr", "Couldn't start ${episode.title}", e)
+                flexarrLog.warning("Couldn't start ${episode.title}", e)
                 errorMessage = e.message
             } finally {
                 if (mine == generation) isLoading = false

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Continue Watching, for the launcher's long-press menu. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:fillColor="#1B1720" android:pathData="M24,0a24,24 0 1,0 0,48a24,24 0 1,0 0,-48z" />
+    <group android:translateX="8" android:translateY="8" android:scaleX="1.33" android:scaleY="1.33">
+        <path android:fillColor="#A9C2EC" android:pathData="M8,5v14l11,-7z" />
+    </group>
+</vector>

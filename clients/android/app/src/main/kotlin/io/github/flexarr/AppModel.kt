@@ -24,6 +24,10 @@ import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.downloads.DownloadStore
+import io.github.flexarr.logging.ErrorReports
+import io.github.flexarr.logging.LogHub
+import io.github.flexarr.notifications.PushNotifications
+import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -45,8 +49,14 @@ class AppModel(private val context: Context) {
     /** Outlives any screen: signing out on the server and the last progress report finish after the player closes. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    var phase: Phase by mutableStateOf(store.load()?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
-        private set
+    private var phaseState: Phase by mutableStateOf(store.load()?.let { Phase.SignedIn(it) } ?: Phase.SignedOut)
+
+    var phase: Phase
+        get() = phaseState
+        private set(value) {
+            phaseState = value
+            signInChanged()
+        }
 
     /** Said on the connect screen after the server signed this device out. */
     var signedOutNotice: String? by mutableStateOf(null)
@@ -89,6 +99,9 @@ class AppModel(private val context: Context) {
     /** Music, playing on under every screen; it and podcasts take turns. */
     val music = MusicPlayer(context, this)
 
+    /** What's new, from the server through Firebase. */
+    val notifications = PushNotifications(context)
+
     /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
     val downloads = DownloadStore(context, this)
 
@@ -115,6 +128,9 @@ class AppModel(private val context: Context) {
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
         private set
+
+    /** Where a notification, shortcut or the widget asked to go, until the screens have gone there. */
+    var pendingLink: AppLink? by mutableStateOf(null)
 
     /** The podcast Now Playing sheet is open: from the bar, or after Play in an episode's notes. */
     var showsNowPlaying by mutableStateOf(false)
@@ -151,6 +167,8 @@ class AppModel(private val context: Context) {
         store.save(credentials)
         saved = true
         signedIn(credentials)
+        // On again, if they were on before this phone signed out.
+        scope.launch { notifications.resume(credentials) }
     }
 
     /** Signs in for this launch only, without saving or swapping the key: debug builds started from the command line. */
@@ -197,7 +215,7 @@ class AppModel(private val context: Context) {
         val client = client
         // Downloads go too: what was watched offline is sent and the server's copies dropped first, while the sign-in works.
         val downloadsDone = downloads.signedOut(client)
-        if (saved) client?.let { client -> scope.launch { downloadsDone.join(); runCatching { client.signOut() } } }
+        if (saved) client?.let { client -> scope.launch { downloadsDone.join(); notifications.signedOut(client); runCatching { client.signOut() } } }
         forget()
     }
 
@@ -211,6 +229,7 @@ class AppModel(private val context: Context) {
         profiles = emptyList()
         profilesLoaded = false
         phase = Phase.SignedOut
+        scope.launch { ContinueWatchingWidget.refresh(context) }
     }
 
     suspend fun loadProfiles() {
@@ -242,7 +261,7 @@ class AppModel(private val context: Context) {
         if (saved) store.saveProfile(selection.token)
         phase = Phase.SignedIn(updated)
         profiles = profiles.map { it.copy(isCurrent = it.id == profile.id) }
-        watchStateVersion++
+        watchStateChanged()
     }
 
     /** Back to choosing who's watching. */
@@ -303,6 +322,7 @@ class AppModel(private val context: Context) {
 
     fun watchStateChanged() {
         watchStateVersion++
+        scope.launch { ContinueWatchingWidget.refresh(context) }
     }
 
     private var checkingSignIn = false
@@ -322,6 +342,7 @@ class AppModel(private val context: Context) {
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
                     downloads.signedOut(null)
+                    notifications.forget()
                     forget()
                     signedOutNotice = "This device was signed out."
                 }
@@ -344,5 +365,26 @@ class AppModel(private val context: Context) {
             if (client.me().method != "api-key") return credentials
             credentials.copy(apiKey = client.deviceToken(deviceName))
         }.getOrDefault(credentials)
+    }
+
+    /** The server whose error-report setting was last asked for. */
+    private var reportsServer: String? = null
+
+    /** The log sends to the server signed in to, and error reports follow that server's setting. */
+    private fun signInChanged() {
+        val client = client
+        LogHub.signedIn(client)
+        val address = credentials?.address
+        if (address == null) {
+            reportsServer = null
+            ErrorReports.stop()
+        } else if (address != reportsServer && client != null) {
+            reportsServer = address
+            scope.launch { ErrorReports.refresh(client, address) }
+        }
+    }
+
+    init {
+        signInChanged()
     }
 }

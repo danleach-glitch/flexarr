@@ -1,9 +1,9 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -35,6 +35,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+private val flexarrLog = FlexarrLog("music")
 
 /**
  * Plays a queue of tracks through one player: each track is its own server session (started as it comes up, reported
@@ -156,7 +158,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.w("Flexarr", "Track failed", error)
+            flexarrLog.warning("Track failed", error)
             errorMessage = "This track couldn’t be played."
             endSession()
             player.clearMediaItems()
@@ -321,7 +323,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                 startTicking()
             } catch (e: Exception) {
                 if (mine != generation) return@launch
-                Log.w("Flexarr", "Couldn't start ${track.title}", e)
+                flexarrLog.warning("Couldn't start ${track.title}", e)
                 errorMessage = e.message
             } finally {
                 if (mine == generation) isLoading = false

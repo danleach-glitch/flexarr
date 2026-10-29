@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app's icon: straight to Search, Continue Watching (on Home) or Downloads, as AppLink addresses. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="continue"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_continue"
+        android:shortcutShortLabel="@string/shortcut_continue">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="flexarr://home"
+            android:targetClass="io.github.flexarr.MainActivity"
+            android:targetPackage="com.danleach.flexarr" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutShortLabel="@string/shortcut_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="flexarr://search"
+            android:targetClass="io.github.flexarr.MainActivity"
+            android:targetPackage="com.danleach.flexarr" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="downloads"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_downloads"
+        android:shortcutShortLabel="@string/shortcut_downloads">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="flexarr://downloads"
+            android:targetClass="io.github.flexarr.MainActivity"
+            android:targetPackage="com.danleach.flexarr" />
+    </shortcut>
+</shortcuts>

@@ -1,6 +1,7 @@
 package io.github.flexarr.ui.components
 
-import android.util.Log
+import io.github.flexarr.core.FlexarrException
+import io.github.flexarr.logging.FlexarrLog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,6 +12,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlin.coroutines.cancellation.CancellationException
+
+private val flexarrLog = FlexarrLog("screens")
 
 /** Something a screen fetches: still coming, here, or failed with a message to show. */
 sealed interface Load<out T> {
@@ -66,7 +69,8 @@ fun <T> rememberLoader(vararg keys: Any?, load: suspend () -> T): Loader<T> {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w("Flexarr", "Couldn't load", e)
+            // The server out of reach is expected now and then (a home server, away from home): not worth a warning.
+            if (e is FlexarrException.Unreachable) flexarrLog.info("Couldn't load", e) else flexarrLog.warning("Couldn't load", e)
             if (!shown) state = Load.Failed(e.message ?: "Something went wrong.")
         } finally {
             refreshing = false

@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -66,6 +67,11 @@ import io.github.flexarr.ui.podcasts.PodcastScreen
 import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
+import io.github.flexarr.AppLink
+import kotlinx.coroutines.launch
+import io.github.flexarr.core.podcastEpisode
+import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
+import io.github.flexarr.ui.settings.NotificationSettingsScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
@@ -117,6 +123,28 @@ fun MainScreen(model: AppModel) {
                     restoreState = true
                 }
             }
+        }
+        // A notification, shortcut or the widget asked to go somewhere.
+        val linkScope = rememberCoroutineScope()
+        LaunchedEffect(model.pendingLink) {
+            val link = model.pendingLink ?: return@LaunchedEffect
+            // Cleared at once, which restarts this effect: what it does runs on in a scope of its own.
+            model.pendingLink = null
+            linkScope.launch { when (link) {
+                is AppLink.Item -> navigator.openItem(link.id)
+                is AppLink.Play -> {
+                    val item = runCatching { client.item(link.id) }.getOrNull()
+                    if (item != null) navigator.playBest(item.item) else navigator.openItem(link.id)
+                }
+                is AppLink.Podcast -> nav.navigate("podcast/${link.id}")
+                is AppLink.PodcastEpisode -> runCatching { client.podcastEpisode(link.id) }.onSuccess {
+                    model.podcasts.play(it)
+                    model.showsNowPlaying = true
+                }
+                AppLink.Search -> select(Tab.Search)
+                AppLink.Downloads -> select(Tab.Downloads)
+                AppLink.Home -> select(Tab.Home)
+            } }
         }
         // With no connection to the server, the app opens on what's downloaded.
         LaunchedEffect(model.serverUnreachable) {
@@ -185,10 +213,13 @@ fun MainScreen(model: AppModel) {
                         onServer = { nav.navigate("settings/server") },
                         onLibraryOrder = { nav.navigate("settings/library-order") },
                         onDownloads = { nav.navigate("settings/downloads") },
+                        onNotifications = { nav.navigate("settings/notifications") },
                     )
                 }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
-                composable("settings/server") { ServerSettingsScreen(model) }
+                composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
+                composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
+                composable("settings/notifications") { NotificationSettingsScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(
                     "library/{id}?sort={sort}",

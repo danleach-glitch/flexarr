@@ -18,21 +18,29 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Flexarr">
 
+        <!-- Music and podcasts in the car. -->
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
+
+        <!-- Error reports start only when the server's owner has them on (ErrorReports), never by themselves. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:theme="@style/Theme.Flexarr.Starting"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- The player is a task of its own, so in picture in picture the rest of the app can be used beside it, and
@@ -59,9 +67,34 @@
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <!-- Android Auto finds the app's music and podcasts here. -->
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!-- Notifications from the server, through Firebase (docs/notifications.md). -->
+        <service
+            android:name=".notifications.FlexarrMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <receiver android:name=".notifications.DownloadReceiver" android:exported="false" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="new" />
+
+        <!-- Continue Watching on the home screen. -->
+        <receiver
+            android:name=".widget.ContinueWatchingWidgetReceiver"
+            android:exported="true"
+            android:label="@string/shortcut_continue">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/continue_watching_widget" />
+        </receiver>
 
         <!-- WorkManager's service for downloads that run long, typed as Android 14 on asks. -->
         <service

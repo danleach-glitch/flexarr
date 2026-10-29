@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Flexarr"
 
-include(":core", ":app")
+include(":core", ":app", ":baselineprofile")
