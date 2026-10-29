@@ -2,6 +2,7 @@ package io.github.flexarr.core
 
 import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,5 +91,14 @@ class PresentationTest {
         val info = fixture<PlaybackInfo>("playback")
         assertEquals(PlaybackPrompt.Skip(MarkerType.Intro, 234.34), info.prompt(216.0))
         assertEquals(PlaybackPrompt.NextEpisode, info.prompt(2820.0))
+    }
+
+    @Test
+    fun `compares server versions`() {
+        assertTrue(ServerVersion.atLeast("0.53.0", 0, 53))
+        assertTrue(ServerVersion.atLeast("0.54.0-dev.1a2b3c4", 0, 53))
+        assertTrue(ServerVersion.atLeast("1.0.0+d4c892c6190c", 0, 53))
+        assertFalse(ServerVersion.atLeast("0.52.9", 0, 53))
+        assertFalse(ServerVersion.atLeast("dev", 0, 53))
     }
 }

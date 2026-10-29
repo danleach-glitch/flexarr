@@ -1215,7 +1215,11 @@ export interface SignIn {
   profileName: string | null
   /** The browser you're using now. */
   isThisOne: boolean
+  /** For a device, what it is, once its app says (apps from before 0.54 don't). Unknown values may come later. */
+  deviceType?: DeviceType | null
 }
+
+export type DeviceType = 'AppleTv' | 'IPhone' | 'IPad' | 'AndroidPhone' | 'AndroidTablet' | 'AndroidTv'
 
 export const getSignIns = (signal?: AbortSignal) => apiGet<SignIn[]>('/sign-ins', signal)
 export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${id}`)

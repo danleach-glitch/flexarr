@@ -30,13 +30,16 @@ public enum PushOutcome
 {
     Sent,
 
-    /// <summary>Apple no longer knows the phone (the app was deleted, or notifications turned off for good).</summary>
+    /// <summary>Apple or Google no longer knows the phone (the app was deleted, or notifications turned off for good).</summary>
     Gone,
 
     Failed,
 }
 
-/// <summary>Seals notifications with each phone's own key and hands them to the relay, which passes them to Apple.</summary>
+/// <summary>
+/// Seals notifications with each phone's own key and hands them to the relay, which passes them to Apple, or to Google
+/// for an Android phone.
+/// </summary>
 public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOptions> options, ILogger<PushRelay> logger)
 {
     private const int NonceSize = 12;
@@ -58,7 +61,8 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
         var payload = Seal(device.Key, JsonSerializer.SerializeToUtf8Bytes(message, Json));
         try
         {
-            using var response = await http.PostAsJsonAsync(relay, new RelayRequest(device.Token, device.Environment, payload, collapseId), Json, ct);
+            using var response = await http.PostAsJsonAsync(relay, new RelayRequest(device.Token, device.Environment, payload, collapseId,
+                device.Platform == NotificationPlatforms.Android ? NotificationPlatforms.Android : null), Json, ct);
             if (response.IsSuccessStatusCode)
             {
                 return (PushOutcome.Sent, null);
@@ -111,7 +115,8 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
         }
     }
 
-    private sealed record RelayRequest(string Token, string Environment, string Payload, string? CollapseId);
+    /// <param name="Platform">"android" for Firebase; left out for Apple, as relays from before Android expect.</param>
+    private sealed record RelayRequest(string Token, string Environment, string Payload, string? CollapseId, string? Platform);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification relay refused a push ({Status}: {Reason})")]
     private partial void LogRefused(int status, string? reason);
@@ -156,6 +161,6 @@ public sealed partial class Notifier(PushRelay relay, Authentication.SignIns sig
         return sent;
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Apple no longer knows phone {Id}; it won't be sent notifications")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "The push service no longer knows phone {Id}; it won't be sent notifications")]
     private partial void LogForgotten(string id);
 }

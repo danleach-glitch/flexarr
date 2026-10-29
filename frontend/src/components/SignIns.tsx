@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ApiError, getSignIns, renameSignIn, revokeSignIn, signOut, signOutOthers, type SignIn } from '../api/client'
+import { ApiError, getSignIns, renameSignIn, revokeSignIn, signOut, signOutOthers, type DeviceType, type SignIn } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { relativeTime } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
-import { Monitor, Tv } from './icons'
+import { Monitor, Phone, Tablet, Tv } from './icons'
 
 const threeDays = 3 * 24 * 60 * 60 * 1000
 
@@ -25,10 +25,31 @@ const signedIn = (s: SignIn) => (s.kind === 'Device' ? 'connected' : 'signed in'
 const summary = (s: SignIn) =>
   [s.profileName, s.zone === 'Internet' && s.address ? `Internet (${s.address})` : where(s), `last used ${relativeTime(s.lastUsedAt)}`].filter(Boolean).join(' · ')
 
-const detail = (s: SignIn, from = s.createdAt) =>
-  `${s.kind === 'Device' ? 'Connected' : 'Signed in'} ${day(from) === day(s.createdAt) ? day(s.createdAt) : `between ${day(from)} and ${day(s.createdAt)}`}${s.address ? ` from ${s.address}` : ''}`
+const deviceTypes: Record<DeviceType, string> = {
+  AppleTv: 'Apple TV',
+  IPhone: 'iPhone',
+  IPad: 'iPad',
+  AndroidPhone: 'Android phone',
+  AndroidTablet: 'Android tablet',
+  AndroidTv: 'Android TV',
+}
 
-const KindIcon = ({ signIn }: { signIn: SignIn }) => <span className="sign-in-icon">{signIn.kind === 'Device' ? <Tv /> : <Monitor />}</span>
+/** "Android phone", when the device's app has said what it is. */
+const deviceType = (s: SignIn) => (s.deviceType ? deviceTypes[s.deviceType] : undefined)
+
+const detail = (s: SignIn, from = s.createdAt) =>
+  `${deviceType(s) ? `${deviceType(s)}. ` : ''}${s.kind === 'Device' ? 'Connected' : 'Signed in'} ${day(from) === day(s.createdAt) ? day(s.createdAt) : `between ${day(from)} and ${day(s.createdAt)}`}${s.address ? ` from ${s.address}` : ''}`
+
+/** A screen for a browser; for a device, what it says it is, and a TV until it says (as the Apple TV was the first). */
+const KindIcon = ({ signIn }: { signIn: SignIn }) => {
+  const type = signIn.deviceType
+  const icon =
+    signIn.kind !== 'Device' ? <Monitor />
+    : type === 'IPhone' || type === 'AndroidPhone' ? <Phone />
+    : type === 'IPad' || type === 'AndroidTablet' ? <Tablet />
+    : <Tv />
+  return <span className="sign-in-icon">{icon}</span>
+}
 
 /** What tells one sign-in from another for a screen reader: "Chrome on Mac, signed in 24 Oct". */
 const describe = (s: SignIn) => `${s.name}, ${s.isThisOne ? 'this browser' : `${signedIn(s)} ${day(s.createdAt)}`}`

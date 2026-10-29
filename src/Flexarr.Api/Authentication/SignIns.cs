@@ -14,8 +14,32 @@ public enum SignInKind
     /// <summary>A web browser, holding its token in an HttpOnly cookie.</summary>
     Browser,
 
-    /// <summary>An app (the Apple TV), sending its token as <c>X-Api-Key</c>.</summary>
+    /// <summary>An app (an Apple TV, iPhone or Android device), sending its token as <c>X-Api-Key</c>.</summary>
     Device,
+}
+
+/// <summary>What a device is, as its app says in <c>X-Flexarr-Device</c>, so lists can name and draw it.</summary>
+public enum DeviceType
+{
+    AppleTv,
+    IPhone,
+    IPad,
+    AndroidPhone,
+    AndroidTablet,
+    AndroidTv,
+}
+
+public static class DeviceTypes
+{
+    public const string Header = "X-Flexarr-Device";
+
+    /// <summary>The type the request's app gives, or null when it gives none (apps from before 0.54) or one unknown here.</summary>
+    public static DeviceType? Of(HttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var said = request.Headers[Header].ToString();
+        return Enum.TryParse<DeviceType>(said, ignoreCase: true, out var type) && Enum.IsDefined(type) && !said.Any(char.IsDigit) ? type : null;
+    }
 }
 
 /// <summary>A browser or device signed in to this server. Only a hash of its token is kept.</summary>
@@ -35,6 +59,9 @@ public sealed class SignIn
 
     /// <summary>The profile chosen on it; null is the main profile. Only the main profile may manage the server.</summary>
     public string? ProfileId { get; set; }
+
+    /// <summary>For a device, what it is, as its app last said; null until an app that says has used it.</summary>
+    public DeviceType? DeviceType { get; set; }
 
     /// <summary>
     /// A browser that signed in by choosing the main profile with its PIN (over Tailscale) rather than with the API
@@ -86,7 +113,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
     public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false,
-        string? tailscaleLogin = null)
+        string? tailscaleLogin = null, DeviceType? deviceType = null)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -103,6 +130,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             ProfileId = profileId,
             PinVerified = pinVerified,
             TailscaleLogin = tailscaleLogin,
+            DeviceType = deviceType,
         };
 
         lock (_lock)
@@ -147,6 +175,22 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             }
 
             return signIn;
+        }
+    }
+
+    /// <summary>Notes what a device says it is (an app that has started saying, or a sign-in moved to a new device).</summary>
+    public void NoteDeviceType(SignIn signIn, DeviceType? type)
+    {
+        ArgumentNullException.ThrowIfNull(signIn);
+        if (type is null || signIn.DeviceType == type)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            signIn.DeviceType = type;
+            SaveLocked();
         }
     }
 

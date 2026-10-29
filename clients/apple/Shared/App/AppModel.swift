@@ -644,12 +644,20 @@ struct ConnectionError: LocalizedError {
 enum ThisDevice {
     #if os(tvOS)
     static let name = "Apple TV"
+
+    /// Tells the server what this is, for its lists of devices.
+    static func identify() {
+        FlexarrClient.deviceType = "AppleTv"
+    }
     #else
     /// Set once at launch (`UIDevice` is main-actor only, and messages are made anywhere); iPhone until then.
     nonisolated(unsafe) static var name = "iPhone"
 
+    /// Also tells the server what this is, for its lists of devices.
     @MainActor static func identify() {
-        name = UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+        let pad = UIDevice.current.userInterfaceIdiom == .pad
+        name = pad ? "iPad" : "iPhone"
+        FlexarrClient.deviceType = pad ? "IPad" : "IPhone"
     }
     #endif
 }

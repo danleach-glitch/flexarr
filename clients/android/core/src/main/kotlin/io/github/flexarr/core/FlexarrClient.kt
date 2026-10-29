@@ -188,6 +188,7 @@ class FlexarrClient(
         val request = Request.Builder().url(url).header("Accept", "application/json").apply {
             apiKey?.takeIf { it.isNotEmpty() }?.let { header("X-Api-Key", it) }
             profileToken?.takeIf { it.isNotEmpty() }?.let { header("X-Flexarr-Profile", it) }
+            deviceType?.let { header("X-Flexarr-Device", it) }
             val requestBody = body?.toRequestBody(jsonType) ?: if (method == "POST") ByteArray(0).toRequestBody(null) else null
             method(method, requestBody)
         }.build()
@@ -223,6 +224,13 @@ class FlexarrClient(
         }
 
     companion object {
+        /**
+         * What this device is ("AndroidPhone", "AndroidTablet" or "AndroidTv"), sent with every request as
+         * `X-Flexarr-Device` so the server's lists of devices can name and draw it. Set once at launch.
+         */
+        @Volatile
+        var deviceType: String? = null
+
         val json = Json {
             ignoreUnknownKeys = true
             explicitNulls = false

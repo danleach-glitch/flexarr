@@ -133,6 +133,33 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnAndroidPhone_RegistersItsFirebaseToken_AndItsPushesSaySo()
+    {
+        var (_, phone) = await PhoneAsync();
+        // Case matters in a Firebase token, and it isn't hex.
+        var token = "dGVzdA:APA91bH" + new string('x', 140);
+        var android = new { token, environment = "production", key = Convert.ToBase64String(_key), timeZone = "Europe/London", platform = "android" };
+
+        var registered = await phone.PutAsJsonAsync(Api("/notifications/device"), android);
+        Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await phone.PostAsync(Api("/notifications/device/test"), null)).StatusCode);
+        var sent = _relay.Sent[^1];
+        Assert.Equal(token, sent.GetProperty("token").GetString());
+        Assert.Equal("android", sent.GetProperty("platform").GetString());
+
+        var refused = await phone.PutAsJsonAsync(Api("/notifications/device"), new { token = "not a token!", environment = "production", key = Convert.ToBase64String(_key), platform = "android" });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var unknown = await phone.PutAsJsonAsync(Api("/notifications/device"), new { token, environment = "production", key = Convert.ToBase64String(_key), platform = "windows" });
+        Assert.True((await unknown.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors").TryGetProperty("platform", out _));
+
+        // An iPhone's pushes don't name a platform, as relays from before Android expect.
+        var (_, iPhone) = await PhoneAsync();
+        await RegisterAsync(iPhone, "9f8e");
+        await iPhone.PostAsync(Api("/notifications/device/test"), null);
+        Assert.False(_relay.Sent[^1].TryGetProperty("platform", out _));
+    }
+
+    [Fact]
     public async Task WithTheApiKey_APhoneManagesItsRegistration_OnlyWhileItsTheOnlyOneSignedInThatWay()
     {
         // The key gives no sign-in of its own: with two phones on it, either registration could be someone else's.

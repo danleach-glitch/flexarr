@@ -5,6 +5,7 @@ import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
 import android.view.Display
 import io.github.flexarr.core.DeviceProfile
+import io.github.flexarr.core.ServerVersion
 
 /**
  * What this device plays as it is, sent with every playback request so the server knows whether to send the file or
@@ -50,13 +51,20 @@ object DeviceCapabilities {
             // Android mixes surround down for headphones and speakers itself.
             maxAudioChannels = 8,
             maxBitrate = 0,
-            // Converted streams as MPEG-TS: the server's fragmented MP4 segments can start a little before zero (an
-            // audio priming offset), which Apple's player accepts and ExoPlayer refuses ("Top bit not zero" in tfdt).
-            // Fragmented MP4 only adds lossless FLAC and Atmos, which a phone doesn't need.
+            // Fragmented MP4 (lossless FLAC and Atmos in converted streams) only from servers that start its segments at
+            // zero: see [withServer].
             fmp4 = false,
             dolbyVision = dolbyVision,
             hdr10 = hdr10,
             hlg = hlg,
         )
     }
+
+    /**
+     * [profile] for the server at [version]. Before 0.53.0 a server's fragmented MP4 segments could start a little
+     * before zero (an audio priming offset), which ExoPlayer refuses ("Top bit not zero" in tfdt), so older servers
+     * send MPEG-TS instead.
+     */
+    fun withServer(profile: DeviceProfile, version: String?): DeviceProfile =
+        profile.copy(fmp4 = version != null && ServerVersion.atLeast(version, 0, 53))
 }

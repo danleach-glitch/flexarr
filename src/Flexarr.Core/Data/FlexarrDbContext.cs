@@ -294,6 +294,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(d => d.ProfileId).HasMaxLength(64);
             e.Property(d => d.Token).HasMaxLength(256);
             e.Property(d => d.Environment).HasMaxLength(16);
+            e.Property(d => d.Platform).HasMaxLength(16).HasDefaultValue(NotificationPlatforms.Apple);
             e.Property(d => d.TimeZone).HasMaxLength(64);
             // A profile's phones stop hearing about it when it goes.
             e.HasOne<Profile>().WithMany().HasForeignKey(d => d.ProfileId).OnDelete(DeleteBehavior.Cascade);
