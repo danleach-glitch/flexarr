@@ -10,6 +10,9 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import kotlinx.coroutines.launch
+import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.PushPayload
+import io.github.flexarr.notifications.FlexarrMessagingService
 import io.github.flexarr.player.PlayerActivity
 import io.github.flexarr.ui.FlexarrRoot
 import io.github.flexarr.ui.theme.FlexarrTheme
@@ -26,12 +29,25 @@ class MainActivity : ComponentActivity() {
         } else {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
-        if (savedInstanceState == null) signInFromLaunch(intent)
+        if (savedInstanceState == null) {
+            signInFromLaunch(intent)
+            openLink(intent)
+        }
         setContent {
             FlexarrTheme {
                 FlexarrRoot(appModel)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openLink(intent)
+    }
+
+    /** A notification, shortcut or the widget opened the app somewhere ([AppLink]). */
+    private fun openLink(intent: Intent) {
+        AppLink.parse(intent.data)?.let { appModel.pendingLink = it }
     }
 
     /**
@@ -41,7 +57,8 @@ class MainActivity : ComponentActivity() {
      * `--es profile <id>` chooses who's watching without the picker, and `--es play <itemId>` (with a position in
      * seconds as `--ei at <seconds>`) opens the player on that title, so a test needn't tap its way there. With it,
      * `--es subtitle <key>`, `--es subtitlePosition Top`, `--es subtitleSize Large` and `--ez blackBars true` set the
-     * subtitles as the menu would, without saving them.
+     * subtitles as the menu would, without saving them. `--es notify '<payload json>'` shows a notification as the
+     * server would send it.
      */
     private fun signInFromLaunch(intent: Intent) {
         if (!BuildConfig.DEBUG) return
@@ -50,6 +67,11 @@ class MainActivity : ComponentActivity() {
         val server = intent.getStringExtra("server")
         val key = intent.getStringExtra("apiKey")
         if (server != null && key != null) model.signInForThisLaunch(server, key, remote = intent.getStringExtra("remote"))
+        // `--es notify '<payload json>'` shows a notification as if it had come from the server, to try its look and buttons.
+        intent.getStringExtra("notify")?.let { json ->
+            runCatching { FlexarrClient.json.decodeFromString(PushPayload.serializer(), json) }
+                .onSuccess { payload -> Thread { FlexarrMessagingService.show(applicationContext, payload) }.start() }
+        }
         val profile = intent.getStringExtra("profile")
         val play = intent.getStringExtra("play")
         if (profile == null && play == null) return

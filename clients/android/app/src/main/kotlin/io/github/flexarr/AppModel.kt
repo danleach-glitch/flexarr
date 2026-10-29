@@ -26,6 +26,7 @@ import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.downloads.DownloadStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
+import io.github.flexarr.notifications.PushNotifications
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -97,6 +98,9 @@ class AppModel(private val context: Context) {
     /** Music, playing on under every screen; it and podcasts take turns. */
     val music = MusicPlayer(context, this)
 
+    /** What's new, from the server through Firebase. */
+    val notifications = PushNotifications(context)
+
     /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
     val downloads = DownloadStore(context, this)
 
@@ -123,6 +127,9 @@ class AppModel(private val context: Context) {
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
         private set
+
+    /** Where a notification, shortcut or the widget asked to go, until the screens have gone there. */
+    var pendingLink: AppLink? by mutableStateOf(null)
 
     /** The podcast Now Playing sheet is open: from the bar, or after Play in an episode's notes. */
     var showsNowPlaying by mutableStateOf(false)
@@ -159,6 +166,8 @@ class AppModel(private val context: Context) {
         store.save(credentials)
         saved = true
         signedIn(credentials)
+        // On again, if they were on before this phone signed out.
+        scope.launch { notifications.resume(credentials) }
     }
 
     /** Signs in for this launch only, without saving or swapping the key: debug builds started from the command line. */
@@ -205,7 +214,7 @@ class AppModel(private val context: Context) {
         val client = client
         // Downloads go too: what was watched offline is sent and the server's copies dropped first, while the sign-in works.
         val downloadsDone = downloads.signedOut(client)
-        if (saved) client?.let { client -> scope.launch { downloadsDone.join(); runCatching { client.signOut() } } }
+        if (saved) client?.let { client -> scope.launch { downloadsDone.join(); notifications.signedOut(client); runCatching { client.signOut() } } }
         forget()
     }
 
@@ -330,6 +339,7 @@ class AppModel(private val context: Context) {
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
                     downloads.signedOut(null)
+                    notifications.forget()
                     forget()
                     signedOutNotice = "This device was signed out."
                 }

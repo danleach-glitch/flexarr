@@ -126,4 +126,10 @@ class ClientLogsTest {
             assertEquals("the log", diagnostics.body!!.utf8())
         }
     }
+
+    @Test
+    fun anEntryMadeNowStillSaysWhen() {
+        val text = FlexarrClient.json.encodeToString(ClientLogEntry.serializer(), ClientLogEntry(level = ClientLogLevel.Error, category = "c", message = "m"))
+        assertTrue(text, text.contains("\"timestamp\":"))
+    }
 }

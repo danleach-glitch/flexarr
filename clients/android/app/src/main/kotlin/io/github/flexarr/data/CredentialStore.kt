@@ -86,12 +86,12 @@ class CredentialStore(context: Context) {
     }
 
     /** The IV, then the ciphertext, as base64. */
-    private fun encrypt(text: String): String {
+    internal fun encrypt(text: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, secretKey()) }
         return Base64.encodeToString(cipher.iv + cipher.doFinal(text.toByteArray()), Base64.NO_WRAP)
     }
 
-    private fun decrypt(stored: String): String {
+    internal fun decrypt(stored: String): String {
         val bytes = Base64.decode(stored, Base64.NO_WRAP)
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, bytes, 0, IV_LENGTH))

@@ -66,6 +66,17 @@
             </intent-filter>
         </service>
 
+        <!-- Notifications from the server, through Firebase (docs/notifications.md). -->
+        <service
+            android:name=".notifications.FlexarrMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <receiver android:name=".notifications.DownloadReceiver" android:exported="false" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="new" />
+
         <!-- WorkManager's service for downloads that run long, typed as Android 14 on asks. -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

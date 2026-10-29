@@ -8,6 +8,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -55,7 +57,8 @@ internal object LogTimeSerializer : KSerializer<Instant> {
 /** One line of the log, as `POST /logs/client` wants it. */
 @Serializable
 data class ClientLogEntry(
-    @Serializable(with = LogTimeSerializer::class) val timestamp: Instant = Instant.now(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault @Serializable(with = LogTimeSerializer::class) val timestamp: Instant = Instant.now(),
     val level: ClientLogLevel,
     val category: String,
     val message: String,

@@ -4,6 +4,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Notifications come through Firebase, set up from the Firebase project's google-services.json beside this file (its
+// API key only identifies the project, so it can be committed). Without it the app builds and runs, and Settings says
+// notifications aren't available in this build.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 // The app's version is the server's (Directory.Build.props), so it isn't one more place release.sh has to change:
 // 0.52.0 is versionName "0.52.0" and versionCode 52000.
 val serverVersion: String = Regex("<VersionPrefix>([^<]+)</VersionPrefix>")
@@ -61,6 +66,9 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.androidx.work.runtime)
     implementation(libs.sentry.android)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.kotlinx.coroutines.android)

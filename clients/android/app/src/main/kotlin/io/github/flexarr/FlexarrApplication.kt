@@ -15,6 +15,7 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
+import io.github.flexarr.notifications.FlexarrMessagingService
 
 class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     lateinit var model: AppModel
@@ -27,6 +28,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         // Before anything else can crash: on if this server had reports on last time.
         ErrorReports.resume(this, CredentialStore(this).load()?.address)
         model = AppModel(this)
+        FlexarrMessagingService.createChannels(this)
         // Commands from other devices are taken while the app is in front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) = model.listenForCommands()
