@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.baselineprofile)
 }
 
 // Notifications come through Firebase, set up from the Firebase project's google-services.json beside this file (its
@@ -26,9 +27,18 @@ android {
         versionName = serverVersion
         versionCode = versionParts[0] * 1_000_000 + versionParts[1] * 1_000 + versionParts[2]
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Signing in from launch arguments (MainActivity): debug builds, and the builds the baseline profile is made with.
+        buildConfigField("boolean", "LAUNCH_ARGUMENTS", "false")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "LAUNCH_ARGUMENTS", "true")
+        }
+        // The baseline profile plugin's builds of release, made only to profile on a device: signed with the debug key.
+        configureEach {
+            if (name == "nonMinifiedRelease" || name == "benchmarkRelease") signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -47,11 +57,23 @@ android {
     }
 }
 
+// The baseline profile's builds take launch arguments too, to sign in (the plugin copies release's fields over them, so
+// they're set per variant).
+androidComponents {
+    onVariants { variant ->
+        if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {
+            variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
+        }
+    }
+}
+
 dependencies {
     implementation(project(":core"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.splashscreen)
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

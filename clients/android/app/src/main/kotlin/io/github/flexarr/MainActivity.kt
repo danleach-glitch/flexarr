@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Debug builds sign in from the command line, like the Apple apps' launch arguments, for previews and testing:
+     * Debug builds (and the ones profiled for the baseline profile) sign in from the command line, like the Apple apps' launch arguments, for previews and testing:
      * `adb shell am start -n com.danleach.flexarr/io.github.flexarr.MainActivity --es server <url> --es apiKey <key> --ez noHistory true`.
      * `--es remote <url>` gives the address for away from home up front (try an unreachable `server` to be away).
      * `--es profile <id>` chooses who's watching without the picker, and `--es play <itemId>` (with a position in
@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
      * server would send it.
      */
     private fun signInFromLaunch(intent: Intent) {
-        if (!BuildConfig.DEBUG) return
+        if (!BuildConfig.LAUNCH_ARGUMENTS) return
         val model = appModel
         if (intent.hasExtra("noHistory")) model.recordsHistory = !intent.getBooleanExtra("noHistory", false)
         val server = intent.getStringExtra("server")
