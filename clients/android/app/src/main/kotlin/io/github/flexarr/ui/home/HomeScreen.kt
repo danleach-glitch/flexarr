@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -189,7 +190,7 @@ fun HomeScreen(model: AppModel) {
     }
 
     if (choosingProfile) {
-        ModalBottomSheet(onDismissRequest = { choosingProfile = false }, containerColor = Flexarr.room) {
+        ModalBottomSheet(onDismissRequest = { choosingProfile = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
             ProfilePicker(model, marksCurrent = true, onChosen = { choosingProfile = false })
         }
     }
@@ -203,11 +204,16 @@ private fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
     // A finger on it holds it where it is.
     var touching by remember { mutableStateOf(false) }
     val dragging by pager.interactionSource.collectIsDraggedAsState()
-    LaunchedEffect(pager.currentPage, touching || dragging) {
-        onIndex(pager.currentPage)
+    LaunchedEffect(pager.currentPage) { onIndex(pager.currentPage) }
+    // Keyed on the settled page, not the current one: that changes halfway through a move, which would cancel the
+    // move and leave the carousel stuck between two slides.
+    LaunchedEffect(pager.settledPage, touching || dragging) {
+        if (touching || dragging) return@LaunchedEffect
+        // A move cut short (a touch while it slid) is finished rather than left half-way.
+        if (!pager.isScrollInProgress && pager.currentPageOffsetFraction != 0f) pager.animateScrollToPage(pager.currentPage)
         // Moves on by itself after a while; a swipe restarts the clock. Not while it's held, nor for someone using
         // TalkBack (it would move out from under them) or who has turned animations off.
-        if (items.size < 2 || touching || dragging || !movesOnItsOwn(context)) return@LaunchedEffect
+        if (items.size < 2 || !movesOnItsOwn(context)) return@LaunchedEffect
         delay(10_000)
         if (movesOnItsOwn(context)) pager.animateScrollToPage((pager.currentPage + 1) % items.size)
     }

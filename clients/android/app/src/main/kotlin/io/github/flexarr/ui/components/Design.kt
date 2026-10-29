@@ -49,9 +49,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.shadow.Shadow as Glow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -143,7 +144,8 @@ fun ActionButton(
     Row(
         modifier
             .heightIn(min = 48.dp)
-            .then(if (prominent) Modifier.shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = ambient.copy(alpha = 0.45f), spotColor = ambient.copy(alpha = 0.45f)) else Modifier)
+            // A soft glow, as iPhone's 16pt shadow. Elevation shadows in a light colour draw as a solid slab on Samsung phones.
+            .then(if (prominent) Modifier.dropShadow(RoundedCornerShape(12.dp), Glow(radius = 16.dp, color = ambient.copy(alpha = 0.45f))) else Modifier)
             .clip(RoundedCornerShape(12.dp))
             .background(if (prominent) Flexarr.screen else Flexarr.screen.copy(alpha = 0.14f))
             .alpha(if (enabled) 1f else 0.5f)
