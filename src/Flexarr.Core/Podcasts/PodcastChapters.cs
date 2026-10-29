@@ -83,10 +83,11 @@ public static partial class PodcastChapters
                 continue;
             }
 
-            // A time that goes backwards starts something else (a second list, or a time in a sentence): the first list wins.
+            // A time that goes backwards is a slip ("02:00 Tours, 00:00 Criticism, 04:58 A gift") or the start of something
+            // else, such as last week's list: it's skipped, and the list carries on from the times after it.
             if (chapters.Count > 0 && start <= chapters[^1].StartSeconds)
             {
-                break;
+                continue;
             }
 
             chapters.Add(new PodcastChapter(start, title));

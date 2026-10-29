@@ -96,6 +96,10 @@ struct NowPlayingBar: View {
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
+            #if DEBUG
+            // `-FlexarrShowNowPlaying YES` opens Now Playing as soon as something plays (with `-FlexarrPlay <id>`).
+            .task { if UserDefaults.standard.bool(forKey: "FlexarrShowNowPlaying") { showingNowPlaying = true } }
+            #endif
             .sheet(isPresented: $showingNowPlaying) {
                 NowPlayingView()
                     .presentationDetents([.large])

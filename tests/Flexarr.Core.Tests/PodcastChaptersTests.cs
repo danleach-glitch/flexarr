@@ -36,11 +36,13 @@ public class PodcastChaptersTests
     }
 
     [Fact]
-    public void Notes_TimeGoingBackwards_EndsTheList_AndTimesPastTheEndAreDropped()
+    public void Notes_TimeGoingBackwards_IsSkipped_AndTimesPastTheEndAreDropped()
     {
         var notes = "00:00 Intro\n10:00 Part one\n20:00 Part two\n\nLast week:\n00:00 Old intro\n05:00 Old part";
 
         Assert.Equal(["Intro", "Part one", "Part two"], PodcastChapters.FromNotes(notes).Select(c => c.Title));
+        // A slip in the middle of a list loses only that line.
+        Assert.Equal(["Intro", "Tours", "A gift"], PodcastChapters.FromNotes("00:00 Intro\n02:00 Tours\n00:00 Criticism\n04:58 A gift").Select(c => c.Title));
         Assert.Equal(["Intro", "Part one"], PodcastChapters.FromNotes(notes, durationSeconds: 900).Select(c => c.Title));
     }
 
