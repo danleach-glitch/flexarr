@@ -16,6 +16,7 @@ junit = "4.13.2"
 androidx-test-junit = "1.3.0"
 androidx-test-runner = "1.7.0"
 sentry = "8.62.0"
+sentry-gradle = "6.24.0"
 firebase-bom = "35.1.0"
 glance = "1.2.0"
 splashscreen = "1.2.0"
@@ -74,3 +75,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 play-publisher = { id = "com.github.triplet.play", version.ref = "play-publisher" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentry-gradle" }

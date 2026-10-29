@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.baselineprofile)
     alias(libs.plugins.play.publisher)
+    alias(libs.plugins.sentry)
 }
 
 // Notifications come through Firebase, set up from the Firebase project's google-services.json beside this file (its
@@ -83,6 +84,41 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // Lint fails the build on new errors; the ones already there when it joined CI are listed in lint-baseline.xml
+    // (`./gradlew :app:updateLintBaseline` lists them again, after fixing some).
+    lint {
+        baseline = file("lint-baseline.xml")
+        abortOnError = true
+    }
+}
+
+// Release builds are minified, so their stack traces in Sentry are readable only with that build's ProGuard mapping.
+// Each release build carries an id for its mapping, and uploads the mapping to Sentry (dan-leach/flexarr-android) when
+// there's a token for it, in SENTRY_AUTH_TOKEN or ~/.sentryclirc (as make ios-dsyms). Without one (CI, forks) nothing is
+// uploaded and nothing needs the network, and those builds' reports stay obfuscated. -Pflexarr.sentryUpload=false skips
+// the upload anyway. The plugin only does this: the SDK stays the one in the dependencies below, set up by ErrorReports.
+val sentryToken = !System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank() ||
+    File(System.getProperty("user.home"), ".sentryclirc").let { it.exists() && it.readLines().any { line -> line.startsWith("token=") } }
+sentry {
+    org.set("dan-leach")
+    projectName.set("flexarr-android")
+    includeProguardMapping.set(true)
+    autoUploadProguardMapping.set(sentryToken && providers.gradleProperty("flexarr.sentryUpload").orNull != "false")
+    uploadNativeSymbols.set(false)
+    includeNativeSources.set(false)
+    includeSourceContext.set(false)
+    includeDependenciesReport.set(false)
+    telemetry.set(false)
+    // Debug builds aren't minified, and the baseline profile's builds are only for profiling.
+    ignoredBuildTypes.set(setOf("debug"))
+    ignoredVariants.set(setOf("nonMinifiedRelease", "benchmarkRelease"))
+    autoInstallation {
+        enabled.set(false)
+    }
+    tracingInstrumentation {
+        enabled.set(false)
     }
 }
 
