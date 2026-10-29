@@ -1,16 +1,33 @@
 import FlexarrKit
 import SwiftUI
 
-/// The music that's playing, along the bottom of every screen while there is any: the cover, the track, the artist
-/// and where it's got to. It takes no focus (a bar under a long list is a hard thing for the remote to reach): the
-/// remote's play/pause works everywhere, and the Now Playing tab has the rest.
+/// The music that's playing, along the bottom of every screen while it plays: the cover, the track, the artist and
+/// where it's got to. It takes no focus (a bar under a long list is a hard thing for the remote to reach), so it
+/// can't be closed: it goes once the music is paused or has finished, and comes back with play/pause. The Now Playing
+/// tab has the rest, Stop included.
 struct NowPlayingBar: View {
     @Environment(AppModel.self) private var model
 
+    /// Whether the bar shows: at once when music starts, and gone a few seconds after it stops, so the moment between
+    /// two tracks doesn't make it blink.
+    @State private var shown = false
+
     private var music: MusicPlayer { model.music }
 
+    private var active: Bool { music.current != nil && (music.isPlaying || music.isLoading) }
+
     var body: some View {
-        if let track = music.current {
+        // A stack even when empty, so the task below is there to bring the bar back.
+        VStack(spacing: 0) { bar }
+            .animation(.easeInOut(duration: 0.3), value: shown)
+            .task(id: active) {
+                if !active { try? await Task.sleep(for: .seconds(3)) }
+                if !Task.isCancelled { shown = active }
+            }
+    }
+
+    @ViewBuilder private var bar: some View {
+        if let track = music.current, shown {
             HStack(spacing: 24) {
                 ZStack {
                     if let artwork = music.artwork {
@@ -37,7 +54,7 @@ struct NowPlayingBar: View {
                 if music.isLoading {
                     ProgressView().scaleEffect(0.9)
                 } else {
-                    Image(systemName: music.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                    Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(Color.screen)
                 }

@@ -17,7 +17,7 @@ struct NowPlayingView: View {
     @State private var visualiser = AudioSpectrum.isOn
     @State private var onScreen = false
 
-    private enum Control: Hashable { case shuffle, previous, playPause, next, `repeat`, lyrics }
+    private enum Control: Hashable { case shuffle, previous, playPause, next, `repeat`, lyrics, stop }
 
     private var music: MusicPlayer { model.music }
 
@@ -174,6 +174,10 @@ struct NowPlayingView: View {
                     .buttonStyle(RoundControlStyle(size: 84))
                     .focused($focusedControl, equals: .lyrics)
             }
+            // Done with the music: the queue empties, and the bar along the bottom and the Now Playing tab go.
+            Button { music.stop() } label: { Label("Stop", systemImage: "stop.fill") }
+                .buttonStyle(RoundControlStyle(size: 84))
+                .focused($focusedControl, equals: .stop)
             if music.isLoading {
                 ProgressView().scaleEffect(1.2)
             }
