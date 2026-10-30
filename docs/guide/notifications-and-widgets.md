@@ -47,9 +47,9 @@ Here's what goes where:
 4. The relay passes it to **Apple** under a plain "Something new is ready" message.
 5. On your phone, Flexarr **decrypts** it and shows the real title, text, artwork and buttons.
 
-So the relay and Apple see that your phone got a notification, and when, but not what it says.
+So the relay and Apple see that your phone got a notification, and when, but not what it says. Artwork in a notification is a public poster address, which your phone fetches to show it.
 
-The one exception is the Lock Screen panel for [a TV you're following](iphone-remote.md#on-the-lock-screen). Apple reads its updates directly, so they can't be encrypted: they carry only whether the TV is paused and how far in it is. The title and picture are put there by your phone and never pass through the relay. Artwork in a notification is a public poster address, which your phone fetches to show it. The [privacy policy](https://flexarr.io/privacy) has the details.
+The one exception is the Lock Screen panel for [a TV you're following](iphone-remote.md#on-the-lock-screen). Apple reads its updates directly, so they can't be encrypted: they carry only whether the TV is paused, how far in it is, how long it is and its speed. The title and picture are put there by your phone and never pass through the relay. The [privacy policy](https://flexarr.io/privacy) has the details.
 
 > **Note**
 > A server can use no relay at all. Set the environment variable `Flexarr__Notifications__Enabled=false` (or `Flexarr:Notifications:Enabled` set to `false` in the server's settings) and restart. The app then says your server has notifications turned off.

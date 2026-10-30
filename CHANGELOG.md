@@ -75,10 +75,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Continue on iPhone** stops the film or episode on the TV and carries on from the same moment on the phone.
 - While the remote is following a TV, the phone shows what's playing on the Lock Screen and in the Dynamic Island, with back 10 seconds, play/pause and forward 10. Tap it to open the remote. It keeps up while the phone is locked, as long as notifications are on for your server. The title and picture never leave your server: only play/pause and the time pass through Flexarr's notification service.
 - With more than one TV playing, switch between them at the top of the remote. Everyone in the house can control any TV. For menus and volume, use the Remote in Control Centre as before.
-- **Stop** offers **Undo** for a few seconds. The **×** on the bar hides it until the TV plays something else, without stopping anything.
+- **Stop** offers **Undo** for a few seconds. The **×** on the bar hides it until that TV plays a different show or film, without stopping anything.
 
 ### Siri
-- New things to ask on iPhone and iPad: "Skip intro in Flexarr", "Next episode in Flexarr", "Skip back in Flexarr", "Skip forward in Flexarr", and "Turn on subtitles in Flexarr" or "Turn off subtitles in Flexarr". They work on the phone or on the Apple TV that Siri plays on.
+- New things to ask on iPhone and iPad: "Skip intro in Flexarr", "Next episode in Flexarr", "Skip back in Flexarr", "Skip forward in Flexarr", and "Turn on subtitles in Flexarr" or "Turn off subtitles in Flexarr". They work on the phone or on the Apple TV that Siri plays on. Skips are 10 seconds, as on the remote, and subtitles come on in your language where there are some.
 
 ### Android
 - The buttons at the bottom of the welcome pages are their proper size on Samsung phones, with a soft glow as on iPhone, rather than sitting on a large pale block.

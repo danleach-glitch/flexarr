@@ -156,8 +156,8 @@
 <li>The relay passes it to <strong>Apple</strong> under a plain &quot;Something new is ready&quot; message.</li>
 <li>On your phone, Flexarr <strong>decrypts</strong> it and shows the real title, text, artwork and buttons.</li>
 </ol>
-<p>So the relay and Apple see that your phone got a notification, and when, but not what it says.</p>
-<p>The one exception is the Lock Screen panel for <a href="/guide/iphone-remote#on-the-lock-screen">a TV you&#39;re following</a>. Apple reads its updates directly, so they can&#39;t be encrypted: they carry only whether the TV is paused and how far in it is. The title and picture are put there by your phone and never pass through the relay. Artwork in a notification is a public poster address, which your phone fetches to show it. The <a href="https://flexarr.io/privacy">privacy policy</a> has the details.</p>
+<p>So the relay and Apple see that your phone got a notification, and when, but not what it says. Artwork in a notification is a public poster address, which your phone fetches to show it.</p>
+<p>The one exception is the Lock Screen panel for <a href="/guide/iphone-remote#on-the-lock-screen">a TV you&#39;re following</a>. Apple reads its updates directly, so they can&#39;t be encrypted: they carry only whether the TV is paused, how far in it is, how long it is and its speed. The title and picture are put there by your phone and never pass through the relay. The <a href="https://flexarr.io/privacy">privacy policy</a> has the details.</p>
 <blockquote class="callout note"><p><strong>Note</strong> A server can use no relay at all. Set the environment variable <code>Flexarr__Notifications__Enabled=false</code> (or <code>Flexarr:Notifications:Enabled</code> set to <code>false</code> in the server&#39;s settings) and restart. The app then says your server has notifications turned off.</p>
 </blockquote>
 <h2 id="widgets-iphone-and-ipad"><a class="anchor" href="#widgets-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>Widgets (iPhone and iPad)</h2>

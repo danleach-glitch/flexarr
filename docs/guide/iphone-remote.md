@@ -5,7 +5,7 @@ description: Control what's playing on your Apple TV from your iPhone or iPad: p
 
 When an Apple TV in your home is playing something from Flexarr, the iPhone and iPad apps show a **Playing on TV** bar above the tabs. It works for everyone in the house, on any TV, whichever profile each is on. There's nothing to set up: the TV and the phone only need to be signed in to the same server, with the TV's Flexarr app open.
 
-The bar has play/pause. Tap it for the remote. The **×** hides the bar until the TV plays something else; it doesn't stop anything, so it's safe while someone else is watching.
+The bar has play/pause. Tap it for the remote. The **×** hides the bar until that TV plays a different show or film; it doesn't stop anything, so it's safe while someone else is watching.
 
 ## The remote
 
@@ -16,6 +16,8 @@ The bar has play/pause. Tap it for the remote. The **×** hides the bar until th
 - **Continue on iPhone** stops the film or episode on the TV and carries on from the same moment on your phone.
 - **Stop** stops it on the TV. For a few seconds you can **Undo**, which starts it again from where it stopped.
 - **Episodes** lists the season: tap one to play it on the TV.
+
+A title from a library hidden from your profile shows as playing but not what it is, and only play/pause and the jumps work for it.
 
 With more than one TV playing, tap the TV's name at the top to switch between them. For the TV's menus and its volume, use the Remote in Control Center, as before.
 
@@ -28,6 +30,6 @@ If a button doesn't work (the TV has gone to sleep, or its Flexarr app is closed
 
 While the remote is following a TV, your phone shows what's playing on the Lock Screen and in the Dynamic Island, with back 10 seconds, play/pause and forward 10. Tap it to open the remote. It keeps up while the phone is locked, as long as [notifications](notifications-and-widgets.md) are on for your server.
 
-To keep the title private, your phone puts the title and picture there itself. Only play/pause and the time travel through Flexarr's notification service, because Apple reads these updates directly and they can't be encrypted like notifications.
+To keep the title private, your phone puts the title and picture there itself. Only whether it's paused, how far in it is, how long it is and its speed travel through Flexarr's notification service, because Apple reads these updates directly and they can't be encrypted like notifications.
 
 Anyone holding your locked phone can pause or skip the TV from it, as with any Lock Screen controls. To turn it off, go to **Settings › Flexarr › Live Activities** on the phone. Swiping it away hides it for that title.
