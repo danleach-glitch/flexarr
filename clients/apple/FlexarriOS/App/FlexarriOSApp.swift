@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     let notifications = PushNotifications()
     /// Devices asking to connect, for this phone to allow when it's signed in as the main profile.
     let pairing = PairingPrompts()
+    /// The TVs in the house playing something, for the Playing on TV bar and the remote.
+    let remote = TVRemote()
     /// The app model, once the window's up: what a tapped notification plays or opens with.
     weak var model: AppModel? {
         didSet {
@@ -25,6 +27,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 await notifications.signedOut(client)
             }
             model?.onPairingEvent = { [pairing] event in pairing.received(event) }
+            model?.onNowPlaying = { [remote] device, playing in remote.received(device, playing) }
         }
     }
 
@@ -242,6 +245,7 @@ struct FlexarriOSApp: App {
                 .environment(delegate.downloads)
                 .environment(delegate.notifications)
                 .environment(delegate.pairing)
+                .environment(delegate.remote)
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }

@@ -72,7 +72,7 @@ final class PairingPrompts {
         switch event {
         case .pairing(let request): add(request)
         case .pairingEnded(let code): stoppedWaiting(code)
-        case .command: break
+        case .command, .nowPlaying: break
         }
     }
 

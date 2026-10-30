@@ -238,9 +238,11 @@ public struct FlexarrClient: Sendable {
         return try decode(PlaybackInfo.self, from: data)
     }
 
-    public func reportProgress(sessionId: String, positionSeconds: Double, paused: Bool, ended: Bool = false) async throws {
-        _ = try await send("POST", "playback/\(sessionId)/progress",
-                           body: ProgressReport(positionSeconds: max(0, positionSeconds), paused: paused, ended: ended))
+    /// `remote`: what a remote on another device needs to follow along (the Apple TV sends it); servers before 0.56 ignore it.
+    public func reportProgress(sessionId: String, positionSeconds: Double, paused: Bool, ended: Bool = false, remote: RemoteReport? = nil) async throws {
+        let report = ProgressReport(positionSeconds: max(0, positionSeconds), paused: paused, ended: ended, rate: remote?.rate, prompt: remote?.prompt,
+                                    hasNext: remote?.hasNext, tracks: remote?.tracks, sound: remote?.sound)
+        _ = try await send("POST", "playback/\(sessionId)/progress", body: report)
     }
 
     public func stopPlayback(sessionId: String) async throws {
@@ -454,6 +456,32 @@ public struct FlexarrClient: Sendable {
         return try decode(DeviceCommandResult.self, from: data)
     }
 
+    /// Moves what a device is playing to `seconds` in. Like the rest of a remote's commands (servers from 0.56): only to
+    /// a device with Flexarr open whose app takes it (`Device.takes`), else a 409 with the reason.
+    public func seek(device deviceId: String, to seconds: Double) async throws {
+        _ = try await send("POST", "devices/\(deviceId)/seek", body: DeviceSeekBody(positionSeconds: max(0, seconds)))
+    }
+
+    /// Jumps what a device is playing by `seconds` (negative: back).
+    public func skip(device deviceId: String, by seconds: Double) async throws {
+        _ = try await send("POST", "devices/\(deviceId)/skip", body: DeviceSkipBody(seconds: seconds))
+    }
+
+    /// Changes a device's soundtrack to the player's track `trackId`.
+    public func setAudioTrack(device deviceId: String, _ trackId: String) async throws {
+        _ = try await send("POST", "devices/\(deviceId)/audio", body: DeviceTrackBody(trackId: trackId))
+    }
+
+    /// Shows the subtitles `trackId` on a device, or turns them off (nil).
+    public func setSubtitleTrack(device deviceId: String, _ trackId: String?) async throws {
+        _ = try await send("POST", "devices/\(deviceId)/subtitles", body: DeviceTrackBody(trackId: trackId))
+    }
+
+    /// Plays what's on a device at `rate` times normal speed (0.5 to 2).
+    public func setRate(device deviceId: String, _ rate: Double) async throws {
+        _ = try await send("POST", "devices/\(deviceId)/rate", body: DeviceRateBody(rate: rate))
+    }
+
     /// Changes another device's sound settings. Reaches it only while Flexarr is open there: otherwise a 409. Servers
     /// before 0.56 don't have it (a 404).
     public func setSound(device deviceId: String, _ sound: DeviceSound) async throws -> DeviceCommandResult {
@@ -484,8 +512,16 @@ public struct FlexarrClient: Sendable {
     /// connection from this device took over) or the connection drops; the caller opens it again. Only a device
     /// signed in with its own token has one: with the API key the server answers 403. Events it doesn't know (from
     /// newer servers) are skipped.
-    public func deviceEvents() -> AsyncThrowingStream<DeviceEvent, Error> {
-        var request = URLRequest(url: baseURL.appending(path: "api/v1/devices/commands"))
+    ///
+    /// `accepts`: the commands beyond the basic ones this device takes, for remotes to offer. `nowPlaying`: hear what
+    /// every device is playing as it changes too (`.nowPlaying`), for a remote. Servers before 0.56 ignore both.
+    public func deviceEvents(accepts: [DeviceCommandKind] = [], nowPlaying: Bool = false) -> AsyncThrowingStream<DeviceEvent, Error> {
+        var url = baseURL.appending(path: "api/v1/devices/commands")
+        var query: [URLQueryItem] = []
+        if !accepts.isEmpty { query.append(URLQueryItem(name: "accepts", value: accepts.map(\.rawValue).joined(separator: ","))) }
+        if nowPlaying { query.append(URLQueryItem(name: "nowPlaying", value: "true")) }
+        if !query.isEmpty { url.append(queryItems: query) }
+        var request = URLRequest(url: url)
         request.timeoutInterval = 90 // The server writes a comment every 20 seconds.
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
@@ -527,6 +563,10 @@ public struct FlexarrClient: Sendable {
                             if let request = try? Self.decoder.decode(PairingRequest.self, from: data) { continuation.yield(.pairing(request)) }
                         case "pairing-ended":
                             if let ended = try? Self.decoder.decode(PairingEnded.self, from: data) { continuation.yield(.pairingEnded(code: ended.code)) }
+                        case "now-playing":
+                            if let change = try? Self.decoder.decode(DeviceNowPlayingEvent.self, from: data) {
+                                continuation.yield(.nowPlaying(deviceId: change.deviceId, change.nowPlaying))
+                            }
                         default:
                             continue
                         }

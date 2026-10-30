@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Flexarr.Api.Devices;
 using Flexarr.Api.Events;
 using Flexarr.Streaming;
 
@@ -43,6 +44,12 @@ public sealed class PlaybackSession
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
     public double LastPosition { get; set; }
     public bool Paused { get; set; }
+
+    /// <summary>When the player last said where it was (<see cref="LastSeen"/> moves with every request for the stream too).</summary>
+    public DateTime? ReportedAt { get; set; }
+
+    /// <summary>What the player last told remotes (see <see cref="ProgressRequest"/>): null from players that don't.</summary>
+    public RemoteState? Remote { get; set; }
     public bool CountedAsPlay { get; set; }
 
     /// <summary>A Started event went out for it, and no Stopped since (see <see cref="Events.PlaybackEvents"/>).</summary>
@@ -55,6 +62,9 @@ public sealed class PlaybackSession
     public bool Finished { get; set; }
 }
 
+/// <summary>What a player told remotes about itself in its progress reports, the latest of each.</summary>
+public sealed record RemoteState(double Rate, PlayerPrompt? Prompt, bool HasNext, PlayerTracks? Tracks, Devices.DeviceSound? Sound);
+
 public sealed partial class PlaybackSessions
 {
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
@@ -62,12 +72,14 @@ public sealed partial class PlaybackSessions
     private readonly TranscodeManager transcodes;
     private readonly ILogger<PlaybackSessions> logger;
     private readonly PlaybackEvents? events;
+    private readonly NowPlayingFeed? nowPlaying;
 
-    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger, PlaybackEvents? events = null)
+    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger, PlaybackEvents? events = null, NowPlayingFeed? nowPlaying = null)
     {
         this.transcodes = transcodes;
         this.logger = logger;
         this.events = events;
+        this.nowPlaying = nowPlaying;
 
         // A transcode ended to make way for another viewer takes its playback with it.
         transcodes.TakenOver += id =>
@@ -75,6 +87,7 @@ public sealed partial class PlaybackSessions
             if (_sessions.TryRemove(id, out var session))
             {
                 events?.Removed(session);
+                nowPlaying?.Notice(session);
             }
         };
     }
@@ -91,6 +104,26 @@ public sealed partial class PlaybackSessions
         {
             _sessions.TryRemove(session.Id, out _);
         }
+
+        nowPlaying?.Notice(session);
+    }
+
+    /// <summary>The player reported where it's got to (and, from apps that do, what a remote needs): remotes follow.</summary>
+    public void Reported(PlaybackSession session, ProgressRequest progress)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(progress);
+        session.LastPosition = progress.PositionSeconds;
+        session.Paused = progress.Paused;
+        session.ReportedAt = DateTime.UtcNow;
+        if (progress.ForRemotes)
+        {
+            var before = session.Remote;
+            session.Remote = new RemoteState(progress.Rate ?? before?.Rate ?? 1, progress.Prompt, progress.HasNext ?? false, progress.Tracks ?? before?.Tracks,
+                progress.Sound ?? before?.Sound);
+        }
+
+        nowPlaying?.Notice(session);
     }
 
     public PlaybackSession? Get(string id)
@@ -111,6 +144,7 @@ public sealed partial class PlaybackSessions
         }
 
         events?.Removed(session);
+        nowPlaying?.Notice(session);
         if (session.Transcode is { } transcode)
         {
             await transcodes.StopAsync(transcode.Id);

@@ -348,6 +348,42 @@ final class PlayerViewController: UIViewController {
         rebuildMenus()
     }
 
+    // MARK: A remote on another device
+
+    /// The soundtracks and subtitles to switch between, for a remote on another device.
+    var remoteTracks: PlayerTracks? {
+        guard let transport else { return nil }
+        return PlayerTracks(
+            audio: transport.audioTracks.map { PlayerTrack(id: $0.id, label: $0.label, selected: $0.id == transport.activeAudioTrack) },
+            subtitles: transport.subtitleTracks.map { PlayerTrack(id: $0.id, label: $0.label, selected: $0.id == transport.activeSubtitleTrack) })
+    }
+
+    /// A soundtrack chosen on a remote, as if in the audio menu.
+    func remoteSelectAudio(_ id: String) {
+        guard let transport, id != transport.activeAudioTrack, transport.audioTracks.contains(where: { $0.id == id }) else { return }
+        if !transport.selectAudioTrack(id) { delegate?.playerScreen(self, selectAudio: id) }
+        rebuildMenus()
+    }
+
+    /// Subtitles chosen on a remote (nil: off), as if in the subtitles menu.
+    func remoteSelectSubtitle(_ id: String?) {
+        guard let transport, id != transport.activeSubtitleTrack else { return }
+        if let id {
+            guard let track = transport.subtitleTracks.first(where: { $0.id == id }) else { return }
+            chooseSubtitle(track)
+        } else {
+            chooseSubtitle(nil)
+        }
+    }
+
+    /// A speed chosen on a remote, as if in the speed menu (remembered for the show).
+    func remoteChooseRate(_ rate: Float) {
+        guard let transport, rate != transport.rate, rate > 0, rate <= transport.maxRate else { return }
+        transport.setRate(rate)
+        rebuildMenus()
+        delegate?.playerScreen(self, choseRate: transport.rate)
+    }
+
     /// What End of episode means for this title (nil: not an episode, so it isn't offered).
     var episodeEnd: EpisodeEnd? {
         didSet {

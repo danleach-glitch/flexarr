@@ -69,6 +69,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the iPhone and Android apps, a downloaded episode is deleted as soon as you've heard it to the end, rather than a day later. Downloads you made yourself go too, not only ones the app fetched by itself. With no connection, it goes once the phone is back online and has told the server.
 - Marking a downloaded episode as played on the phone (or **Mark all as played** on its show) deletes the download straight away. An episode finished or marked played somewhere else, such as on the web, is deleted from the phone the next time the app catches up with the server. An episode you download again after hearing it stays until you've heard it again.
 
+### iPhone remote
+- When an Apple TV in the house is playing something from Flexarr, the iPhone app shows a **Playing on TV** bar above the tabs, with play/pause. Tap it for a remote: a scrubber you can drag, back and forward 10 seconds, previous and next episode, and **Skip Intro** or **Next Episode** when the TV offers them.
+- From the remote you can also change the TV's soundtrack, subtitles and speed, and its dialogue boost, night mode and speakers. Below are the season's other episodes: tap one to play it on the TV.
+- **Continue on iPhone** stops the film or episode on the TV and carries on from the same moment on the phone.
+- With more than one TV playing, switch between them at the top of the remote. Everyone in the house can control any TV. For menus and volume, use the Remote in Control Centre as before.
+
 ### Android
 - The buttons at the bottom of the welcome pages are their proper size on Samsung phones, with a soft glow as on iPhone, rather than sitting on a large pale block.
 - Connecting the phone to a server no longer gets stuck on "Too many devices are waiting to connect" when the phone sleeps or the Wi-Fi blinks while it shows its code. It keeps waiting on the same code, so approving it in the browser lets the phone straight in.

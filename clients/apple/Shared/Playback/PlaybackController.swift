@@ -57,6 +57,9 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var reporting: Task<Void, Never>?
     /// The last report said paused, so playing again is reported straight away (automations follow it).
     @ObservationIgnored private var reportedPaused = false
+    /// The tracks and sound settings last told to remotes, so a report only carries them when they've changed.
+    @ObservationIgnored private var reportedTracks: PlayerTracks?
+    @ObservationIgnored private var reportedSound: DeviceSound?
     @ObservationIgnored private var prompt: PlaybackPrompt = .none
     @ObservationIgnored private var isAdvancing = false
     @ObservationIgnored private var isRecovering = false
@@ -609,6 +612,7 @@ final class PlaybackController: NSObject {
             log.debug("Prompt \(String(describing: next)) at \(Int(seconds))s", ["playbackId": info.playbackId])
             prompt = next
             updatePrompt()
+            reportForRemotes()
             // The credits started: get the next episode ready. Back out of them: let it go.
             if next == .nextEpisode { if !sleepHolds { prepareNext() } } else if !isFinishing { dropPrepared() }
         }
@@ -621,9 +625,11 @@ final class PlaybackController: NSObject {
         guard let info else { return }
         switch phase {
         case .playing:
-            if !hasPlayed { applyStartingRate(info) }
+            // Reported as soon as it's under way, so a remote on another device picks it up at once.
+            let first = !hasPlayed
+            if first { applyStartingRate(info) }
             hasPlayed = true
-            if reportedPaused { report(paused: false) }
+            if reportedPaused || first { report(paused: false) }
         case .paused:
             if hasPlayed { report(paused: true) }
         case .ended:
@@ -664,7 +670,42 @@ final class PlaybackController: NSObject {
         lastReport = Date()
         reportedPaused = paused && !ended
         let position = self.position
-        send { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
+        let remote = remoteReport()
+        send { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended, remote: remote) }
+    }
+
+    /// What a remote on another device needs, with the tracks and sound only when they've changed since the last report.
+    private func remoteReport() -> RemoteReport {
+        let tracks = screen?.remoteTracks
+        let settings = SoundSettings.current
+        let sound = DeviceSound(dialogueBoost: settings.dialogueBoost.rawValue, nightMode: settings.nightMode.rawValue, speakers: settings.speakers.rawValue)
+        defer {
+            reportedTracks = tracks
+            reportedSound = sound
+        }
+        return RemoteReport(rate: Double(transport?.rate ?? 1), prompt: remotePrompt, hasNext: info?.next != nil,
+                            tracks: tracks == reportedTracks ? nil : tracks, sound: sound == reportedSound ? nil : sound)
+    }
+
+    /// The button over the picture, as a remote offers it.
+    private var remotePrompt: PlayerPrompt? {
+        if isFinishing { return info?.next != nil ? .nextEpisode : nil }
+        switch prompt {
+        case .none: return nil
+        case .skip(let type, _): return type == .recap ? .skipRecap : .skipIntro
+        case .nextEpisode: return screen?.sleepHoldsEpisode == true ? nil : .nextEpisode
+        }
+    }
+
+    /// Something a remote shows changed (a seek, the tracks, the button over the picture, the sound): tells the
+    /// server now rather than at the next regular report.
+    func reportForRemotes() {
+        guard hasPlayed, let transport, info?.isOffline == false else { return }
+        switch transport.phase {
+        case .playing: report(paused: false)
+        case .paused: report(paused: true)
+        default: break
+        }
     }
 
     /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
@@ -1005,6 +1046,39 @@ final class PlaybackController: NSObject {
         dismissPlayer()
     }
 
+    /// A title is up in the player.
+    var isShowingTitle: Bool { screen != nil && info != nil }
+
+    /// What a remote on another device asked of the title that's up: false when there's none, or it isn't a remote's command.
+    @discardableResult
+    func remote(_ command: DeviceCommand) -> Bool {
+        guard let screen, info != nil else { return false }
+        switch command.kind {
+        case .seek:
+            guard let seconds = command.seconds, seconds.isFinite else { return true }
+            screen.seek(to: seconds)
+        case .skip:
+            guard let seconds = command.seconds, seconds.isFinite else { return true }
+            screen.skip(seconds, flash: true)
+        case .next: advance()
+        case .previous: previous()
+        case .skipSegment:
+            if case .skip(_, let end) = prompt { skip(to: end) }
+        case .audioTrack:
+            if let id = command.trackId { screen.remoteSelectAudio(id) }
+            reportForRemotes()
+        case .subtitleTrack:
+            screen.remoteSelectSubtitle(command.trackId)
+            reportForRemotes()
+        case .rate:
+            if let rate = command.rate { screen.remoteChooseRate(Float(rate)) }
+            reportForRemotes()
+        default:
+            return false
+        }
+        return true
+    }
+
     // MARK: Stop
 
     /// Stops the current session (reporting the final position) and tears down the transport.
@@ -1107,10 +1181,13 @@ extension PlaybackController: PlayerScreenDelegate {
         tick(seconds)
     }
 
-    func playerScreenTracksChanged(_ screen: PlayerViewController) {}
+    func playerScreenTracksChanged(_ screen: PlayerViewController) {
+        if screen.remoteTracks != reportedTracks { reportForRemotes() }
+    }
 
     func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {
         lastPosition = seconds
+        reportForRemotes()
         if isFinishing, seconds < (info?.durationSeconds ?? 0) - 1 {
             // Scrubbed back out of the end: not finishing after all.
             nextCancelled = false

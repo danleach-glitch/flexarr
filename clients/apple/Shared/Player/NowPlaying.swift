@@ -1,5 +1,9 @@
+import FlexarrKit
 import MediaPlayer
 import UIKit
+
+/// What a device in the house is playing, as the server says (this app's own `NowPlaying` is the lock screen's).
+typealias DeviceNowPlaying = FlexarrKit.NowPlaying
 
 /// What the lock screen, Control Center, a paired watch and (on Apple TV) the Remote app show and can do while a
 /// title plays. Apple's player did this for us; now it's ours.

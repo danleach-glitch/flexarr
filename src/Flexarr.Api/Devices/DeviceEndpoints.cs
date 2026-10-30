@@ -13,15 +13,32 @@ using Microsoft.EntityFrameworkCore;
 namespace Flexarr.Api.Devices;
 
 /// <param name="Paused">Paused on the device (as it last reported).</param>
-public sealed record NowPlayingDto(ItemSummaryDto Item, double PositionSeconds, double DurationSeconds, bool Paused);
+/// <param name="ReportedAt">When the device said where it was: playing, it's further on by now.</param>
+/// <param name="Rate">The speed it's playing at. This and the rest are absent from devices that don't tell remotes (apps before 0.56).</param>
+/// <param name="Prompt">The button over the picture (Skip Intro, Next Episode); absent, none.</param>
+/// <param name="HasNext">There's a next episode to move on to.</param>
+/// <param name="Tracks">Its soundtracks and subtitles.</param>
+/// <param name="Sound">Its sound settings.</param>
+public sealed record NowPlayingDto(ItemSummaryDto Item, double PositionSeconds, double DurationSeconds, bool Paused, DateTime? ReportedAt = null,
+    double? Rate = null, PlayerPrompt? Prompt = null, bool? HasNext = null, PlayerTracks? Tracks = null, DeviceSound? Sound = null);
 
 /// <summary>An Apple TV, iPhone, iPad or Android device signed in to this server, and whether it would take a command right now.</summary>
 /// <param name="Online">Flexarr is open on it and listening. Offline, a command waits a couple of minutes for it.</param>
 /// <param name="ProfileId">Whose history it plays against: the profile chosen on it.</param>
 /// <param name="IsThisOne">The device asking.</param>
 /// <param name="DeviceType">What it is, to name and draw it; absent until its app says (apps from before 0.54 don't).</param>
+/// <param name="Accepts">The commands it takes, for a remote to offer only those; absent when its app doesn't say (before 0.56: play, pause, resume, stop, watch and sound).</param>
 public sealed record DeviceDto(string Id, string Name, bool Online, DateTime LastUsedAt, string ProfileId, string? ProfileName, bool IsThisOne, NowPlayingDto? NowPlaying,
-    DeviceType? DeviceType = null);
+    DeviceType? DeviceType = null, IReadOnlyList<DeviceCommandKind>? Accepts = null);
+
+public sealed record DeviceSeekRequest(double PositionSeconds);
+
+public sealed record DeviceSkipRequest(double Seconds);
+
+/// <param name="TrackId">The player's id for the track (from <see cref="NowPlayingDto.Tracks"/>); absent, for subtitles, turns them off.</param>
+public sealed record DeviceTrackRequest(string? TrackId);
+
+public sealed record DeviceRateRequest(double Rate);
 
 /// <param name="ItemId">A film, episode or track to play, or a show, season or album: the next episode (or the first track) is worked out for the device's profile.</param>
 /// <param name="FromBeginning">Start over rather than resume.</param>
@@ -127,10 +144,61 @@ public static class DeviceEndpoints
             });
         }
 
+        // A remote on another device: where to go, how far to jump, the next episode, a soundtrack. Only to a device with
+        // Flexarr open (a seek a couple of minutes late means nothing) whose app takes it.
+        group.MapPost("/{id}/seek", (string id, DeviceSeekRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            double.IsFinite(request.PositionSeconds) && request.PositionSeconds >= 0
+                ? Remote(id, DeviceCommandKind.Seek, signIns, commands, current, seconds: request.PositionSeconds)
+                : Results.Problem("Say where to go, in seconds from the start.", statusCode: StatusCodes.Status400BadRequest));
+        group.MapPost("/{id}/skip", (string id, DeviceSkipRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            double.IsFinite(request.Seconds) && request.Seconds != 0
+                ? Remote(id, DeviceCommandKind.Skip, signIns, commands, current, seconds: request.Seconds)
+                : Results.Problem("Say how many seconds to jump: negative goes back.", statusCode: StatusCodes.Status400BadRequest));
+        group.MapPost("/{id}/audio", (string id, DeviceTrackRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            string.IsNullOrEmpty(request.TrackId)
+                ? Results.Problem("Say which soundtrack.", statusCode: StatusCodes.Status400BadRequest)
+                : Remote(id, DeviceCommandKind.AudioTrack, signIns, commands, current, trackId: request.TrackId));
+        group.MapPost("/{id}/subtitles", (string id, DeviceTrackRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            Remote(id, DeviceCommandKind.SubtitleTrack, signIns, commands, current, trackId: string.IsNullOrEmpty(request.TrackId) ? null : request.TrackId));
+        group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            request.Rate is >= 0.5 and <= 2
+                ? Remote(id, DeviceCommandKind.Rate, signIns, commands, current, rate: request.Rate)
+                : Results.Problem("The speed is between 0.5 and 2.", statusCode: StatusCodes.Status400BadRequest));
+        foreach (var (path, kind) in new[] { ("next", DeviceCommandKind.Next), ("previous", DeviceCommandKind.Previous), ("skip-segment", DeviceCommandKind.SkipSegment) })
+        {
+            group.MapPost($"/{{id}}/{path}", (string id, SignIns signIns, DeviceCommands commands, CurrentProfile current) => Remote(id, kind, signIns, commands, current));
+        }
+
         // What a device keeps open while Flexarr is in front: commands arrive as server-sent events.
         group.MapGet("/commands", StreamAsync);
 
         return api;
+    }
+
+    /// <summary>Sends a remote's command to a device that's listening and takes it: 409 when it isn't open, or its app is too old.</summary>
+    private static IResult Remote(string deviceId, DeviceCommandKind kind, SignIns signIns, DeviceCommands commands, CurrentProfile current, double? seconds = null,
+        string? trackId = null, double? rate = null)
+    {
+        if (!current.IsTrusted)
+        {
+            return Forbidden();
+        }
+
+        if (Find(signIns, deviceId) is not { } device)
+        {
+            return Results.NotFound();
+        }
+
+        if (!commands.Takes(device.Id, kind))
+        {
+            return Results.Problem($"The Flexarr app on {device.Name} can't do that yet: update it.", statusCode: StatusCodes.Status409Conflict);
+        }
+
+        var command = new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow, Seconds: seconds, TrackId: trackId,
+            Rate: rate);
+        return commands.Send(device.Id, command, keep: false)
+            ? Results.Ok(new DeviceCommandResultDto(true, device.Name, null))
+            : Results.Problem($"Flexarr isn't open on {device.Name}.", statusCode: StatusCodes.Status409Conflict);
     }
 
     private static IResult Forbidden() => Results.Problem("Only a signed-in browser or device, or the API key, can play on other devices.", statusCode: 403);
@@ -149,20 +217,31 @@ public static class DeviceEndpoints
         foreach (var device in signIns.List().Where(s => s.Kind == SignInKind.Device))
         {
             var profileId = device.ProfileId is { } chosen && names.ContainsKey(chosen) ? chosen : PlaybackState.DefaultUser;
-            NowPlayingDto? nowPlaying = null;
-            var playing = sessions.Active.Where(s => s.SignInId == device.Id && DateTime.UtcNow - s.LastSeen < NowPlayingStaleness)
-                .OrderByDescending(s => s.LastSeen).FirstOrDefault();
-            // A title from a library hidden from this profile shows as playing, but not what it is.
-            if (playing is not null && await LibraryVisibility.PlayingAsync(db, playing.ItemId, playing.ProfileId, ct) is { } item)
-            {
-                nowPlaying = new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused);
-            }
-
+            var nowPlaying = await NowPlayingAsync(device.Id, sessions, db, ct);
+            var accepts = commands.Accepts(device.Id) is { } extra ? DeviceCommand.Basic.Union(extra).Order().ToList() : null;
             list.Add(new DeviceDto(device.Id, device.Name, commands.IsOnline(device.Id), device.LastUsedAt, profileId, names.GetValueOrDefault(profileId),
-                device.Id == current.SignInId, nowPlaying, device.DeviceType));
+                device.Id == current.SignInId, nowPlaying, device.DeviceType, accepts));
         }
 
         return list.OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();
+    }
+
+    /// <summary>What a device is playing, as it last reported; null when nothing (or nothing lately).</summary>
+    public static async Task<NowPlayingDto?> NowPlayingAsync(string deviceId, PlaybackSessions sessions, FlexarrDbContext db, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sessions);
+        ArgumentNullException.ThrowIfNull(db);
+        var playing = sessions.Active.Where(s => s.SignInId == deviceId && DateTime.UtcNow - s.LastSeen < NowPlayingStaleness)
+            .OrderByDescending(s => s.LastSeen).FirstOrDefault();
+        // A title from a library hidden from this profile shows as playing, but not what it is.
+        if (playing is null || await LibraryVisibility.PlayingAsync(db, playing.ItemId, playing.ProfileId, ct) is not { } item)
+        {
+            return null;
+        }
+
+        var remote = playing.Remote;
+        return new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused, playing.ReportedAt, remote?.Rate, remote?.Prompt, remote?.HasNext,
+            remote?.Tracks, remote?.Sound);
     }
 
     /// <summary>What a play command came to: the result to return, or why it couldn't be sent.</summary>
@@ -312,9 +391,12 @@ public static class DeviceEndpoints
     /// newer connection from the same device takes over. On the main profile it also carries devices asking to
     /// connect ("event: pairing", <see cref="PairingDetailsDto"/>; every one waiting is sent first) and those done
     /// with ("event: pairing-ended", the code), so the phone can ask "Allow?" while Flexarr is open on it. Apps from
-    /// before these ignore events they don't know.
+    /// before these ignore events they don't know. <c>accepts</c> lists the commands beyond the basic ones the device
+    /// takes (Seek,Skip,…); with <c>nowPlaying=true</c> the stream also carries what every device is playing as it
+    /// changes ("event: now-playing", <see cref="DeviceNowPlayingDto"/>), for a remote.
     /// </summary>
-    private static async Task StreamAsync(HttpContext http, CurrentProfile current, DeviceCommands commands, Pairings pairings, CancellationToken ct)
+    private static async Task StreamAsync(HttpContext http, CurrentProfile current, DeviceCommands commands, Pairings pairings, NowPlayingFeed feed,
+        string? accepts, bool? nowPlaying, CancellationToken ct)
     {
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.Device || current.SignInId is not { } deviceId)
         {
@@ -322,6 +404,15 @@ public static class DeviceEndpoints
                 .ExecuteAsync(http);
             return;
         }
+
+        // Listening before saying so: once the device hears "connected", it's online and commands reach it. Names this
+        // server doesn't know (from a newer app) are left out.
+        var takes = accepts?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(name => Enum.TryParse<DeviceCommandKind>(name, ignoreCase: true, out var kind) && Enum.IsDefined(kind) ? kind : (DeviceCommandKind?)null)
+            .OfType<DeviceCommandKind>().ToList();
+        using var listener = commands.Listen(deviceId, takes);
+        using var asking = current.IsAdmin || current.CanUnlock ? pairings.Listen() : null;
+        using var watching = nowPlaying == true ? feed.Listen() : null;
 
         http.Response.StatusCode = StatusCodes.Status200OK;
         http.Response.Headers.ContentType = "text/event-stream";
@@ -331,8 +422,6 @@ public static class DeviceEndpoints
         await http.Response.WriteAsync(": connected\n\n", ct);
         await http.Response.Body.FlushAsync(ct);
 
-        using var listener = commands.Listen(deviceId);
-        using var asking = current.IsAdmin || current.CanUnlock ? pairings.Listen() : null;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -343,17 +432,27 @@ public static class DeviceEndpoints
                 try
                 {
                     var command = listener.Commands.WaitToReadAsync(wait.Token).AsTask();
-                    if (asking is null)
+                    var others = new List<Task<bool>>(2);
+                    if (asking is not null)
+                    {
+                        others.Add(asking.Notices.WaitToReadAsync(wait.Token).AsTask());
+                    }
+
+                    if (watching is not null)
+                    {
+                        others.Add(watching.Changes.WaitToReadAsync(wait.Token).AsTask());
+                    }
+
+                    if (others.Count == 0)
                     {
                         more = await command;
                     }
                     else
                     {
-                        var notice = asking.Notices.WaitToReadAsync(wait.Token).AsTask();
-                        var first = await Task.WhenAny(command, notice);
-                        more = await first; // the heartbeat's timeout cancels both: a ping, below
-                        await wait.CancelAsync(); // the other wait
-                        if (first == notice && command.IsCompletedSuccessfully)
+                        var first = await Task.WhenAny([command, .. others]);
+                        more = await first; // the heartbeat's timeout cancels them all: a ping, below
+                        await wait.CancelAsync(); // the other waits
+                        if (first != command && command.IsCompletedSuccessfully)
                         {
                             more = command.Result;
                         }
@@ -381,6 +480,11 @@ public static class DeviceEndpoints
                     await http.Response.WriteAsync(notice.Waiting is { } waiting
                         ? $"event: pairing\ndata: {JsonSerializer.Serialize(waiting, Json)}\n\n"
                         : $"event: pairing-ended\ndata: {JsonSerializer.Serialize(new { code = notice.Ended }, Json)}\n\n", ct);
+                }
+
+                while (watching is not null && watching.Changes.TryRead(out var change))
+                {
+                    await http.Response.WriteAsync($"event: now-playing\ndata: {JsonSerializer.Serialize(change, Json)}\n\n", ct);
                 }
 
                 await http.Response.Body.FlushAsync(ct);

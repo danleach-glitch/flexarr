@@ -44,6 +44,8 @@ final class AppModel {
     /// A device asking to connect, or one that's stopped asking (from the command stream, signed in as the main
     /// profile): the iPhone asks whether to allow it. Apple TV leaves it to the phones.
     @ObservationIgnored var onPairingEvent: (@MainActor (DeviceEvent) -> Void)?
+    /// What a device is playing changed (nil: stopped), from the command stream: the iPhone's remote follows it.
+    @ObservationIgnored var onNowPlaying: (@MainActor (String, DeviceNowPlaying?) -> Void)?
     /// About to sign out, with the sign-in still working: the iPhone stops its notifications.
     @ObservationIgnored var onSignOut: (@MainActor (FlexarrClient) async -> Void)?
     private(set) var profiles: [Profile] = []
@@ -754,11 +756,17 @@ final class AppModel {
             commands.stop()
             return
         }
-        commands.start(client) { [weak self] event in
-            if case .command(let command) = event {
-                self?.handle(command)
-            } else {
-                self?.onPairingEvent?(event)
+        // The iPhone follows what the TVs are playing, for its remote.
+        #if os(iOS)
+        let nowPlaying = true
+        #else
+        let nowPlaying = false
+        #endif
+        commands.start(client, nowPlaying: nowPlaying) { [weak self] event in
+            switch event {
+            case .command(let command): self?.handle(command)
+            case .nowPlaying(let deviceId, let playing): self?.onNowPlaying?(deviceId, playing)
+            case .pairing, .pairingEnded: self?.onPairingEvent?(event)
             }
         }
     }
@@ -791,9 +799,21 @@ final class AppModel {
         case .watch:
             guard let id = command.channelId else { return }
             Task { await watchChannel(id: id) }
-        case .pause: player.pause()
-        case .resume: player.resume()
+        // A title in the player takes them; otherwise the music (or podcast) playing here.
+        case .pause: if player.isShowingTitle { player.pause() } else { music.pause() }
+        case .resume: if player.isShowingTitle { player.resume() } else { music.resume() }
         case .stop: player.closePlayer()
+        case .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate:
+            if player.remote(command) { return }
+            guard music.current != nil else { return }
+            switch command.kind {
+            case .seek: if let seconds = command.seconds { music.seek(to: seconds) }
+            case .skip: if let seconds = command.seconds { music.skip(by: seconds) }
+            case .next: music.next()
+            case .previous: music.previous()
+            case .rate: if let rate = command.rate { music.setSpeed(rate) }
+            default: break
+            }
         case .sound:
             // A player that's open follows the change, as it does one made in Settings.
             guard let sound = command.sound else { return }
@@ -802,6 +822,7 @@ final class AppModel {
             if let night = sound.nightMode.flatMap(SoundSettings.NightMode.init(rawValue:)) { settings.nightMode = night }
             if let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) { settings.speakers = speakers }
             SoundSettings.current = settings
+            player.reportForRemotes()
         case .unknown: break
         }
     }
