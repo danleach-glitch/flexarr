@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Flexarr.Integrations.Arr.Models;
 
@@ -166,6 +167,50 @@ public sealed class ArrClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>The app's connections (Settings › Connect), as it sends them: their fields vary by kind and version.</summary>
+    public Task<JsonArray> GetNotificationsAsync(ArrInstance instance, CancellationToken ct = default) =>
+        GetAsync<JsonArray>(instance, "notification", ct);
+
+    /// <summary>A blank connection of each kind the app offers, with the triggers this version has.</summary>
+    public Task<JsonArray> GetNotificationSchemaAsync(ArrInstance instance, CancellationToken ct = default) =>
+        GetAsync<JsonArray>(instance, "notification/schema", ct);
+
+    /// <summary>Has the app send a connection's test event; throws with the app's reason when it couldn't.</summary>
+    public async Task TestNotificationAsync(ArrInstance instance, JsonObject notification, CancellationToken ct = default)
+    {
+        using var request = Request(instance, HttpMethod.Post, "notification/test");
+        request.Content = JsonContent.Create(notification, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var reason = await RejectionAsync(response, ct).ConfigureAwait(false);
+            throw new HttpRequestException(reason ?? $"{instance.Name} answered {(int)response.StatusCode}.", null, response.StatusCode);
+        }
+    }
+
+    /// <summary>Saves a connection: a new one, or (with its id) a change to one there is.</summary>
+    public Task<JsonObject> SaveNotificationAsync(ArrInstance instance, JsonObject notification, CancellationToken ct = default) =>
+        notification["id"]?.GetValue<int>() is { } id and > 0
+            ? SendAsync<JsonObject>(instance, HttpMethod.Put, $"notification/{id}", notification, ct)
+            : PostAsync<JsonObject>(instance, "notification", notification, ct);
+
+    /// <summary>
+    /// Whether an app answers at <paramref name="baseUrl"/>, before there's a key to ask it anything: Sonarr, Radarr and
+    /// Lidarr all answer <c>/ping</c> without one.
+    /// </summary>
+    public async Task<bool> PingAsync(Uri baseUrl, CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync(new Uri($"{baseUrl.ToString().TrimEnd('/')}/ping"), ct).ConfigureAwait(false);
+            return response.IsSuccessStatusCode && (await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false)).Contains("OK", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// How long a response may take to arrive once it's started. The client's own timeout covers only until it starts:
     /// every film or show in a big library, over a slow link, can take longer than that to come down, and is read as it
@@ -186,9 +231,12 @@ public sealed class ArrClient(HttpClient httpClient)
     }
 
     /// <summary>A rejected request throws with the app's own reason (e.g. "Path is already configured for an existing series").</summary>
-    private async Task<T> PostAsync<T>(ArrInstance instance, string path, object body, CancellationToken ct)
+    private Task<T> PostAsync<T>(ArrInstance instance, string path, object body, CancellationToken ct) =>
+        SendAsync<T>(instance, HttpMethod.Post, path, body, ct);
+
+    private async Task<T> SendAsync<T>(ArrInstance instance, HttpMethod method, string path, object body, CancellationToken ct)
     {
-        using var request = Request(instance, HttpMethod.Post, path);
+        using var request = Request(instance, method, path);
         request.Content = JsonContent.Create(body, options: Json);
         using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
