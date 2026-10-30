@@ -75,8 +75,10 @@ struct TabStack<Content: View>: View {
 
     private func consumeDeepLink() {
         guard handlesDeepLinks, let route = model.pendingRoute else { return }
-        router.push(route)
         model.pendingRoute = nil
+        // A server without a watchlist (before 0.56) has nothing to open.
+        if case .watchlist = route, !model.hasWatchlist { return }
+        router.push(route)
     }
 
     @ViewBuilder

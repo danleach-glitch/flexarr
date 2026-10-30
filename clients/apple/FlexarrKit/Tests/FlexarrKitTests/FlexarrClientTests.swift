@@ -251,6 +251,13 @@ struct FlexarrClientTests {
         #expect(try await current.watchlistKeys()?.libraryItemIds == ["a"])
     }
 
+    @Test func readyFromTheWatchlistIsNoneOnAServerWithoutIt() async throws {
+        let (old, _) = stubbedClient(.init(status: 200, body: Data("<!doctype html>".utf8), contentType: "text/html"))
+        #expect(try await old.watchlistReady() == nil)
+        let (current, _) = stubbedClient(.init(status: 200, body: Data("[]".utf8)))
+        #expect(try await current.watchlistReady()?.isEmpty == true)
+    }
+
     @Test func problemDetailsBecomeTheErrorMessage() async {
         let body = Data(#"{"title":"Not found","status":404,"detail":"No such item."}"#.utf8)
         let (client, _) = stubbedClient(.init(status: 404, body: body))

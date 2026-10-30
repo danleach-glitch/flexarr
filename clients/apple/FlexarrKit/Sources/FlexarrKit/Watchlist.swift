@@ -105,6 +105,18 @@ extension FlexarrClient {
         }
     }
 
+    /// The library titles on the watchlist that are ready to play, newest on it first, without the server asking Seerr
+    /// (for widgets). Nil from servers without it (before 0.56's last builds): use `watchlist()` instead.
+    public func watchlistReady(take: Int = 4) async throws -> [ItemSummary]? {
+        do {
+            return try await get("watchlist/ready", query: [.init(name: "take", value: String(take))])
+        } catch FlexarrClientError.unexpectedResponse {
+            return nil
+        } catch FlexarrClientError.http(status: 404, _) {
+            return nil
+        }
+    }
+
     /// The profile's watchlist, newest first.
     public func watchlist() async throws -> [WatchlistEntry] {
         try await get("watchlist")

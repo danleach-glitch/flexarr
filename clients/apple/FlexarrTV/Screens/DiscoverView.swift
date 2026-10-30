@@ -252,6 +252,8 @@ struct ExternalCard: View {
     var focusID: String?
     /// In place of the year and state under the title (the watchlist says where the title has got to).
     var note: String?
+    /// Offers Request in the card's menu (the watchlist, for a title nobody has asked for).
+    var onRequest: (() -> Void)?
     @State private var watchlistChanged: Bool?
 
     var body: some View {
@@ -286,11 +288,15 @@ struct ExternalCard: View {
                 Text(note ?? [title.year.map(String.init), title.state].compactMap { $0 }.joined(separator: "  "))
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
-                    .lineLimit(1)
+                    // A watchlist note ("Out 5 Mar 2027 · On Netflix") gets a second line rather than being cut short.
+                    .lineLimit(note == nil ? 1 : 2)
             }
             .frame(width: width, alignment: .leading)
         }
         .contextMenu {
+            if let onRequest {
+                Button(action: onRequest) { Label("Request", systemImage: "plus.circle") }
+            }
             if let onList = watchlistChanged ?? title.onWatchlist {
                 Button {
                     Task { if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil { watchlistChanged = !onList } }

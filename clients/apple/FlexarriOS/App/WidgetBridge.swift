@@ -88,12 +88,32 @@ enum WidgetBridge {
         }
     }
 
+    /// Empties the Watchlist widget at once (signed out, another profile), posters and all.
+    static func forgetWatchlist() {
+        pendingWatchlist?.cancel()
+        guard WatchlistSnapshot.load() != .empty else { return }
+        WatchlistSnapshot.empty.save()
+        removeWatchlistPosters(keeping: [])
+        WidgetCenter.shared.reloadTimelines(ofKind: WatchlistSnapshot.widgetKind)
+    }
+
     private static func writeWatchlist(_ model: AppModel) async {
         guard PodcastSnapshot.folder != nil, let client = model.client else { return }
+        // Only for a widget someone has placed: otherwise there's nothing to keep up to date.
+        let placed = (try? await WidgetCenter.shared.currentConfigurations())?.contains { $0.kind == WatchlistSnapshot.widgetKind } ?? true
+        guard placed else { return }
         var ready: [WatchlistSnapshot.Title] = []
         if model.hasWatchlist {
-            guard let entries = try? await client.watchlist() else { return } // keep what the widget shows
-            for item in entries.compactMap(\.item).prefix(4) {
+            // Just the ready titles (no Seerr asked); a server without that call gives the whole list to pick from.
+            let items: [ItemSummary]
+            if let quick = try? await client.watchlistReady(take: 4) {
+                items = quick
+            } else if let entries = try? await client.watchlist() {
+                items = Array(entries.compactMap(\.item).prefix(4))
+            } else {
+                return // keep what the widget shows
+            }
+            for item in items {
                 let name = "wl-\(item.id).jpg"
                 ready.append(WatchlistSnapshot.Title(id: item.id, title: item.title,
                                                      posterFile: await savedPoster(name, path: item.artwork.poster, client: client)))
@@ -102,13 +122,15 @@ enum WidgetBridge {
         let previous = WatchlistSnapshot.load()
         guard previous.ready != ready else { return }
         WatchlistSnapshot(ready: ready, updatedAt: Date()).save()
-        if let folder = PodcastSnapshot.folder, let files = try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false)) {
-            let used = Set(ready.compactMap(\.posterFile))
-            for file in files where file.hasPrefix("wl-") && !used.contains(file) {
-                try? FileManager.default.removeItem(at: folder.appending(path: file))
-            }
-        }
+        removeWatchlistPosters(keeping: Set(ready.compactMap(\.posterFile)))
         WidgetCenter.shared.reloadTimelines(ofKind: WatchlistSnapshot.widgetKind)
+    }
+
+    private static func removeWatchlistPosters(keeping used: Set<String>) {
+        guard let folder = PodcastSnapshot.folder, let files = try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false)) else { return }
+        for file in files where file.hasPrefix("wl-") && !used.contains(file) {
+            try? FileManager.default.removeItem(at: folder.appending(path: file))
+        }
     }
 
     /// A poster for the widget, saved once per title.

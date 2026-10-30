@@ -32,6 +32,9 @@ struct WatchlistSnapshot: Codable, Equatable {
         if let data = try? JSONEncoder().encode(self) { try? data.write(to: file, options: .atomic) }
     }
 
+    /// The link the rest of the widget opens: the watchlist.
+    static let watchlistURL = URL(string: "flexarr://watchlist") ?? URL(string: "flexarr://")!
+
     /// The link a poster opens: the title's page in the app.
     static func itemURL(_ id: String) -> URL {
         URL(string: "flexarr://item/\(id)") ?? URL(string: "flexarr://")!

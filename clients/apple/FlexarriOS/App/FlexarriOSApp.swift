@@ -299,6 +299,7 @@ struct RootView: View {
             model.onPodcastsChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.onWatchlistChange = { [weak model] in if let model { WidgetBridge.publishWatchlist(model) } }
+            model.onWatchlistForgotten = { WidgetBridge.forgetWatchlist() }
             model.music.offlineLibrary = downloads
             downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
@@ -361,6 +362,14 @@ struct RootView: View {
                 }
                 .transition(.opacity)
             }
+        }
+        .alert("Couldn't request this", isPresented: Binding(
+            get: { model.requestError != nil },
+            set: { if !$0 { model.requestError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.requestError ?? "")
         }
         .alert("Couldn't change your watchlist", isPresented: Binding(
             get: { model.watchlistError != nil },

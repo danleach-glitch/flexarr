@@ -30,7 +30,7 @@ struct WatchlistView: View {
     var body: some View {
         Group {
             if let entries, entries.isEmpty {
-                StatusView(state: .empty("Nothing here yet. Add films and shows from their pages."))
+                StatusView(state: .empty("Nothing here yet."))
             } else if let entries {
                 ScrollView {
                     if let error {
@@ -140,7 +140,7 @@ private struct WatchlistCard: View {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([entry.isShow ? "Series" : "Film", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
+                    Text([entry.isShow ? "Show" : "Film", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
                     if let streaming = entry.streamingLabel {
@@ -178,7 +178,7 @@ private struct WatchlistCard: View {
                         do {
                             try await model.client?.request(title)
                         } catch {
-                            model.watchlistError = ConnectionError(error).message
+                            model.requestError = ConnectionError(error).message
                         }
                         requesting = false
                         onChange()

@@ -22,8 +22,11 @@ struct WatchlistView: View {
         return Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: spacing, alignment: .top), count: 6)
     }
 
-    private var shown: [WatchlistEntry] {
-        sort.sorted((entries ?? []).filter { (showing == nil || $0.status == showing) && (kind == nil || $0.mediaType == kind) })
+    /// The list as filtered and sorted, kept rather than worked out on every focus move.
+    @State private var shown: [WatchlistEntry] = []
+
+    private func reshape() {
+        shown = sort.sorted((entries ?? []).filter { (showing == nil || $0.status == showing) && (kind == nil || $0.mediaType == kind) })
     }
 
     private static let statuses: [(WatchlistStatus?, String)] = [
@@ -37,7 +40,7 @@ struct WatchlistView: View {
                     .font(.marquee(64, weight: .heavy))
                     .foregroundStyle(Color.screen)
                 if let entries, entries.isEmpty {
-                    StatusView(state: .empty("Nothing here yet. Add films and shows from their pages or Discover.")).frame(height: 500)
+                    StatusView(state: .empty("Nothing here yet.")).frame(height: 500)
                 } else if entries != nil {
                     filters
                     if let error {
@@ -75,6 +78,10 @@ struct WatchlistView: View {
             if isVisible { Task { await load() } } else { stale = true }
         }
         // A card taken off while focused: focus moves to the one that took its place, not wherever the focus engine likes.
+        .onChange(of: entries) { _, _ in reshape() }
+        .onChange(of: showing) { _, _ in reshape() }
+        .onChange(of: kind) { _, _ in reshape() }
+        .onChange(of: sort) { _, _ in reshape() }
         .onChange(of: shown.map(focusID)) { old, new in
             guard let focused = focusedItem, !new.contains(focused), let at = old.firstIndex(of: focused), !new.isEmpty else { return }
             focusedItem = new[min(at, new.count - 1)]
@@ -100,7 +107,9 @@ struct WatchlistView: View {
                     ForEach(WatchlistSort.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
             } label: {
-                Label(sort.label, systemImage: "line.3.horizontal.decrease")
+                // The kind shows here too, so a filtered list says why shows (or films) are missing.
+                Label([kind == "movie" ? "Films" : kind == "tv" ? "Shows" : nil, sort.label].compactMap { $0 }.joined(separator: " · "),
+                      systemImage: "line.3.horizontal.decrease")
             }
             .buttonStyle(PillButtonStyle(selected: kind != nil || sort != .status))
         }
@@ -113,7 +122,38 @@ struct WatchlistView: View {
             // Its own menu offers Remove from watchlist.
             PosterCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
         } else if let title = entry.external {
-            ExternalCard(title: title, focus: $focusedItem, focusID: entry.id, note: note(entry))
+            // Its menu offers Remove, and Request for a title nobody has asked for.
+            ExternalCard(title: title, focus: $focusedItem, focusID: entry.id, note: note(entry),
+                         onRequest: entry.status == .notAvailable ? { Task { await request(title) } } : nil)
+        } else {
+            // In the library once, and not now (or hidden from this profile), with no TMDB id to look it up by.
+            Button {} label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    Color.seat
+                        .frame(width: Layout.posterWidth, height: Layout.posterWidth * 1.5)
+                        .overlay { Text(entry.title).font(.marquee(30, weight: .bold)).foregroundStyle(Color.screen.opacity(0.8)).multilineTextAlignment(.center).padding(16) }
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Text(entry.title).font(.system(size: 24, weight: .semibold)).lineLimit(1)
+                }
+            }
+            .buttonStyle(.card)
+            .focused($focusedItem, equals: entry.id)
+            .contextMenu {
+                if let id = entry.libraryItemId {
+                    Button(role: .destructive) { Task { await model.setOnWatchlist(.library(id), false) } } label: {
+                        Label("Remove from watchlist", systemImage: "bookmark.slash")
+                    }
+                }
+            }
+        }
+    }
+
+    private func request(_ title: ExternalTitle) async {
+        do {
+            try await model.client?.request(title)
+            await load()
+        } catch {
+            model.requestError = ConnectionError(error).message
         }
     }
 
@@ -156,6 +196,7 @@ struct WatchlistActionButton: View {
     let on: Bool
     var ambient: Color = .silver
     var onRequested: () -> Void = {}
+    /// What was pressed here, until the page's own value changes (it reloads after something is watched, say).
     @State private var changed: Bool?
 
     var body: some View {
@@ -171,5 +212,8 @@ struct WatchlistActionButton: View {
         }
         .buttonStyle(ActionButtonStyle(ambient: ambient))
         .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
+        .onChange(of: on) { _, _ in changed = nil }
+        // Watching something can take it off while the page keeps the same value: the next refresh tells.
+        .onChange(of: model.watchlistItems) { _, _ in changed = nil }
     }
 }

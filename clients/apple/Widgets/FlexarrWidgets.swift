@@ -287,6 +287,7 @@ struct WatchlistWidget: Widget {
         StaticConfiguration(kind: WatchlistSnapshot.widgetKind, provider: WatchlistProvider()) { entry in
             WatchlistWidgetView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { Palette.room }
+                .widgetURL(WatchlistSnapshot.watchlistURL)
         }
         .configurationDisplayName("Watchlist")
         .description("What's on your watchlist and ready to watch.")
@@ -302,24 +303,26 @@ struct WatchlistWidgetView: View {
         if snapshot.ready.isEmpty {
             VStack(spacing: 6) {
                 Image(systemName: "bookmark").font(.title3)
-                Text("Nothing ready yet").font(.caption).multilineTextAlignment(.center)
+                Text("Nothing here yet").font(.caption).multilineTextAlignment(.center)
             }
             .foregroundStyle(Palette.usher)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Ready from your watchlist")
+                Text("Ready to watch")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.usher)
                     .lineLimit(1)
                 HStack(spacing: 8) {
                     ForEach(snapshot.ready.prefix(family == .systemMedium ? 4 : 2)) { title in
-                        Link(destination: WatchlistSnapshot.itemURL(title.id)) {
+                        // A small widget is one tap target (its Links are ignored): that opens the watchlist.
+                        if family == .systemMedium {
+                            Link(destination: WatchlistSnapshot.itemURL(title.id)) { poster(title) }
+                        } else {
                             poster(title)
                         }
                     }
                 }
             }
-            .widgetURL(snapshot.ready.first.map { WatchlistSnapshot.itemURL($0.id) })
         }
     }
 

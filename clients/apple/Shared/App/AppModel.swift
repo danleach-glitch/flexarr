@@ -236,7 +236,16 @@ final class AppModel {
         store.clear()
         libraries = []
         resetProfiles()
+        forgetWatchlist()
         phase = .signedOut
+    }
+
+    /// Nothing of this server's or profile's watchlist stays: not its menus, and not the widget (another person, or
+    /// another server, may be next).
+    private func forgetWatchlist() {
+        hasWatchlist = false
+        watchlistItems = []
+        onWatchlistForgotten?()
     }
 
     private var checkingSignIn = false
@@ -381,6 +390,7 @@ final class AppModel {
         profiles = profiles.map { $0.marked(current: $0.id == profile.id) }
         needsProfileChoice = false
         libraries = []
+        forgetWatchlist()
         phase = .signedIn(credentials)
         // A link that was waiting for this (or, if they chose someone else, whoever is watching now) goes ahead.
         linkProfile = nil
@@ -416,8 +426,14 @@ final class AppModel {
     /// The library titles on the profile's watchlist, so poster menus offer Add or Remove.
     private(set) var watchlistItems: Set<String> = []
 
-    /// Why the last watchlist change (adding, taking off, requesting from it) didn't happen, for an alert; nil when it did.
+    /// Why the last watchlist change (adding or taking off) didn't happen, for an alert; nil when it did.
     var watchlistError: String?
+
+    /// Why the last request (Request on a title the library doesn't have) didn't go through, for an alert.
+    var requestError: String?
+
+    /// Called when the watchlist is forgotten (signing out, another profile), so the widget empties at once.
+    var onWatchlistForgotten: (() -> Void)?
 
     /// Called when the watchlist may have changed (the iPhone's widget follows it).
     var onWatchlistChange: (() -> Void)?
@@ -428,9 +444,12 @@ final class AppModel {
         guard let client else { return }
         do {
             let keys = try await client.watchlistKeys()
+            let items = Set(keys?.libraryItemIds ?? [])
+            let changed = hasWatchlist != (keys != nil) || watchlistItems != items
             hasWatchlist = keys != nil
-            watchlistItems = Set(keys?.libraryItemIds ?? [])
-            onWatchlistChange?()
+            watchlistItems = items
+            // Only when something changed: listeners (the widget) fetch again.
+            if changed { onWatchlistChange?() }
         } catch {
             log.warning("Couldn't check the watchlist", error: error)
         }
@@ -446,8 +465,10 @@ final class AppModel {
             if on { requested = try await client.addToWatchlist(key).requested } else { try await client.removeFromWatchlist(key) }
             if case .library(let id) = key {
                 if on { watchlistItems.insert(id) } else { watchlistItems.remove(id) }
+                // Home's watchlist row can only change for a library title.
+                invalidate()
             }
-            invalidate()
+            onWatchlistChange?()
             Task { await refreshWatchlist() }
             return requested
         } catch {
@@ -733,13 +754,9 @@ final class AppModel {
     /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
         guard url.scheme == "flexarr", let host = url.host() else { return }
-        // flexarr://watchlist: the profile's watchlist.
-        if host == "watchlist" {
-            pendingRoute = .watchlist
-            return
-        }
         let id = url.pathComponents.dropFirst().first ?? ""
-        guard !id.isEmpty else { return }
+        // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
+        guard !id.isEmpty || host == "watchlist" else { return }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let query = components?.queryItems ?? []
         if let wanted = query.first(where: { $0.name == "profile" })?.value, !wanted.isEmpty {
@@ -750,6 +767,8 @@ final class AppModel {
             return
         }
         switch host {
+        case "watchlist":
+            pendingRoute = .watchlist
         case "item":
             // With its summary, which says what library it's in: the Apple TV opens it on that library's tab.
             Task {
