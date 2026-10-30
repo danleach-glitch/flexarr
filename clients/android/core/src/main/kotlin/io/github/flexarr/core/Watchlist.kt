@@ -158,46 +158,6 @@ internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 fun kindLine(mediaType: String, year: Int?): String =
     listOfNotNull(if (mediaType == "tv") "Show" else "Film", year?.toString()).joinToString(", ")
 
-/** Where Seerr has a title got to, as the server's search beyond the library says. */
-@Serializable(with = TitleAvailability.Serializer::class)
-enum class TitleAvailability(override val raw: String) : ForwardCompatibleEnum {
-    /** Nobody's asked for it: it can be requested. */
-    None("None"),
-    Requested("Requested"),
-    PartlyAvailable("PartlyAvailable"),
-    Available("Available"),
-    Unknown("");
-
-    object Serializer : ForwardCompatibleEnumSerializer<TitleAvailability>("TitleAvailability", entries, Unknown)
-}
-
-/** A film or show from searching beyond the library (`GET /requests/search`), as the web's Everything results. */
-@Serializable
-data class ExternalTitle(
-    val tmdbId: Int,
-    /** "movie" or "tv". */
-    val mediaType: String,
-    val title: String,
-    val year: Int? = null,
-    val overview: String? = null,
-    /** Server-relative artwork, as [Artwork]'s. */
-    val poster: String? = null,
-    val backdrop: String? = null,
-    val rating: Double = 0.0,
-    val availability: TitleAvailability = TitleAvailability.Unknown,
-    /** In the library after all: it opens as itself. */
-    val libraryItemId: String? = null,
-    /** On this profile's watchlist. Absent from servers before 0.56 (and those without watchlists). */
-    val onWatchlist: Boolean? = null,
-) {
-    /** "movie:123", as [WatchlistKeys.titles] has it. */
-    val key: String get() = "$mediaType:$tmdbId"
-
-    val kindLine: String get() = kindLine(mediaType, year)
-
-    val canRequest: Boolean get() = availability == TitleAvailability.None && libraryItemId == null
-}
-
 /** Whether Seerr is set up on the server (and answering), so search can look beyond the library. */
 @Serializable
 data class RequestsStatus(val configured: Boolean = false, val reachable: Boolean = false)
@@ -256,9 +216,6 @@ suspend fun FlexarrClient.requestsStatus(): RequestsStatus? = try {
 } catch (_: FlexarrException.UnexpectedResponse) {
     null
 }
-
-/** Films and shows beyond the library matching [query], through Seerr. */
-suspend fun FlexarrClient.searchEverything(query: String): List<ExternalTitle> = get("requests/search", mapOf("q" to query))
 
 /** Puts a library film or show on the watchlist (a season or episode stands for its show). Already there is fine. */
 suspend fun FlexarrClient.addToWatchlist(libraryItemId: String): WatchlistAdded =

@@ -254,7 +254,7 @@ class WatchlistTest {
         assertEquals("i1", titles[1].libraryItemId)
         assertEquals("Show, 2011", titles[1].kindLine)
         assertFalse(titles[1].canRequest)
-        assertEquals(TitleAvailability.Unknown, titles[2].availability)
+        assertEquals(Availability.Unknown, titles[2].availability)
         assertEquals("Show", titles[2].kindLine)
         assertFalse(titles[2].canRequest)
     }

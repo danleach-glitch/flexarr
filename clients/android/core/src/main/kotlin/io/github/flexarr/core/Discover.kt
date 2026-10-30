@@ -38,9 +38,18 @@ data class ExternalTitle(
     val availability: Availability = Availability.Unknown,
     /** Set when it's in the library: it opens as itself. */
     val libraryItemId: String? = null,
+    /** On this profile's watchlist. Absent from servers before 0.56 (and those without watchlists). */
+    val onWatchlist: Boolean? = null,
 ) {
     val id: String get() = "$mediaType-$tmdbId"
     val isShow: Boolean get() = mediaType == "tv"
+
+    /** "movie:123", as [WatchlistKeys.titles] has it. */
+    val key: String get() = "$mediaType:$tmdbId"
+
+    val kindLine: String get() = kindLine(mediaType, year)
+
+    val canRequest: Boolean get() = availability == Availability.None && libraryItemId == null
 }
 
 /** One of Discover's rows: trending, popular films, popular shows, coming to cinemas. */
