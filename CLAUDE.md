@@ -6,6 +6,7 @@ This repo is public. Private details (the home server's address, device IDs, sig
 
 - **One branch: `main`.** No dev branch. Every change arrives through a pull request; main requires the `CI passed` check and blocks force-pushes. Main must always be releasable: half-built server features hide behind a setting, and a new client stays in its own folder until it ships.
 - **Branches come from `yolo <branch>`** (a worktree under `.yolo/<branch>`, based on `origin/main`). Commit early: a branch with no commits is removed when the session ends.
+- **Before landing, `/audit`** reviews the branch (bugs, performance, security, compatibility, UI/UX with screenshots, land readiness, parity, ideas) and publishes a checklist; the user picks what to fix.
 - **Finishing a branch is `/land`**: changelog entry, pull request, wait for CI, squash-merge. Landing never releases.
 - **Releasing is `/release`, only when the user asks.** Changes pile up under `## Unreleased` in CHANGELOG.md between releases; a release turns that batch into one version. While Flexarr is 0.x, features bump the minor (0.50.0 → 0.51.0); a patch release (0.51.1) is only for fixing something already released. Once a batch has built up, say so and offer a release, but don't cut one unasked.
 - **Testing at home is `/deploy`.** The user's Mac Mini runs `main` as the household test server, stamped `<next minor>-dev.<commit>`. Only `main` or a release tag goes there: a branch's database migration could differ from the one that finally lands, and the Mini's database can't take it back.
