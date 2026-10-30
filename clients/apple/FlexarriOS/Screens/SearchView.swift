@@ -11,8 +11,8 @@ struct SearchView: View {
     @State private var recents = RecentSearches()
     /// Films and shows beyond the library (through Seerr), to add to the watchlist or request.
     @State private var outside: [ExternalTitle] = []
-    /// Seerr is set up, so searches look beyond the library too.
-    @State private var looksOutside = false
+    /// Seerr is set up, so searches look beyond the library too; nil until asked.
+    @State private var looksOutside: Bool?
 
     var body: some View {
         ScrollView(.vertical) {
@@ -82,9 +82,6 @@ struct SearchView: View {
             if query.isEmpty { typing = true }
         }
         .onChange(of: model.pendingSearch) { takeSiriSearch() }
-        .task {
-            looksOutside = (try? await model.client?.requestStatus())?.configured == true
-        }
         .task(id: query) {
             // Debounce typing so each keystroke doesn't hit the server.
             try? await Task.sleep(for: .milliseconds(300))
@@ -175,8 +172,12 @@ struct SearchView: View {
             await loadRecents()
             return
         }
+        if looksOutside == nil {
+            // Asked once, before the first search that needs it.
+            looksOutside = (try? await client.requestStatus())?.configured == true
+        }
         do {
-            async let beyond: [ExternalTitle] = looksOutside ? (try? await client.searchEverything(text)) ?? [] : []
+            async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
             let found = try await client.search(text)
             let more = await beyond
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
