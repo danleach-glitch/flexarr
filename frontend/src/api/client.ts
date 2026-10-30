@@ -1076,6 +1076,8 @@ export interface PairingDetails {
   zone: NetworkZone
   /** What the device says it is (absent from servers before 0.56, and from apps that don’t say). */
   deviceType?: DeviceType | null
+  /** The device asking again by itself just after “Don’t allow”: listed, so it can still be allowed, but not asked about. */
+  turnedAway?: boolean
 }
 
 /** A TV waiting to connect, by the code it shows (main profile only). */

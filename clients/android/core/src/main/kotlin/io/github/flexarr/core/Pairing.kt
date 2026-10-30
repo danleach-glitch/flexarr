@@ -22,7 +22,15 @@ data class WaitingDevice(
     val zone: String? = null,
     /** "AppleTv", "IPhone", "AndroidTv"…, as [Device.deviceType]. Absent from servers before 0.54; unknown ones are let be. */
     val deviceType: String? = null,
+    /**
+     * The device asking again by itself just after "Don't allow": listed, so it can still be allowed, but not asked
+     * about. Absent from servers before 0.56.
+     */
+    val turnedAway: Boolean = false,
 ) {
+    /** Whether to ask about it (the prompt) rather than only list it in Settings. */
+    val asks: Boolean get() = !turnedAway
+
     /** "Apple TV", "Android phone"…; null when the server didn't say, or said something this app doesn't know. */
     val kind: String? get() = deviceKind(deviceType)
 

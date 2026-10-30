@@ -82,6 +82,7 @@ function Row({ details, onAllowed }: { details: PairingDetails; onAllowed: () =>
           <strong className="pairing-code">{details.code}</strong>
         </span>
         <span className="muted sign-in-meta">{where(details)}</span>
+        {details.turnedAway && <span className="muted sign-in-meta">You turned this away. Allow it if it’s yours.</span>}
         {details.zone !== 'Local' && <span className="sign-in-meta">Not from your home network: only allow it if you started this just now.</span>}
         {error && (
           <span className="error" role="alert">

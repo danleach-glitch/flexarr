@@ -10,7 +10,7 @@ namespace Flexarr.Api.Notifications;
 /// trip to the web app. Every phone on the main profile hears it, whatever news it's chosen: it's the household's
 /// door, not news. Its Allow and Don't allow buttons ask for the phone to be unlocked, and the code is in the
 /// notification to check against the device's screen. One notification per code: a device left showing its code keeps
-/// the same one (see <see cref="Pairings.Status"/>), and one turned away isn't announced again for a while.
+/// the same one (see <see cref="Pairings.Status"/>), and the code a device asks for by itself just after "Don't allow" isn't announced.
 /// </summary>
 public sealed partial class PairingAlerts(IServiceScopeFactory scopes, ILogger<PairingAlerts> logger)
 {

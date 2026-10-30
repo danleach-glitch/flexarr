@@ -125,7 +125,7 @@ fun WaitingDevicesScreen(model: AppModel) {
             }
             val waiting = pairing.waiting
             item {
-                Group(footer = problem ?: "Allow one only if its screen shows the same code. Turned away, it won’t ask again for 15 minutes.".takeIf { waiting.isNotEmpty() }) {
+                Group(footer = problem ?: "Allow one only if its screen shows the same code.".takeIf { waiting.isNotEmpty() }) {
                     when {
                         waiting.isEmpty() && loading -> Row(Modifier.fillMaxWidth().padding(16.dp)) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
@@ -157,6 +157,7 @@ private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: B
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(device.deviceName, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(device.shortSummary, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!device.asks) Text("You turned this away. Allow it if it's yours.", fontSize = 13.sp, color = Flexarr.usher)
                 Text(
                     buildAnnotatedString {
                         append("Code ")

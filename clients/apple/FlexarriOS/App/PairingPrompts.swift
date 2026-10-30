@@ -44,7 +44,8 @@ final class PairingPrompts {
     @ObservationIgnored private var expiry: Task<Void, Never>?
 
     /// The one to ask about now.
-    var current: PairingRequest? { waiting.first { !setAside.contains($0.code) } }
+    /// (Not one turned away a moment ago and asking again by itself: that one is only listed, in Settings.)
+    var current: PairingRequest? { waiting.first { $0.asks && !setAside.contains($0.code) } }
     /// Where the one on screen has got to.
     var step: Step { current.map { step(for: $0.code) } ?? .asking }
 

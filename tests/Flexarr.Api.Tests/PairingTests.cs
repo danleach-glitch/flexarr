@@ -201,19 +201,40 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
-    public async Task DontAllow_KeepsTheDevicesNextCodeFromBeingAskedAbout()
+    public async Task DontAllow_ListsTheDevicesOwnRetryWithoutAsking_ButTryingAgainAsks()
     {
         var tv = Tv("192.168.1.79");
         var first = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Spare room" })).Content.ReadFromJsonAsync<JsonElement>();
         await Admin().PostAsJsonAsync(Api($"/pairing/code/{first.GetProperty("code").GetString()}/decline"), new { });
 
-        // The TV asks again at once, as it does: that code isn't asked about, though it can still be typed in.
-        var again = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Spare room" })).Content.ReadFromJsonAsync<JsonElement>();
-        var code = again.GetProperty("code").GetString()!;
-        var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
+        // The TV asks again at once, as it does: listed as turned away, so it can still be allowed, but not asked about.
+        var retry = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Spare room" })).Content.ReadFromJsonAsync<JsonElement>();
+        var listed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"))).EnumerateArray()
+            .Single(p => p.GetProperty("code").GetString() == retry.GetProperty("code").GetString());
+        Assert.True(listed.GetProperty("turnedAway").GetBoolean());
 
-        Assert.DoesNotContain(waiting.EnumerateArray(), p => p.GetProperty("code").GetString() == code);
-        Assert.Equal(HttpStatusCode.OK, (await Admin().GetAsync(Api($"/pairing/code/{code}"))).StatusCode);
+        // Someone choosing the server again on it is asked about as usual, and its earlier code is gone.
+        var again = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Spare room" })).Content.ReadFromJsonAsync<JsonElement>();
+        var waiting = (await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"))).EnumerateArray().Where(p => p.GetProperty("deviceName").GetString() == "Spare room").ToList();
+        var only = Assert.Single(waiting);
+        Assert.Equal(again.GetProperty("code").GetString(), only.GetProperty("code").GetString());
+        Assert.False(only.GetProperty("turnedAway").GetBoolean());
+        Assert.Equal(HttpStatusCode.NoContent, (await Admin().PostAsJsonAsync(Api($"/pairing/code/{again.GetProperty("code").GetString()}/approve"), new { })).StatusCode);
+    }
+
+    [Fact]
+    public async Task ADeviceAskingAgainAndAgain_IsNeverRefused_ForItsOwnEarlierCodes()
+    {
+        var tv = Tv("192.168.1.81");
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 6; i++)
+        {
+            statuses.Add((await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Hall" })).StatusCode);
+        }
+
+        Assert.All(statuses, s => Assert.Equal(HttpStatusCode.OK, s));
+        var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
+        Assert.Single(waiting.EnumerateArray(), p => p.GetProperty("deviceName").GetString() == "Hall");
     }
 
     [Fact]

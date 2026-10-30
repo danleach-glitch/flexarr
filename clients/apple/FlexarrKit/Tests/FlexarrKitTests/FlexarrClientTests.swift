@@ -482,12 +482,14 @@ struct PairingPromptTests {
         [{"code":"ABC-DEF","deviceName":"Living room","expiresAt":"2026-10-29T12:00:00Z","zone":"Local","deviceType":"AppleTv"},
          {"code":"GHJ-KLM","deviceName":"Kitchen","expiresAt":"2026-10-29T12:00:00Z","deviceType":"AndroidTv"},
          {"code":"NPQ-RST","deviceName":"Bedroom","expiresAt":"2026-10-29T12:00:00Z","deviceType":"Toaster"},
-         {"code":"VWX-YZ2","deviceName":"Den","expiresAt":"2026-10-29T12:00:00Z","deviceType":null},
+         {"code":"VWX-YZ2","deviceName":"Den","expiresAt":"2026-10-29T12:00:00Z","deviceType":null,"turnedAway":true},
          {"code":"345-678","deviceName":"Study","expiresAt":"2026-10-29T12:00:00Z"}]
         """#
         let (client, _) = stubbedClient(.init(status: 200, body: Data(list.utf8)))
         let waiting = try await client.waitingPairings()
         #expect(waiting.map(\.deviceType) == [.appleTv, .androidTv, .unknown, nil, nil])
+        // Only the one turned away a moment ago (asking again by itself) isn't asked about.
+        #expect(waiting.map(\.asks) == [true, true, true, false, true])
     }
 
     @Test func approvesAndDeclinesByCode() async throws {

@@ -38,7 +38,8 @@ class PairingPrompts(private val context: Context) {
 
     /** The one to ask about now. */
     val current: WaitingDevice?
-        get() = waiting.firstOrNull { it.code !in dismissed && (it.expiresAt.isAfter(Instant.now()) || it.code in allowing) }
+        // Not one turned away a moment ago and asking again by itself: that one is only listed, in Settings.
+        get() = waiting.firstOrNull { it.asks && it.code !in dismissed && (it.expiresAt.isAfter(Instant.now()) || it.code in allowing) }
 
     /** Being asked about here (or about to be), so a notification about it would only repeat the prompt. */
     fun isWaiting(code: String): Boolean = waiting.any { it.code == code } && code !in dismissed
