@@ -55,4 +55,57 @@ describe('SearchPalette', () => {
     fireEvent.click(screen.getByRole('option', { name: /Common People/ }))
     expect(screen.getByText('At /item/dc')).toBeInTheDocument()
   })
+
+  it('offers recent searches before anything’s typed, and searches again from one', async () => {
+    const searched = vi.fn()
+    mockApi({
+      'GET /search/recent': { queries: ['pulp'], items: [differentClass] },
+      '/search': (_: RequestInit | undefined, url: URL) => {
+        searched(url.searchParams.get('q'))
+        return { titles: [pulp], episodes: [], people: [], genres: [], albums: [], tracks: [] }
+      },
+    })
+    renderPalette()
+
+    const recent = await screen.findByRole('group', { name: 'Recent searches' })
+    expect(within(screen.getByRole('group', { name: 'Recently opened' })).getByText('Different Class')).toBeInTheDocument()
+    fireEvent.click(within(recent).getByRole('option', { name: /pulp/ }))
+
+    expect(screen.getByLabelText('Search your library')).toHaveValue('pulp')
+    expect(await screen.findByRole('group', { name: 'Titles' })).toBeInTheDocument()
+    expect(searched).toHaveBeenCalledWith('pulp')
+  })
+
+  it('remembers a search once something’s picked from it, with what was opened', async () => {
+    const recorded = vi.fn()
+    mockApi({
+      'GET /search/recent': { queries: [], items: [] },
+      'POST /search/recent': (init?: RequestInit) => void recorded(JSON.parse(String(init?.body))),
+      '/search': { titles: [pulp], episodes: [], people: [], genres: [], albums: [], tracks: [] },
+    })
+    renderPalette()
+    fireEvent.change(screen.getByLabelText('Search your library'), { target: { value: 'pul' } })
+
+    fireEvent.click(await screen.findByRole('option', { name: /Pulp/ }))
+    expect(recorded).toHaveBeenCalledWith({ query: 'pul', itemId: 'pulp' })
+    expect(recorded).toHaveBeenCalledTimes(1)
+  })
+
+  it('forgets one recent search, or clears them all', async () => {
+    const forgotten = vi.fn()
+    mockApi({
+      'GET /search/recent': { queries: ['pulp', 'blur'], items: [differentClass] },
+      'DELETE /search/recent': (_: RequestInit | undefined, url: URL) => void forgotten(url.search),
+    })
+    renderPalette()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove blur from recent searches' }))
+    expect(screen.queryByText('blur')).not.toBeInTheDocument()
+    expect(forgotten).toHaveBeenCalledWith('?query=blur')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.queryByRole('group', { name: 'Recent searches' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Recently opened' })).not.toBeInTheDocument()
+    expect(forgotten).toHaveBeenLastCalledWith('')
+  })
 })

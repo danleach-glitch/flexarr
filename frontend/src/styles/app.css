@@ -1414,6 +1414,39 @@ kbd {
   display: none;
 }
 
+.palette-thumb-recent {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  background: none;
+  color: var(--usher);
+}
+
+.palette-thumb-recent svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The first group's heading before anything's typed, with Clear for the recent searches. */
+.palette-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.palette-clear {
+  padding: 4px 10px;
+  border: 0;
+  background: none;
+  color: var(--usher);
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.palette-clear:hover {
+  color: inherit;
+}
+
 /* A result and, for a track, the button that plays it where you are. */
 .palette-row {
   display: flex;

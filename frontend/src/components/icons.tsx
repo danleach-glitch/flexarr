@@ -32,6 +32,13 @@ export const Check = (p: IconProps) => (
     <path d="m5 12.5 4.5 4.5L19 7.5" />
   </svg>
 )
+export const History = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+    <path d="M3.5 3.5V8H8" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+)
 export const Search = (p: IconProps) => (
   <svg {...base} {...p}>
     <circle cx="11" cy="11" r="7" />

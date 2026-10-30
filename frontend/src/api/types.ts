@@ -311,6 +311,12 @@ export interface SearchResults {
   tracks: { item: ItemSummary; album: string | null }[]
 }
 
+/** The profile's last few searches and what they opened from them, newest first, on every device (absent before 0.56). */
+export interface RecentSearches {
+  queries: string[]
+  items: ItemSummary[]
+}
+
 export interface Genre {
   name: string
   movies: number

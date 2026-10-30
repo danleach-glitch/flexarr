@@ -46,6 +46,7 @@ import type {
   PodcastGenre,
   PodcastPreferences,
   PodcastStatus,
+  RecentSearches,
   SearchResults,
   Settings,
   SettingsUpdate,
@@ -502,6 +503,12 @@ export const wasDeleted = (id: string) => deleted.has(id)
 export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
 export const getPerson = (id: string, signal?: AbortSignal) => cachedGet<Person>(`/people/${id}`, signal)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)
+export const getRecentSearches = (signal?: AbortSignal) => apiGet<RecentSearches>('/search/recent', signal)
+/** Remembers a search when something's picked from it (not as it's typed), with the item opened if it was one. */
+export const recordSearch = (query: string | null, itemId: string | null) => request<void>('POST', '/search/recent', { query, itemId })
+export const forgetSearch = (query: string) => request<void>('DELETE', `/search/recent?query=${encodeURIComponent(query)}`)
+export const forgetRecentItem = (itemId: string) => request<void>('DELETE', `/search/recent?itemId=${itemId}`)
+export const clearRecentSearches = () => request<void>('DELETE', '/search/recent')
 export const getGenres = (signal?: AbortSignal) => cachedGet<Genre[]>('/genres', signal)
 
 // ---------- Collections
