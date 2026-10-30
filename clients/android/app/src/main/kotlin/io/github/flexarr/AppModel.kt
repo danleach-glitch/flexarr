@@ -163,6 +163,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Music, playing on under every screen; it and podcasts take turns. */
     val music = MusicPlayer(context, this)
 
+    /** Goes up when Play or Shuffle starts music on the TV, which then shows Now Playing over everything. */
+    var nowPlayingRequests by mutableIntStateOf(0)
+
     /** What's new, from the server through Firebase. */
     val notifications = PushNotifications(context)
 

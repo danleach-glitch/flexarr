@@ -239,7 +239,7 @@ private fun Grabber(onClose: () -> Unit) {
 
 /** The cover's strongest colours for the light, read from a small drawing of it once it's here. */
 @Composable
-private fun rememberCoverColours(track: ItemSummary): List<CoverPalette.Rgb> {
+internal fun rememberCoverColours(track: ItemSummary): List<CoverPalette.Rgb> {
     val context = LocalContext.current
     val client = LocalClient.current
     val fallback = ambientColor(track.accentColor).let { CoverPalette.Rgb(it.red * 255.0, it.green * 255.0, it.blue * 255.0) }
