@@ -343,6 +343,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     suspend fun chooseProfile(profile: Profile, pin: String? = null) {
         val credentials = credentials ?: return
         val selection = credentials.client().selectProfile(profile.id, pin)
+        // Straight from one profile to another (the TV's "Who's watching?", a link for someone else): their music,
+        // podcasts and Up Next go, as switchProfile's do.
+        if (currentProfile?.let { it.id != profile.id } == true) {
+            music.stop()
+            podcasts.stop()
+            upNext = emptyList()
+        }
         val updated = credentials.copy(profileToken = selection.token)
         // Saved only for a saved sign-in: one for this launch alone stays that way.
         if (saved) store.saveProfile(selection.token)

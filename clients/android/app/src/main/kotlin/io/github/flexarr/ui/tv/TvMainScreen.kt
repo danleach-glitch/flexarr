@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Search
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.outlined.SettingsInputAntenna
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.liveChannels
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.library.LibraryMenuEntry
@@ -46,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +56,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -71,6 +75,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import io.github.flexarr.AppLink
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -168,6 +174,78 @@ fun TvMainScreen(model: AppModel) {
         closeSidebar()
     }
 
+    // Now Playing and "Who's watching?" keep focus to themselves while they're up (see trapsFocus); once one has gone,
+    // focus comes back to the screen underneath, to where it was.
+    val overlayUp = showingNowPlaying || choosingProfile
+    var overlayWasUp by remember { mutableStateOf(false) }
+    LaunchedEffect(overlayUp) {
+        if (overlayUp) {
+            overlayWasUp = true
+        } else if (overlayWasUp) {
+            overlayWasUp = false
+            runCatching { content.requestFocus() }
+        }
+    }
+
+    // A flexarr:// link, the Assistant ("play Fargo on Flexarr") or play-on from a phone to a profile that needed
+    // choosing asked to go somewhere, as on the phone's MainScreen. Podcasts stay on the phone and the web.
+    val linkScope = rememberCoroutineScope()
+    LaunchedEffect(model.pendingLink) {
+        val link = model.pendingLink ?: return@LaunchedEffect
+        // Cleared at once, which restarts this effect: what it does runs on in a scope of its own.
+        model.pendingLink = null
+        showingNowPlaying = false
+        choosingProfile = false
+        sidebarOpen = false
+        linkScope.launch { when (link) {
+            is AppLink.Item -> navigator.openItem(link.id)
+            is AppLink.Play -> {
+                val item = if (link.shuffle) null else runCatching { client.item(link.id) }.getOrNull()
+                when {
+                    link.shuffle -> navigator.play(link.id, shuffle = true)
+                    item == null -> navigator.openItem(link.id)
+                    link.startAt != null && item.item.kind.isPlayable -> navigator.play(link.id, startAt = link.startAt)
+                    else -> navigator.playBest(item.item)
+                }
+            }
+            is AppLink.Live -> {
+                // Every channel to change through, favourites first; one that's gone leaves the guide open.
+                val channels = runCatching { client.liveChannels() }.getOrNull().orEmpty()
+                val channel = channels.firstOrNull { it.id == link.channelId }
+                if (channel != null) {
+                    navigator.watch(channel, channels.filter { it.isFavourite } + channels.filterNot { it.isFavourite })
+                } else if (model.hasLiveTv) {
+                    select(TvTab.LiveTv)
+                }
+            }
+            AppLink.LiveTv -> if (model.hasLiveTv) select(TvTab.LiveTv)
+            is AppLink.AsProfile -> {
+                val profile = model.profiles.firstOrNull { it.id == link.profile }
+                    ?: model.profiles.firstOrNull { it.name.equals(link.profile, ignoreCase = true) }
+                when {
+                    // An unknown profile, or the one watching: the link goes ahead as things are.
+                    profile == null || profile.isCurrent -> model.pendingLink = link.link
+                    !link.askFirst && !profile.takesPin && runCatching { model.chooseProfile(profile) }.isSuccess ->
+                        model.pendingLink = link.link
+                    else -> {
+                        // "Who's watching?" (with the PIN, if it has one); the link goes ahead once someone's chosen.
+                        model.commands.active?.stop()
+                        model.pendingLink = link.link
+                        model.switchProfile()
+                    }
+                }
+            }
+            AppLink.Search -> select(TvTab.Search)
+            AppLink.Home -> select(TvTab.Home)
+            // Podcasts and downloads aren't on the TV, and nothing here sends it a pairing notification.
+            is AppLink.Podcast, is AppLink.PodcastEpisode, AppLink.Downloads, is AppLink.Pairing -> Unit
+        } }
+    }
+    // Words said to the Assistant ("search Flexarr for Fargo"): Search takes them in.
+    LaunchedEffect(model.pendingSearch) {
+        if (model.pendingSearch != null && tabRoute != TvTab.Search.route) select(TvTab.Search)
+    }
+
     // Back on a tab's first screen brings in the sidebar; on the sidebar, it leaves the app.
     BackHandler(enabled = !sidebarOpen && atTabRoot) { sidebarOpen = true }
 
@@ -237,16 +315,10 @@ fun TvMainScreen(model: AppModel) {
             SnackbarHost(navigator.notices, Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp))
         }
         if (showingNowPlaying) {
-            TvNowPlayingScreen(model, onClose = {
-                showingNowPlaying = false
-                runCatching { content.requestFocus() }
-            })
+            Box(Modifier.trapsFocus()) { TvNowPlayingScreen(model, onClose = { showingNowPlaying = false }) }
         }
         if (choosingProfile) {
-            TvProfilePicker(model, marksCurrent = true, onDone = {
-                choosingProfile = false
-                runCatching { content.requestFocus() }
-            })
+            Box(Modifier.trapsFocus()) { TvProfilePicker(model, marksCurrent = true, onDone = { choosingProfile = false }) }
         }
     }
 }
@@ -263,8 +335,15 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
     AnimatedVisibility(open, enter = slideInHorizontally { -it } + fadeIn(), exit = slideOutHorizontally { -it } + fadeOut()) {
         val first = remember { FocusRequester() }
         var hasFocus by remember { mutableStateOf(false) }
-        // The row's placed a frame or two after the sidebar starts sliding in: keep asking until it has focus.
+        val list = rememberLazyListState()
+        val nowPlaying = model.music.current != null
+        // Focus starts on the tab that's showing (the first, if it's gone from the list).
+        val focusRoute = tabs.firstOrNull { it.route == selected }?.route ?: tabs.firstOrNull()?.route
         LaunchedEffect(Unit) {
+            // With many libraries the tab may be below the sidebar's fold, with no row to focus until it's scrolled to.
+            val index = tabs.indexOfFirst { it.route == focusRoute }
+            if (index >= 0) runCatching { list.scrollToItem(index + if (nowPlaying) 1 else 0) }
+            // The row's placed a frame or two after the sidebar starts sliding in: keep asking until it has focus.
             for (attempt in 0 until 10) {
                 runCatching { first.requestFocus() }
                 delay(50)
@@ -295,9 +374,9 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 }
             }
             // However many libraries there are, the list scrolls rather than pushing Search and Settings out of reach.
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LazyColumn(Modifier.weight(1f), state = list, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
-                if (model.music.current != null) {
+                if (nowPlaying) {
                     item(key = "now-playing") {
                         SidebarRow("Now Playing", selected = false, onClick = onNowPlaying, icon = { Icon(Icons.Outlined.GraphicEq, contentDescription = null, modifier = Modifier.size(20.dp)) })
                     }
@@ -311,7 +390,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                         tab.title,
                         selected = tab.route == selected,
                         onClick = { onSelect(tab) },
-                        modifier = if (tab.route == selected) Modifier.focusRequester(first) else Modifier,
+                        modifier = if (tab.route == focusRoute) Modifier.focusRequester(first) else Modifier,
                         icon = { Icon(tab.icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     )
                 }
@@ -346,6 +425,12 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
         }
     }
 }
+
+/**
+ * Keeps focus inside something drawn over the screens (Now Playing, "Who's watching?"): the screens underneath stay
+ * focusable, and without this, moving past the overlay's last control would land on them, out of sight.
+ */
+private fun Modifier.trapsFocus() = focusProperties { onExit = { cancelFocusChange() } }.focusGroup()
 
 /** The library the server makes for the DVR's recordings when the first one's done: a TV library called Recordings. */
 private val Library.isRecordings: Boolean get() = type == LibraryType.TvShows && name == "Recordings"
