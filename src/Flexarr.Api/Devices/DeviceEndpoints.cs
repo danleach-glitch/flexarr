@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Notifications;
 using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Security;
@@ -168,6 +169,42 @@ public static class DeviceEndpoints
         {
             group.MapPost($"/{{id}}/{path}", (string id, SignIns signIns, DeviceCommands commands, CurrentProfile current) => Remote(id, kind, signIns, commands, current));
         }
+
+        // A phone's Live Activity for what a TV is playing: kept up to date through the push relay while the phone is locked.
+        group.MapPut("/{id}/activity", (string id, LiveActivityRequest request, SignIns signIns, LiveActivities activities, PushRelay relay, CurrentProfile current) =>
+        {
+            if (!current.IsTrusted)
+            {
+                return Forbidden();
+            }
+
+            if (Find(signIns, id) is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!LiveActivities.IsToken(request.Token) || request.Environment is not ("production" or "sandbox"))
+            {
+                return Results.Problem("Send the activity's push token (hex) and environment (production or sandbox).", statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            if (!relay.IsEnabled)
+            {
+                return Results.Problem("Notifications are turned off on this server.", statusCode: StatusCodes.Status409Conflict);
+            }
+
+            return activities.Start(id, request) ? Results.NoContent() : Results.Problem("Too many Live Activities.", statusCode: StatusCodes.Status429TooManyRequests);
+        });
+        group.MapDelete("/{id}/activity/{token}", (string id, string token, LiveActivities activities, CurrentProfile current) =>
+        {
+            if (!current.IsTrusted)
+            {
+                return Forbidden();
+            }
+
+            activities.End(token);
+            return Results.NoContent();
+        });
 
         // What a device keeps open while Flexarr is in front: commands arrive as server-sent events.
         group.MapGet("/commands", StreamAsync);

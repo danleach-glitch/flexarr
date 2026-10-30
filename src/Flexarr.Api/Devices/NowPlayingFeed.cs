@@ -18,6 +18,7 @@ public sealed class NowPlayingFeed
 {
     private readonly Channel<string> _changed = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
     private readonly ConcurrentDictionary<Listener, byte> _listeners = new();
+    private readonly ConcurrentDictionary<string, int> _followed = new(StringComparer.Ordinal);
 
     /// <summary>One stream asking for changes. Disposing it (the request ended) stops them.</summary>
     public sealed class Listener : IDisposable
@@ -47,13 +48,24 @@ public sealed class NowPlayingFeed
 
     internal bool HasListeners => !_listeners.IsEmpty;
 
+    /// <summary>Something besides the streams wants to hear about <paramref name="deviceId"/> (a phone's Live Activity, see <see cref="LiveActivities"/>).</summary>
+    public void Follow(string deviceId) => _followed.AddOrUpdate(deviceId, 1, (_, count) => count + 1);
+
+    public void Unfollow(string deviceId)
+    {
+        if (_followed.AddOrUpdate(deviceId, 0, (_, count) => count - 1) <= 0)
+        {
+            _followed.TryRemove(new KeyValuePair<string, int>(deviceId, 0));
+        }
+    }
+
     internal ChannelReader<string> Changed => _changed.Reader;
 
     /// <summary>A playback started on a device, reported progress, or ended.</summary>
     public void Notice(PlaybackSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        if (session.SignInId is { } device && HasListeners)
+        if (session.SignInId is { } device && (HasListeners || _followed.ContainsKey(device)))
         {
             _changed.Writer.TryWrite(device);
         }
@@ -69,8 +81,8 @@ public sealed class NowPlayingFeed
 }
 
 /// <summary>Works out what a device that changed is playing now (as <c>GET /devices</c> would say) and sends it out.</summary>
-public sealed partial class NowPlayingPublisher(NowPlayingFeed feed, PlaybackSessions sessions, IServiceScopeFactory scopes, ILogger<NowPlayingPublisher> logger)
-    : BackgroundService
+public sealed partial class NowPlayingPublisher(NowPlayingFeed feed, PlaybackSessions sessions, LiveActivities activities, IServiceScopeFactory scopes,
+    ILogger<NowPlayingPublisher> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -89,7 +101,9 @@ public sealed partial class NowPlayingPublisher(NowPlayingFeed feed, PlaybackSes
                 {
                     await using var scope = scopes.CreateAsyncScope();
                     var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-                    feed.Publish(new DeviceNowPlayingDto(device, await DeviceEndpoints.NowPlayingAsync(device, sessions, db, stoppingToken)));
+                    var change = new DeviceNowPlayingDto(device, await DeviceEndpoints.NowPlayingAsync(device, sessions, db, stoppingToken));
+                    feed.Publish(change);
+                    await activities.ChangedAsync(change, scope.ServiceProvider.GetRequiredService<Notifications.PushRelay>(), stoppingToken);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

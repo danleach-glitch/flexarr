@@ -177,6 +177,7 @@ builder.Services.AddSingleton<PinAlerts>();
 builder.Services.AddSingleton<FirstRun>();
 builder.Services.AddSingleton<DeviceCommands>();
 builder.Services.AddSingleton<NowPlayingFeed>();
+builder.Services.AddSingleton<LiveActivities>();
 builder.Services.AddHostedService<NowPlayingPublisher>();
 builder.Services.AddHttpClient<PushRelay>(c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddScoped<Notifier>();

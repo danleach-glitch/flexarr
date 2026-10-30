@@ -578,6 +578,89 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     /// <summary>Stands in for the relay: keeps what it's sent, and answers as told.</summary>
+    [Fact]
+    public async Task APhonesLiveActivity_HearsATvsTimes_OnlyWhenTheyChange_AndEndsWithIt()
+    {
+        var (_, phone) = await PhoneAsync();
+        var tv = await (await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Living room" })).Content.ReadFromJsonAsync<JsonElement>();
+        var tvId = tv.GetProperty("id").GetString()!;
+        var tvClient = _server.CreateClient();
+        tvClient.DefaultRequestHeaders.Add("X-Api-Key", tv.GetProperty("token").GetString()!);
+        Guid itemId;
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = "Films", Type = LibraryType.Movies };
+            var film = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Heat", SortTitle = "HEAT" };
+            db.AddRange(library, film);
+            await db.SaveChangesAsync();
+            itemId = film.Id;
+        }
+
+        var token = string.Concat(Enumerable.Repeat("cd34", 16));
+        Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token = "nope", environment = "sandbox", itemId })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
+
+        using var publisher = new Flexarr.Api.Devices.NowPlayingPublisher(_server.Services.GetRequiredService<Flexarr.Api.Devices.NowPlayingFeed>(),
+            _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>(), _server.Services.GetRequiredService<Flexarr.Api.Devices.LiveActivities>(),
+            _server.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<Flexarr.Api.Devices.NowPlayingPublisher>.Instance);
+        await publisher.StartAsync(default);
+        var sessions = _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>();
+        var session = new Flexarr.Api.Playback.PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"), ItemId = itemId, ProfileId = PlaybackState.DefaultUser, SignInId = tvId, FileId = Guid.NewGuid(), FilePath = "",
+            Container = null, DurationSeconds = 6000, Method = Flexarr.Streaming.PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
+        };
+        sessions.Add(session);
+        await WaitForAsync(() => _relay.Sent.Count >= 1);
+        var first = _relay.Sent[^1];
+        Assert.Equal("liveactivity", first.GetProperty("kind").GetString());
+        Assert.Equal("update", first.GetProperty("event").GetString());
+        Assert.Equal(token, first.GetProperty("token").GetString());
+        // Times only: nothing that says what's playing.
+        Assert.DoesNotContain("Heat", first.GetRawText(), StringComparison.Ordinal);
+
+        // Playing on as the clock says: nothing new to send. A pause is.
+        var sent = _relay.Sent.Count;
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 0.5, paused = false, rate = 1.0, hasNext = false });
+        await Task.Delay(300);
+        Assert.Equal(sent, _relay.Sent.Count);
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 30.0, paused = true, rate = 1.0, hasNext = false });
+        await WaitForAsync(() => _relay.Sent.Count > sent);
+        Assert.True(_relay.Sent[^1].GetProperty("state").GetProperty("paused").GetBoolean());
+        Assert.Equal(30, _relay.Sent[^1].GetProperty("state").GetProperty("position").GetDouble());
+
+        // It stops on the TV: the activity ends, and isn't followed any more.
+        await sessions.RemoveAsync(session.Id);
+        await WaitForAsync(() => _relay.Sent[^1].GetProperty("event").GetString() == "end");
+        sent = _relay.Sent.Count;
+        sessions.Add(session);
+        await Task.Delay(300);
+        Assert.Equal(sent, _relay.Sent.Count);
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
+    public void ALiveActivityUpdate_IsOnlyNews_WhenTheClockWouldBeWrong()
+    {
+        var sent = new Flexarr.Api.Devices.LiveActivityState(false, 100, 1000, 3000, 1);
+        Assert.False(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Position = 110, At = 1010 }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Position = 300, At = 1010 }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Paused = true }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Rate = 1.5 }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(null, sent));
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 100 && !condition(); i++)
+        {
+            await Task.Delay(50);
+        }
+
+        Assert.True(condition());
+    }
+
     private sealed class FakeRelay : HttpMessageHandler
     {
         public List<JsonElement> Sent { get; } = [];

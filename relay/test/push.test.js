@@ -128,3 +128,27 @@ test('without a service account, Android pushes say so', async () => {
   assert.equal(answer.status, 503);
   assert.equal(answer.body.reason, 'NotConfigured');
 });
+
+// --- Live Activities: times only.
+
+test('a Live Activity update carries times and nothing else', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const state = { paused: false, position: 120, at: now, duration: 3000, rate: 1 };
+  assert.deepEqual(push._activityState(state, now), state);
+  // A title, text where a number goes, or a time far off: refused.
+  assert.equal(push._activityState({ ...state, title: 'Heat' }, now), null);
+  assert.equal(push._activityState({ ...state, position: '120' }, now), null);
+  assert.equal(push._activityState({ ...state, at: now + 3 * 86400 }, now), null);
+  assert.equal(push._activityState({ ...state, rate: 40 }, now), null);
+});
+
+test('a Live Activity request with a title in it is refused before reaching Apple', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const answer = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(32), environment: 'sandbox', event: 'update',
+    state: { paused: false, position: 1, at: now, duration: 10, rate: 1, title: 'Heat' } } });
+  assert.equal(answer.status, 400);
+  assert.equal(answer.body.reason, 'BadState');
+  const badEvent = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(32), environment: 'sandbox', event: 'start',
+    state: { paused: false, position: 1, at: now, duration: 10, rate: 1 } } });
+  assert.equal(badEvent.body.reason, 'BadEvent');
+});

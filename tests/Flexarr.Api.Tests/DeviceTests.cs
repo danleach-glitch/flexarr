@@ -266,7 +266,7 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var (response, reader) = await ListenAsync(phone, "?nowPlaying=true");
         // The test server runs no background services: this one, by hand.
         using var publisher = new NowPlayingPublisher(factory.Services.GetRequiredService<NowPlayingFeed>(), factory.Services.GetRequiredService<PlaybackSessions>(),
-            factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<NowPlayingPublisher>.Instance);
+            factory.Services.GetRequiredService<LiveActivities>(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<NowPlayingPublisher>.Instance);
         await publisher.StartAsync(default);
 
         var session = new PlaybackSession
