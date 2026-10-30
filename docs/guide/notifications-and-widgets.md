@@ -58,9 +58,9 @@ Flexarr has three widgets. Add them the usual way: touch and hold an empty part 
 
 - **Continue listening** shows the episode you're on, with a play and pause button. Small and medium sizes for the Home Screen, and a Lock Screen size too.
 - **Up Next** shows the episodes waiting in your Up Next queue. Small and medium sizes.
-- **Watchlist** shows what's on your [watchlist](watchlist.md) and ready to watch. Tap a poster to open it. Small and medium sizes. Android has it too.
+- **Watchlist** shows what's on your [watchlist](watchlist.md) and ready to watch. Tap it to open your watchlist, or, in the medium size, a poster to open that title. Small and medium sizes. Android has it too.
 
-The widgets show what the app last saved, and update when your podcasts or watchlist change in the app. They don't fetch anything from your server themselves. See [Podcasts](podcasts.md) for Up Next.
+On iPhone and iPad the widgets show what the app last saved, and update when your podcasts or watchlist change in the app; they don't fetch anything from your server themselves. Android's Watchlist widget checks your server itself, every hour and when your watchlist changes. Signing out, or switching to another profile, empties it. See [Podcasts](podcasts.md) for Up Next.
 
 ## Top Shelf (Apple TV)
 

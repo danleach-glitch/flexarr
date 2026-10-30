@@ -5,7 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Watchlist
-- Each profile now has a **Watchlist** of films and shows to watch later, whether you have them yet or not. Add titles from their pages, from posters' menus, from Discover and search on the web, with Siri ("Add Severance to my watchlist in Flexarr"), or through an assistant. It's in the web sidebar, at the top of **Libraries** on iPhone, iPad and Android, and in the Apple TV's sidebar.
+- Each profile now has a **Watchlist** of films and shows to watch later, whether you have them yet or not. Add titles from their pages, from posters' menus, from Discover and search (on iPhone and Android, Search now finds films and shows you don't have yet, to add or request), with Siri ("Add Severance to my watchlist in Flexarr"), or through an assistant. It's in the web sidebar, at the top of **Libraries** on iPhone, iPad and Android, and in the Apple TV's sidebar.
 - Each title says where it's got to: ready to play, on its way, out on a date, or ready to request, and which streaming services have the ones you don't. Ones you can play now come first, wait on Home under **Ready from your watchlist** and in a new **Watchlist** widget on iPhone and Android, and your phone tells you **From your watchlist** when one arrives.
 - Show only one kind, only films or only shows, and sort by when you added them, when they came out, or by title, in every app.
 - Titles leave by themselves once you've watched the film or started the show.
