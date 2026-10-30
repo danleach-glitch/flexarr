@@ -31,9 +31,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When someone gets the main profile's PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was.
 
 ### Playback
-
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.
 - For shows with no credits found, Next Episode now appears a little before the end (up to two minutes for an hour-long show), not just in the last 30 seconds.
+- The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
+- Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
 ### Connecting devices
 - When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone signed in as the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first). The web app asks the same when it's open on the main profile.
@@ -41,10 +42,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A device left on its connect screen keeps the same code rather than getting a new one every ten minutes, so the notification on your phone stays right. After **Don't allow**, the device's connect screen (Apple TV, iPhone and Android) says **Not allowed**, with **Try again** to ask your phones once more, rather than quietly showing another code. Asking again never ends in "Too many devices are waiting to connect". Apps from before this version still show a new code by themselves, which isn't asked about but is listed in Settings, marked as turned away, with **Allow** in case you changed your mind.
 - On iPhone, notifications come back on by themselves after the phone is signed out and connected again, once you choose who's watching; before, they could stay off until you turned them on again in Settings. Devices waiting to connect, in Settings, says when notifications are off, since without them a device only asks while Flexarr is open.
 - The connect screens on Apple TV, iPhone and Android now start with approving on your phone, and still explain how to approve from a computer (**Settings › Access › Connect a device**).
-
-### Playback
-- The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
-- Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
 ### Music
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
