@@ -66,6 +66,7 @@ import androidx.media3.ui.SubtitleView
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Teletext
+import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.coroutineScope
@@ -197,10 +198,36 @@ private fun Back(title: String, onClick: () -> Unit) {
 @Composable
 private fun Divider() = HorizontalDivider(color = Flexarr.aisle, modifier = Modifier.padding(vertical = 4.dp))
 
-/** The file's audio tracks (when there's a choice) and Audio sync. */
+/** The file's audio tracks (when there's a choice), Audio sync, and the phone's dialogue boost, night mode and speakers. */
 @Composable
 private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Unit, onAudioSync: () -> Unit) {
     val info = controller.info ?: return
+    val sound = controller.sound
+    when (page) {
+        "dialogue" -> {
+            Back("Dialogue boost") { openPage(null) }
+            SoundSettings.DialogueBoost.entries.forEach { boost ->
+                Choice(boost.name, boost == sound.dialogueBoost) { controller.changeSound { it.copy(dialogueBoost = boost) } }
+            }
+            return
+        }
+        "night" -> {
+            Back("Night mode") { openPage(null) }
+            SoundSettings.NightMode.entries.forEach { mode ->
+                Choice(if (mode == SoundSettings.NightMode.Scheduled) sound.nightHours else mode.name, mode == sound.nightMode) {
+                    controller.changeSound { it.copy(nightMode = mode) }
+                }
+            }
+            return
+        }
+        "speakers" -> {
+            Back("Speakers") { openPage(null) }
+            SoundSettings.Speakers.entries.forEach { speakers ->
+                Choice(speakers.label, speakers == sound.speakers) { controller.changeSound { it.copy(speakers = speakers) } }
+            }
+            return
+        }
+    }
     MenuTitle("Audio")
     if (info.audioTracks.size > 1) {
         info.audioTracks.forEach { track ->
@@ -223,6 +250,10 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
             leadingIcon = { Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(20.dp)) },
         )
     }
+    Divider()
+    Submenu("Dialogue boost", sound.dialogueBoost.name) { openPage("dialogue") }
+    Submenu("Night mode", if (sound.nightMode == SoundSettings.NightMode.Scheduled) sound.nightHours else sound.nightMode.name) { openPage("night") }
+    Submenu("Speakers", sound.speakers.label) { openPage("speakers") }
 }
 
 /** Off and each track; then Teletext page (for teletext), Timing, Size and Position, as the iPhone's subtitles menu. */

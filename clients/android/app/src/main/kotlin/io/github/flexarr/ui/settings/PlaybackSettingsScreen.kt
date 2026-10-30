@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,7 @@ import io.github.flexarr.core.playbackPreferences
 import io.github.flexarr.core.shownSubtitlePosition
 import io.github.flexarr.core.shownSubtitleSize
 import io.github.flexarr.data.PlayerSettings
+import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.pressable
@@ -55,6 +57,9 @@ fun PlaybackSettingsScreen(model: AppModel) {
     val context = LocalContext.current
     var preferences by remember { mutableStateOf<PlaybackPreferences?>(null) }
     var skipSeconds by remember { mutableIntStateOf(PlayerSettings.skipSeconds(context)) }
+    val sound = SoundSettings.flow(context).collectAsState().value ?: SoundSettings.current(context)
+    // Night mode's hours, on the hour.
+    val hours = remember { (0 until 24).map { it * 60 } }
 
     LaunchedEffect(model.credentials) {
         try {
@@ -110,6 +115,24 @@ fun PlaybackSettingsScreen(model: AppModel) {
                     Picker("Skip back and forward", PlayerSettings.skipChoices, skipSeconds, { "$it seconds" }) {
                         skipSeconds = it
                         PlayerSettings.setSkipSeconds(context, it)
+                    }
+                    Divider()
+                    Picker("Dialogue boost", SoundSettings.DialogueBoost.entries, sound.dialogueBoost, { it.name }) { boost ->
+                        SoundSettings.update(context) { it.copy(dialogueBoost = boost) }
+                    }
+                    Divider()
+                    Picker("Night mode", SoundSettings.NightMode.entries, sound.nightMode, { if (it == SoundSettings.NightMode.Scheduled) "On a schedule" else it.name }) { mode ->
+                        SoundSettings.update(context) { it.copy(nightMode = mode) }
+                    }
+                    if (sound.nightMode == SoundSettings.NightMode.Scheduled) {
+                        Divider()
+                        Picker("From", hours, sound.nightStart, SoundSettings::clock) { at -> SoundSettings.update(context) { it.copy(nightStart = at) } }
+                        Divider()
+                        Picker("Until", hours, sound.nightEnd, SoundSettings::clock) { at -> SoundSettings.update(context) { it.copy(nightEnd = at) } }
+                    }
+                    Divider()
+                    Picker("Speakers", SoundSettings.Speakers.entries, sound.speakers, { it.label }) { speakers ->
+                        SoundSettings.update(context) { it.copy(speakers = speakers) }
                     }
                 }
             }

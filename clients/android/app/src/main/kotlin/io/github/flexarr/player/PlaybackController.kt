@@ -21,10 +21,14 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import io.github.flexarr.AppModel
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
+import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MarkerType
@@ -51,6 +55,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import java.time.LocalTime
 
 /**
  * One title playing: asks the server for a session, plays its stream with ExoPlayer, reports progress, offers Skip
@@ -61,7 +66,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** How far back and forward jump, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
-    val player: ExoPlayer = ExoPlayer.Builder(context)
+    /** Dialogue boost, night mode and the speakers (Settings › Playback, or the audio menu), applied as the sound plays. */
+    private val shaper = SoundShaper()
+
+    val player: ExoPlayer = ExoPlayer.Builder(context, object : DefaultRenderersFactory(context) {
+        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+            DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setAudioProcessors(arrayOf(shaper))
+                .build()
+    })
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -73,6 +88,21 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The server reads a chosen teletext page (0.55 on), known with [serverProfile]. */
     private var serverReadsTeletextPages = false
     private val scope = model.scope
+
+    /** The phone's sound settings, followed while the player is open. */
+    var sound by mutableStateOf(SoundSettings.current(context))
+        private set
+    private val appContext = context.applicationContext
+    private val soundJob = scope.launch {
+        // A change from Settings or the menu arrives straight away; a scheduled night mode is looked at every minute.
+        launch { SoundSettings.flow(appContext).collect { it?.let { now -> sound = now; shaper.shaping = now.shaping(LocalTime.now()) } } }
+        while (isActive) {
+            delay(60_000)
+            shaper.shaping = sound.shaping(LocalTime.now())
+        }
+    }
+
+    fun changeSound(change: (SoundSettings) -> SoundSettings) = SoundSettings.update(appContext, change)
 
     var info: PlaybackInfo? by mutableStateOf(null)
         private set
@@ -1059,6 +1089,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         previews?.close()
         dropPrepared()
         countdownJob?.cancel()
+        soundJob.cancel()
         sleep.set(null)
         val session = info?.sessionId
         val at = player.currentPosition / 1000.0
