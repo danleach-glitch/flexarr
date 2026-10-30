@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { getWatchlist, imageUrl, type WatchlistEntry, type WatchlistStatus } from '../api/client'
 import { PosterCard } from '../components/Cards'
@@ -42,6 +42,15 @@ export function WatchlistPage() {
     return () => window.removeEventListener('flexarr:watchlist', changed)
   }, [])
   const { data, error } = useApi(getWatchlist, [version])
+  // A card taken off by keyboard: focus moves to the bookmark of the card that takes its place.
+  const focusAfter = useRef<number | null>(null)
+  useEffect(() => {
+    const at = focusAfter.current
+    if (at === null || !data) return
+    focusAfter.current = null
+    const toggles = document.querySelectorAll<HTMLButtonElement>('.watchlist-page .watchlist-toggle')
+    toggles[Math.min(at, toggles.length - 1)]?.focus()
+  }, [data])
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params)
@@ -92,11 +101,11 @@ export function WatchlistPage() {
       </header>
       {error && <p className="error">{error.message}</p>}
       {!data && !error && <p className="page-message muted">Loading…</p>}
-      {data && data.length === 0 && <p className="muted">Nothing here yet. Add films and shows from their pages, Discover or search.</p>}
+      {data && data.length === 0 && <p className="muted">Nothing here yet.</p>}
       {data && data.length > 0 && shown.length === 0 && <p className="muted">Nothing on your watchlist matches.</p>}
       <div className="poster-grid">
-        {shown.map((entry) => (
-          <WatchlistCard key={entry.id} entry={entry} />
+        {shown.map((entry, index) => (
+          <WatchlistCard key={entry.id} entry={entry} onRemoved={() => (focusAfter.current = index)} />
         ))}
       </div>
     </div>
@@ -115,9 +124,9 @@ const statusLabel = (entry: WatchlistEntry) => {
 }
 
 /** A title ready to play is its usual card; anything else says where it's got to, with a request when nobody has asked. */
-function WatchlistCard({ entry }: { entry: WatchlistEntry }) {
+function WatchlistCard({ entry, onRemoved }: { entry: WatchlistEntry; onRemoved: () => void }) {
   const key = entry.tmdbId ? { mediaType: entry.mediaType, tmdbId: entry.tmdbId } : entry.libraryItemId ? { libraryItemId: entry.libraryItemId } : null
-  const remove = key && <WatchlistButton compact titleKey={key} title={entry.title} on />
+  const remove = key && <WatchlistButton compact titleKey={key} title={entry.title} on onRemoved={onRemoved} />
 
   if (entry.item)
     return (
@@ -138,7 +147,7 @@ function WatchlistCard({ entry }: { entry: WatchlistEntry }) {
         </div>
       </Link>
       <span className="card-title">{entry.title}</span>
-      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Series' : 'Film', entry.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Show' : 'Film', entry.year].filter(Boolean).join(', ')}</span>
       {entry.streaming && entry.streaming.length > 0 && (
         <span className="card-subtitle watchlist-streaming" title={entry.streaming.join(', ')}>
           {entry.streaming.length === 1 ? `On ${entry.streaming[0]}` : entry.streaming.join(', ')}

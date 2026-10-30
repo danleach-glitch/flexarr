@@ -16,8 +16,10 @@ export function NoticeHost() {
       window.removeEventListener('flexarr:notice', show)
     }
   }, [])
+  // Always there, so screen readers hear the text when it arrives; out of sight while it's empty. A live region
+  // rather than role=status, which the pages' own status lines use.
   return (
-    <div className="notice" role="status" aria-live="polite" hidden={!message}>
+    <div className={message ? 'notice' : 'visually-hidden'} aria-live="polite" aria-atomic="true">
       {message}
     </div>
   )

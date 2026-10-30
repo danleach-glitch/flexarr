@@ -1,22 +1,27 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { addToWatchlist, ApiError, removeFromWatchlist, type WatchlistKey } from '../api/client'
 import { AsyncButton } from './AsyncButton'
 import { Bookmark } from './icons'
 import { showNotice } from '../lib/notice'
+import { useWatchedChanges } from '../hooks/watched'
 
 /**
  * Puts a title on the profile's watchlist, or takes it off. `compact` is the poster card's icon-only button.
  * `onRequested` hears when adding it also requested it, so the page can show it's on its way.
  */
-export function WatchlistButton({ titleKey, title, on, compact = false, onRequested }: {
+export function WatchlistButton({ titleKey, title, on, compact = false, onRequested, onRemoved }: {
   titleKey: WatchlistKey
   title: string
   on: boolean
   compact?: boolean
   onRequested?: () => void
+  /** After it's taken off (the Watchlist page moves the keyboard focus on). */
+  onRemoved?: () => void
 }) {
-  // What was pressed here, until the page says otherwise (it reloads after Mark as watched, say).
+  // What was pressed here, until the page says otherwise: it changes `on`, or something is marked watched (which can
+  // take a title off while the page reloads with the same `on` it had before the press).
   const [pressed, setPressed] = useState<{ from: boolean; to: boolean }>()
+  useWatchedChanges(useCallback(() => setPressed(undefined), []))
   const onList = pressed && pressed.from === on ? pressed.to : on
   const [message, setMessage] = useState<string>()
 
@@ -29,6 +34,7 @@ export function WatchlistButton({ titleKey, title, on, compact = false, onReques
           if (!(e instanceof ApiError && e.status === 404)) throw e
         })
         setPressed({ from: on, to: false })
+        onRemoved?.()
       } else {
         const { requested } = await addToWatchlist(titleKey)
         setPressed({ from: on, to: true })

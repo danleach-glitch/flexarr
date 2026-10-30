@@ -1344,6 +1344,8 @@ kbd {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
+    /* Fades at the edge, so it's plain there's more to scroll to. */
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
     margin-inline: calc(var(--edge) * -1);
     padding-inline: var(--edge);
   }
@@ -3064,7 +3066,8 @@ a.download-attention {
 .notice {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Above the now-playing bar while it's there. */
+  bottom: calc(var(--now-playing-height, 0px) + 32px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 60;
   max-width: min(90vw, 480px);

@@ -1234,7 +1234,17 @@ export interface WatchlistKeys {
 let watchlistKeys: Promise<WatchlistKeys | null> | null = null
 
 /** The profile's watchlist keys, fetched once until the list changes; null from servers without a watchlist. */
-export const getWatchlistKeys = () => (watchlistKeys ??= apiGet<WatchlistKeys>('/watchlist/keys').catch(() => null))
+export const getWatchlistKeys = () =>
+  (watchlistKeys ??= apiGet<WatchlistKeys>('/watchlist/keys').catch(() => {
+    // Not kept: a blip shouldn't hide the watchlist from menus until the next change.
+    watchlistKeys = null
+    return null
+  }))
+
+/** Forgets the keys, so the next menu asks again (a title marked watched may have left the list). */
+export const forgetWatchlistKeys = () => {
+  watchlistKeys = null
+}
 
 /** Tells open pages the watchlist changed, so its page and buttons can catch up. */
 export const watchlistChanged = () => {
