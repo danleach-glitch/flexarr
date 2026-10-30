@@ -17,6 +17,7 @@ import io.github.flexarr.notifications.FlexarrMessagingService
 import io.github.flexarr.player.PlayerActivity
 import io.github.flexarr.ui.FlexarrRoot
 import io.github.flexarr.ui.theme.FlexarrTheme
+import io.github.flexarr.ui.tv.TvRoot
 
 private val flexarrLog = FlexarrLog("launch")
 
@@ -25,8 +26,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        // Upright on a phone; a tablet turns either way, as an iPad does.
-        requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= 600) {
+        // Upright on a phone; a tablet turns either way, as an iPad does (and a TV is a TV).
+        requestedOrientation = if (isTelevision || resources.configuration.smallestScreenWidthDp >= 600) {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         } else {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -37,7 +38,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             FlexarrTheme {
-                FlexarrRoot(appModel)
+                if (usesTvInterface) TvRoot(appModel) else FlexarrRoot(appModel)
             }
         }
     }

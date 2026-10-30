@@ -27,6 +27,8 @@ profileinstaller = "1.4.1"
 google-services = "4.5.0"
 play-publisher = "4.1.1"
 play-review = "2.0.2"
+tv-material = "1.1.0"
+zxing = "3.5.4"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
@@ -61,6 +63,8 @@ firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 kotlinx-coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
 play-review = { module = "com.google.android.play:review-ktx", version.ref = "play-review" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+tv-material = { module = "androidx.tv:tv-material", version.ref = "tv-material" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 androidx-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }

@@ -27,24 +27,30 @@ fun FlexarrRoot(model: AppModel) {
                 if (welcoming) WelcomeScreen(onDone = welcome) else ConnectScreen(model)
             }
             is AppModel.Phase.SignedIn -> {
-                LaunchedEffect(phase.credentials.address, phase.credentials.apiKey) {
-                    model.loadProfiles()
-                    model.refreshRemoteAddress()
-                    // A list that couldn't be read (the network not up yet as the app starts, say) is asked for again:
-                    // without it Home has no profile button and nobody can switch.
-                    var wait = 2_000L
-                    while (model.profiles.isEmpty()) {
-                        delay(wait)
-                        model.loadProfiles()
-                        wait = (wait * 2).coerceAtMost(30_000L)
-                    }
-                }
+                LoadProfiles(model, phase)
                 when {
                     !model.profilesLoaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                     model.needsProfile -> ProfilesScreen(model)
                     else -> MainScreen(model)
                 }
             }
+        }
+    }
+}
+
+/** Signed in: who's watching is asked for, and asked again until the server answers. The phone's and the TV's roots. */
+@Composable
+internal fun LoadProfiles(model: AppModel, phase: AppModel.Phase.SignedIn) {
+    LaunchedEffect(phase.credentials.address, phase.credentials.apiKey) {
+        model.loadProfiles()
+        model.refreshRemoteAddress()
+        // A list that couldn't be read (the network not up yet as the app starts, say) is asked for again: without it
+        // Home has no profile button and nobody can switch.
+        var wait = 2_000L
+        while (model.profiles.isEmpty()) {
+            delay(wait)
+            model.loadProfiles()
+            wait = (wait * 2).coerceAtMost(30_000L)
         }
     }
 }

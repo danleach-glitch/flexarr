@@ -27,6 +27,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
@@ -84,6 +85,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -106,6 +108,7 @@ import androidx.media3.ui.PlayerView
 import io.github.flexarr.ActivePlayback
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.appModel
+import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Format
@@ -143,18 +146,24 @@ class PlayerActivity : ComponentActivity() {
         val model = appModel
         val client = model.client ?: return finish()
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
-        val casting = Casting.shared?.let { VideoCasting(this, controller, it) }.also { casting = it }
+        // A TV is the big screen already: no Chromecast and no corner window there.
+        val tv = usesTvInterface
+        val casting = Casting.shared?.takeIf { !tv }?.let { VideoCasting(this, controller, it) }.also { casting = it }
         // Headphone and Bluetooth buttons, the system's media controls and the corner window's play and pause.
         session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
         // Another picture still up (a live channel in the corner, say) gives way: one at a time, as on iPhone.
         model.commands.active?.stop()
         model.commands.active = playback
-        val pictureInPicture = pictureInPicture(controller).also { pictureInPicture = it }
+        val pictureInPicture = if (tv) null else pictureInPicture(controller).also { pictureInPicture = it }
         // Made again (the process ended in the background, or the font size or language changed): what was playing then,
         // from where it was, rather than whatever first opened the player.
         startFrom(savedInstanceState?.getBundle(STATE_PLAYING)?.let { Intent(intent).replaceExtras(it) } ?: intent)
         setContent {
             FlexarrTheme {
+                if (pictureInPicture == null) {
+                    TvPlayerScreen(controller, onClose = ::finish)
+                    return@FlexarrTheme
+                }
                 // The corner window keeps the picture's shape, and goes there by itself only while playing.
                 LaunchedEffect(controller.videoSize, controller.isPlaying) { pictureInPicture.update() }
                 casting?.HandOff()
@@ -336,20 +345,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = { context ->
-                PlayerView(context).apply {
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    keepScreenOn = true
-                    setShutterBackgroundColor(AndroidColor.BLACK)
-                    // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
-                    subtitleView?.visibility = android.view.View.GONE
-                    player = controller.player
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
+        VideoSurface(controller)
         SubtitleLayer(controller)
         // In the corner window, the picture is all there is.
         if (inPictureInPicture) return@Box
@@ -429,6 +425,25 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             }
         }
     }
+}
+
+/** The picture, filling the screen at its own shape, kept awake while it's up. The phone's player and the TV's. */
+@Composable
+internal fun VideoSurface(controller: PlaybackController) {
+    AndroidView(
+        factory = { context ->
+            PlayerView(context).apply {
+                useController = false
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                keepScreenOn = true
+                setShutterBackgroundColor(AndroidColor.BLACK)
+                // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
+                subtitleView?.visibility = android.view.View.GONE
+                player = controller.player
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 @Composable
@@ -579,6 +594,14 @@ internal fun SkipButton(seconds: Int, enabled: Boolean = true, onClick: () -> Un
 internal fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape) =
     clip(shape).background(Color.Black.copy(alpha = 0.45f)).border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
 
+/** Clickable without a ripple. Reached with a remote or keyboard, it lights up while it has focus. */
 @Composable
-internal fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier =
-    clickable(remember { MutableInteractionSource() }, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+internal fun Modifier.clickableNoRipple(onClick: () -> Unit, enabled: Boolean = true): Modifier {
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
+    return clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+        .drawWithContent {
+            drawContent()
+            if (focused) drawRect(Color.White.copy(alpha = 0.3f))
+        }
+}

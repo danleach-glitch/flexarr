@@ -44,6 +44,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Signing in from launch arguments (MainActivity): debug builds, and the builds the baseline profile is made with.
         buildConfigField("boolean", "LAUNCH_ARGUMENTS", "false")
+        // The TV interface (ui/tv), while it's being built: debug builds only, and only debug's manifest offers the app
+        // to TVs (src/debug/AndroidManifest.xml). docs/android-tv.md.
+        buildConfigField("boolean", "TV_UI", "false")
     }
 
     signingConfigs {
@@ -58,6 +61,7 @@ android {
     buildTypes {
         debug {
             buildConfigField("boolean", "LAUNCH_ARGUMENTS", "true")
+            buildConfigField("boolean", "TV_UI", "true")
         }
         // The baseline profile plugin's builds of release, made only to profile on a device: signed with the debug key.
         configureEach {
@@ -175,6 +179,8 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.sentry.android)
     implementation(libs.glance.appwidget)
+    implementation(libs.tv.material)
+    implementation(libs.zxing.core)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
