@@ -95,6 +95,11 @@ export const Captions = (p: IconProps) => (
     <path d="M10 10.5a2.5 2.5 0 1 0 0 3M17 10.5a2.5 2.5 0 1 0 0 3" />
   </svg>
 )
+export const Waveform = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" />
+  </svg>
+)
 export const Replay10 = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />

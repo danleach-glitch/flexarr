@@ -33,6 +33,7 @@ import {
   Replay10,
   Reset,
   Sleep,
+  Waveform,
   Volume,
 } from '../components/icons'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
@@ -1295,7 +1296,7 @@ export function PlayerPage() {
           <span className="player-spacer" />
 
           <div className="menu-anchor">
-            <button className="icon-button" aria-label="Subtitles and audio" aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
+            <button className="icon-button" aria-label="Subtitles" aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
               <Captions />
             </button>
             {menu === 'subtitles' && info && (
@@ -1360,6 +1361,16 @@ export function PlayerPage() {
                     </MenuItem>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          <div className="menu-anchor">
+            <button className="icon-button" aria-label="Audio" aria-expanded={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}>
+              <Waveform />
+            </button>
+            {menu === 'audio' && info && (
+              <div className="player-menu" role="menu">
                 {info.audioTracks.length > 0 && (
                   <div className="player-menu-column">
                     {info.audioTracks.length > 1 && (
