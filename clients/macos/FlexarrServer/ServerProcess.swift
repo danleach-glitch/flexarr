@@ -37,6 +37,8 @@ final class ServerProcess {
         .appending(path: "Flexarr")
     var logDirectory: URL { root.appending(path: "logs") }
     private var setupCodeFile: URL { root.appending(path: "data/setup-code.txt") }
+    /// The server's settings, API key included: only this app (and whoever is signed in to this Mac) can read them.
+    var configFile: URL { root.appending(path: "data/config.json") }
 
     init(folders: MediaFolders) {
         requests = AppRequests(folders: folders)

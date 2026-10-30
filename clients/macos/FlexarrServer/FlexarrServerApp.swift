@@ -56,6 +56,9 @@ struct ServerMenu: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(networkAddress, forType: .string)
         }
+        // Being at this Mac is proof enough: it sets a new one with the server's own key, no old PIN needed.
+        Button("Reset Admin PIN…") { Task { await AdminPinReset(server: server).run() } }
+            .disabled(server.status != .running || server.setupCode != nil)
         Divider()
         Button("Show Logs") { NSWorkspace.shared.open(server.logDirectory) }
         Button("Restart Server") { server.restart() }
