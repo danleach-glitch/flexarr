@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from '../api/client'
 import { SessionContext } from '../hooks/sessionContext'
@@ -33,6 +33,14 @@ describe('Pairing prompt', () => {
     expect(await screen.findByText('Connect “Living room”?')).toBeInTheDocument()
     expect(screen.getByText('It’s asking from your home network (192.168.1.70).')).toBeInTheDocument()
     expect(screen.getByText('ABC-DEF')).toBeInTheDocument()
+  })
+
+  it('doesn’t ask about a device turned away a moment ago and asking again by itself', async () => {
+    const fetchMock = mockApi({ '/pairing/waiting': [{ ...livingRoom(), turnedAway: true }] })
+    renderAs(admin)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByText(/Connect “/)).not.toBeInTheDocument()
   })
 
   it('never asks someone who isn’t an admin', async () => {

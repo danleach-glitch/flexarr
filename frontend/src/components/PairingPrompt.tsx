@@ -41,7 +41,7 @@ export function PairingPrompt() {
     )
   }
 
-  const current = listsShowing > 0 ? undefined : waiting.find((p) => !handled.has(p.code) && p.code !== elsewhere)
+  const current = listsShowing > 0 ? undefined : waiting.find((p) => !p.turnedAway && !handled.has(p.code) && p.code !== elsewhere)
   if (!current) return null
   return (
     <Prompt

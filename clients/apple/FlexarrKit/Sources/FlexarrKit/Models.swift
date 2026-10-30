@@ -727,17 +727,24 @@ public struct PairingRequest: Decodable, Sendable, Hashable, Identifiable {
     public var zone: String? = nil
     /// What kind of device it is, when its app says. Absent from servers before 0.56 and for apps that don't say.
     public var deviceType: DeviceType? = nil
+    /// The device asking again by itself just after "Don't allow": listed, so it can still be allowed, but not asked
+    /// about. Absent from servers before 0.56.
+    public var turnedAway: Bool? = nil
 
     public var id: String { code }
 
+    /// Whether to ask about it (a prompt, a notification) rather than only list it.
+    public var asks: Bool { turnedAway != true }
+
     public init(code: String, deviceName: String, expiresAt: Date, requestedFrom: String? = nil, zone: String? = nil,
-                deviceType: DeviceType? = nil) {
+                deviceType: DeviceType? = nil, turnedAway: Bool? = nil) {
         self.code = code
         self.deviceName = deviceName
         self.expiresAt = expiresAt
         self.requestedFrom = requestedFrom
         self.zone = zone
         self.deviceType = deviceType
+        self.turnedAway = turnedAway
     }
 }
 

@@ -109,8 +109,8 @@ Categories and their buttons:
 to connect (see `PairingAlerts`). Its buttons approve or decline that code with the phone's own sign-in, as the app
 would; tapping it opens the app's "Allow?" prompt for that code, read from `GET /api/v1/pairing/waiting`. While the app
 is open it hears the same on its command stream (`event: pairing` and `event: pairing-ended`) instead. A device still
-showing its code keeps that code, so there's one notification per device, and one turned away isn't announced for a
-quarter of an hour.
+showing its code keeps that code, so there's one notification per device. The code a device asks for by itself just
+after "Don't allow" isn't announced: it's listed with `turnedAway: true`, and apps list it without asking.
 
 ## Relay API
 

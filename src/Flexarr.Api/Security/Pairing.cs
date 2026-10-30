@@ -24,7 +24,12 @@ public sealed record PairingStatusDto(string Status, string? ApiKey);
 /// <param name="RequestedFrom">The address the TV asked from, so the approver can tell it's theirs.</param>
 /// <param name="ExpiresAt">Moved on while the device is still showing its code (see <see cref="Pairings.Status"/>).</param>
 /// <param name="DeviceType">What kind of device it says it is, when it says.</param>
-public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime ExpiresAt, string? RequestedFrom, NetworkZone Zone, DeviceType? DeviceType = null);
+/// <param name="TurnedAway">
+/// The device asking again by itself just after "Don't allow": listed, so it can still be allowed, but not to be asked
+/// about (no prompt, no notification).
+/// </param>
+public sealed record PairingDetailsDto(string Code, string DeviceName, DateTime ExpiresAt, string? RequestedFrom, NetworkZone Zone, DeviceType? DeviceType = null,
+    bool TurnedAway = false);
 
 /// <param name="DeviceName">A name to list the TV under instead of the one it gave.</param>
 public sealed record PairingApprovalRequest(string? DeviceName = null);
@@ -63,8 +68,8 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     /// <summary>With this little left, a code still being shown is given longer (see <see cref="Status"/>).</summary>
     private static readonly TimeSpan RenewWithin = TimeSpan.FromMinutes(2);
 
-    /// <summary>How long after "Don't allow" the device's next codes aren't asked about.</summary>
-    private static readonly TimeSpan DeclinedQuiet = TimeSpan.FromMinutes(15);
+    /// <summary>How soon after "Don't allow" the device's next code counts as its own retry, not asked about.</summary>
+    private static readonly TimeSpan DeclinedQuiet = TimeSpan.FromMinutes(1);
 
     // No 0/O, 1/I/L: codes are read off a TV and typed on a phone.
     private const string Alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -73,7 +78,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     private readonly Queue<DateTime> _approvedAt = new();
     private readonly ConcurrentDictionary<Listener, byte> _listeners = new();
 
-    /// <summary>Addresses turned away, and until when their devices aren't asked about.</summary>
+    /// <summary>Addresses just turned away, and until when the next code from each is its own retry.</summary>
     private readonly ConcurrentDictionary<string, DateTime> _declined = new(StringComparer.Ordinal);
 
     /// <summary>One open command stream of the main profile's. Disposing it (the request ended) stops its notices.</summary>
@@ -107,7 +112,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     public IReadOnlyList<PairingDetailsDto> Waiting()
     {
         Sweep();
-        return [.. _pending.Values.Where(p => !p.Approved && !p.Quiet).OrderBy(p => p.ExpiresAt).Select(Details)];
+        return [.. _pending.Values.Where(p => !p.Approved).OrderBy(p => p.ExpiresAt).Select(Details)];
     }
 
     private void Tell(PairingNotice notice)
@@ -126,18 +131,31 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         public string DeviceName { get; set; } = deviceName;
         public DateTime ExpiresAt { get; set; } = expiresAt;
 
-        /// <summary>From a device just turned away: not asked about, though its code can still be typed in.</summary>
+        /// <summary>A device's own retry just after "Don't allow": listed, but not asked about.</summary>
         public bool Quiet { get; } = quiet;
         public NetworkZone Zone { get; } = zone;
         public string? Address { get; } = address;
         public bool Approved { get; set; }
     }
 
-    /// <param name="announced">The details the main profile is told, or null when the device was just turned away.</param>
+    /// <summary>
+    /// A device asking for a code. One it asked for before, still waiting, is dropped: a device shows one code at a time,
+    /// and asking again (Back, then choosing the server again) mustn't use up its address's places.
+    /// </summary>
+    /// <param name="announced">The details to notify the main profile's phones of, or null for a device's own retry just after "Don't allow".</param>
     public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, out PairingDetailsDto? announced, DeviceType? deviceType = null)
     {
         Sweep();
         announced = null;
+        var name = Name(deviceName) ?? "A TV";
+        foreach (var earlier in _pending.Values.Where(p => !p.Approved && p.Address == address && p.DeviceName == name && p.DeviceType == deviceType))
+        {
+            if (_pending.TryRemove(earlier.Id, out _))
+            {
+                Tell(new PairingNotice(null, Format(earlier.Code)));
+            }
+        }
+
         if (_pending.Count >= MaxWaiting || _pending.Values.Count(p => p.Address == address) >= MaxWaitingPerAddress)
         {
             return null;
@@ -145,14 +163,15 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
         var code = new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
         var now = clock.GetUtcNow().UtcDateTime;
-        var quiet = address is not null && _declined.TryGetValue(address, out var until) && until > now;
-        var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, Name(deviceName) ?? "A TV",
+        // Only the one code straight after "Don't allow" is quiet: asking again after that is someone trying again.
+        var quiet = address is not null && _declined.TryRemove(address, out var until) && until > now;
+        var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, name,
             now + Lifetime, zone, address, deviceType, quiet);
         _pending[pending.Id] = pending;
+        Tell(new PairingNotice(Details(pending), null));
         if (!quiet)
         {
             announced = Details(pending);
-            Tell(new PairingNotice(announced, null));
         }
 
         return new PairingStartDto(pending.Id, Format(code), pending.ExpiresAt);
@@ -178,10 +197,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
             if (pending.ExpiresAt - now < RenewWithin)
             {
                 pending.ExpiresAt = now + Lifetime;
-                if (!pending.Quiet)
-                {
-                    Tell(new PairingNotice(Details(pending), null));
-                }
+                Tell(new PairingNotice(Details(pending), null));
             }
 
             return new PairingStatusDto("waiting", null);
@@ -198,7 +214,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
     public PairingDetailsDto? Find(string code) => ByCode(code) is { } p ? Details(p) : null;
 
-    private static PairingDetailsDto Details(Pending p) => new(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone, p.DeviceType);
+    private static PairingDetailsDto Details(Pending p) => new(Format(p.Code), p.DeviceName, p.ExpiresAt, p.Address, p.Zone, p.DeviceType, p.Quiet);
 
     /// <param name="retryAfter">With <see cref="PairingApproval.TooMany"/>, how long until another may be approved.</param>
     public PairingApproval Approve(string code, string? deviceName, out TimeSpan retryAfter)
@@ -244,9 +260,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     public static bool UnfitName(string? name) => name is not null && PathComparison.Printable(name) != name;
 
     /// <summary>
-    /// "That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one. That new one
-    /// (and any other from the same address for a quarter of an hour) isn't asked about, or "Don't allow" would only
-    /// bring the question straight back; it can still be typed into Connect a device.
+    /// "That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one by itself. That
+    /// one is listed as turned away rather than asked about, or "Don't allow" would only bring the question straight
+    /// back; it can still be allowed from the list. Choosing the server again on the device asks as usual.
     /// </summary>
     public bool Decline(string code)
     {
@@ -278,7 +294,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         var now = clock.GetUtcNow().UtcDateTime;
         foreach (var expired in _pending.Values.Where(p => p.ExpiresAt < now))
         {
-            if (_pending.TryRemove(expired.Id, out _) && !expired.Approved && !expired.Quiet)
+            if (_pending.TryRemove(expired.Id, out _) && !expired.Approved)
             {
                 Tell(new PairingNotice(null, Format(expired.Code)));
             }

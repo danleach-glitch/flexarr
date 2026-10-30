@@ -126,6 +126,15 @@ class PairingTest {
     }
 
     @Test
+    fun `a device asking again by itself after Don't allow is listed but not asked about`() {
+        val asked = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting)
+        val turnedAway = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting.replace("}", ""","turnedAway":true}"""))
+
+        assertEquals(true, asked.asks)
+        assertEquals(false, turnedAway.asks)
+    }
+
+    @Test
     fun `a code still on screen lasts longer, in its place`() {
         val first = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting)
         val second = first.copy(code = "GHI-JKL", deviceName = "Bedroom")

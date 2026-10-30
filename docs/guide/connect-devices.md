@@ -13,7 +13,7 @@ The phone asks while Flexarr is open on it. When it isn't, a notification says t
 
 To see every device waiting, open **Settings** in the app, or **Settings › Access › Connect a device** on the web. Each one has **Allow** and **Don't allow**.
 
-After **Don't allow**, the device isn't asked about again for 15 minutes. If you turned it away by mistake, type its code into **Connect a device** on the web.
+After **Don't allow**, the device shows a new code by itself, and you aren't asked about that one. It's listed in Settings as turned away, with **Allow** if you change your mind. To ask again from the device, go back and choose the server again.
 
 ## iPhone and iPad
 

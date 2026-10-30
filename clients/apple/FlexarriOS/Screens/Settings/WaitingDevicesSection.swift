@@ -42,6 +42,11 @@ private struct WaitingDeviceRow: View {
                     if let kind = request.kindAndNetwork {
                         Text(kind).font(.subheadline).foregroundStyle(Color.usher)
                     }
+                    if !request.asks {
+                        Text("You turned this away. Allow it if it's yours.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.usher)
+                    }
                 }
                 Spacer(minLength: 8)
                 Text(request.code)
