@@ -79,6 +79,7 @@ function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) 
 
 const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
 const SettingsPage = lazyPage(() => import('./pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const SetupGuidePage = lazyPage(() => import('./pages/SetupGuidePage').then((m) => ({ default: m.SetupGuidePage })))
 const LiveTvPage = lazyPage(() => import('./pages/LiveTvPage'))
 const LivePlayerPage = lazyPage(() => import('./pages/LivePlayerPage'))
 
@@ -102,6 +103,7 @@ export function Shell() {
               <Routes>
                 <Route path="play/:id" element={<PlayerPage />} />
                 <Route path="live/:id" element={<LivePlayerPage />} />
+                <Route path="setup" element={<SetupGuidePage />} />
                 <Route element={<Layout />}>
                   <Route index element={<HomePage />} />
                   <Route path="library/:id" element={<Fresh><LibraryPage /></Fresh>} />

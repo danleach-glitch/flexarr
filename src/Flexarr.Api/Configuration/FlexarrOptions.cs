@@ -131,6 +131,22 @@ public sealed class FlexarrOptions
     public BackupOptions Backups { get; set; } = new();
 
     public UpdateOptions Updates { get; set; } = new();
+
+    /// <summary>Where the main profile is in the first-run setup guide (see <see cref="Endpoints.SetupGuideEndpoints"/>).</summary>
+    public SetupGuideOptions SetupGuide { get; set; } = new();
+}
+
+/// <summary>The first-run setup guide: whether it's been opened, put away, and which of its steps were passed over.</summary>
+public sealed class SetupGuideOptions
+{
+    /// <summary>It's been shown, so Home lists what's left rather than opening it again.</summary>
+    public bool Opened { get; set; }
+
+    /// <summary>Put away for good: no list on Home either.</summary>
+    public bool Dismissed { get; set; }
+
+    /// <summary>Steps passed over, which count as done.</summary>
+    public List<string> Skipped { get; set; } = [];
 }
 
 /// <summary>Finding and installing new releases (see <see cref="Flexarr.Api.Updates.UpdateChecker"/>).</summary>

@@ -33,6 +33,18 @@ public class AdminLockTests
     private static async Task<JsonElement> MeAsync(HttpClient client) => await client.GetFromJsonAsync<JsonElement>(Api("/me"));
 
     [Fact]
+    public async Task ALockedMainProfile_StillSeesWhatsLeftOfTheSetupGuide()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var tv = await LockedTvAsync(server);
+
+        Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/setup-guide"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await tv.PutAsJsonAsync(Api("/setup-guide"), new { dismissed = true })).StatusCode); // Hide
+        Assert.Equal(HttpStatusCode.Forbidden, (await tv.GetAsync(Api("/arr/discover"))).StatusCode); // the guide's own steps take the PIN
+    }
+
+    [Fact]
     public async Task ALockedMainProfile_Watches_ButManagingTheServerTakesItsPin()
     {
         using var server = new FlexarrApiFactory();

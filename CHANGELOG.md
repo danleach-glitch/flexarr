@@ -4,6 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Getting started
+- A new server now welcomes you with a short setup guide after you choose its PIN, one card at a time. It asks your name, then walks you through connecting Sonarr, Radarr and Lidarr, adding your libraries, adding everyone who watches, getting Flexarr on all your devices, and watching away from home. You can skip any step after your name, or choose **Set up later** to leave the guide.
+- The guide fills in the address of any Sonarr, Radarr or Lidarr it finds running nearby, so you only paste the API key. It then offers each app's media folders as ready-made libraries (one each for films, TV shows and music), so there's no folder browsing, and warns you if you pick a whole drive. At the end it says what's still being read, and points out a library that came up empty or a folder Flexarr can't see.
+- Connecting Sonarr, Radarr or Lidarr, in the guide or in **Settings › Connections**, now adds Flexarr's webhook to the app by itself, so new downloads show up straight away. If the app can't reach Flexarr, the webhook addresses are still under **Webhooks** to add by hand.
+- If you leave the guide part way, Home shows **Finish setting up** with what's left. Each one opens the right page in Settings, and **Hide** puts the list away.
+- An empty Home now says **Nothing to watch yet**, with **Set up Flexarr** to open the guide.
+
 ### Search
 - Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches, plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
 - Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.

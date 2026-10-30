@@ -111,13 +111,13 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>First setup</h1>
         <p class="lede">Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.</p>
-        <p class="meta">6 min read</p>
+        <p class="meta">8 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#open-flexarr-in-a-browser">Open Flexarr in a browser</a></li>
             <li><a href="#enter-the-setup-code">Enter the setup code</a></li>
-            <li><a href="#what-you-see-next">What you see next</a></li>
+            <li><a href="#the-setup-guide">The setup guide</a></li>
             <li><a href="#add-your-libraries">Add your libraries</a></li>
             <li><a href="#the-first-scan">The first scan</a></li>
             <li><a href="#the-api-key">The API key</a></li>
@@ -160,10 +160,19 @@
 </ul>
 <blockquote class="callout note"><p><strong>Note</strong> If you see a box asking for an <strong>API key</strong> instead of the welcome, someone has already set this server up, or you&#39;re not on the home network. Try opening it by its IP address from a computer at home. If you set it up yourself in another browser, approve this one from there with a code, or sign in with the key (see <a href="#the-api-key">The API key</a> below).</p>
 </blockquote>
-<h2 id="what-you-see-next"><a class="anchor" href="#what-you-see-next" aria-hidden="true" tabindex="-1">#</a>What you see next</h2>
-<p>Flexarr doesn&#39;t walk you through a long wizard. You land on Home, which says <strong>Your cinema is empty</strong> until you add a library, with an <strong>Add a library</strong> button that takes you to the right place.</p>
-<figure><img src="/guide/img/empty-home.webp" alt="An empty Home page saying Your cinema is empty, with an Add a library button" data-caption="Home on a new server, before any libraries" loading="lazy" decoding="async"></figure>
-<p>You&#39;re signed in as the server&#39;s <strong>main profile</strong>, the one that can change settings. If other people will use Flexarr, it&#39;s worth giving the main profile a PIN, and making profiles for everyone else, in <strong>Settings › Profiles</strong>. See <a href="/guide/profiles">Profiles</a>.</p>
+<h2 id="the-setup-guide"><a class="anchor" href="#the-setup-guide" aria-hidden="true" tabindex="-1">#</a>The setup guide</h2>
+<p>Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose <strong>Get started</strong>, or <strong>I&#39;ll set it up myself</strong> to go straight to Home. Every step after your name can be skipped, and <strong>Set up later</strong> leaves the guide whenever you like:</p>
+<ol>
+<li><strong>Your name.</strong> Type your name and choose a colour for your profile, the one that runs Flexarr.</li>
+<li><strong>Your apps.</strong> Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app in the background (<strong>Setting up instant updates…</strong>), so new downloads show up straight away (see <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">Webhooks</a>). Connected the wrong one? Choose <strong>Disconnect</strong>. Don&#39;t use them? Choose <strong>Skip</strong>.</li>
+<li><strong>Libraries.</strong> There&#39;s a line each for <strong>Movies</strong>, <strong>TV Shows</strong> and <strong>Music</strong>. A folder from Sonarr, Radarr or Lidarr is filled in already. Otherwise choose <strong>Choose folder</strong>, go to the folder that holds it and choose <strong>Add library</strong>. Then choose <strong>Next</strong>. Choose a whole drive or your home folder and it warns you: reading all of it takes hours. The guide adds one library of each kind; more, and home videos, are in <strong>Settings › Libraries</strong>.</li>
+<li><strong>Who&#39;s watching.</strong> Add a profile for each person in the house, or choose <strong>Skip</strong>. Added someone by mistake? Choose the <strong>✕</strong> on their picture. See <a href="/guide/profiles">Profiles</a>.</li>
+<li><strong>Watch on all your devices.</strong> Each app is listed with where to get it. Open it at home, and when it asks to connect, choose <strong>Allow</strong>. See <a href="/guide/connect-devices">Connect your devices</a>.</li>
+<li><strong>Away from home.</strong> Turn on Tailscale, and <strong>Disconnect</strong> to turn it off again. Not installed yet? <strong>Get Tailscale</strong> opens its download page: install it on the server, sign in, then choose <strong>Check again</strong>. In Docker, see <a href="/guide/away-from-home">Watch away from home</a> for other ways.</li>
+</ol>
+<p>At the end, the guide shows what&#39;s set up, says <strong>Checking your libraries</strong> while it reads your files for the first time, and warns you if a library came up empty or Flexarr can&#39;t see one of an app&#39;s folders.</p>
+<p>If you leave part way, Home lists what&#39;s left under <strong>Finish setting up</strong>. Each one opens the right page in Settings; <strong>Hide</strong> puts the list away. Everything in the guide is in Settings too, as described below.</p>
+<p>You&#39;re signed in as the server&#39;s <strong>main profile</strong>, the one that can change settings.</p>
 <h2 id="add-your-libraries"><a class="anchor" href="#add-your-libraries" aria-hidden="true" tabindex="-1">#</a>Add your libraries</h2>
 <p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
 <figure><img src="/guide/img/libraries.webp" alt="Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below" data-caption="Settings › Libraries" loading="lazy" decoding="async"></figure>
@@ -173,7 +182,7 @@
 <li>Under <strong>Folders</strong>, browse the server&#39;s disks and choose <strong>Use this folder</strong> on the folder that holds that media. Add more than one folder if your films are spread across drives.</li>
 <li>Choose <strong>Add library</strong>.</li>
 </ol>
-<p>Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.</p>
+<p>The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.</p>
 <p>You can have more than one library of a kind, such as <strong>TV</strong> and <strong>Anime</strong>, or <strong>Films</strong> and <strong>Films in 4K</strong>. Home still shows one <strong>Latest unwatched</strong> row for all your films and one for all your shows, and a title that&#39;s in two libraries shows once. To give each library its own row, turn off <strong>Combine libraries of the same kind</strong> in <strong>Settings › Home and Browse</strong>.</p>
 <blockquote class="callout important"><p><strong>Important</strong> The folder browser shows the disks as the <em>server</em> sees them. In Docker, that means the paths inside the container, such as <code>/data/media/movies</code>, not the paths on your NAS. If you can&#39;t find your media, check the volumes you gave the container in your install guide.</p>
 </blockquote>

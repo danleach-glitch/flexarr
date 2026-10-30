@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
+  addArrWebhook,
   getArrFolders,
   getArrStatus,
   getLiveTvStatus,
@@ -84,7 +85,10 @@ export function ConnectionsSection() {
     if (index === 'new') list.push(entry!)
     else if (entry) list[index] = entry
     else list.splice(index, 1)
-    if (await save({ arr: list })) setOpen(undefined)
+    if (!(await save({ arr: list }))) return
+    setOpen(undefined)
+    // A new app gets Flexarr's webhook by itself; if it can't reach Flexarr, the addresses below are there to add by hand.
+    if (index === 'new') void addArrWebhook(entry!.name).catch(() => undefined)
   }
 
   /** A name no connection has yet: the app's own for the first, then Radarr 2 and so on (to be changed to, say, Radarr 4K). */

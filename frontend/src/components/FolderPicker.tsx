@@ -3,8 +3,8 @@ import { browseFilesystem, chooseFolderOnMac } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { Folder, FolderUp } from './icons'
 
-/** Browse the server's filesystem and pick a folder, like the *arr root-folder picker. */
-export function FolderPicker({ onPick }: { onPick: (path: string) => void }) {
+/** Browse the server's filesystem and pick a folder, like the *arr root-folder picker. `pickLabel` names its button. */
+export function FolderPicker({ onPick, pickLabel = 'Use this folder' }: { onPick: (path: string) => void; pickLabel?: string }) {
   const [path, setPath] = useState<string>()
   const { data, error, loading } = useApi((signal) => browseFilesystem(path, signal), [path])
 
@@ -16,7 +16,7 @@ export function FolderPicker({ onPick }: { onPick: (path: string) => void }) {
       <div className="folder-picker-bar">
         <code>{data?.path ?? path ?? '…'}</code>
         <button type="button" className="button" disabled={!data} onClick={() => data && onPick(data.path)}>
-          Use this folder
+          {pickLabel}
         </button>
       </div>
       {error && <p className="error">{error.message}</p>}
