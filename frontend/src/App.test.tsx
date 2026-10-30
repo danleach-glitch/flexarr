@@ -252,6 +252,34 @@ describe('App', () => {
     expect(sent).toEqual(['WRONG-ONE 2468', 'ABCD-EFGH 2468'])
   })
 
+  it('opened with the setup code in the link (from the Mac app), only asks for a PIN', async () => {
+    const sent: string[] = []
+    let claimed = false
+    mockApi({
+      '/setup': () => ({ open: !claimed, codeRequired: true, install: 'MacApp' }),
+      '/setup/claim': (init?: RequestInit) => {
+        const { code, pin } = JSON.parse(String(init?.body)) as { code: string; pin: string }
+        sent.push(`${code} ${pin}`)
+        claimed = true
+        return new Response(null, { status: 204 })
+      },
+      '/system/status': () => (claimed ? status : new Response('', { status: 401 })),
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+    window.history.replaceState(null, '', '/#setup=ABCD-EFGH')
+
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('PIN (required)'), { target: { value: '2468' } })
+    fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: '2468' } })
+    expect(screen.queryByLabelText('Setup code')).not.toBeInTheDocument()
+    expect(window.location.hash).toBe('') // out of the address bar at once
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
+
+    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(sent).toEqual(['ABCD-EFGH 2468'])
+  })
+
   it('says so when the API key is wrong', async () => {
     mockApi({ '/session': new Response(null, { status: 401 }), '/system/status': new Response('', { status: 401 }) })
 

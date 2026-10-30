@@ -10,7 +10,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Profiles and settings
 - Changing the server's settings now takes the main profile's PIN, even at home. Anyone can still watch as the main profile without it. Open **Settings** on the main profile, enter the PIN, and settings stay unlocked on that browser or device for 15 minutes after your last change, or until someone else is chosen there or you choose **Lock settings**.
-- Setting up a new server asks for the main profile's PIN along with the setup code. A server set up before this asks for one the first time you open Settings.
+- Setting up a new server asks for a PIN to protect its settings along with the setup code. The Mac app opens the welcome page with the code already filled in, so there you only choose the PIN; elsewhere the page says in one line where the code is for your kind of install. A server set up before this asks for a PIN the first time you open Settings.
 - The main profile's PIN can be changed but no longer removed. Forgotten it? Choose **Forgotten it?** in Settings and enter the API key with a new PIN. The Mac app has **Reset Admin PIN…** in its menu, which needs no key.
 - Choosing the main profile no longer asks for its PIN on browsers and devices you signed in, unless you turn on **Ask for the PIN when someone chooses the main profile** in **Settings › Profiles**. Servers whose main profile already had a PIN keep asking, as before.
 - When a device asks to connect, the main profile still hears about it while settings are locked, and **Allow** asks for the PIN first.

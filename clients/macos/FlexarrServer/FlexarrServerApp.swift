@@ -42,7 +42,7 @@ struct ServerMenu: View {
             Text(server.status.description)
             Divider()
         }
-        Button("Open Flexarr") { NSWorkspace.shared.open(server.address) }
+        Button("Open Flexarr") { NSWorkspace.shared.open(server.openAddress) }
             .disabled(server.status != .running)
             .keyboardShortcut("o")
         // A new server's welcome page asks for this; choosing it copies it.

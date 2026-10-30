@@ -134,6 +134,16 @@ export function Shell() {
   )
 }
 
+/**
+ * A setup code handed over in the link (`/#setup=ABCD-EFGH`, as the Mac app opens a new server), taken out of the
+ * address bar straight away. After the #, so the browser never sends it to the server or keeps it in its logs.
+ */
+function takeLinkedSetupCode() {
+  const code = new URLSearchParams(window.location.hash.slice(1)).get('setup')?.trim()
+  if (code) window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  return code || undefined
+}
+
 /** Where a new server's setup code is, in a sentence, for the way it was installed. */
 function whereTheCodeIs(install: InstallKind | undefined) {
   switch (install) {
@@ -152,6 +162,7 @@ export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [setupInstall, setSetupInstall] = useState<InstallKind>()
+  const [linkedCode] = useState(takeLinkedSetupCode)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -292,16 +303,23 @@ export default function App() {
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>Welcome to your Flexarr server</h1>
             <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
-            <label htmlFor="setupCode">Setup code</label>
-            <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-            {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
-            <p className="muted small-print setup-code-help">
-              {whereTheCodeIs(setupInstall)}{' '}
-              <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
-                Can’t find it?
-              </a>
-            </p>
-            <p className="muted setup-pin-intro">
+            {/* Opened from the Mac app (or a link with the code): nothing to look for, only a PIN to choose. */}
+            {linkedCode && !state.wrongCode ? (
+              <input name="setupCode" type="hidden" value={linkedCode} />
+            ) : (
+              <>
+                <label htmlFor="setupCode">Setup code</label>
+                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
+                {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+                <p className="muted small-print setup-code-help">
+                  {whereTheCodeIs(setupInstall)}{' '}
+                  <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
+                    Can’t find it?
+                  </a>
+                </p>
+              </>
+            )}
+            <p className={linkedCode && !state.wrongCode ? 'muted' : 'muted setup-pin-intro'}>
               Choose a PIN to protect the server’s settings. Watching doesn’t need it.
             </p>
             <div className="field-row">

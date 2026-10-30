@@ -23,6 +23,8 @@ If the page doesn't load, check that Flexarr is running (your install guide, lin
 
 ## Enter the setup code
 
+With the Mac app, there's nothing to look up: the first time it starts, it opens the welcome page in your browser with the code already filled in, so you only choose a PIN. **Open Flexarr** in its menu does the same until the server is set up.
+
 A new server greets you with **Welcome to your Flexarr server** and asks for its **setup code**. The code proves you're the one who installed it: some setups (a reverse proxy, Docker Desktop) make visitors from the internet look as though they're on your home network, and only someone with the server can read its code. It's eight letters and numbers, like `K7QM-3PXT`, and it's in:
 
 - **Docker** (including Synology and Unraid): the container's log. Run `docker logs flexarr`, or open the container's log in your NAS's Docker app. It's also in `setup-code.txt` in the container's settings folder.
