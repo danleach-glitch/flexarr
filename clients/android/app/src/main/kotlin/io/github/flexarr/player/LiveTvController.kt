@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -43,6 +45,7 @@ private val flexarrLog = FlexarrLog("livetv")
  * told the viewer is there, and changes channel (Previous and Next go through [channels] in the order they were
  * listed). "Back to live" appears once the picture is well behind. The iPhone app's LiveTvController.
  */
+@OptIn(UnstableApi::class)
 class LiveTvController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
     /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)

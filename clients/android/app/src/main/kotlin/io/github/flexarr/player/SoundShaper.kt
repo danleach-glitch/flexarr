@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import android.content.Context
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
@@ -36,6 +38,7 @@ import kotlin.math.sin
  * It keeps the track's channel count, so [shaping] can change mid-film without rebuilding the sink: folding to stereo
  * puts everything in the front left and right and silences the rest, which the phone's own mixdown then leaves alone.
  */
+@OptIn(UnstableApi::class)
 class SoundShaper : BaseAudioProcessor() {
     /** What to do with the sound now; set from the player's thread, read on the audio one. */
     @Volatile var shaping = SoundSettings.Shaping()

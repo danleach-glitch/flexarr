@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -58,6 +60,7 @@ import kotlin.math.abs
  * Intro and Next Episode, and moves on to the next episode. The audio, subtitle, speed and sleep-timer menus act
  * through it. The iPhone app's PlaybackController, for the phone.
  */
+@OptIn(UnstableApi::class)
 class PlaybackController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
     /** How far back and forward jump, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
