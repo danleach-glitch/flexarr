@@ -35,7 +35,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,6 +111,32 @@ private sealed interface Category {
     data class Group(val name: String) : Category
 }
 
+/**
+ * The guide as last fetched, shared by Live TV and the guide over the picture so opening one after the other doesn't
+ * fetch it again. Fetched a few hours at a time ([hours]), more as the guide is moved on; kept four minutes, so the
+ * five-minute refresh always fetches.
+ */
+internal object TvGuideCache {
+    private class Entry(val server: String, val guide: LiveGuide, val fetched: Instant, val hours: Int)
+
+    private var entry: Entry? = null
+
+    /** At least [hours] from an hour ago; [fresh] after something changed it (a recording set). */
+    suspend fun guide(client: FlexarrClient, hours: Int, fresh: Boolean = false): LiveGuide {
+        val server = client.baseUrl.toString()
+        entry?.takeIf { !fresh && it.server == server && it.hours >= hours && Duration.between(it.fetched, Instant.now()) < MAX_AGE }?.let { return it.guide }
+        val guide = client.liveGuide(Instant.now().minusSeconds(3600), hours)
+        entry = Entry(server, guide, Instant.now(), hours)
+        return guide
+    }
+
+    /** The guide's first fetch, and how much more each move past its end asks for, up to a day. */
+    const val FIRST_HOURS = 6
+    const val MORE_HOURS = 6
+    const val MOST_HOURS = 24
+    private val MAX_AGE: Duration = Duration.ofMinutes(4)
+}
+
 /** Favourites' star and the row's gold. */
 private val Gold = Color(0xFFF2C473)
 
@@ -131,6 +159,9 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var guide by remember { mutableStateOf<LiveGuide?>(null) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
     var chosen by remember { mutableStateOf<Category?>(null) }
+    // The category focus is on: shown once it rests there, so holding Down through the list doesn't build each guide.
+    var focusedCategory by remember { mutableStateOf<Category?>(null) }
+    var guideHours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
     val firstCategory = remember { FocusRequester() }
 
     suspend fun load() {
@@ -143,23 +174,31 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             if (channels == null) error = e.message
         }
     }
-    suspend fun loadGuide() {
+    suspend fun loadGuide(fresh: Boolean = false) {
         upcoming = runCatching { client.recordings().upcoming.size }.getOrNull() ?: upcoming
-        runCatching { client.liveGuide(Instant.now().minusSeconds(3600), 24) }.onSuccess { guide = it }
+        runCatching { TvGuideCache.guide(client, guideHours, fresh) }.onSuccess { guide = it }
     }
-    // What's on moves on: fetched again each minute while the screen is up; the guide (a day's worth) every five.
+    // What's on moves on: fetched again each minute while the screen is up; the guide (a few hours of it) every five,
+    // and more of it as the guide's moved on.
     RepeatWhileShowing(60_000, model.credentials) { load() }
-    RepeatWhileShowing(300_000, model.credentials) { loadGuide() }
+    RepeatWhileShowing(300_000, model.credentials, guideHours) { loadGuide() }
+    LaunchedEffect(focusedCategory) {
+        val resting = focusedCategory ?: return@LaunchedEffect
+        delay(250)
+        chosen = resting
+    }
 
     val all = channels.orEmpty()
-    val favourites = all.filter { it.isFavourite }
+    // Worked out once per list of channels, not on every recomposition.
+    val favourites = remember(all) { all.filter { it.isFavourite } }
+    val byGroup = remember(all) { all.filter { it.groupName != null }.groupBy { it.groupName!! } }
     // Where the screen opens: Favourites when there are any, otherwise All channels.
     val category = chosen ?: if (favourites.isEmpty()) Category.All else Category.Favourites
-    val groups = all.mapNotNull { it.groupName }.distinct()
+    val groups = byGroup.keys.toList()
     fun channelsIn(category: Category) = when (category) {
         Category.Favourites -> favourites
         Category.All -> all
-        is Category.Group -> all.filter { it.groupName == category.name }
+        is Category.Group -> byGroup[category.name].orEmpty()
         Category.Recordings -> emptyList()
     }
 
@@ -186,7 +225,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             loaded == null -> TvStatusView()
             loaded.isEmpty() -> TvStatusView("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.", empty = true)
             else -> Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge, top = 15.dp), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
-                LazyColumn(Modifier.width(200.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
+                // Back from the guide, focus returns to the category being shown, not whichever is nearest (which would show it).
+                LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
                     val entries = listOf<Pair<Category, String>>(Category.Favourites to "Favourites", Category.Recordings to "Recordings", Category.All to "All channels") +
                         (if (groups.size > 1) groups.map { Category.Group(it) to it } else emptyList())
                     items(entries, key = { it.second + it.first::class.simpleName }) { (value, title) ->
@@ -200,14 +240,15 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                                 else -> null
                             },
                             count = if (value == Category.Recordings) upcoming else channelsIn(value).size,
-                            onFocus = { chosen = value },
+                            onFocus = { focusedCategory = value },
+                            onClick = { focusedCategory = value; chosen = value },
                             modifier = if (value == Category.Favourites) Modifier.focusRequester(firstCategory) else Modifier,
                         )
                     }
                 }
                 Box(Modifier.weight(1f)) {
                     when {
-                        category == Category.Recordings -> TvLiveRecordings(model, onChanged = { scope.launch { loadGuide() } }, onUpcoming = { upcoming = it })
+                        category == Category.Recordings -> TvLiveRecordings(model, onChanged = { scope.launch { loadGuide(fresh = true) } }, onUpcoming = { upcoming = it })
                         category == Category.Favourites && favourites.isEmpty() -> NoFavourites()
                         else -> TvLiveGuideGrid(
                             client,
@@ -215,7 +256,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                             guide,
                             onWatch = { navigator.watch(it, channelsIn(category)) },
                             onFavourite = { setFavourite(it, !it.isFavourite) },
-                            onRecordingsChanged = { scope.launch { loadGuide() } },
+                            onRecordingsChanged = { scope.launch { loadGuide(fresh = true) } },
+                            onNeedLater = { if (guideHours < TvGuideCache.MOST_HOURS) guideHours = minOf(TvGuideCache.MOST_HOURS, guideHours + TvGuideCache.MORE_HOURS) },
                         )
                     }
                 }
@@ -226,11 +268,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
 
 /** A category: filled when focused, marked when it's the one shown. Moving onto one shows it. */
 @Composable
-private fun CategoryButton(title: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector?, count: Int?, onFocus: () -> Unit, modifier: Modifier) {
+private fun CategoryButton(title: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector?, count: Int?, onFocus: () -> Unit, onClick: () -> Unit, modifier: Modifier) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     Surface(
-        onClick = onFocus,
+        onClick = onClick,
         interactionSource = source,
         modifier = modifier.fillMaxWidth().height(35.dp).onFocusChanged { if (it.isFocused) onFocus() },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
@@ -247,7 +289,7 @@ private fun CategoryButton(title: String, selected: Boolean, icon: androidx.comp
                 if (icon != null) Icon(icon, contentDescription = null, tint = if (icon == Icons.Filled.Star && !focused) Gold else androidx.tv.material3.LocalContentColor.current, modifier = Modifier.size(15.dp))
             }
             Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            count?.let { Text("%,d".format(it), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.alpha(0.6f)) }
+            count?.let { Text("%,d".format(it), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.alpha(0.6f)) }
         }
     }
 }
@@ -284,6 +326,7 @@ fun TvLiveGuideGrid(
     onFavourite: ((LiveChannel) -> Unit)? = null,
     onRecordingsChanged: () -> Unit = {},
     focusChannel: String? = null,
+    onNeedLater: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var windowStart by remember { mutableStateOf(halfHourBefore(Instant.now())) }
@@ -293,7 +336,10 @@ fun TvLiveGuideGrid(
     var notice by remember { mutableStateOf<String?>(null) }
     // The programme that should keep focus as the window moves under it.
     var refocus by remember { mutableStateOf<Long?>(null) }
-    val requesters = remember { mutableStateMapOf<Long, FocusRequester>() }
+    // Read only when moving focus, so a plain map: a state map would recompose each row as its cells register.
+    val requesters = remember { HashMap<Long, FocusRequester>() }
+    // Each channel's programmes, found once per guide rather than searched for on every row's recomposition.
+    val byChannel = remember(guide) { guide?.channels?.associate { it.id to it.programmes }.orEmpty() }
     val list = rememberLazyListState()
     val context = LocalContext.current
     val clock = remember { DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a") }
@@ -327,6 +373,8 @@ fun TvLiveGuideGrid(
         val latest = maxOf(earliest, loaded.until.minus(WINDOW))
         val next = windowStart.plus(by)
         windowStart = minOf(maxOf(next, earliest), latest)
+        // Near the end of what's been fetched: ask for more, so the next move has somewhere to go.
+        if (windowStart.plus(WINDOW).plus(STEP) >= loaded.until) onNeedLater()
     }
 
     /** Does a recording action, then has the guide fetched again; says why if it couldn't be done. */
@@ -350,10 +398,10 @@ fun TvLiveGuideGrid(
         Column {
             // The day, then the half hours across.
             Row(Modifier.height(22.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(day(windowStart), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.width(CHANNEL_WIDTH))
+                Text(day(windowStart), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.width(CHANNEL_WIDTH))
                 Box(Modifier.width(width)) {
                     for (slot in 0 until 6) {
-                        Text(time(windowStart.plus(Duration.ofMinutes(30L * slot))), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.offset(x = width / 6 * slot))
+                        Text(time(windowStart.plus(Duration.ofMinutes(30L * slot))), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.offset(x = width / 6 * slot))
                     }
                 }
             }
@@ -363,20 +411,23 @@ fun TvLiveGuideGrid(
                 Box {
                     LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 30.dp, end = TvLayout.Edge)) {
                         items(channels, key = { it.id }) { channel ->
-                            val programmes = guide.channels.firstOrNull { it.id == channel.id }?.programmes.orEmpty().filter {
-                                it.end > windowStart && it.start < windowEnd && Duration.between(maxOf(it.start, windowStart), minOf(it.end, windowEnd)) >= Duration.ofMinutes(5)
+                            val all = byChannel[channel.id]
+                            val programmes = remember(all, windowStart) {
+                                all.orEmpty().filter {
+                                    it.end > windowStart && it.start < windowEnd && Duration.between(maxOf(it.start, windowStart), minOf(it.end, windowEnd)) >= Duration.ofMinutes(5)
+                                }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 ChannelLabel(channel, client)
                                 Box(Modifier.width(width).height(ROW_HEIGHT)) {
-                                    if (programmes.isEmpty()) {
-                                        Text("No listings", fontSize = 11.sp, color = Flexarr.usher, modifier = Modifier.align(Alignment.CenterStart).padding(start = 10.dp))
-                                    }
-                                    programmes.forEachIndexed { index, programme ->
+                                    // Nothing listed: still a place to stop on and watch the channel from, so up and down
+                                    // don't skip it.
+                                    if (programmes.isEmpty()) NoListingsCell(onClick = { onWatch(channel) }, modifier = Modifier.size(width - 3.dp, ROW_HEIGHT))
+                                    programmes.forEachIndexed { index, programme -> key(programme.id) {
                                         val start = maxOf(programme.start, windowStart)
                                         val end = minOf(programme.end, windowEnd)
                                         val cellWidth = (perSecond * Duration.between(start, end).seconds.toFloat() - 3.dp).coerceAtLeast(20.dp)
-                                        val requester = remember(programme.id) { requesters.getOrPut(programme.id) { FocusRequester() } }
+                                        val requester = requesters.getOrPut(programme.id) { FocusRequester() }
                                         GuideCell(
                                             programme,
                                             time = "${time(programme.start)} – ${time(programme.end)}",
@@ -408,7 +459,7 @@ fun TvLiveGuideGrid(
                                                     }
                                                 },
                                         )
-                                    }
+                                    } }
                                 }
                             }
                         }
@@ -450,10 +501,11 @@ fun TvLiveGuideGrid(
 @Composable
 private fun ChannelLabel(channel: LiveChannel, client: FlexarrClient) {
     Row(Modifier.width(CHANNEL_WIDTH), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(channel.numberText, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.width(27.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        Text(channel.numberText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.width(27.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
         Box(Modifier.size(65.dp, 30.dp), contentAlignment = Alignment.CenterStart) {
-            Text(channel.name, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            client.imageUrl(channel.logoUrl, 300)?.let { url ->
+            Text(channel.name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // Shown 65 points wide: a little over twice that is plenty.
+            client.imageUrl(channel.logoUrl, 160)?.let { url ->
                 AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.room))
             }
             if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = Gold, modifier = Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp))
@@ -496,10 +548,31 @@ private fun GuideCell(
             Column(Modifier.fillMaxSize().padding(horizontal = 7.dp), verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (programme.isSetToRecord) Box(Modifier.size(7.dp).background(RecordRed, CircleShape))
-                    Text(programme.displayTitle, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(programme.displayTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(time, fontSize = 9.sp, maxLines = 1, modifier = Modifier.alpha(0.7f))
+                Text(time, fontSize = 11.sp, maxLines = 1, modifier = Modifier.alpha(0.7f))
             }
+        }
+    }
+}
+
+/** A channel with nothing listed in the window: a quiet cell across it that watches the channel. */
+@Composable
+private fun NoListingsCell(onClick: () -> Unit, modifier: Modifier) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(5.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Flexarr.seat.copy(alpha = 0.3f),
+            contentColor = Flexarr.usher,
+            focusedContainerColor = Flexarr.screen,
+            focusedContentColor = Flexarr.room,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.01f),
+    ) {
+        Box(Modifier.fillMaxSize().padding(start = 10.dp), contentAlignment = Alignment.CenterStart) {
+            Text("No listings", fontSize = 12.sp)
         }
     }
 }
@@ -562,6 +635,7 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     var failed by remember { mutableStateOf<String?>(null) }
     var confirmingRecording by remember { mutableStateOf<Recording?>(null) }
     var confirmingSeries by remember { mutableStateOf<RecordingSeries?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     val dayFormat = remember { DateTimeFormatter.ofPattern(android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), if (DateFormat.is24HourFormat(context)) "EEEdMMMHHmm" else "EEEdMMMhmma")) }
     fun day(instant: Instant) = dayFormat.format(instant.atZone(ZoneId.systemDefault()))
 
@@ -579,9 +653,16 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     }
     RepeatWhileShowing(30_000) { load() }
 
+    /** Does it, then fetches the list again; says why if it couldn't be done. */
     fun act(action: suspend () -> Unit) {
         scope.launch {
-            runCatching { action() }
+            try {
+                action()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notice = e.message ?: "That couldn’t be done. Try again in a moment."
+            }
             load()
             onChanged()
         }
@@ -645,6 +726,9 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
             actions = listOf(MenuAction("Stop recording the series") { act { client.removeSeries(series.id) } }),
         )
     }
+    notice?.let { message ->
+        GuideDialog("Recording", message, onDismiss = { notice = null }, actions = emptyList())
+    }
 }
 
 @Composable
@@ -674,8 +758,8 @@ private fun RecordingRow(title: String, detail: String, recordingNow: Boolean, w
             Box(Modifier.size(8.dp).background(if (recordingNow) RecordRed else Color.Transparent, CircleShape))
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(detail, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f))
-                warning?.let { Text(it, fontSize = 10.5.sp, color = Flexarr.danger, maxLines = 2) }
+                Text(detail, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f))
+                warning?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.danger, maxLines = 2) }
             }
         }
     }
@@ -707,7 +791,7 @@ fun TvHomeChannelCard(model: AppModel, channel: LiveChannel, order: List<LiveCha
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(channel.now?.displayTitle ?: channel.name, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(channel.now?.let { "${channel.name}   ${LiveTvController.timeRange(it)}" } ?: channel.name, fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(channel.now?.let { "${channel.name}   ${LiveTvController.timeRange(it)}" } ?: channel.name, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
     )

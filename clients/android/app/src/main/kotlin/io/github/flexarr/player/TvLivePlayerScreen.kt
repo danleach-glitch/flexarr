@@ -72,11 +72,11 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.LiveGuide
 import io.github.flexarr.core.liveChannels
-import io.github.flexarr.core.liveGuide
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.tv.TvLayout
+import io.github.flexarr.ui.tv.TvGuideCache
 import io.github.flexarr.ui.tv.TvLiveGuideGrid
 import io.github.flexarr.ui.tv.TvProgressBar
 import io.github.flexarr.ui.tv.TvTheme
@@ -386,7 +386,9 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
 private fun GuideOverlay(controller: LiveTvController, onWatch: (LiveChannel) -> Unit) {
     var guide by remember { mutableStateOf<LiveGuide?>(null) }
     var version by remember { mutableIntStateOf(0) }
-    LaunchedEffect(version) { runCatching { controller.client.liveGuide(Instant.now().minusSeconds(3600), 24) }.onSuccess { guide = it } }
+    // The one Live TV fetched, when it's recent; fresh after a recording's been set from here.
+    var hours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
+    LaunchedEffect(version, hours) { runCatching { TvGuideCache.guide(controller.client, hours, fresh = version > 0) }.onSuccess { guide = it } }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f))) {
         Column(Modifier.padding(start = TvLayout.Edge, top = 25.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Guide", style = marquee(28))
@@ -396,6 +398,7 @@ private fun GuideOverlay(controller: LiveTvController, onWatch: (LiveChannel) ->
                 guide,
                 onWatch = onWatch,
                 onRecordingsChanged = { version++ },
+                onNeedLater = { hours = minOf(TvGuideCache.MOST_HOURS, hours + TvGuideCache.MORE_HOURS) },
                 focusChannel = controller.watching?.channel?.id ?: controller.startingChannel?.id,
             )
         }
