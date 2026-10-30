@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -230,7 +231,7 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
             Column(Modifier.padding(horizontal = 40.dp, vertical = 28.dp)) {
                 Text(info.item.displayTitle, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 info.item.episodeSubtitle?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                info.transcodeSummary?.let { Text(it.uppercase(Locale.getDefault()), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                info.transcodeSummary?.let { Text(it.uppercase(Locale.ROOT), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -301,7 +302,8 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
                 val height = width / previews.aspectRatio
                 val x = (maxWidth * fraction - width / 2).coerceIn(0.dp, (maxWidth - width).coerceAtLeast(0.dp))
                 Box(
-                    Modifier.offset(x = x, y = -height / 2 - 24.dp).size(width, height).background(Color.Black, RoundedCornerShape(8.dp))
+                    // Taller than the timeline's row, so sized regardless of it, and lifted clear of the track.
+                    Modifier.offset(x = x, y = -height / 2 - 16.dp).requiredSize(width, height).background(Color.Black, RoundedCornerShape(8.dp))
                         .border(1.dp, Flexarr.screen.copy(alpha = 0.6f), RoundedCornerShape(8.dp)),
                 ) {
                     image?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
