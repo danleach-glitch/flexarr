@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -69,6 +70,7 @@ import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
@@ -134,10 +136,12 @@ fun TvDetailScreen(model: AppModel, id: String) {
                 val series = if (item.kind == MediaKind.Series) item else loaded.ancestors.firstOrNull { it.kind == MediaKind.Series }
                 val ambient = glowColor(item.accentColor)
                 val scroll = rememberScrollState()
+                val scope = rememberCoroutineScope()
                 Backdrop(item.artwork.backdrop ?: series?.artwork?.backdrop, ambient, dim = { (scroll.value / 350f).coerceIn(0f, 0.85f) })
                 Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     Box(Modifier.fillMaxWidth().heightIn(min = 430.dp), contentAlignment = Alignment.BottomStart) {
-                        Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId])
+                        // With focus on the buttons, the page sits at the top, the whole header in view.
+                        Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], onActionsFocused = { scope.launch { scroll.animateScrollTo(0) } })
                     }
                     Sections(item, loaded, nextUp, seasons, selectedSeasonId, onSeason = { selectedSeasonId = it }, similar = similar, ambient = ambient)
                 }
@@ -162,7 +166,7 @@ private fun Backdrop(path: String?, ambient: Color, dim: () -> Float) {
 }
 
 @Composable
-private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?) {
+private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?, onActionsFocused: () -> Unit) {
     Column(Modifier.padding(start = TvLayout.Edge, end = 150.dp, bottom = 5.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
         if (item.kind == MediaKind.Episode && series != null) {
             TitleArt(series, maxWidth = 280.dp, maxHeight = 85.dp, fontSize = 40)
@@ -177,7 +181,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
         detail.overview?.takeIf { it.isNotEmpty() }?.let {
             Text(it, fontSize = 13.5.sp, lineHeight = 19.sp, color = Flexarr.screen.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
         }
-        Actions(item, series, nextUp, season, ambient, Modifier.padding(top = 7.dp))
+        Actions(item, series, nextUp, season, ambient, Modifier.padding(top = 7.dp).onFocusChanged { if (it.hasFocus) onActionsFocused() })
     }
 }
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -110,7 +111,7 @@ fun TvActionButton(
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.65f), 14.dp)),
     ) {
         Row(
-            Modifier.fillMaxSize().padding(horizontal = if (label == null) 13.dp else 18.dp),
+            Modifier.fillMaxHeight().padding(horizontal = if (label == null) 13.dp else 18.dp),
             horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {

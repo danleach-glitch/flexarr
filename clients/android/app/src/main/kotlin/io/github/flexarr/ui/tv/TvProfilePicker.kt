@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -127,10 +128,11 @@ private fun ProfileChoice(model: AppModel, profile: Profile, caption: String?, b
             interactionSource = source,
             shape = ClickableSurfaceDefaults.shape(CircleShape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),
-            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(4.dp, Flexarr.screen), inset = (-6).dp, shape = CircleShape)),
+            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(4.dp, Flexarr.screen), shape = CircleShape)),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f, pressedScale = 1.02f),
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            // The ring goes round the avatar, clear of it.
+            Box(Modifier.padding(7.dp), contentAlignment = Alignment.Center) {
                 ProfileAvatar(model, profile, size = 110)
                 if (busy) {
                     Box(Modifier.size(110.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape))
