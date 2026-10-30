@@ -373,14 +373,14 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier) {
             TvSquareArtwork(track, 32.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(track.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                track.artistName?.let { Text(it, fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                track.artistName?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
             if (music.isLoading) {
                 CircularProgressIndicator(Modifier.size(14.dp), color = Flexarr.screen, strokeWidth = 1.5.dp)
             } else {
                 Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(12.dp))
             }
-            Text("${Format.timestamp(music.position)}  /  ${Format.timestamp(music.duration)}", fontSize = 10.5.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+            Text("${Format.timestamp(music.position)}  /  ${Format.timestamp(music.duration)}", fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
         }
     }
 }

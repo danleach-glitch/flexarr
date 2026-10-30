@@ -399,7 +399,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(13.dp)
                 Text("flexarr", style = marquee(11, Flexarr.screen.copy(alpha = 0.8f)))
-                Text(BuildConfig.VERSION_NAME, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher.copy(alpha = 0.7f), modifier = Modifier.padding(start = 6.dp))
+                Text(BuildConfig.VERSION_NAME, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher.copy(alpha = 0.7f), modifier = Modifier.padding(start = 6.dp))
             }
         }
     }

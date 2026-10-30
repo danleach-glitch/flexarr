@@ -116,13 +116,20 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
         tween(800),
         label = "ambient",
     )
-    // Nothing to take focus: say so, rather than holding it back for a hero that won't come.
-    LaunchedEffect(takeFocus, featured.isEmpty()) { if (takeFocus && featured.isEmpty()) onFocusTaken() }
-
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val rows = remember { FocusRequester() }
+    // No hero to take focus: the first row's first card does (the request finds the first focusable thing in the list).
+    LaunchedEffect(takeFocus, featured.isEmpty()) {
+        if (!takeFocus || featured.isNotEmpty()) return@LaunchedEffect
+        for (attempt in 0 until 10) {
+            if (runCatching { rows.requestFocus() }.getOrDefault(false)) break
+            delay(50)
+        }
+        onFocusTaken()
+    }
     RoomBackground(ambient = { ambient.value }, intensity = 0.28f, reach = 900.dp) {
-        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        LazyColumn(Modifier.fillMaxSize().focusRequester(rows), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
             if (featured.isNotEmpty()) {
                 item(key = "hero") {
                     // With focus in the hero (back up from the rows, or arriving), the page sits at the top, all of it in view.
@@ -186,7 +193,7 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
     Box(Modifier.fillMaxWidth().height(450.dp)) {
         Crossfade(item, animationSpec = tween(600), label = "backdrop") { shown ->
             Box(Modifier.fillMaxSize().fadeOut(0.55f, 0.95f)) {
-                RemoteImage(shown.artwork.backdrop, 1920, Modifier.fillMaxWidth().height(540.dp)) {}
+                RemoteImage(shown.artwork.backdrop, tvBackdropWidth(), Modifier.fillMaxWidth().height(540.dp)) {}
                 // A scrim so text stays legible, then the ambient colour bleeding in from the corner.
                 Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Flexarr.room.copy(alpha = 0.92f), 0.4f to Flexarr.room.copy(alpha = 0.55f), 0.75f to Color.Transparent)))
                 Box(Modifier.matchParentSize().background(Brush.linearGradient(listOf(glowColor(shown.accentColor).copy(alpha = 0.18f), Color.Transparent), start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY), end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f))))
@@ -275,7 +282,7 @@ private fun HomeRowView(row: HomeRow) {
 @Composable
 private fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit) {
     val width = if (wide) TvLayout.WideWidth else TvLayout.PosterWidth
-    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, artwork = {
+    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, contentDescription = "See all", artwork = {
         Column(
             Modifier.size(width, if (wide) width * 9f / 16f else width * 1.5f),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),

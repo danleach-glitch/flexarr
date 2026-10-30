@@ -140,7 +140,7 @@ internal fun TvExternalTitleScreen(model: AppModel, preview: ExternalTitle, open
 @Composable
 private fun ExternalBackdrop(path: String?, dim: () -> Float) {
     Box(Modifier.fillMaxSize()) {
-        RemoteImage(path, 1920, Modifier.fillMaxSize()) {}
+        RemoteImage(path, tvBackdropWidth(), Modifier.fillMaxSize()) {}
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Flexarr.room.copy(alpha = 0.95f), 0.45f to Flexarr.room.copy(alpha = 0.6f), 0.8f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.9f to Flexarr.room.copy(alpha = 0.9f), 1f to Flexarr.room)))
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = dim() }.background(Flexarr.room))
@@ -171,7 +171,7 @@ private fun Header(title: ExternalTitle, preview: ExternalTitle, detail: Externa
                 scores.forEach { (label, value) ->
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(value, style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"))
-                        Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
                     }
                 }
             }
@@ -245,7 +245,7 @@ private fun CastFace(person: ExternalPerson) {
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(person.name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            person.character?.let { Text(it, fontSize = 10.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            person.character?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }

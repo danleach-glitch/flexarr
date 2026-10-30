@@ -774,10 +774,11 @@ fun TvHomeChannelCard(model: AppModel, channel: LiveChannel, order: List<LiveCha
         ambient = Flexarr.silver,
         onClick = { navigator.watch(channel, order) },
         modifier = Modifier.width(width),
+        contentDescription = listOfNotNull(channel.name, channel.now?.displayTitle).joinToString(", "),
         artwork = {
             Box(Modifier.size(width, width * 9f / 16f).background(Flexarr.seat)) {
                 Text(channel.name, style = marquee(18, Flexarr.screen.copy(alpha = 0.8f)), modifier = Modifier.align(Alignment.Center).padding(10.dp))
-                client.imageUrl(channel.logoUrl, 500)?.let { url ->
+                client.imageUrl(channel.logoUrl, 320)?.let { url ->
                     AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.seat).padding(horizontal = 30.dp, vertical = 18.dp))
                 }
                 Text(channel.numberText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.padding(7.dp))

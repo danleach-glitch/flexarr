@@ -29,6 +29,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -124,7 +126,8 @@ private fun ProfileChoice(model: AppModel, profile: Profile, caption: String?, b
     Column(Modifier.width(140.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Surface(
             onClick = onClick,
-            modifier = modifier,
+            // The name is beneath, outside what takes focus: TalkBack is told it here.
+            modifier = modifier.semantics { contentDescription = listOfNotNull(profile.name, caption).joinToString(", ") },
             interactionSource = source,
             shape = ClickableSurfaceDefaults.shape(CircleShape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),

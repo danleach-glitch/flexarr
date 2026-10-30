@@ -64,11 +64,12 @@ fun TvPosterCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
         onClick = onClick,
         onLongClick = { menu = true },
         modifier = modifier.width(width),
+        contentDescription = listOfNotNull(item.title, posterSubtitle(item)).joinToString(", "),
         artwork = { TvPosterArtwork(item, width) },
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                posterSubtitle(item)?.let { Text(it, fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1) }
+                posterSubtitle(item)?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1) }
             }
         },
     )
@@ -111,10 +112,11 @@ fun TvWideCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modi
         onClick = onClick,
         onLongClick = { menu = true },
         modifier = modifier.width(width),
+        contentDescription = listOfNotNull(item.displayTitle, item.episodeSubtitle).joinToString(", "),
         artwork = {
             Box(Modifier.size(width, width * 9f / 16f)) {
                 val still = if (item.kind == MediaKind.Episode) item.artwork.thumb ?: item.artwork.backdrop else item.artwork.backdrop ?: item.artwork.thumb
-                RemoteImage(still, 780, Modifier.fillMaxSize()) {
+                RemoteImage(still, 560, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.4f), Flexarr.seat))), contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
                     }
@@ -129,7 +131,7 @@ fun TvWideCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modi
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.displayTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val remaining = if (item.progress != null) item.effectiveDuration?.let { Format.remaining(it - item.userData.positionSeconds) } else null
-                Text(listOfNotNull(item.episodeSubtitle, remaining).joinToString("   "), fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(item.episodeSubtitle, remaining).joinToString("   "), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
     )
@@ -155,8 +157,8 @@ fun TvTop10Card(rank: Int, item: ItemSummary, onClick: () -> Unit) {
 @Composable
 fun TvPersonCard(name: String, detail: String?, image: String?, onClick: () -> Unit) {
     Column(Modifier.width(105.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, artwork = {
-            RemoteImage(image, 300, Modifier.size(90.dp)) {
+        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = listOfNotNull(name, detail).joinToString(", "), artwork = {
+            RemoteImage(image, 200, Modifier.size(90.dp)) {
                 Box(Modifier.fillMaxSize().background(Flexarr.seat), contentAlignment = Alignment.Center) {
                     val initials = name.split(" ").take(2).mapNotNull { it.firstOrNull()?.toString() }.joinToString("")
                     Text(initials, style = marquee(28, Flexarr.usher).copy(fontWeight = FontWeight.Bold))
@@ -165,7 +167,7 @@ fun TvPersonCard(name: String, detail: String?, image: String?, onClick: () -> U
         })
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            detail?.let { Text(it, fontSize = 10.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            detail?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }
@@ -180,9 +182,10 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
         onClick = onClick,
         onLongClick = { menu = true },
         modifier = modifier.width(width),
+        contentDescription = listOfNotNull(episode.episodeNumber?.let { "Episode $it" }, episode.title).joinToString(", "),
         artwork = {
             Box(Modifier.size(width, width * 9f / 16f)) {
-                RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 640, Modifier.fillMaxSize()) {
+                RemoteImage(episode.artwork.thumb ?: episode.artwork.backdrop, 500, Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().background(Flexarr.seat), contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
                     }
@@ -198,12 +201,12 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     val color = if (isCurrent) Flexarr.screen else Flexarr.usher
-                    Text(episode.episodeNumber?.let { "Episode $it" } ?: "Special", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = color)
-                    episodeTime(episode)?.let { Text(it, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = color) }
+                    Text(episode.episodeNumber?.let { "Episode $it" } ?: "Special", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
+                    episodeTime(episode)?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color) }
                 }
                 Text(episode.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!overview.isNullOrEmpty()) {
-                    Text(overview, fontSize = 10.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+                    Text(overview, fontSize = 11.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
                 }
             }
         },

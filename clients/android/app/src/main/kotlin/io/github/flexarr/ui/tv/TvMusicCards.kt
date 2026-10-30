@@ -81,7 +81,7 @@ private fun initials(title: String) = title.split(" ").filter { it.isNotEmpty() 
 private fun CardCaption(title: String, subtitle: String?, focused: Boolean, width: Dp) {
     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        subtitle?.let { Text(it, fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        subtitle?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -93,6 +93,7 @@ fun TvAlbumCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mod
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(5.dp),
+        contentDescription = listOfNotNull(item.title, item.artistName).joinToString(", "),
         artwork = { TvSquareArtwork(item, width) },
         caption = { focused ->
             val subtitle = if (showsArtist) item.artistName ?: item.releaseYear?.toString() else item.releaseYear?.toString()
@@ -110,6 +111,7 @@ fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
         ambient = glowColor(item.accentColor),
         onClick = onClick,
         shape = RoundedCornerShape(5.dp),
+        contentDescription = listOfNotNull(item.title, item.artistName).joinToString(", "),
         artwork = {
             Box {
                 TvSquareArtwork(item, width)
@@ -129,11 +131,11 @@ fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
 @Composable
 fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 110.dp) {
     Column(modifier.width(size + 15.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        TvArtworkButton(ambient = glowColor(item.accentColor), onClick = onClick, shape = CircleShape, artwork = { TvSquareArtwork(item, size, circular = true) })
+        TvArtworkButton(ambient = glowColor(item.accentColor), onClick = onClick, shape = CircleShape, contentDescription = item.title, artwork = { TvSquareArtwork(item, size, circular = true) })
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (item.childCount > 0) {
-                Text(if (item.childCount == 1) "1 album" else "${item.childCount} albums", fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1)
+                Text(if (item.childCount == 1) "1 album" else "${item.childCount} albums", fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
             }
         }
     }
@@ -175,6 +177,7 @@ fun TvPlaylistCard(playlist: PlaylistSummary, onClick: () -> Unit) {
         ambient = Flexarr.silver,
         onClick = onClick,
         shape = RoundedCornerShape(5.dp),
+        contentDescription = playlist.name,
         artwork = { TvPlaylistArtwork(playlist, width) },
         caption = { focused -> CardCaption(playlist.name, playlist.trackCountLabel, focused, width) },
     )
@@ -223,7 +226,7 @@ fun TvTrackRow(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(track.title, fontSize = 14.sp, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                subtitle?.let { Text(it, fontSize = 10.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f)) }
+                subtitle?.let { Text(it, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f)) }
             }
             Spacer(Modifier.width(10.dp))
             track.durationSeconds?.takeIf { it > 0 }?.let { Text(Format.timestamp(it), fontSize = 12.sp, fontWeight = FontWeight.Medium, style = Tabular) }

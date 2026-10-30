@@ -421,6 +421,7 @@ internal fun TvExternalCard(title: ExternalTitle, onClick: () -> Unit, modifier:
         ambient = Flexarr.silver,
         onClick = onClick,
         modifier = modifier.width(width),
+        contentDescription = title.title,
         artwork = {
             Box(Modifier.size(width, width * 1.5f)) {
                 RemoteImage(title.poster, 342, Modifier.fillMaxSize()) {
@@ -434,7 +435,7 @@ internal fun TvExternalCard(title: ExternalTitle, onClick: () -> Unit, modifier:
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(listOfNotNull(title.year?.toString(), title.state).joinToString("  "), fontSize = 10.5.sp, color = Flexarr.usher, maxLines = 1)
+                Text(listOfNotNull(title.year?.toString(), title.state).joinToString("  "), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
             }
         },
     )
@@ -478,15 +479,16 @@ internal fun TvGenreTile(name: String, caption: String, backdrop: String?, onCli
         ambient = Flexarr.silver,
         onClick = onClick,
         modifier = modifier.width(GenreTileWidth),
+        contentDescription = "$name, $caption",
         artwork = {
-            RemoteImage(backdrop, 640, Modifier.size(GenreTileWidth, GenreTileWidth * 9f / 16f)) {
+            RemoteImage(backdrop, 400, Modifier.size(GenreTileWidth, GenreTileWidth * 9f / 16f)) {
                 Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))))
             }
         },
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(caption, fontSize = 10.sp, color = Flexarr.usher, maxLines = 1)
+                Text(caption, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1)
             }
         },
     )

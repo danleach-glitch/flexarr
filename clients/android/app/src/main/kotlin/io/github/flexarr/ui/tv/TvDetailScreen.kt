@@ -34,6 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import io.github.flexarr.core.displayTitle
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.ui.components.LocalClient
+import io.github.flexarr.player.TvSubtitleSearch
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -156,7 +163,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
 @Composable
 private fun Backdrop(path: String?, ambient: Color, dim: () -> Float) {
     Box(Modifier.fillMaxSize()) {
-        RemoteImage(path, 1920, Modifier.fillMaxSize()) {}
+        RemoteImage(path, tvBackdropWidth(), Modifier.fillMaxSize()) {}
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(ambient.copy(alpha = 0.3f), ambient.copy(alpha = 0.05f)), start = Offset(0f, Float.POSITIVE_INFINITY), end = Offset(Float.POSITIVE_INFINITY, 0f))))
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Flexarr.room.copy(alpha = 0.95f), 0.45f to Flexarr.room.copy(alpha = 0.6f), 0.8f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 0.9f to Flexarr.room.copy(alpha = 0.9f), 1f to Flexarr.room)))
@@ -181,13 +188,19 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
         detail.overview?.takeIf { it.isNotEmpty() }?.let {
             Text(it, fontSize = 13.5.sp, lineHeight = 19.sp, color = Flexarr.screen.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
         }
-        Actions(item, series, nextUp, season, ambient, Modifier.padding(top = 7.dp).onFocusChanged { if (it.hasFocus) onActionsFocused() })
+        Actions(item, series, detail, nextUp, season, ambient, Modifier.padding(top = 7.dp).onFocusChanged { if (it.hasFocus) onActionsFocused() })
     }
 }
 
 @Composable
-private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, modifier: Modifier) {
+private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, modifier: Modifier) {
     val navigator = LocalNavigator.current
+    val client = LocalClient.current
+    val scope = rememberCoroutineScope()
+    var more by remember { mutableStateOf(false) }
+    var searchingSubtitlesFor by remember { mutableStateOf<String?>(null) }
+    // Bazarr can look for subtitles for the file (the first, as on the Apple TV).
+    val subtitleFile = detail.files.firstOrNull()?.takeIf { detail.canSearchSubtitles == true }
     // What Play starts: the film or episode itself, or for a show the episode it's up to (else the season's first).
     val target = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -196,8 +209,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     }
     val watched = item.userData.watched || item.userData.unwatchedCount == 0
     val play = remember { FocusRequester() }
-    // Play takes focus as the page opens, so OK plays at once.
-    LaunchedEffect(target != null) { if (target != null) runCatching { play.requestFocus() } }
+    // Play takes focus as the page opens, so OK plays at once; with nothing to play, the first button does.
+    LaunchedEffect(target != null) { runCatching { play.requestFocus() } }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         if (target != null) {
             TvActionButton(playLabel(target, item), onClick = { navigator.play(target) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = Modifier.focusRequester(play))
@@ -208,11 +221,28 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             onClick = { navigator.setWatched(item, !watched) },
             icon = if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
             ambient = ambient,
+            modifier = if (target == null) Modifier.focusRequester(play) else Modifier,
         )
         // Part way through: forget the place without marking it watched (it leaves Continue Watching).
         if (item.isResumable && !watched) TvActionButton("Mark as unwatched", onClick = { navigator.setWatched(item, false) }, icon = Icons.Filled.VisibilityOff, ambient = ambient)
         if (item.kind == MediaKind.Episode && series != null) {
             TvActionButton("Go to show", onClick = { navigator.openItem(series.id) }, icon = Icons.AutoMirrored.Filled.ViewList, ambient = ambient)
+        }
+        // More, as on the Apple TV: what doesn't need a button of its own.
+        if (subtitleFile != null) TvActionButton(null, onClick = { more = true }, icon = Icons.Filled.MoreHoriz, ambient = ambient, contentDescription = "More")
+    }
+    if (more && subtitleFile != null) {
+        TvItemMenu(item.displayTitle, listOf(MenuAction("Search for subtitles") { searchingSubtitlesFor = subtitleFile.id }), onDismiss = { more = false })
+    }
+    searchingSubtitlesFor?.let { fileId ->
+        // Over the page, as in the player: a panel down the right.
+        Dialog(onDismissRequest = { searchingSubtitlesFor = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize()) {
+                TvSubtitleSearch(client, item.id, fileId, onDownloaded = { saved ->
+                    searchingSubtitlesFor = null
+                    scope.launch { navigator.notices.showSnackbar("${saved.label} subtitles saved") }
+                }, onClose = { searchingSubtitlesFor = null }, modifier = Modifier.align(Alignment.CenterEnd))
+            }
         }
     }
 }
@@ -240,9 +270,12 @@ private fun Sections(
     if (item.kind == MediaKind.Series && detail.children.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             // Like the TV app: moving across the seasons switches the episode list.
-            LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            // Coming down from Play, focus lands on the season showing, not the nearest pill (which would switch to it).
+            val selectedPill = remember { FocusRequester() }
+            LazyRow(Modifier.focusRestorer(selectedPill), contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(detail.children, key = { it.id }) { child ->
-                    TvPill(child.title, selected = child.id == selectedSeasonId, onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) })
+                    val chosen = child.id == selectedSeasonId
+                    TvPill(child.title, selected = chosen, onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) }.then(if (chosen) Modifier.focusRequester(selectedPill) else Modifier))
                 }
             }
             if (season != null) Episodes(item, season, nextUp) else Box(Modifier.heightIn(min = 210.dp))
@@ -321,7 +354,7 @@ private fun FileInfo(file: MediaFile, studio: String?) {
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
         facts.forEach { (label, value) ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+                Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
                 Text(value, fontSize = 12.5.sp, color = Flexarr.screen.copy(alpha = 0.85f))
             }
         }

@@ -27,6 +27,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
@@ -159,6 +166,8 @@ fun TvArtworkButton(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     shape: Shape = RoundedCornerShape(4.dp),
+    /** What TalkBack says for the card: its focusable part holds only the artwork, so the title has to be given. */
+    contentDescription: String? = null,
     artwork: @Composable () -> Unit,
     caption: @Composable (focused: Boolean) -> Unit = {},
 ) {
@@ -170,6 +179,7 @@ fun TvArtworkButton(
             onClick = onClick,
             onLongClick = onLongClick,
             interactionSource = source,
+            modifier = if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier,
             shape = ClickableSurfaceDefaults.shape(shape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Flexarr.seat, focusedContainerColor = Flexarr.seat, pressedContainerColor = Flexarr.seat),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f, pressedScale = 1.02f),
@@ -177,7 +187,22 @@ fun TvArtworkButton(
         ) {
             artwork()
         }
-        Box(Modifier.offset(y = drop)) { caption(focused) }
+        // Read while placing, not composing, so the caption doesn't recompose on every frame of the drop.
+        Box(Modifier.offset { IntOffset(0, drop.roundToPx()) }) { caption(focused) }
+    }
+}
+
+/**
+ * How wide a backdrop to ask for: full HD, or 1280 on a TV with little memory (a 2 GB stick), where two 8 MB
+ * backdrops crossfading is a real share of what the app has.
+ */
+@Composable
+fun tvBackdropWidth(): Int {
+    val context = LocalContext.current
+    return remember {
+        val info = android.app.ActivityManager.MemoryInfo()
+        context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
+        if (info.totalMem in 1 until 3L * 1024 * 1024 * 1024) 1280 else 1920
     }
 }
 
@@ -209,7 +234,12 @@ fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bo
             else -> {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(32.dp))
                 Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 500.dp))
-                if (retry != null) TvActionButton("Try again", onClick = retry, prominent = true)
+                if (retry != null) {
+                    // Nothing else on the screen to focus: Try again takes it, so OK tries.
+                    val again = remember { FocusRequester() }
+                    TvActionButton("Try again", onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
+                    LaunchedEffect(message) { repeat(10) { if (runCatching { again.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(50) } }
+                }
             }
         }
     }
