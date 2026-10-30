@@ -81,16 +81,16 @@ fun RemoteImage(path: String?, width: Int, modifier: Modifier = Modifier, placeh
     }
 }
 
-/** A 2:3 poster with the title and year beneath it (text never sits on artwork). */
+/** A 2:3 poster with the title and year beneath it (text never sits on artwork). [onOpen] runs as it opens (Search remembers the pick). */
 @Composable
-fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = PosterWidth) {
+fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = PosterWidth, onOpen: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
     val actions = itemActions(item)
     Box(modifier) {
         Column(
             (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
-                .pressable(onClick = { navigator.open(item) }, onLongClick = { menu = true })
+                .pressable(onClick = { onOpen?.invoke(); navigator.open(item) }, onLongClick = { menu = true })
                 .menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
