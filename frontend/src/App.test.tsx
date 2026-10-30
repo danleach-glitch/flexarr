@@ -235,7 +235,7 @@ describe('App', () => {
     // The main profile's PIN comes with the code, so setup happens all at once.
     const fill = (code: string, pin: string, again = pin) => {
       fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: code } })
-      fireEvent.change(screen.getByLabelText('PIN'), { target: { value: pin } })
+      fireEvent.change(screen.getByLabelText('PIN (required)'), { target: { value: pin } })
       fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: again } })
       fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
     }

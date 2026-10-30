@@ -282,7 +282,7 @@ export default function App() {
             </p>
             <div className="field-row">
               <label>
-                PIN
+                PIN (required)
                 <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" placeholder="4 to 8 digits" required />
               </label>
               <label>
