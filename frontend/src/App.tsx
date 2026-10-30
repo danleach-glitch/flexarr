@@ -278,7 +278,7 @@ export default function App() {
             <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
             {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
             <p className="muted">
-              Choose a PIN for your profile, the main one. It keeps the server’s settings to you: anyone can watch, but changing things asks for it.
+              Choose a PIN to protect the server’s settings. Watching doesn’t need it.
             </p>
             <div className="field-row">
               <label>
