@@ -87,10 +87,14 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     var rootFocused by remember { mutableStateOf(false) }
     val timeline = remember { FocusRequester() }
     val prompt = remember { FocusRequester() }
+    var promptFocused by remember { mutableStateOf(false) }
     var audioSyncOpen by remember { mutableStateOf(false) }
     val asleep = controller.sleep.phase != VideoSleep.Phase.Off
+    val searchingSubtitles = controller.subtitleSearchFile != null
     // What's on screen to work with: the controls, or nothing (the remote's keys go to the screen itself).
-    val showing = controlsVisible && !asleep && !audioSyncOpen && controller.error == null
+    val showing = controlsVisible && !asleep && !audioSyncOpen && !searchingSubtitles && controller.error == null
+    // Skip Intro or Next Episode, which stays up with or without the controls: it's how you skip.
+    val promptUp = controller.promptTitle != null && !asleep && !audioSyncOpen && !searchingSubtitles
 
     fun show() {
         controlsVisible = true
@@ -110,20 +114,25 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
             controlsVisible = false
         }
     }
-    // Focus follows: the timeline with the controls up, the screen itself (for the remote's keys) without.
-    LaunchedEffect(showing, audioSyncOpen, controller.error) {
-        if (controller.error != null || audioSyncOpen) return@LaunchedEffect
+    // Focus follows: the timeline with the controls up; without them, Skip Intro or Next Episode while it's up (so OK
+    // presses it), else the screen itself (for the remote's keys). One place decides, so the controls going away can't
+    // take focus back from the pill.
+    LaunchedEffect(showing, promptUp, audioSyncOpen, searchingSubtitles, controller.error) {
+        if (controller.error != null || audioSyncOpen || searchingSubtitles) return@LaunchedEffect
         // The controls are placed a frame or two after they're asked for: keep asking for a moment.
         repeat(6) {
             delay(50)
-            // Until the controls have it: once they do, focus is the viewer's to move.
+            // Until they have it: once they do, focus is the viewer's to move.
             if (showing && controlsFocused) return@LaunchedEffect
-            runCatching { if (showing) timeline.requestFocus() else root.requestFocus() }
+            if (!showing && promptUp && promptFocused) return@LaunchedEffect
+            runCatching {
+                when {
+                    showing -> timeline.requestFocus()
+                    promptUp -> prompt.requestFocus()
+                    else -> root.requestFocus()
+                }
+            }
         }
-    }
-    // Skip Intro and Next Episode take focus as they come, so OK presses them.
-    LaunchedEffect(controller.promptTitle != null, controlsVisible) {
-        if (controller.promptTitle != null && !controlsVisible) runCatching { prompt.requestFocus() }
     }
     LaunchedEffect(flashCount) {
         if (flash == null) return@LaunchedEffect
@@ -215,9 +224,18 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
             }, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp))
         }
         // The pill stays up with or without the controls: it's how you skip.
-        controller.promptTitle?.takeIf { !asleep }?.let { title ->
+        controller.promptTitle?.takeIf { promptUp }?.let { title ->
             Row(
-                Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = if (controlsVisible) 120.dp else 40.dp),
+                Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = if (showing) 120.dp else 40.dp)
+                    .onFocusChanged { promptFocused = it.hasFocus }
+                    .onKeyEvent { event ->
+                        // Up and down bring the controls, as they do from the picture.
+                        if (event.type != KeyEventType.KeyDown || showing) return@onKeyEvent false
+                        when (event.nativeKeyEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> show().let { true }
+                            else -> false
+                        }
+                    },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (controller.countingDown) TvActionButton("Cancel", onClick = controller::cancelNext)
@@ -229,6 +247,14 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                     ambient = Flexarr.screen,
                     modifier = Modifier.focusRequester(prompt),
                 )
+            }
+        }
+        controller.subtitleSearchFile?.let { fileId ->
+            controller.info?.let { info ->
+                TvSubtitleSearch(controller.client, info.item.id, fileId, onDownloaded = controller::subtitlesDownloaded, onClose = {
+                    controller.closeSubtitleSearch()
+                    show()
+                }, modifier = Modifier.align(Alignment.CenterEnd))
             }
         }
         SleepPrompt(controller.sleep)
