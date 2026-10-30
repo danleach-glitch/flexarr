@@ -40,6 +40,20 @@ struct DiscoverTests {
         #expect(genres.first?.backdrop?.hasPrefix("/api/v1/images/items/") == true)
     }
 
+    @Test func aGenresNameStaysOneSegment() async throws {
+        let page = Data(#"{"total":0,"items":[]}"#.utf8)
+        for (name, path) in [
+            ("Action & Adventure", "/api/v1/genres/Action%20&%20Adventure/items"),
+            ("Action/Adventure", "/api/v1/genres/Action%2FAdventure/items"),
+            ("100% Drama", "/api/v1/genres/100%25%20Drama/items"),
+        ] {
+            let (client, host) = stubbedClient(.init(status: 200, body: page))
+            _ = try await client.genreItems(name)
+            let request = try #require(StubProtocol.recorded(host: host).first)
+            #expect(request.url.map { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.percentEncodedPath } == path)
+        }
+    }
+
     @Test func status() throws {
         let status = try JSONDecoder().decode(RequestStatus.self, from: Data(#"{"configured":true,"reachable":false}"#.utf8))
         #expect(status.configured)

@@ -159,7 +159,8 @@ extension FlexarrClient {
     public func genreItems(_ name: String, kind: MediaKind? = nil, take: Int = 120) async throws -> Paged<ItemSummary> {
         var query: [URLQueryItem] = [.init(name: "take", value: String(take))]
         if let kind { query.append(.init(name: "kind", value: kind.rawValue)) }
-        // The path is percent-encoded as the request is made ("Science Fiction", "Action & Adventure").
-        return try await get("genres/\(name)/items", query: query)
+        // One segment, whatever's in the name; the rest of it is percent-encoded as the request is made ("Science
+        // Fiction", "Action & Adventure").
+        return try await get("genres/\(Self.pathSegment(name))/items", query: query)
     }
 }
