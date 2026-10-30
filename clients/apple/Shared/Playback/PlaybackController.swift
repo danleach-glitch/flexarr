@@ -1061,7 +1061,16 @@ final class PlaybackController: NSObject {
     /// A title is up in the player.
     var isShowingTitle: Bool { screen != nil && info != nil }
 
-    /// The subtitles the title up can show (Siri's "Turn on subtitles" takes the first).
+    /// The title up is showing Skip Intro (or Skip Recap).
+    var canSkipSegment: Bool {
+        if case .skip = prompt { return true }
+        return false
+    }
+
+    /// The title up has a next episode to move on to.
+    var hasNextTitle: Bool { info?.next != nil }
+
+    /// The subtitles the title up can show (Siri's "Turn on subtitles" chooses among them).
     var subtitleTracks: [PlayerTrack] { screen?.remoteTracks?.subtitles ?? [] }
 
     /// What a remote on another device asked of the title that's up: false when there's none, or it isn't a remote's command.
