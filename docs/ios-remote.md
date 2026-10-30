@@ -1,0 +1,98 @@
+# iPhone remote for the Apple TV
+
+When an Apple TV in the house is playing Flexarr, the iPhone app shows a **Playing on TV** bar; tapping it opens a
+full Now Playing remote. It does what the Siri Remote does badly (tracks, episodes, sound, scrubbing) and leaves
+menu navigation and volume to Apple's own Remote in Control Centre: no d-pad.
+
+Decisions:
+- Any signed-in household phone sees and controls any TV, whatever profile either is on.
+- The bar appears on its own; the remote never takes over the app.
+- Android and web follow once the iPhone version settles.
+
+## What exists
+
+- `GET /devices` lists devices with `NowPlaying` (item, position, duration, paused), from the TV's progress reports
+  (`PlaybackSessions`, stale after 15 minutes).
+- Device commands over the TV's SSE stream: Play, Pause, Resume, Stop, Watch, Sound (`DeviceCommands.cs`);
+  the TV handles them in `AppModel.swift`.
+- The phone keeps `deviceEvents()` open (pairing prompts), and FlexarrKit has `devices()`, `control(device:)`,
+  `setSound(device:)`.
+
+## Rules to keep
+
+- API only grows: new `DeviceCommandKind` values, new optional fields. Older TV apps read new kinds as `unknown` and
+  must ignore them; the phone hides controls a TV can't take (capabilities, below).
+- The phone treats every new field as optional ("Absent from servers before …").
+- Main stays releasable: the bar stays hidden until phase 1 is complete, or lands complete.
+
+## Phase 1: bar and Now Playing with live state
+
+Server
+- [ ] New command kinds: `Seek` (to seconds), `Skip` (by ± seconds), `Next`, `Previous`, `SkipSegment` (intro/recap/credits).
+- [ ] `POST /devices/{id}/seek`, `/skip`, `/next`, `/previous`, `/skip-segment`: same trust check and 200/202/404 as pause.
+- [ ] Device capabilities: the TV says which commands it takes (on sign-in or the stream's first request); `DeviceDto.Capabilities`, absent for old apps.
+- [ ] Richer `NowPlayingDto`: playback rate, current segment (intro/credits, for the Skip button), next episode, show/season ids. All optional.
+- [ ] Push now-playing changes: a `nowPlaying` event on the device event stream to every household phone, sent on start, pause/resume, seek, track change and stop (not just on the timer).
+- [ ] Tests: commands reach the listener, capabilities round-trip, the event fires on pause and seek, an old-style device without capabilities.
+
+Apple TV
+- [ ] Handle Seek, Skip, Next, Previous, SkipSegment in `AppModel` → `PlaybackController` (reuse its existing skip and next-episode paths).
+- [ ] Report capabilities.
+- [ ] Report progress immediately on pause, resume, seek and segment changes, as well as on the timer.
+- [ ] Show who's controlling ("Dan's iPhone paused") briefly, like the existing `SentBy`.
+
+FlexarrKit
+- [ ] Models: new command kinds, `capabilities`, the richer `NowPlaying`, the `nowPlaying` device event (all forward-compatible).
+- [ ] Client calls for the new endpoints.
+- [ ] `swift test`.
+
+iPhone
+- [ ] `RemoteModel`: the household's playing TVs, kept live from `deviceEvents()` with `devices()` as a fallback when the stream reconnects.
+- [ ] Playing on TV bar above the tab bar (and beside the music mini-player when both play): artwork, title, TV name, play/pause.
+- [ ] Now Playing remote screen: artwork/backdrop, title and episode, scrubber (drag, seek on release), ±10s, play/pause, Next/Previous, Skip Intro/Credits when the TV is in one, Stop.
+- [ ] More than one TV playing: a picker in the bar/screen.
+- [ ] Optimistic updates (scrubber and play/pause move at once, snap back if the TV disagrees); a stale or offline TV shows as such.
+- [ ] Haptics on buttons; VoiceOver labels; Dynamic Type.
+- [ ] Changelog entry under Unreleased (### iPhone).
+
+## Phase 2: audio, subtitles and sound
+
+- [ ] `NowPlayingDto`: the TV's audio and subtitle tracks and which are selected (the TV reports them).
+- [ ] Commands `AudioTrack` and `SubtitleTrack` (id, or off), handled through `PlaybackController`'s existing `selectAudio`/subtitle paths.
+- [ ] Remote screen: audio and subtitles sheet; Find Subtitles (Bazarr) if the TV offers it.
+- [ ] Sound sheet: dialogue boost, night mode, speakers through the existing `Sound` command; show the TV's current values.
+- [ ] Playback speed, if the TV supports it for the item.
+
+## Phase 3: episodes and up next
+
+- [ ] Remote screen: Up Next row and the season's episodes (from the item's show/season ids).
+- [ ] Tap an episode → `play(on:)` to the same TV; mark watched/unwatched from the list.
+- [ ] Browsing the app while a TV is playing: "Play on TV" offered first on detail pages.
+
+## Phase 4: lock screen and Dynamic Island
+
+- [ ] Widget extension Live Activity: artwork, title, progress, play/pause and skip buttons (App Intents calling `control(device:)`).
+- [ ] Start the activity when the phone sees a TV start playing (and the user has the app); end it on stop.
+- [ ] Background updates: the server sends ActivityKit push updates through the relay (`relay/`, push.flexarr.io): a new push type, activity push tokens registered with the server, rate-limited to state changes.
+- [ ] Settings toggle (on by default) to turn the Live Activity off.
+- [ ] Relay changes deployed and tested before the server change lands.
+
+## Phase 5: continue on iPhone
+
+- [ ] "Continue on iPhone" on the remote screen: stop on the TV (saving position), start the same item on the phone at that position, on the phone's profile.
+- [ ] The reverse, from the phone's player: "Play on TV" at the current position (extends the existing play command with a start position).
+- [ ] Offer it when a TV stops? Decide after trying it.
+
+## Before landing
+
+- [ ] Try it end to end: TV simulator + iPhone simulator against a branch server, then the real TV and iPhone.
+- [ ] Old TV app (from main) with the new phone: new buttons hidden, pause/resume still work.
+- [ ] New TV with an old server: nothing breaks.
+- [ ] Guide page in `docs/guide` (`make guide`).
+- [ ] `/audit`, then `/land`.
+
+## Later
+
+- [ ] Android phone remote (`clients/android` already has the devices client).
+- [ ] Web app remote (cheap: the same endpoints and events).
+- [ ] Control an Android TV once that app exists.
