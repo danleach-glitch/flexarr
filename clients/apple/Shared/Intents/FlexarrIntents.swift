@@ -561,7 +561,7 @@ struct ContinueWatchingIntent: AppIntent {
 }
 
 enum PlaybackAction: String, AppEnum {
-    case pause, resume, stop, skipIntro, next, back, forward
+    case pause, resume, stop, skipIntro, next, back, forward, subtitlesOn, subtitlesOff
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Action")
     static let caseDisplayRepresentations: [PlaybackAction: DisplayRepresentation] = [
@@ -570,6 +570,8 @@ enum PlaybackAction: String, AppEnum {
         .next: DisplayRepresentation(title: "Next episode", synonyms: ["Play the next episode", "Skip to the next episode"]),
         .back: DisplayRepresentation(title: "Skip back", synonyms: ["Go back", "Rewind"]),
         .forward: DisplayRepresentation(title: "Skip forward", synonyms: ["Skip ahead", "Fast forward"]),
+        .subtitlesOn: DisplayRepresentation(title: "Turn on subtitles", synonyms: ["Subtitles on", "Show subtitles"]),
+        .subtitlesOff: DisplayRepresentation(title: "Turn off subtitles", synonyms: ["Subtitles off", "Hide subtitles"]),
     ]
 
     /// The command it is, as another device takes it.
@@ -581,6 +583,7 @@ enum PlaybackAction: String, AppEnum {
         case .skipIntro: .skipSegment
         case .next: .next
         case .back, .forward: .skip
+        case .subtitlesOn, .subtitlesOff: .subtitleTrack
         }
     }
 }
@@ -615,6 +618,9 @@ struct ControlPlaybackIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        if action == .subtitlesOn || action == .subtitlesOff {
+            return .result(dialog: IntentDialog(stringLiteral: try await SubtitlesIntent.change(on: action == .subtitlesOn, device: device, model: model)))
+        }
         let target = Play.target(device)
         let jump = Double(action == .back ? -seconds : seconds)
         if target.isHere { return .result(dialog: IntentDialog(stringLiteral: here(jump))) }
@@ -625,8 +631,9 @@ struct ControlPlaybackIntent: AppIntent {
                 let control: DeviceControl = action == .pause ? .pause : action == .resume ? .resume : .stop
                 let result = try await client.control(device: target.id, control)
                 return .result(dialog: result.delivered ? "Done." : "Flexarr isn't open on \(result.deviceName).")
+            case .subtitlesOn, .subtitlesOff:
+                return .result(dialog: "Done.") // handled above
             case .skipIntro, .next, .back, .forward:
-                // What the TV takes and what it shows, first: an older TV (or server) says it can't, rather than "gone".
                 // Open, playing, then able to: a TV whose app is closed after a server restart isn't told to update.
                 guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
                 guard tv.online else { return .result(dialog: "Flexarr isn't open on \(target.name).") }
@@ -673,6 +680,8 @@ struct ControlPlaybackIntent: AppIntent {
             } else {
                 return "Nothing is playing here."
             }
+        case .subtitlesOn, .subtitlesOff:
+            break // handled before
         case .back, .forward:
             if player.isShowingTitle {
                 player.remote(DeviceCommand(id: UUID().uuidString, kind: .skip, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date(), seconds: jump))
@@ -712,36 +721,43 @@ struct SubtitlesIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        .result(dialog: IntentDialog(stringLiteral: try await Self.change(on: state == .on, device: device, model: model)))
+    }
+
+    /// Turns subtitles on or off, here or on `device`, and says what came of it. Siri's "Turn on subtitles in Flexarr"
+    /// comes through Control playback (Apple allows ten shortcuts' worth of phrases), which uses this too.
+    @MainActor
+    static func change(on: Bool, device: DeviceEntity?, model: AppModel) async throws -> String {
         let target = Play.target(device)
         if target.isHere {
-            guard model.player.isShowingTitle else { return .result(dialog: "Nothing is playing here.") }
+            guard model.player.isShowingTitle else { return "Nothing is playing here." }
             let tracks = PlayerTracks(audio: [], subtitles: model.player.subtitleTracks)
-            if state == .on, tracks.hasFullSubtitlesOn { return .result(dialog: "Subtitles are on.") }
-            let track = state == .on ? tracks.subtitlesToTurnOn(language: Self.language)?.id : nil
-            if state == .on, track == nil { return .result(dialog: "This has no subtitles.") }
+            if on, tracks.hasFullSubtitlesOn { return "Subtitles are on." }
+            let track = on ? tracks.subtitlesToTurnOn(language: language)?.id : nil
+            if on, track == nil { return "This has no subtitles." }
             model.player.remote(DeviceCommand(id: UUID().uuidString, kind: .subtitleTrack, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date(), trackId: track))
-            return .result(dialog: state == .on ? "Subtitles on." : "Subtitles off.")
+            return on ? "Subtitles on." : "Subtitles off."
         }
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         do {
             guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-            guard tv.online else { return .result(dialog: "Flexarr isn't open on \(target.name).") }
-            guard let playing = tv.nowPlaying else { return .result(dialog: "Nothing is playing on \(target.name).") }
-            guard tv.takes(.subtitleTrack) else { return .result(dialog: "\(target.name) needs a newer Flexarr.") }
-            guard !playing.item.isPrivate else { return .result(dialog: "That's private on this profile.") }
+            guard tv.online else { return "Flexarr isn't open on \(target.name)." }
+            guard let playing = tv.nowPlaying else { return "Nothing is playing on \(target.name)." }
+            guard tv.takes(.subtitleTrack) else { return "\(target.name) needs a newer Flexarr." }
+            guard !playing.item.isPrivate else { return "That's private on this profile." }
             var track: String?
-            if state == .on {
+            if on {
                 let tracks = playing.tracks ?? PlayerTracks(audio: [], subtitles: [])
-                if tracks.hasFullSubtitlesOn { return .result(dialog: "Subtitles are on.") }
-                guard let chosen = tracks.subtitlesToTurnOn(language: Self.language) else { return .result(dialog: "This has no subtitles.") }
+                if tracks.hasFullSubtitlesOn { return "Subtitles are on." }
+                guard let chosen = tracks.subtitlesToTurnOn(language: language) else { return "This has no subtitles." }
                 track = chosen.id
             }
             try await client.setSubtitleTrack(device: target.id, track)
-            return .result(dialog: state == .on ? "Subtitles on." : "Subtitles off.")
+            return on ? "Subtitles on." : "Subtitles off."
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(target.name)
         } catch FlexarrClientError.http(status: 409, let message) {
-            return .result(dialog: "\(message ?? "Flexarr isn't open on \(target.name).")")
+            return message ?? "Flexarr isn't open on \(target.name)."
         }
     }
 }
@@ -1003,15 +1019,6 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Control playback",
             systemImageName: "playpause.fill"
-        )
-        AppShortcut(
-            intent: SubtitlesIntent(),
-            phrases: [
-                "Turn \(\.$state) subtitles in \(.applicationName)",
-                "Subtitles \(\.$state) in \(.applicationName)",
-            ],
-            shortTitle: "Subtitles",
-            systemImageName: "captions.bubble"
         )
         AppShortcut(
             intent: NightModeIntent(),
