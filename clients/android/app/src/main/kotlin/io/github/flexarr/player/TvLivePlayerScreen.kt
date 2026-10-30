@@ -97,6 +97,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
     var showingGuide by remember { mutableStateOf(false) }
     val root = remember { FocusRequester() }
     var controlsFocused by remember { mutableStateOf(false) }
+    var rootFocused by remember { mutableStateOf(false) }
     val timeline = remember { FocusRequester() }
     val asleep = controller.sleep.phase != VideoSleep.Phase.Off
     val overlay = choosingChannel || showingGuide
@@ -154,10 +155,12 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
                 }
             }
             .focusRequester(root)
+            .onFocusChanged { rootFocused = it.isFocused }
             .focusable()
             .onKeyEvent { event ->
-                // Only while the screen itself has focus: the controls are away.
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // Only while the screen itself has focus: keys the controls don't use pass by here on their way up,
+                // and must go on to move focus among them.
+                if (event.type != KeyEventType.KeyDown || !rootFocused) return@onKeyEvent false
                 // The controls are up but focus is still on the picture (they came back with a channel change, say):
                 // the key goes to them rather than acting on the picture.
                 if (showing) {
