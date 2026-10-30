@@ -24,7 +24,7 @@ packages:
   # the TV only after it has been tried on one. .github/workflows/pins.yml opens a pull request when a newer one is out.
   AetherEngine:
     url: https://github.com/superuser404notfound/AetherEngine
-    exactVersion: 7.49.0
+    exactVersion: 7.52.0
   # Error reports (crashes and errors), only when the server's owner turns them on. Pinned: it runs at launch.
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa
