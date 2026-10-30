@@ -28,6 +28,7 @@ public static class Trickplay
         return File.Exists(path) ? JsonSerializer.Deserialize<TrickplayManifest>(File.ReadAllText(path), Json) : null;
     }
 
+    /// <remarks>ffmpeg runs below normal priority on two threads, so it can't starve a stream being played.</remarks>
     /// <param name="tenBit">10-bit video (HDR, or HEVC Main 10): frames come off the GPU as P010, not NV12.</param>
     public static async Task<TrickplayManifest?> GenerateAsync(string input, Guid fileId, int sourceWidth, int sourceHeight, bool hdr, bool tenBit, TranscodeSettings settings, CancellationToken ct)
     {
@@ -47,13 +48,13 @@ public static class Trickplay
         var output = Path.Combine(working, "sheet%03d.jpg");
 
         // On macOS, scale (and tone-map HDR) on the media engine; otherwise, or if that fails, decode keyframes in software.
-        string[] software = ["-hide_banner", "-v", "error", "-nostdin", "-skip_frame", "nokey", .. FfmpegCommand.LocalFile, "-i", input,
+        string[] software = ["-hide_banner", "-v", "error", "-nostdin", "-skip_frame", "nokey", "-threads", "2", .. FfmpegCommand.LocalFile, "-i", input,
             "-an", "-sn", "-vf", $"fps=1/{Interval}:round=down,scale={size},{tile}", "-fps_mode", "vfr", "-q:v", "5", output];
         var ok = false;
         if (settings.Resolved == HardwareAcceleration.VideoToolbox)
         {
             var download = tenBit || hdr ? "hwdownload,format=p010le,format=yuv420p" : "hwdownload,format=nv12";
-            string[] hardware = ["-hide_banner", "-v", "error", "-nostdin", "-skip_frame", "nokey", "-hwaccel", "videotoolbox", "-hwaccel_output_format", "videotoolbox_vld", .. FfmpegCommand.LocalFile, "-i", input,
+            string[] hardware = ["-hide_banner", "-v", "error", "-nostdin", "-skip_frame", "nokey", "-hwaccel", "videotoolbox", "-hwaccel_output_format", "videotoolbox_vld", "-threads", "2", .. FfmpegCommand.LocalFile, "-i", input,
                 "-an", "-sn", "-vf", $"fps=1/{Interval}:round=down,scale_vt=w={Width}:h={height}" + (hdr ? ":color_matrix=bt709:color_primaries=bt709:color_transfer=bt709" : "") + $",{download},{tile}",
                 "-fps_mode", "vfr", "-q:v", "5", output];
             ok = await RunAsync(settings.FfmpegPath, hardware, ct).ConfigureAwait(false);
@@ -105,6 +106,16 @@ public static class Trickplay
         }
 
         using var process = Process.Start(start)!;
+        try
+        {
+            // Previews are never urgent: a stream being played comes first.
+            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch (InvalidOperationException)
+        {
+            // Already finished.
+        }
+
         try
         {
             await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);

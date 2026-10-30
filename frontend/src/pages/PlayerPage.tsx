@@ -200,6 +200,8 @@ export function PlayerPage() {
   const requests = useRef(0)
 
   const [info, setInfo] = useState<PlaybackInfo>()
+  // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
+  const method = useRef<PlaybackInfo['method']>(undefined)
   const [error, setError] = useState<PlayerError>()
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(true)
@@ -358,6 +360,7 @@ export function PlayerPage() {
         const sameTitle = playingItem.current === playback.item.id
         playingItem.current = playback.item.id
         setInfo(playback)
+        method.current = playback.method
         setAudioDelayState(playback.audioDelaySeconds ?? 0)
         setSpeed((current) => playback.speed ?? (sameTitle ? current : 1))
         if (playback.preferences) setPreferences({ ...defaultPreferences, ...playback.preferences })
@@ -514,8 +517,8 @@ export function PlayerPage() {
     }
     const onError = () => {
       // A browser that claimed it could play the file but can't: convert instead.
-      if (info?.method === 'DirectPlay') void restartHere({ forceTranscode: true })
-      else if (info?.method === 'Transcode') void recoverRef.current()
+      if (method.current === 'DirectPlay') void restartHere({ forceTranscode: true })
+      else if (method.current === 'Transcode') void recoverRef.current()
       else setError({ message: "This file couldn't be played.", kind: 'other' })
     }
     const onEnded = () => {

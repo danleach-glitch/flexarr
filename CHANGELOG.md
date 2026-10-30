@@ -31,9 +31,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When someone gets the main profile's PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was.
 
 ### Playback
-
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.
 - For shows with no credits found, Next Episode now appears a little before the end (up to two minutes for an hour-long show), not just in the last 30 seconds.
+- The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
+- Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
 ### Connecting devices
 - When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone signed in as the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first). The web app asks the same when it's open on the main profile.
