@@ -208,7 +208,7 @@ function AppsStep({ nav }: { nav: StepNav }) {
       </div>
       <StepFooter
         nav={nav}
-        skipLabel={connected ? null : 'I don’t use these'}
+        skipLabel={connected ? null : 'Skip'}
         next={
           <button type="button" className="button onboard-primary" disabled={!connected} onClick={nav.next}>
             Continue
