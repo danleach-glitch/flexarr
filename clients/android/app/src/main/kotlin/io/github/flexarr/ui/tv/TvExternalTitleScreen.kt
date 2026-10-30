@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -262,6 +265,8 @@ private sealed interface Sending {
 private fun RequestButton(client: FlexarrClient, title: ExternalTitle, focus: FocusMemory, modifier: Modifier = Modifier) {
     var sending by remember(title.id) { mutableStateOf<Sending>(Sending.Idle) }
     val scope = rememberCoroutineScope()
+    // Request has focus as the page opens: a quick second press on the card that opened it isn't a request.
+    val shownAt = remember(title.id) { SystemClock.uptimeMillis() }
     // Not asked for yet, here or anywhere else.
     val canRequest = sending != Sending.Sent && title.availability == Availability.None
     val failure = (sending as? Sending.Failed)?.message
@@ -288,7 +293,7 @@ private fun RequestButton(client: FlexarrClient, title: ExternalTitle, focus: Fo
         TvActionButton(
             label,
             onClick = {
-                if (canRequest && sending != Sending.InFlight) {
+                if (canRequest && sending != Sending.InFlight && SystemClock.uptimeMillis() - shownAt > SETTLE_MS) {
                     sending = Sending.InFlight
                     scope.launch {
                         sending = try {
@@ -312,6 +317,9 @@ private fun RequestButton(client: FlexarrClient, title: ExternalTitle, focus: Fo
     }
 }
 
+/** How long after a title opens before Request takes a press. */
+private const val SETTLE_MS = 400L
+
 // A genre
 
 /** Six posters across the content width, as the Apple TV's grids. */
@@ -325,7 +333,9 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
     var page by remember { mutableStateOf<Paged<ItemSummary>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    var loadingMore by remember { mutableStateOf(false) }
     val focus = rememberFocusMemory()
+    val grid = rememberLazyGridState()
     LaunchedEffect(kind, attempt) {
         try {
             page = client.genreItems(name, kind)
@@ -334,6 +344,27 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
             throw e
         } catch (e: Exception) {
             error = e.message ?: "Something went wrong."
+        }
+    }
+    // The rest of the genre as the grid nears the end of what's loaded, so "412 titles" means all 412 are there.
+    LaunchedEffect(grid, kind) {
+        snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
+            val shown = page ?: return@collect
+            if (loadingMore || shown.items.size >= shown.total || last < shown.items.size - 18) return@collect
+            loadingMore = true
+            try {
+                val more = client.genreItems(name, kind, skip = shown.items.size)
+                if (page === shown) {
+                    val known = shown.items.mapTo(HashSet()) { it.id }
+                    page = shown.copy(items = shown.items + more.items.filter { known.add(it.id) }, total = more.total)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Tried again on the next scroll.
+            } finally {
+                loadingMore = false
+            }
         }
     }
     // The first title takes focus as the page appears (not when the choice of films or shows changes); coming back,
@@ -346,6 +377,7 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
         LazyVerticalGrid(
             GridCells.Fixed(6),
             Modifier.fillMaxSize(),
+            state = grid,
             contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 30.dp, bottom = 40.dp),
             horizontalArrangement = Arrangement.spacedBy(GridSpacing),
             verticalArrangement = Arrangement.spacedBy(32.dp),

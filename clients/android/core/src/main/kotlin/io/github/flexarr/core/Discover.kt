@@ -80,6 +80,8 @@ data class ExternalDetail(
     /** Rotten Tomatoes audience, percent. */
     val audienceScore: Int? = null,
     val imdbRating: Double? = null,
+    /** The title's trailer on YouTube, for a Trailer button (none yet on any app). */
+    val trailerYouTubeId: String? = null,
     val cast: List<ExternalPerson> = emptyList(),
     /** Directors of a film, creators of a show. */
     val madeBy: List<String> = emptyList(),
@@ -133,12 +135,13 @@ suspend fun FlexarrClient.request(title: ExternalTitle) {
 suspend fun FlexarrClient.genres(): List<Genre> = get("genres")
 
 /** What the library has in a genre, best rated first; [kind] narrows it to films or shows. */
-suspend fun FlexarrClient.genreItems(name: String, kind: MediaKind? = null, take: Int = 120): Paged<ItemSummary> =
+suspend fun FlexarrClient.genreItems(name: String, kind: MediaKind? = null, skip: Int = 0, take: Int = 120): Paged<ItemSummary> =
     // One segment, whatever's in the name; the rest of it is percent-encoded as the request is made ("Science
     // Fiction", "Action & Adventure").
     get(
         "genres/${FlexarrClient.pathSegment(name)}/items",
         buildMap {
+            if (skip > 0) put("skip", skip.toString())
             put("take", take.toString())
             if (kind != null) put("kind", kind.raw)
         },
