@@ -5,7 +5,14 @@ description: Review the current branch before /land — bugs, performance, secur
 
 # /audit: review a branch before it lands
 
-An audit reads what the branch changed, finds what's wrong or missing, and publishes it as a checklist. It never fixes anything on its own: the user picks what to fix, and items get ticked as those fixes are committed. Run it from the branch's worktree, after the feature works and before `/land`.
+An audit reads what the branch changed, finds what's wrong or missing, and publishes it as a checklist. It never fixes anything on its own: the user picks what to fix, and items get ticked as those fixes are committed. Run it from the branch's worktree, after the feature works and before `/land`. Running it again on the same branch is a follow-up audit (step 0), not a new page.
+
+0. **Already audited?** Look for a project memory `audit-<branch>`. If there is one, this is a follow-up: read the existing page (`Artifact` read) and its `checks` collection (`ArtifactData` list), and note the commit it last audited. Then run steps 1–7 on `git diff <audited commit>...HEAD` only, and in step 8 update that page instead of publishing a new one:
+   - **Open items** whose code the delta touched: check the fix against the source and tick them (`{done: true, note: "<commit>"}`).
+   - **Ticked items** whose code changed again: check they're still fixed; if not, untick (`{done: false, note: "reopened: <why>"}`).
+   - **New findings** go after the existing ones with the next free id in their section; never renumber or reuse an id.
+   - Update the header's commit and date and add a line saying what the follow-up covered, then republish to the same url (the ticks live in the db, so they survive).
+   Report what got ticked, reopened and added.
 
 1. **Scope.** `git branch --show-current` must be a feature branch, not `main`. `git fetch origin`, then the change is `git diff origin/main...HEAD` plus anything uncommitted (`git status`). List the changed files and sort them into areas: server (`src/`), web (`frontend/`), Apple (`clients/apple`, `FlexarrKit`), Mac (`clients/macos`), Android (`clients/android`), site (`site/`), relay (`relay/`). If there's nothing to review, say so and stop.
 
@@ -29,6 +36,6 @@ An audit reads what the branch changed, finds what's wrong or missing, and publi
 
 8. **Publish the checklist.** Artifact quickstart with intent `other`, then load the `artifact-design` and `artifact-capabilities` skills; the page uses the `db` capability (and `assets` for screenshots). Title `<Feature> Audit`. Model it on the earlier review checklists (the Android launch review's link is in memory): a header with branch, commit and date; a progress bar; a "Fix before landing" list that ticks itself from the ids it points to; then one section per area, each finding a row with a checkbox, severity stripe, `file:line`, what goes wrong and the fix, and a "Done well" box. Sections and id prefixes: Bugs `bug-`, Performance `perf-`, Security `sec-`, Compatibility `compat-`, UI & UX `ux-`, Land readiness `land-`, Ideas `idea-`. Ids are numbered in page order and never renumbered. The parity table uses ✅ 🟡 ❌ with a legend. Ticks live in the db collection `checks`: doc id = item id, body `{done: true, note: "<commit or PR>"}`.
 
-9. **Remember it.** Save a project memory `audit-<branch>` with the artifact link, the collection and id scheme, and the counts, and add it to MEMORY.md.
+9. **Remember it.** Save a project memory `audit-<branch>` with the artifact link, the collection and id scheme, the commit audited, the ids of High items and of the fix-before-landing list (`/land` checks these), and the counts, and add it to MEMORY.md. A follow-up updates the same memory.
 
 10. **Report**, briefly: the link, counts by section, and the fix-before-landing list. Then ask which ones to fix. As each fix is committed, tick its id with an `ArtifactData` batch and a note. `/land` goes ahead once the user is happy with what's left open.
