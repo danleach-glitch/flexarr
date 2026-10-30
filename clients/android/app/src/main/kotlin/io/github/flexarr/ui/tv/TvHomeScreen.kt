@@ -142,13 +142,13 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
 }
 
 /**
- * What the TV shows of a row so far: films, TV and Live TV's favourite channels. Music and playlists come with their
- * screens (docs/android-tv.md), and a row with nothing in it would be a bare heading.
+ * What the TV shows of a row: everything but podcasts, which stay on the phone and the web; a row with nothing in it
+ * would be a bare heading.
  */
 private val HomeRow.shows: Boolean
     get() = when (style) {
         HomeRowStyle.Live -> !channels.isNullOrEmpty()
-        HomeRowStyle.Tracks, HomeRowStyle.Playlists -> false
+        HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
         else -> items.any { it.showsOnTv }
     }
 
@@ -255,6 +255,12 @@ private fun HomeRowView(row: HomeRow) {
                 when (row.style) {
                     // The profile's favourite channels; channel up and down go through them.
                     HomeRowStyle.Live -> items(row.channels.orEmpty(), key = { it.id }) { TvHomeChannelCard(LocalContext.current.appModel, it, row.channels.orEmpty()) }
+                    // A row of tracks plays: the one pressed first, the rest of the row after it.
+                    HomeRowStyle.Tracks -> itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                        val model = LocalContext.current.appModel
+                        TvTrackCard(model, item, onClick = { model.music.play(items, start = index) })
+                    }
+                    HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { TvPlaylistCard(it, onClick = { navigator.openPlaylist(it.id) }) }
                     HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }) }
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
                     else -> items(items, key = { it.id }) { TvPosterCard(it, onClick = { navigator.open(it) }) }

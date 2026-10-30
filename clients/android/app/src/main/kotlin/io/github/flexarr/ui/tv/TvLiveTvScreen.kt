@@ -376,7 +376,7 @@ fun TvLiveGuideGrid(
                                         val start = maxOf(programme.start, windowStart)
                                         val end = minOf(programme.end, windowEnd)
                                         val cellWidth = (perSecond * Duration.between(start, end).seconds.toFloat() - 3.dp).coerceAtLeast(20.dp)
-                                        val requester = requesters.getOrPut(programme.id) { FocusRequester() }
+                                        val requester = remember(programme.id) { requesters.getOrPut(programme.id) { FocusRequester() } }
                                         GuideCell(
                                             programme,
                                             time = "${time(programme.start)} – ${time(programme.end)}",

@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
@@ -82,6 +83,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     var flash by remember { mutableStateOf<String?>(null) }
     var flashCount by remember { mutableIntStateOf(0) }
     val root = remember { FocusRequester() }
+    var controlsFocused by remember { mutableStateOf(false) }
     val timeline = remember { FocusRequester() }
     val prompt = remember { FocusRequester() }
     var audioSyncOpen by remember { mutableStateOf(false) }
@@ -110,8 +112,13 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     // Focus follows: the timeline with the controls up, the screen itself (for the remote's keys) without.
     LaunchedEffect(showing, audioSyncOpen, controller.error) {
         if (controller.error != null || audioSyncOpen) return@LaunchedEffect
-        delay(50)
-        runCatching { if (showing) timeline.requestFocus() else root.requestFocus() }
+        // The controls are placed a frame or two after they're asked for: keep asking for a moment.
+        repeat(6) {
+            delay(50)
+            // Until the controls have it: once they do, focus is the viewer's to move.
+            if (showing && controlsFocused) return@LaunchedEffect
+            runCatching { if (showing) timeline.requestFocus() else root.requestFocus() }
+        }
     }
     // Skip Intro and Next Episode take focus as they come, so OK presses them.
     LaunchedEffect(controller.promptTitle != null, controlsVisible) {
@@ -161,6 +168,12 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
             .onKeyEvent { event ->
                 // Only while the screen itself has focus: the controls are away.
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // The controls are up but focus is still on the picture (they came back with a channel change, say):
+                // the key goes to them rather than acting on the picture.
+                if (showing) {
+                    runCatching { timeline.requestFocus() }
+                    return@onKeyEvent true
+                }
                 if (asleep) {
                     // Any press is 15 minutes more while it asks, and wakes the screen once it's run out.
                     if (controller.sleep.phase == VideoSleep.Phase.Asking) controller.sleep.extend() else controller.sleep.wake()
@@ -185,7 +198,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         }
         controller.error?.let { message -> PlayerError(controller, message, onClose) }
 
-        AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().onFocusChanged { controlsFocused = it.hasFocus }) {
             Controls(controller, scrubTo, onScrub = { scrubTo = it; interaction++ }, onInteract = { interaction++ }, onAudioSync = {
                 // The panel takes the controls' place until Done.
                 audioSyncOpen = true

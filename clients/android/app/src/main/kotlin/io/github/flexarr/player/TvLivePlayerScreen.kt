@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
@@ -95,6 +96,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
     var choosingChannel by remember { mutableStateOf(false) }
     var showingGuide by remember { mutableStateOf(false) }
     val root = remember { FocusRequester() }
+    var controlsFocused by remember { mutableStateOf(false) }
     val timeline = remember { FocusRequester() }
     val asleep = controller.sleep.phase != VideoSleep.Phase.Off
     val overlay = choosingChannel || showingGuide
@@ -113,8 +115,13 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
     }
     LaunchedEffect(showing, overlay, controller.error) {
         if (overlay || controller.error != null) return@LaunchedEffect
-        delay(50)
-        runCatching { if (showing) timeline.requestFocus() else root.requestFocus() }
+        // The controls are placed a frame or two after they're asked for: keep asking for a moment.
+        repeat(6) {
+            delay(50)
+            // Until the controls have it: once they do, focus is the viewer's to move.
+            if (showing && controlsFocused) return@LaunchedEffect
+            runCatching { if (showing) timeline.requestFocus() else root.requestFocus() }
+        }
     }
 
     BackHandler(enabled = overlay || showing) {
@@ -151,6 +158,12 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
             .onKeyEvent { event ->
                 // Only while the screen itself has focus: the controls are away.
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // The controls are up but focus is still on the picture (they came back with a channel change, say):
+                // the key goes to them rather than acting on the picture.
+                if (showing) {
+                    runCatching { timeline.requestFocus() }
+                    return@onKeyEvent true
+                }
                 if (asleep) {
                     if (controller.sleep.phase == VideoSleep.Phase.Asking) controller.sleep.extend() else controller.sleep.wake()
                     return@onKeyEvent true
@@ -178,7 +191,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
                 TvActionButton("Close", onClick = onClose, prominent = true, ambient = Flexarr.screen, modifier = Modifier.focusRequester(close))
             }
         }
-        AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().onFocusChanged { controlsFocused = it.hasFocus }) {
             LiveControls(controller, timeline, onInteract = { interaction++ }, onChannels = { choosingChannel = true }, onGuide = { showingGuide = true })
         }
         SleepPrompt(controller.sleep)

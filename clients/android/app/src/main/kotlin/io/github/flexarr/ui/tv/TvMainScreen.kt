@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SettingsInputAntenna
 import io.github.flexarr.core.Library
@@ -42,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -102,8 +104,8 @@ private data class TvTab(val route: String, val title: String, val icon: ImageVe
 /**
  * The app, as the Apple TV's MainTabView: a sidebar (who's watching, Home, the libraries, then Search and Settings) over
  * the screens. It's out of the way while browsing; Back on a tab's first screen, or left from the screen's left edge,
- * brings it in, and Back on it leaves the app. The libraries are in the order the profile chose (Settings › Sidebar);
- * music and Live TV join them with their screens (docs/android-tv.md).
+ * brings it in, and Back on it leaves the app. The libraries and Live TV are in the order the profile chose (Settings ›
+ * Sidebar), with Now Playing while music plays.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -115,17 +117,25 @@ fun TvMainScreen(model: AppModel) {
     var tabRoute by rememberSaveable { mutableStateOf(TvTab.Home.route) }
     val libraries = rememberLoader(model.credentials, model.librariesVersion) { client.libraries() }
     val libraryList = (libraries.state as? Load.Loaded)?.value.orEmpty()
-    // The libraries and Live TV in the profile's order. Music has its own screens to come; podcasts stay on the phone
-    // and the web; and the DVR's Recordings library has no tab of its own once Live TV has one (Live TV › Recordings).
+    // The libraries and Live TV in the profile's order. Podcasts stay on the phone and the web, and the DVR's Recordings
+    // library has no tab of its own once Live TV has one (Live TV › Recordings).
     val libraryTabs = LibraryMenuEntry.ordered(model, libraryList).mapNotNull { entry ->
         when (entry) {
-            is LibraryMenuEntry.Shelf -> entry.library.takeIf { it.type != LibraryType.Music && !(model.hasLiveTv && it.isRecordings) }?.let(TvTab::library)
+            is LibraryMenuEntry.Shelf -> entry.library.takeIf { !(model.hasLiveTv && it.isRecordings) }?.let(TvTab::library)
             LibraryMenuEntry.LiveTv -> TvTab.LiveTv
             is LibraryMenuEntry.Podcasts -> null
         }
     }
     var sidebarOpen by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
+    // Now Playing over everything, as Play or Shuffle opens it (the Music app's way): Back closes it, back to where
+    // it was pressed.
+    var showingNowPlaying by remember { mutableStateOf(false) }
+    var nowPlayingSeen by remember { mutableIntStateOf(model.nowPlayingRequests) }
+    LaunchedEffect(model.nowPlayingRequests) {
+        if (model.nowPlayingRequests != nowPlayingSeen && model.music.current != null) showingNowPlaying = true
+        nowPlayingSeen = model.nowPlayingRequests
+    }
     // The screen a tab opens on takes focus (Home's Play, a library's first title, Search's field) as the app opens and
     // as a tab is chosen, so it's ready to browse. Named by route, so the tab being left (still there as the new one
     // comes) doesn't take it.
@@ -165,6 +175,12 @@ fun TvMainScreen(model: AppModel) {
         Box(Modifier.fillMaxSize()) {
             Box(
                 Modifier.fillMaxSize().focusRequester(content).focusRestorer().focusGroup().onKeyEvent { event ->
+                    // The remote's play/pause runs the music from any screen (the players and Now Playing take it while
+                    // they're up).
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.MediaPlayPause && model.music.current != null) {
+                        model.music.togglePlayPause()
+                        return@onKeyEvent true
+                    }
                     // Left with nothing further left on the screen: the sidebar.
                     if (sidebarOpen || event.type != KeyEventType.KeyDown || event.key != Key.DirectionLeft) return@onKeyEvent false
                     if (!focusManager.moveFocus(FocusDirection.Left)) sidebarOpen = true
@@ -178,13 +194,24 @@ fun TvMainScreen(model: AppModel) {
                     composable("tab/library/{id}") { entry ->
                         val id = entry.arguments?.getString("id")
                         val route = "tab/library/$id"
-                        libraryList.firstOrNull { it.id == id }?.let { TvLibraryTab(model, it, takeFocus = arrives(route), onFocusTaken = arrived(route)) } ?: TvStatusView()
+                        when (val library = libraryList.firstOrNull { it.id == id }) {
+                            null -> TvStatusView()
+                            // Music has a screen of its own: artists, new albums and playlists.
+                            else -> if (library.type == LibraryType.Music) {
+                                TvMusicLibraryScreen(model, library, takeFocus = arrives(route), onFocusTaken = arrived(route))
+                            } else {
+                                TvLibraryTab(model, library, takeFocus = arrives(route), onFocusTaken = arrived(route))
+                            }
+                        }
                     }
                     composable(TvTab.LiveTv.route) { TvLiveTvScreen(model, takeFocus = arrives(TvTab.LiveTv.route), onFocusTaken = arrived(TvTab.LiveTv.route)) }
                     composable(TvTab.Discover.route) { TvDiscoverScreen(model) }
                     composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
                     composable("item/{id}") { TvDetailScreen(model, it.arguments!!.getString("id")!!) }
+                    composable("artist/{id}") { TvArtistScreen(model, it.arguments!!.getString("id")!!) }
+                    composable("album/{id}") { TvAlbumScreen(model, it.arguments!!.getString("id")!!) }
+                    composable("playlist/{id}") { TvPlaylistScreen(model, it.arguments!!.getString("id")!!) }
                     composable("person/{id}?name={name}") { entry ->
                         TvPersonScreen(model, entry.arguments!!.getString("id")!!, entry.arguments?.getString("name").orEmpty())
                     }
@@ -197,12 +224,23 @@ fun TvMainScreen(model: AppModel) {
                     }
                 }
             }
+            // Music carries on under every screen; the bar says what's playing.
+            TvNowPlayingBar(model, Modifier.align(Alignment.BottomCenter))
             val tabs = listOf(TvTab.Home) + libraryTabs + listOf(TvTab.Discover, TvTab.Search, TvTab.Settings)
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
-            }, onClose = ::closeSidebar, closesOnBack = !atTabRoot)
+            }, onNowPlaying = {
+                sidebarOpen = false
+                showingNowPlaying = true
+            }, onClose = ::closeSidebar, onFocusLeft = { sidebarOpen = false }, closesOnBack = !atTabRoot)
             SnackbarHost(navigator.notices, Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp))
+        }
+        if (showingNowPlaying) {
+            TvNowPlayingScreen(model, onClose = {
+                showingNowPlaying = false
+                runCatching { content.requestFocus() }
+            })
         }
         if (choosingProfile) {
             TvProfilePicker(model, marksCurrent = true, onDone = {
@@ -218,7 +256,7 @@ fun TvMainScreen(model: AppModel) {
  * version at its foot. Choosing a tab, Right or Back (on a screen opened from a tab) puts it away.
  */
 @Composable
-private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected: String, onSelect: (TvTab) -> Unit, onProfile: () -> Unit, onClose: () -> Unit, closesOnBack: Boolean) {
+private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected: String, onSelect: (TvTab) -> Unit, onProfile: () -> Unit, onNowPlaying: () -> Unit, onClose: () -> Unit, onFocusLeft: () -> Unit, closesOnBack: Boolean) {
     AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.7f), 0.5f to Color.Transparent)))
     }
@@ -240,8 +278,9 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
         Column(
             Modifier.fillMaxHeight().width(230.dp).padding(12.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(16.dp)).padding(vertical = 18.dp, horizontal = 10.dp)
                 .onFocusChanged {
-                    // Focus gone from it by any other way than choosing (up past the top, say): put it away too.
-                    if (hasFocus && !it.hasFocus) onClose()
+                    // Focus gone from it by any other way than choosing (up past the top, or Now Playing taking it):
+                    // put it away too, leaving focus where it went.
+                    if (hasFocus && !it.hasFocus) onFocusLeft()
                     hasFocus = it.hasFocus
                 }
                 .onKeyEvent { event ->
@@ -257,6 +296,12 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
             }
             // However many libraries there are, the list scrolls rather than pushing Search and Settings out of reach.
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
+                if (model.music.current != null) {
+                    item(key = "now-playing") {
+                        SidebarRow("Now Playing", selected = false, onClick = onNowPlaying, icon = { Icon(Icons.Outlined.GraphicEq, contentDescription = null, modifier = Modifier.size(20.dp)) })
+                    }
+                }
                 items(tabs, key = { it.route }) { tab ->
                     if (tab == TvTab.Discover) {
                         // A rule between the libraries and the rest.
