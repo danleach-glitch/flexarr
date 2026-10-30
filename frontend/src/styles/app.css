@@ -1326,6 +1326,12 @@ kbd {
   position: relative;
 }
 
+.watchlist-streaming {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* A ready title's own card, with the bookmark over its poster's corner to take it off. */
 .watchlist-card > .watchlist-toggle {
   position: absolute;

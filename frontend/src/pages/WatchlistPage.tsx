@@ -14,11 +14,15 @@ const STATUSES: [WatchlistStatus | '', string][] = [
   ['NotAvailable', 'Not available'],
 ]
 
-type Sort = 'added' | 'release' | 'title'
+type Sort = 'status' | 'added' | 'release' | 'title'
+
+/** Ready first, then what's on its way, then what's coming, then the rest. */
+const statusOrder: Record<WatchlistStatus, number> = { Ready: 0, OnItsWay: 1, Coming: 2, NotAvailable: 3 }
 
 const releaseOf = (e: WatchlistEntry) => e.item?.releaseDate ?? e.releaseDate ?? (e.year ? `${e.year}-01-01` : '9999')
 
 const sorters: Record<Sort, (a: WatchlistEntry, b: WatchlistEntry) => number> = {
+  status: (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || b.addedAt.localeCompare(a.addedAt),
   added: (a, b) => b.addedAt.localeCompare(a.addedAt),
   release: (a, b) => releaseOf(a).localeCompare(releaseOf(b)),
   title: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', ignorePunctuation: true }),
@@ -29,7 +33,7 @@ export function WatchlistPage() {
   const [params, setParams] = useSearchParams()
   const status = (params.get('status') ?? '') as WatchlistStatus | ''
   const kind = params.get('kind') ?? ''
-  const sort = (params.get('sort') ?? 'added') as Sort
+  const sort = (params.get('sort') ?? 'status') as Sort
   // Taking something off (here, or on another page) reloads the list.
   const [version, setVersion] = useState(0)
   useEffect(() => {
@@ -49,7 +53,7 @@ export function WatchlistPage() {
   const shown = (data ?? [])
     .filter((e) => !status || e.status === status)
     .filter((e) => !kind || e.mediaType === kind)
-    .sort(sorters[sort] ?? sorters.added)
+    .sort(sorters[sort] ?? sorters.status)
 
   return (
     <div className="watchlist-page">
@@ -76,7 +80,8 @@ export function WatchlistPage() {
                   </button>
                 ))}
               </div>
-              <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value === 'added' ? '' : e.target.value)}>
+              <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value === 'status' ? '' : e.target.value)}>
+                <option value="status">Ready first</option>
                 <option value="added">Recently added</option>
                 <option value="release">Release date</option>
                 <option value="title">Title</option>
@@ -133,6 +138,11 @@ function WatchlistCard({ entry }: { entry: WatchlistEntry }) {
       </Link>
       <span className="card-title">{entry.title}</span>
       <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Series' : 'Film', entry.year].filter(Boolean).join(', ')}</span>
+      {entry.streaming && entry.streaming.length > 0 && (
+        <span className="card-subtitle watchlist-streaming" title={entry.streaming.join(', ')}>
+          {entry.streaming.length === 1 ? `On ${entry.streaming[0]}` : entry.streaming.join(', ')}
+        </span>
+      )}
       <div className="external-card-actions">
         {label ? (
           <span className="external-state">{label}</span>

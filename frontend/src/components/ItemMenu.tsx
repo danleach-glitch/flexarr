@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { addToWatchlist, getTracks, removeFromContinueWatching, setWatched, type ItemSummary } from '../api/client'
+import { addToWatchlist, getTracks, removeFromContinueWatching, removeFromWatchlist, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { openAddToPlaylist } from './AddToPlaylist'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
+import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
 
@@ -41,6 +42,15 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
   }
   const showId = item.kind === 'Series' ? item.id : (item.seriesId ?? (item.kind === 'Season' ? item.parentId : null))
   const show = item.seriesTitle ?? 'the show'
+  // Add or Remove, once it's known which (and not at all on a server without a watchlist).
+  const watchlist = useWatchlistKeys()
+  const watchlistAction = (): MenuAction[] => {
+    if (!watchlist) return []
+    const key = { libraryItemId: item.id }
+    return watchlist.libraryItemIds.includes(item.id)
+      ? [{ label: 'Remove from watchlist', run: () => removeFromWatchlist(key) }]
+      : [{ label: 'Add to watchlist', run: async () => void (await addToWatchlist(key)) }]
+  }
 
   const actions: MenuAction[] = []
   switch (item.kind) {
@@ -50,7 +60,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       actions.push('divider')
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark as unwatched', run: mark(item, false) })
-      actions.push({ label: 'Add to watchlist', run: async () => { await addToWatchlist({ libraryItemId: item.id }) } })
+      actions.push(...watchlistAction())
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Episode':
@@ -68,7 +78,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     case 'Series':
       actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
       actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
-      actions.push({ label: 'Add to watchlist', run: async () => { await addToWatchlist({ libraryItemId: item.id }) } })
+      actions.push(...watchlistAction())
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Album':

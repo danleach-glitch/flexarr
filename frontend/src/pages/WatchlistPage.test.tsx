@@ -32,7 +32,7 @@ describe('Watchlist', () => {
         entry({ id: 'a', title: 'Dune', status: 'Ready', libraryItemId: 'i1', item: summary({ id: 'i1', title: 'Dune' }) }),
         entry({ id: 'b', title: 'Being Fetched', status: 'OnItsWay', tmdbId: 2 }),
         entry({ id: 'c', title: 'Not Out', status: 'Coming', tmdbId: 3, releaseDate: '2027-03-05' }),
-        entry({ id: 'd', title: 'Nobody Asked', tmdbId: 4 }),
+        entry({ id: 'd', title: 'Nobody Asked', tmdbId: 4, streaming: ['Netflix'] }),
       ],
     })
     render(
@@ -48,6 +48,12 @@ describe('Watchlist', () => {
     // The date is in the browser's own format.
     expect(states()).toEqual(['On its way', expect.stringMatching(/^Out .*2027$/)])
     expect(screen.getByRole('button', { name: 'Request' })).toBeInTheDocument()
+    expect(screen.getByText('On Netflix')).toBeInTheDocument()
+    // Ready first, then on its way, coming, and the rest.
+    const order = [...document.querySelectorAll('.watchlist-card')].map((c) => c.querySelector('.card-title, a[aria-label]')?.textContent || c.textContent)
+    expect(order[0]).toContain('Dune')
+    expect(order[1]).toContain('Being Fetched')
+    expect(order[3]).toContain('Nobody Asked')
 
     fireEvent.click(screen.getByRole('button', { name: 'Ready to watch' }))
     expect(screen.queryByText('Being Fetched')).not.toBeInTheDocument()

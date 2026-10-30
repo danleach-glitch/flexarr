@@ -1215,6 +1215,8 @@ export interface WatchlistEntry {
   /** The library title, when it's ready, for the usual card. */
   item: ItemSummary | null
   source: 'flexarr' | 'trakt'
+  /** For a title not in the library, the subscription services it's on in the household's region. */
+  streaming?: string[] | null
 }
 
 /** A library title by its id, or one from outside it by TMDB id. */
@@ -1223,8 +1225,22 @@ export type WatchlistKey = { libraryItemId: string } | { mediaType: 'movie' | 't
 const watchlistQuery = (key: WatchlistKey) =>
   'libraryItemId' in key ? `libraryItemId=${encodeURIComponent(key.libraryItemId)}` : `mediaType=${key.mediaType}&tmdbId=${key.tmdbId}`
 
+/** What's on the list, cheaply: library titles on it, and every title as "movie:123" / "tv:456". */
+export interface WatchlistKeys {
+  libraryItemIds: string[]
+  titles: string[]
+}
+
+let watchlistKeys: Promise<WatchlistKeys | null> | null = null
+
+/** The profile's watchlist keys, fetched once until the list changes; null from servers without a watchlist. */
+export const getWatchlistKeys = () => (watchlistKeys ??= apiGet<WatchlistKeys>('/watchlist/keys').catch(() => null))
+
 /** Tells open pages the watchlist changed, so its page and buttons can catch up. */
-export const watchlistChanged = () => window.dispatchEvent(new Event('flexarr:watchlist'))
+export const watchlistChanged = () => {
+  watchlistKeys = null
+  window.dispatchEvent(new Event('flexarr:watchlist'))
+}
 
 export const getWatchlist = (signal?: AbortSignal) => apiGet<WatchlistEntry[]>('/watchlist', signal)
 /** `requested`: adding it also asked Seerr for it (when the profile requests what it adds). */
