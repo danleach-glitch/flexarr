@@ -42,6 +42,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, notifications come back on by themselves after the phone is signed out and connected again, once you choose who's watching; before, they could stay off until you turned them on again in Settings. Devices waiting to connect, in Settings, says when notifications are off, since without them a device only asks while Flexarr is open.
 - The connect screens on Apple TV, iPhone and Android now start with approving on your phone, and still explain how to approve from a computer (**Settings › Access › Connect a device**).
 
+### Playback
+- The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
+
 ### Music
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
 

@@ -12,30 +12,42 @@ namespace Flexarr.Api.Playback;
 /// <summary>Files waiting for scrubbing previews; queued the first time each is played.</summary>
 public sealed class TrickplayQueue
 {
-    private readonly Channel<Guid> _channel = Channel.CreateUnbounded<Guid>();
+    private readonly Channel<(Guid FileId, long QueuedAt)> _channel = Channel.CreateUnbounded<(Guid, long)>();
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
 
     public void Enqueue(Guid fileId)
     {
         if (_pending.TryAdd(fileId, 0))
         {
-            _channel.Writer.TryWrite(fileId);
+            _channel.Writer.TryWrite((fileId, TimeProvider.System.GetTimestamp()));
         }
     }
 
-    public IAsyncEnumerable<Guid> ReadAllAsync(CancellationToken ct) => _channel.Reader.ReadAllAsync(ct);
+    public IAsyncEnumerable<(Guid FileId, long QueuedAt)> ReadAllAsync(CancellationToken ct) => _channel.Reader.ReadAllAsync(ct);
 
     public void Done(Guid fileId) => _pending.TryRemove(fileId, out _);
 }
 
 public sealed partial class TrickplayWorker(TrickplayQueue queue, IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, ILogger<TrickplayWorker> logger) : BackgroundService
 {
+    /// <summary>
+    /// How long after a file's first play its previews wait: decoding the whole film while the player is still
+    /// waiting for its first segments can hold the picture up for most of a minute (#202).
+    /// </summary>
+    private static readonly TimeSpan StartDelay = TimeSpan.FromMinutes(1);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var fileId in queue.ReadAllAsync(stoppingToken))
+        await foreach (var (fileId, queuedAt) in queue.ReadAllAsync(stoppingToken))
         {
             try
             {
+                var wait = StartDelay - TimeProvider.System.GetElapsedTime(queuedAt);
+                if (wait > TimeSpan.Zero)
+                {
+                    await Task.Delay(wait, stoppingToken);
+                }
+
                 var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
                 if (Trickplay.Read(settings.CacheDirectory, fileId) is not null)
                 {
