@@ -22,6 +22,7 @@ const gh = (...args) => run('gh', args);
 const ghJson = (...args) => JSON.parse(gh(...args));
 const git = (...args) => run('git', args);
 
+const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const parse = v => v.replace(/^v/, '').split('.').map(Number);
 const newer = (a, b) => {
   const [x, y] = [parse(a), parse(b)];
@@ -93,7 +94,7 @@ function push(pin, latest, branch) {
   git('checkout', '-q', '-B', branch, 'origin/main');
   const file = path.join(root, projectFile);
   const text = fs.readFileSync(file, 'utf8');
-  const entry = new RegExp(`(^ {2}${pin.name}:\\n(?: {4}.*\\n)*? {4}exactVersion: )${pin.version.replace(/\./g, '\\.')}`, 'm');
+  const entry = new RegExp(`(^ {2}${escapeRegExp(pin.name)}:\\n(?: {4}.*\\n)*? {4}exactVersion: )${escapeRegExp(pin.version)}`, 'm');
   fs.writeFileSync(file, text.replace(entry, `$1${latest}`));
   git('-c', `user.name=${bot}`, '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com',
     'commit', '-q', '-am', `Apple: ${pin.name} ${latest}`);
