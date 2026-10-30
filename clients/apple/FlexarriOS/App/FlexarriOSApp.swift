@@ -301,7 +301,11 @@ struct RootView: View {
             model.music.offlineLibrary = downloads
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if model.client != nil { notifications.refresh() }
-            // Once the profile's chosen, so a phone signed in again hears about the profile it's on.
+        }
+        // Notifications on again for a phone signed in again, once the profile's chosen, so it hears about the profile
+        // it's on. Its own task, following "Who's watching?" too: a phone signed in again can know its profile before
+        // it's asked, and answering with the same one changes nothing the task above follows.
+        .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")#\(model.needsProfileChoice)") {
             if let credentials = model.credentials, model.currentProfile != nil, !model.needsProfileChoice {
                 await notifications.resume(credentials)
             }

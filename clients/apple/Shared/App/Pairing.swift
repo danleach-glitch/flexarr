@@ -17,9 +17,17 @@ final class Pairing {
     private(set) var needsSetup = false
     /// Setting it up asks for the code in the server's log (servers from 0.52 on).
     private(set) var setupNeedsCode = false
+    /// "New code" was chosen: the code on screen is given up for a fresh one, which the main profile's phones are asked
+    /// about. (After "Don't allow" the device's next code, got by itself, is only listed, not asked about.)
+    @ObservationIgnored private var wantsNewCode = false
 
     init(server: DiscoveredServer) {
         self.server = server
+    }
+
+    /// Gives up the code on screen for a new one, within a couple of seconds (the next check).
+    func newCode() {
+        wantsNewCode = true
     }
 
     /// The approval page for `start`, for a QR code or to open in the browser.
@@ -50,6 +58,11 @@ final class Pairing {
                     }
                     if status.status == "expired" { break } // a fresh code next time round
                     try await Task.sleep(for: .seconds(2))
+                    if wantsNewCode {
+                        wantsNewCode = false
+                        renewedAt = nil // asked for, so not news
+                        break
+                    }
                     // Set up in the browser meanwhile: switch to the usual instructions.
                     if needsSetup { needsSetup = await client.setupOpen() }
                 }

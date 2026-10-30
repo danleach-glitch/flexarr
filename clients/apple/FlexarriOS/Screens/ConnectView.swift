@@ -242,6 +242,8 @@ private struct PairWithServer: View {
                 Button("Back", action: onBack)
                 // Only works if Safari on this phone is signed in already, so it stays out of the way.
                 if let pairing, let start = pairing.current, !pairing.needsSetup {
+                    // Turned away by mistake, or nobody was asked: a fresh code asks the phones again.
+                    Button("New code") { pairing.newCode() }
                     Button("Approve in Safari instead") { openURL(pairing.link(for: start)) }
                 }
             }
@@ -263,9 +265,10 @@ private struct PairWithServer: View {
                 .foregroundStyle(Color.screen)
                 .textSelection(.enabled)
             if renewed {
-                Label("New code", systemImage: "arrow.clockwise")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.silver)
+                // Says the code changed; the New code button below is what asks for one.
+                Text("A new code")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.usher)
             }
         }
     }

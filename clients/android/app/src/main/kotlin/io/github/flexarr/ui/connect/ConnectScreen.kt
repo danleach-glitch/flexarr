@@ -227,6 +227,9 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
     val uri = LocalUriHandler.current
     var code by remember { mutableStateOf<String?>(null) }
     var renewed by remember { mutableStateOf(false) }
+    // "New code" chosen: the code on screen is given up for a fresh one, which the phones are asked about (after
+    // "Don't allow", the code this device gets by itself is only listed, not asked about).
+    var wantsNewCode by remember { mutableStateOf(false) }
     var needsSetup by remember { mutableStateOf(false) }
     var setupNeedsCode by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -264,6 +267,11 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     }
                     if (status.status == "expired") break // a fresh code next time round
                     delay(2_000)
+                    if (wantsNewCode) {
+                        wantsNewCode = false
+                        code = null // asked for, so not shown as news
+                        break
+                    }
                     if (renewed && ++since > 5) renewed = false
                     // Set up in the browser meanwhile: switch to the usual instructions.
                     if (needsSetup) needsSetup = client.setupStatus()?.open ?: false
@@ -327,7 +335,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(shown, fontSize = 52.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Flexarr.screen)
-                if (renewed) Text("New code", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver)
+                // Says the code changed; the New code button below is what asks for one.
+                if (renewed) Text("A new code", fontSize = 15.sp, color = Flexarr.usher)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
@@ -354,6 +363,13 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             Text("Back", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack).minimumInteractiveComponentSize())
             // Only works if the browser on this phone is signed in already, so it stays out of the way.
             if (shown != null && !needsSetup) {
+                Text(
+                    "New code",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Flexarr.silver,
+                    modifier = Modifier.pressable({ wantsNewCode = true }).minimumInteractiveComponentSize(),
+                )
                 Text(
                     "Approve in the browser instead",
                     fontSize = 15.sp,

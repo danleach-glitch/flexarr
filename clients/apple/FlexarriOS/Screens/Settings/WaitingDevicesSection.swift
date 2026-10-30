@@ -6,6 +6,7 @@ import SwiftUI
 /// answering one in either place answers it in both.
 struct WaitingDevicesSection: View {
     @Environment(PairingPrompts.self) private var pairing
+    @Environment(PushNotifications.self) private var notifications
 
     var body: some View {
         Section {
@@ -22,6 +23,11 @@ struct WaitingDevicesSection: View {
             }
         } header: {
             Text("Devices waiting to connect")
+        } footer: {
+            // Without them, a device asking is only heard about while Flexarr is open here.
+            if !notifications.isOn {
+                Text("Turn on Notifications to be asked when Flexarr isn't open.")
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: pairing.waiting)
     }

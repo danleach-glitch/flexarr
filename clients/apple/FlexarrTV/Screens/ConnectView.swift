@@ -196,8 +196,16 @@ private struct PairWithServer: View {
                     .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Color.screen)
             }
-            Button("Back", action: onBack)
-                .buttonStyle(ActionButtonStyle(prominent: false))
+            HStack(spacing: 30) {
+                Button("Back", action: onBack)
+                    .buttonStyle(ActionButtonStyle(prominent: false))
+                // Turned away by mistake, or nobody was asked: a fresh code asks the phones again.
+                if let pairing, pairing.current != nil, !pairing.needsSetup {
+                    Button("New code") { pairing.newCode() }
+                        .buttonStyle(ActionButtonStyle(prominent: false))
+                }
+            }
+            .focusSection()
         }
         .task(id: server) {
             let pairing = Pairing(server: server)
@@ -215,7 +223,7 @@ private struct PairWithServer: View {
                 .kerning(6)
                 .fixedSize()
             if renewed {
-                Label("New code", systemImage: "arrow.clockwise")
+                Text("A new code")
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(Color.silver)
             }
