@@ -568,7 +568,12 @@ data class PairingStatus(
     val status: String,
     /** Set once, when approved: this device's own token, sent as the API key from then on. */
     val apiKey: String? = null,
+    /** With "expired": the main profile chose "Don't allow". Absent from servers before 0.56. */
+    val declined: Boolean = false,
 )
+
+@Serializable
+internal data class PairingStartBody(val deviceName: String, val stopsWhenDeclined: Boolean)
 
 /** What `/me` says about this client. */
 @Serializable

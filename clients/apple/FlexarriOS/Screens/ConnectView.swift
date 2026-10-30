@@ -184,10 +184,24 @@ private struct PairWithServer: View {
     let server: DiscoveredServer
     let onBack: () -> Void
     @State private var pairing: Pairing?
+    /// Try again after "Don't allow": a fresh start, with a fresh code the phones are asked about.
+    @State private var attempt = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            if let pairing, let start = pairing.current {
+            if let pairing, pairing.declined {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Not allowed")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color.screen)
+                    Text("The main profile turned this \(ThisDevice.name) away. If that was a mistake, try again and allow it this time.")
+                        .font(.body)
+                        .foregroundStyle(Color.usher)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Button("Try again") { attempt += 1 }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+            } else if let pairing, let start = pairing.current {
                 Text("Connect this \(ThisDevice.name)")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.screen)
@@ -242,14 +256,12 @@ private struct PairWithServer: View {
                 Button("Back", action: onBack)
                 // Only works if Safari on this phone is signed in already, so it stays out of the way.
                 if let pairing, let start = pairing.current, !pairing.needsSetup {
-                    // Turned away by mistake, or nobody was asked: a fresh code asks the phones again.
-                    Button("New code") { pairing.newCode() }
                     Button("Approve in Safari instead") { openURL(pairing.link(for: start)) }
                 }
             }
             .font(.subheadline.weight(.semibold))
         }
-        .task(id: server) {
+        .task(id: "\(server.address.absoluteString)#\(attempt)") {
             let pairing = Pairing(server: server)
             self.pairing = pairing
             await pairing.run(model: model)
@@ -265,7 +277,6 @@ private struct PairWithServer: View {
                 .foregroundStyle(Color.screen)
                 .textSelection(.enabled)
             if renewed {
-                // Says the code changed; the New code button below is what asks for one.
                 Text("A new code")
                     .font(.subheadline)
                     .foregroundStyle(Color.usher)

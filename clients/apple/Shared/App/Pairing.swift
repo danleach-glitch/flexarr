@@ -17,17 +17,11 @@ final class Pairing {
     private(set) var needsSetup = false
     /// Setting it up asks for the code in the server's log (servers from 0.52 on).
     private(set) var setupNeedsCode = false
-    /// "New code" was chosen: the code on screen is given up for a fresh one, which the main profile's phones are asked
-    /// about. (After "Don't allow" the device's next code, got by itself, is only listed, not asked about.)
-    @ObservationIgnored private var wantsNewCode = false
+    /// The main profile chose "Don't allow": the screen says so, and asks again only on Try again.
+    private(set) var declined = false
 
     init(server: DiscoveredServer) {
         self.server = server
-    }
-
-    /// Gives up the code on screen for a new one, within a couple of seconds (the next check).
-    func newCode() {
-        wantsNewCode = true
     }
 
     /// The approval page for `start`, for a QR code or to open in the browser.
@@ -36,9 +30,10 @@ final class Pairing {
     }
 
     /// Gets a code, then polls until it's approved (and signs in) or expires (and gets a new one). Runs until it
-    /// signs in or the calling task is cancelled.
+    /// signs in, is turned away (`declined`; run it again for Try again) or the calling task is cancelled.
     func run(model: AppModel) async {
         let client = FlexarrClient(baseURL: server.address)
+        declined = false
         while !Task.isCancelled {
             do {
                 let started = try await client.startPairing(deviceName: UIDevice.current.name)
@@ -56,13 +51,17 @@ final class Pairing {
                         try await connect(with: key, model: model)
                         return
                     }
-                    if status.status == "expired" { break } // a fresh code next time round
-                    try await Task.sleep(for: .seconds(2))
-                    if wantsNewCode {
-                        wantsNewCode = false
-                        renewedAt = nil // asked for, so not news
-                        break
+                    if status.status == "expired" {
+                        // Turned away: say so, rather than quietly showing another code nobody's asked about.
+                        if status.declined == true {
+                            declined = true
+                            current = nil
+                            renewedAt = nil
+                            return
+                        }
+                        break // ran out: a fresh code next time round
                     }
+                    try await Task.sleep(for: .seconds(2))
                     // Set up in the browser meanwhile: switch to the usual instructions.
                     if needsSetup { needsSetup = await client.setupOpen() }
                 }

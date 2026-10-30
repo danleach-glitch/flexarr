@@ -220,8 +220,12 @@ class FlexarrClient(
     // Pairing (connecting without typing the API key)
 
     /** Asks the server for a code to show; someone signed in approves it in the web app. */
+    /**
+     * Says this app shows "Not allowed" itself after "Don't allow" (and asks again only on Try again), so the server asks
+     * the main profile about every code it asks for (servers before 0.56 ignore it).
+     */
     suspend fun startPairing(deviceName: String): PairingStart =
-        decodeText(serializer(), send("POST", "pairing", body = json.encodeToString(mapOf("deviceName" to deviceName))))
+        decodeText(serializer(), send("POST", "pairing", body = json.encodeToString(PairingStartBody(deviceName, stopsWhenDeclined = true))))
 
     /** Polled while the code is on screen; carries this device's own token once approved. */
     suspend fun pairingStatus(id: String): PairingStatus = get("pairing/$id")

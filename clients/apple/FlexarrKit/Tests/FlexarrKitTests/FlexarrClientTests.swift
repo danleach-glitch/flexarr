@@ -119,6 +119,9 @@ struct FlexarrClientTests {
 
         let (polling, _) = stubbedClient(.init(status: 200, body: Data(#"{"status":"approved","apiKey":"the-key"}"#.utf8)))
         #expect(try await polling.pairingStatus(pairing.id) == PairingStatus(status: "approved", apiKey: "the-key"))
+
+        let (turnedAway, _) = stubbedClient(.init(status: 200, body: Data(#"{"status":"expired","apiKey":null,"declined":true}"#.utf8)))
+        #expect(try await turnedAway.pairingStatus(pairing.id).declined == true)
     }
 
     @Test func swapsTheApiKeyForADeviceToken() async throws {

@@ -711,6 +711,13 @@ public struct PairingStatus: Decodable, Sendable, Equatable {
     public let status: String
     /// Set once, when approved: this Apple TV's own token, sent as the API key from then on.
     public let apiKey: String?
+    /// With "expired": the main profile chose "Don't allow". Absent from servers before 0.56.
+    public var declined: Bool? = nil
+}
+
+struct PairingStartBody: Encodable {
+    let deviceName: String
+    let stopsWhenDeclined: Bool
 }
 
 /// A device showing a code, asking to connect: what the main profile's phone asks about (the command stream's

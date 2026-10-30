@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -227,14 +228,15 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
     val uri = LocalUriHandler.current
     var code by remember { mutableStateOf<String?>(null) }
     var renewed by remember { mutableStateOf(false) }
-    // "New code" chosen: the code on screen is given up for a fresh one, which the phones are asked about (after
-    // "Don't allow", the code this device gets by itself is only listed, not asked about).
-    var wantsNewCode by remember { mutableStateOf(false) }
+    // The main profile chose "Don't allow": the screen says so, and Try again starts over with a code they're asked about.
+    var declined by remember { mutableStateOf(false) }
+    var attempt by remember { mutableIntStateOf(0) }
     var needsSetup by remember { mutableStateOf(false) }
     var setupNeedsCode by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(server) {
+    LaunchedEffect(server, attempt) {
+        declined = false
         val client = FlexarrClient(FlexarrClient.normalizeAddress(server.address)!!)
         while (true) {
             try {
@@ -265,13 +267,17 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                         model.connect(server.address, key)
                         return@LaunchedEffect
                     }
-                    if (status.status == "expired") break // a fresh code next time round
-                    delay(2_000)
-                    if (wantsNewCode) {
-                        wantsNewCode = false
-                        code = null // asked for, so not shown as news
-                        break
+                    if (status.status == "expired") {
+                        // Turned away: say so, rather than quietly showing another code nobody's asked about.
+                        if (status.declined) {
+                            declined = true
+                            code = null
+                            renewed = false
+                            return@LaunchedEffect
+                        }
+                        break // ran out: a fresh code next time round
                     }
+                    delay(2_000)
                     if (renewed && ++since > 5) renewed = false
                     // Set up in the browser meanwhile: switch to the usual instructions.
                     if (needsSetup) needsSetup = client.setupStatus()?.open ?: false
@@ -287,7 +293,17 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
 
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         val shown = code
-        if (shown != null) {
+        if (declined) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Not allowed", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                Text(
+                    "The main profile turned this phone away. If that was a mistake, try again and allow it this time.",
+                    fontSize = 17.sp,
+                    color = Flexarr.usher,
+                )
+            }
+            ActionButton("Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.fillMaxWidth())
+        } else if (shown != null) {
             Text("Connect this device", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
             if (needsSetup) {
                 // Short steps for someone who's never done this. A new server has nobody to approve the code yet, so
@@ -335,7 +351,6 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(shown, fontSize = 52.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Flexarr.screen)
-                // Says the code changed; the New code button below is what asks for one.
                 if (renewed) Text("A new code", fontSize = 15.sp, color = Flexarr.usher)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -363,13 +378,6 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             Text("Back", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack).minimumInteractiveComponentSize())
             // Only works if the browser on this phone is signed in already, so it stays out of the way.
             if (shown != null && !needsSetup) {
-                Text(
-                    "New code",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Flexarr.silver,
-                    modifier = Modifier.pressable({ wantsNewCode = true }).minimumInteractiveComponentSize(),
-                )
                 Text(
                     "Approve in the browser instead",
                     fontSize = 15.sp,
