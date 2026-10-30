@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { approvePairing, declinePairing, type PairingDetails } from '../api/client'
+import { approvePairing, declinePairing, unlockAdmin, type PairingDetails } from '../api/client'
 import { useSession } from '../hooks/sessionContext'
 import { answeredPairing, useWaitingPairings } from '../hooks/useWaitingPairings'
 import { askedFrom, pairingError, usePairingOpenElsewhere } from '../lib/pairing'
@@ -18,7 +18,9 @@ const DONE_MS = 2_500
  */
 export function PairingPrompt() {
   const { me } = useSession()
-  const { list: waiting, listsShowing } = useWaitingPairings(me?.isAdmin === true)
+  // The main profile hears it before Settings are unlocked; allowing asks for the PIN then.
+  const { list: waiting, listsShowing } = useWaitingPairings(me?.isAdmin === true || me?.canUnlock === true)
+  const locked = me?.isAdmin !== true
   // Closed here: not asked about again, whatever the next look says.
   const [handled, setHandled] = useState<ReadonlySet<string>>(new Set())
   // Just allowed: says so for a moment, even once the server no longer lists it.
@@ -47,6 +49,7 @@ export function PairingPrompt() {
     <Prompt
       key={current.code}
       details={current}
+      locked={locked}
       onFinished={finish}
       onConnected={(details) => {
         finish(details.code)
@@ -64,20 +67,29 @@ const asking = (details: PairingDetails) => {
 
 function Prompt({
   details,
+  locked,
   onFinished,
   onConnected,
 }: {
   details: PairingDetails
+  /** Settings aren't unlocked here, so allowing takes the main profile's PIN. */
+  locked: boolean
   onFinished: (code: string) => void
   onConnected: (details: PairingDetails) => void
 }) {
   const [state, setState] = useState<'idle' | 'approving' | 'declining'>('idle')
   const [error, setError] = useState<string>()
+  const [pin, setPin] = useState('')
+  const [unlocked, setUnlocked] = useState(false)
 
   async function allow() {
     setState('approving')
     setError(undefined)
     try {
+      if (locked && !unlocked) {
+        await unlockAdmin({ pin })
+        setUnlocked(true)
+      }
       await approvePairing(details.code)
       answeredPairing(details.code)
       onConnected(details)
@@ -116,6 +128,12 @@ function Prompt({
         {details.zone !== 'Local' && 'This didn’t come from your home network. '}
         Check its screen shows <strong className="pairing-code">{details.code}</strong>.
       </p>
+      {locked && !unlocked && (
+        <label className="field">
+          <span className="field-label">Main profile’s PIN</span>
+          <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
+        </label>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -125,7 +143,7 @@ function Prompt({
         <AsyncButton className="button quiet small" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()}>
           Don’t allow
         </AsyncButton>
-        <AsyncButton className="button small" busy={state === 'approving'} disabled={state === 'declining'} onClick={() => allow()}>
+        <AsyncButton className="button small" busy={state === 'approving'} disabled={state === 'declining' || (locked && !unlocked && pin.length < 4)} onClick={() => allow()}>
           Allow
         </AsyncButton>
       </div>

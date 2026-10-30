@@ -16,8 +16,12 @@ namespace Flexarr.Api.Profiles;
 /// <param name="RequestShowsLibraryId">The library this profile's show requests go to; null, Seerr's default.</param>
 /// <param name="RequestFilmsLibraryId">The library its film requests go to; null, Seerr's default.</param>
 /// <param name="LibraryOrder">The order of the libraries in the menu (ids, and "live-tv"); empty, by name.</param>
+/// <param name="AsksPin">
+/// Choosing it here asks for its PIN. The main profile's PIN guards managing the server, so on a browser or device the
+/// owner signed in, choosing it only asks if the owner wants it to (absent from servers before 0.56: there, HasPin).
+/// </param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
-    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null);
+    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false);
 
 /// <summary>The order of a profile's libraries in the menu: library ids, and "live-tv"; empty goes back to by name.</summary>
 public sealed record LibraryOrderRequest(IReadOnlyList<string> Order);
@@ -226,7 +230,7 @@ public static partial class ProfileEndpoints
         // Choosing a profile returns the token clients send as X-Flexarr-Profile. On a browser or device signed in
         // with its own token, the choice is also kept on the server, so leaving the header off doesn't undo it.
         group.MapPost("/{id}/select", async (string id, SelectProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current,
-            PinGuard guard, SignIns signIns, AdminUnlocks unlocks, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            PinGuard guard, SignIns signIns, AdminUnlocks unlocks, CancellationToken ct) =>
         {
             if (await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is not { } profile)
             {
@@ -242,8 +246,7 @@ public static partial class ProfileEndpoints
 
             // The main profile's PIN guards managing the server, not watching as it: on a browser or device the owner
             // signed in, choosing it only asks if the owner wants it to. A PIN given anyway is checked, and unlocks.
-            var askPin = profile.PinHash is not null
-                && (!profile.IsMain || !current.IsTrusted || options.CurrentValue.AskPinForMainProfile != false || !string.IsNullOrEmpty(request.Pin));
+            var askPin = current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
             if (askPin)
             {
                 var (callers, browser) = PinCaller(http, current);
@@ -397,7 +400,7 @@ public static partial class ProfileEndpoints
 
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
-            p.RequestFilmsLibraryId, p.LibraryOrder);
+            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p));
 
     private static IResult? Validate(ProfileRequest request)
     {

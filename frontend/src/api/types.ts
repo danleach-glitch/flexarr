@@ -513,6 +513,8 @@ export interface Settings {
   hostName?: string | null
   /** Bazarr, for finding subtitles; the API key is never sent back. */
   bazarr?: { baseUrl: string; hasApiKey: boolean } | null
+  /** Choosing the main profile asks for its PIN on every browser and device, not only managing the server. */
+  askPinForMainProfile?: boolean
 }
 
 export interface SettingsUpdate {
@@ -529,6 +531,7 @@ export interface SettingsUpdate {
   tmdb?: { apiKey: string }
   /** An empty address removes Bazarr; an omitted key keeps the saved one (for the same server). */
   bazarr?: { baseUrl: string; apiKey?: string }
+  askPinForMainProfile?: boolean
 }
 
 export interface ArrStatus {

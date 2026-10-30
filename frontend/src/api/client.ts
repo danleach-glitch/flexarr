@@ -153,13 +153,14 @@ export async function setupOpen(): Promise<boolean> {
 
 /**
  * Sets up a new server from this browser, which becomes its owner and is signed in. `code` is the setup code from the
- * server's log; a wrong one is an ApiError with status 400.
+ * server's log, and `pin` the main profile's PIN, which guards the server's settings; either being wrong is an ApiError
+ * with status 400.
  */
-export async function claimSetup(code: string) {
+export async function claimSetup(code: string, pin: string) {
   const response = await fetch('/api/v1/setup/claim', {
     method: 'POST',
     headers: { 'X-Requested-With': 'flexarr', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, pin }),
   })
   if (!response.ok) throw new ApiError(response.status, response.statusText, [])
 }
@@ -1157,7 +1158,15 @@ export interface Profile {
   requestFilmsLibraryId?: string | null
   /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
   libraryOrder?: string[]
+  /**
+   * Choosing it here asks for its PIN. The main profile's guards the server's settings, so on a browser the owner signed
+   * in it's only asked for if the owner wants it to be. Absent from servers before 0.56, where `hasPin` says.
+   */
+  asksPin?: boolean
 }
+
+/** Whether choosing a profile here asks for its PIN. */
+export const asksPin = (profile: Profile) => profile.asksPin ?? profile.hasPin
 
 /** Changing or removing the main profile's PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
@@ -1195,6 +1204,12 @@ export interface Me {
   zone: NetworkZone
   isAdmin: boolean
   tailscaleLogin: string | null
+  /** The main profile is chosen, but managing the server takes its PIN first (unlockAdmin). Absent before 0.56. */
+  canUnlock?: boolean
+  /** The main profile has no PIN yet, so the server's settings can't be unlocked until it's given one (setAdminPin). */
+  adminPinMissing?: boolean
+  /** When managing the server takes the PIN again here; null for the API key, which always may. */
+  unlockedUntil?: string | null
 }
 
 export interface RemoteAccess {
@@ -1223,6 +1238,32 @@ export interface RemoteAccess {
 }
 
 export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)
+
+/**
+ * Unlocks managing the server on this browser for a while, with the main profile's PIN (or, forgotten, the API key).
+ * The browser may be signed in by it (over Tailscale, or at home without a sign-in), so everything is asked afresh.
+ */
+export async function unlockAdmin(proof: { pin: string } | { apiKey: string }) {
+  const result = await request<{ unlockedUntil: string | null }>('POST', '/admin/unlock', proof)
+  clearApiCache()
+  return result
+}
+
+/** Locks managing the server on this browser again, until the PIN is given. */
+export async function lockAdmin() {
+  await request<void>('POST', '/admin/lock', {})
+  clearApiCache()
+}
+
+/**
+ * Gives the main profile a PIN: its first (on a server set up before setup asked for one), or a new one with the API
+ * key when it's been forgotten. Unlocks this browser, and anywhere else the old one was given locks.
+ */
+export async function setAdminPin(pin: string, apiKey?: string) {
+  const result = await request<{ unlockedUntil: string | null }>('POST', '/admin/pin', { pin, apiKey })
+  clearApiCache()
+  return result
+}
 export const getRemoteAccess = (signal?: AbortSignal) => apiGet<RemoteAccess>('/remote', signal)
 export const setTailscaleAccess = (enabled: boolean) => request<RemoteAccess>('POST', '/remote/tailscale', { enabled })
 export const linkTailscale = (login: string, profileId: string | null) => request<RemoteAccess>('POST', '/remote/tailscale/links', { login, profileId })

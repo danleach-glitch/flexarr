@@ -91,11 +91,26 @@ describe('Profile form', () => {
     await vi.waitFor(() => expect(created).toMatchObject({ name: 'Sam', pin: '2468', color: '#9fd8b9' }))
   })
 
-  it('says the main profile’s PIN also unlocks Settings away from home', async () => {
-    mockApi({ '/libraries': [], '/me': adminHere, '/profiles': [main, kids] })
+  it('keeps the main profile’s PIN: it can be changed, not taken off', async () => {
+    let saved: unknown
+    mockApi({
+      '/libraries': [],
+      '/me': adminHere,
+      '/profiles': [main, kids],
+      '/settings': { askPinForMainProfile: false },
+      'PUT /settings': (init?: RequestInit) => {
+        saved = JSON.parse(String(init?.body))
+        return { askPinForMainProfile: true }
+      },
+    })
     renderAt('/settings/profiles')
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit Dan' }))
-    expect(screen.getByText('The main profile’s PIN also unlocks Settings away from home.')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('switch', { name: /Ask for the PIN when someone chooses the main profile/ }))
+    await vi.waitFor(() => expect(saved).toEqual({ askPinForMainProfile: true }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Dan' }))
+    expect(screen.getByText('Asked for before the server’s settings change. It can be changed, not taken off.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   })
 })
 

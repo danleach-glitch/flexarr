@@ -531,6 +531,21 @@ kbd {
   min-width: 0;
 }
 
+/* Setting up: the code, then the main profile's PIN, then the button. */
+.setup-welcome > input {
+  width: 100%;
+  margin: 8px 0 14px;
+}
+
+.setup-welcome .field-row {
+  margin: 0 0 14px;
+}
+
+.setup-welcome .field-row label {
+  flex: 1;
+  min-width: 140px;
+}
+
 /* ---------- Cards ---------- */
 
 .card {

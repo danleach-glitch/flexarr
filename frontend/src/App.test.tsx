@@ -220,8 +220,8 @@ describe('App', () => {
     mockApi({
       '/setup': () => ({ open: !claimed, codeRequired: true }),
       '/setup/claim': (init?: RequestInit) => {
-        const { code } = JSON.parse(String(init?.body)) as { code: string }
-        sent.push(code)
+        const { code, pin } = JSON.parse(String(init?.body)) as { code: string; pin: string }
+        sent.push(`${code} ${pin}`)
         if (code !== 'ABCD-EFGH') return new Response(JSON.stringify({ title: 'Wrong code' }), { status: 400 })
         claimed = true
         return new Response(null, { status: 204 })
@@ -232,16 +232,24 @@ describe('App', () => {
     })
 
     render(<App />)
-    fireEvent.change(await screen.findByLabelText('Setup code'), { target: { value: 'WRONG-ONE' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
+    // The main profile's PIN comes with the code, so setup happens all at once.
+    const fill = (code: string, pin: string, again = pin) => {
+      fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: code } })
+      fireEvent.change(screen.getByLabelText('PIN'), { target: { value: pin } })
+      fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: again } })
+      fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
+    }
+    await screen.findByLabelText('Setup code')
+    fill('ABCD-EFGH', '2468', '2469')
+    expect(await screen.findByText('The two PINs don’t match. Type the same one in both.')).toBeInTheDocument()
+    fill('WRONG-ONE', '2468')
     expect(await screen.findByText("That isn't this server's setup code.")).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: 'ABCD-EFGH' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
+    fill('ABCD-EFGH', '2468')
 
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
-    expect(sent).toEqual(['WRONG-ONE', 'ABCD-EFGH'])
+    expect(sent).toEqual(['WRONG-ONE 2468', 'ABCD-EFGH 2468'])
   })
 
   it('says so when the API key is wrong', async () => {
@@ -565,14 +573,28 @@ describe('Settings', () => {
     expect(screen.getByRole('link', { name: 'Access' })).toHaveClass('active')
   })
 
-  it('over Tailscale, explains how the owner gets to settings', async () => {
-    mockApi({ '/libraries': [], '/me': { profileId: 'owner', method: 'tailscale', zone: 'Tailnet', isAdmin: false, tailscaleLogin: 'dan@example.com' } })
+  it('a main profile without a PIN is asked for one before anything in the server’s settings', async () => {
+    let sent: unknown
+    mockApi({
+      '/libraries': [],
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: false, tailscaleLogin: null, canUnlock: true, adminPinMissing: true },
+      'POST /admin/pin': (init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return { unlockedUntil: new Date(Date.now() + 900_000).toISOString() }
+      },
+    })
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
 
-    renderAt('/settings/server')
+    renderAt('/settings/overview')
+    expect(await screen.findByRole('heading', { name: 'Give the main profile a PIN' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2468' } })
+    fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: '2468' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
 
-    // Without a PIN on the main profile, the way in is someone giving it one, or the key.
-    expect(await screen.findByText(/Ask whoever manages Flexarr to give the main profile a PIN/)).toBeInTheDocument()
-    expect(screen.getByLabelText('API key')).toBeInTheDocument()
+    await vi.waitFor(() => expect(reload).toHaveBeenCalled())
+    expect(sent).toMatchObject({ pin: '2468' })
+    vi.unstubAllGlobals()
   })
 
   it('reveals the API key with a POST, lists sign-ins and signs one out', async () => {
@@ -1280,12 +1302,40 @@ describe('Profiles', () => {
     sessionStorage.clear()
   })
 
-  it('over Tailscale, Settings offers the owner the main profile’s PIN', async () => {
-    mockApi({ '/libraries': [], '/me': tailscaleOwner, '/profiles': [pinnedMain] })
+  it('locked, the server’s settings ask for the main profile’s PIN, or the API key when it’s forgotten', async () => {
+    const sent: unknown[] = []
+    mockApi({
+      '/libraries': [],
+      '/me': { ...tailscaleOwner, canUnlock: true },
+      '/profiles': [pinnedMain],
+      'POST /admin/unlock': (init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)))
+        return new Response(JSON.stringify({ title: 'That PIN isn’t right.' }), { status: 403 })
+      },
+      'POST /admin/pin': (init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)))
+        return { unlockedUntil: new Date(Date.now() + 900_000).toISOString() }
+      },
+    })
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
 
-    renderAt('/settings/server')
+    renderAt('/settings/libraries')
+    expect(await screen.findByRole('heading', { name: 'Settings are locked' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Unlock settings' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Main profile’s PIN'), { target: { value: '1111' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
 
-    expect(await screen.findByRole('button', { name: 'Choose the main profile' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Forgotten it?' }))
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'the-key' } })
+    fireEvent.change(screen.getByLabelText('New PIN'), { target: { value: '97531' } })
+    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '97531' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
+
+    await vi.waitFor(() => expect(reload).toHaveBeenCalled())
+    expect(sent).toEqual([{ pin: '1111' }, { pin: '97531', apiKey: 'the-key' }])
+    vi.unstubAllGlobals()
   })
 
   it('changing the main profile’s PIN asks for the current one', async () => {

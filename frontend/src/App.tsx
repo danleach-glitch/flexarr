@@ -86,7 +86,7 @@ type ConnectionState =
   | { kind: 'ready' }
   /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
   | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
-  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean }
+  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
@@ -207,10 +207,16 @@ export default function App() {
 
   function setUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const code = new FormData(event.currentTarget).get('setupCode')?.toString().trim()
+    const form = new FormData(event.currentTarget)
+    const code = form.get('setupCode')?.toString().trim()
+    const pin = form.get('setupPin')?.toString() ?? ''
     if (!code) return
+    if (pin !== form.get('setupPinAgain')?.toString()) {
+      setState({ kind: 'unauthorized', setupOpen: true, pinMismatch: true })
+      return
+    }
     setState({ kind: 'loading' })
-    claimSetup(code)
+    claimSetup(code, pin)
       .then(() => setAttempt((n) => n + 1))
       .catch((error: unknown) =>
         // A wrong code asks again; anything else (set up meanwhile, say) looks afresh at where the server is.
@@ -269,13 +275,25 @@ export default function App() {
             <h1>Welcome to your Flexarr server</h1>
             <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
             <label htmlFor="setupCode">Setup code</label>
-            <div className="api-key-row">
-              <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-              <button type="submit" className="button">
-                Set up Flexarr
-              </button>
-            </div>
+            <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
             {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+            <p className="muted">
+              Choose a PIN for your profile, the main one. It keeps the server’s settings to you: anyone can watch, but changing things asks for it.
+            </p>
+            <div className="field-row">
+              <label>
+                PIN
+                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" placeholder="4 to 8 digits" required />
+              </label>
+              <label>
+                Confirm PIN
+                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" required />
+              </label>
+            </div>
+            {state.pinMismatch && <p className="error">The two PINs don’t match. Type the same one in both.</p>}
+            <button type="submit" className="button">
+              Set up Flexarr
+            </button>
             <p className="muted small-print">
               The server shows its setup code in its log as it starts, and keeps it in setup-code.txt in its data folder. With Docker, run docker logs flexarr.
             </p>

@@ -32,6 +32,16 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     /// <summary>The credential is trusted with the server, so it may switch to a main profile without a PIN.</summary>
     public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;
 
+    /// <summary>
+    /// Whether choosing <paramref name="profile"/> here takes its PIN. The main profile's guards managing the server,
+    /// not watching as it, so on a browser or device the owner signed in it's only asked for if the owner wants it to be.
+    /// </summary>
+    public bool AsksPinFor(Profile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return profile.PinHash is not null && (!profile.IsMain || !IsTrusted || options.CurrentValue.AskPinForMainProfile != false);
+    }
+
     /// <summary>The browser or device sign-in this request used, if any.</summary>
     public string? SignInId => http.HttpContext?.User.FindFirst(FlexarrClaims.SignIn)?.Value;
 

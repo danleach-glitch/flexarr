@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ApiError, clearApiCache, saveProfileToken, selectProfile, signIn, UnauthorizedError, type Profile } from '../api/client'
+import { ApiError, asksPin, clearApiCache, saveProfileToken, selectProfile, signIn, UnauthorizedError, type Profile } from '../api/client'
 import { AsyncButton } from './AsyncButton'
 import { Crown } from './icons'
 
@@ -66,7 +66,7 @@ export function ProfilePicker({
   }
 
   async function choose(profile: Profile, code?: string) {
-    if (profile.hasPin && code === undefined) {
+    if (asksPin(profile) && code === undefined) {
       ask(profile)
       return
     }
@@ -247,7 +247,7 @@ export function ProfilePicker({
           <ul className="profile-choices">
             {profiles.map((p) => (
               <li key={p.id}>
-                <AsyncButton onClick={() => (p.hasPin ? ask(p) : choose(p))} disabled={checking}>
+                <AsyncButton onClick={() => (asksPin(p) ? ask(p) : choose(p))} disabled={checking}>
                   <span className="profile-choice-avatar">
                     <Avatar profile={p} size={112} />
                     {p.isMain && (
@@ -260,7 +260,7 @@ export function ProfilePicker({
                     {p.name}
                     {p.isMain && <span className="visually-hidden">, main profile</span>}
                   </span>
-                  {p.hasPin && <span className="muted profile-locked">Needs a PIN</span>}
+                  {asksPin(p) && <span className="muted profile-locked">Needs a PIN</span>}
                 </AsyncButton>
               </li>
             ))}
