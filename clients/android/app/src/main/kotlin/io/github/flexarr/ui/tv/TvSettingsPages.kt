@@ -29,11 +29,17 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material.icons.filled.WbTwilight
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.TheaterComedy
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -71,6 +77,7 @@ import io.github.flexarr.core.playbackPreferences
 import io.github.flexarr.core.shownSubtitlePosition
 import io.github.flexarr.core.shownSubtitleSize
 import io.github.flexarr.data.PlayerSettings
+import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.ui.components.Load
@@ -88,11 +95,11 @@ import kotlinx.coroutines.sync.withLock
 // Settings' pages after the first, as the Apple TV's (FlexarrTV/Screens/Settings).
 
 /** A Playback row that opens a page of choices. */
-private enum class PlaybackChoice { SubtitleSize, SubtitlePosition, Skip }
+private enum class PlaybackChoice { SubtitleSize, SubtitlePosition, Skip, DialogueBoost, NightMode, NightFrom, NightUntil, Speakers }
 
 /**
  * The profile's playback preferences (saved on the server, so they follow it to every device), then this TV's own:
- * how far the remote skips. As the Apple TV's PlaybackSettingsView.
+ * how far the remote skips and how films sound in this room. As the Apple TV's PlaybackSettingsView.
  */
 @Composable
 internal fun TvPlaybackSettings(model: AppModel) {
@@ -103,6 +110,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
     var saveFailed by remember { mutableStateOf(false) }
     var skipSeconds by remember { mutableIntStateOf(PlayerSettings.skipSeconds(context)) }
     var choosing by remember { mutableStateOf<PlaybackChoice?>(null) }
+    val sound = SoundSettings.flow(context).collectAsState().value ?: SoundSettings.current(context)
     // The choice page Back or a choice just closed, so focus goes back to its row.
     var chose by remember { mutableStateOf<PlaybackChoice?>(null) }
 
@@ -161,6 +169,46 @@ internal fun TvPlaybackSettings(model: AppModel) {
                     PlayerSettings.setSkipSeconds(context, it)
                 },
                 onDone = ::close,
+            )
+            return
+        }
+        PlaybackChoice.DialogueBoost -> {
+            BackHandler(onBack = ::close)
+            TvSettingsChoicePage(
+                "Dialogue boost", null, SoundSettings.DialogueBoost.entries, { it.name }, sound.dialogueBoost,
+                choose = { boost -> SoundSettings.update(context) { it.copy(dialogueBoost = boost) } }, onDone = ::close,
+            )
+            return
+        }
+        PlaybackChoice.NightMode -> {
+            BackHandler(onBack = ::close)
+            TvSettingsChoicePage(
+                "Night mode", null, SoundSettings.NightMode.entries, ::nightModeLabel, sound.nightMode,
+                choose = { mode -> SoundSettings.update(context) { it.copy(nightMode = mode) } }, onDone = ::close,
+            )
+            return
+        }
+        PlaybackChoice.NightFrom -> {
+            BackHandler(onBack = ::close)
+            TvSettingsChoicePage(
+                "Night mode from", null, NIGHT_HOURS, SoundSettings::clock, sound.nightStart,
+                choose = { at -> SoundSettings.update(context) { it.copy(nightStart = at) } }, onDone = ::close,
+            )
+            return
+        }
+        PlaybackChoice.NightUntil -> {
+            BackHandler(onBack = ::close)
+            TvSettingsChoicePage(
+                "Night mode until", null, NIGHT_HOURS, SoundSettings::clock, sound.nightEnd,
+                choose = { at -> SoundSettings.update(context) { it.copy(nightEnd = at) } }, onDone = ::close,
+            )
+            return
+        }
+        PlaybackChoice.Speakers -> {
+            BackHandler(onBack = ::close)
+            TvSettingsChoicePage(
+                "Speakers", null, SoundSettings.Speakers.entries, { it.label }, sound.speakers,
+                choose = { speakers -> SoundSettings.update(context) { it.copy(speakers = speakers) } }, onDone = ::close,
             )
             return
         }
@@ -236,8 +284,49 @@ internal fun TvPlaybackSettings(model: AppModel) {
                 help = "How far a press of left or right on the remote moves while something plays.",
             )
         }
+        item {
+            TvSettingsRow(
+                "Dialogue boost", onClick = { choosing = PlaybackChoice.DialogueBoost }, modifier = Modifier.focusFor(PlaybackChoice.DialogueBoost),
+                icon = Icons.Filled.RecordVoiceOver, value = sound.dialogueBoost.name, accessory = TvSettingAccessory.Chevron,
+                help = "Makes voices easier to follow under music and effects.",
+            )
+        }
+        item {
+            TvSettingsRow(
+                "Night mode", onClick = { choosing = PlaybackChoice.NightMode }, modifier = Modifier.focusFor(PlaybackChoice.NightMode),
+                icon = Icons.Filled.Bedtime, accessory = TvSettingAccessory.Chevron,
+                value = if (sound.nightMode == SoundSettings.NightMode.Scheduled) sound.nightHours else nightModeLabel(sound.nightMode),
+                help = "Quietens loud scenes and lifts quiet ones.",
+            )
+        }
+        if (sound.nightMode == SoundSettings.NightMode.Scheduled) {
+            item {
+                TvSettingsRow(
+                    "Night mode from", onClick = { choosing = PlaybackChoice.NightFrom }, modifier = Modifier.focusFor(PlaybackChoice.NightFrom),
+                    icon = Icons.Filled.NightsStay, value = SoundSettings.clock(sound.nightStart), accessory = TvSettingAccessory.Chevron,
+                )
+            }
+            item {
+                TvSettingsRow(
+                    "Night mode until", onClick = { choosing = PlaybackChoice.NightUntil }, modifier = Modifier.focusFor(PlaybackChoice.NightUntil),
+                    icon = Icons.Filled.WbTwilight, value = SoundSettings.clock(sound.nightEnd), accessory = TvSettingAccessory.Chevron,
+                )
+            }
+        }
+        item {
+            TvSettingsRow(
+                "Speakers", onClick = { choosing = PlaybackChoice.Speakers }, modifier = Modifier.focusFor(PlaybackChoice.Speakers),
+                icon = Icons.Filled.Speaker, value = sound.speakers.label, accessory = TvSettingAccessory.Chevron,
+                help = "Auto plays every channel what’s connected takes.",
+            )
+        }
     }
 }
+
+private fun nightModeLabel(mode: SoundSettings.NightMode) = if (mode == SoundSettings.NightMode.Scheduled) "On a schedule" else mode.name
+
+/** Night mode's hours, on the hour. */
+private val NIGHT_HOURS = (0 until 24).map { it * 60 }
 
 private fun skipIcon(seconds: Int): ImageVector = when (seconds) {
     10 -> Icons.Filled.Forward10
