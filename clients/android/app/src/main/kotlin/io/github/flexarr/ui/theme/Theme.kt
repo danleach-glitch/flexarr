@@ -36,6 +36,8 @@ object Flexarr {
     val danger = Color(0xFFF08A7E)
     /** On the phone, or a good match: the one green. */
     val downloaded = Color(0xFF6FCF97)
+    /** Ready to watch: Discover's badge on a poster the library has. */
+    val inLibrary = Color(0xFFE8B84A)
 
     /** Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display. */
     val marquee = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))
