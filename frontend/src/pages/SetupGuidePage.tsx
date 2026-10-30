@@ -451,6 +451,16 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
 
+  // A list that didn't come says so, with a way to ask again, rather than waiting for ever.
+  if (libraries.error)
+    return (
+      <p className="onboard-wait">
+        {libraries.error.message}{' '}
+        <button type="button" className="onboard-back" onClick={libraries.reload}>
+          Try again
+        </button>
+      </p>
+    )
   if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">Looking for your folders…</p>
   const existing = (type: LibraryType) => libraries.data!.find((l) => l.type === type)
   const suggested = (type: LibraryType) =>
