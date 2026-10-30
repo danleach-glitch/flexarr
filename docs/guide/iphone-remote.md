@@ -17,7 +17,7 @@ The bar has play/pause. Tap it for the remote. The **×** hides the bar until th
 - **Stop** stops it on the TV. For a few seconds you can **Undo**, which starts it again from where it stopped.
 - **Episodes** lists the season: tap one to play it on the TV.
 
-A title from a library hidden from your profile shows as playing but not what it is, and only play/pause and the jumps work for it.
+A title from a library hidden from your profile shows as playing but not what it is. You can pause, skip and stop it, but not continue it on your phone, undo a stop, or change its tracks or sound.
 
 With more than one TV playing, tap the TV's name at the top to switch between them. For the TV's menus and its volume, use the Remote in Control Center, as before.
 
