@@ -1348,13 +1348,34 @@ kbd {
     padding-inline: var(--edge);
   }
 
+  /* The scrolling rows mustn't widen the header (and push sort off the screen). */
+  .watchlist-page .library-header,
+  .watchlist-page .library-header > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .watchlist-page .chip,
+  .watchlist-page .external-state {
+    flex: none;
+    white-space: nowrap;
+  }
+
   .watchlist-tools {
     flex-wrap: nowrap;
     gap: 8px;
   }
 
+  .watchlist-tools .genre-chips {
+    flex: 1;
+    min-width: 0;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
   .watchlist-tools select {
     flex: none;
+    max-width: 40%;
   }
 }
 
