@@ -401,7 +401,6 @@ function ProfileForm({
           <label className="profile-section-head">
             <span className="setting-text">
               <strong>Request what {profile ? profile.name : 'this profile'} adds to the watchlist</strong>
-              <span className="muted">Films and shows that aren’t in the library are requested as they’re added.</span>
             </span>
             <input type="checkbox" role="switch" className="switch" checked={autoRequest} onChange={(e) => setAutoRequest(e.target.checked)} />
           </label>

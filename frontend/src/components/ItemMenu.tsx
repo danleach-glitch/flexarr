@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { addToWatchlist, getTracks, removeFromContinueWatching, removeFromWatchlist, setWatched, type ItemSummary } from '../api/client'
+import { addToWatchlist, ApiError, getTracks, removeFromContinueWatching, removeFromWatchlist, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { openAddToPlaylist } from './AddToPlaylist'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
+import { showNotice } from '../lib/notice'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
 
@@ -47,9 +48,10 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
   const watchlistAction = (): MenuAction[] => {
     if (!watchlist) return []
     const key = { libraryItemId: item.id }
+    const failed = (e: unknown) => showNotice(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'That didn’t work. Try again.')
     return watchlist.libraryItemIds.includes(item.id)
-      ? [{ label: 'Remove from watchlist', run: () => removeFromWatchlist(key) }]
-      : [{ label: 'Add to watchlist', run: async () => void (await addToWatchlist(key)) }]
+      ? [{ label: 'Remove from watchlist', run: () => removeFromWatchlist(key).catch(failed) }]
+      : [{ label: 'Add to watchlist', run: () => addToWatchlist(key).then(() => showNotice(`Added ${item.title} to your watchlist`), failed) }]
   }
 
   const actions: MenuAction[] = []

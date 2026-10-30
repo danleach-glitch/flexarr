@@ -6,6 +6,7 @@ import { session } from '../lib/session'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
+import { NoticeHost } from './Notice'
 import { Antenna, Bookmark, Calendar, ChevronsLeft, Close, Film, Gear, Home, Menu as MenuIcon, Microphone, Playlist, Search, Sparkles, Stack } from './icons'
 import { libraryIcons } from './libraryIcons'
 import { AsyncButton } from './AsyncButton'
@@ -308,6 +309,7 @@ export function Layout() {
       )}
       <main id="main" className="page">
         <Outlet />
+        <NoticeHost />
         <AddToCollectionHost />
         <AddToPlaylistHost />
       </main>

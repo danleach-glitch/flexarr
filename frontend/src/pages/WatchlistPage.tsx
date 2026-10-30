@@ -91,6 +91,7 @@ export function WatchlistPage() {
         )}
       </header>
       {error && <p className="error">{error.message}</p>}
+      {!data && !error && <p className="page-message muted">Loading…</p>}
       {data && data.length === 0 && <p className="muted">Nothing here yet. Add films and shows from their pages, Discover or search.</p>}
       {data && data.length > 0 && shown.length === 0 && <p className="muted">Nothing on your watchlist matches.</p>}
       <div className="poster-grid">
@@ -122,7 +123,7 @@ function WatchlistCard({ entry }: { entry: WatchlistEntry }) {
     return (
       <div className="watchlist-card">
         <PosterCard item={entry.item} />
-        {remove}
+        <div className="external-card-actions watchlist-ready-actions">{remove}</div>
       </div>
     )
 
