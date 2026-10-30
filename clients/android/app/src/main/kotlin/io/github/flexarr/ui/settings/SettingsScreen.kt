@@ -199,7 +199,7 @@ fun SettingsScreen(
                 }
             }
             // The main profile lets in TVs, phones and tablets showing a code.
-            if (model.isAdmin) {
+            if (model.isMainProfile) {
                 item {
                     Group {
                         val waiting = model.pairing.waiting.size

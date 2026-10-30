@@ -101,24 +101,60 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client
         if (inFront && client != null) commands.start(client) else commands.stop()
         // Back in front: any that ended while the app was away go, and any waiting since are asked about.
-        if (inFront && client != null && isAdmin) scope.launch { pairing.refresh(client) }
+        if (inFront && client != null && isMainProfile) scope.launch { pairing.refresh(client) }
     }
 
     /** Devices asking to connect, for the main profile to allow from here. */
     val pairing = PairingPrompts(context)
 
-    /** This sign-in, as the profile watching, may manage the server (it's the main profile): it's asked to let devices in. */
+    /** This sign-in, as the profile watching, may manage the server now (the main profile, unlocked with its PIN). */
     var isAdmin by mutableStateOf(false)
         private set
 
-    /** Asks whether this sign-in may manage the server, and if so, which devices are waiting to connect. */
+    /** The main profile is watching, but managing the server takes its PIN first ([unlock]). */
+    var canUnlock by mutableStateOf(false)
+        private set
+
+    /** The main profile has no PIN yet, so it can't be unlocked here until it's given one in a browser. */
+    var adminPinMissing by mutableStateOf(false)
+        private set
+
+    /** The main profile is watching, unlocked or not: it's asked to let devices in. */
+    val isMainProfile: Boolean get() = isAdmin || canUnlock
+
+    /** Asks whether this sign-in is the main profile (and may manage the server), and if so, which devices are waiting to connect. */
     suspend fun loadSignIn() {
         val client = client ?: return
-        val admin = runCatching { client.me().isAdmin }.getOrNull() ?: return
+        val me = runCatching { client.me() }.getOrNull() ?: return
         // Someone else may have been chosen meanwhile.
         if (client.profileToken != this.client?.profileToken) return
-        isAdmin = admin
-        if (admin) pairing.refresh(client) else pairing.clear()
+        isAdmin = me.isAdmin
+        canUnlock = me.canUnlock
+        adminPinMissing = me.adminPinMissing
+        if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
+    }
+
+    /** Unlocks managing the server with the main profile's PIN. Throws as [FlexarrClient.unlockAdmin] does. */
+    suspend fun unlock(pin: String) {
+        val client = client ?: return
+        client.unlockAdmin(pin)
+        if (client.profileToken != this.client?.profileToken) return
+        isAdmin = true
+        canUnlock = false
+    }
+
+    /** Managing the server turned out to be locked again (its 15 minutes ran out): asked afresh. */
+    suspend fun locked() {
+        isAdmin = false
+        canUnlock = true
+        loadSignIn()
+    }
+
+    private fun forgetSignIn() {
+        isAdmin = false
+        canUnlock = false
+        adminPinMissing = false
+        pairing.clear()
     }
 
     /** Podcast episodes, playing on under every screen. */
@@ -223,8 +259,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     private fun signedIn(credentials: ServerCredentials) {
-        isAdmin = false
-        pairing.clear()
+        forgetSignIn()
         profiles = emptyList()
         profilesLoaded = false
         signedOutNotice = null
@@ -265,8 +300,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     private fun forget() {
         commands.stop()
-        isAdmin = false
-        pairing.clear()
+        forgetSignIn()
         music.stop()
         podcasts.stop()
         podcastStatus = null
@@ -322,8 +356,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         podcasts.stop()
         upNext = emptyList()
         if (saved) store.saveProfile(null)
-        isAdmin = false
-        pairing.clear()
+        forgetSignIn()
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
         profiles = profiles.map { it.copy(isCurrent = false) }
     }

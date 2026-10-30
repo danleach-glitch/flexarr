@@ -39,7 +39,11 @@ import io.github.flexarr.core.WaitingDevice
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.pairing.MainPinField
+import io.github.flexarr.ui.pairing.PinProblem
+import io.github.flexarr.ui.pairing.allowAsMainProfile
 import io.github.flexarr.ui.pairing.deviceIcon
+import io.github.flexarr.ui.pairing.mayAllow
 import io.github.flexarr.ui.pairing.pairingProblem
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -65,6 +69,8 @@ fun WaitingDevicesScreen(model: AppModel) {
     var sending by remember { mutableStateOf<String?>(null) }
     /** What came of the last answer: "“Living room” is connected." */
     var outcome by remember { mutableStateOf<String?>(null) }
+    /** The main profile's PIN, while allowing takes it here. */
+    var pin by remember { mutableStateOf("") }
 
     // The server's list on opening, as the stream only brings what changes after it's open.
     LaunchedEffect(model.credentials) {
@@ -86,13 +92,13 @@ fun WaitingDevicesScreen(model: AppModel) {
     }
 
     fun answer(device: WaitingDevice, allow: Boolean) {
-        if (sending != null) return
+        if (sending != null || allow && !mayAllow(model, pin)) return
         sending = device.code
         outcome = null
         scope.launch {
             try {
                 if (allow) {
-                    pairing.allow(client, device.code)
+                    allowAsMainProfile(model, client, device.code, pin)
                     pairing.finished(device.code)
                     outcome = "“${device.deviceName}” is connected. It’ll be ready in a moment."
                 } else {
@@ -101,6 +107,7 @@ fun WaitingDevicesScreen(model: AppModel) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (e is PinProblem) pin = ""
                 outcome = pairingProblem(e)
                 // Run out: it goes from the list (the device shows a new code, which asks again).
                 if ((e as? FlexarrException.Http)?.status == 404) pairing.finished(device.code)
@@ -132,6 +139,11 @@ fun WaitingDevicesScreen(model: AppModel) {
                         "Turn on Notifications to be asked when Flexarr isn't open.".takeIf { !model.notifications.isOn },
                     ).joinToString(" ").ifEmpty { null },
                 ) {
+                    // Locked here: allowing takes the main profile's PIN, given once for any of them.
+                    if (!model.isAdmin && waiting.isNotEmpty()) {
+                        MainPinField(model, pin, onPin = { pin = it }, onDone = {}, Modifier.padding(horizontal = 16.dp, vertical = 14.dp), fieldColor = Flexarr.aisle)
+                        Divider()
+                    }
                     when {
                         waiting.isEmpty() && loading -> Row(Modifier.fillMaxWidth().padding(16.dp)) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
@@ -145,7 +157,13 @@ fun WaitingDevicesScreen(model: AppModel) {
                         else -> waiting.forEachIndexed { index, device ->
                             key(device.code) {
                                 if (index > 0) Divider()
-                                WaitingDeviceRow(device, sending = sending == device.code, enabled = sending == null, onAnswer = { answer(device, it) })
+                                WaitingDeviceRow(
+                                    device,
+                                    sending = sending == device.code,
+                                    enabled = sending == null,
+                                    mayAllow = mayAllow(model, pin),
+                                    onAnswer = { answer(device, it) },
+                                )
                             }
                         }
                     }
@@ -156,7 +174,7 @@ fun WaitingDevicesScreen(model: AppModel) {
 }
 
 @Composable
-private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: Boolean, onAnswer: (Boolean) -> Unit) {
+private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: Boolean, mayAllow: Boolean, onAnswer: (Boolean) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(deviceIcon(device.deviceType), contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(26.dp))
@@ -178,7 +196,7 @@ private fun WaitingDeviceRow(device: WaitingDevice, sending: Boolean, enabled: B
             if (sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.screen)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionButton("Allow", { onAnswer(true) }, Modifier.weight(1f), prominent = true, enabled = enabled)
+            ActionButton("Allow", { onAnswer(true) }, Modifier.weight(1f), prominent = true, enabled = enabled && mayAllow)
             ActionButton("Don’t allow", { onAnswer(false) }, Modifier.weight(1f), enabled = enabled)
         }
     }

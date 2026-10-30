@@ -131,7 +131,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             val code = payload.info["pairing"]
             val model = context.appModel
             val inFront = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-            if (code != null && inFront && model.isAdmin && model.pairing.isWaiting(code)) return
+            if (code != null && inFront && model.isMainProfile && model.pairing.isWaiting(code)) return
             val opens = code?.let { AppLink.Pairing(it) } ?: AppLink.Home
             val id = code?.let(::pairingId) ?: listOf(payload.category, payload.title, payload.body).hashCode()
             val builder = NotificationCompat.Builder(context, DEVICES_CHANNEL)
@@ -250,7 +250,8 @@ class DownloadReceiver : BroadcastReceiver() {
 /**
  * A pairing notification's Allow and Don't allow: answered with this phone's sign-in without opening the app, as on
  * iPhone. On Android 12 and later a locked phone asks to be unlocked first. Allow says what came of it in the
- * notification's place; Don't allow just takes it away.
+ * notification's place; Don't allow just takes it away. While managing the server is locked here, Allow can't be
+ * answered from outside (the main profile's PIN has to be typed), so it says to open the prompt, which asks for it.
  */
 class PairingReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -280,10 +281,15 @@ class PairingReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 log.warning("Couldn't answer a device asking to connect", e)
                 if (allow) {
+                    val status = (e as? FlexarrException.Http)?.status
+                    // Refused: the main profile while locked (its PIN unlocks it, in the app), or another profile.
+                    if (status == 403) model.loadSignIn()
+                    val needsPin = status == 403 && model.canUnlock
                     // Gone or not this profile's to allow: the app, rather than the prompt for a code that's no use.
-                    val retry = (e as? FlexarrException.Http)?.status !in setOf(403, 404)
+                    val retry = needsPin || status !in setOf(403, 404)
                     val title = name?.let { "Couldn’t allow “$it”" } ?: "Couldn’t allow it"
-                    FlexarrMessagingService.showPairingAnswer(context, code, title, pairingProblem(e, outside = true), if (retry) AppLink.Pairing(code) else AppLink.Home)
+                    val text = if (needsPin) "Open Flexarr to allow it with the main profile’s PIN." else pairingProblem(e, outside = true)
+                    FlexarrMessagingService.showPairingAnswer(context, code, title, text, if (retry) AppLink.Pairing(code) else AppLink.Home)
                 }
             } finally {
                 pending.finish()
