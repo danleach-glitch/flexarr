@@ -15,7 +15,7 @@ namespace Flexarr.Core.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("Flexarr.Core.Libraries.Library", b =>
                 {
@@ -1100,6 +1100,36 @@ namespace Flexarr.Core.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.RecentSearch", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("ItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Query")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("SearchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("ProfileId", "SearchedAt");
+
+                    b.ToTable("RecentSearches");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.ShowPlaybackSpeed", b =>
                 {
                     b.Property<string>("ProfileId")
@@ -1688,6 +1718,20 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.RecentSearch", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.ShowPlaybackSpeed", b =>

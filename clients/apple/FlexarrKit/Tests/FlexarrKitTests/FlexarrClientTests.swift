@@ -153,6 +153,35 @@ struct FlexarrClientTests {
         #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"pin":"1234"}"#)
     }
 
+    @Test func recentSearchesAreReadRecordedAndForgotten() async throws {
+        let search = try #require(JSONSerialization.jsonObject(with: Fixture.data("search")) as? [String: Any])
+        let recent = try JSONSerialization.data(withJSONObject: ["queries": ["fargo", "Coen"], "items": search["titles"] ?? []])
+        let (client, host) = stubbedClient(.init(status: 200, body: recent))
+
+        let found = try await client.recentSearches()
+
+        #expect(found.queries == ["fargo", "Coen"])
+        #expect(!found.items.isEmpty)
+        #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/search/recent")
+
+        let (recorder, recorderHost) = stubbedClient(.init(status: 204, body: Data()))
+        try await recorder.recordSearch(query: "Coen", itemId: nil)
+        try await recorder.forgetRecentItem(itemId: "abc")
+        try await recorder.clearRecentSearches()
+        let sent = StubProtocol.recorded(host: recorderHost)
+        #expect(sent.map(\.httpMethod) == ["POST", "DELETE", "DELETE"])
+        // A person or genre pick sends only the words.
+        #expect(String(data: sent[0].httpBody ?? Data(), encoding: .utf8) == #"{"query":"Coen"}"#)
+        #expect(sent[1].url?.query == "itemId=abc")
+        #expect(sent[2].url?.query == nil)
+    }
+
+    @Test func serversWithoutRecentSearchesHaveNone() async throws {
+        let (client, _) = stubbedClient(.init(status: 404, body: Data()))
+
+        #expect(try await client.recentSearches().isEmpty)
+    }
+
     @Test func wrongPinIsAForbiddenWithTheServersMessage() async {
         let (client, _) = stubbedClient(.init(status: 403, body: Data(#"{"title":"That PIN isn't right.","status":403}"#.utf8)))
 

@@ -45,9 +45,10 @@ struct ProgressBar: View {
     }
 }
 
-/// Section heading for rows: marquee type on the shared edge, with an optional See all.
+/// Section heading for rows: marquee type on the shared edge, with an optional See all (or another word).
 struct SectionHeading: View {
     let title: String
+    var actionTitle = "See all"
     var action: (() -> Void)?
 
     var body: some View {
@@ -57,7 +58,7 @@ struct SectionHeading: View {
                 .foregroundStyle(Color.screen)
             Spacer()
             if let action {
-                Button("See all", action: action)
+                Button(actionTitle, action: action)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.usher)
             }

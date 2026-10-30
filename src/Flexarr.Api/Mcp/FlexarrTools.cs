@@ -56,12 +56,13 @@ public sealed record McpNowPlaying(string Device, string Profile, McpTitle Item,
 [McpServerToolType]
 public static class FlexarrTools
 {
-    [McpServerTool(Name = "search_library", ReadOnly = true), Description("Finds films, shows and episodes in the library whose title contains the words given. Use the ids with the other tools; a show's id with play_on_device plays its next episode.")]
+    [McpServerTool(Name = "search_library", ReadOnly = true), Description("Finds films, shows and episodes in the library whose title contains the words given, forgiving misspellings. Use the ids with the other tools; a show's id with play_on_device plays its next episode.")]
     public static async Task<McpSearchResult> SearchAsync([Description("Words from the title, e.g. \"traitors\"")] string query, FlexarrDbContext db, CurrentProfile profile,
-        CancellationToken ct)
+        Search.SearchIndex index, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(index);
         var term = (query ?? "").Trim().Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal);
         if (term.Length == 0)
         {
@@ -75,6 +76,8 @@ public static class FlexarrTools
             .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
             .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
             .Take(12).Summaries(profile.Id).ToListAsync(ct);
+        // Spoken titles come back misspelled ("the traiters"), so top up with near misses.
+        titles.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Title, 12 - titles.Count, titles, ct));
         var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
             .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries(profile.Id).ToListAsync(ct);
         return new McpSearchResult(titles.Select(McpTitle.From).ToList(), episodes.Select(McpTitle.From).ToList());

@@ -33,6 +33,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -64,7 +66,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.RecentSearches
 import io.github.flexarr.core.SearchResults
+import io.github.flexarr.core.clearRecentSearches
+import io.github.flexarr.core.forgetSearch
+import io.github.flexarr.core.recentSearches
+import io.github.flexarr.core.recordSearch
 import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.Load
@@ -78,12 +86,14 @@ import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.WideCard
+import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Films, shows, episodes and people in the libraries, as they're typed. The iPhone app's SearchView. */
 @Composable
@@ -93,6 +103,7 @@ fun SearchScreen(model: AppModel) {
     var results by remember { mutableStateOf<SearchResults?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    var recents by remember { mutableStateOf(RecentSearches()) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -106,6 +117,18 @@ fun SearchScreen(model: AppModel) {
         model.pendingSearch?.let {
             query = it
             model.pendingSearch = null
+        }
+    }
+    // What this profile searched for and opened lately, whenever the field's empty: on opening Search, and once it's
+    // cleared. A server from before recent searches (or one that can't be reached) has none, and none show.
+    LaunchedEffect(query.isEmpty()) {
+        if (query.isNotEmpty()) return@LaunchedEffect
+        recents = try {
+            client.recentSearches()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            RecentSearches()
         }
     }
     LaunchedEffect(query, attempt) {
@@ -125,6 +148,22 @@ fun SearchScreen(model: AppModel) {
         } catch (e: Exception) {
             error = e.message ?: "Something went wrong."
         }
+    }
+
+    // A pick from the results is remembered (not what's typed on the way), with the words that found it; one from the
+    // recents themselves is just the title, moved to the front. On the app's own scope, as opening it leaves Search.
+    // Debug runs without history remember nothing.
+    fun record(text: String?, itemId: String?) {
+        if (!model.recordsHistory) return
+        model.scope.launch { runCatching { client.recordSearch(text, itemId) } }
+    }
+    fun forget(text: String) {
+        recents = recents.copy(queries = recents.queries - text)
+        model.scope.launch { runCatching { client.forgetSearch(text) } }
+    }
+    fun clear() {
+        recents = RecentSearches()
+        model.scope.launch { runCatching { client.clearRecentSearches() } }
     }
 
     // Scrolling the results puts the keyboard away.
@@ -153,8 +192,19 @@ fun SearchScreen(model: AppModel) {
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 when {
-                    shown != null -> results(shown, query.trim())
+                    shown != null -> results(shown, query.trim(), onPick = { record(query.trim(), it?.id) })
                     error != null -> item { StatusView(error, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
+                    query.isBlank() && !recents.isEmpty -> recentRows(
+                        recents,
+                        onSearch = {
+                            query = it
+                            keyboard?.hide()
+                            focusManager.clearFocus()
+                        },
+                        onForget = ::forget,
+                        onClear = ::clear,
+                        onReopen = { record(null, it.id) },
+                    )
                     else -> item { StatusView("Find films, shows, episodes and people in your libraries.", empty = true, modifier = Modifier.height(240.dp)) }
                 }
             }
@@ -162,7 +212,8 @@ fun SearchScreen(model: AppModel) {
     }
 }
 
-private fun LazyListScope.results(results: SearchResults, query: String) {
+/** The results; [onPick] hears what was opened from them (null for a person). */
+private fun LazyListScope.results(results: SearchResults, query: String, onPick: (ItemSummary?) -> Unit) {
     if (results.isEmpty) {
         item { StatusView("Nothing matches “$query”.", empty = true, modifier = Modifier.height(240.dp)) }
     }
@@ -170,7 +221,7 @@ private fun LazyListScope.results(results: SearchResults, query: String) {
         item(key = "titles") {
             Section("Movies and shows") {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
-                    items(results.titles, key = { it.id }) { PosterCard(it) }
+                    items(results.titles, key = { it.id }) { PosterCard(it, onOpen = { onPick(it) }) }
                 }
             }
         }
@@ -178,8 +229,11 @@ private fun LazyListScope.results(results: SearchResults, query: String) {
     if (results.episodes.isNotEmpty()) {
         item(key = "episodes") {
             Section("Episodes") {
+                val navigator = LocalNavigator.current
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
-                    items(results.episodes, key = { it.id }) { WideCard(it) }
+                    items(results.episodes, key = { it.id }) { episode ->
+                        WideCard(episode, onClick = { onPick(episode); navigator.play(episode) })
+                    }
                 }
             }
         }
@@ -191,11 +245,78 @@ private fun LazyListScope.results(results: SearchResults, query: String) {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(results.people, key = { it.id }) { person ->
                         PersonCard(person.name, if (person.credits == 1) "1 title" else "${person.credits} titles", person.image) {
+                            onPick(null)
                             navigator.openPerson(person.id, person.name)
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * With nothing typed: the searches made lately (tap one to search again, × to forget it) and the titles opened from
+ * them. One Clear, on the first heading, forgets both.
+ */
+private fun LazyListScope.recentRows(
+    recents: RecentSearches,
+    onSearch: (String) -> Unit,
+    onForget: (String) -> Unit,
+    onClear: () -> Unit,
+    onReopen: (ItemSummary) -> Unit,
+) {
+    if (recents.queries.isNotEmpty()) {
+        item(key = "recent-searches") {
+            Column {
+                RecentHeading("Recent searches", onClear)
+                Column(Modifier.padding(top = 4.dp)) {
+                    recents.queries.forEach { text ->
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 48.dp).pressable({ onSearch(text) }, onClickLabel = "Search").padding(start = Edge, end = Edge - 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.History, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(20.dp))
+                            Text(text, fontSize = 17.sp, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            // The usual 48 to touch, around a small ×.
+                            Box(
+                                Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "Remove") { onForget(text) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Filled.Close, contentDescription = "Remove $text", tint = Flexarr.usher, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (recents.items.isNotEmpty()) {
+        item(key = "recently-opened") {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                RecentHeading("Recently opened", onClear.takeIf { recents.queries.isEmpty() })
+                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
+                    items(recents.items, key = { it.id }) { PosterCard(it, onOpen = { onReopen(it) }) }
+                }
+            }
+        }
+    }
+}
+
+/** A section heading with Clear beside it, as See all sits on other rows. */
+@Composable
+private fun RecentHeading(title: String, onClear: (() -> Unit)?) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        SectionHeading(title, Modifier.weight(1f))
+        if (onClear != null) {
+            Text(
+                "Clear",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Flexarr.usher,
+                modifier = Modifier.padding(end = Edge - 4.dp).pressable(onClear, onClickLabel = "Clear recent searches").padding(start = 12.dp, top = 20.dp).padding(4.dp),
+            )
         }
     }
 }

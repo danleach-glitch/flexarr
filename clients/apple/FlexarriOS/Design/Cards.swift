@@ -6,9 +6,14 @@ struct PosterCard: View {
     @Environment(Router.self) private var router
     let item: ItemSummary
     var width: CGFloat?
+    /// Called as the card opens its title (search notes the pick).
+    var onOpen: (() -> Void)?
 
     var body: some View {
-        Button { router.push(.item(item)) } label: {
+        Button {
+            onOpen?()
+            router.push(.item(item))
+        } label: {
             VStack(alignment: .leading, spacing: 6) {
                 PosterArtwork(item: item)
                 VStack(alignment: .leading, spacing: 1) {
@@ -184,9 +189,14 @@ struct PersonCard: View {
     let name: String
     let detail: String?
     let image: String?
+    /// Called as the card opens the person (search notes the pick).
+    var onOpen: (() -> Void)?
 
     var body: some View {
-        Button { router.push(.person(id: id, name: name)) } label: {
+        Button {
+            onOpen?()
+            router.push(.person(id: id, name: name))
+        } label: {
             VStack(spacing: 8) {
                 Color.seat
                     .frame(width: 84, height: 84)
