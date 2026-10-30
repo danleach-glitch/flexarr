@@ -84,7 +84,7 @@ data class DeviceCommand(
 
 /**
  * Sound settings for this device to take, from another device or an assistant. Each one that's absent stays as it is;
- * values are "Off"/"Low"/"Medium"/"High", "Off"/"On"/"Scheduled" and "Auto"/"Stereo"/"Surround"/"Headphones".
+ * values are "Off"/"Low"/"Medium"/"High", "Off"/"On"/"Scheduled" and "Auto"/"Stereo"/"Surround".
  */
 @Serializable
 data class DeviceSound(val dialogueBoost: String? = null, val nightMode: String? = null, val speakers: String? = null)

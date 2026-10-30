@@ -1026,7 +1026,7 @@ public enum DeviceCommandKind: String, ForwardCompatibleEnum {
 }
 
 /// Sound settings for this device to take, from another device or an assistant. Each one that's absent stays as it is;
-/// values are "Off"/"Low"/"Medium"/"High", "Off"/"On"/"Scheduled" and "Auto"/"Stereo"/"Surround"/"Headphones".
+/// values are "Off"/"Low"/"Medium"/"High", "Off"/"On"/"Scheduled" and "Auto"/"Stereo"/"Surround".
 public struct DeviceSound: Codable, Sendable, Hashable {
     public let dialogueBoost: String?
     public let nightMode: String?

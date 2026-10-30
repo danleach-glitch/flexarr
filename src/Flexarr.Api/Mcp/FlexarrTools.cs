@@ -235,7 +235,7 @@ public static class FlexarrTools
     [McpServerTool(Name = "set_device_sound"), Description("Changes a device's sound: dialogue boost (makes voices clearer), night mode (quietens loud scenes) and speakers. Only reaches a device with Flexarr open; anything left out stays as it is.")]
     public static McpCommandResult SetDeviceSound([Description("The device's id, from list_devices")] string deviceId,
         [Description("off, low, medium or high")] string? dialogueBoost, [Description("off, on, or scheduled (the hours set on the device)")] string? nightMode,
-        [Description("auto, stereo, surround (5.1) or headphones")] string? speakers, SignIns signIns, DeviceCommands commands, CurrentProfile profile)
+        [Description("auto, stereo or surround (5.1)")] string? speakers, SignIns signIns, DeviceCommands commands, CurrentProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
         if (!profile.IsTrusted)

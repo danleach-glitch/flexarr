@@ -34,13 +34,13 @@ struct SoundSettings: Codable, Equatable {
     }
 
     enum Speakers: String, Codable, CaseIterable {
-        case auto = "Auto", stereo = "Stereo", surround = "Surround", headphones = "Headphones"
+        case auto = "Auto", stereo = "Stereo", surround = "Surround"
 
         var label: String { self == .surround ? "5.1" : rawValue }
         var channels: Int? {
             switch self {
             case .auto: nil
-            case .stereo, .headphones: 2
+            case .stereo: 2
             case .surround: 6
             }
         }

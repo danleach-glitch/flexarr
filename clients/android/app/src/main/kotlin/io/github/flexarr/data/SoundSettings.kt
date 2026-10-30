@@ -22,7 +22,7 @@ data class SoundSettings(
     val nightEnd: Int = 7 * 60,
 ) {
     enum class Speakers(val label: String, val channels: Int?) {
-        Auto("Auto", null), Stereo("Stereo", 2), Surround("5.1", 6), Headphones("Headphones", 2)
+        Auto("Auto", null), Stereo("Stereo", 2), Surround("5.1", 6)
     }
 
     /** [db]: the lift each strength gives the dialogue, the same in every app. */

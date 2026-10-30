@@ -14,7 +14,7 @@ export interface SoundSettings {
   nightEnd: number
 }
 
-export type Speakers = 'Auto' | 'Stereo' | 'Surround' | 'Headphones'
+export type Speakers = 'Auto' | 'Stereo' | 'Surround'
 export type DialogueBoost = 'Off' | 'Low' | 'Medium' | 'High'
 export type NightMode = 'Off' | 'On' | 'Scheduled'
 
@@ -22,7 +22,6 @@ export const speakerChoices: { value: Speakers; label: string }[] = [
   { value: 'Auto', label: 'Auto' },
   { value: 'Stereo', label: 'Stereo' },
   { value: 'Surround', label: '5.1' },
-  { value: 'Headphones', label: 'Headphones' },
 ]
 export const dialogueBoostChoices: DialogueBoost[] = ['Off', 'Low', 'Medium', 'High']
 export const nightModeChoices: NightMode[] = ['Off', 'On', 'Scheduled']

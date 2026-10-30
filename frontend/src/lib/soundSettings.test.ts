@@ -9,7 +9,7 @@ describe('sound settings', () => {
   })
 
   it('folds to the speakers chosen, and lifts dialogue by the strength chosen', () => {
-    const s = { ...defaultSoundSettings, speakers: 'Headphones' as const, dialogueBoost: 'Medium' as const }
+    const s = { ...defaultSoundSettings, speakers: 'Stereo' as const, dialogueBoost: 'Medium' as const }
     expect(shapingFor(s, at(12))).toEqual({ channels: 2, dialogueDb: 6, night: false })
     expect(shapingFor({ ...s, speakers: 'Surround' }, at(12)).channels).toBe(6)
   })

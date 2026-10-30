@@ -40,7 +40,6 @@ public enum Speakers
     Auto,
     Stereo,
     Surround,
-    Headphones,
 }
 
 /// <summary>Sound settings for a device to take. Each one that's absent stays as the device has it.</summary>
