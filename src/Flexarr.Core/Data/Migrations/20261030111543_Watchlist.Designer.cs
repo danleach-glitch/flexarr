@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261030101518_Watchlist")]
+    [Migration("20261030111543_Watchlist")]
     partial class Watchlist
     {
         /// <inheritdoc />
@@ -1237,6 +1237,13 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateOnly?>("ReleaseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemovedReason")
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Source")

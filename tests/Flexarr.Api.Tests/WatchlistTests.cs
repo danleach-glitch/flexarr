@@ -73,7 +73,7 @@ public sealed class WatchlistTests : IAsyncLifetime
         new() { LibraryId = library.Id, Kind = MediaKind.Movie, Title = title, SortTitle = title.ToLowerInvariant(), Year = 2021, TmdbId = tmdb };
 
     /// <summary>A show with one episode, so there's something to play.</summary>
-    private static (Library Library, MediaItem Show, MediaItem Episode, MediaItem[] All) Show(string tmdb)
+    private static (Library Library, MediaItem Show, MediaItem Episode, MediaItem[] All) Show(string? tmdb)
     {
         var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
         var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Severance", SortTitle = "severance", TmdbId = tmdb };
@@ -82,7 +82,7 @@ public sealed class WatchlistTests : IAsyncLifetime
         return (library, show, episode, [show, season, episode]);
     }
 
-    private void SeerrKnows(string mediaType, int tmdbId, string title, string date, int? status = null) =>
+    private void SeerrKnows(string mediaType, int tmdbId, string title, string date, int? status = null, string[]? streamingInGb = null) =>
         _seerr.Responses[$"GET /api/v1/{mediaType}/{tmdbId}"] = JsonSerializer.Serialize(new Dictionary<string, object?>
         {
             ["id"] = tmdbId,
@@ -90,6 +90,11 @@ public sealed class WatchlistTests : IAsyncLifetime
             [mediaType == "movie" ? "releaseDate" : "firstAirDate"] = date,
             ["posterPath"] = "/poster.jpg",
             ["mediaInfo"] = status is { } s ? new { status = s } : null,
+            ["watchProviders"] = streamingInGb is null ? null : new object[]
+            {
+                new { iso_3166_1 = "US", flatrate = new[] { new { name = "Hulu" } } },
+                new { iso_3166_1 = "GB", flatrate = streamingInGb.Select(n => new { name = n }).ToArray() },
+            },
         });
 
     private async Task<JsonElement> ListAsync() => await Client().GetFromJsonAsync<JsonElement>(Api("/watchlist"));
@@ -294,6 +299,146 @@ public sealed class WatchlistTests : IAsyncLifetime
         var found = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/search?q=wanted"));
 
         Assert.Equal([true, false], found.EnumerateArray().Select(t => t.GetProperty("onWatchlist").GetBoolean()));
+    }
+
+    [Fact]
+    public async Task TakingOff_KeepsATombstone_AndAddingAgainBringsItBack()
+    {
+        SeerrKnows("movie", 8001, "Back Again", "2023-06-01");
+        var first = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8001 })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = first.GetProperty("entry").GetProperty("id").GetGuid();
+
+        await Client().DeleteAsync(Api($"/watchlist/{id}"));
+        var gone = await ListAsync();
+        var tombstone = await InDbAsync(db => db.WatchlistEntries.SingleAsync(w => w.Id == id));
+        var again = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8001 })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Empty(gone.EnumerateArray());
+        Assert.Equal(WatchlistRemoval.Removed, tombstone.RemovedReason);
+        Assert.Equal(id, again.GetProperty("entry").GetProperty("id").GetGuid());
+        Assert.Single((await ListAsync()).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task AddingAFilmWatchedSinceItWentOn_PutsItBackRatherThanFailing()
+    {
+        var library = Films();
+        var film = Film(library, "Rewatch", "8101");
+        await SeedAsync(db => db.AddRange(library, film));
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = film.Id });
+        await SeedAsync(db =>
+        {
+            db.WatchlistEntries.Single().AddedAt = DateTime.UtcNow.AddHours(-2);
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = film.Id, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow.AddHours(-1) });
+        });
+
+        var again = await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = film.Id });
+        var watched = await InDbAsync(db => db.WatchlistEntries.CountAsync(w => w.RemovedReason == WatchlistRemoval.Watched));
+
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal(0, watched); // brought back, not left as watched
+        Assert.Single((await ListAsync()).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task MarkingAShowUnwatched_DoesntTakeItOff()
+    {
+        var (library, show, episode, all) = Show("8201");
+        await SeedAsync(db => { db.Libraries.Add(library); db.MediaItems.AddRange(all); });
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = show.Id });
+        // What "Mark show as unwatched" leaves: no place, not watched, but played just now.
+        await SeedAsync(db => db.PlaybackStates.Add(new PlaybackState { MediaItemId = episode.Id, Watched = false, PositionSeconds = 0, LastPlayedAt = DateTime.UtcNow.AddMinutes(1) }));
+
+        Assert.Single((await ListAsync()).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task TheSameTitleAddedTwoWays_BecomesOneEntryWhenItsIdsMatch()
+    {
+        var (library, show, _, all) = Show(null!);
+        await SeedAsync(db => { db.Libraries.Add(library); db.MediaItems.AddRange(all); });
+        SeerrKnows("tv", 8301, "Severance", "2022-02-18");
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = show.Id }); // no TMDB id yet
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "tv", tmdbId = 8301 }); // from Discover
+        await SeedAsync(db => db.MediaItems.Single(i => i.Id == show.Id).TmdbId = "8301"); // Fix match
+
+        var list = await Client().GetAsync(Api("/watchlist"));
+        var home = await Client().GetAsync(Api("/home"));
+
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, home.StatusCode);
+        var entry = (await list.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
+        Assert.Equal("Ready", entry.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task ASeerrThatAnswersWithSomethingElse_StillLetsTheListShow()
+    {
+        SeerrKnows("movie", 8401, "Fine", "2023-06-01");
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8401 });
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8402 }); // Seerr doesn't know it: refused
+        // Seerr now answers with a proxy's login page.
+        _seerr.Responses["GET /api/v1/movie/8401"] = "<html>Sign in</html>";
+        using (var scope = _server.Services.CreateScope())
+        {
+            ((Microsoft.Extensions.Caching.Memory.MemoryCache)scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()).Clear();
+        }
+
+        var list = await Client().GetAsync(Api("/watchlist"));
+
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        Assert.Equal("NotAvailable", (await list.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single().GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task TitlesNotInTheLibrary_SayWhereTheyStream()
+    {
+        _seerr.Responses["GET /api/v1/settings/main"] = """{"streamingRegion":"GB"}""";
+        SeerrKnows("movie", 8501, "Streaming", "2014-11-05", streamingInGb: ["Netflix", "Amazon Prime Video", "Amazon Prime Video with Ads", "HBO Max Amazon Channel", "Now TV"]);
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8501 });
+
+        var entry = (await ListAsync()).EnumerateArray().Single();
+
+        Assert.Equal(["Netflix", "Amazon Prime Video", "Now TV"], entry.GetProperty("streaming").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    [Fact]
+    public async Task Keys_ListLibraryTitlesAndTmdbIds_WithoutAskingSeerr()
+    {
+        SeerrKnows("movie", 8601, "Outside", "2023-06-01");
+        var library = Films();
+        var film = Film(library, "Inside", "8602");
+        await SeedAsync(db => db.AddRange(library, film));
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8601 });
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8602 }); // in the library, by TMDB id
+        var asked = _seerr.Requests.Count;
+
+        var keys = await Client().GetFromJsonAsync<JsonElement>(Api("/watchlist/keys"));
+
+        Assert.Equal([film.Id], keys.GetProperty("libraryItemIds").EnumerateArray().Select(e => e.GetGuid()));
+        Assert.Equal(["movie:8601", "movie:8602"], keys.GetProperty("titles").EnumerateArray().Select(e => e.GetString()).Order());
+        Assert.Equal(asked, _seerr.Requests.Count);
+    }
+
+    [Fact]
+    public async Task OneProfile_CantSeeOrRemoveAnothersList()
+    {
+        SeerrKnows("movie", 8701, "Mine", "2023-06-01");
+        var added = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 8701 })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = added.GetProperty("entry").GetProperty("id").GetGuid();
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Other" })).Content.ReadFromJsonAsync<JsonElement>();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{created.GetProperty("id").GetString()}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var other = Client();
+        other.DefaultRequestHeaders.Add("X-Flexarr-Profile", token);
+
+        var theirs = await other.GetFromJsonAsync<JsonElement>(Api("/watchlist"));
+        var remove = await other.DeleteAsync(Api($"/watchlist/{id}"));
+        var removeByTitle = await other.DeleteAsync(Api("/watchlist?mediaType=movie&tmdbId=8701"));
+
+        Assert.Empty(theirs.EnumerateArray());
+        Assert.Equal(HttpStatusCode.NotFound, remove.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, removeByTitle.StatusCode);
+        Assert.Single((await ListAsync()).EnumerateArray());
     }
 
     [Fact]

@@ -36,7 +36,9 @@ namespace Flexarr.Core.Data.Migrations
                     ReleaseDate = table.Column<DateOnly>(type: "TEXT", nullable: true),
                     AddedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     Source = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    ArrivedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    ArrivedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    RemovedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    RemovedReason = table.Column<string>(type: "TEXT", maxLength: 32, nullable: true)
                 },
                 constraints: table =>
                 {

@@ -302,18 +302,28 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     }
 
     /// <summary>
-    /// Titles on a watchlist that are now in the library, to tell whoever put them there. A title they requested has
-    /// "Your request is ready" instead, so they hear once; either way the entry is marked as arrived.
+    /// Titles on a watchlist that are now in a library their profile can see, to tell whoever put them there. A title
+    /// they requested has "Your request is ready" instead, so they hear once; either way the entry is marked as arrived.
+    /// An entry already pointing at the title keeps it (one item, one entry per profile). Saved here, on its own, so a
+    /// problem with one entry can't stop the rest of the notifications.
     /// </summary>
     private static async Task<List<Answered>> WatchlistArrivalsAsync(FlexarrDbContext db, List<Answered> requests, DateTime settled, DateTime now, CancellationToken ct)
     {
         var answered = new List<Answered>();
-        var waiting = await db.WatchlistEntries.Where(w => w.ArrivedAt == null && w.TmdbId != null).ToListAsync(ct);
+        var waiting = await db.WatchlistEntries.Where(w => w.ArrivedAt == null && w.RemovedAt == null && w.TmdbId != null).ToListAsync(ct);
+        var hiddenFor = new Dictionary<string, List<Guid>>(StringComparer.Ordinal);
         foreach (var entry in waiting)
         {
+            if (!hiddenFor.TryGetValue(entry.ProfileId, out var hidden))
+            {
+                hidden = await db.Profiles.Where(p => p.Id == entry.ProfileId).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct) ?? [];
+                hiddenFor[entry.ProfileId] = hidden;
+            }
+
             var tmdb = entry.TmdbId!.Value.ToString(CultureInfo.InvariantCulture);
             var title = await db.MediaItems.AsNoTracking()
-                .Where(i => i.Kind == entry.Kind && i.TmdbId == tmdb && i.ParentId == null)
+                .Where(i => i.Kind == entry.Kind && i.TmdbId == tmdb && i.ParentId == null && !hidden.Contains(i.LibraryId))
+                .Where(i => entry.MediaItemId == null || i.Id == entry.MediaItemId)
                 .Where(i => i.Kind == MediaKind.Movie ? i.AddedAt <= settled : i.Children.Any(s => s.Children.Any(e => e.AddedAt <= settled)))
                 .Select(i => new { i.Id, i.Title, i.Year, i.PosterUrl }).FirstOrDefaultAsync(ct);
             if (title is null)
@@ -321,7 +331,12 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 continue;
             }
 
-            entry.MediaItemId = title.Id;
+            // Another entry of theirs holds the title (the same one added two ways): that one stands; this one just arrived.
+            if (entry.MediaItemId is null && !await db.WatchlistEntries.AnyAsync(w => w.ProfileId == entry.ProfileId && w.MediaItemId == title.Id, ct))
+            {
+                entry.MediaItemId = title.Id;
+            }
+
             entry.ArrivedAt = now;
             var told = requests.Any(r => r.ProfileId == entry.ProfileId && r.Message.Thread == $"item:{title.Id}")
                 || await db.MediaRequests.AnyAsync(r => r.ProfileId == entry.ProfileId && r.Kind == entry.Kind && r.TmdbId == entry.TmdbId && r.FulfilledAt != null && r.FulfilledAt >= entry.AddedAt, ct);
@@ -339,7 +354,21 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 $"item:{title.Id}", Artwork(title.PosterUrl), Video(title.Id, first)), items));
         }
 
-        return answered;
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return answered;
+        }
+        catch (DbUpdateException)
+        {
+            // Whatever it was, it's tried again next minute; nothing is said about it meanwhile.
+            foreach (var tracked in db.ChangeTracker.Entries<WatchlistEntry>().ToList())
+            {
+                tracked.State = EntityState.Detached;
+            }
+
+            return [];
+        }
     }
 
     /// <summary>A notification per film, and one per show however many of its episodes came.</summary>

@@ -42,6 +42,27 @@ public sealed class WatchlistEntry
     /// away for a title added when it's already there.
     /// </summary>
     public DateTime? ArrivedAt { get; set; }
+
+    /// <summary>
+    /// When it came off the list; null while it's on. Kept rather than deleted, so a sync elsewhere (Trakt) can be told,
+    /// and adding it again brings this entry back.
+    /// </summary>
+    public DateTime? RemovedAt { get; set; }
+
+    public WatchlistRemoval? RemovedReason { get; set; }
+}
+
+/// <summary>Why a title came off a watchlist.</summary>
+public enum WatchlistRemoval
+{
+    /// <summary>Someone took it off.</summary>
+    Removed,
+
+    /// <summary>A film, watched.</summary>
+    Watched,
+
+    /// <summary>A show, started (Continue watching has it from there).</summary>
+    Started,
 }
 
 /// <summary>Where a watchlist entry came from: only titles someone adds in Flexarr are ever requested for them.</summary>

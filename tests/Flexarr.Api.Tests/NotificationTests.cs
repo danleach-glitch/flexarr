@@ -342,6 +342,29 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AWatchlistTitleInALibraryHiddenFromTheProfile_IsntAnnounced()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var films = OldLibrary(LibraryType.Movies);
+        var adults = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.AddRange(films, adults);
+            db.Profiles.Single(p => p.Id == PlaybackState.DefaultUser).HiddenLibraryIds = [adults.Id];
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 293660, Title = "Deadpool", AddedAt = _clock.Now.AddDays(-5) });
+            db.MediaItems.Add(Film(adults, "Deadpool", _clock.Now.AddMinutes(1), tmdb: "293660"));
+        });
+
+        var sent = await RunAtAsync(_clock.Now.AddMinutes(5));
+
+        Assert.DoesNotContain(sent, m => m.GetProperty("t").GetString() == "From your watchlist");
+        using var scope = _server.Services.CreateScope();
+        Assert.Null((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().WatchlistEntries.SingleAsync()).ArrivedAt);
+    }
+
+    [Fact]
     public async Task AWatchlistTitleAlsoRequested_IsToldOnce()
     {
         var (_, phone) = await PhoneAsync();

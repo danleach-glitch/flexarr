@@ -12,6 +12,9 @@ public static class WatchlistEndpoints
 
         group.MapGet("/", (WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) => watchlist.ListAsync(profile.Id, ct));
 
+        // Everything on the list, cheaply: for poster menus that offer Add or Remove.
+        group.MapGet("/keys", (WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) => watchlist.AllKeysAsync(profile.Id, ct));
+
         // For a title page's button: whether it's on the list.
         group.MapGet("/contains", (Guid? libraryItemId, string? mediaType, int? tmdbId, WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) =>
             watchlist.MembershipAsync(profile.Id, new WatchlistAdd(libraryItemId, mediaType, tmdbId), ct));

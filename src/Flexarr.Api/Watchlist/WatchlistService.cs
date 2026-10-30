@@ -31,6 +31,7 @@ public enum WatchlistStatus
 /// <param name="MediaType">"movie" or "tv".</param>
 /// <param name="Item">The title in the library, when it's <see cref="WatchlistStatus.Ready"/>, for the usual poster card.</param>
 /// <param name="Source">"flexarr", or "trakt" for a title brought across from Trakt.</param>
+/// <param name="Streaming">For a title that isn't in the library, the subscription services it's on in Seerr's streaming region; null when none or unknown.</param>
 public sealed record WatchlistEntryDto(
     Guid Id,
     string MediaType,
@@ -44,7 +45,8 @@ public sealed record WatchlistEntryDto(
     DateOnly? ReleaseDate,
     Guid? LibraryItemId,
     ItemSummaryDto? Item,
-    string Source);
+    string Source,
+    IReadOnlyList<string>? Streaming = null);
 
 /// <summary>A library title (<paramref name="LibraryItemId"/>), or one from outside it (<paramref name="MediaType"/> and <paramref name="TmdbId"/>).</summary>
 /// <param name="LibraryItemId">A film or show; a season or episode stands for its show.</param>
@@ -56,12 +58,18 @@ public sealed record WatchlistAdded(WatchlistEntryDto Entry, bool Requested);
 
 public sealed record WatchlistMembershipDto(bool OnWatchlist, Guid? Id);
 
+/// <summary>What's on the profile's watchlist, cheaply, for menus that offer Add or Remove.</summary>
+/// <param name="LibraryItemIds">Library films and shows on it.</param>
+/// <param name="Titles">Every title on it as "movie:123" / "tv:456" (TMDB ids).</param>
+public sealed record WatchlistKeysDto(IReadOnlyList<Guid> LibraryItemIds, IReadOnlyList<string> Titles);
+
 /// <summary>Why a title couldn't go on a watchlist, as the endpoint's problem.</summary>
 public sealed record WatchlistRefusal(int StatusCode, string Message);
 
 /// <summary>
 /// Each profile's watchlist: films and shows to watch later, in the library or not. Titles leave on their own once
 /// they're watched (a film) or started (a show); titles that aren't in the library can be requested as they're added.
+/// A title that leaves is kept as removed (with why), so a sync elsewhere can be told and adding it again revives it.
 /// </summary>
 public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, IMemoryCache cache)
 {
@@ -70,27 +78,19 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
 
     private static readonly TimeSpan SeerrCacheFor = TimeSpan.FromMinutes(10);
 
+    /// <summary>A Seerr that didn't answer is asked again after this, not on every load.</summary>
+    private static readonly TimeSpan SeerrFailureCacheFor = TimeSpan.FromMinutes(1);
+
+    /// <summary>Seerr lookups at once while a list loads.</summary>
+    private const int SeerrParallelism = 6;
+
+    private IQueryable<WatchlistEntry> Live(string profileId) => db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.RemovedAt == null);
+
     public async Task<List<WatchlistEntryDto>> ListAsync(string profileId, CancellationToken ct)
     {
         await PruneAsync(profileId, ct);
-        var entries = await db.WatchlistEntries.Where(w => w.ProfileId == profileId).OrderByDescending(w => w.AddedAt).ToListAsync(ct);
-        await LinkAsync(entries, ct);
-
-        var ids = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList();
-        // Only what this profile can see (the query filter), and a show only once it has an episode to play.
-        var items = (await db.MediaItems.Where(i => ids.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
-            .Summaries(profileId).ToListAsync(ct)).ToDictionary(i => i.Id);
-        var requested = await RequestedAsync(entries, ct);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-
-        var result = new List<WatchlistEntryDto>(entries.Count);
-        foreach (var entry in entries)
-        {
-            var item = entry.MediaItemId is { } id ? items.GetValueOrDefault(id) : null;
-            var status = item is not null ? WatchlistStatus.Ready : await StatusOutsideLibraryAsync(entry, requested, today, ct);
-            result.Add(ToDto(entry, status, item));
-        }
-
+        var entries = await Live(profileId).OrderByDescending(w => w.AddedAt).ToListAsync(ct);
+        var result = await ToDtosAsync(profileId, entries, ct);
         await db.SaveChangesAsync(ct);
         return result;
     }
@@ -99,13 +99,13 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     public async Task<List<ItemSummaryDto>> ReadyAsync(string profileId, int take, CancellationToken ct)
     {
         await PruneAsync(profileId, ct);
-        var entries = await db.WatchlistEntries.Where(w => w.ProfileId == profileId).OrderByDescending(w => w.AddedAt).ToListAsync(ct);
+        var entries = await Live(profileId).OrderByDescending(w => w.AddedAt).ToListAsync(ct);
         if (entries.Count == 0)
         {
             return [];
         }
 
-        await LinkAsync(entries, ct);
+        await LinkAsync(profileId, entries, ct);
         await db.SaveChangesAsync(ct);
         var order = entries.Where(e => e.MediaItemId is not null).Select((e, i) => (Id: e.MediaItemId!.Value, i)).ToDictionary(e => e.Id, e => e.i);
         var ids = order.Keys.ToList();
@@ -117,32 +117,75 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     public async Task<WatchlistMembershipDto> MembershipAsync(string profileId, WatchlistAdd key, CancellationToken ct)
     {
         await PruneAsync(profileId, ct);
-        var entry = await FindAsync(profileId, key, ct);
+        var entry = await FindAsync(profileId, key, includeRemoved: false, ct);
         return new WatchlistMembershipDto(entry is not null, entry?.Id);
     }
 
     /// <summary>The profile's watchlist as "movie:123" / "tv:456" (TMDB ids), to mark Discover's and search's titles.</summary>
     public async Task<IReadOnlySet<string>> KeysAsync(string profileId, CancellationToken ct) =>
-        (await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.TmdbId != null).Select(w => new { w.Kind, w.TmdbId }).ToListAsync(ct))
-        .Select(w => $"{(w.Kind == MediaKind.Movie ? "movie" : "tv")}:{w.TmdbId!.Value.ToString(CultureInfo.InvariantCulture)}").ToHashSet(StringComparer.Ordinal);
+        (await Live(profileId).Where(w => w.TmdbId != null).Select(w => new { w.Kind, w.TmdbId }).ToListAsync(ct))
+        .Select(w => Key(w.Kind, w.TmdbId!.Value)).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// What's on the list, without asking Seerr or writing anything: the library titles (linked, or matching an entry's
+    /// TMDB id) and every TMDB key. For the apps' poster menus.
+    /// </summary>
+    public async Task<WatchlistKeysDto> AllKeysAsync(string profileId, CancellationToken ct)
+    {
+        await PruneAsync(profileId, ct);
+        var entries = await Live(profileId).Select(w => new { w.Kind, w.TmdbId, w.MediaItemId }).ToListAsync(ct);
+        var ids = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToHashSet();
+        var unlinked = entries.Where(e => e.MediaItemId is null && e.TmdbId is not null).ToList();
+        if (unlinked.Count > 0)
+        {
+            var tmdb = unlinked.Select(e => e.TmdbId!.Value.ToString(CultureInfo.InvariantCulture)).ToList();
+            var wanted = unlinked.Select(e => Key(e.Kind, e.TmdbId!.Value)).ToHashSet(StringComparer.Ordinal);
+            foreach (var item in await db.MediaItems.Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && tmdb.Contains(i.TmdbId!))
+                         .Select(i => new { i.Id, i.Kind, i.TmdbId }).ToListAsync(ct))
+            {
+                if (wanted.Contains($"{(item.Kind == MediaKind.Movie ? "movie" : "tv")}:{item.TmdbId}"))
+                {
+                    ids.Add(item.Id);
+                }
+            }
+        }
+
+        return new WatchlistKeysDto(ids.ToList(), entries.Where(e => e.TmdbId is not null).Select(e => Key(e.Kind, e.TmdbId!.Value)).Distinct().ToList());
+    }
 
     /// <summary>Whether a library title (or, for a season or episode, its show) is on the profile's watchlist.</summary>
     public async Task<bool> ContainsItemAsync(string profileId, Guid itemId, CancellationToken ct) =>
         (await MembershipAsync(profileId, new WatchlistAdd(itemId), ct)).OnWatchlist;
 
-    /// <summary>Puts a title on the list (already there is fine), and requests it if the profile asks for that.</summary>
+    /// <summary>
+    /// Puts a title on the list (already there is fine; one taken off before comes back), and requests it if the
+    /// profile asks for that.
+    /// </summary>
     public async Task<(WatchlistAdded? Added, WatchlistRefusal? Refusal)> AddAsync(string profileId, WatchlistAdd add, WatchlistSource source, CancellationToken ct)
     {
-        if (await FindAsync(profileId, add, ct) is { } existing)
+        // So a title watched since it went on counts as off the list, and comes back as a fresh entry.
+        await PruneAsync(profileId, ct);
+        var existing = await FindAsync(profileId, add, includeRemoved: true, ct);
+        if (existing is { RemovedAt: null })
         {
-            return (new WatchlistAdded((await ListAsync(profileId, ct)).First(e => e.Id == existing.Id), false), null);
+            return (new WatchlistAdded(await DtoAsync(profileId, existing, ct), false), null);
         }
 
         WatchlistEntry entry;
         var item = await LibraryTitleAsync(add, ct);
-        if (item is not null)
+        if (existing is not null)
+        {
+            entry = existing;
+            entry.RemovedAt = null;
+            entry.RemovedReason = null;
+            entry.AddedAt = DateTime.UtcNow;
+            entry.Source = source;
+        }
+        else if (item is not null)
         {
             entry = FromItem(profileId, item);
+            entry.Source = source;
+            db.WatchlistEntries.Add(entry);
         }
         else if (add.LibraryItemId is not null)
         {
@@ -170,9 +213,9 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             {
                 title = await seerr.GetAsync(instance, $"{add.MediaType}/{add.TmdbId}", ct);
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (SeerrFailed(ex, ct))
             {
-                return (null, new WatchlistRefusal(502, $"Seerr didn't answer ({(int?)ex.StatusCode ?? 0})."));
+                return (null, new WatchlistRefusal(502, "Seerr didn't answer. Try again in a moment."));
             }
 
             if (title is not { } t)
@@ -180,12 +223,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
                 return (null, new WatchlistRefusal(404, "TMDB doesn't know that title."));
             }
 
-            cache.Set(SeerrKey(add.MediaType, add.TmdbId.Value), Facts(t), SeerrCacheFor);
+            cache.Set(SeerrKey(add.MediaType, add.TmdbId.Value), Facts(t, await RegionAsync(instance, ct)), SeerrCacheFor);
             entry = FromSeerr(profileId, kind, add.TmdbId.Value, t);
+            entry.Source = source;
+            db.WatchlistEntries.Add(entry);
         }
 
-        entry.Source = source;
-        db.WatchlistEntries.Add(entry);
         try
         {
             await db.SaveChangesAsync(ct);
@@ -194,36 +237,57 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         {
             // Added twice at once (a double tap): the other one is on the list, which is all that was asked.
             db.Entry(entry).State = EntityState.Detached;
-            var other = await FindAsync(profileId, add, ct);
-            return other is null
-                ? (null, new WatchlistRefusal(409, "That couldn't be added. Try again."))
-                : (new WatchlistAdded((await ListAsync(profileId, ct)).First(e => e.Id == other.Id), false), null);
+            return await FindAsync(profileId, add, includeRemoved: false, ct) is { } other
+                ? (new WatchlistAdded(await DtoAsync(profileId, other, ct), false), null)
+                : (null, new WatchlistRefusal(409, "That couldn't be added. Try again."));
         }
 
         var requested = source == WatchlistSource.Flexarr && await AutoRequestAsync(profileId, entry, ct);
-        return (new WatchlistAdded((await ListAsync(profileId, ct)).First(e => e.Id == entry.Id), requested), null);
+        return (new WatchlistAdded(await DtoAsync(profileId, entry, ct), requested), null);
     }
 
+    /// <summary>Takes a title off. It's kept as removed, so a sync can pass that on; a request for it isn't cancelled.</summary>
     public async Task<bool> RemoveAsync(string profileId, Guid id, CancellationToken ct) =>
-        await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.Id == id).ExecuteDeleteAsync(ct) > 0;
+        await Live(profileId).Where(w => w.Id == id)
+            .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, WatchlistRemoval.Removed), ct) > 0;
 
     public async Task<bool> RemoveAsync(string profileId, WatchlistAdd key, CancellationToken ct) =>
-        await FindAsync(profileId, key, ct) is { } entry && await RemoveAsync(profileId, entry.Id, ct);
+        await FindAsync(profileId, key, includeRemoved: false, ct) is { } entry && await RemoveAsync(profileId, entry.Id, ct);
 
     // ---- Leaving, arriving, requesting ----
 
     /// <summary>
     /// Takes titles off once they've been dealt with since they went on: a film watched, a show with an episode played
-    /// (Continue watching has it from there). Something already seen, added to see again, stays until it's played again.
+    /// (Continue watching has it from there). Something already seen, added to see again, stays until it's played again;
+    /// marking a show unwatched isn't playing it. Only reads unless something leaves.
     /// </summary>
-    internal async Task PruneAsync(string profileId, CancellationToken ct) =>
-        await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.MediaItemId != null && (w.Kind == MediaKind.Movie
-                ? db.PlaybackStates.Any(p => p.UserId == profileId && p.MediaItemId == w.MediaItemId && p.Watched && p.LastPlayedAt > w.AddedAt)
-                : db.PlaybackStates.Any(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId == w.MediaItemId && p.LastPlayedAt > w.AddedAt)))
-            .ExecuteDeleteAsync(ct);
+    internal async Task PruneAsync(string profileId, CancellationToken ct)
+    {
+        var watched = await Live(profileId)
+            .Where(w => w.Kind == MediaKind.Movie && w.MediaItemId != null
+                && db.PlaybackStates.Any(p => p.UserId == profileId && p.MediaItemId == w.MediaItemId && p.Watched && p.LastPlayedAt > w.AddedAt))
+            .Select(w => w.Id).ToListAsync(ct);
+        var started = await Live(profileId)
+            .Where(w => w.Kind == MediaKind.Series && w.MediaItemId != null
+                && db.MediaItems.IgnoreQueryFilters().Any(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == w.MediaItemId
+                    && e.PlaybackStates.Any(p => p.UserId == profileId && (p.Watched || p.PositionSeconds > 0) && p.LastPlayedAt > w.AddedAt)))
+            .Select(w => w.Id).ToListAsync(ct);
+        foreach (var (ids, reason) in new[] { (watched, WatchlistRemoval.Watched), (started, WatchlistRemoval.Started) })
+        {
+            if (ids.Count > 0)
+            {
+                await db.WatchlistEntries.Where(w => ids.Contains(w.Id))
+                    .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, reason), ct);
+            }
+        }
+    }
 
-    /// <summary>Points titles that have come into the library (or come back to it) at their library item. Saved by the caller.</summary>
-    private async Task LinkAsync(List<WatchlistEntry> entries, CancellationToken ct)
+    /// <summary>
+    /// Points titles that have come into the library (or come back to it) at their library item, among the titles this
+    /// profile can see. One item belongs to one entry: a second entry for it (the same title added two ways before its
+    /// ids matched) is a duplicate and goes, and a removed entry still holding it lets go. Saved by the caller.
+    /// </summary>
+    private async Task LinkAsync(string profileId, List<WatchlistEntry> entries, CancellationToken ct)
     {
         var waiting = entries.Where(e => e.MediaItemId is null && e.TmdbId is not null).ToList();
         if (waiting.Count == 0)
@@ -232,15 +296,37 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
 
         var tmdb = waiting.Select(e => e.TmdbId!.Value.ToString(CultureInfo.InvariantCulture)).ToList();
-        var found = await db.MediaItems.IgnoreQueryFilters().Where(i => i.MissingSince == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && tmdb.Contains(i.TmdbId!))
+        var found = await db.MediaItems.Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && tmdb.Contains(i.TmdbId!))
             .Select(i => new { i.Id, i.Kind, i.TmdbId }).ToListAsync(ct);
+        if (found.Count == 0)
+        {
+            return;
+        }
+
+        var foundIds = found.Select(f => (Guid?)f.Id).ToList();
+        var holders = await db.WatchlistEntries.Where(w => w.ProfileId == profileId && foundIds.Contains(w.MediaItemId)).ToListAsync(ct);
         foreach (var entry in waiting)
         {
             var id = entry.TmdbId!.Value.ToString(CultureInfo.InvariantCulture);
-            if (found.FirstOrDefault(f => f.Kind == entry.Kind && f.TmdbId == id) is { } match)
+            if (found.FirstOrDefault(f => f.Kind == entry.Kind && f.TmdbId == id) is not { } match)
             {
-                entry.MediaItemId = match.Id;
+                continue;
             }
+
+            if (holders.FirstOrDefault(h => h.MediaItemId == match.Id && h.Id != entry.Id) is { } holder)
+            {
+                if (holder.RemovedAt is null)
+                {
+                    db.WatchlistEntries.Remove(entry);
+                    entries.Remove(entry);
+                    continue;
+                }
+
+                holder.MediaItemId = null;
+            }
+
+            entry.MediaItemId = match.Id;
+            holders.Add(entry);
         }
     }
 
@@ -258,9 +344,9 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
 
         var mediaType = entry.Kind == MediaKind.Movie ? "movie" : "tv";
-        if (cache.Get<SeerrFacts>(SeerrKey(mediaType, tmdbId)) is { Availability: not AvailabilityDto.None })
+        if (await SeerrFactsAsync(mediaType, tmdbId, ct) is not { Availability: AvailabilityDto.None })
         {
-            return false;
+            return false; // Already asked for, partly in, or Seerr isn't answering.
         }
 
         try
@@ -269,49 +355,97 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             cache.Remove(SeerrKey(mediaType, tmdbId));
             return true;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (SeerrFailed(ex, ct))
         {
             return false;
         }
     }
 
-    // ---- Status of titles not in the library ----
+    // ---- Entries as the apps see them ----
 
-    private sealed record SeerrFacts(AvailabilityDto Availability, DateOnly? ReleaseDate);
+    private async Task<WatchlistEntryDto> DtoAsync(string profileId, WatchlistEntry entry, CancellationToken ct)
+    {
+        var dto = (await ToDtosAsync(profileId, [entry], ct)).FirstOrDefault();
+        await db.SaveChangesAsync(ct);
+        // Linking can find it's a second entry for a title already on the list: that one is the answer.
+        return dto ?? (await ListAsync(profileId, ct)).First(e => e.TmdbId == entry.TmdbId && e.MediaType == (entry.Kind == MediaKind.Movie ? "movie" : "tv"));
+    }
+
+    /// <summary>Links, then works out each entry's status: from the library, Flexarr's requests and (in parallel) Seerr.</summary>
+    private async Task<List<WatchlistEntryDto>> ToDtosAsync(string profileId, List<WatchlistEntry> entries, CancellationToken ct)
+    {
+        await LinkAsync(profileId, entries, ct);
+        var ids = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList();
+        // Only what this profile can see (the query filter), and a show only once it has an episode to play.
+        var items = (await db.MediaItems.Where(i => ids.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
+            .Summaries(profileId).ToListAsync(ct)).ToDictionary(i => i.Id);
+        var outside = entries.Where(e => !(e.MediaItemId is { } id && items.ContainsKey(id)) && e.TmdbId is not null).ToList();
+        var facts = await SeerrFactsAsync(outside.Select(e => (MediaType(e.Kind), e.TmdbId!.Value)), ct);
+        var requested = await RequestedAsync(entries, ct);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        return entries.Select(entry =>
+        {
+            if (entry.MediaItemId is { } id && items.TryGetValue(id, out var item))
+            {
+                return ToDto(entry, WatchlistStatus.Ready, item, null);
+            }
+
+            var known = entry.TmdbId is { } tmdbId ? facts.GetValueOrDefault(Key(entry.Kind, tmdbId)) : null;
+            if (known?.ReleaseDate is { } released)
+            {
+                entry.ReleaseDate = released;
+            }
+
+            var status = entry.TmdbId is null ? WatchlistStatus.NotAvailable
+                : requested.Contains(Key(entry.Kind, entry.TmdbId.Value)) || known?.Availability is AvailabilityDto.Requested or AvailabilityDto.PartlyAvailable or AvailabilityDto.Available
+                    ? WatchlistStatus.OnItsWay
+                    : entry.ReleaseDate > today ? WatchlistStatus.Coming : WatchlistStatus.NotAvailable;
+            return ToDto(entry, status, null, known?.Streaming is { Count: > 0 } streaming ? streaming : null);
+        }).ToList();
+    }
+
+    // ---- What Seerr knows about titles not in the library ----
+
+    /// <param name="Streaming">Subscription services it's on in Seerr's streaming region, a few at most.</param>
+    private sealed record SeerrFacts(AvailabilityDto Availability, DateOnly? ReleaseDate, IReadOnlyList<string> Streaming);
+
+    /// <summary>Kept for a minute when Seerr doesn't answer, so a list isn't held up asking again.</summary>
+    private static readonly SeerrFacts Unanswered = new(AvailabilityDto.None, null, []);
+
+    private static string MediaType(MediaKind kind) => kind == MediaKind.Movie ? "movie" : "tv";
+
+    private static string Key(MediaKind kind, int tmdbId) => $"{MediaType(kind)}:{tmdbId.ToString(CultureInfo.InvariantCulture)}";
 
     private static string SeerrKey(string mediaType, int tmdbId) => $"watchlist:seerr:{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>A timeout, a refusal, or an answer that isn't Seerr's (a proxy's login page): not this request being cancelled.</summary>
+    private static bool SeerrFailed(Exception ex, CancellationToken ct) =>
+        ex is HttpRequestException or JsonException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     /// <summary>Titles asked for through Flexarr and not in yet: "movie:123" / "tv:456".</summary>
     private async Task<HashSet<string>> RequestedAsync(List<WatchlistEntry> entries, CancellationToken ct)
     {
         var tmdb = entries.Where(e => e.TmdbId is not null).Select(e => e.TmdbId!.Value).ToList();
         return (await db.MediaRequests.Where(r => r.FulfilledAt == null && tmdb.Contains(r.TmdbId)).Select(r => new { r.Kind, r.TmdbId }).ToListAsync(ct))
-            .Select(r => $"{(r.Kind == MediaKind.Movie ? "movie" : "tv")}:{r.TmdbId.ToString(CultureInfo.InvariantCulture)}").ToHashSet(StringComparer.Ordinal);
+            .Select(r => Key(r.Kind, r.TmdbId)).ToHashSet(StringComparer.Ordinal);
     }
 
-    private async Task<WatchlistStatus> StatusOutsideLibraryAsync(WatchlistEntry entry, HashSet<string> requested, DateOnly today, CancellationToken ct)
+    /// <summary>What Seerr says about each title ("movie:123" → facts), several at once; titles it can't say about are left out.</summary>
+    private async Task<Dictionary<string, SeerrFacts>> SeerrFactsAsync(IEnumerable<(string MediaType, int TmdbId)> titles, CancellationToken ct)
     {
-        if (entry.TmdbId is not { } tmdbId)
+        var result = new System.Collections.Concurrent.ConcurrentDictionary<string, SeerrFacts>(StringComparer.Ordinal);
+        await Parallel.ForEachAsync(titles.Distinct(), new ParallelOptions { MaxDegreeOfParallelism = SeerrParallelism, CancellationToken = ct }, async (title, token) =>
         {
-            return WatchlistStatus.NotAvailable;
-        }
-
-        var mediaType = entry.Kind == MediaKind.Movie ? "movie" : "tv";
-        var facts = await SeerrFactsAsync(mediaType, tmdbId, ct);
-        if (facts?.ReleaseDate is { } released)
-        {
-            entry.ReleaseDate = released;
-        }
-
-        if (requested.Contains($"{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}") || facts?.Availability is AvailabilityDto.Requested or AvailabilityDto.PartlyAvailable or AvailabilityDto.Available)
-        {
-            return WatchlistStatus.OnItsWay;
-        }
-
-        return entry.ReleaseDate > today ? WatchlistStatus.Coming : WatchlistStatus.NotAvailable;
+            if (await SeerrFactsAsync(title.MediaType, title.TmdbId, token) is { } facts && !ReferenceEquals(facts, Unanswered))
+            {
+                result[$"{title.MediaType}:{title.TmdbId.ToString(CultureInfo.InvariantCulture)}"] = facts;
+            }
+        });
+        return new Dictionary<string, SeerrFacts>(result, StringComparer.Ordinal);
     }
 
-    /// <summary>What Seerr says about a title, kept a few minutes; null without Seerr or when it doesn't answer.</summary>
+    /// <summary>What Seerr says about a title, kept a few minutes; null without Seerr or for a title it doesn't know.</summary>
     private async Task<SeerrFacts?> SeerrFactsAsync(string mediaType, int tmdbId, CancellationToken ct)
     {
         var key = SeerrKey(mediaType, tmdbId);
@@ -327,21 +461,67 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
 
         try
         {
-            var facts = await seerr.GetAsync(instance, $"{mediaType}/{tmdbId.ToString(CultureInfo.InvariantCulture)}", ct) is { } t ? Facts(t) : null;
+            var region = await RegionAsync(instance, ct);
+            var facts = await seerr.GetAsync(instance, $"{mediaType}/{tmdbId.ToString(CultureInfo.InvariantCulture)}", ct) is { } t ? Facts(t, region) : null;
             cache.Set(key, facts, SeerrCacheFor);
             return facts;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (SeerrFailed(ex, ct))
         {
-            return null; // The list still shows; the title just can't say whether it's on its way.
+            // The list still shows; the title just can't say whether it's on its way.
+            cache.Set(key, Unanswered, SeerrFailureCacheFor);
+            return Unanswered;
         }
     }
 
-    private static SeerrFacts Facts(JsonElement t)
+    /// <summary>The country Seerr shows streaming services for (its Streaming Region setting), kept an hour; US if it has none.</summary>
+    private async Task<string> RegionAsync(SeerrInstance instance, CancellationToken ct) =>
+        await cache.GetOrCreateAsync("watchlist:seerr:region", async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            try
+            {
+                var main = await seerr.GetAsync(instance, "settings/main", ct);
+                return (main is { } m ? Str(m, "streamingRegion") ?? Str(m, "region") : null) is { Length: 2 } region ? region.ToUpperInvariant() : "US";
+            }
+            catch (Exception ex) when (SeerrFailed(ex, ct))
+            {
+                entry.AbsoluteExpirationRelativeToNow = SeerrFailureCacheFor;
+                return "US";
+            }
+        }) ?? "US";
+
+    private static SeerrFacts Facts(JsonElement t, string region)
     {
         int? status = t.TryGetProperty("mediaInfo", out var info) && info.ValueKind == JsonValueKind.Object && info.TryGetProperty("status", out var s)
             && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : null;
-        return new SeerrFacts(RequestEndpoints.AvailabilityOf(status), DateOf(t));
+        return new SeerrFacts(RequestEndpoints.AvailabilityOf(status), DateOf(t), StreamingIn(t, region));
+    }
+
+    /// <summary>
+    /// The subscription services TMDB lists for the title in the region, first three, leaving out the same service
+    /// again with ads or through another's channel ("Amazon Prime Video with Ads", "HBO Max Amazon Channel").
+    /// </summary>
+    internal static IReadOnlyList<string> StreamingIn(JsonElement t, string region)
+    {
+        if (!t.TryGetProperty("watchProviders", out var regions) || regions.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        foreach (var r in regions.EnumerateArray())
+        {
+            if (Str(r, "iso_3166_1") != region || !r.TryGetProperty("flatrate", out var flatrate) || flatrate.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            return flatrate.EnumerateArray().Select(p => Str(p, "name")).OfType<string>()
+                .Where(n => !n.EndsWith(" with Ads", StringComparison.OrdinalIgnoreCase) && !n.EndsWith(" Channel", StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
+        }
+
+        return [];
     }
 
     private static DateOnly? DateOf(JsonElement t) =>
@@ -377,9 +557,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         return await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Kind == kind && i.ParentId == null && i.TmdbId == tmdb, ct);
     }
 
-    private async Task<WatchlistEntry?> FindAsync(string profileId, WatchlistAdd key, CancellationToken ct)
+    /// <param name="includeRemoved">Also a title taken off before, to bring back rather than add twice.</param>
+    private async Task<WatchlistEntry?> FindAsync(string profileId, WatchlistAdd key, bool includeRemoved, CancellationToken ct)
     {
-        var mine = db.WatchlistEntries.Where(w => w.ProfileId == profileId);
+        var mine = includeRemoved ? db.WatchlistEntries.Where(w => w.ProfileId == profileId) : Live(profileId);
+        // A live entry before a removed one for the same title.
+        mine = mine.OrderBy(w => w.RemovedAt != null);
         if (await LibraryTitleAsync(key, ct) is { } item)
         {
             var tmdb = int.TryParse(item.TmdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var t) ? t : (int?)null;
@@ -433,8 +616,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         };
     }
 
-    private static WatchlistEntryDto ToDto(WatchlistEntry e, WatchlistStatus status, ItemSummaryDto? item) => new(
-        e.Id, e.Kind == MediaKind.Movie ? "movie" : "tv", e.TmdbId, item?.Title ?? e.Title, item?.Year ?? e.Year,
+    private static WatchlistEntryDto ToDto(WatchlistEntry e, WatchlistStatus status, ItemSummaryDto? item, IReadOnlyList<string>? streaming) => new(
+        e.Id, MediaType(e.Kind), e.TmdbId, item?.Title ?? e.Title, item?.Year ?? e.Year,
         item?.Artwork.Poster ?? ImageEndpoints.RemoteUrl(e.PosterUrl), item?.Artwork.Backdrop ?? ImageEndpoints.RemoteUrl(e.BackdropUrl), e.AddedAt, status, e.ReleaseDate,
-        item?.Id, item, e.Source == WatchlistSource.Trakt ? "trakt" : "flexarr");
+        item?.Id, item, e.Source == WatchlistSource.Trakt ? "trakt" : "flexarr", streaming);
 }

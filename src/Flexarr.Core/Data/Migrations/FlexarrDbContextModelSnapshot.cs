@@ -1236,6 +1236,13 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateOnly?>("ReleaseDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemovedReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(32)
