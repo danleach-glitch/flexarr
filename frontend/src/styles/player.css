@@ -602,6 +602,8 @@
 @media (max-width: 760px) {
   /* The columns stack in one panel across the screen, scrolling, rather than running off its left edge. */
   .player-menu {
+    /* Above Skip intro and Up next, which sit higher on narrow screens. */
+    z-index: 7;
     position: fixed;
     left: max(12px, env(safe-area-inset-left, 0px));
     right: max(12px, env(safe-area-inset-right, 0px));

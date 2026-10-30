@@ -77,6 +77,11 @@ export function useSoundChain(video: RefObject<HTMLVideoElement | null>, delay: 
   }, [video])
 }
 
+/** Whether this element's sound already goes through Web Audio (for good: it can't be taken back out). */
+export function hasSoundGraph(el: HTMLMediaElement) {
+  return graphs.has(el)
+}
+
 function create(el: HTMLVideoElement): Graph | null {
   try {
     const context = new AudioContext()

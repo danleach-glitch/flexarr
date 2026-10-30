@@ -608,20 +608,21 @@ enum BoostLevel: String, AppEnum {
     }
 }
 
-/// Changes a sound setting here, or on another device that has Flexarr open.
+/// Changes a sound setting here (`here` changes it and says what happened), or sends it to another device that has
+/// Flexarr open: that device's app takes it, from 0.56 on, so what's said is that it was sent.
 @MainActor
-private func changeSound(on device: DeviceEntity?, model: AppModel, here: (inout SoundSettings) -> Void, there: DeviceSound) async throws -> String {
+private func changeSound(on device: DeviceEntity?, model: AppModel, here: (inout SoundSettings) -> String, there: DeviceSound) async throws -> String {
     let target = Play.target(device)
     if target.isHere {
         var settings = SoundSettings.current
-        here(&settings)
+        let said = here(&settings)
         SoundSettings.current = settings
-        return "Done."
+        return said
     }
     guard let client = model.client else { throw FlexarrIntentError.notConnected }
     do {
         _ = try await client.setSound(device: target.id, there)
-        return "Done."
+        return "Sent to \(target.name)."
     } catch FlexarrClientError.http(status: 409, _) {
         return "Flexarr isn't open on \(target.name)."
     } catch FlexarrClientError.http(status: 404, _) {
@@ -643,13 +644,25 @@ struct NightModeIntent: AppIntent {
     @Dependency private var model: AppModel
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Turn night mode \(\.$state) on \(\.$device)")
+        Summary("Turn \(\.$state) night mode on \(\.$device)")
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let mode: SoundSettings.NightMode = state == .on ? .on : .off
-        let said = try await changeSound(on: device, model: model, here: { $0.nightMode = mode }, there: DeviceSound(nightMode: mode.rawValue))
+        let on = state == .on
+        let said = try await changeSound(on: device, model: model, here: { settings in
+            // On a schedule that's already doing what was asked, the schedule stays.
+            if settings.nightMode == .scheduled {
+                let now = settings.isNight(at: Date())
+                if now == on {
+                    return on ? "Night mode's already on, on its schedule." : "Night mode's off, and comes on at \(SoundSettings.clock(settings.nightStart)) as scheduled."
+                }
+                settings.nightMode = on ? .on : .off
+                return on ? "Night mode's on. That replaces its schedule." : "Night mode's off. That replaces its schedule."
+            }
+            settings.nightMode = on ? .on : .off
+            return on ? "Night mode's on." : "Night mode's off."
+        }, there: DeviceSound(nightMode: on ? "On" : "Off"))
         return .result(dialog: "\(said)")
     }
 }
@@ -674,7 +687,10 @@ struct DialogueBoostIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let boost = level.setting
-        let said = try await changeSound(on: device, model: model, here: { $0.dialogueBoost = boost }, there: DeviceSound(dialogueBoost: boost.rawValue))
+        let said = try await changeSound(on: device, model: model, here: { settings in
+            settings.dialogueBoost = boost
+            return boost == .off ? "Dialogue boost's off." : "Dialogue boost's \(boost.rawValue.lowercased())."
+        }, there: DeviceSound(dialogueBoost: boost.rawValue))
         return .result(dialog: "\(said)")
     }
 }

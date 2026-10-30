@@ -52,7 +52,7 @@ If subtitles beside the video drift out of time, choose them, then **Re-sync to 
 
 ### Turning them on and off
 
-Choose a subtitle track, or **Off**, from the subtitles menu in the player. Flexarr remembers your choice for that film or show, so the next episode and the next sitting start the same way. That includes Off. The same goes for the audio track: pick another language once and the rest of the series follows.
+Choose a subtitle track, or **Off**, from the subtitles menu in the player. Flexarr remembers your choice for that film or show, so the next episode and the next sitting start the same way. That includes Off. The same goes for the audio track, chosen from the audio menu: pick another language once and the rest of the series follows.
 
 **Forced** subtitles, the ones that translate the odd line of foreign dialogue, come on by themselves when they match the soundtrack's language. They don't count as you choosing subtitles, so the full subtitles won't switch themselves on next time.
 
