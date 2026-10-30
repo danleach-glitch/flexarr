@@ -44,11 +44,21 @@ extension PlayerTracks {
     /// The subtitles to turn on: those already on; otherwise the first in `language` (a name such as "English") that
     /// isn't forced-only, then the first that isn't forced-only, then the first.
     public func subtitlesToTurnOn(language: String?) -> PlayerTrack? {
-        if let on = subtitles.first(where: \.selected) { return on }
-        let full = subtitles.filter { !$0.label.localizedCaseInsensitiveContains("forced") }
+        if let on = subtitles.first(where: { $0.selected && !$0.isForced }) { return on }
+        let full = subtitles.filter { !$0.isForced }
         if let language, let match = full.first(where: { $0.label.localizedCaseInsensitiveContains(language) }) { return match }
         return full.first ?? subtitles.first
     }
+}
+
+extension PlayerTracks {
+    /// Subtitles are on, and not only forced ones (signs and foreign dialogue).
+    public var hasFullSubtitlesOn: Bool { subtitles.contains { $0.selected && !$0.isForced } }
+}
+
+extension PlayerTrack {
+    /// Forced subtitles only: signs and foreign dialogue, not the whole film.
+    public var isForced: Bool { label.localizedCaseInsensitiveContains("forced") }
 }
 
 /// The times a Live Activity shows for a TV, as the server sends them (`LiveActivityState`).

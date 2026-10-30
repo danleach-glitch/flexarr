@@ -627,15 +627,18 @@ struct ControlPlaybackIntent: AppIntent {
                 return .result(dialog: result.delivered ? "Done." : "Flexarr isn't open on \(result.deviceName).")
             case .skipIntro, .next, .back, .forward:
                 // What the TV takes and what it shows, first: an older TV (or server) says it can't, rather than "gone".
+                // Open, playing, then able to: a TV whose app is closed after a server restart isn't told to update.
                 guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-                guard tv.takes(action.kind) else { return .result(dialog: "Update Flexarr on \(target.name) and your server to do that.") }
+                guard tv.online else { return .result(dialog: "Flexarr isn't open on \(target.name).") }
                 guard let playing = tv.nowPlaying else { return .result(dialog: "Nothing is playing on \(target.name).") }
+                guard tv.takes(action.kind) else { return .result(dialog: "\(target.name) needs a newer Flexarr.") }
+                guard !playing.item.isPrivate || action == .back || action == .forward else { return .result(dialog: "That's private on this profile.") }
                 switch action {
                 case .skipIntro:
                     guard playing.prompt == .skipIntro || playing.prompt == .skipRecap else { return .result(dialog: "There's no intro to skip.") }
                     _ = try await client.control(device: target.id, .skipSegment)
                 case .next:
-                    guard playing.hasNext != false else { return .result(dialog: "That's the last episode.") }
+                    guard playing.hasNext != false else { return .result(dialog: "There's no next episode.") }
                     _ = try await client.control(device: target.id, .next)
                 default:
                     try await client.skip(device: target.id, by: jump)
@@ -663,7 +666,7 @@ struct ControlPlaybackIntent: AppIntent {
             player.remote(DeviceCommand(id: UUID().uuidString, kind: .skipSegment, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
         case .next:
             if player.isShowingTitle {
-                guard player.hasNextTitle else { return "That's the last episode." }
+                guard player.hasNextTitle else { return "There's no next episode." }
                 player.remote(DeviceCommand(id: UUID().uuidString, kind: .next, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
             } else if model.music.current != nil {
                 model.music.next()
@@ -713,7 +716,7 @@ struct SubtitlesIntent: AppIntent {
         if target.isHere {
             guard model.player.isShowingTitle else { return .result(dialog: "Nothing is playing here.") }
             let tracks = PlayerTracks(audio: [], subtitles: model.player.subtitleTracks)
-            if state == .on, tracks.subtitles.contains(where: \.selected) { return .result(dialog: "Subtitles are on.") }
+            if state == .on, tracks.hasFullSubtitlesOn { return .result(dialog: "Subtitles are on.") }
             let track = state == .on ? tracks.subtitlesToTurnOn(language: Self.language)?.id : nil
             if state == .on, track == nil { return .result(dialog: "This has no subtitles.") }
             model.player.remote(DeviceCommand(id: UUID().uuidString, kind: .subtitleTrack, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date(), trackId: track))
@@ -722,12 +725,14 @@ struct SubtitlesIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         do {
             guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
-            guard tv.takes(.subtitleTrack) else { return .result(dialog: "Update Flexarr on \(target.name) and your server to do that.") }
+            guard tv.online else { return .result(dialog: "Flexarr isn't open on \(target.name).") }
             guard let playing = tv.nowPlaying else { return .result(dialog: "Nothing is playing on \(target.name).") }
+            guard tv.takes(.subtitleTrack) else { return .result(dialog: "\(target.name) needs a newer Flexarr.") }
+            guard !playing.item.isPrivate else { return .result(dialog: "That's private on this profile.") }
             var track: String?
             if state == .on {
                 let tracks = playing.tracks ?? PlayerTracks(audio: [], subtitles: [])
-                if tracks.subtitles.contains(where: \.selected) { return .result(dialog: "Subtitles are on.") }
+                if tracks.hasFullSubtitlesOn { return .result(dialog: "Subtitles are on.") }
                 guard let chosen = tracks.subtitlesToTurnOn(language: Self.language) else { return .result(dialog: "This has no subtitles.") }
                 track = chosen.id
             }

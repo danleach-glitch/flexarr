@@ -71,4 +71,10 @@ struct RemoteTests {
         #expect(on.subtitlesToTurnOn(language: "English")?.id == "1")
         #expect(PlayerTracks(audio: [], subtitles: []).subtitlesToTurnOn(language: "English") == nil)
     }
+
+    @Test func forcedSubtitles_dontCountAsOn() {
+        let forced = PlayerTracks(audio: [], subtitles: [PlayerTrack(id: "1", label: "English (Forced)", selected: true), PlayerTrack(id: "2", label: "English", selected: false)])
+        #expect(!forced.hasFullSubtitlesOn)
+        #expect(forced.subtitlesToTurnOn(language: "English")?.id == "2")
+    }
 }
