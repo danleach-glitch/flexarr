@@ -696,6 +696,32 @@ struct ProgressReport: Codable, Sendable {
     let positionSeconds: Double
     let paused: Bool
     let ended: Bool
+    // What a remote on another device needs (see `RemoteReport`); left out when nil.
+    var rate: Double?
+    var prompt: PlayerPrompt?
+    var hasNext: Bool?
+    var tracks: PlayerTracks?
+    var sound: DeviceSound?
+}
+
+/// What a player tells remotes about itself along with its progress: its speed, the button over the picture, whether
+/// there's a next episode and, when they've changed since the last report, its tracks and sound settings.
+public struct RemoteReport: Sendable, Hashable {
+    public var rate: Double
+    public var prompt: PlayerPrompt?
+    public var hasNext: Bool
+    /// Only when changed since the last report (the server keeps the last).
+    public var tracks: PlayerTracks?
+    /// Only when changed since the last report.
+    public var sound: DeviceSound?
+
+    public init(rate: Double, prompt: PlayerPrompt?, hasNext: Bool, tracks: PlayerTracks? = nil, sound: DeviceSound? = nil) {
+        self.rate = rate
+        self.prompt = prompt
+        self.hasNext = hasNext
+        self.tracks = tracks
+        self.sound = sound
+    }
 }
 
 struct WatchedRequest: Codable, Sendable {
@@ -791,6 +817,9 @@ public enum DeviceEvent: Sendable, Hashable {
     case pairing(PairingRequest)
     /// That device has stopped waiting: whatever asked about it can go.
     case pairingEnded(code: String)
+    /// What a device is playing changed (nil: it stopped), or it opened or closed Flexarr (`online`, when the server
+    /// says). Only on a stream opened with `nowPlaying` (servers from 0.56).
+    case nowPlaying(deviceId: String, NowPlaying?, online: Bool?)
 }
 
 /// What `/me` says about this client.
@@ -1017,12 +1046,113 @@ extension PlaybackInfo {
 
 // MARK: - Devices
 
+/// The button a player is offering over the picture.
+public enum PlayerPrompt: String, ForwardCompatibleEnum {
+    case skipIntro = "SkipIntro", skipRecap = "SkipRecap", nextEpisode = "NextEpisode", unknown
+}
+
+/// A soundtrack or subtitle track in a player, as it names it.
+public struct PlayerTrack: Codable, Sendable, Hashable, Identifiable {
+    /// The player's own id for it, to choose it from a remote.
+    public let id: String
+    public let label: String
+    public let selected: Bool
+
+    public init(id: String, label: String, selected: Bool) {
+        self.id = id
+        self.label = label
+        self.selected = selected
+    }
+}
+
+/// The tracks a player can switch between. No subtitle selected: they're off.
+public struct PlayerTracks: Codable, Sendable, Hashable {
+    public let audio: [PlayerTrack]
+    public let subtitles: [PlayerTrack]
+
+    public init(audio: [PlayerTrack], subtitles: [PlayerTrack]) {
+        self.audio = audio
+        self.subtitles = subtitles
+    }
+}
+
 /// What a device last reported playing.
 public struct NowPlaying: Codable, Sendable, Hashable {
     public let item: ItemSummary
     public let positionSeconds: Double
     public let durationSeconds: Double
     public let paused: Bool
+    /// When the device said where it was: playing, it's further on by now. Absent from servers before 0.56.
+    public var reportedAt: Date? = nil
+    /// The rest are absent from servers before 0.56, and from devices whose app doesn't tell remotes.
+    public var rate: Double? = nil
+    /// The button over the picture; absent, none.
+    public var prompt: PlayerPrompt? = nil
+    public var hasNext: Bool? = nil
+    public var tracks: PlayerTracks? = nil
+    public var sound: DeviceSound? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound
+        /// How long ago the report was by the server's clock (servers from 0.56): `reportedAt` is worked out from it on
+        /// this device's clock, so a server whose clock is off doesn't throw the times out.
+        case ageSeconds
+    }
+
+    /// The details a remote shows are read leniently: one a newer (or misbehaving) player sent that this app can't read
+    /// is left out, rather than failing the whole device list.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        item = try c.decode(ItemSummary.self, forKey: .item)
+        positionSeconds = try c.decode(Double.self, forKey: .positionSeconds)
+        durationSeconds = try c.decode(Double.self, forKey: .durationSeconds)
+        paused = try c.decode(Bool.self, forKey: .paused)
+        if let age = (try? c.decodeIfPresent(Double.self, forKey: .ageSeconds)) ?? nil {
+            reportedAt = Date().addingTimeInterval(-max(0, age))
+        } else {
+            reportedAt = (try? c.decodeIfPresent(Date.self, forKey: .reportedAt)) ?? nil
+        }
+        rate = (try? c.decodeIfPresent(Double.self, forKey: .rate)) ?? nil
+        prompt = (try? c.decodeIfPresent(PlayerPrompt.self, forKey: .prompt)) ?? nil
+        hasNext = (try? c.decodeIfPresent(Bool.self, forKey: .hasNext)) ?? nil
+        tracks = (try? c.decodeIfPresent(PlayerTracks.self, forKey: .tracks)) ?? nil
+        sound = (try? c.decodeIfPresent(DeviceSound.self, forKey: .sound)) ?? nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(item, forKey: .item)
+        try c.encode(positionSeconds, forKey: .positionSeconds)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encode(paused, forKey: .paused)
+        try c.encodeIfPresent(reportedAt, forKey: .reportedAt)
+        try c.encodeIfPresent(rate, forKey: .rate)
+        try c.encodeIfPresent(prompt, forKey: .prompt)
+        try c.encodeIfPresent(hasNext, forKey: .hasNext)
+        try c.encodeIfPresent(tracks, forKey: .tracks)
+        try c.encodeIfPresent(sound, forKey: .sound)
+    }
+
+    public init(item: ItemSummary, positionSeconds: Double, durationSeconds: Double, paused: Bool, reportedAt: Date? = nil, rate: Double? = nil,
+                prompt: PlayerPrompt? = nil, hasNext: Bool? = nil, tracks: PlayerTracks? = nil, sound: DeviceSound? = nil) {
+        self.item = item
+        self.positionSeconds = positionSeconds
+        self.durationSeconds = durationSeconds
+        self.paused = paused
+        self.reportedAt = reportedAt
+        self.rate = rate
+        self.prompt = prompt
+        self.hasNext = hasNext
+        self.tracks = tracks
+        self.sound = sound
+    }
+
+    /// Where it has got to by `date`: the reported position, moved on by the time since while playing.
+    public func position(at date: Date) -> Double {
+        guard !paused, let reportedAt else { return positionSeconds }
+        let moved = positionSeconds + max(0, date.timeIntervalSince(reportedAt)) * (rate ?? 1)
+        return durationSeconds > 0 ? min(moved, durationSeconds) : moved
+    }
 }
 
 /// An Apple TV, iPhone or iPad signed in to the server, as a place to play something.
@@ -1030,15 +1160,33 @@ public struct Device: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
     /// Flexarr is open on it and would take a command now. Offline, a command waits two minutes for it.
-    public let online: Bool
+    public var online: Bool
     public let lastUsedAt: Date
     public let profileId: String
     public let profileName: String?
     /// The device asking.
     public let isThisOne: Bool
-    public let nowPlaying: NowPlaying?
+    public var nowPlaying: NowPlaying?
+    /// What it is. Absent from servers before 0.54, and until its app says.
+    public var deviceType: DeviceType? = nil
+    /// The commands it takes, for a remote to offer only those. Absent from servers before 0.56 and from apps that don't
+    /// say: then only play, pause, resume, stop and watch.
+    public var accepts: [DeviceCommandKind]? = nil
 
-    public init(id: String, name: String, online: Bool, lastUsedAt: Date, profileId: String, profileName: String?, isThisOne: Bool, nowPlaying: NowPlaying?) {
+    /// It would take `kind`.
+    public func takes(_ kind: DeviceCommandKind) -> Bool {
+        accepts?.contains(kind) ?? [.play, .pause, .resume, .stop, .watch].contains(kind)
+    }
+
+    /// A TV, as far as a remote is concerned: an Apple TV or Android TV, or (from servers before 0.54, which don't say
+    /// what devices are) anything.
+    public var isTV: Bool {
+        guard let deviceType else { return true }
+        return deviceType == .appleTv || deviceType == .androidTv
+    }
+
+    public init(id: String, name: String, online: Bool, lastUsedAt: Date, profileId: String, profileName: String?, isThisOne: Bool, nowPlaying: NowPlaying?,
+                deviceType: DeviceType? = nil, accepts: [DeviceCommandKind]? = nil) {
         self.id = id
         self.name = name
         self.online = online
@@ -1047,11 +1195,18 @@ public struct Device: Codable, Sendable, Hashable, Identifiable {
         self.profileName = profileName
         self.isThisOne = isThisOne
         self.nowPlaying = nowPlaying
+        self.deviceType = deviceType
+        self.accepts = accepts
     }
 }
 
 public enum DeviceCommandKind: String, ForwardCompatibleEnum {
-    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", watch = "Watch", sound = "Sound", unknown
+    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", watch = "Watch", sound = "Sound"
+    /// From a remote (servers from 0.56): go to `seconds`, jump by `seconds`, the next or previous episode, skip the
+    /// intro or recap, change soundtrack or subtitles (`trackId`), change speed (`rate`).
+    case seek = "Seek", skip = "Skip", next = "Next", previous = "Previous", skipSegment = "SkipSegment"
+    case audioTrack = "AudioTrack", subtitleTrack = "SubtitleTrack", rate = "Rate"
+    case unknown
 }
 
 /// Sound settings for this device to take, from another device or an assistant. Each one that's absent stays as it is;
@@ -1087,9 +1242,16 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     public let profileId: String?
     /// With `sound`, the settings to change. Absent from servers before 0.56.
     public var sound: DeviceSound? = nil
+    /// With `seek`, where to go; with `skip`, how far (negative: back).
+    public var seconds: Double? = nil
+    /// With `audioTrack` or `subtitleTrack`, the player's id for the track (absent with `subtitleTrack`: off).
+    public var trackId: String? = nil
+    /// With `rate`, the speed.
+    public var rate: Double? = nil
 
     public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
-                channelId: String? = nil, profileId: String? = nil, sound: DeviceSound? = nil) {
+                channelId: String? = nil, profileId: String? = nil, sound: DeviceSound? = nil, seconds: Double? = nil, trackId: String? = nil,
+                rate: Double? = nil) {
         self.id = id
         self.kind = kind
         self.itemId = itemId
@@ -1100,6 +1262,9 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         self.channelId = channelId
         self.profileId = profileId
         self.sound = sound
+        self.seconds = seconds
+        self.trackId = trackId
+        self.rate = rate
     }
 
     public init(from decoder: Decoder) throws {
@@ -1114,6 +1279,9 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         channelId = try container.decodeIfPresent(String.self, forKey: .channelId)
         profileId = try container.decodeIfPresent(String.self, forKey: .profileId)
         sound = try? container.decodeIfPresent(DeviceSound.self, forKey: .sound)
+        seconds = try container.decodeIfPresent(Double.self, forKey: .seconds)
+        trackId = try container.decodeIfPresent(String.self, forKey: .trackId)
+        rate = try container.decodeIfPresent(Double.self, forKey: .rate)
     }
 }
 
@@ -1128,9 +1296,53 @@ public struct DeviceCommandResult: Codable, Sendable, Hashable {
     public let channel: String?
 }
 
-/// Pause, resume or stop, for `FlexarrClient.control(device:_:)`.
+/// Pause, resume or stop, for `FlexarrClient.control(device:_:)`; from servers from 0.56, to a device that takes
+/// them (`Device.takes`), next, previous and skipping the intro.
 public enum DeviceControl: String, Sendable {
     case pause, resume, stop
+    case next, previous, skipSegment = "skip-segment"
+
+    /// The command it sends.
+    public var kind: DeviceCommandKind {
+        switch self {
+        case .pause: .pause
+        case .resume: .resume
+        case .stop: .stop
+        case .next: .next
+        case .previous: .previous
+        case .skipSegment: .skipSegment
+        }
+    }
+}
+
+struct DeviceSeekBody: Codable, Sendable {
+    let positionSeconds: Double
+}
+
+struct DeviceSkipBody: Codable, Sendable {
+    let seconds: Double
+}
+
+struct DeviceTrackBody: Codable, Sendable {
+    let trackId: String?
+}
+
+struct DeviceRateBody: Codable, Sendable {
+    let rate: Double
+}
+
+struct LiveActivityBody: Codable, Sendable {
+    let token: String
+    let environment: String
+    let itemId: String
+}
+
+/// The `now-playing` event.
+struct DeviceNowPlayingEvent: Decodable, Sendable {
+    let deviceId: String
+    let nowPlaying: NowPlaying?
+    /// Absent from servers before 0.56's later builds.
+    var online: Bool? = nil
 }
 
 struct DeviceWatchBody: Codable, Sendable {
@@ -1143,6 +1355,8 @@ struct DevicePlayBody: Codable, Sendable {
     let shuffle: Bool
     /// Left out when nil: servers before 0.54 don't know it.
     var profileId: String?
+    /// Left out when nil.
+    var startSeconds: Double?
 }
 
 // MARK: - Subtitles

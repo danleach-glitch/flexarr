@@ -257,7 +257,9 @@ public static class FlexarrTools
 
         var result = DeviceEndpoints.SetSound(deviceId, sound, signIns, commands, profile) ?? throw new InvalidOperationException("No device with that id is signed in.");
         return new McpCommandResult(result.Delivered, result.DeviceName, null,
-            result.Delivered ? $"Sent to {result.DeviceName} (apps take it from Flexarr 0.56)." : $"Flexarr isn't open on {result.DeviceName}, so nothing was sent.");
+            result.Delivered ? $"Sent to {result.DeviceName}."
+            : commands.IsOnline(deviceId) ? $"The Flexarr app on {result.DeviceName} is too old to change its sound, so nothing was sent."
+            : $"Flexarr isn't open on {result.DeviceName}, so nothing was sent.");
     }
 
     [McpServerTool(Name = "now_playing", ReadOnly = true), Description("Everything playing right now across the household's screens: which device, whose profile, what, and how far in.")]
@@ -274,7 +276,8 @@ public static class FlexarrTools
             if (await LibraryVisibility.PlayingAsync(db, session.ItemId, session.ProfileId, ct) is { } item)
             {
                 list.Add(new McpNowPlaying(session.SignInId is { } id && devices.TryGetValue(id, out var device) ? device : "A browser or script",
-                    names.GetValueOrDefault(session.ProfileId, "Main"), McpTitle.From(item), session.LastPosition, session.DurationSeconds, session.Paused));
+                    names.GetValueOrDefault(session.ProfileId, "Main"), McpTitle.From(item), session.LastPosition,
+                    item.Id == Guid.Empty ? 0 : session.DurationSeconds, session.Paused)); // a private title's length could say which it is
             }
         }
 

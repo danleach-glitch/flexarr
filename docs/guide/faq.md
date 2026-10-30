@@ -77,7 +77,7 @@ Your library, what everyone watches, your profiles and your logs stay on your se
 - **Artwork and details.** The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, and TV cast from TVmaze.
 - **Podcasts.** Browsing and search use Apple's podcast directory, and the server fetches each show's feed and episodes. Your devices play them through your server, so podcast hosts see your server rather than each listener.
 - **Live TV logos**, if you use Live TV, come from a community collection on GitHub.
-- **Notifications**, if you turn them on, pass through a small relay at flexarr.io on their way to Apple. They're encrypted on your server so only your phone can read them; the relay never sees what's in them and keeps nothing.
+- **Notifications**, if you turn them on, pass through a small relay at flexarr.io on their way to Apple. They're encrypted on your server so only your phone can read them; the relay never sees what's in them and keeps nothing. The iPhone's Lock Screen panel for a TV is the exception: its updates carry only whether it's paused, how far in it is, how long it is and its speed, unencrypted, never the title or picture.
 - **Error reports**, only if you turn them on. They describe what went wrong in Flexarr's code, with titles, names, addresses and keys removed first. See [Logs and diagnostics](logs-and-diagnostics.md#error-reports).
 - **Plex profile pictures**, only if you use that button, make one request to plex.tv. See [Bring your history over from Plex](import-from-plex.md).
 

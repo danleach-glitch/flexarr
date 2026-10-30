@@ -81,6 +81,42 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
         }
     }
 
+    /// <summary>
+    /// Sends a Live Activity its new times (<paramref name="activityEvent"/> "update") or ends it ("end"). Unlike a
+    /// notification these can't be sealed (the system reads them, not the app), so they carry times and nothing else.
+    /// <paramref name="urgent"/>: a pause, resume or end, worth Apple's high priority (which it budgets); a seek isn't.
+    /// </summary>
+    public async Task<(PushOutcome Outcome, string? Reason)> SendActivityAsync(string token, string environment, string activityEvent, Devices.LiveActivityWire state,
+        bool urgent, CancellationToken ct)
+    {
+        if (!IsEnabled || !Uri.TryCreate(options.CurrentValue.Notifications.RelayUrl, UriKind.Absolute, out var relay))
+        {
+            return (PushOutcome.Failed, "Notifications are turned off on this server.");
+        }
+
+        try
+        {
+            // A Lock Screen update that takes longer than this is no use anyway.
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            using var response = await http.PostAsJsonAsync(relay, new ActivityRequest("liveactivity", token, environment, activityEvent, state, urgent), Json,
+                timeout.Token);
+            if (response.IsSuccessStatusCode)
+            {
+                return (PushOutcome.Sent, null);
+            }
+
+            var reason = await ReasonAsync(response, ct);
+            return response.StatusCode == HttpStatusCode.Gone || reason is "BadDeviceToken" or "DeviceTokenNotForTopic"
+                ? (PushOutcome.Gone, reason)
+                : (PushOutcome.Failed, reason ?? $"The relay answered {(int)response.StatusCode}.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            return (PushOutcome.Failed, "Couldn't reach the notification relay.");
+        }
+    }
+
     /// <summary>AES-256-GCM, laid out as CryptoKit's <c>SealedBox.combined</c>: nonce, ciphertext, tag.</summary>
     public static string Seal(byte[] key, byte[] plaintext)
     {
@@ -117,6 +153,9 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
 
     /// <param name="Platform">"android" for Firebase; left out for Apple, as relays from before Android expect.</param>
     private sealed record RelayRequest(string Token, string Environment, string Payload, string? CollapseId, string? Platform);
+
+    /// <param name="Kind">"liveactivity": relays from before Live Activities refuse it (no payload), which only leaves the activity stale.</param>
+    private sealed record ActivityRequest(string Kind, string Token, string Environment, string Event, Devices.LiveActivityWire State, bool Urgent);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification relay refused a push ({Status}: {Reason})")]
     private partial void LogRefused(int status, string? reason);

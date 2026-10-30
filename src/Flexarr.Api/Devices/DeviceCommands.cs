@@ -16,6 +16,30 @@ public enum DeviceCommandKind
 
     /// <summary>Change the device's own sound settings (<see cref="DeviceCommand.Sound"/>): dialogue boost, night mode, speakers.</summary>
     Sound,
+
+    /// <summary>Go to <see cref="DeviceCommand.Seconds"/> into what's playing.</summary>
+    Seek,
+
+    /// <summary>Jump <see cref="DeviceCommand.Seconds"/> forward (or back, negative).</summary>
+    Skip,
+
+    /// <summary>On to the next episode.</summary>
+    Next,
+
+    /// <summary>Back to the start, or (near it already) the episode before.</summary>
+    Previous,
+
+    /// <summary>Skip the intro or recap playing, as the button over the picture would.</summary>
+    SkipSegment,
+
+    /// <summary>Change to the soundtrack <see cref="DeviceCommand.TrackId"/>.</summary>
+    AudioTrack,
+
+    /// <summary>Show the subtitles <see cref="DeviceCommand.TrackId"/>, or none when it's absent.</summary>
+    SubtitleTrack,
+
+    /// <summary>Play at <see cref="DeviceCommand.Rate"/> times normal speed.</summary>
+    Rate,
 }
 
 public enum DialogueBoost
@@ -45,6 +69,7 @@ public enum Speakers
 /// <summary>Sound settings for a device to take. Each one that's absent stays as the device has it.</summary>
 public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode? NightMode = null, Speakers? Speakers = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsEmpty => DialogueBoost is null && NightMode is null && Speakers is null;
 }
 
@@ -59,9 +84,21 @@ public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode?
 /// <param name="ChannelId">With <see cref="DeviceCommandKind.Watch"/>, the Live TV channel to put on.</param>
 /// <param name="ProfileId">With <see cref="DeviceCommandKind.Play"/>, whose to play it as: the device switches to that profile first. Absent: whoever is watching there.</param>
 /// <param name="Sound">With <see cref="DeviceCommandKind.Sound"/>, the settings to change.</param>
+/// <param name="Seconds">With <see cref="DeviceCommandKind.Seek"/>, where to go; with <see cref="DeviceCommandKind.Skip"/>, how far.</param>
+/// <param name="TrackId">With <see cref="DeviceCommandKind.AudioTrack"/> or <see cref="DeviceCommandKind.SubtitleTrack"/>, the player's id for the track.</param>
+/// <param name="Rate">With <see cref="DeviceCommandKind.Rate"/>, the speed.</param>
 public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
-    Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null)
+    Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null, double? Seconds = null, string? TrackId = null, double? Rate = null)
 {
+    /// <summary>
+    /// What every device that listens has always taken (apps from 0.55); the rest, Sound included, only a device that
+    /// says it does.
+    /// </summary>
+    public static readonly IReadOnlySet<DeviceCommandKind> Basic = new HashSet<DeviceCommandKind>
+    {
+        DeviceCommandKind.Play, DeviceCommandKind.Pause, DeviceCommandKind.Resume, DeviceCommandKind.Stop, DeviceCommandKind.Watch,
+    };
+
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 }
 
@@ -79,6 +116,10 @@ public sealed class DeviceCommands(TimeProvider clock)
     private readonly ConcurrentDictionary<string, Listener> _listeners = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, DeviceCommand> _waiting = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, DateTime> _lastSeen = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, IReadOnlySet<DeviceCommandKind>> _accepts = new(StringComparer.Ordinal);
+
+    /// <summary>A device opened or closed Flexarr (started or stopped listening).</summary>
+    public event Action<string>? OnlineChanged;
 
     /// <summary>One device's open connection. Disposing it (the request ended) takes the device offline.</summary>
     public sealed class Listener : IDisposable
@@ -103,37 +144,61 @@ public sealed class DeviceCommands(TimeProvider clock)
 
     /// <summary>
     /// Starts listening for <paramref name="deviceId"/>. A connection the device already had is ended (its stream
-    /// completes), and a command that was waiting for the device is handed over at once.
+    /// completes), and a command that was waiting for the device is handed over at once. <paramref name="accepts"/>:
+    /// the commands beyond <see cref="DeviceCommand.Basic"/> it says it takes (null: an app from before it said).
     /// </summary>
-    public Listener Listen(string deviceId)
+    public Listener Listen(string deviceId, IEnumerable<DeviceCommandKind>? accepts = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(deviceId);
+        if (accepts is not null)
+        {
+            _accepts[deviceId] = accepts.ToHashSet();
+        }
+        else
+        {
+            _accepts.TryRemove(deviceId, out _);
+        }
+
         var listener = new Listener(this, deviceId);
         var now = clock.GetUtcNow().UtcDateTime;
-        var previous = _listeners.AddOrUpdate(deviceId, listener, (_, old) =>
+        _listeners.AddOrUpdate(deviceId, listener, (_, old) =>
         {
             old.Channel.Writer.TryComplete();
             return listener;
         });
-        _ = previous;
         _lastSeen[deviceId] = now;
         if (_waiting.TryRemove(deviceId, out var waiting) && now - waiting.SentAt <= WaitLimit)
         {
             listener.Channel.Writer.TryWrite(waiting);
         }
 
+        OnlineChanged?.Invoke(deviceId);
+
         return listener;
     }
 
     private void Detach(Listener listener)
     {
-        _listeners.TryRemove(new KeyValuePair<string, Listener>(listener.DeviceId, listener));
+        var gone = _listeners.TryRemove(new KeyValuePair<string, Listener>(listener.DeviceId, listener));
         _lastSeen[listener.DeviceId] = clock.GetUtcNow().UtcDateTime;
         listener.Channel.Writer.TryComplete();
+        if (gone)
+        {
+            OnlineChanged?.Invoke(listener.DeviceId);
+        }
     }
 
     /// <summary>Flexarr is open on the device and would take a command now.</summary>
     public bool IsOnline(string deviceId) => _listeners.ContainsKey(deviceId);
+
+    /// <summary>
+    /// The commands the device said it takes when it last listened, beyond the basic ones; null when it didn't say (an
+    /// app from before 0.56, or it hasn't listened since the server started).
+    /// </summary>
+    public IReadOnlySet<DeviceCommandKind>? Accepts(string deviceId) => _accepts.TryGetValue(deviceId, out var kinds) ? kinds : null;
+
+    /// <summary>The device would know what to do with <paramref name="kind"/>.</summary>
+    public bool Takes(string deviceId, DeviceCommandKind kind) => DeviceCommand.Basic.Contains(kind) || Accepts(deviceId)?.Contains(kind) == true;
 
     /// <summary>When the device last connected or disconnected; null if it never has since the server started.</summary>
     public DateTime? LastSeenAt(string deviceId) => _lastSeen.TryGetValue(deviceId, out var at) ? at : null;
@@ -165,6 +230,7 @@ public sealed class DeviceCommands(TimeProvider clock)
     public void Forget(string deviceId)
     {
         _waiting.TryRemove(deviceId, out _);
+        _accepts.TryRemove(deviceId, out _);
         if (_listeners.TryRemove(deviceId, out var listener))
         {
             listener.Channel.Writer.TryComplete();

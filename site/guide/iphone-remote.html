@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your iPhone as a remote · Flexarr guide</title>
+  <meta name="description" content="Control what&#39;s playing on your Apple TV from your iPhone or iPad: pause, scrub, skip the intro, change subtitles and sound, pick another episode, and carry on watching on the phone.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/iphone-remote">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Your iPhone as a remote · Flexarr guide">
+  <meta property="og:description" content="Control what&#39;s playing on your Apple TV from your iPhone or iPad: pause, scrub, skip the intro, change subtitles and sound, pick another episode, and carry on watching on the phone.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/iphone-remote">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/without-arrs">Without Sonarr and Radarr</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/watchlist">Watchlist</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/iphone-remote" aria-current="page">Your iPhone as a remote</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Your iPhone as a remote</h1>
+        <p class="lede">Control what&#39;s playing on your Apple TV from your iPhone or iPad: pause, scrub, skip the intro, change subtitles and sound, pick another episode, and carry on watching on the phone.</p>
+        <p class="meta">2 min read</p>
+        <div class="prose">
+<p>When an Apple TV in your home is playing something from Flexarr, the iPhone and iPad apps show a <strong>Playing on TV</strong> bar above the tabs. It works for everyone in the house, on any TV, whichever profile each is on. There&#39;s nothing to set up: the TV and the phone only need to be signed in to the same server, with the TV&#39;s Flexarr app open.</p>
+<p>The bar has play/pause. Tap it for the remote. The <strong>×</strong> hides the bar until that TV plays a different show or film; it doesn&#39;t stop anything, so it&#39;s safe while someone else is watching.</p>
+<h2 id="the-remote"><a class="anchor" href="#the-remote" aria-hidden="true" tabindex="-1">#</a>The remote</h2>
+<ul>
+<li><strong>Scrubber</strong>: drag to anywhere in the film or episode. Underneath is how far in it is, how long is left and when it ends.</li>
+<li><strong>Back and forward 10 seconds</strong>, and <strong>previous</strong> and <strong>next episode</strong>. Previous starts the episode again, or goes to the one before if you&#39;re near the start.</li>
+<li><strong>Skip Intro</strong>, <strong>Skip Recap</strong> and <strong>Next Episode</strong> appear here whenever the TV shows them.</li>
+<li><strong>Audio and subtitles</strong>, <strong>speed</strong> and <strong>sound</strong> (dialogue boost, night mode and speakers): each is lit while it&#39;s set to something other than normal.</li>
+<li><strong>Continue on iPhone</strong> stops the film or episode on the TV and carries on from the same moment on your phone.</li>
+<li><strong>Stop</strong> stops it on the TV. For a few seconds you can <strong>Undo</strong>, which starts it again from where it stopped.</li>
+<li><strong>Episodes</strong> lists the season: tap one to play it on the TV.</li>
+</ul>
+<p>A title from a library hidden from your profile shows as playing but not what it is. You can pause, skip and stop it, but not continue it on your phone, undo a stop, or change its tracks or sound.</p>
+<p>With more than one TV playing, tap the TV&#39;s name at the top to switch between them. For the TV&#39;s menus and its volume, use the Remote in Control Center, as before.</p>
+<p>If a button doesn&#39;t work (the TV has gone to sleep, or its Flexarr app is closed), the phone says why.</p>
+<blockquote class="callout note"><p><strong>Note</strong> A few buttons need the TV&#39;s Flexarr app to be up to date, and the phone only shows the ones it can do. If the phone is signed in with the server&#39;s key rather than as its own device, the bar can take up to half a minute to catch up with changes made on the TV.</p>
+</blockquote>
+<h2 id="on-the-lock-screen"><a class="anchor" href="#on-the-lock-screen" aria-hidden="true" tabindex="-1">#</a>On the Lock Screen</h2>
+<p>While the remote is following a TV, your phone shows what&#39;s playing on the Lock Screen and in the Dynamic Island, with back 10 seconds, play/pause and forward 10. Tap it to open the remote. It keeps up while the phone is locked, as long as <a href="/guide/notifications-and-widgets">notifications</a> are on for your server.</p>
+<p>To keep the title private, your phone puts the title and picture there itself. Only whether it&#39;s paused, how far in it is, how long it is and its speed travel through Flexarr&#39;s notification service, because Apple reads these updates directly and they can&#39;t be encrypted like notifications.</p>
+<p>Anyone holding your locked phone can pause or skip the TV from it, as with any Lock Screen controls. To turn it off, go to <strong>Settings › Flexarr › Live Activities</strong> on the phone. Swiping it away hides it for that title.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/downloads"><span>Previous</span>Downloads</a>
+          <a class="next" href="/guide/live-tv"><span>Next</span>Live TV and recording</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/iphone-remote.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Your%20iPhone%20as%20a%20remote">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

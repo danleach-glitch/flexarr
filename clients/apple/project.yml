@@ -137,6 +137,8 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        # What a TV in the house is playing, on the Lock Screen (the iPhone's remote).
+        NSSupportsLiveActivities: true
         # Playing on in Picture in Picture and with the screen locked; fetch is the podcast refresh, which keeps
         # the newest episodes of followed shows on the phone.
         UIBackgroundModes: [audio, fetch]

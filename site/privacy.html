@@ -73,7 +73,10 @@
     </ul>
     <p>If you turn on notifications on iPhone or Android, your server sends each one through a small relay at flexarr.io,
     which passes it to Apple, or on Android to Google's Firebase Cloud Messaging, to deliver. It's encrypted on your
-    server and only your phone can read it, so the relay never sees what it says, and it keeps nothing. Apple and Google
+    server and only your phone can read it, so the relay never sees what it says, and it keeps nothing. The one
+    exception is the Lock Screen's "playing on TV" panel on iPhone: Apple reads its updates directly, so they can't be
+    encrypted, and they carry only whether the TV is paused, how far in it is, how long it is and its speed, never the title or
+    picture. Apple and Google
     handle delivery under their own privacy policies. On Android, Firebase is only started when you turn notifications
     on: it gives the phone an id for delivering them, which Google sees. Podcast searches and episodes
     go through your server, so podcast hosts see your server rather than each listener. When you speak to Siri, Apple handles the speech under its own privacy policy. When the iPhone app asks for a

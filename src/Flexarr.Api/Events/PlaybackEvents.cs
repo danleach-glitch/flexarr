@@ -151,7 +151,8 @@ public sealed class PlaybackEvents
         ArgumentNullException.ThrowIfNull(sessions);
         foreach (var session in sessions)
         {
-            if (session.Announced && now - session.LastSeen > (session.Paused ? PausedSilence : PlayingSilence))
+            var heard = PlaybackSessions.HeardAt(session);
+            if (session.Announced && now - heard > (session.Paused ? PausedSilence : PlayingSilence))
             {
                 Stop(session);
             }

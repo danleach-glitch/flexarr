@@ -55,15 +55,17 @@ function session(origin) {
   return s;
 }
 
-function sendToApple(environment, token, body, collapseId) {
+// `liveActivity`: a Live Activity's update, which goes to the app's Live Activity topic as its own push type, at
+// Apple's high priority only when `urgent` (Apple budgets those for an activity).
+function sendToApple(environment, token, body, collapseId, liveActivity = false, urgent = true) {
   return new Promise((resolve, reject) => {
     const headers = {
       ':method': 'POST',
       ':path': `/3/device/${token}`,
       authorization: `bearer ${jwt()}`,
-      'apns-push-type': 'alert',
-      'apns-topic': process.env.APNS_TOPIC,
-      'apns-priority': '10',
+      'apns-push-type': liveActivity ? 'liveactivity' : 'alert',
+      'apns-topic': liveActivity ? `${process.env.APNS_TOPIC}.push-type.liveactivity` : process.env.APNS_TOPIC,
+      'apns-priority': urgent ? '10' : '5',
       'content-type': 'application/json',
     };
     if (collapseId) headers['apns-collapse-id'] = collapseId;
@@ -223,6 +225,7 @@ module.exports = async (req, res) => {
 
   let input;
   try { input = await readBody(req); } catch { return reply(res, 400, { reason: 'BadRequest' }); }
+  if (input && input.kind === 'liveactivity') return liveActivity(res, input);
   const { token, environment, payload, collapseId, platform } = input || {};
 
   // Apple's hex device tokens, unless the server says it's an Android phone's Firebase registration token.
@@ -274,6 +277,66 @@ module.exports = async (req, res) => {
   return reply(res, 502, { reason: apple.reason || 'Unknown' });
 };
 
+// --- Live Activities: what a TV is playing, on an iPhone's Lock Screen. Apple's system reads these itself, so unlike
+// notifications they can't be sealed: they carry times and nothing else (the phone put the title on when it started
+// the activity), and anything more is refused.
+
+const DAY = 24 * 60 * 60;
+
+function activityState(state, now) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return null;
+  // `age`: how long ago `position` was so. The time it was so is worked out here, on this clock, so a server whose
+  // clock is off doesn't throw the phone's times out.
+  const keys = Object.keys(state).sort().join(',');
+  if (keys !== 'age,duration,paused,position,rate') return null;
+  const { paused, position, age, duration, rate } = state;
+  const number = (n, min, max) => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
+  if (typeof paused !== 'boolean' || !number(position, 0, 2 * DAY) || !number(duration, 0, 2 * DAY) || !number(rate, 0.25, 4) ||
+      !number(age, 0, DAY)) return null;
+  return { paused, position, at: Date.now() / 1000 - age, duration, rate };
+}
+
+async function liveActivity(res, { token, environment, event, state, urgent }) {
+  const now = Math.floor(Date.now() / 1000);
+  // Longer than a notification's: a Live Activity's token is 128 bytes.
+  if (typeof token !== 'string' || !/^[0-9a-fA-F]{64,512}$/.test(token)) return reply(res, 400, { reason: 'BadToken' });
+  if (environment !== 'production' && environment !== 'sandbox') return reply(res, 400, { reason: 'BadEnvironment' });
+  if (event !== 'update' && event !== 'end') return reply(res, 400, { reason: 'BadEvent' });
+  if (urgent !== undefined && typeof urgent !== 'boolean') return reply(res, 400, { reason: 'BadUrgent' });
+  const content = activityState(state, now);
+  if (!content) return reply(res, 400, { reason: 'BadState' });
+
+  if (await tokenLimited(token)) {
+    console.log('push: activity limit reached');
+    return reply(res, 429, { reason: 'TooManyRequests' });
+  }
+
+  const { APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC } = process.env;
+  if (!APNS_KEY || !APNS_KEY_ID || !APNS_TEAM_ID || !APNS_TOPIC) return reply(res, 503, { reason: 'NotConfigured' });
+
+  // Stale (dimmed) once it should have ended, or a while after a pause with no word: the TV may have gone.
+  const left = content.paused ? 20 * 60 : (content.duration - content.position) / content.rate + 5 * 60;
+  const aps = { timestamp: now, event, 'content-state': content, 'stale-date': Math.round(now + Math.max(60, left)) };
+  if (event === 'end') aps['dismissal-date'] = now;
+
+  let apple;
+  try {
+    apple = await sendToApple(environment, token, JSON.stringify({ aps }), undefined, true, urgent !== false || event === 'end');
+  } catch {
+    console.log('push: apple unreachable');
+    return reply(res, 502, { reason: 'Unreachable' });
+  }
+  console.log(`push: activity ${apple.status} ${apple.reason || ''}`.trim());
+  if (apple.status === 200) return reply(res, 200, { ok: true });
+  if (apple.status === 410) return reply(res, 410, { reason: 'Unregistered' });
+  if (apple.status === 400 && (apple.reason === 'BadDeviceToken' || apple.reason === 'DeviceTokenNotForTopic')) {
+    return reply(res, 400, { reason: apple.reason });
+  }
+  if (apple.status === 429) return reply(res, 429, { reason: apple.reason || 'TooManyRequests' });
+  if (apple.status === 403 && apple.reason === 'ExpiredProviderToken') cachedJwt = null;
+  return reply(res, 502, { reason: apple.reason || 'Unknown' });
+}
+
 // Google's answers, in the words the servers already know from Apple: Unregistered and BadDeviceToken make a server
 // forget the phone.
 async function forwardToGoogle(res, token, payload, collapseId) {
@@ -302,3 +365,4 @@ async function forwardToGoogle(res, token, payload, collapseId) {
 module.exports._jwt = jwt;
 module.exports._forget = () => { cachedAccess = null; };
 module.exports._tokenLimited = tokenLimited;
+module.exports._activityState = activityState;

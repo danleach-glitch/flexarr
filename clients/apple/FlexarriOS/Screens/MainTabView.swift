@@ -13,6 +13,8 @@ enum TabID: Hashable {
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var downloads
+    @Environment(TVRemote.self) private var remote
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: TabID = .home
 
     var body: some View {
@@ -45,6 +47,22 @@ struct MainTabView: View {
             // Opened with no connection: straight to what can be watched.
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { selection = .downloads }
         }
+        // What the TVs are playing, followed while the app is in front.
+        .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")#\(scenePhase == .active)") {
+            remote.use(model.client)
+            remote.isActive = scenePhase == .active
+            guard scenePhase == .active else { return }
+            await remote.follow()
+        }
+        // The remote for a TV, over every tab; and a tap on it (or a command that failed) felt.
+        .sheet(isPresented: Bindable(remote).showsRemote) {
+            TVRemoteView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(Color.room)
+        }
+        .sensoryFeedback(.impact(weight: .light), trigger: remote.taps)
+        .sensoryFeedback(.error, trigger: remote.failures)
         .onChange(of: model.pendingRoute) { _, route in
             if route != nil { selection = .home }
         }
@@ -57,6 +75,7 @@ struct MainTabView: View {
 /// A navigation stack per tab with the shared destinations.
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
+    @Environment(TVRemote.self) private var remote
     @State private var router = Router()
     var handlesDeepLinks = false
     @ViewBuilder var content: () -> Content
@@ -70,7 +89,15 @@ struct TabStack<Content: View>: View {
                 }
         }
         // Music carries on under every screen; the bar sits above the tab bar and opens Now Playing.
-        .safeAreaInset(edge: .bottom) { NowPlayingBar() }
+        // So does a TV's: its bar opens the remote.
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 0) {
+                // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
+                if !remote.showsRemote { RemoteNoticeView() }
+                TVPlayingBar()
+                NowPlayingBar()
+            }
+        }
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
         .onAppear(perform: consumeDeepLink)

@@ -561,29 +561,47 @@ struct ContinueWatchingIntent: AppIntent {
 }
 
 enum PlaybackAction: String, AppEnum {
-    case pause, resume, stop
+    case pause, resume, stop, skipIntro, next, back, forward, subtitlesOn, subtitlesOff
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Action")
     static let caseDisplayRepresentations: [PlaybackAction: DisplayRepresentation] = [
         .pause: "Pause", .resume: "Resume", .stop: "Stop",
+        .skipIntro: DisplayRepresentation(title: "Skip intro", synonyms: ["Skip the intro", "Skip recap", "Skip the recap"]),
+        .next: DisplayRepresentation(title: "Next episode", synonyms: ["Play the next episode", "Skip to the next episode"]),
+        .back: DisplayRepresentation(title: "Skip back", synonyms: ["Go back", "Rewind"]),
+        .forward: DisplayRepresentation(title: "Skip forward", synonyms: ["Skip ahead", "Fast forward"]),
+        .subtitlesOn: DisplayRepresentation(title: "Turn on subtitles", synonyms: ["Subtitles on", "Show subtitles"]),
+        .subtitlesOff: DisplayRepresentation(title: "Turn off subtitles", synonyms: ["Subtitles off", "Hide subtitles"]),
     ]
 
-    var control: DeviceControl {
+    /// The command it is, as another device takes it.
+    var kind: DeviceCommandKind {
         switch self {
         case .pause: .pause
         case .resume: .resume
         case .stop: .stop
+        case .skipIntro: .skipSegment
+        case .next: .next
+        case .back, .forward: .skip
+        case .subtitlesOn, .subtitlesOff: .subtitleTrack
         }
     }
 }
 
-/// "Pause Flexarr": pauses, resumes or stops what's playing here or on the chosen device.
+/// "Pause Flexarr", "Skip intro in Flexarr", "Next episode in Flexarr", "Skip back in Flexarr": controls what's playing
+/// here or on the chosen device (the one Siri plays on, unless another's named). Says so when there's nothing to do
+/// (no intro showing, the last episode) or the TV (or server) is too old for it.
 struct ControlPlaybackIntent: AppIntent {
-    static let title: LocalizedStringResource = "Pause, resume or stop"
-    static let description = IntentDescription("Pauses, resumes or stops what Flexarr is playing, here or on another device.", categoryName: "Playback")
+    static let title: LocalizedStringResource = "Control playback"
+    static let description = IntentDescription("Pauses, resumes or stops what Flexarr is playing, skips the intro, moves on to the next episode, or skips back or forward, here or on another device.",
+                                               categoryName: "Playback")
 
     @Parameter(title: "Action", default: .pause)
     var action: PlaybackAction
+
+    /// How far skipping back or forward goes: 10 seconds, as the remote's buttons, unless a shortcut says otherwise.
+    @Parameter(title: "Seconds", default: 10, controlStyle: .field, inclusiveRange: (5, 600))
+    var seconds: Int
 
     @Parameter(title: "On")
     var device: DeviceEntity?
@@ -591,28 +609,156 @@ struct ControlPlaybackIntent: AppIntent {
     @Dependency private var model: AppModel
 
     static var parameterSummary: some ParameterSummary {
-        Summary("\(\.$action) on \(\.$device)")
+        When(\.$action, .oneOf, [.back, .forward]) {
+            Summary("\(\.$action) \(\.$seconds) seconds on \(\.$device)")
+        } otherwise: {
+            Summary("\(\.$action) on \(\.$device)")
+        }
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let target = Play.target(device)
-        if target.isHere {
-            switch action {
-            case .pause: model.player.pause()
-            case .resume: model.player.resume()
-            case .stop: model.player.closePlayer()
-            }
-            return .result(dialog: "Done.")
+        if action == .subtitlesOn || action == .subtitlesOff {
+            return .result(dialog: IntentDialog(stringLiteral: try await SubtitlesIntent.change(on: action == .subtitlesOn, device: device, model: model)))
         }
+        let target = Play.target(device)
+        let jump = Double(action == .back ? -seconds : seconds)
+        if target.isHere { return .result(dialog: IntentDialog(stringLiteral: here(jump))) }
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        let result: DeviceCommandResult
         do {
-            result = try await client.control(device: target.id, action.control)
+            switch action {
+            case .pause, .resume, .stop:
+                let control: DeviceControl = action == .pause ? .pause : action == .resume ? .resume : .stop
+                let result = try await client.control(device: target.id, control)
+                return .result(dialog: result.delivered ? "Done." : "Flexarr isn't open on \(result.deviceName).")
+            case .subtitlesOn, .subtitlesOff:
+                return .result(dialog: "Done.") // handled above
+            case .skipIntro, .next, .back, .forward:
+                // Open, playing, then able to: a TV whose app is closed after a server restart isn't told to update.
+                guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
+                guard tv.online else { return .result(dialog: "Flexarr isn't open on \(target.name).") }
+                guard let playing = tv.nowPlaying else { return .result(dialog: "Nothing is playing on \(target.name).") }
+                guard tv.takes(action.kind) else { return .result(dialog: "\(target.name) needs a newer Flexarr.") }
+                guard !playing.item.isPrivate || action == .back || action == .forward else { return .result(dialog: "That's private on this profile.") }
+                switch action {
+                case .skipIntro:
+                    guard playing.prompt == .skipIntro || playing.prompt == .skipRecap else { return .result(dialog: "There's no intro to skip.") }
+                    _ = try await client.control(device: target.id, .skipSegment)
+                case .next:
+                    guard playing.hasNext != false else { return .result(dialog: "There's no next episode.") }
+                    _ = try await client.control(device: target.id, .next)
+                default:
+                    try await client.skip(device: target.id, by: jump)
+                }
+                return .result(dialog: "Done.")
+            }
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.deviceGone(target.name)
+        } catch FlexarrClientError.http(status: 409, let message) {
+            return .result(dialog: "\(message ?? "Flexarr isn't open on \(target.name).")")
         }
-        return .result(dialog: result.delivered ? "Done." : "Flexarr isn't open on \(result.deviceName).")
+    }
+
+    /// Does it here, the title in the player or (skips and next) the music or podcast playing; says what came of it.
+    @MainActor
+    private func here(_ jump: Double) -> String {
+        let player = model.player
+        switch action {
+        case .pause: player.isShowingTitle ? player.pause() : model.music.pause()
+        case .resume: player.isShowingTitle ? player.resume() : model.music.resume()
+        case .stop: player.closePlayer()
+        case .skipIntro:
+            guard player.isShowingTitle else { return "Nothing is playing here." }
+            guard player.canSkipSegment else { return "There's no intro to skip." }
+            player.remote(DeviceCommand(id: UUID().uuidString, kind: .skipSegment, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
+        case .next:
+            if player.isShowingTitle {
+                guard player.hasNextTitle else { return "There's no next episode." }
+                player.remote(DeviceCommand(id: UUID().uuidString, kind: .next, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date()))
+            } else if model.music.current != nil {
+                model.music.next()
+            } else {
+                return "Nothing is playing here."
+            }
+        case .subtitlesOn, .subtitlesOff:
+            break // handled before
+        case .back, .forward:
+            if player.isShowingTitle {
+                player.remote(DeviceCommand(id: UUID().uuidString, kind: .skip, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date(), seconds: jump))
+            } else if model.music.current != nil {
+                model.music.skip(by: jump)
+            } else {
+                return "Nothing is playing here."
+            }
+        }
+        return "Done."
+    }
+}
+
+/// "Turn on subtitles in Flexarr", here or on the chosen device: the subtitles already chosen, else the first in this
+/// device's language that aren't forced-only; or none.
+struct SubtitlesIntent: AppIntent {
+    static let title: LocalizedStringResource = "Subtitles"
+    static let description = IntentDescription("Turns subtitles on (in your language where there are some) or off for what's playing, here or on another device.",
+                                               categoryName: "Playback")
+
+    @Parameter(title: "Subtitles", default: .on)
+    var state: Switch
+
+    @Parameter(title: "On")
+    var device: DeviceEntity?
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Subtitles \(\.$state) on \(\.$device)")
+    }
+
+    /// This device's language by name ("English"), as players name their tracks.
+    private static var language: String? {
+        Locale.current.language.languageCode.flatMap { Locale(identifier: "en").localizedString(forLanguageCode: $0.identifier) }
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        .result(dialog: IntentDialog(stringLiteral: try await Self.change(on: state == .on, device: device, model: model)))
+    }
+
+    /// Turns subtitles on or off, here or on `device`, and says what came of it. Siri's "Turn on subtitles in Flexarr"
+    /// comes through Control playback (Apple allows ten shortcuts' worth of phrases), which uses this too.
+    @MainActor
+    static func change(on: Bool, device: DeviceEntity?, model: AppModel) async throws -> String {
+        let target = Play.target(device)
+        if target.isHere {
+            guard model.player.isShowingTitle else { return "Nothing is playing here." }
+            let tracks = PlayerTracks(audio: [], subtitles: model.player.subtitleTracks)
+            if on, tracks.hasFullSubtitlesOn { return "Subtitles are on." }
+            let track = on ? tracks.subtitlesToTurnOn(language: language)?.id : nil
+            if on, track == nil { return "This has no subtitles." }
+            model.player.remote(DeviceCommand(id: UUID().uuidString, kind: .subtitleTrack, itemId: nil, fromBeginning: false, sentBy: nil, sentAt: Date(), trackId: track))
+            return on ? "Subtitles on." : "Subtitles off."
+        }
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        do {
+            guard let tv = try await client.devices().first(where: { $0.id == target.id }) else { throw FlexarrIntentError.deviceGone(target.name) }
+            guard tv.online else { return "Flexarr isn't open on \(target.name)." }
+            guard let playing = tv.nowPlaying else { return "Nothing is playing on \(target.name)." }
+            guard tv.takes(.subtitleTrack) else { return "\(target.name) needs a newer Flexarr." }
+            guard !playing.item.isPrivate else { return "That's private on this profile." }
+            var track: String?
+            if on {
+                let tracks = playing.tracks ?? PlayerTracks(audio: [], subtitles: [])
+                if tracks.hasFullSubtitlesOn { return "Subtitles are on." }
+                guard let chosen = tracks.subtitlesToTurnOn(language: language) else { return "This has no subtitles." }
+                track = chosen.id
+            }
+            try await client.setSubtitleTrack(device: target.id, track)
+            return on ? "Subtitles on." : "Subtitles off."
+        } catch FlexarrClientError.http(status: 404, _) {
+            throw FlexarrIntentError.deviceGone(target.name)
+        } catch FlexarrClientError.http(status: 409, let message) {
+            return message ?? "Flexarr isn't open on \(target.name)."
+        }
     }
 }
 
@@ -656,8 +802,9 @@ private func changeSound(on device: DeviceEntity?, model: AppModel, here: (inout
     do {
         _ = try await client.setSound(device: target.id, there)
         return "Sent to \(target.name)."
-    } catch FlexarrClientError.http(status: 409, _) {
-        return "Flexarr isn't open on \(target.name)."
+    } catch FlexarrClientError.http(status: 409, let message) {
+        // Not open there, or its app is too old: the server says which.
+        return message ?? "Flexarr isn't open on \(target.name)."
     } catch FlexarrClientError.http(status: 404, _) {
         throw FlexarrIntentError.deviceGone(target.name)
     }
@@ -867,10 +1014,11 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             intent: ControlPlaybackIntent(),
             phrases: [
                 "\(\.$action) \(.applicationName)",
+                "\(\.$action) in \(.applicationName)",
                 "\(\.$action) playback in \(.applicationName)",
             ],
-            shortTitle: "Pause, resume or stop",
-            systemImageName: "pause.fill"
+            shortTitle: "Control playback",
+            systemImageName: "playpause.fill"
         )
         AppShortcut(
             intent: NightModeIntent(),

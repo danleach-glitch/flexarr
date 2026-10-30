@@ -578,6 +578,129 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     /// <summary>Stands in for the relay: keeps what it's sent, and answers as told.</summary>
+    [Fact]
+    public async Task APhonesLiveActivity_HearsATvsTimes_OnlyWhenTheyChange_AndEndsWithIt()
+    {
+        var (_, phone) = await PhoneAsync();
+        var tv = await (await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Living room" })).Content.ReadFromJsonAsync<JsonElement>();
+        var tvId = tv.GetProperty("id").GetString()!;
+        var tvClient = _server.CreateClient();
+        tvClient.DefaultRequestHeaders.Add("X-Api-Key", tv.GetProperty("token").GetString()!);
+        Guid itemId;
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = "Films", Type = LibraryType.Movies };
+            var film = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Heat", SortTitle = "HEAT" };
+            db.AddRange(library, film);
+            await db.SaveChangesAsync();
+            itemId = film.Id;
+        }
+
+        // The test server runs no background services: the publisher and the Live Activity worker, by hand, quicker.
+        var activities = _server.Services.GetRequiredService<Flexarr.Api.Devices.LiveActivities>();
+        activities.Gather = TimeSpan.FromMilliseconds(100);
+        activities.EndGrace = TimeSpan.FromMilliseconds(600);
+        using var publisher = new Flexarr.Api.Devices.NowPlayingPublisher(_server.Services.GetRequiredService<Flexarr.Api.Devices.NowPlayingFeed>(),
+            _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>(), activities,
+            _server.Services.GetRequiredService<Flexarr.Api.Devices.DeviceCommands>(), _server.Services.GetRequiredService<Authentication.SignIns>(),
+            _server.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<Flexarr.Api.Devices.NowPlayingPublisher>.Instance);
+        using var worker = new Flexarr.Api.Devices.LiveActivityWorker(activities, _server.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<Flexarr.Api.Devices.LiveActivityWorker>.Instance);
+        await publisher.StartAsync(default);
+        await worker.StartAsync(default);
+
+        var token = string.Concat(Enumerable.Repeat("cd34", 64)); // 128 bytes, as a Live Activity's are
+        Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token = "nope", environment = "sandbox", itemId })).StatusCode);
+        // A private title reaches a phone with no id: there's nothing to follow.
+        Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId = Guid.Empty })).StatusCode);
+        // Only a title the phone may see.
+        Assert.Equal(HttpStatusCode.NotFound, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId = Guid.NewGuid() })).StatusCode);
+
+        var sessions = _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>();
+        var session = new Flexarr.Api.Playback.PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"), ItemId = itemId, ProfileId = PlaybackState.DefaultUser, SignInId = tvId, FileId = Guid.NewGuid(), FilePath = "",
+            Container = null, DurationSeconds = 6000, Method = Flexarr.Streaming.PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
+        };
+        sessions.Add(session);
+
+        // Registering sends the times straight away, urgently.
+        Assert.Equal(HttpStatusCode.NoContent, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
+        await WaitForAsync(() => _relay.Sent.Count >= 1);
+        var first = _relay.Sent[^1];
+        Assert.Equal("liveactivity", first.GetProperty("kind").GetString());
+        Assert.Equal("update", first.GetProperty("event").GetString());
+        // How long ago, not when by this server's clock.
+        Assert.InRange(first.GetProperty("state").GetProperty("age").GetDouble(), 0, 5);
+        Assert.False(first.GetProperty("state").TryGetProperty("at", out _));
+
+        // Another phone can't take the registration over.
+        var (_, other) = await PhoneAsync();
+        Assert.NotEqual(HttpStatusCode.NoContent, (await other.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
+        Assert.Equal(token, first.GetProperty("token").GetString());
+        Assert.True(first.GetProperty("urgent").GetBoolean());
+        // Times only: nothing that says what's playing.
+        Assert.DoesNotContain("Heat", first.GetRawText(), StringComparison.Ordinal);
+
+        // Playing on as the clock says: nothing new to send. A seek is, not urgently; a pause is, urgently.
+        var sent = _relay.Sent.Count;
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 0.5, paused = false, rate = 1.0, hasNext = false });
+        await Task.Delay(500);
+        Assert.Equal(sent, _relay.Sent.Count);
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 600.0, paused = false, rate = 1.0, hasNext = false });
+        await WaitForAsync(() => _relay.Sent.Count > sent);
+        Assert.False(_relay.Sent[^1].GetProperty("urgent").GetBoolean());
+        sent = _relay.Sent.Count;
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 630.0, paused = true, rate = 1.0, hasNext = false });
+        await WaitForAsync(() => _relay.Sent.Count > sent);
+        Assert.True(_relay.Sent[^1].GetProperty("state").GetProperty("paused").GetBoolean());
+        Assert.True(_relay.Sent[^1].GetProperty("urgent").GetBoolean());
+
+        // Moving on to the next episode stops one playback before starting the next: no end in the gap.
+        sent = _relay.Sent.Count;
+        await sessions.RemoveAsync(session.Id);
+        await Task.Delay(300);
+        sessions.Add(session);
+        await Task.Delay(900);
+        Assert.DoesNotContain(_relay.Sent.Skip(sent), b => b.GetProperty("event").GetString() == "end");
+
+        // It stops on the TV with the relay down: the end is tried again after the back-off, and isn't followed any more.
+        activities.Backoff = TimeSpan.FromMilliseconds(400);
+        _relay.Answer = HttpStatusCode.BadGateway;
+        await sessions.RemoveAsync(session.Id);
+        await Task.Delay(1000);
+        _relay.Answer = HttpStatusCode.OK;
+        await WaitForAsync(() => _relay.Sent[^1].GetProperty("event").GetString() == "end");
+        sent = _relay.Sent.Count;
+        sessions.Add(session);
+        await Task.Delay(500);
+        Assert.Equal(sent, _relay.Sent.Count);
+        await worker.StopAsync(default);
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
+    public void ALiveActivityUpdate_IsOnlyNews_WhenTheClockWouldBeWrong()
+    {
+        var sent = new Flexarr.Api.Devices.LiveActivityState(false, 100, 1000, 3000, 1);
+        Assert.False(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Position = 110, At = 1010 }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Position = 300, At = 1010 }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Paused = true }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(sent, sent with { Rate = 1.5 }));
+        Assert.True(Flexarr.Api.Devices.LiveActivities.IsNews(null, sent));
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 100 && !condition(); i++)
+        {
+            await Task.Delay(50);
+        }
+
+        Assert.True(condition());
+    }
+
     private sealed class FakeRelay : HttpMessageHandler
     {
         public List<JsonElement> Sent { get; } = [];

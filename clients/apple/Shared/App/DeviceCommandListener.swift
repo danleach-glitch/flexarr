@@ -13,21 +13,26 @@ final class DeviceCommandListener {
     private var task: Task<Void, Never>?
     private var listeningFor: FlexarrClient?
 
-    /// Listens on `client`'s sign-in, handing each command (and connect prompt) to `handle`. Called again with the
-    /// same client, it carries on.
-    func start(_ client: FlexarrClient, handle: @escaping @MainActor (DeviceEvent) -> Void) {
-        if let listeningFor, listeningFor.baseURL == client.baseURL, listeningFor.apiKey == client.apiKey, task?.isCancelled == false { return }
+    /// The commands beyond the basic ones this app takes: a remote on another device offers these.
+    static let accepts: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate]
+
+    /// Listens on `client`'s sign-in, handing each command (and connect prompt, and with `nowPlaying` what every device
+    /// is playing as it changes) to `handle`. Called again with the same client and profile, it carries on; another
+    /// profile opens it afresh, so the server tells it what that profile may see.
+    func start(_ client: FlexarrClient, nowPlaying: Bool = false, handle: @escaping @MainActor (DeviceEvent) -> Void) {
+        if let listeningFor, listeningFor.baseURL == client.baseURL, listeningFor.apiKey == client.apiKey,
+           listeningFor.profileToken == client.profileToken, task?.isCancelled == false { return }
         stop()
         listeningFor = client
         task = Task { [weak self] in
             var delay: Duration = .seconds(2)
             while !Task.isCancelled {
                 do {
-                    for try await event in client.deviceEvents() {
+                    for try await event in client.deviceEvents(accepts: Self.accepts, nowPlaying: nowPlaying) {
                         switch event {
                         case .command(let command): log.info("Command \(command.kind.rawValue) from \(command.sentBy ?? "someone")")
                         case .pairing(let request): log.info("\(request.deviceName) asks to connect")
-                        case .pairingEnded: break
+                        case .pairingEnded, .nowPlaying: break
                         }
                         handle(event)
                         delay = .seconds(2)

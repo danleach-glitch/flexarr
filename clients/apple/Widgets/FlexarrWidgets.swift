@@ -12,6 +12,7 @@ struct FlexarrWidgets: WidgetBundle {
         ContinueListeningWidget()
         UpNextWidget()
         WatchlistWidget()
+        TVPlayingLiveActivity()
     }
 }
 

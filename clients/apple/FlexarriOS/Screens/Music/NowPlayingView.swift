@@ -596,7 +596,7 @@ struct NowPlayingView: View {
 }
 
 /// Transport controls: an icon alone, or on a projected-white disc for Play. `active` lights shuffle and repeat.
-private struct TransportStyle: ButtonStyle {
+struct TransportStyle: ButtonStyle {
     var size: CGFloat
     var filled = false
     var active = false
@@ -617,7 +617,7 @@ private struct TransportStyle: ButtonStyle {
 }
 
 /// The podcast row's controls (speed, sleep timer, the menu): the same size and weight, lit with a soft pill while set.
-private struct ExtraLabel: ViewModifier {
+struct ExtraLabel: ViewModifier {
     var active: Bool
 
     func body(content: Content) -> some View {

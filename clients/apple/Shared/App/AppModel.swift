@@ -44,6 +44,10 @@ final class AppModel {
     /// A device asking to connect, or one that's stopped asking (from the command stream, signed in as the main
     /// profile): the iPhone asks whether to allow it. Apple TV leaves it to the phones.
     @ObservationIgnored var onPairingEvent: (@MainActor (DeviceEvent) -> Void)?
+    /// What a device is playing changed (nil: stopped), from the command stream: the iPhone's remote follows it.
+    @ObservationIgnored var onNowPlaying: (@MainActor (String, DeviceNowPlaying?, Bool?) -> Void)?
+    /// `flexarr://remote/<device id>` (the Live Activity): the iPhone opens its remote on that TV.
+    @ObservationIgnored var onOpenRemote: (@MainActor (String) -> Void)?
     /// About to sign out, with the sign-in still working: the iPhone stops its notifications.
     @ObservationIgnored var onSignOut: (@MainActor (FlexarrClient) async -> Void)?
     private(set) var profiles: [Profile] = []
@@ -754,11 +758,17 @@ final class AppModel {
             commands.stop()
             return
         }
-        commands.start(client) { [weak self] event in
-            if case .command(let command) = event {
-                self?.handle(command)
-            } else {
-                self?.onPairingEvent?(event)
+        // The iPhone follows what the TVs are playing, for its remote.
+        #if os(iOS)
+        let nowPlaying = true
+        #else
+        let nowPlaying = false
+        #endif
+        commands.start(client, nowPlaying: nowPlaying) { [weak self] event in
+            switch event {
+            case .command(let command): self?.handle(command)
+            case .nowPlaying(let deviceId, let playing, let online): self?.onNowPlaying?(deviceId, playing, online)
+            case .pairing, .pairingEnded: self?.onPairingEvent?(event)
             }
         }
     }
@@ -775,7 +785,7 @@ final class AppModel {
                 link.host = "play"
                 link.path = "/\(id)"
                 link.queryItems = [URLQueryItem(name: "profile", value: profileId)]
-                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : [])
+                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : command.seconds.flatMap { Int(exactly: $0.rounded()) }.map { [URLQueryItem(name: "t", value: String($0))] } ?? [])
                     + (command.shuffle ? [URLQueryItem(name: "shuffle", value: "1")] : [])
                 if let url = link.url { open(url: url) }
                 return
@@ -785,15 +795,28 @@ final class AppModel {
                 if let episode = try? await client.podcastEpisode(id) {
                     playEpisode(episode.summary)
                 } else {
-                    player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client, shuffle: command.shuffle)
+                    // From where it was asked to start (Undo after Stop), else from the beginning or where it was left.
+                    player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : command.seconds, client: client, shuffle: command.shuffle)
                 }
             }
         case .watch:
             guard let id = command.channelId else { return }
             Task { await watchChannel(id: id) }
-        case .pause: player.pause()
-        case .resume: player.resume()
+        // A title in the player takes them; otherwise the music (or podcast) playing here.
+        case .pause: if player.isShowingTitle { player.pause() } else { music.pause() }
+        case .resume: if player.isShowingTitle { player.resume() } else { music.resume() }
         case .stop: player.closePlayer()
+        case .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate:
+            if player.remote(command) { return }
+            guard music.current != nil else { return }
+            switch command.kind {
+            case .seek: if let seconds = command.seconds { music.seek(to: seconds) }
+            case .skip: if let seconds = command.seconds { music.skip(by: seconds) }
+            case .next: music.next()
+            case .previous: music.previous()
+            case .rate: if let rate = command.rate { music.setSpeed(rate) }
+            default: break
+            }
         case .sound:
             // A player that's open follows the change, as it does one made in Settings.
             guard let sound = command.sound else { return }
@@ -802,6 +825,7 @@ final class AppModel {
             if let night = sound.nightMode.flatMap(SoundSettings.NightMode.init(rawValue:)) { settings.nightMode = night }
             if let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) { settings.speakers = speakers }
             SoundSettings.current = settings
+            player.reportForRemotes()
         case .unknown: break
         }
     }
@@ -833,6 +857,10 @@ final class AppModel {
         let id = url.pathComponents.dropFirst().first ?? ""
         // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
         guard !id.isEmpty || host == "watchlist" else { return }
+        if host == "remote" {
+            onOpenRemote?(id)
+            return
+        }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let query = components?.queryItems ?? []
         if let wanted = query.first(where: { $0.name == "profile" })?.value, !wanted.isEmpty {

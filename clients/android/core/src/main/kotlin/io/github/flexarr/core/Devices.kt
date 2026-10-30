@@ -193,7 +193,8 @@ fun FlexarrClient.commandStream(): Flow<DeviceCommand> = deviceEvents().filterIs
  */
 fun FlexarrClient.deviceEvents(): Flow<DeviceEvent> = flow {
     val request = Request.Builder()
-        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").build())
+        // The commands beyond the basic ones this app takes (servers from 0.56 send only those).
+        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", "Sound").build())
         .header("Accept", "text/event-stream")
         .signIn()
         .build()

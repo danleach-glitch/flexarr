@@ -445,8 +445,7 @@ public static partial class PlaybackEndpoints
             }
 
             events.Observe(session, progress);
-            session.LastPosition = progress.PositionSeconds;
-            session.Paused = progress.Paused;
+            sessions.Reported(session, progress);
             await playback.ReportProgressAsync(session, progress, ct);
             return Results.NoContent();
         });

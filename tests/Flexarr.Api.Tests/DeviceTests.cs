@@ -1,10 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Flexarr.Api.Devices;
+using Flexarr.Api.Playback;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Streaming;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Api.Tests;
 
@@ -30,9 +34,9 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     /// <summary>Opens the device's command stream and reads events off it as they come.</summary>
-    private static async Task<(HttpResponseMessage Response, StreamReader Reader)> ListenAsync(HttpClient device)
+    private static async Task<(HttpResponseMessage Response, StreamReader Reader)> ListenAsync(HttpClient device, string query = "")
     {
-        var response = await device.GetAsync(Api("/devices/commands"), HttpCompletionOption.ResponseHeadersRead);
+        var response = await device.GetAsync(Api("/devices/commands" + query), HttpCompletionOption.ResponseHeadersRead);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
         var reader = new StreamReader(await response.Content.ReadAsStreamAsync());
@@ -42,13 +46,29 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     /// <summary>The next "event: command" on the stream, as JSON.</summary>
-    private static async Task<JsonElement> NextCommandAsync(StreamReader reader)
+    private static Task<JsonElement> NextCommandAsync(StreamReader reader) => NextEventAsync(reader, "command");
+
+    /// <summary>The next "event: now-playing" about <paramref name="deviceId"/>, as JSON.</summary>
+    private static async Task<JsonElement> NextNowPlayingAsync(StreamReader reader, string deviceId)
+    {
+        while (true)
+        {
+            var change = await NextEventAsync(reader, "now-playing");
+            if (change.GetProperty("deviceId").GetString() == deviceId)
+            {
+                return change;
+            }
+        }
+    }
+
+    /// <summary>The next event called <paramref name="name"/> on the stream, as JSON.</summary>
+    private static async Task<JsonElement> NextEventAsync(StreamReader reader, string name)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (true)
         {
             var line = await reader.ReadLineAsync(timeout.Token) ?? throw new InvalidOperationException("The stream ended.");
-            if (line == "event: command")
+            if (line == $"event: {name}")
             {
                 var data = await reader.ReadLineAsync(timeout.Token);
                 Assert.StartsWith("data: ", data, StringComparison.Ordinal);
@@ -112,7 +132,7 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         // Not listening: a play waits for it, and a sound change neither waits nor pushes the play out.
         Assert.Equal(HttpStatusCode.Accepted, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sound"), new { nightMode = "On" })).StatusCode);
-        var (response, reader) = await ListenAsync(tv);
+        var (response, reader) = await ListenAsync(tv, "?accepts=Sound");
         Assert.Equal("Play", (await NextCommandAsync(reader)).GetProperty("kind").GetString());
 
         var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/sound"), new { nightMode = "On", dialogueBoost = "High" });
@@ -201,6 +221,258 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var (id, _) = await DeviceAsync("Study");
         var missing = await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = Guid.NewGuid() });
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task ARemotesCommands_ReachADeviceThatTakesThem_AndNotOneTooOldTo()
+    {
+        var (id, tv) = await DeviceAsync("Snug");
+        var (response, reader) = await ListenAsync(tv, "?accepts=Seek,Skip,Next,SkipSegment,AudioTrack,SubtitleTrack,Rate,Teleport");
+
+        var listed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"))).EnumerateArray().Single(d => d.GetProperty("id").GetString() == id);
+        var accepts = listed.GetProperty("accepts").EnumerateArray().Select(k => k.GetString()).ToList();
+        Assert.Contains("Pause", accepts);
+        Assert.Contains("Seek", accepts);
+        Assert.DoesNotContain("Previous", accepts);
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/seek"), new { positionSeconds = 754.5 })).StatusCode);
+        var seek = await NextCommandAsync(reader);
+        Assert.Equal("Seek", seek.GetProperty("kind").GetString());
+        Assert.Equal(754.5, seek.GetProperty("seconds").GetDouble());
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/skip"), new { seconds = -10 })).StatusCode);
+        Assert.Equal(-10, (await NextCommandAsync(reader)).GetProperty("seconds").GetDouble());
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/subtitles"), new { trackId = (string?)null })).StatusCode);
+        var subtitles = await NextCommandAsync(reader);
+        Assert.Equal("SubtitleTrack", subtitles.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, subtitles.GetProperty("trackId").ValueKind);
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/next"), new { })).StatusCode);
+        Assert.Equal("Next", (await NextCommandAsync(reader)).GetProperty("kind").GetString());
+
+        // Not said it takes, nonsense, and not open: refused.
+        Assert.Equal(HttpStatusCode.Conflict, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/previous"), new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 9 })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/seek"), new { positionSeconds = -1 })).StatusCode);
+        response.Dispose();
+        await WaitUntilAsync(async () => !(await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"))).EnumerateArray()
+            .Single(d => d.GetProperty("id").GetString() == id).GetProperty("online").GetBoolean());
+        Assert.Equal(HttpStatusCode.Conflict, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/seek"), new { positionSeconds = 1 })).StatusCode);
+
+        // An app from before remotes says nothing: only the basic commands.
+        var (old, oldTv) = await DeviceAsync("Old TV");
+        var (oldResponse, _) = await ListenAsync(oldTv);
+        var oldListed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"))).EnumerateArray().Single(d => d.GetProperty("id").GetString() == old);
+        Assert.False(oldListed.TryGetProperty("accepts", out var none) && none.ValueKind != JsonValueKind.Null);
+        Assert.Equal(HttpStatusCode.Conflict, (await Admin().PostAsJsonAsync(Api($"/devices/{old}/seek"), new { positionSeconds = 1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{old}/pause"), new { })).StatusCode);
+        oldResponse.Dispose();
+    }
+
+    [Fact]
+    public async Task APhoneAskingForNowPlaying_HearsWhatATvIsPlaying_AsItChanges()
+    {
+        var show = await SeedAsync("Bluey", ("S01E01", 1, 1));
+        var (tvId, tv) = await DeviceAsync("Family room");
+        var (_, phone) = await DeviceAsync("Phone");
+        var (response, reader) = await ListenAsync(phone, "?nowPlaying=true");
+        using var publisher = await StartPublisherAsync();
+
+        var session = new PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            ItemId = show.Episodes["S01E01"],
+            ProfileId = PlaybackState.DefaultUser,
+            SignInId = tvId,
+            FileId = Guid.NewGuid(),
+            FilePath = "",
+            Container = null,
+            DurationSeconds = 420,
+            Method = PlaybackMethod.DirectPlay,
+            Subtitles = [],
+            CreditsStart = null,
+        };
+        factory.Services.GetRequiredService<PlaybackSessions>().Add(session);
+        var started = await NextNowPlayingAsync(reader, tvId);
+        Assert.Equal(tvId, started.GetProperty("deviceId").GetString());
+        Assert.Equal("S01E01", started.GetProperty("nowPlaying").GetProperty("item").GetProperty("title").GetString());
+
+        var report = new
+        {
+            positionSeconds = 12.0, paused = false, rate = 1.5, prompt = "SkipIntro", hasNext = true,
+            tracks = new { audio = new[] { new { id = "1", label = "English", selected = true } }, subtitles = Array.Empty<object>() },
+            sound = new { nightMode = "On" },
+        };
+        Assert.Equal(HttpStatusCode.NoContent, (await tv.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), report)).StatusCode);
+        var playing = (await NextNowPlayingAsync(reader, tvId)).GetProperty("nowPlaying");
+        Assert.Equal(12, playing.GetProperty("positionSeconds").GetDouble());
+        Assert.Equal(1.5, playing.GetProperty("rate").GetDouble());
+        Assert.Equal("SkipIntro", playing.GetProperty("prompt").GetString());
+        Assert.True(playing.GetProperty("hasNext").GetBoolean());
+        Assert.Equal("English", playing.GetProperty("tracks").GetProperty("audio")[0].GetProperty("label").GetString());
+        Assert.Equal("On", playing.GetProperty("sound").GetProperty("nightMode").GetString());
+
+        // A later report leaving out the tracks keeps them; the prompt goes when it isn't said.
+        Assert.Equal(HttpStatusCode.NoContent, (await tv.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 40.0, paused = true, rate = 1.0, hasNext = true })).StatusCode);
+        var paused = (await NextNowPlayingAsync(reader, tvId)).GetProperty("nowPlaying");
+        Assert.True(paused.GetProperty("paused").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, paused.GetProperty("prompt").ValueKind);
+        Assert.Equal("English", paused.GetProperty("tracks").GetProperty("audio")[0].GetProperty("label").GetString());
+
+        await factory.Services.GetRequiredService<PlaybackSessions>().RemoveAsync(session.Id);
+        var stopped = await NextNowPlayingAsync(reader, tvId);
+        Assert.Equal(JsonValueKind.Null, stopped.GetProperty("nowPlaying").ValueKind);
+        response.Dispose();
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task APhoneOnAProfile_IsntToldTitlesFromLibrariesHiddenFromIt()
+    {
+        var show = await SeedAsync("Succession", ("S01E01", 1, 1));
+        Guid library;
+        using (var scope = factory.Services.CreateScope())
+        {
+            library = (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.FindAsync(show.Series))!.LibraryId;
+        }
+
+        var created = await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Kid {Guid.NewGuid():N}", hiddenLibraryIds = new[] { library } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var (tvId, _) = await DeviceAsync("Parents' TV");
+        var (_, phone) = await DeviceAsync("Kid's phone");
+        // Chosen on the phone: a device's profile is the one picked on it.
+        Assert.True((await phone.PostAsJsonAsync(Api($"/profiles/{created.GetProperty("id").GetString()}/select"), new { })).IsSuccessStatusCode);
+        var (response, reader) = await ListenAsync(phone, "?nowPlaying=true");
+        using var publisher = await StartPublisherAsync();
+
+        factory.Services.GetRequiredService<PlaybackSessions>().Add(Session(tvId, show.Episodes["S01E01"]));
+        var playing = (await NextNowPlayingAsync(reader, tvId)).GetProperty("nowPlaying");
+        Assert.Equal(Flexarr.Api.Profiles.LibraryVisibility.PrivateTitle, playing.GetProperty("item").GetProperty("title").GetString());
+        Assert.Equal(Guid.Empty, playing.GetProperty("item").GetProperty("id").GetGuid());
+        response.Dispose();
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task APhoneThatSwitchesProfile_WhileListening_IsToldTitlesAsTheNewProfileMaySeeThem()
+    {
+        var show = await SeedAsync("The Bear", ("S01E01", 1, 1));
+        Guid library;
+        using (var scope = factory.Services.CreateScope())
+        {
+            library = (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.FindAsync(show.Series))!.LibraryId;
+        }
+
+        var kid = (await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Kid {Guid.NewGuid():N}", hiddenLibraryIds = new[] { library } }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var (tvId, tv) = await DeviceAsync("Kitchen TV");
+        var (_, phone) = await DeviceAsync("Shared phone");
+        var (response, reader) = await ListenAsync(phone, "?nowPlaying=true");
+        using var publisher = await StartPublisherAsync();
+        var before = DeviceEndpoints.HiddenRecheck;
+        DeviceEndpoints.HiddenRecheck = TimeSpan.Zero;
+        try
+        {
+            // On the main profile when it started listening; switched to the kid's while the stream stays open.
+            Assert.True((await phone.PostAsJsonAsync(Api($"/profiles/{kid}/select"), new { })).IsSuccessStatusCode);
+            var session = Session(tvId, show.Episodes["S01E01"]);
+            factory.Services.GetRequiredService<PlaybackSessions>().Add(session);
+            await NextNowPlayingAsync(reader, tvId);
+            var report = new { positionSeconds = 5.0, rate = 1.0, hasNext = true, prompt = "SkipIntro", tracks = new { audio = new[] { new { id = "1", label = "Director's commentary", selected = true } }, subtitles = Array.Empty<object>() } };
+            await tv.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), report);
+            var playing = (await NextNowPlayingAsync(reader, tvId)).GetProperty("nowPlaying");
+            Assert.Equal(Flexarr.Api.Profiles.LibraryVisibility.PrivateTitle, playing.GetProperty("item").GetProperty("title").GetString());
+            // Nothing that would say what it is: its tracks, the button over the picture, its length.
+            Assert.Equal(JsonValueKind.Null, playing.GetProperty("tracks").ValueKind);
+            Assert.Equal(JsonValueKind.Null, playing.GetProperty("prompt").ValueKind);
+            Assert.Equal(0, playing.GetProperty("durationSeconds").GetDouble());
+        }
+        finally
+        {
+            DeviceEndpoints.HiddenRecheck = before;
+        }
+
+        response.Dispose();
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task PlayingOnADevice_FromAPosition_TellsItWhere()
+    {
+        var show = await SeedAsync("Fargo", ("S01E01", 1, 1));
+        var (id, tv) = await DeviceAsync("Spare room");
+        var (response, reader) = await ListenAsync(tv);
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], startSeconds = 812.5 })).StatusCode);
+        Assert.Equal(812.5, (await NextCommandAsync(reader)).GetProperty("seconds").GetDouble());
+        // A show (whichever episode is next) starts where that episode was left.
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, startSeconds = 812.5 })).StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await NextCommandAsync(reader)).GetProperty("seconds").ValueKind);
+        // Past anything that plays: left out, so a device never has to make sense of it.
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], startSeconds = 1e300 })).StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await NextCommandAsync(reader)).GetProperty("seconds").ValueKind);
+        response.Dispose();
+    }
+
+    [Fact]
+    public async Task AProgressReport_WithValuesThisServerDoesntKnow_StillRecords_AndTracksAreKeptInBounds()
+    {
+        var show = await SeedAsync("Severance", ("S01E01", 1, 1));
+        var (tvId, tv) = await DeviceAsync("Den TV");
+        var session = Session(tvId, show.Episodes["S01E01"]);
+        factory.Services.GetRequiredService<PlaybackSessions>().Add(session);
+
+        var tracks = Enumerable.Range(0, 80).Select(i => new { id = $"{i}", label = new string('x', 300), selected = i == 0 }).ToArray();
+        var report = new
+        {
+            positionSeconds = 30.0, paused = false, rate = 40.0, hasNext = true, prompt = "SkipCredits",
+            sound = new { nightMode = "Whisper", dialogueBoost = "High" }, tracks = new { audio = tracks, subtitles = Array.Empty<object>() },
+        };
+        Assert.Equal(HttpStatusCode.NoContent, (await tv.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), report)).StatusCode);
+
+        var remote = session.Remote!;
+        Assert.Null(remote.Prompt);
+        Assert.Equal(4, remote.Rate);
+        Assert.Null(remote.Sound!.NightMode);
+        Assert.Equal(DialogueBoost.High, remote.Sound.DialogueBoost);
+        Assert.Equal(50, remote.Tracks!.Audio.Count);
+        Assert.Equal(100, remote.Tracks.Audio[0].Label.Length);
+    }
+
+    [Fact]
+    public async Task ChangingTheSoundOfATvWhoseAppDoesntTakeIt_SaysItsTooOld()
+    {
+        var (id, tv) = await DeviceAsync("Old lounge TV");
+        var (response, _) = await ListenAsync(tv);
+        var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/sound"), new { nightMode = "On" });
+        Assert.Equal(HttpStatusCode.Conflict, sent.StatusCode);
+        Assert.Contains("update it", await sent.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        response.Dispose();
+    }
+
+    private static PlaybackSession Session(string deviceId, Guid itemId) => new()
+    {
+        Id = Guid.NewGuid().ToString("N"), ItemId = itemId, ProfileId = PlaybackState.DefaultUser, SignInId = deviceId, FileId = Guid.NewGuid(), FilePath = "",
+        Container = null, DurationSeconds = 420, Method = PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
+    };
+
+    /// <summary>The test server runs no background services: the now-playing publisher, by hand.</summary>
+    private async Task<NowPlayingPublisher> StartPublisherAsync()
+    {
+        var publisher = new NowPlayingPublisher(factory.Services.GetRequiredService<NowPlayingFeed>(), factory.Services.GetRequiredService<PlaybackSessions>(),
+            factory.Services.GetRequiredService<LiveActivities>(), factory.Services.GetRequiredService<DeviceCommands>(),
+            factory.Services.GetRequiredService<Flexarr.Api.Authentication.SignIns>(), factory.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<NowPlayingPublisher>.Instance);
+        await publisher.StartAsync(default);
+        return publisher;
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
+    {
+        for (var i = 0; i < 50 && !await condition(); i++)
+        {
+            await Task.Delay(100);
+        }
     }
 
     private async Task WatchAsync(Guid episode)

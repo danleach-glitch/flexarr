@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Flexarr.Api.Devices;
 using Flexarr.Api.Events;
 using Flexarr.Streaming;
 
@@ -43,6 +44,18 @@ public sealed class PlaybackSession
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
     public double LastPosition { get; set; }
     public bool Paused { get; set; }
+
+    /// <summary>When the player last said where it was (<see cref="LastSeen"/> moves with every request for the stream too).</summary>
+    public DateTime? ReportedAt { get; set; }
+
+    /// <summary>What the player last told remotes (see <see cref="ProgressRequest"/>): null from players that don't.</summary>
+    public RemoteState? Remote { get; set; }
+
+    /// <summary>Shown as what its device is playing at the last look (see <see cref="PlaybackSessions.Shows"/>), so going quiet is noticed once.</summary>
+    public bool Shown { get; set; }
+
+    /// <summary>The title as remotes are told it, kept for the playback so each report doesn't look it up again.</summary>
+    public Endpoints.ItemSummaryDto? Summary { get; set; }
     public bool CountedAsPlay { get; set; }
 
     /// <summary>A Started event went out for it, and no Stopped since (see <see cref="Events.PlaybackEvents"/>).</summary>
@@ -55,19 +68,32 @@ public sealed class PlaybackSession
     public bool Finished { get; set; }
 }
 
+/// <summary>What a player told remotes about itself in its progress reports, the latest of each.</summary>
+public sealed record RemoteState(double Rate, PlayerPrompt? Prompt, bool HasNext, PlayerTracks? Tracks, Devices.DeviceSound? Sound);
+
 public sealed partial class PlaybackSessions
 {
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
+
+    /// <summary>A playback that hasn't been heard from for this long isn't shown as what its device is playing.</summary>
+    public static readonly TimeSpan NowPlayingStaleness = TimeSpan.FromMinutes(15);
+
+    /// <summary>The most tracks of each kind kept from a report, and the longest name and id.</summary>
+    private const int MaxTracks = 50;
+    private const int MaxLabel = 100;
+    private const int MaxTrackId = 64;
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
     private readonly TranscodeManager transcodes;
     private readonly ILogger<PlaybackSessions> logger;
     private readonly PlaybackEvents? events;
+    private readonly NowPlayingFeed? nowPlaying;
 
-    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger, PlaybackEvents? events = null)
+    public PlaybackSessions(TranscodeManager transcodes, ILogger<PlaybackSessions> logger, PlaybackEvents? events = null, NowPlayingFeed? nowPlaying = null)
     {
         this.transcodes = transcodes;
         this.logger = logger;
         this.events = events;
+        this.nowPlaying = nowPlaying;
 
         // A transcode ended to make way for another viewer takes its playback with it.
         transcodes.TakenOver += id =>
@@ -75,6 +101,7 @@ public sealed partial class PlaybackSessions
             if (_sessions.TryRemove(id, out var session))
             {
                 events?.Removed(session);
+                nowPlaying?.Notice(session);
             }
         };
     }
@@ -91,6 +118,72 @@ public sealed partial class PlaybackSessions
         {
             _sessions.TryRemove(session.Id, out _);
         }
+
+        nowPlaying?.Notice(session);
+    }
+
+    /// <summary>The player reported where it's got to (and, from apps that do, what a remote needs): remotes follow.</summary>
+    public void Reported(PlaybackSession session, ProgressRequest progress)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(progress);
+        session.LastPosition = progress.PositionSeconds;
+        session.Paused = progress.Paused;
+        session.ReportedAt = DateTime.UtcNow;
+        session.Shown = true;
+        if (progress.ForRemotes)
+        {
+            var before = session.Remote;
+            var rate = progress.Rate is { } r && double.IsFinite(r) ? Math.Clamp(r, 0.25, 4) : before?.Rate ?? 1;
+            session.Remote = new RemoteState(rate, Parse<PlayerPrompt>(progress.Prompt), progress.HasNext ?? false, Trim(progress.Tracks) ?? before?.Tracks,
+                Sound(progress.Sound) ?? before?.Sound);
+        }
+
+        nowPlaying?.Notice(session);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="session"/> counts as what its device is playing at <paramref name="now"/>: heard from in the
+    /// last quarter of an hour, and, playing rather than paused, reporting (as the playback events count it).
+    /// </summary>
+    public static bool Shows(PlaybackSession session, DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        return now - session.LastSeen < NowPlayingStaleness && (session.Paused || now - HeardAt(session) < PlaybackEvents.PlayingSilence);
+    }
+
+    /// <summary>
+    /// When a playback was last heard from, for telling it has gone quiet. A player that tells remotes (an Apple TV from
+    /// 0.56) playing: its last report, as requests for its stream can go on while its app is gone. Anything else, or
+    /// paused: its last request of any kind (a phone casting stops reporting while the TV it cast to streams on).
+    /// </summary>
+    public static DateTime HeardAt(PlaybackSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        return !session.Paused && session.Remote is not null ? session.ReportedAt ?? session.LastSeen : session.LastSeen;
+    }
+
+    private static T? Parse<T>(string? name) where T : struct, Enum =>
+        Enum.TryParse<T>(name, ignoreCase: false, out var value) && Enum.IsDefined(value) && !int.TryParse(name, out _) ? value : null;
+
+    private static DeviceSound? Sound(ReportedSound? sound) =>
+        sound is null ? null : new DeviceSound(Parse<DialogueBoost>(sound.DialogueBoost), Parse<NightMode>(sound.NightMode), Parse<Speakers>(sound.Speakers));
+
+    /// <summary>A report's tracks within bounds: a misbehaving player can't fill memory or every phone's screen.</summary>
+    private static PlayerTracks? Trim(PlayerTracks? tracks)
+    {
+        if (tracks is null)
+        {
+            return null;
+        }
+
+        static IReadOnlyList<PlayerTrack> Keep(IReadOnlyList<PlayerTrack>? list) => (list ?? [])
+            .Where(t => t is { Id.Length: > 0 and <= MaxTrackId, Label: not null })
+            .Take(MaxTracks)
+            .Select(t => t.Label.Length > MaxLabel ? t with { Label = t.Label[..MaxLabel] } : t)
+            .ToList();
+
+        return new PlayerTracks(Keep(tracks.Audio), Keep(tracks.Subtitles));
     }
 
     public PlaybackSession? Get(string id)
@@ -111,6 +204,7 @@ public sealed partial class PlaybackSessions
         }
 
         events?.Removed(session);
+        nowPlaying?.Notice(session);
         if (session.Transcode is { } transcode)
         {
             await transcodes.StopAsync(transcode.Id);
@@ -119,7 +213,22 @@ public sealed partial class PlaybackSessions
 
     public async Task SweepAsync()
     {
-        events?.Sweep(_sessions.Values, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        events?.Sweep(_sessions.Values, now);
+
+        // A device that went quiet (its app killed, the TV asleep) stops being shown as playing: remotes and Live
+        // Activities hear so now, rather than when the playback finally expires.
+        foreach (var session in _sessions.Values)
+        {
+            var shows = Shows(session, now);
+            if (session.Shown && !shows)
+            {
+                nowPlaying?.Notice(session);
+            }
+
+            session.Shown = shows;
+        }
+
         foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
         {
             try

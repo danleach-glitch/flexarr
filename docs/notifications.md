@@ -150,6 +150,26 @@ It answers `200 {"ok":true}`, `410 {"reason":"Unregistered"}` or `400 {"reason":
 the phone), `413` for a sealed payload over 2,800 bytes (Apple takes 4 KB in all, and base64 adds a third), `429` when rate-limited (12 a minute to one phone; 600 a minute from one address, as a backstop), or `502`
 with Apple's reason.
 
+### Live Activities
+
+When the iPhone's remote is following a TV, the phone puts a Live Activity on its Lock Screen and gives the server the
+activity's push token (`PUT /api/v1/devices/{tv}/activity`). As the TV pauses, seeks, changes speed or stops, the server
+posts:
+
+```json
+{ "kind": "liveactivity", "token": "<hex>", "environment": "production", "event": "update", "urgent": false,
+  "state": { "paused": false, "position": 754.2, "age": 1.5, "duration": 3120, "rate": 1 } }
+```
+
+`event` is `update` or `end`. `age` is how many seconds ago `position` was so; the relay turns it into a time on its own
+clock, so a server whose clock is off doesn't throw the phone's times out. `urgent` (a pause, a resume, the end) goes to Apple at priority 10, which it budgets per
+activity; anything else (a seek) at 5. Left out, it's urgent. The system reads Live Activity updates itself, so unlike notifications they can't be
+sealed: they carry times and nothing else. The phone put the title and the TV's name on when it started the activity,
+and the relay refuses a `state` with any other key (`400 BadState`). Apple is sent `content-state` with `at` (seconds since 1970) in place of `age`. It sends Apple `apns-push-type: liveactivity` on the
+topic `<APNS_TOPIC>.push-type.liveactivity`, with `aps.content-state` set to `state`, a `stale-date` for when it should
+have ended (twenty minutes on for a pause), and for `end` a `dismissal-date` of now. The 12-a-minute limit per token
+applies; the server gathers changes for a second and a half, sends only when the times change more than the activity's own clock shows, and sends nothing while the phone has Flexarr open (it updates the activity itself).
+
 The relay needs these environment variables on the flexarr-push Vercel project: `APNS_KEY` (the .p8 file's contents),
 `APNS_KEY_ID`, `APNS_TEAM_ID` (the Apple developer team's ID) and `APNS_TOPIC` (the iPhone app's bundle ID).
 For Android it needs `FCM_SERVICE_ACCOUNT`: the contents of a service account key (the JSON file) for the Firebase
