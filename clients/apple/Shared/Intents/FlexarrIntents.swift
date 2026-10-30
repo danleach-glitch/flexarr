@@ -469,12 +469,15 @@ struct AddToWatchlistIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         guard title.kind == .movie || title.kind == .series else { throw FlexarrIntentError.noSuchTitle(title.title) }
+        if !model.hasWatchlist { await model.refreshWatchlist() }
+        guard model.hasWatchlist else { throw FlexarrIntentError.noWatchlist }
         do {
             try await client.addToWatchlist(.library(title.id))
         } catch FlexarrClientError.http(status: 404, _) {
-            throw FlexarrIntentError.noWatchlist
+            throw FlexarrIntentError.noSuchTitle(title.title)
         }
         model.invalidate()
+        await model.refreshWatchlist()
         return .result(dialog: "Added \(title.title) to your watchlist.")
     }
 }

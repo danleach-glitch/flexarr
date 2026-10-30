@@ -119,7 +119,7 @@ final class AppModel {
         ErrorReports.resume(server: credentials?.address)
         Task { await refreshErrorReports() }
         player.onSessionEnded = { [weak self] in
-            self?.invalidate()
+            self?.watchStateChanged()
             self?.music.videoEnded()
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
@@ -400,11 +400,31 @@ final class AppModel {
         podcastStatus = try? await client.podcastStatus()
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         liveTvStatus = try? await client.liveTvStatus()
-        hasWatchlist = await client.hasWatchlist()
+        await refreshWatchlist()
     }
 
     /// The server keeps watchlists (0.56 and later): the watchlist's buttons, menu items and screen show.
     private(set) var hasWatchlist = false
+
+    /// The library titles on the profile's watchlist, so poster menus offer Add or Remove.
+    private(set) var watchlistItems: Set<String> = []
+
+    /// Called when the watchlist may have changed (the iPhone's widget follows it).
+    var onWatchlistChange: (() -> Void)?
+
+    /// Learns what's on the watchlist (cheaply: the server doesn't ask Seerr). Network trouble keeps what was known, so
+    /// the watchlist doesn't vanish while offline; an older server, which has none, hides it.
+    func refreshWatchlist() async {
+        guard let client else { return }
+        do {
+            let keys = try await client.watchlistKeys()
+            hasWatchlist = keys != nil
+            watchlistItems = Set(keys?.libraryItemIds ?? [])
+            onWatchlistChange?()
+        } catch {
+            log.warning("Couldn't check the watchlist", error: error)
+        }
+    }
 
     /// Puts a film or show on the profile's watchlist, or takes it off. Nil if that failed; true if adding it also
     /// requested it (the profile requests what it adds).
@@ -414,7 +434,11 @@ final class AppModel {
         do {
             var requested = false
             if on { requested = try await client.addToWatchlist(key).requested } else { try await client.removeFromWatchlist(key) }
+            if case .library(let id) = key {
+                if on { watchlistItems.insert(id) } else { watchlistItems.remove(id) }
+            }
             invalidate()
+            Task { await refreshWatchlist() }
             return requested
         } catch {
             log.warning("Watchlist change failed", error: error)
@@ -454,6 +478,12 @@ final class AppModel {
 
     func invalidate() {
         refreshToken += 1
+    }
+
+    /// Something was watched or marked: titles can leave the watchlist.
+    private func watchStateChanged() {
+        invalidate()
+        if hasWatchlist { Task { await refreshWatchlist() } }
     }
 
     /// Plays random episodes of a show, one after another.
@@ -583,14 +613,14 @@ final class AppModel {
         guard let client else { return }
         try? await client.setWatched(item.id, watched: watched)
         if watched { player.offlineLibrary?.markedPlayed(itemId: item.id) } else { player.offlineLibrary?.forgetPosition(itemId: item.id) }
-        invalidate()
+        watchStateChanged()
     }
 
     /// Every episode of an episode's show watched.
     func setShowWatched(of episode: ItemSummary) async {
         guard let client, let show = episode.seriesId else { return }
         try? await client.setWatched(show, watched: true)
-        invalidate()
+        watchStateChanged()
     }
 
     func removeFromContinueWatching(_ item: ItemSummary) async {

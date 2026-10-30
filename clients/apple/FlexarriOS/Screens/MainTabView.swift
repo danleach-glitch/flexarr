@@ -130,6 +130,11 @@ struct LibrariesView: View {
                 }
             } else {
                 List {
+                    if model.hasWatchlist {
+                        Section {
+                            row("Watchlist", icon: "bookmark.fill") { router.push(.watchlist) }
+                        }
+                    }
                     // In the profile's order (Settings › Library order). Podcasts are one place however many libraries hold
                     // them, and say how to set them up when none does.
                     ForEach(LibraryMenuEntry.ordered(model: model)) { entry in
@@ -139,11 +144,6 @@ struct LibrariesView: View {
                             case .podcasts: router.push(.podcasts)
                             case .liveTv: router.push(.liveTv)
                             }
-                        }
-                    }
-                    if model.hasWatchlist {
-                        Section {
-                            row("Watchlist", icon: "bookmark.fill") { router.push(.watchlist) }
                         }
                     }
                 }

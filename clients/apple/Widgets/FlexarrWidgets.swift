@@ -2,15 +2,16 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-// The podcast widgets: Continue listening (Home Screen, small and medium, and the Lock Screen) and Up Next. They show
-// what the app last saved to the app group (`PodcastSnapshot`) and never ask the server themselves; the app reloads
-// them when podcast state changes.
+// The podcast widgets: Continue listening (Home Screen, small and medium, and the Lock Screen) and Up Next, and the
+// Watchlist's ready titles. They show what the app last saved to the app group (`PodcastSnapshot`, `WatchlistSnapshot`)
+// and never ask the server themselves; the app reloads them when its state changes.
 
 @main
 struct FlexarrWidgets: WidgetBundle {
     var body: some Widget {
         ContinueListeningWidget()
         UpNextWidget()
+        WatchlistWidget()
     }
 }
 
@@ -246,5 +247,99 @@ struct UpNextView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .widgetURL(episodes.first.map { PodcastSnapshot.playURL($0.id) })
+    }
+}
+
+// MARK: - Watchlist
+
+struct WatchlistEntryTimeline: TimelineEntry {
+    let date: Date
+    let snapshot: WatchlistSnapshot
+}
+
+struct WatchlistProvider: TimelineProvider {
+    func placeholder(in context: Context) -> WatchlistEntryTimeline {
+        WatchlistEntryTimeline(date: Date(), snapshot: .preview)
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (WatchlistEntryTimeline) -> Void) {
+        let saved = WatchlistSnapshot.load()
+        completion(WatchlistEntryTimeline(date: Date(), snapshot: context.isPreview && saved.ready.isEmpty ? .preview : saved))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<WatchlistEntryTimeline>) -> Void) {
+        completion(Timeline(entries: [WatchlistEntryTimeline(date: Date(), snapshot: WatchlistSnapshot.load())], policy: .never))
+    }
+}
+
+extension WatchlistSnapshot {
+    /// What the widget gallery shows before the app has saved anything.
+    static let preview = WatchlistSnapshot(ready: [
+        Title(id: "a", title: "Dune: Part Two", posterFile: nil),
+        Title(id: "b", title: "Severance", posterFile: nil),
+        Title(id: "c", title: "Arrival", posterFile: nil),
+        Title(id: "d", title: "Slow Horses", posterFile: nil),
+    ], updatedAt: Date())
+}
+
+struct WatchlistWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: WatchlistSnapshot.widgetKind, provider: WatchlistProvider()) { entry in
+            WatchlistWidgetView(snapshot: entry.snapshot)
+                .containerBackground(for: .widget) { Palette.room }
+        }
+        .configurationDisplayName("Watchlist")
+        .description("What's on your watchlist and ready to watch.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+struct WatchlistWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let snapshot: WatchlistSnapshot
+
+    var body: some View {
+        if snapshot.ready.isEmpty {
+            VStack(spacing: 6) {
+                Image(systemName: "bookmark").font(.title3)
+                Text("Nothing ready yet").font(.caption).multilineTextAlignment(.center)
+            }
+            .foregroundStyle(Palette.usher)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Ready from your watchlist")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.usher)
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    ForEach(snapshot.ready.prefix(family == .systemMedium ? 4 : 2)) { title in
+                        Link(destination: WatchlistSnapshot.itemURL(title.id)) {
+                            poster(title)
+                        }
+                    }
+                }
+            }
+            .widgetURL(snapshot.ready.first.map { WatchlistSnapshot.itemURL($0.id) })
+        }
+    }
+
+    private func poster(_ title: WatchlistSnapshot.Title) -> some View {
+        Group {
+            if let url = PodcastSnapshot.artwork(title.posterFile), let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
+                Image(uiImage: image).resizable().aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    Palette.seat
+                    Text(title.title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Palette.screen)
+                        .multilineTextAlignment(.center)
+                        .padding(4)
+                }
+            }
+        }
+        .aspectRatio(2 / 3, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityLabel(title.title)
     }
 }

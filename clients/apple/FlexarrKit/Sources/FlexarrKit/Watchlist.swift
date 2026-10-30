@@ -35,6 +35,8 @@ public struct WatchlistEntry: Codable, Sendable, Hashable, Identifiable {
     public let item: ItemSummary?
     /// "flexarr", or "trakt" for one brought across from Trakt.
     public let source: String
+    /// For a title not in the library, the subscription services it's on in the household's region (up to three).
+    public var streaming: [String]? = nil
 
     public var isShow: Bool { mediaType == "tv" }
 
@@ -42,9 +44,15 @@ public struct WatchlistEntry: Codable, Sendable, Hashable, Identifiable {
     public var external: ExternalTitle? {
         tmdbId.map {
             ExternalTitle(tmdbId: $0, mediaType: mediaType, title: title, year: year, overview: nil, poster: poster, backdrop: backdrop, rating: 0,
-                          availability: status == .onItsWay ? .requested : .none, libraryItemId: libraryItemId)
+                          availability: status == .onItsWay ? .requested : .none, libraryItemId: libraryItemId, onWatchlist: true)
         }
     }
+}
+
+/// What's on the watchlist, cheaply: the library titles on it, and every title as "movie:123" / "tv:456".
+public struct WatchlistKeys: Codable, Sendable, Hashable {
+    public let libraryItemIds: [String]
+    public let titles: [String]
 }
 
 /// What adding a title did: the entry, and whether it was also requested (the profile requests what it adds).
@@ -84,13 +92,16 @@ extension Notification.Name {
 // MARK: - Endpoints
 
 extension FlexarrClient {
-    /// Whether this server keeps watchlists (0.56 and later), asked cheaply: older servers answer 404.
-    public func hasWatchlist() async -> Bool {
+    /// What's on the profile's watchlist, without the server asking Seerr. Older servers answer this with the web
+    /// app's page (200, text/html), which `send` refuses as `unexpectedResponse`: nil, no watchlist there. Network
+    /// trouble throws, so a caller can keep what it knew.
+    public func watchlistKeys() async throws -> WatchlistKeys? {
         do {
-            _ = try await send("GET", "watchlist/contains")
-            return true
-        } catch {
-            return false
+            return try await get("watchlist/keys")
+        } catch FlexarrClientError.unexpectedResponse {
+            return nil
+        } catch FlexarrClientError.http(status: 404, _) {
+            return nil
         }
     }
 

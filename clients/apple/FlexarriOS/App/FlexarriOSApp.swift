@@ -298,6 +298,7 @@ struct RootView: View {
             model.player.onWatchedToEnd = { [weak reviews] closing in reviews?.watchedToEnd(closing: closing) }
             model.onPodcastsChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
+            model.onWatchlistChange = { [weak model] in if let model { WidgetBridge.publishWatchlist(model) } }
             model.music.offlineLibrary = downloads
             downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)

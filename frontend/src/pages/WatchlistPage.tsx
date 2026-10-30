@@ -107,7 +107,7 @@ const statusLabel = (entry: WatchlistEntry) => {
     case 'OnItsWay':
       return 'On its way'
     case 'Coming':
-      return entry.releaseDate ? `Out ${new Date(entry.releaseDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Coming'
+      return entry.releaseDate ? `Out ${new Date(entry.releaseDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}` : 'Coming'
     default:
       return null
   }

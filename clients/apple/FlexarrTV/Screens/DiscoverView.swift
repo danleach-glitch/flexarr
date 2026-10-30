@@ -250,6 +250,9 @@ struct ExternalCard: View {
     var width: CGFloat = Layout.posterWidth
     var focus: FocusState<String?>.Binding?
     var focusID: String?
+    /// In place of the year and state under the title (the watchlist says where the title has got to).
+    var note: String?
+    @State private var watchlistChanged: Bool?
 
     var body: some View {
         ArtworkButton(ambient: .silver, focus: focus, focusID: focusID) {
@@ -280,7 +283,7 @@ struct ExternalCard: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
                     .lineLimit(1)
-                Text([title.year.map(String.init), title.state].compactMap { $0 }.joined(separator: "  "))
+                Text(note ?? [title.year.map(String.init), title.state].compactMap { $0 }.joined(separator: "  "))
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
                     .lineLimit(1)
@@ -288,8 +291,10 @@ struct ExternalCard: View {
             .frame(width: width, alignment: .leading)
         }
         .contextMenu {
-            if let onList = title.onWatchlist {
-                Button { Task { await model.setOnWatchlist(WatchlistKey(title), !onList) } } label: {
+            if let onList = watchlistChanged ?? title.onWatchlist {
+                Button {
+                    Task { if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil { watchlistChanged = !onList } }
+                } label: {
                     Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
                 }
             }

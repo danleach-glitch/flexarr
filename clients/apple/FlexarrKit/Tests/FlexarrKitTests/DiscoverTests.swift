@@ -74,6 +74,15 @@ struct WatchlistTests {
         #expect(entries[1].isShow)
         #expect(entries[1].external?.id == "tv-1")
         #expect(WatchlistKey(entries[1].external!) == .tmdb(mediaType: "tv", id: 1))
+        #expect(entries[1].external?.onWatchlist == true)
+        #expect(entries[0].streaming == nil)
+        let streaming = try FlexarrClient.decoder.decode(WatchlistEntry.self, from: Data(#"""
+        {"id":"c","mediaType":"movie","tmdbId":2,"title":"S","year":null,"poster":null,"backdrop":null,"addedAt":"2026-10-30T10:00:00Z",
+         "status":"NotAvailable","releaseDate":null,"libraryItemId":null,"item":null,"source":"flexarr","streaming":["Netflix"]}
+        """#.utf8))
+        #expect(streaming.streaming == ["Netflix"])
+        let keys = try FlexarrClient.decoder.decode(WatchlistKeys.self, from: Data(#"{"libraryItemIds":["i1"],"titles":["movie:1"]}"#.utf8))
+        #expect(keys.libraryItemIds == ["i1"])
     }
 
     @Test func oldServersHaveNoWatchlist() throws {
