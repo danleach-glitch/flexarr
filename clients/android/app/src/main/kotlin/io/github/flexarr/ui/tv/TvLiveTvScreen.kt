@@ -117,16 +117,19 @@ private sealed interface Category {
  * five-minute refresh always fetches.
  */
 internal object TvGuideCache {
-    private class Entry(val server: String, val guide: LiveGuide, val fetched: Instant, val hours: Int)
+    private class Entry(val sign: String, val guide: LiveGuide, val fetched: Instant, val hours: Int)
 
     private var entry: Entry? = null
 
-    /** At least [hours] from an hour ago; [fresh] after something changed it (a recording set). */
-    suspend fun guide(client: FlexarrClient, hours: Int, fresh: Boolean = false): LiveGuide {
-        val server = client.baseUrl.toString()
-        entry?.takeIf { !fresh && it.server == server && it.hours >= hours && Duration.between(it.fetched, Instant.now()) < MAX_AGE }?.let { return it.guide }
+    /**
+     * At least [hours] from an hour ago; [fresh] after something changed it (a recording set). Kept for one server and
+     * one profile ([profile]): another profile may not see the same channels.
+     */
+    suspend fun guide(client: FlexarrClient, hours: Int, profile: String?, fresh: Boolean = false): LiveGuide {
+        val sign = "${client.baseUrl} $profile"
+        entry?.takeIf { !fresh && it.sign == sign && it.hours >= hours && Duration.between(it.fetched, Instant.now()) < MAX_AGE }?.let { return it.guide }
         val guide = client.liveGuide(Instant.now().minusSeconds(3600), hours)
-        entry = Entry(server, guide, Instant.now(), hours)
+        entry = Entry(sign, guide, Instant.now(), hours)
         return guide
     }
 
@@ -176,7 +179,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     }
     suspend fun loadGuide(fresh: Boolean = false) {
         upcoming = runCatching { client.recordings().upcoming.size }.getOrNull() ?: upcoming
-        runCatching { TvGuideCache.guide(client, guideHours, fresh) }.onSuccess { guide = it }
+        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, fresh) }.onSuccess { guide = it }
     }
     // What's on moves on: fetched again each minute while the screen is up; the guide (a few hours of it) every five,
     // and more of it as the guide's moved on.

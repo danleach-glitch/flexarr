@@ -30,6 +30,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When a device asks to connect, the main profile still hears about it while settings are locked, and **Allow** asks for the PIN first.
 - On the web, **Delete**, **Fix match** and the household's collections stay where they were on the main profile while settings are locked; using one asks for the PIN, then carries on.
 - When someone gets the main profile's PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was.
+- Switching to another profile on Android stops the music or podcast that was playing, as on iPhone, and clears Up Next, so what you play next counts for the right person.
 
 ### Playback
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.

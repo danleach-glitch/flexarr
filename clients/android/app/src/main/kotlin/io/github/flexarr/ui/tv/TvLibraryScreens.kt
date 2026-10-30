@@ -257,9 +257,11 @@ fun TvLibraryGrid(
             var fetched = first.items
             while (fetched.size < wanted && fetched.size < first.total) {
                 val next = client.libraryItems(library.id, sort, genre, skip = fetched.size, take = (wanted - fetched.size).coerceAtMost(MAX_PAGE_SIZE))
-                if (next.items.isEmpty()) break
                 val known = fetched.map { it.id }.toSet()
-                fetched = fetched + next.items.filter { it.id !in known }
+                val added = next.items.filter { it.id !in known }
+                // Nothing new (an empty page, or titles already here after one moved): asking again would get the same.
+                if (added.isEmpty()) break
+                fetched = fetched + added
             }
             if (current != generation) return@LaunchedEffect
             items = fetched

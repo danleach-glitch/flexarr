@@ -47,6 +47,9 @@ private val flexarrLog = FlexarrLog("livetv")
  */
 @OptIn(UnstableApi::class)
 class LiveTvController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
+    /** Who's watching, for what's kept per profile (the TV's guide). */
+    val profileId: String? get() = model.currentProfile?.id
+
     /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 

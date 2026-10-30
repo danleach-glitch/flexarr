@@ -27,7 +27,9 @@ import java.util.regex.Pattern
  *
  * The profile lands in app/src/release/generated/baselineProfiles and is committed; make it again after big UI changes.
  * On a Google TV (the emulator or a stick), [generateTv] records the TV interface's journey instead, with the remote's
- * keys; the phone's is skipped there, and the TV's on a phone.
+ * keys; the phone's is skipped there, and the TV's on a phone. Each run writes the whole committed profile, so record
+ * on a phone (or both, a phone and a TV, in one run): a TV on its own would leave the shipped phone app without one,
+ * as the TV interface isn't in release builds yet.
  */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {

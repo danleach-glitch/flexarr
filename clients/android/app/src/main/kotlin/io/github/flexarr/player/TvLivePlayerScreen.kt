@@ -388,7 +388,7 @@ private fun GuideOverlay(controller: LiveTvController, onWatch: (LiveChannel) ->
     var version by remember { mutableIntStateOf(0) }
     // The one Live TV fetched, when it's recent; fresh after a recording's been set from here.
     var hours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
-    LaunchedEffect(version, hours) { runCatching { TvGuideCache.guide(controller.client, hours, fresh = version > 0) }.onSuccess { guide = it } }
+    LaunchedEffect(version, hours) { runCatching { TvGuideCache.guide(controller.client, hours, controller.profileId, fresh = version > 0) }.onSuccess { guide = it } }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f))) {
         Column(Modifier.padding(start = TvLayout.Edge, top = 25.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Guide", style = marquee(28))
