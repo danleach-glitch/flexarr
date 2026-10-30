@@ -37,7 +37,7 @@ public sealed record DeviceCommandResultDto(bool Delivered, string DeviceName, I
 public sealed record DeviceWatchRequest(Guid ChannelId);
 
 /// <summary>
-/// Devices as targets: list them, tell one to play something (or pause, resume, stop), and the stream a device keeps
+/// Devices as targets: list them, tell one to play something (or pause, resume, stop, or change its sound), and the stream a device keeps
 /// open to hear such commands. How the phone (and Siri, and an assistant over MCP) plays on the TV.
 /// </summary>
 public static class DeviceEndpoints
@@ -88,6 +88,27 @@ public static class DeviceEndpoints
                 { Result: { } result } => Results.Accepted(null as string, result),
                 { Error: { } error, Status: var status } => Results.Problem(error, statusCode: status),
                 _ => Results.NotFound(),
+            };
+        });
+
+        // Night mode on for the living room, from an assistant or an automation: only to a device with Flexarr open.
+        group.MapPost("/{id}/sound", (string id, DeviceSound request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+        {
+            if (!current.IsTrusted)
+            {
+                return Forbidden();
+            }
+
+            if (request.IsEmpty)
+            {
+                return Results.Problem("Say what to change: dialogueBoost, nightMode or speakers.", statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            return SetSound(id, request, signIns, commands, current) switch
+            {
+                null => Results.NotFound(),
+                { Delivered: true } result => Results.Ok(result),
+                { } result => Results.Problem($"Flexarr isn't open on {result.DeviceName}.", statusCode: StatusCodes.Status409Conflict),
             };
         });
 
@@ -231,6 +252,21 @@ public static class DeviceEndpoints
 
         var delivered = commands.Send(device.Id, new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow));
         return new DeviceCommandResultDto(delivered, device.Name, null);
+    }
+
+    /// <summary>Sends <paramref name="sound"/> to a device that's listening; it isn't kept for one that isn't (null: no such device).</summary>
+    public static DeviceCommandResultDto? SetSound(string deviceId, DeviceSound sound, SignIns signIns, DeviceCommands commands, CurrentProfile current)
+    {
+        ArgumentNullException.ThrowIfNull(signIns);
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(current);
+        if (Find(signIns, deviceId) is not { } device)
+        {
+            return null;
+        }
+
+        var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Sound, null, false, SenderName(signIns, current), DateTime.UtcNow, Sound: sound);
+        return new DeviceCommandResultDto(commands.Send(device.Id, command, keep: false), device.Name, null);
     }
 
     public static SignIn? Find(SignIns signIns, string deviceId)

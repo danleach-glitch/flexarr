@@ -68,6 +68,8 @@ protocol PlayerTransport: AnyObject {
     var subtitleSize: SubtitleSize { get set }
     var subtitlePlacement: SubtitlePlacement { get set }
 
+    /// Whether this device's sound settings (dialogue boost, night mode, speakers) reach the sound.
+    var soundReach: SoundReach { get }
     /// Apple's player underneath, when there is one: AirPlay and Picture in Picture go through it.
     var avPlayer: AVPlayer? { get }
     var playerLayer: AVPlayerLayer? { get }
@@ -80,6 +82,9 @@ protocol PlayerTransport: AnyObject {
 
 extension PlayerTransport {
     var isPlaying: Bool { phase == .playing || phase == .buffering }
+
+    /// Only the engine shapes the sound: Apple's player over a server stream or a download plays it as it comes.
+    var soundReach: SoundReach { .unsupported }
 
     /// The subtitles showing are teletext, whose caption page can be chosen. Only the engine decodes teletext.
     var showsTeletext: Bool { false }
@@ -115,4 +120,14 @@ extension SubtitleSize {
         if let line { attributes[kCMTextMarkupAttribute_OrthogonalLinePositionPercentageRelativeToWritingDirection as String] = line }
         return attributes.isEmpty ? nil : AVTextStyleRule(textMarkupAttributes: attributes).map { [$0] }
     }
+}
+
+/// Whether the sound settings reach what's playing, for the audio menu.
+enum SoundReach {
+    /// They're applied, or there's nothing to apply.
+    case applied
+    /// They're set but can't be applied while AirPlay plays the sound; they come back after it.
+    case notOverAirPlay
+    /// This way of playing doesn't shape the sound at all (Play files directly is off, or a download).
+    case unsupported
 }

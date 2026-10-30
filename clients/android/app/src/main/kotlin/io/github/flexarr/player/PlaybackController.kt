@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -25,6 +27,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
+import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MarkerType
@@ -57,11 +60,15 @@ import kotlin.math.abs
  * Intro and Next Episode, and moves on to the next episode. The audio, subtitle, speed and sleep-timer menus act
  * through it. The iPhone app's PlaybackController, for the phone.
  */
+@OptIn(UnstableApi::class)
 class PlaybackController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
     /** How far back and forward jump, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
-    val player: ExoPlayer = ExoPlayer.Builder(context)
+    /** Dialogue boost, night mode and the speakers (Settings › Playback, or the audio menu), applied as the sound plays. */
+    private val shaper = SoundShaper()
+
+    val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -73,6 +80,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The server reads a chosen teletext page (0.55 on), known with [serverProfile]. */
     private var serverReadsTeletextPages = false
     private val scope = model.scope
+
+    /** The phone's sound settings, followed while the player is open. */
+    var sound by mutableStateOf(SoundSettings.current(context))
+        private set
+    private val appContext = context.applicationContext
+    private val soundJob = shaper.follow(scope, appContext) { sound = it }
+
+    fun changeSound(change: (SoundSettings) -> SoundSettings) = SoundSettings.update(appContext, change)
 
     var info: PlaybackInfo? by mutableStateOf(null)
         private set
@@ -1059,6 +1074,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         previews?.close()
         dropPrepared()
         countdownJob?.cancel()
+        soundJob.cancel()
         sleep.set(null)
         val session = info?.sessionId
         val at = player.currentPosition / 1000.0

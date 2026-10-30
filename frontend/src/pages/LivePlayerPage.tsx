@@ -11,6 +11,8 @@ import { formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { prefersNativeHls } from '../lib/profile'
+import { unshaped, useSoundSettings, useSoundShaping } from '../lib/soundSettings'
+import { useSoundChain } from '../hooks/soundChain'
 import { programmeTime, progress } from '../lib/livetv'
 
 const HIDE_CHROME_MS = 3000
@@ -38,6 +40,9 @@ export default function LivePlayerPage() {
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(true)
   const [window_, setWindow] = useState({ start: 0, end: 0, time: 0 })
+  // This browser's sound settings, as over a film; Safari plays the channel itself, and is left as it comes.
+  const shaping = useSoundShaping(useSoundSettings())
+  useSoundChain(video, 0, prefersNativeHls() ? unshaped : shaping, null)
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)

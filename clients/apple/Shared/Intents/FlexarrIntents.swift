@@ -583,6 +583,118 @@ struct ControlPlaybackIntent: AppIntent {
     }
 }
 
+// MARK: - Sound
+
+enum Switch: String, AppEnum {
+    case on, off
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "On or off")
+    static let caseDisplayRepresentations: [Switch: DisplayRepresentation] = [.on: "On", .off: "Off"]
+}
+
+enum BoostLevel: String, AppEnum {
+    case off, low, medium, high
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Dialogue boost")
+    static let caseDisplayRepresentations: [BoostLevel: DisplayRepresentation] = [.off: "Off", .low: "Low", .medium: "Medium", .high: "High"]
+
+    var setting: SoundSettings.DialogueBoost {
+        switch self {
+        case .off: .off
+        case .low: .low
+        case .medium: .medium
+        case .high: .high
+        }
+    }
+}
+
+/// Changes a sound setting here (`here` changes it and says what happened), or sends it to another device that has
+/// Flexarr open: that device's app takes it, from 0.56 on, so what's said is that it was sent.
+@MainActor
+private func changeSound(on device: DeviceEntity?, model: AppModel, here: (inout SoundSettings) -> String, there: DeviceSound) async throws -> String {
+    let target = Play.target(device)
+    if target.isHere {
+        var settings = SoundSettings.current
+        let said = here(&settings)
+        SoundSettings.current = settings
+        return said
+    }
+    guard let client = model.client else { throw FlexarrIntentError.notConnected }
+    do {
+        _ = try await client.setSound(device: target.id, there)
+        return "Sent to \(target.name)."
+    } catch FlexarrClientError.http(status: 409, _) {
+        return "Flexarr isn't open on \(target.name)."
+    } catch FlexarrClientError.http(status: 404, _) {
+        throw FlexarrIntentError.deviceGone(target.name)
+    }
+}
+
+/// "Turn on night mode in Flexarr": quietens loud scenes, here or on another device.
+struct NightModeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Night mode"
+    static let description = IntentDescription("Turns night mode on or off: loud scenes quieter, quiet ones easier to hear.", categoryName: "Sound")
+
+    @Parameter(title: "Night mode", default: .on)
+    var state: Switch
+
+    @Parameter(title: "On")
+    var device: DeviceEntity?
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Turn \(\.$state) night mode on \(\.$device)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let on = state == .on
+        let said = try await changeSound(on: device, model: model, here: { settings in
+            // On a schedule that's already doing what was asked, the schedule stays.
+            if settings.nightMode == .scheduled {
+                let now = settings.isNight(at: Date())
+                if now == on {
+                    return on ? "Night mode's already on, on its schedule." : "Night mode's off, and comes on at \(SoundSettings.clock(settings.nightStart)) as scheduled."
+                }
+                settings.nightMode = on ? .on : .off
+                return on ? "Night mode's on. That replaces its schedule." : "Night mode's off. That replaces its schedule."
+            }
+            settings.nightMode = on ? .on : .off
+            return on ? "Night mode's on." : "Night mode's off."
+        }, there: DeviceSound(nightMode: on ? "On" : "Off"))
+        return .result(dialog: "\(said)")
+    }
+}
+
+/// Dialogue boost from Shortcuts: makes voices clearer, here or on another device.
+struct DialogueBoostIntent: AppIntent {
+    static let title: LocalizedStringResource = "Dialogue boost"
+    static let description = IntentDescription("Sets how much voices are lifted over music and effects.", categoryName: "Sound")
+
+    @Parameter(title: "Dialogue boost", default: .medium)
+    var level: BoostLevel
+
+    @Parameter(title: "On")
+    var device: DeviceEntity?
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Set dialogue boost to \(\.$level) on \(\.$device)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let boost = level.setting
+        let said = try await changeSound(on: device, model: model, here: { settings in
+            settings.dialogueBoost = boost
+            return boost == .off ? "Dialogue boost's off." : "Dialogue boost's \(boost.rawValue.lowercased())."
+        }, there: DeviceSound(dialogueBoost: boost.rawValue))
+        return .result(dialog: "\(said)")
+    }
+}
+
 // MARK: - The system's own video intents
 
 /// "Play Heat in Flexarr", through the system's video-playback intent (what Siri on Apple TV understands): the best
@@ -716,6 +828,15 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Pause, resume or stop",
             systemImageName: "pause.fill"
+        )
+        AppShortcut(
+            intent: NightModeIntent(),
+            phrases: [
+                "Turn \(\.$state) night mode in \(.applicationName)",
+                "Night mode \(\.$state) in \(.applicationName)",
+            ],
+            shortTitle: "Night mode",
+            systemImageName: "moon"
         )
     }
 }

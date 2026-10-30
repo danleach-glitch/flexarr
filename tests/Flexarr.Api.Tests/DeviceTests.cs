@@ -104,6 +104,29 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ChangingADevicesSound_ReachesItOnlyWhileFlexarrIsOpen_AndLeavesAWaitingPlayAlone()
+    {
+        var show = await SeedAsync("Slow Horses", ("S01E01", 1, 1));
+        var (id, tv) = await DeviceAsync("Lounge");
+
+        // Not listening: a play waits for it, and a sound change neither waits nor pushes the play out.
+        Assert.Equal(HttpStatusCode.Accepted, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sound"), new { nightMode = "On" })).StatusCode);
+        var (response, reader) = await ListenAsync(tv);
+        Assert.Equal("Play", (await NextCommandAsync(reader)).GetProperty("kind").GetString());
+
+        var sent = await Admin().PostAsJsonAsync(Api($"/devices/{id}/sound"), new { nightMode = "On", dialogueBoost = "High" });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        var command = await NextCommandAsync(reader);
+        Assert.Equal("Sound", command.GetProperty("kind").GetString());
+        Assert.Equal("On", command.GetProperty("sound").GetProperty("nightMode").GetString());
+        Assert.Equal("High", command.GetProperty("sound").GetProperty("dialogueBoost").GetString());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sound"), new { })).StatusCode);
+        response.Dispose();
+    }
+
+    [Fact]
     public async Task PlayingAsAProfile_SendsTheEpisodeThatProfileIsUpTo_AndTellsTheDeviceWhose()
     {
         var show = await SeedAsync("Taskmaster", ("S01E01", 1, 1), ("S01E02", 1, 2));

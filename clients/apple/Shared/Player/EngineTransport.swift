@@ -40,6 +40,8 @@ final class EngineTransport: PlayerTransport {
     /// The engine let its picture go in the background and the title was paused then: it's rebuilt on the next Play.
     private var restoreOnPlay = false
     private var lifecycleObservers: [NSObjectProtocol] = []
+    /// Looks at a scheduled night mode once a minute, so it starts and stops mid-film.
+    private var soundClock: Timer?
 
     init(info: PlaybackInfo, client: FlexarrClient) throws {
         self.info = info
@@ -81,6 +83,9 @@ final class EngineTransport: PlayerTransport {
         // The file's sound out of sync (the household's fix, kept by the server): moved here, unless the server's
         // stream has it moved already.
         options.audioDelaySeconds = info.audioDelayInStream == true ? 0 : info.audioDelaySeconds ?? 0
+        // Dialogue boost, night mode and the speakers (this device's sound settings), shaped by the engine.
+        let startingTrack = info.audioTracks.first { $0.index == audioIndex ?? info.selectedAudioIndex }
+        options.audioShaping = SoundSettings.current.shaping(at: Date(), sourceChannels: startingTrack?.channels)
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
@@ -215,9 +220,28 @@ final class EngineTransport: PlayerTransport {
     }
 
     var volume: Float {
-        get { engine.volume }
-        set { engine.volume = newValue }
+        get { wantedVolume }
+        set {
+            wantedVolume = newValue
+            engine.volume = newValue * shapingTrim
+        }
     }
+    /// The level asked for (the sleep timer fades it), before `shapingTrim`.
+    private var wantedVolume: Float = 1
+    /// Dolby soundtracks carry a dialogue level that a TV or receiver turns them down to when they're passed through;
+    /// decoded here for shaping they'd come out louder, music and all, so they're turned down to match. Films
+    /// commonly sit about 4 dB above that reference, so this is a typical figure, not the track's own.
+    private var shapingTrim: Float = 1
+
+    private func updateShapingTrim() {
+        let codec = engine.audioTracks.first { $0.id == engine.activeAudioTrackIndex }?.codec.lowercased() ?? ""
+        let dolby = ["ac3", "eac3", "truehd", "mlp"].contains(codec)
+        let trim: Float = engine.audioShapingState == .applied && dolby ? Self.dolbyTrim : 1
+        guard trim != shapingTrim else { return }
+        shapingTrim = trim
+        engine.volume = wantedVolume * trim
+    }
+    private static let dolbyTrim = Float(pow(10.0, -4.0 / 20))
 
     /// Moves the file's sound later (earlier when negative) while it plays: the engine brings the change to the
     /// playhead at once, with a moment's hold of the picture.
@@ -225,7 +249,18 @@ final class EngineTransport: PlayerTransport {
         engine.setAudioDelay(seconds)
     }
 
+    /// The engine can't shape what AirPlay plays: the settings stand, and come back after it.
+    var soundReach: SoundReach { engine.audioShapingState == .unavailable ? .notOverAirPlay : .applied }
+
+    /// The sound settings as they are now: a change, or a scheduled night mode starting or stopping. A change rebuilds
+    /// the session at the playhead (a moment's hold of the picture), so the same value twice does nothing.
+    private func applySoundSettings() {
+        let playing = engine.audioTracks.first { $0.id == engine.activeAudioTrackIndex }
+        engine.setAudioShaping(SoundSettings.current.shaping(at: Date(), sourceChannels: playing?.channels))
+    }
+
     func stop() {
+        soundClock?.invalidate()
         lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
         lifecycleObservers = []
         cancellables.removeAll()
@@ -515,7 +550,25 @@ final class EngineTransport: PlayerTransport {
             center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.becameActive() }
             },
+            center.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applySoundSettings() }
+            },
         ]
+        soundClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, SoundSettings.current.nightMode == .scheduled else { return }
+                self.applySoundSettings()
+            }
+        }
+        engine.$audioShapingState
+            .receive(on: DispatchQueue.main)
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateShapingTrim()
+                self.delegate?.transportTracksChanged(self) // The audio menu says whether it's reaching the sound.
+            }
+            .store(in: &cancellables)
         engine.$playbackPhase
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updatePhase() }
@@ -541,6 +594,9 @@ final class EngineTransport: PlayerTransport {
             .sink { [weak self] _, _, _ in
                 guard let self else { return }
                 self.delegate?.transportTracksChanged(self)
+                // Another track may need the speaker cap where the last didn't (7.1 after 5.1); unchanged, it's ignored.
+                if !self.loading { self.applySoundSettings() }
+                self.updateShapingTrim()
             }
             .store(in: &cancellables)
         engine.$currentAVPlayerItem

@@ -76,6 +76,25 @@ public class McpTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task SetDeviceSound_NeedsOnlyWhatChanges_AndTakesNamesOnly()
+    {
+        await using var client = await ConnectAsync();
+        var tool = (await client.ListToolsAsync()).Single(t => t.Name == "set_device_sound");
+        var required = tool.JsonSchema.TryGetProperty("required", out var r) ? r.EnumerateArray().Select(e => e.GetString()).ToList() : [];
+        Assert.Equal(["deviceId"], required);
+
+        var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var device = await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Den TV" })).Content.ReadFromJsonAsync<JsonElement>();
+        var deviceId = device.GetProperty("id").GetString()!;
+
+        var closed = Result(await client.CallToolAsync("set_device_sound", new Dictionary<string, object?> { ["deviceId"] = deviceId, ["nightMode"] = "on" }));
+        Assert.False(closed.GetProperty("delivered").GetBoolean());
+        Assert.True((await client.CallToolAsync("set_device_sound", new Dictionary<string, object?> { ["deviceId"] = deviceId, ["dialogueBoost"] = "1" })).IsError);
+        Assert.True((await client.CallToolAsync("set_device_sound", new Dictionary<string, object?> { ["deviceId"] = deviceId, ["dialogueBoost"] = "low, high" })).IsError);
+    }
+
+    [Fact]
     public async Task WithoutASignIn_TheEndpointRefuses()
     {
         await Assert.ThrowsAnyAsync<Exception>(async () => await ConnectAsync(apiKey: null));

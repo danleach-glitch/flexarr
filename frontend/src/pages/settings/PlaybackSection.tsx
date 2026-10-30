@@ -3,6 +3,18 @@ import { getPlaybackPreferences, setPlaybackPreferences, type PlaybackPreference
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { crossfadeChoices, useMusicSettings, writeMusicSettings } from '../../lib/musicSettings'
+import {
+  dialogueBoostChoices,
+  minutesOf,
+  nightModeChoices,
+  speakerChoices,
+  timeOfDay,
+  useSoundSettings,
+  writeSoundSettings,
+  type DialogueBoost,
+  type NightMode,
+  type Speakers,
+} from '../../lib/soundSettings'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
@@ -98,12 +110,74 @@ function MusicInThisBrowser() {
   )
 }
 
+/** How films, episodes and live TV sound in this browser. Kept on the device, since it's about the room and its speakers. */
+function SoundInThisBrowser() {
+  const settings = useSoundSettings()
+  return (
+    <SettingsGroup title="Sound in this browser" note="This browser’s own. The player’s audio menu changes them too.">
+      <SettingRow label="Dialogue boost" help="Makes voices easier to follow under music and effects.">
+        <select value={settings.dialogueBoost} onChange={(e) => writeSoundSettings({ dialogueBoost: e.target.value as DialogueBoost })}>
+          {dialogueBoostChoices.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+      </SettingRow>
+      <SettingRow label="Night mode" help="Quietens loud scenes and lifts quiet ones.">
+        <select value={settings.nightMode} onChange={(e) => writeSoundSettings({ nightMode: e.target.value as NightMode })}>
+          {nightModeChoices.map((n) => (
+            <option key={n} value={n}>
+              {n === 'Scheduled' ? 'On a schedule' : n}
+            </option>
+          ))}
+        </select>
+      </SettingRow>
+      {settings.nightMode === 'Scheduled' && (
+        <SettingRow label="Night mode hours" as="div">
+          <span>
+            <input
+              type="time"
+              aria-label="Night mode starts"
+              value={timeOfDay(settings.nightStart)}
+              onChange={(e) => {
+                const at = minutesOf(e.target.value)
+                if (at !== null) writeSoundSettings({ nightStart: at })
+              }}
+            />
+            {' to '}
+            <input
+              type="time"
+              aria-label="Night mode ends"
+              value={timeOfDay(settings.nightEnd)}
+              onChange={(e) => {
+                const at = minutesOf(e.target.value)
+                if (at !== null) writeSoundSettings({ nightEnd: at })
+              }}
+            />
+          </span>
+        </SettingRow>
+      )}
+      <SettingRow label="Speakers" help="Auto plays every channel the browser can.">
+        <select value={settings.speakers} onChange={(e) => writeSoundSettings({ speakers: e.target.value as Speakers })}>
+          {speakerChoices.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </SettingRow>
+    </SettingsGroup>
+  )
+}
+
 export function PlaybackSection() {
   const me = useSession().profiles?.find((p) => p.isCurrent)
   return (
     <section>
       <SettingsHeader title="Playback" />
       <WhileWatching name={me?.name} />
+      <SoundInThisBrowser />
       <MusicInThisBrowser />
     </section>
   )

@@ -1,5 +1,7 @@
 package io.github.flexarr.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -43,17 +45,22 @@ private val flexarrLog = FlexarrLog("livetv")
  * told the viewer is there, and changes channel (Previous and Next go through [channels] in the order they were
  * listed). "Back to live" appears once the picture is well behind. The iPhone app's LiveTvController.
  */
+@OptIn(UnstableApi::class)
 class LiveTvController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
     /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
-    val player: ExoPlayer = ExoPlayer.Builder(context)
+    /** Dialogue boost, night mode and the speakers, as for films: the phone's sound settings. */
+    private val shaper = SoundShaper()
+
+    val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
         .setSeekForwardIncrementMs(skipSeconds * 1000L)
         .build()
     private val scope = model.scope
+    private val soundJob = shaper.follow(scope, context.applicationContext)
 
     /** The sleep timer, as over a film (minutes only: a channel has no end of episode). It carries on across channels. */
     val sleep = VideoSleep(scope, player)
@@ -333,6 +340,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     fun release() {
         released = true
         ticker?.cancel()
+        soundJob.cancel()
         sleep.set(null)
         stopWatching()
         model.liveStartingChannel = null

@@ -33,11 +33,12 @@ import {
   Replay10,
   Reset,
   Sleep,
+  Waveform,
   Volume,
 } from '../components/icons'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { usePolling } from '../hooks/usePolling'
-import { MAX_AUDIO_DELAY_SECONDS, useDelayedSound } from '../hooks/delayedSound'
+import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
@@ -45,6 +46,7 @@ import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
+import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
@@ -200,6 +202,8 @@ export function PlayerPage() {
   const [error, setError] = useState<PlayerError>()
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(true)
+  /** The converted stream is Safari's own HLS player, whose sound mustn't go through Web Audio. */
+  const [nativeHls, setNativeHls] = useState(false)
   const [time, setTime] = useState(0)
   const [bufferedTo, setBufferedTo] = useState(0)
   const [volume, setVolume] = useState(1)
@@ -289,7 +293,12 @@ export function PlayerPage() {
       el.play().catch(() => setPlaying(false))
     }
 
-    if (playback.method === 'Transcode' && !prefersNativeHls() && Hls.isSupported()) {
+    // Safari can play a converted stream itself, but its sound can go silent through Web Audio: when the sound is shaped
+    // here (or the element already goes through Web Audio), hls.js plays it instead, as in other browsers.
+    const shapedHere = hasSoundGraph(el) || isShaping(shapingFor(readSoundSettings(), new Date()))
+    const viaHlsJs = playback.method === 'Transcode' && Hls.isSupported() && (!prefersNativeHls() || shapedHere)
+    setNativeHls(playback.method === 'Transcode' && !viaHlsJs)
+    if (viaHlsJs) {
       // Subtitles are rendered as <track>s, so leave them out of the HLS manifest.
       const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90 })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
@@ -874,7 +883,12 @@ export function PlayerPage() {
 
   // A file the browser plays itself takes a later sound there and then; anything else is the server's to move.
   const soundHere = info?.method === 'DirectPlay' && !info.audioDelayInStream
-  useDelayedSound(video, soundHere ? Math.max(0, audioDelay) : 0)
+  const sound = useSoundSettings()
+  const shaping = useSoundShaping(sound)
+  const playingChannels = info?.audioTracks.find((a) => a.index === info.selectedAudioIndex)?.channels ?? null
+  // Not until the stream is known; and a converted stream Safari plays itself is left as it comes (see attach).
+  const canShape = !!info && !nativeHls
+  useSoundChain(video, soundHere ? Math.max(0, audioDelay) : 0, canShape ? shaping : unshaped, playingChannels)
 
   /**
    * Moves the file's sound by `by` seconds (0 puts it back), for everyone who plays it. Played here, a later sound changes at
@@ -1289,7 +1303,7 @@ export function PlayerPage() {
           <span className="player-spacer" />
 
           <div className="menu-anchor">
-            <button className="icon-button" aria-label="Subtitles and audio" aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
+            <button className="icon-button" aria-label="Subtitles" aria-expanded={menu === 'subtitles'} onClick={() => setMenu(menu === 'subtitles' ? null : 'subtitles')}>
               <Captions />
             </button>
             {menu === 'subtitles' && info && (
@@ -1354,6 +1368,17 @@ export function PlayerPage() {
                     </MenuItem>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {info && info.audioTracks.length > 0 && (
+          <div className="menu-anchor">
+            <button className="icon-button" aria-label="Audio" aria-expanded={menu === 'audio'} onClick={() => setMenu(menu === 'audio' ? null : 'audio')}>
+              <Waveform />
+            </button>
+            {menu === 'audio' && (
+              <div className="player-menu" role="menu">
                 {info.audioTracks.length > 0 && (
                   <div className="player-menu-column">
                     {info.audioTracks.length > 1 && (
@@ -1384,9 +1409,25 @@ export function PlayerPage() {
                     </div>
                   </div>
                 )}
+                {info.audioTracks.length > 0 && canShape && (
+                  <div className="player-menu-column sound">
+                    <h3 id="sound-boost">Dialogue boost</h3>
+                    <Segments labelledBy="sound-boost" choices={dialogueBoostChoices.map((b) => ({ value: b, label: b }))} value={sound.dialogueBoost} onChoose={(dialogueBoost) => writeSoundSettings({ dialogueBoost })} />
+                    <h3 id="sound-night">Night mode</h3>
+                    <Segments
+                      labelledBy="sound-night"
+                      choices={nightModeChoices.map((n) => ({ value: n, label: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : n, spoken: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)} to ${timeOfDay(sound.nightEnd)}, on a schedule` : undefined }))}
+                      value={sound.nightMode}
+                      onChoose={(nightMode) => writeSoundSettings({ nightMode })}
+                    />
+                    <h3 id="sound-speakers">Speakers</h3>
+                    <Segments labelledBy="sound-speakers" choices={speakerChoices} value={sound.speakers} onChoose={(speakers) => writeSoundSettings({ speakers })} />
+                  </div>
+                )}
               </div>
             )}
           </div>
+          )}
 
           <div className="menu-anchor">
             <button
@@ -1530,6 +1571,19 @@ export function PlayerPage() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** A setting's few choices in one row: Dialogue boost, Night mode and Speakers. */
+function Segments<T extends string>({ labelledBy, choices, value, onChoose }: { labelledBy: string; choices: { value: T; label: string; spoken?: string }[]; value: T; onChoose: (value: T) => void }) {
+  return (
+    <div className="player-menu-segments" role="group" aria-labelledby={labelledBy}>
+      {choices.map((c) => (
+        <button key={c.value} role="menuitemradio" aria-checked={c.value === value} aria-label={c.spoken} onClick={() => onChoose(c.value)}>
+          {c.label}
+        </button>
+      ))}
     </div>
   )
 }

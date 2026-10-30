@@ -11,6 +11,7 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.deviceEvents
 import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
+import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.player.PlayerActivity
 import kotlinx.coroutines.CancellationException
@@ -95,7 +96,7 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
         listeningFor = null
     }
 
-    /** Does what another device, the web app or an assistant asked: play a title here, or pause, resume or stop. */
+    /** Does what another device, the web app or an assistant asked: play a title here, pause, resume or stop, or change the sound. */
     private fun handle(command: DeviceCommand) {
         if (model.client == null) return
         when (command.kind) {
@@ -127,6 +128,17 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             DeviceCommandKind.Pause -> active?.pause() ?: pauseAudio()
             DeviceCommandKind.Resume -> active?.resume() ?: resumeAudio()
             DeviceCommandKind.Stop -> active?.stop() ?: pauseAudio()
+            DeviceCommandKind.Sound -> {
+                // A player that's open follows the change, as it does one made in Settings.
+                val sound = command.sound ?: return
+                SoundSettings.update(context) { now ->
+                    now.copy(
+                        dialogueBoost = SoundSettings.DialogueBoost.entries.firstOrNull { it.name == sound.dialogueBoost } ?: now.dialogueBoost,
+                        nightMode = SoundSettings.NightMode.entries.firstOrNull { it.name == sound.nightMode } ?: now.nightMode,
+                        speakers = SoundSettings.Speakers.entries.firstOrNull { it.name == sound.speakers } ?: now.speakers,
+                    )
+                }
+            }
             DeviceCommandKind.Unknown -> Unit
         }
     }

@@ -34,6 +34,16 @@ struct DeviceTests {
         #expect(newer.kind == .unknown)
     }
 
+    @Test func soundCommand_decodes() throws {
+        let json = """
+        {"id":"cd34","kind":"Sound","itemId":null,"fromBeginning":false,"sentBy":"Home Assistant","sentAt":"2026-10-30T22:00:00Z","sound":{"nightMode":"On","dialogueBoost":null,"speakers":null}}
+        """
+        let command = try FlexarrClient.decoder.decode(DeviceCommand.self, from: Data(json.utf8))
+        #expect(command.kind == .sound)
+        #expect(command.sound?.nightMode == "On")
+        #expect(command.sound?.dialogueBoost == nil)
+    }
+
     @Test func device_decodes() throws {
         let json = """
         [{"id":"d1","name":"Living room","online":true,"lastUsedAt":"2026-10-25T10:00:00Z","profileId":"owner","profileName":"Dan","isThisOne":false,"nowPlaying":null}]

@@ -636,6 +636,14 @@ final class AppModel {
         case .pause: player.pause()
         case .resume: player.resume()
         case .stop: player.closePlayer()
+        case .sound:
+            // A player that's open follows the change, as it does one made in Settings.
+            guard let sound = command.sound else { return }
+            var settings = SoundSettings.current
+            if let boost = sound.dialogueBoost.flatMap(SoundSettings.DialogueBoost.init(rawValue:)) { settings.dialogueBoost = boost }
+            if let night = sound.nightMode.flatMap(SoundSettings.NightMode.init(rawValue:)) { settings.nightMode = night }
+            if let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) { settings.speakers = speakers }
+            SoundSettings.current = settings
         case .unknown: break
         }
     }
