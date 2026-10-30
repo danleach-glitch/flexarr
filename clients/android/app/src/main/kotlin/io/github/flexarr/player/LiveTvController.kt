@@ -47,6 +47,9 @@ private val flexarrLog = FlexarrLog("livetv")
  */
 @OptIn(UnstableApi::class)
 class LiveTvController(context: Context, private val model: AppModel, val client: FlexarrClient, private val onClose: () -> Unit) {
+    /** Who's watching, for what's kept per profile (the TV's guide). */
+    val profileId: String? get() = model.currentProfile?.id
+
     /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
@@ -164,6 +167,10 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         val previous = watching?.viewer
         heartbeat?.cancel()
         player.stop()
+        // The last channel's rewind ("Back to live", how far behind) isn't this one's: it starts at live.
+        position = 0.0
+        duration = 0.0
+        isBehind = false
         showTitle(channel, channel.now)
         starting = scope.launch {
             try {

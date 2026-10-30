@@ -89,6 +89,7 @@ import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import io.github.flexarr.ActivePlayback
 import io.github.flexarr.appModel
+import io.github.flexarr.usesTvInterface
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.liveChannels
@@ -132,6 +133,12 @@ class LivePlayerActivity : ComponentActivity() {
         // Another picture still up (a film in the corner, say) gives way: one at a time, as on iPhone.
         model.commands.active?.stop()
         model.commands.active = playback
+        // A TV is the big screen already: no corner window there, and controls for the remote.
+        if (usesTvInterface) {
+            watchFrom(intent)
+            setContent { FlexarrTheme { TvLivePlayerScreen(controller, onClose = ::finish) } }
+            return
+        }
         val pictureInPicture = PictureInPicture(this, object : PictureInPicture.Source {
             override val videoSize get() = controller.videoSize
             override val isPlaying get() = controller.isPlaying

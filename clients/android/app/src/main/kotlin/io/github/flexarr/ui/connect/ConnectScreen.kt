@@ -74,7 +74,6 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -226,73 +225,18 @@ private fun Badge(title: String, icon: androidx.compose.ui.graphics.vector.Image
 @Composable
 private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: () -> Unit) {
     val uri = LocalUriHandler.current
-    var code by remember { mutableStateOf<String?>(null) }
-    var renewed by remember { mutableStateOf(false) }
-    // The main profile chose "Don't allow": the screen says so, and Try again starts over with a code they're asked about.
-    var declined by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
-    var needsSetup by remember { mutableStateOf(false) }
-    var setupNeedsCode by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(server, attempt) {
-        declined = false
-        val client = FlexarrClient(FlexarrClient.normalizeAddress(server.address)!!)
-        while (true) {
-            try {
-                val started = client.startPairing(model.deviceName)
-                val setup = client.setupStatus()
-                needsSetup = setup?.open ?: false
-                setupNeedsCode = setup?.codeRequired ?: false
-                // The code on screen replaced one that ran out, so anyone part-way through typing the old one notices.
-                renewed = code != null && code != started.code
-                code = started.code
-                error = null
-                var since = 0
-                // Asked straight away: a new server lets its first device in without anyone approving it.
-                while (true) {
-                    // A failed check (the phone asleep, or the Wi-Fi blinking) asks again about the same code rather than
-                    // starting another: the one on screen may already be approved, and the server keeps only three waiting.
-                    val status = try {
-                        client.pairingStatus(started.id).also { error = null }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        error = e.message
-                        delay(2_000)
-                        continue
-                    }
-                    val key = status.apiKey
-                    if (status.status == "approved" && key != null) {
-                        model.connect(server.address, key)
-                        return@LaunchedEffect
-                    }
-                    if (status.status == "expired") {
-                        // Turned away: say so, rather than quietly showing another code nobody's asked about.
-                        if (status.declined) {
-                            declined = true
-                            code = null
-                            renewed = false
-                            return@LaunchedEffect
-                        }
-                        break // ran out: a fresh code next time round
-                    }
-                    delay(2_000)
-                    if (renewed && ++since > 5) renewed = false
-                    // Set up in the browser meanwhile: switch to the usual instructions.
-                    if (needsSetup) needsSetup = client.setupStatus()?.open ?: false
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                error = e.message
-                delay(5_000)
-            }
-        }
-    }
+    // Try again after "Don't allow" starts over with a code they're asked about.
+    val session = remember(server, attempt) { PairingSession() }
+    LaunchedEffect(session) { session.run(model, server) }
+    val declined = session.declined
+    val needsSetup = session.needsSetup
+    val setupNeedsCode = session.setupNeedsCode
+    val renewed = session.renewed
+    val error = session.error
 
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        val shown = code
+        val shown = session.code
         if (declined) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Not allowed", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
@@ -383,7 +327,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Flexarr.silver,
-                    modifier = Modifier.pressable({ uri.openUri("${server.address.trimEnd('/')}/link?code=$shown") }).minimumInteractiveComponentSize(),
+                    modifier = Modifier.pressable({ session.link(server)?.let(uri::openUri) }).minimumInteractiveComponentSize(),
                 )
             }
         }

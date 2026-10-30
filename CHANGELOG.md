@@ -20,6 +20,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Search
 - Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches, plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
 - Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.
+- A genre with a slash in its name ("Action/Adventure", from a folder's own .nfo files) now opens from Discover on the web, iPhone, Apple TV and Android. Before, its page showed an error or no titles.
 
 ### Profiles and settings
 - Changing the server's settings now takes the main profile's PIN, even at home. Anyone can still watch as the main profile without it. Open **Settings** on the main profile, enter the PIN, and settings stay unlocked on that browser or device for 15 minutes after your last change, or until someone else is chosen there or you choose **Lock settings**.
@@ -29,11 +30,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When a device asks to connect, the main profile still hears about it while settings are locked, and **Allow** asks for the PIN first.
 - On the web, **Delete**, **Fix match** and the household's collections stay where they were on the main profile while settings are locked; using one asks for the PIN, then carries on.
 - When someone gets the main profile's PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was.
+- Switching to another profile on Android stops the music or podcast that was playing, as on iPhone, and clears Up Next, so what you play next counts for the right person.
 
 ### Playback
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.
 - For shows with no credits found, Next Episode now appears a little before the end (up to two minutes for an hour-long show), not just in the last 30 seconds.
 - The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
+- On Android, the player's buttons light up as you reach them with a keyboard's arrow keys or Tab, so you can see where you are.
 - Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
 ### Connecting devices

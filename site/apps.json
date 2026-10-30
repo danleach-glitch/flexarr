@@ -77,11 +77,11 @@
     },
     {
       "id": "android-tv",
-      "name": "Android TV, Google TV and Fire TV",
+      "name": "Android TV and Google TV",
       "icon": "android",
-      "status": "planned",
-      "summary": "Flexarr on the big screen, for TVs and streaming sticks that run Android.",
-      "note": "Next after the Android app, which it builds on.",
+      "status": "development",
+      "summary": "Flexarr on the big screen, for TVs and streaming sticks with Google TV or Android TV.",
+      "note": "Built on the Android app, and laid out like the Apple TV app.",
       "links": []
     }
   ]

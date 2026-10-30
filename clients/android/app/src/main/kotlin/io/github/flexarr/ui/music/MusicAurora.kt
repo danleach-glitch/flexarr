@@ -1,9 +1,8 @@
 package io.github.flexarr.ui.music
 
+import android.app.ActivityManager
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -14,6 +13,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -41,6 +46,13 @@ fun MusicAurora(colours: List<CoverPalette.Rgb>, spectrum: AudioSpectrum, playin
     // Animations off in the system's settings: the light holds still.
     val context = LocalContext.current
     val still = remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
+    // A device with little memory (a 2 GB TV stick) gets 20 frames a second rather than 30.
+    val frameNanos = remember {
+        val info = ActivityManager.MemoryInfo()
+        context.getSystemService(ActivityManager::class.java)?.getMemoryInfo(info)
+        if (info.totalMem in 1 until 3L * 1024 * 1024 * 1024) 50_000_000L else 33_000_000L
+    }
+    val buffer = remember { AuroraBuffer() }
     var frameTime by remember { mutableLongStateOf(0L) }
     // The music is listened to only while this shows (not with the app in the background, or the screen off).
     LifecycleStartEffect(spectrum) {
@@ -53,23 +65,43 @@ fun MusicAurora(colours: List<CoverPalette.Rgb>, spectrum: AudioSpectrum, playin
         while (true) {
             withFrameNanos { now ->
                 // About 30 times a second is plenty for light this soft.
-                if (now - last >= 33_000_000L) {
+                if (now - last >= frameNanos) {
                     last = now
                     frameTime = now
                 }
             }
         }
     }
-    Box(modifier.fillMaxSize()) {
-        Canvas(Modifier.fillMaxSize()) {
-            val frame = motion.step(frameTime, if (playing) spectrum.bands else null, playing && !still)
+    // Drawn into a picture a quarter the size and stretched over the screen: the light is soft enough that nobody can
+    // tell, and the screen is filled once a frame rather than once for each of the dozen layers.
+    Canvas(modifier.fillMaxSize()) {
+        val frame = motion.step(frameTime, if (playing) spectrum.bands else null, playing && !still)
+        val small = buffer.bitmap(IntSize((size.width / SCALE).toInt().coerceAtLeast(1), (size.height / SCALE).toInt().coerceAtLeast(1)))
+        buffer.scope.draw(this, layoutDirection, Canvas(small), Size(small.width.toFloat(), small.height.toFloat())) {
             draw(frame, colours)
+            scrims()
         }
-        // Keeps the words and controls legible on the brightest light.
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.15f), 0.4f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.35f))))
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.24f)))
+        drawImage(small, dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Low)
     }
+}
+
+/** How much smaller the light is drawn than it's shown. */
+private const val SCALE = 4f
+
+/** The small picture the light is drawn into, kept from frame to frame (and made again when the size changes). */
+private class AuroraBuffer {
+    val scope = CanvasDrawScope()
+    private var image: ImageBitmap? = null
+
+    fun bitmap(size: IntSize): ImageBitmap =
+        image?.takeIf { it.width == size.width && it.height == size.height } ?: ImageBitmap(size.width, size.height).also { image = it }
+}
+
+/** Keeps the words and controls legible on the brightest light. */
+private fun DrawScope.scrims() {
+    drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))))
+    drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.15f), 0.4f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.35f)))
+    drawRect(Color.Black.copy(alpha = 0.24f))
 }
 
 private fun CoverPalette.Rgb.color(alpha: Double) =

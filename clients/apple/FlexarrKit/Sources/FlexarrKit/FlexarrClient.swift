@@ -596,6 +596,21 @@ public struct FlexarrClient: Sendable {
 
     // MARK: Transport
 
+    /// What a path segment keeps as it is: what a path allows, less the slash that would end it, plus % for escapes
+    /// already made.
+    private static let segmentCharacters: CharacterSet = {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove("/")
+        allowed.insert("%")
+        return allowed
+    }()
+
+    /// Free text (a genre's name) as one segment of a path: its slashes, backslashes and percent signs encoded, so
+    /// "Action/Adventure" stays one segment.
+    static func pathSegment(_ text: String) -> String {
+        text.replacingOccurrences(of: "%", with: "%25").replacingOccurrences(of: "/", with: "%2F").replacingOccurrences(of: "\\", with: "%5C")
+    }
+
     func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
         let data = try await send("GET", path, query: query)
         return try decode(T.self, from: data)
@@ -634,7 +649,12 @@ public struct FlexarrClient: Sendable {
 
     private func request(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, at base: URL,
                          contentType: String = "application/json", timeout: TimeInterval = 20) -> URLRequest {
-        var url = base.appending(path: "api/v1/\(path)")
+        // Each segment encoded as it stands, keeping %-escapes: a name made one segment by pathSegment (a genre's,
+        // which can hold a slash) stays one, which appending(path:) would split or encode twice.
+        let encoded = path.split(separator: "/", omittingEmptySubsequences: false)
+            .map { String($0).addingPercentEncoding(withAllowedCharacters: Self.segmentCharacters) ?? String($0) }
+            .joined(separator: "/")
+        var url = URL(string: base.appending(path: "api/v1").absoluteString + "/" + encoded) ?? base.appending(path: "api/v1/\(path)")
         if !query.isEmpty { url.append(queryItems: query) }
         var request = URLRequest(url: url)
         request.httpMethod = method

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV, while its interface is being built (docs/android-tv.md): only debug builds install on TVs and show in
+     their launcher. These move to the main manifest when the TV app ships. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Phones need a touchscreen; TVs have a remote. Neither is required, so one app suits both. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <application android:banner="@drawable/tv_banner">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

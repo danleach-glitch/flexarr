@@ -2,12 +2,15 @@ package io.github.flexarr.baselineprofile
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.view.KeyEvent
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.Until
+import org.junit.Assume.assumeFalse
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -23,6 +26,10 @@ import java.util.regex.Pattern
  * -Pandroid.testInstrumentationRunnerArguments.apiKey=<key> -Pandroid.testInstrumentationRunnerArguments.profile=<id>`
  *
  * The profile lands in app/src/release/generated/baselineProfiles and is committed; make it again after big UI changes.
+ * On a Google TV (the emulator or a stick), [generateTv] records the TV interface's journey instead, with the remote's
+ * keys; the phone's is skipped there, and the TV's on a phone. Each run writes the whole committed profile, so record
+ * on a phone (or both, a phone and a TV, in one run): a TV on its own would leave the shipped phone app without one,
+ * as the TV interface isn't in release builds yet.
  */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {
@@ -35,6 +42,7 @@ class BaselineProfileGenerator {
         val server = arguments.getString("server")
         val key = arguments.getString("apiKey")
         assumeTrue("No server given", server != null && key != null)
+        assumeFalse("A TV: generateTv records its journey", isTelevision())
         rule.collect(packageName = PACKAGE, includeInStartupProfile = true) {
             pressHome()
             startActivityAndWait(
@@ -95,6 +103,72 @@ class BaselineProfileGenerator {
             }
         }
     }
+
+    /**
+     * The TV interface: Home's hero and rows, the sidebar, a library's grid, a title, the player with its controls and
+     * a scrub, then Live TV's guide when the server has it. All with the remote's keys, as on a TV.
+     */
+    @Test
+    fun generateTv() {
+        val arguments = InstrumentationRegistry.getArguments()
+        val server = arguments.getString("server")
+        val key = arguments.getString("apiKey")
+        assumeTrue("No server given", server != null && key != null)
+        assumeTrue("Not a TV", isTelevision())
+        rule.collect(packageName = PACKAGE, includeInStartupProfile = true) {
+            pressHome()
+            startActivityAndWait(
+                Intent(Intent.ACTION_MAIN)
+                    .setComponent(ComponentName(PACKAGE, "io.github.flexarr.MainActivity"))
+                    .putExtra("server", server)
+                    .putExtra("apiKey", key)
+                    .putExtra("noHistory", true)
+                    .apply { arguments.getString("profile")?.let { putExtra("profile", it) } },
+            )
+            device.wait(Until.hasObject(By.text("More info")), 15_000)
+            device.waitForIdle()
+            // Home: down through the rows and along one, then back up to the hero.
+            repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+            repeat(5) { press(KeyEvent.KEYCODE_DPAD_RIGHT) }
+            repeat(4) { press(KeyEvent.KEYCODE_DPAD_UP) }
+
+            // The sidebar, then the first library (the row after Home), and down its grid.
+            press(KeyEvent.KEYCODE_BACK)
+            press(KeyEvent.KEYCODE_DPAD_DOWN)
+            press(KeyEvent.KEYCODE_DPAD_CENTER, settle = 3_000)
+            repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+            repeat(3) { press(KeyEvent.KEYCODE_DPAD_RIGHT) }
+
+            // A title, then the player: the controls, a scrub along the timeline, and out.
+            press(KeyEvent.KEYCODE_DPAD_CENTER, settle = 3_000)
+            press(KeyEvent.KEYCODE_DPAD_CENTER, settle = 6_000)
+            press(KeyEvent.KEYCODE_DPAD_DOWN)
+            repeat(6) { press(KeyEvent.KEYCODE_DPAD_RIGHT, settle = 300) }
+            press(KeyEvent.KEYCODE_BACK)
+            press(KeyEvent.KEYCODE_BACK)
+            press(KeyEvent.KEYCODE_BACK, settle = 2_000)
+            press(KeyEvent.KEYCODE_BACK)
+
+            // Live TV, when there is one: its guide, down the channels and across.
+            device.findObject(By.text("Live TV"))?.let {
+                while (device.findObject(By.text("Live TV"))?.isFocused == false) press(KeyEvent.KEYCODE_DPAD_DOWN, settle = 200)
+                press(KeyEvent.KEYCODE_DPAD_CENTER, settle = 3_000)
+                repeat(3) { press(KeyEvent.KEYCODE_DPAD_DOWN, settle = 400) }
+                press(KeyEvent.KEYCODE_DPAD_RIGHT)
+                repeat(6) { press(KeyEvent.KEYCODE_DPAD_DOWN, settle = 200) }
+                repeat(4) { press(KeyEvent.KEYCODE_DPAD_RIGHT, settle = 300) }
+            }
+        }
+    }
+
+    private fun androidx.benchmark.macro.MacrobenchmarkScope.press(key: Int, settle: Long = 500) {
+        device.pressKeyCode(key)
+        device.waitForIdle()
+        Thread.sleep(settle)
+    }
+
+    private fun isTelevision(): Boolean =
+        InstrumentationRegistry.getInstrumentation().context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.scroll(direction: Direction) {
         val width = device.displayWidth

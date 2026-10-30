@@ -1,0 +1,304 @@
+package io.github.flexarr.ui.tv
+
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.BasicTextField
+import kotlinx.coroutines.delay
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Border
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Glow
+import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Surface
+import androidx.tv.material3.Text
+import androidx.tv.material3.darkColorScheme
+import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.marquee
+
+// The Apple TV app's design (FlexarrTV/Design) on Android TV. tvOS lays out a 1920-point screen and Android TV a
+// 960 dp one, so every size here is the Apple TV's halved.
+
+object TvLayout {
+    /** The shared left edge for heroes, rows and grids (the title-safe inset). */
+    val Edge = 40.dp
+    val PosterWidth = 125.dp
+    val WideWidth = 250.dp
+    val RowSpacing = 22.dp
+}
+
+/** Compose for TV's colours as the app's, and the screen colour for text that doesn't say otherwise. */
+@Composable
+fun TvTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Flexarr.screen,
+            onPrimary = Flexarr.room,
+            background = Flexarr.room,
+            onBackground = Flexarr.screen,
+            surface = Flexarr.room,
+            onSurface = Flexarr.screen,
+            surfaceVariant = Flexarr.seat,
+            onSurfaceVariant = Flexarr.usher,
+            border = Flexarr.aisle,
+        ),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides Flexarr.screen, content = content)
+    }
+}
+
+/**
+ * Play, More info and the other actions. Unfocused they sit quietly on a translucent seat; focused they light up in
+ * projected white with an ambient glow, as a first-party Apple TV button does.
+ */
+@Composable
+fun TvActionButton(
+    label: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    prominent: Boolean = false,
+    ambient: Color = Flexarr.silver,
+    enabled: Boolean = true,
+    contentDescription: String? = null,
+    onLongClick: (() -> Unit)? = null,
+) {
+    // Turned off, it stays focusable and only looks it, ignoring presses: a button that went dark while focused (Next
+    // at the last track, Connect while connecting) would otherwise leave focus on nothing.
+    Surface(
+        onClick = { if (enabled) onClick() },
+        onLongClick = onLongClick?.let { long -> { if (enabled) long() } },
+        modifier = modifier.height(38.dp).semantics { if (!enabled) disabled() },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (!enabled) Flexarr.screen.copy(alpha = 0.08f) else if (prominent) ambient.copy(alpha = 0.42f) else Flexarr.screen.copy(alpha = 0.14f),
+            contentColor = if (enabled) Flexarr.screen else Flexarr.usher,
+            focusedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
+            focusedContentColor = Flexarr.room,
+            pressedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
+            pressedContentColor = Flexarr.room,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.07f, pressedScale = 0.97f),
+        glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.65f), 14.dp)),
+    ) {
+        Row(
+            Modifier.fillMaxHeight().padding(horizontal = if (label == null) 13.dp else 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) Icon(icon, contentDescription = if (label == null) contentDescription else null, modifier = Modifier.size(15.dp))
+            if (label != null) Text(label, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+/** A small selectable pill for seasons: the choice stays lit while focus moves elsewhere, so it's visible. */
+@Composable
+fun TvPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, ambient: Color = Flexarr.silver) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(31.dp),
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (selected) ambient.copy(alpha = 0.32f) else Color.Transparent,
+            contentColor = if (selected) Flexarr.screen else Flexarr.usher,
+            focusedContainerColor = Flexarr.screen,
+            focusedContentColor = Flexarr.room,
+        ),
+        border = ClickableSurfaceDefaults.border(
+            border = if (selected) Border.None else Border(BorderStroke(1.dp, Flexarr.aisle), shape = CircleShape),
+            focusedBorder = Border.None,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+        glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.55f), 11.dp)),
+    ) {
+        Box(Modifier.padding(horizontal = 15.dp).align(Alignment.Center)) {
+            Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * Artwork that lifts when focused, with the title's ambient glow behind it, and its caption beneath brightening and
+ * moving down out of the way (the Apple TV's card button). A long press of OK runs [onLongClick] (the card's menu).
+ */
+@Composable
+fun TvArtworkButton(
+    ambient: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    shape: Shape = RoundedCornerShape(4.dp),
+    /** What TalkBack says for the card: its focusable part holds only the artwork, so the title has to be given. */
+    contentDescription: String? = null,
+    artwork: @Composable () -> Unit,
+    caption: @Composable (focused: Boolean) -> Unit = {},
+) {
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
+    val drop by animateDpAsState(if (focused) 7.dp else 0.dp, spring(dampingRatio = 0.8f, stiffness = 500f), label = "caption")
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Surface(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            interactionSource = source,
+            modifier = if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier,
+            shape = ClickableSurfaceDefaults.shape(shape),
+            colors = ClickableSurfaceDefaults.colors(containerColor = Flexarr.seat, focusedContainerColor = Flexarr.seat, pressedContainerColor = Flexarr.seat),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f, pressedScale = 1.02f),
+            glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.55f), 17.dp)),
+        ) {
+            artwork()
+        }
+        // Read while placing, not composing, so the caption doesn't recompose on every frame of the drop.
+        Box(Modifier.offset { IntOffset(0, drop.roundToPx()) }) { caption(focused) }
+    }
+}
+
+/**
+ * How wide a backdrop to ask for: full HD, or 1280 on a TV with little memory (a 2 GB stick), where two 8 MB
+ * backdrops crossfading is a real share of what the app has.
+ */
+@Composable
+fun tvBackdropWidth(): Int {
+    val context = LocalContext.current
+    return remember {
+        val info = android.app.ActivityManager.MemoryInfo()
+        context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
+        if (info.totalMem in 1 until 3L * 1024 * 1024 * 1024) 1280 else 1920
+    }
+}
+
+/**
+ * The TV's text field, the same everywhere (Search, Discover, connecting, a diagnostics note): a quiet panel with an
+ * optional icon, edged in white while it has focus; OK opens the TV's keyboard. [secret] hides what's typed.
+ */
+@Composable
+fun TvTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    secret: Boolean = false,
+) {
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = TextStyle(fontSize = 16.sp, color = Flexarr.screen),
+        cursorBrush = SolidColor(Flexarr.screen),
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+        interactionSource = source,
+        modifier = modifier,
+        decorationBox = { field ->
+            Row(
+                Modifier.fillMaxWidth().height(42.dp).background(Flexarr.screen.copy(alpha = if (focused) 0.16f else 0.1f), RoundedCornerShape(10.dp))
+                    .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (icon != null) Icon(icon, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(18.dp))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(placeholder, fontSize = 16.sp, color = Flexarr.usher, maxLines = 1)
+                    field()
+                }
+            }
+        },
+    )
+}
+
+/** A row's heading: marquee type on the shared edge. */
+@Composable
+fun TvRowHeading(title: String, modifier: Modifier = Modifier) {
+    Text(title, style = marquee(20), modifier = modifier.padding(start = TvLayout.Edge))
+}
+
+/** "2016   1h 56m   TV-MA": facts separated by space, never middle dots. */
+@Composable
+fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        facts.forEach { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1) }
+    }
+}
+
+/** Loading, a failure with Try again, or nothing to show, in plain words. */
+@Composable
+fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        when {
+            message == null -> CircularProgressIndicator(color = Flexarr.screen)
+            empty -> Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+            else -> {
+                Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(32.dp))
+                Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 500.dp))
+                if (retry != null) {
+                    // Nothing else on the screen to focus: Try again takes it, so OK tries.
+                    val again = remember { FocusRequester() }
+                    TvActionButton("Try again", onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
+                    LaunchedEffect(message) { repeat(10) { if (runCatching { again.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(50) } }
+                }
+            }
+        }
+    }
+}

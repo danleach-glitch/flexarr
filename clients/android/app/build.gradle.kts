@@ -44,6 +44,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Signing in from launch arguments (MainActivity): debug builds, and the builds the baseline profile is made with.
         buildConfigField("boolean", "LAUNCH_ARGUMENTS", "false")
+        // The TV interface (ui/tv), while it's being built: debug builds only, and only debug's manifest offers the app
+        // to TVs (src/debug/AndroidManifest.xml). docs/android-tv.md.
+        buildConfigField("boolean", "TV_UI", "false")
     }
 
     signingConfigs {
@@ -58,6 +61,7 @@ android {
     buildTypes {
         debug {
             buildConfigField("boolean", "LAUNCH_ARGUMENTS", "true")
+            buildConfigField("boolean", "TV_UI", "true")
         }
         // The baseline profile plugin's builds of release, made only to profile on a device: signed with the debug key.
         configureEach {
@@ -128,11 +132,15 @@ sentry {
 }
 
 // The baseline profile's builds take launch arguments too, to sign in (the plugin copies release's fields over them, so
-// they're set per variant).
+// they're set per variant). They have the TV interface as well: benchmarkRelease is release as it ships (R8, no
+// debugging) but profileable, so it's the build to measure the TV interface with on a real stick
+// (`./gradlew :app:installBenchmarkRelease`, then Android Studio's profiler or Perfetto), and the TV journey in the
+// baseline profile is recorded with it.
 androidComponents {
     onVariants { variant ->
         if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {
             variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
+            variant.buildConfigFields?.put("TV_UI", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
         }
     }
 }
@@ -175,6 +183,8 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.sentry.android)
     implementation(libs.glance.appwidget)
+    implementation(libs.tv.material)
+    implementation(libs.zxing.core)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)

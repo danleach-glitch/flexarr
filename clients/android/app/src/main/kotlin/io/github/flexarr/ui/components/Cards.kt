@@ -198,10 +198,10 @@ class MenuAction(val label: String, val run: () -> Unit)
 
 /**
  * What the long-press menu shared by cards offers, as iPhone's context menu: [ItemMenu] shows it, and [menuActions]
- * gives TalkBack the same list.
+ * gives TalkBack the same list. A TV keeps nothing, so offers no [downloads].
  */
 @Composable
-fun itemActions(item: ItemSummary, showsDetails: Boolean = false): List<MenuAction> {
+fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boolean = true): List<MenuAction> {
     val navigator = LocalNavigator.current
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
@@ -212,7 +212,7 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false): List<MenuActi
         }
         if (showsDetails) add(MenuAction(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) })
         // Download at Settings' size, as a title's page does.
-        if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
+        if (downloads && (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode)) {
             val download = model.downloads.entry(item.id)
             if (download == null) {
                 add(MenuAction("Download") { navigator.download(item) })

@@ -43,7 +43,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
 
     /** A TV by its UI mode, a tablet by its narrowest side (600 dp and over, as Android's own layouts count it). */
     private fun deviceType(): String = when {
-        getSystemService(UiModeManager::class.java).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION -> "AndroidTv"
+        isTelevision -> "AndroidTv"
         resources.configuration.smallestScreenWidthDp >= 600 -> "AndroidTablet"
         else -> "AndroidPhone"
     }
@@ -56,3 +56,10 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
 }
 
 val Context.appModel: AppModel get() = (applicationContext as FlexarrApplication).model
+
+/** A TV (Android TV, Google TV), by its UI mode. */
+val Context.isTelevision: Boolean
+    get() = getSystemService(UiModeManager::class.java).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+
+/** The TV interface (ui/tv) rather than the phone's: on a TV, in the builds that have it so far ([BuildConfig.TV_UI]). */
+val Context.usesTvInterface: Boolean get() = BuildConfig.TV_UI && isTelevision

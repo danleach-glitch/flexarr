@@ -484,12 +484,12 @@ private fun episodeTime(episode: ItemSummary): String? {
 @Composable
 private fun FileInfo(file: MediaFile, studio: String?) {
     val video = listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
-    val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channels)).joinToString(" ")
+    val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channelsLabel)).joinToString(" ")
     val facts = listOfNotNull(
         video.takeIf { it.isNotEmpty() }?.let { "Video" to it },
         audio.takeIf { it.isNotEmpty() }?.let { "Audio" to it },
         studio?.let { "Studio" to it },
-        "Size" to size(file.size),
+        "Size" to fileSizeLabel(file.size),
     )
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         facts.chunked(2).forEach { pair ->
@@ -507,7 +507,7 @@ private fun FileInfo(file: MediaFile, studio: String?) {
 }
 
 /** "5.1", "Stereo", "Mono". */
-private fun channels(count: Int) = when (count) {
+internal fun channelsLabel(count: Int) = when (count) {
     1 -> "Mono"
     2 -> "Stereo"
     6 -> "5.1"
@@ -515,7 +515,7 @@ private fun channels(count: Int) = when (count) {
     else -> "$count ch"
 }
 
-private fun size(bytes: Long): String {
+internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
     return if (gb >= 1) String.format(Locale.getDefault(), "%.1f GB", gb) else String.format(Locale.getDefault(), "%.0f MB", bytes / 1_000_000.0)
 }

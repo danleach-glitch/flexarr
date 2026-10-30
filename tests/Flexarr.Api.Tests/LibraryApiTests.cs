@@ -143,6 +143,28 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
     }
 
     [Fact]
+    public async Task GenreItems_FindAGenreWithASlashInItsName()
+    {
+        // From a hand-written .nfo: "Action/Adventure" is one genre, which the apps send as one encoded path segment.
+        var name = $"Action/Adventure {Guid.NewGuid().ToString("N")[..6]}";
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+            db.Add(library);
+            var film = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Heat", SortTitle = "heat", CommunityRating = 8.3 };
+            film.Genres.Add(new Genre { Name = name });
+            db.Add(film);
+            await db.SaveChangesAsync();
+        }
+
+        var page = await Client().GetFromJsonAsync<PagedDto<ItemSummaryDto>>(
+            new Uri($"/api/v1/genres/{Uri.EscapeDataString(name)}/items", UriKind.Relative), Json);
+
+        Assert.Equal(["Heat"], page!.Items.Select(i => i.Title));
+    }
+
+    [Fact]
     public async Task Filesystem_ListsDirectories()
     {
         var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "browse-" + Guid.NewGuid(), "Child")).Parent!.FullName;

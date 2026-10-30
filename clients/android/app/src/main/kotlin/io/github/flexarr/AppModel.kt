@@ -163,6 +163,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Music, playing on under every screen; it and podcasts take turns. */
     val music = MusicPlayer(context, this)
 
+    /** Goes up when Play or Shuffle starts music on the TV, which then shows Now Playing over everything. */
+    var nowPlayingRequests by mutableIntStateOf(0)
+
     /** What's new, from the server through Firebase. */
     val notifications = PushNotifications(context)
 
@@ -340,6 +343,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     suspend fun chooseProfile(profile: Profile, pin: String? = null) {
         val credentials = credentials ?: return
         val selection = credentials.client().selectProfile(profile.id, pin)
+        // Straight from one profile to another (the TV's "Who's watching?", a link for someone else): their music,
+        // podcasts and Up Next go, as switchProfile's do.
+        if (isSwitch(currentProfile?.id, profile.id)) {
+            music.stop()
+            podcasts.stop()
+            upNext = emptyList()
+        }
         val updated = credentials.copy(profileToken = selection.token)
         // Saved only for a saved sign-in: one for this launch alone stays that way.
         if (saved) store.saveProfile(selection.token)
@@ -528,3 +538,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 }
+
+/** Choosing [chosen] while [current] is watching changes who's watching (choosing at first sign-in doesn't). */
+internal fun isSwitch(current: String?, chosen: String): Boolean = current != null && current != chosen
