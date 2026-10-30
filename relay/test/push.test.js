@@ -153,3 +153,11 @@ test('a Live Activity request with a title in it is refused before reaching Appl
     state: { paused: false, position: 1, at: now, duration: 10, rate: 1 } } });
   assert.equal(badEvent.body.reason, 'BadEvent');
 });
+
+test('a Live Activity update says whether it is urgent with a true or false, nothing else', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const answer = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(128), environment: 'sandbox', event: 'update', urgent: 'yes',
+    state: { paused: false, position: 1, at: now, duration: 10, rate: 1 } } });
+  assert.equal(answer.status, 400);
+  assert.equal(answer.body.reason, 'BadUrgent');
+});

@@ -157,16 +157,17 @@ activity's push token (`PUT /api/v1/devices/{tv}/activity`). As the TV pauses, s
 posts:
 
 ```json
-{ "kind": "liveactivity", "token": "<hex>", "environment": "production", "event": "update",
+{ "kind": "liveactivity", "token": "<hex>", "environment": "production", "event": "update", "urgent": false,
   "state": { "paused": false, "position": 754.2, "at": 1793700000, "duration": 3120, "rate": 1 } }
 ```
 
-`event` is `update` or `end`. The system reads Live Activity updates itself, so unlike notifications they can't be
+`event` is `update` or `end`. `urgent` (a pause, a resume, the end) goes to Apple at priority 10, which it budgets per
+activity; anything else (a seek) at 5. Left out, it's urgent. The system reads Live Activity updates itself, so unlike notifications they can't be
 sealed: they carry times and nothing else. The phone put the title and the TV's name on when it started the activity,
 and the relay refuses a `state` with any other key (`400 BadState`). It sends Apple `apns-push-type: liveactivity` on the
 topic `<APNS_TOPIC>.push-type.liveactivity`, with `aps.content-state` set to `state`, a `stale-date` for when it should
 have ended (twenty minutes on for a pause), and for `end` a `dismissal-date` of now. The 12-a-minute limit per token
-applies; the server sends only when the times change more than the activity's own clock shows.
+applies; the server gathers changes for a second and a half, sends only when the times change more than the activity's own clock shows, and sends nothing while the phone has Flexarr open (it updates the activity itself).
 
 The relay needs these environment variables on the flexarr-push Vercel project: `APNS_KEY` (the .p8 file's contents),
 `APNS_KEY_ID`, `APNS_TEAM_ID` (the Apple developer team's ID) and `APNS_TOPIC` (the iPhone app's bundle ID).

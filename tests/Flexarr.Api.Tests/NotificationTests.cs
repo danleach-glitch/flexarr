@@ -597,14 +597,22 @@ public sealed class NotificationTests : IAsyncLifetime
             itemId = film.Id;
         }
 
+        // The test server runs no background services: the publisher and the Live Activity worker, by hand, quicker.
+        var activities = _server.Services.GetRequiredService<Flexarr.Api.Devices.LiveActivities>();
+        activities.Gather = TimeSpan.FromMilliseconds(100);
+        activities.EndGrace = TimeSpan.FromMilliseconds(600);
+        using var publisher = new Flexarr.Api.Devices.NowPlayingPublisher(_server.Services.GetRequiredService<Flexarr.Api.Devices.NowPlayingFeed>(),
+            _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>(), activities,
+            _server.Services.GetRequiredService<Flexarr.Api.Devices.DeviceCommands>(), _server.Services.GetRequiredService<Authentication.SignIns>(),
+            _server.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<Flexarr.Api.Devices.NowPlayingPublisher>.Instance);
+        using var worker = new Flexarr.Api.Devices.LiveActivityWorker(activities, _server.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<Flexarr.Api.Devices.LiveActivityWorker>.Instance);
+        await publisher.StartAsync(default);
+        await worker.StartAsync(default);
+
         var token = string.Concat(Enumerable.Repeat("cd34", 64)); // 128 bytes, as a Live Activity's are
         Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token = "nope", environment = "sandbox", itemId })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
 
-        using var publisher = new Flexarr.Api.Devices.NowPlayingPublisher(_server.Services.GetRequiredService<Flexarr.Api.Devices.NowPlayingFeed>(),
-            _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>(), _server.Services.GetRequiredService<Flexarr.Api.Devices.LiveActivities>(),
-            _server.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<Flexarr.Api.Devices.NowPlayingPublisher>.Instance);
-        await publisher.StartAsync(default);
         var sessions = _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>();
         var session = new Flexarr.Api.Playback.PlaybackSession
         {
@@ -612,31 +620,48 @@ public sealed class NotificationTests : IAsyncLifetime
             Container = null, DurationSeconds = 6000, Method = Flexarr.Streaming.PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
         };
         sessions.Add(session);
+
+        // Registering sends the times straight away, urgently.
+        Assert.Equal(HttpStatusCode.NoContent, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
         await WaitForAsync(() => _relay.Sent.Count >= 1);
         var first = _relay.Sent[^1];
         Assert.Equal("liveactivity", first.GetProperty("kind").GetString());
         Assert.Equal("update", first.GetProperty("event").GetString());
         Assert.Equal(token, first.GetProperty("token").GetString());
+        Assert.True(first.GetProperty("urgent").GetBoolean());
         // Times only: nothing that says what's playing.
         Assert.DoesNotContain("Heat", first.GetRawText(), StringComparison.Ordinal);
 
-        // Playing on as the clock says: nothing new to send. A pause is.
+        // Playing on as the clock says: nothing new to send. A seek is, not urgently; a pause is, urgently.
         var sent = _relay.Sent.Count;
         await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 0.5, paused = false, rate = 1.0, hasNext = false });
-        await Task.Delay(300);
+        await Task.Delay(500);
         Assert.Equal(sent, _relay.Sent.Count);
-        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 30.0, paused = true, rate = 1.0, hasNext = false });
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 600.0, paused = false, rate = 1.0, hasNext = false });
+        await WaitForAsync(() => _relay.Sent.Count > sent);
+        Assert.False(_relay.Sent[^1].GetProperty("urgent").GetBoolean());
+        sent = _relay.Sent.Count;
+        await tvClient.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), new { positionSeconds = 630.0, paused = true, rate = 1.0, hasNext = false });
         await WaitForAsync(() => _relay.Sent.Count > sent);
         Assert.True(_relay.Sent[^1].GetProperty("state").GetProperty("paused").GetBoolean());
-        Assert.Equal(30, _relay.Sent[^1].GetProperty("state").GetProperty("position").GetDouble());
+        Assert.True(_relay.Sent[^1].GetProperty("urgent").GetBoolean());
 
-        // It stops on the TV: the activity ends, and isn't followed any more.
+        // Moving on to the next episode stops one playback before starting the next: no end in the gap.
+        sent = _relay.Sent.Count;
+        await sessions.RemoveAsync(session.Id);
+        await Task.Delay(300);
+        sessions.Add(session);
+        await Task.Delay(900);
+        Assert.DoesNotContain(_relay.Sent.Skip(sent), b => b.GetProperty("event").GetString() == "end");
+
+        // It stops on the TV: the activity ends once the grace is over, and isn't followed any more.
         await sessions.RemoveAsync(session.Id);
         await WaitForAsync(() => _relay.Sent[^1].GetProperty("event").GetString() == "end");
         sent = _relay.Sent.Count;
         sessions.Add(session);
-        await Task.Delay(300);
+        await Task.Delay(500);
         Assert.Equal(sent, _relay.Sent.Count);
+        await worker.StopAsync(default);
         await publisher.StopAsync(default);
     }
 

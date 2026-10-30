@@ -50,6 +50,12 @@ public sealed class PlaybackSession
 
     /// <summary>What the player last told remotes (see <see cref="ProgressRequest"/>): null from players that don't.</summary>
     public RemoteState? Remote { get; set; }
+
+    /// <summary>Shown as what its device is playing at the last look (see <see cref="PlaybackSessions.Shows"/>), so going quiet is noticed once.</summary>
+    public bool Shown { get; set; }
+
+    /// <summary>The title as remotes are told it, kept for the playback so each report doesn't look it up again.</summary>
+    public Endpoints.ItemSummaryDto? Summary { get; set; }
     public bool CountedAsPlay { get; set; }
 
     /// <summary>A Started event went out for it, and no Stopped since (see <see cref="Events.PlaybackEvents"/>).</summary>
@@ -68,6 +74,14 @@ public sealed record RemoteState(double Rate, PlayerPrompt? Prompt, bool HasNext
 public sealed partial class PlaybackSessions
 {
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
+
+    /// <summary>A playback that hasn't been heard from for this long isn't shown as what its device is playing.</summary>
+    public static readonly TimeSpan NowPlayingStaleness = TimeSpan.FromMinutes(15);
+
+    /// <summary>The most tracks of each kind kept from a report, and the longest name and id.</summary>
+    private const int MaxTracks = 50;
+    private const int MaxLabel = 100;
+    private const int MaxTrackId = 64;
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
     private readonly TranscodeManager transcodes;
     private readonly ILogger<PlaybackSessions> logger;
@@ -116,14 +130,49 @@ public sealed partial class PlaybackSessions
         session.LastPosition = progress.PositionSeconds;
         session.Paused = progress.Paused;
         session.ReportedAt = DateTime.UtcNow;
+        session.Shown = true;
         if (progress.ForRemotes)
         {
             var before = session.Remote;
-            session.Remote = new RemoteState(progress.Rate ?? before?.Rate ?? 1, progress.Prompt, progress.HasNext ?? false, progress.Tracks ?? before?.Tracks,
-                progress.Sound ?? before?.Sound);
+            var rate = progress.Rate is { } r && double.IsFinite(r) ? Math.Clamp(r, 0.25, 4) : before?.Rate ?? 1;
+            session.Remote = new RemoteState(rate, Parse<PlayerPrompt>(progress.Prompt), progress.HasNext ?? false, Trim(progress.Tracks) ?? before?.Tracks,
+                Sound(progress.Sound) ?? before?.Sound);
         }
 
         nowPlaying?.Notice(session);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="session"/> counts as what its device is playing at <paramref name="now"/>: heard from in the
+    /// last quarter of an hour, and, playing rather than paused, reporting (as the playback events count it).
+    /// </summary>
+    public static bool Shows(PlaybackSession session, DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        return now - session.LastSeen < NowPlayingStaleness && (session.Paused || now - (session.ReportedAt ?? session.LastSeen) < PlaybackEvents.PlayingSilence);
+    }
+
+    private static T? Parse<T>(string? name) where T : struct, Enum =>
+        Enum.TryParse<T>(name, ignoreCase: false, out var value) && Enum.IsDefined(value) && !int.TryParse(name, out _) ? value : null;
+
+    private static DeviceSound? Sound(ReportedSound? sound) =>
+        sound is null ? null : new DeviceSound(Parse<DialogueBoost>(sound.DialogueBoost), Parse<NightMode>(sound.NightMode), Parse<Speakers>(sound.Speakers));
+
+    /// <summary>A report's tracks within bounds: a misbehaving player can't fill memory or every phone's screen.</summary>
+    private static PlayerTracks? Trim(PlayerTracks? tracks)
+    {
+        if (tracks is null)
+        {
+            return null;
+        }
+
+        static IReadOnlyList<PlayerTrack> Keep(IReadOnlyList<PlayerTrack>? list) => (list ?? [])
+            .Where(t => t is { Id.Length: > 0 and <= MaxTrackId, Label: not null })
+            .Take(MaxTracks)
+            .Select(t => t.Label.Length > MaxLabel ? t with { Label = t.Label[..MaxLabel] } : t)
+            .ToList();
+
+        return new PlayerTracks(Keep(tracks.Audio), Keep(tracks.Subtitles));
     }
 
     public PlaybackSession? Get(string id)
@@ -153,7 +202,22 @@ public sealed partial class PlaybackSessions
 
     public async Task SweepAsync()
     {
-        events?.Sweep(_sessions.Values, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        events?.Sweep(_sessions.Values, now);
+
+        // A device that went quiet (its app killed, the TV asleep) stops being shown as playing: remotes and Live
+        // Activities hear so now, rather than when the playback finally expires.
+        foreach (var session in _sessions.Values)
+        {
+            var shows = Shows(session, now);
+            if (session.Shown && !shows)
+            {
+                nowPlaying?.Notice(session);
+            }
+
+            session.Shown = shows;
+        }
+
         foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastSeen > Expiry).ToList())
         {
             try

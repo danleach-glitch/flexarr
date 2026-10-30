@@ -90,10 +90,13 @@ public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode?
 public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
     Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null, double? Seconds = null, string? TrackId = null, double? Rate = null)
 {
-    /// <summary>What every device that listens has always taken; the rest only a device that says it does.</summary>
+    /// <summary>
+    /// What every device that listens has always taken (apps from 0.55); the rest, Sound included, only a device that
+    /// says it does.
+    /// </summary>
     public static readonly IReadOnlySet<DeviceCommandKind> Basic = new HashSet<DeviceCommandKind>
     {
-        DeviceCommandKind.Play, DeviceCommandKind.Pause, DeviceCommandKind.Resume, DeviceCommandKind.Stop, DeviceCommandKind.Watch, DeviceCommandKind.Sound,
+        DeviceCommandKind.Play, DeviceCommandKind.Pause, DeviceCommandKind.Resume, DeviceCommandKind.Stop, DeviceCommandKind.Watch,
     };
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
@@ -114,6 +117,9 @@ public sealed class DeviceCommands(TimeProvider clock)
     private readonly ConcurrentDictionary<string, DeviceCommand> _waiting = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, DateTime> _lastSeen = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, IReadOnlySet<DeviceCommandKind>> _accepts = new(StringComparer.Ordinal);
+
+    /// <summary>A device opened or closed Flexarr (started or stopped listening).</summary>
+    public event Action<string>? OnlineChanged;
 
     /// <summary>One device's open connection. Disposing it (the request ended) takes the device offline.</summary>
     public sealed class Listener : IDisposable
@@ -155,26 +161,31 @@ public sealed class DeviceCommands(TimeProvider clock)
 
         var listener = new Listener(this, deviceId);
         var now = clock.GetUtcNow().UtcDateTime;
-        var previous = _listeners.AddOrUpdate(deviceId, listener, (_, old) =>
+        _listeners.AddOrUpdate(deviceId, listener, (_, old) =>
         {
             old.Channel.Writer.TryComplete();
             return listener;
         });
-        _ = previous;
         _lastSeen[deviceId] = now;
         if (_waiting.TryRemove(deviceId, out var waiting) && now - waiting.SentAt <= WaitLimit)
         {
             listener.Channel.Writer.TryWrite(waiting);
         }
 
+        OnlineChanged?.Invoke(deviceId);
+
         return listener;
     }
 
     private void Detach(Listener listener)
     {
-        _listeners.TryRemove(new KeyValuePair<string, Listener>(listener.DeviceId, listener));
+        var gone = _listeners.TryRemove(new KeyValuePair<string, Listener>(listener.DeviceId, listener));
         _lastSeen[listener.DeviceId] = clock.GetUtcNow().UtcDateTime;
         listener.Channel.Writer.TryComplete();
+        if (gone)
+        {
+            OnlineChanged?.Invoke(listener.DeviceId);
+        }
     }
 
     /// <summary>Flexarr is open on the device and would take a command now.</summary>

@@ -55,8 +55,9 @@ function session(origin) {
   return s;
 }
 
-// `liveActivity`: a Live Activity's update, which goes to the app's Live Activity topic as its own push type.
-function sendToApple(environment, token, body, collapseId, liveActivity = false) {
+// `liveActivity`: a Live Activity's update, which goes to the app's Live Activity topic as its own push type, at
+// Apple's high priority only when `urgent` (Apple budgets those for an activity).
+function sendToApple(environment, token, body, collapseId, liveActivity = false, urgent = true) {
   return new Promise((resolve, reject) => {
     const headers = {
       ':method': 'POST',
@@ -64,7 +65,7 @@ function sendToApple(environment, token, body, collapseId, liveActivity = false)
       authorization: `bearer ${jwt()}`,
       'apns-push-type': liveActivity ? 'liveactivity' : 'alert',
       'apns-topic': liveActivity ? `${process.env.APNS_TOPIC}.push-type.liveactivity` : process.env.APNS_TOPIC,
-      'apns-priority': '10',
+      'apns-priority': urgent ? '10' : '5',
       'content-type': 'application/json',
     };
     if (collapseId) headers['apns-collapse-id'] = collapseId;
@@ -293,12 +294,13 @@ function activityState(state, now) {
   return { paused, position, at, duration, rate };
 }
 
-async function liveActivity(res, { token, environment, event, state }) {
+async function liveActivity(res, { token, environment, event, state, urgent }) {
   const now = Math.floor(Date.now() / 1000);
   // Longer than a notification's: a Live Activity's token is 128 bytes.
   if (typeof token !== 'string' || !/^[0-9a-fA-F]{64,512}$/.test(token)) return reply(res, 400, { reason: 'BadToken' });
   if (environment !== 'production' && environment !== 'sandbox') return reply(res, 400, { reason: 'BadEnvironment' });
   if (event !== 'update' && event !== 'end') return reply(res, 400, { reason: 'BadEvent' });
+  if (urgent !== undefined && typeof urgent !== 'boolean') return reply(res, 400, { reason: 'BadUrgent' });
   const content = activityState(state, now);
   if (!content) return reply(res, 400, { reason: 'BadState' });
 
@@ -317,7 +319,7 @@ async function liveActivity(res, { token, environment, event, state }) {
 
   let apple;
   try {
-    apple = await sendToApple(environment, token, JSON.stringify({ aps }), undefined, true);
+    apple = await sendToApple(environment, token, JSON.stringify({ aps }), undefined, true, urgent !== false || event === 'end');
   } catch {
     console.log('push: apple unreachable');
     return reply(res, 502, { reason: 'Unreachable' });
