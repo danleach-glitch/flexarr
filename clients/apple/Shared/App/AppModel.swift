@@ -718,10 +718,15 @@ final class AppModel {
     }
 
     /// `flexarr://item/<id>` shows a title; `flexarr://play/<id>` plays one (a show or season: the episode to watch
-    /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on.
-    /// Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
+    /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on;
+    /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
         guard url.scheme == "flexarr", let host = url.host() else { return }
+        // flexarr://watchlist: the profile's watchlist.
+        if host == "watchlist" {
+            pendingRoute = .watchlist
+            return
+        }
         let id = url.pathComponents.dropFirst().first ?? ""
         guard !id.isEmpty else { return }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)

@@ -218,6 +218,16 @@ struct MainTabView: View {
             linkTab = nil
             return
         }
+        // The watchlist has a tab of its own.
+        if case .watchlist = route {
+            guard librariesLoaded else { return }
+            model.pendingRoute = nil
+            if model.hasWatchlist {
+                selection = .watchlist
+                startFocus = false
+            }
+            return
+        }
         var tab = TabID.home
         if case .item(let item) = route {
             // Until the libraries are in, its tab may not be there yet.

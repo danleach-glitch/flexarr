@@ -350,6 +350,8 @@ struct HomeRowView: View {
                     }
                     if let library = linkedLibrary {
                         SeeAllCard(style: row.style) { router.push(.library(library.library, library.sort, genre: library.genre)) }
+                    } else if row.link == "/watchlist" {
+                        SeeAllCard(style: row.style) { router.push(.watchlist) }
                     }
                 }
                 .padding(.horizontal, Layout.edge)
