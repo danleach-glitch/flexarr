@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -33,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +77,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private class TvHomeContent(val home: Home, val emptyMessage: EmptyHomeMessage?)
 
@@ -114,11 +117,14 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
     // Nothing to take focus: say so, rather than holding it back for a hero that won't come.
     LaunchedEffect(takeFocus, featured.isEmpty()) { if (takeFocus && featured.isEmpty()) onFocusTaken() }
 
+    val list = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     RoomBackground(ambient = { ambient.value }, intensity = 0.28f, reach = 900.dp) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
             if (featured.isNotEmpty()) {
                 item(key = "hero") {
-                    Box {
+                    // With focus in the hero (back up from the rows, or arriving), the page sits at the top, all of it in view.
+                    Box(Modifier.onFocusChanged { if (it.hasFocus) scope.launch { list.animateScrollToItem(0) } }) {
                         HomeHero(home, featuredIndex, onIndex = { featuredIndex = it }, takeFocus = takeFocus, onFocusTaken = onFocusTaken)
                         top?.let { Box(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) { it() } }
                     }

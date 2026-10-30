@@ -1,6 +1,7 @@
 package io.github.flexarr.ui.tv
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -116,7 +117,8 @@ fun TvMainScreen(model: AppModel) {
     var sidebarOpen by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
     // The screen a tab opens on takes focus (Home's Play, a library's first title, Search's field) as the app opens and
-    // as a tab is chosen, so it's ready to browse. Named by route, so the tab being left (still there as the new one comes) doesn't take it.
+    // as a tab is chosen, so it's ready to browse. Named by route, so the tab being left (still there as the new one
+    // comes) doesn't take it.
     var arrivingAt by remember { mutableStateOf<String?>(TvTab.Home.route) }
     val content = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -217,7 +219,10 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 if (hasFocus) break
             }
         }
-        BackHandler(enabled = closesOnBack, onBack = onClose)
+        // Back on the sidebar: it goes (over a screen opened from a tab) or the app does (over a tab's first screen),
+        // rather than reaching a screen underneath that goes back through pages of its own (Settings').
+        val activity = LocalActivity.current
+        BackHandler { if (closesOnBack) onClose() else activity?.finish() }
         Column(
             Modifier.fillMaxHeight().width(230.dp).padding(12.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(16.dp)).padding(vertical = 18.dp, horizontal = 10.dp)
                 .onFocusChanged {
