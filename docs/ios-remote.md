@@ -21,7 +21,7 @@ Decisions:
 ## Rules to keep
 
 - API only grows: new `DeviceCommandKind` values, new optional fields. Older TV apps read new kinds as `unknown` and
-  must ignore them; the phone hides controls a TV can't take (capabilities, below).
+  must ignore them; the phone hides controls a TV can't take (`accepts`, below).
 - The phone treats every new field as optional ("Absent from servers before …").
 - Main stays releasable: the feature lands complete, so nothing hides behind a setting.
 
@@ -30,19 +30,19 @@ Decisions:
 Server
 - [x] New command kinds: `Seek` (to seconds), `Skip` (by ± seconds), `Next`, `Previous`, `SkipSegment` (intro/recap/credits).
 - [x] `POST /devices/{id}/seek`, `/skip`, `/next`, `/previous`, `/skip-segment`: same trust check and 200/202/404 as pause.
-- [x] Device capabilities: the TV says which commands it takes (on sign-in or the stream's first request); `DeviceDto.Capabilities`, absent for old apps.
+- [x] The TV says which commands it takes (the stream's `accepts` query); `DeviceDto.Accepts`, absent for old apps.
 - [x] Richer `NowPlayingDto`: playback rate, current segment (intro/credits, for the Skip button), next episode, show/season ids. All optional.
 - [x] Push now-playing changes: a `nowPlaying` event on the device event stream to every household phone, sent on start, pause/resume, seek, track change and stop (not just on the timer).
-- [x] Tests: commands reach the listener, capabilities round-trip, the event fires on pause and seek, an old-style device without capabilities.
+- [x] Tests: commands reach the listener, `accepts` round-trips, the event fires on pause and seek, an old-style device that says nothing.
 
 Apple TV
 - [x] Handle Seek, Skip, Next, Previous, SkipSegment in `AppModel` → `PlaybackController` (reuse its existing skip and next-episode paths).
-- [x] Report capabilities.
+- [x] Say which commands it takes (`accepts`).
 - [x] Report progress immediately on pause, resume, seek and segment changes, as well as on the timer.
 - [ ] Show who's controlling ("Dan's iPhone paused") briefly, like the existing `SentBy`.
 
 FlexarrKit
-- [x] Models: new command kinds, `capabilities`, the richer `NowPlaying`, the `nowPlaying` device event (all forward-compatible).
+- [x] Models: new command kinds, `accepts`, the richer `NowPlaying`, the `nowPlaying` device event (all forward-compatible).
 - [x] Client calls for the new endpoints.
 - [x] `swift test`.
 
@@ -67,7 +67,7 @@ iPhone
 
 - [x] Remote screen: Up Next row and the season's episodes (from the item's show/season ids).
 - [x] Tap an episode → `play(on:)` to the same TV; mark watched/unwatched from the list.
-- [x] Browsing the app while a TV is playing: "Play on TV" offered first on detail pages.
+- [ ] Browsing the app while a TV is playing: "Play on TV" offered first on detail pages. (Not built; the episode list in the remote covers the season.)
 
 ## Phase 4: lock screen and Dynamic Island
 
@@ -88,7 +88,7 @@ iPhone
 - [ ] Try it end to end: TV simulator + iPhone simulator against a branch server (done), then the real TV and iPhone (to do; a Live Activity update arriving by push can only be seen on a real phone).
 - [ ] Old TV app (from main) with the new phone: new buttons hidden, pause/resume still work.
 - [ ] New TV with an old server: nothing breaks.
-- [ ] Guide page in `docs/guide` (`make guide`).
+- [x] Guide page in `docs/guide` (`make guide`): iphone-remote.
 - [ ] `/audit`, then `/land`.
 
 ## Later
