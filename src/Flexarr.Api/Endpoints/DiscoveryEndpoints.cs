@@ -363,6 +363,9 @@ public static partial class DiscoveryEndpoints
 
         api.MapGet("/genres/{name}/items", async (string name, string? kind, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
+            // A name with a slash ("Action/Adventure", from a hand-written .nfo) arrives as one segment with the slash
+            // still encoded: ASP.NET Core decodes everything in a path but that.
+            name = name.Replace("%2F", "/", StringComparison.OrdinalIgnoreCase);
             var query = db.MediaItems.Where(i => i.ParentId == null && i.Genres.Any(g => g.Name == name));
             if (Enum.TryParse<MediaKind>(kind, ignoreCase: true, out var k))
             {
