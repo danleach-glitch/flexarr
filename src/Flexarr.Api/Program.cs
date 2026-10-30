@@ -17,6 +17,7 @@ using Flexarr.Api.Playlists;
 using Flexarr.Api.Podcasts;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
+using Flexarr.Api.Search;
 using Flexarr.Api.Security;
 using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
@@ -125,6 +126,7 @@ builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
     c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)");
 });
 builder.Services.AddSingleton<CommunityLogoIndex>();
+builder.Services.AddSingleton<SearchIndex>();
 builder.Services.AddSingleton<LiveTvStatus>();
 builder.Services.AddSingleton<LiveTvRefreshSignal>();
 builder.Services.AddSingleton<LiveTvViewers>();
@@ -347,6 +349,7 @@ app.MapGroup("/api/v1")
     .MapPlaybackEndpoints()
     .MapDownloadEndpoints()
     .MapDiscoveryEndpoints()
+    .MapRecentSearchEndpoints()
     .MapSettingsEndpoints()
     .MapImportEndpoints()
     .MapBackupEndpoints()

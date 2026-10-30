@@ -42,6 +42,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<NotificationDevice> NotificationDevices => Set<NotificationDevice>();
     public DbSet<MediaRequest> MediaRequests => Set<MediaRequest>();
     public DbSet<NotificationCursor> NotificationCursors => Set<NotificationCursor>();
+    public DbSet<RecentSearch> RecentSearches => Set<RecentSearch>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -337,6 +338,17 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(d => d.ProfileId).HasMaxLength(64);
             e.HasOne<MediaItem>().WithMany().HasForeignKey(d => d.SeriesId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Profile>().WithMany().HasForeignKey(d => d.ProfileId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecentSearch>(e =>
+        {
+            e.Property(r => r.ProfileId).HasMaxLength(64);
+            e.Property(r => r.Query).HasMaxLength(RecentSearch.MaxQueryLength);
+            e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            // An item's gone, its searches stay (the words are still worth offering).
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(r => r.ItemId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(r => new { r.ProfileId, r.SearchedAt });
+            e.HasIndex(r => r.ItemId);
         });
     }
 }

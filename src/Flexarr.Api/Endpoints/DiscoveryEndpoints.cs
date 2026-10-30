@@ -275,7 +275,7 @@ public static partial class DiscoveryEndpoints
             return Results.Ok(await MusicDiscovery.InOrderAsync(db, picks, profile.Id, ct));
         }).WithTags("Discovery");
 
-        api.MapGet("/search", async (string q, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapGet("/search", async (string q, int? take, FlexarrDbContext db, CurrentProfile profile, Search.SearchIndex index, CancellationToken ct) =>
         {
             var term = q.Trim();
             if (term.Length == 0)
@@ -312,7 +312,41 @@ public static partial class DiscoveryEndpoints
                 .Select(i => new { i.Id, Album = i.Parent!.Title }).ToListAsync(ct);
             var trackItems = await MusicDiscovery.InOrderAsync(db, trackIds.Select(t => t.Id), profile.Id, ct);
             var tracks = trackItems.Select(t => new SearchTrackDto(t, trackIds.First(x => x.Id == t.Id).Album)).ToList();
+
+            // The database only finds the words as typed; top up with near misses ("breking bad", "amelie", "spiderman").
+            titles.AddRange(await CloseItemsAsync(Search.SearchIndex.Group.Title, limit - titles.Count, titles));
+            albums.AddRange(await CloseItemsAsync(Search.SearchIndex.Group.Album, 8 - albums.Count, albums));
+            if (people.Count < 8)
+            {
+                var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
+                var ids = close.Select(m => m.Id).ToList();
+                var found = await db.People.Where(p => ids.Contains(p.Id))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count))
+                    .ToListAsync(ct);
+                people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
+            }
+
+            if (genres.Count < 5)
+            {
+                var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Genre, 5, new HashSet<Guid>(), ct);
+                genres.AddRange(close.Select(m => m.Name).Where(n => !genres.Contains(n)).Take(5 - genres.Count));
+            }
+
             return new SearchResultsDto(titles, episodes, people, genres, albums, tracks);
+
+            async Task<List<ItemSummaryDto>> CloseItemsAsync(Search.SearchIndex.Group group, int wanted, List<ItemSummaryDto> found)
+            {
+                if (wanted <= 0)
+                {
+                    return [];
+                }
+
+                // Twice as many as wanted: some may be in libraries this profile doesn't see, or gone from disk.
+                var close = await index.FindAsync(db, term, group, wanted * 2, found.Select(i => i.Id).ToHashSet(), ct);
+                var ids = close.Select(m => m.Id).ToList();
+                var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToListAsync(ct);
+                return [.. items.OrderBy(i => ids.IndexOf(i.Id)).Take(wanted)];
+            }
         }).WithTags("Discovery");
 
         api.MapGet("/genres", async (FlexarrDbContext db, CancellationToken ct) =>
