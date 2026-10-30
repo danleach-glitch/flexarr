@@ -38,6 +38,7 @@ public static class WatchlistTools
     public static async Task<string> AddAsync(WatchlistService watchlist, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, CurrentProfile profile, CancellationToken ct,
         [Description("A film's or show's id, from search_library")] Guid? itemId = null,
         [Description("A TMDB id, from an earlier answer's candidates; give kind too")] int? tmdbId = null,
+        [Description("With tmdbId: the person chose this one from the candidates, so it may be requested")] bool chosen = false,
         [Description("The title, for one not in the library, e.g. \"dune part three\"")] string? title = null,
         [Description("The year it came out, to pick the right one")] int? year = null,
         [Description("film or show")] string? kind = null)
@@ -79,7 +80,9 @@ public static class WatchlistTools
                 && (year is null || yearOf(r) == year)).ToList();
             if (exact.Count != 1)
             {
-                var candidates = results.Take(5).Select(r => $"{r.Title ?? r.Name} ({yearOf(r)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"}, {(r.MediaType == "movie" ? "film" : "show")}, tmdbId {r.Id})");
+                // Titles come from TMDB, which anyone can edit: plain, and short, before they reach the assistant.
+                static string plain(string? text) => new string((text ?? "").Where(c => !char.IsControl(c)).Take(100).ToArray());
+                var candidates = results.Take(5).Select(r => $"{plain(r.Title ?? r.Name)} ({yearOf(r)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"}, {(r.MediaType == "movie" ? "film" : "show")}, tmdbId {r.Id})");
                 throw new InvalidOperationException(results.Count == 0
                     ? $"No film or show called \"{wanted}\" was found."
                     : $"Which one? Ask again with its tmdbId and kind: {string.Join("; ", candidates)}.");
@@ -92,7 +95,9 @@ public static class WatchlistTools
             throw new InvalidOperationException("Give a library title's id, a TMDB id with its kind, or a title to look up.");
         }
 
-        var (added, refusal) = await watchlist.AddAsync(profile.Id, add, WatchlistSource.Flexarr, ct);
+        // A bare TMDB id may be a guess: it goes on the list, but isn't requested unless the person picked it.
+        var mayRequest = tmdbId is null || chosen;
+        var (added, refusal) = await watchlist.AddAsync(profile.Id, add, WatchlistSource.Flexarr, ct, mayRequest);
         if (added is null)
         {
             throw new InvalidOperationException(refusal!.Message);
@@ -105,6 +110,7 @@ public static class WatchlistTools
             WatchlistStatus.Ready => $"Added {name} to the watchlist. It's in the library, ready to play.",
             WatchlistStatus.OnItsWay => $"Added {name} to the watchlist. It's on its way to the library.",
             WatchlistStatus.Coming => $"Added {name} to the watchlist. It comes out {added.Entry.ReleaseDate:d MMMM yyyy}.",
+            _ when !mayRequest => $"Added {name} to the watchlist, not requested. If the person chose this one, call again with chosen to request it (if their profile requests what it adds).",
             _ => $"Added {name} to the watchlist. It isn't in the library or requested.",
         };
     }

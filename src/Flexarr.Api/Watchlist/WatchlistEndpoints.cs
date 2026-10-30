@@ -12,6 +12,10 @@ public static class WatchlistEndpoints
 
         group.MapGet("/", (WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) => watchlist.ListAsync(profile.Id, ct));
 
+        // The library titles on the list that are ready to play, newest on it first, without asking Seerr: for widgets.
+        group.MapGet("/ready", (int? take, WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) =>
+            watchlist.ReadyAsync(profile.Id, Math.Clamp(take ?? 20, 1, 50), ct));
+
         // Everything on the list, cheaply: for poster menus that offer Add or Remove.
         group.MapGet("/keys", (WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) => watchlist.AllKeysAsync(profile.Id, ct));
 

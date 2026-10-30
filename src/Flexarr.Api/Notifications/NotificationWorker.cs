@@ -307,8 +307,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// <summary>
     /// Titles on a watchlist that are now in a library their profile can see, to tell whoever put them there. A title
     /// they requested has "Your request is ready" instead, so they hear once; either way the entry is marked as arrived.
-    /// An entry already pointing at the title keeps it (one item, one entry per profile). Saved here, on its own, so a
-    /// problem with one entry can't stop the rest of the notifications.
+    /// An entry already pointing at the title keeps it, and none is pointed at a title another of the profile's holds
+    /// (one item, one entry per profile), so marking them can't upset the save that follows the notices.
     /// </summary>
     private static async Task<List<Answered>> WatchlistArrivalsAsync(FlexarrDbContext db, List<Answered> requests, DateTime settled, DateTime now, CancellationToken ct)
     {
@@ -370,21 +370,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 $"item:{title.Id}", Artwork(title.PosterUrl), Video(title.Id, first)), items));
         }
 
-        try
-        {
-            await db.SaveChangesAsync(ct);
-            return answered;
-        }
-        catch (DbUpdateException)
-        {
-            // Whatever it was, it's tried again next minute; nothing is said about it meanwhile.
-            foreach (var tracked in db.ChangeTracker.Entries<WatchlistEntry>().ToList())
-            {
-                tracked.State = EntityState.Detached;
-            }
-
-            return [];
-        }
+        // Saved with the rest once the notices are sent, so nothing is marked told before it's been said.
+        return answered;
     }
 
     /// <summary>A notification per film, and one per show however many of its episodes came.</summary>

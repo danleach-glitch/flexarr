@@ -369,6 +369,10 @@ public sealed class WatchlistTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, home.StatusCode);
         var entry = (await list.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
         Assert.Equal("Ready", entry.GetProperty("status").GetString());
+        // The one that stood took the TMDB id, so Discover still marks it, and adding it again finds it.
+        var keys = await Client().GetFromJsonAsync<JsonElement>(Api("/watchlist/keys"));
+        Assert.Contains("tv:8301", keys.GetProperty("titles").EnumerateArray().Select(t => t.GetString()));
+        Assert.Equal(HttpStatusCode.OK, (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "tv", tmdbId = 8301 })).StatusCode);
     }
 
     [Fact]
@@ -472,6 +476,79 @@ public sealed class WatchlistTests : IAsyncLifetime
 
         var ids = layout.GetProperty("home").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
         Assert.Equal(ids.IndexOf("continue") + 1, ids.IndexOf("watchlist"));
+    }
+
+    [Fact]
+    public async Task AddingBackATitleThatsNowInTheLibrary_IsntAnnouncedAsArriving()
+    {
+        SeerrKnows("movie", 9001, "Came In", "2023-06-01");
+        var first = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9001 })).Content.ReadFromJsonAsync<JsonElement>();
+        await Client().DeleteAsync(Api($"/watchlist/{first.GetProperty("entry").GetProperty("id").GetGuid()}"));
+        var library = Films();
+        var film = Film(library, "Came In", "9001");
+        await SeedAsync(db => db.AddRange(library, film));
+
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = film.Id });
+
+        Assert.NotNull((await InDbAsync(db => db.WatchlistEntries.SingleAsync())).ArrivedAt);
+    }
+
+    [Fact]
+    public async Task WhenSeerrDoesntAnswer_NothingIsAutoRequested()
+    {
+        await Client().PutAsJsonAsync(Api("/profiles/owner/watchlist-requests"), new { autoRequest = true });
+        SeerrKnows("movie", 9101, "Was Known", "2023-06-01");
+        var first = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9101 })).Content.ReadFromJsonAsync<JsonElement>();
+        await Client().DeleteAsync(Api($"/watchlist/{first.GetProperty("entry").GetProperty("id").GetGuid()}"));
+        _seerr.Requests.Clear();
+        _seerr.Responses.Clear(); // Seerr gone: every lookup fails
+        using (var scope = _server.Services.CreateScope())
+        {
+            ((Microsoft.Extensions.Caching.Memory.MemoryCache)scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()).Clear();
+        }
+
+        var again = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9101 })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.False(again.GetProperty("requested").GetBoolean());
+        Assert.DoesNotContain(_seerr.Requests, r => r.StartsWith("POST", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Ready_ListsLibraryTitlesToPlay_WithoutAskingSeerr()
+    {
+        SeerrKnows("movie", 9201, "Outside", "2023-06-01");
+        var library = Films();
+        var film = Film(library, "Inside", "9202");
+        await SeedAsync(db => db.AddRange(library, film));
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = film.Id });
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9201 });
+        var asked = _seerr.Requests.Count;
+
+        var ready = await Client().GetFromJsonAsync<JsonElement>(Api("/watchlist/ready?take=4"));
+
+        Assert.Equal([film.Id], ready.EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+        Assert.Equal(asked, _seerr.Requests.Count);
+    }
+
+    [Fact]
+    public async Task AnAssistantsBareTmdbId_IsAddedButOnlyRequestedOnceChosen()
+    {
+        await Client().PutAsJsonAsync(Api("/profiles/owner/watchlist-requests"), new { autoRequest = true });
+        SeerrKnows("movie", 9301, "Guessed", "2023-06-01");
+        using var scope = _server.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        Task<string> add(bool chosen) => Mcp.WatchlistTools.AddAsync(services.GetRequiredService<WatchlistService>(), services.GetRequiredService<SeerrClient>(),
+            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), services.GetRequiredService<Profiles.CurrentProfile>(),
+            CancellationToken.None, tmdbId: 9301, kind: "film", chosen: chosen);
+
+        var guessed = await add(false);
+        var asked = Requests();
+        var confirmed = await add(true);
+
+        Assert.Contains("not requested", guessed, StringComparison.Ordinal);
+        Assert.Equal(0, asked);
+        Assert.Contains("requested it", confirmed, StringComparison.Ordinal);
+        Assert.Equal(1, Requests());
     }
 
     [Fact]
