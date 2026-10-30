@@ -38,7 +38,19 @@ final class TVRemote {
     var showsRemote = false {
         didSet {
             guard showsRemote != oldValue else { return }
-            if showsRemote { selectedId = selectedId.flatMap { id in playing.contains { $0.id == id } ? id : nil } ?? current?.id }
+            if showsRemote {
+                // A TV asked for by name (the Lock Screen's link) is kept even before the list has it: on a cold start
+                // the list comes a moment later.
+                if let requestedId {
+                    selectedId = requestedId
+                    self.requestedId = nil
+                } else {
+                    selectedId = selectedId.flatMap { id in playing.contains { $0.id == id } ? id : nil } ?? current?.id
+                }
+            } else if restarting {
+                restarting = false
+                stopped = nil
+            }
             pinned = showsRemote
             listedSinceOpening = false
             wake()
@@ -49,6 +61,10 @@ final class TVRemote {
     /// Stop's Undo is under way: the remote shows what was stopped until the TV plays it again.
     private(set) var restarting = false
     @ObservationIgnored private var pinned = false
+    /// The TV the remote is to open on, when one was asked for.
+    @ObservationIgnored private var requestedId: String?
+    /// The remote's sheet is actually on screen (set by the remote as it appears and goes).
+    @ObservationIgnored var isPresented = false
     private(set) var notice: Notice?
     /// Counts the viewer's own taps, and the commands that failed: what the haptics follow (not the TV's state, which
     /// someone else may change).
@@ -56,8 +72,8 @@ final class TVRemote {
     private(set) var failures = 0
     /// The episode just asked for from the remote's list, until the TV starts it.
     private(set) var starting: String?
-    /// The bar was put away for this TV and show (or film); it comes back with something else.
-    private var hiddenBar: String?
+    /// The bars put away, by TV and show (or film); each comes back with something else.
+    private var hiddenBars: Set<String> = []
     /// What Stop stopped, for Undo: the TV and what it was playing, and where.
     @ObservationIgnored private var stopped: (deviceId: String, playing: DeviceNowPlaying)?
     /// Stream events held back during a command's hold, the latest for each device: applied when the hold ends.
@@ -110,21 +126,30 @@ final class TVRemote {
     var barDevice: Device? {
         ([current].compactMap { $0 } + playing).first { device in
             guard let playing = device.nowPlaying else { return false }
-            return Self.barKey(device.id, playing.item) != hiddenBar
+            return !hiddenBars.contains(Self.barKey(device.id, playing.item))
         }
     }
 
     /// Opens the remote (the bar, the Lock Screen's link). Set again even when it already says open: a remote that
     /// couldn't show (over another sheet) shows now.
     func open(on deviceId: String? = nil) {
-        if let deviceId { selectedId = deviceId }
+        if showsRemote && isPresented {
+            // Already showing: just the TV.
+            if let deviceId { selectedId = deviceId }
+            return
+        }
+        requestedId = deviceId
         if showsRemote {
+            // Said open but not on screen (it couldn't show over another sheet): asked for afresh.
             showsRemote = false
             Task { @MainActor in self.showsRemote = true }
         } else {
             showsRemote = true
         }
     }
+
+    /// The name of the TV the remote is on, playing or not.
+    var selectedName: String? { devices.first { $0.id == selectedId }?.name }
 
     /// Follows the sign-in: another server or profile starts afresh.
     func use(_ client: FlexarrClient?) {
@@ -149,7 +174,18 @@ final class TVRemote {
     }
 
     func refresh() async {
-        guard let client, let list = try? await client.devices() else { return }
+        guard let client else { return }
+        let list: [Device]
+        do {
+            list = try await client.devices()
+        } catch {
+            // The remote waiting for its first list: it stops waiting, and says why.
+            if showsRemote && !listedSinceOpening {
+                listedSinceOpening = true
+                say(Notice(text: ConnectionError(error).message))
+            }
+            return
+        }
         heard = true
         fresh = true
         let now = Date()
@@ -237,8 +273,9 @@ final class TVRemote {
 
     // MARK: Commands
 
-    func togglePlayPause() {
-        guard let device = current, let nowPlaying = device.nowPlaying else { return }
+    /// Play/pause on `device` (the bar's own TV), else the remote's.
+    func togglePlayPause(on device: Device? = nil) {
+        guard let device = device.flatMap({ wanted in playing.first { $0.id == wanted.id } }) ?? current, let nowPlaying = device.nowPlaying else { return }
         let pausing = !nowPlaying.paused
         show(device.id) { $0.moved(paused: pausing) }
         send(to: device) { client in _ = try await client.control(device: device.id, pausing ? .pause : .resume) }
@@ -261,7 +298,7 @@ final class TVRemote {
     func control(_ action: DeviceControl) {
         guard let device = current, device.takes(action.kind) else { return }
         if action == .skipSegment { show(device.id) { $0.with(prompt: .some(nil)) } } else { hold(device.id, until: Date().addingTimeInterval(4)) }
-        send(to: device) { client in _ = try await client.control(device: device.id, action) }
+        send(to: device, confirmed: action != .skipSegment) { client in _ = try await client.control(device: device.id, action) }
     }
 
     /// Plays one of the season's episodes on the TV, marked as starting until the TV says so.
@@ -269,7 +306,7 @@ final class TVRemote {
         guard let device = current else { return }
         starting = episode.id
         hold(device.id, until: Date().addingTimeInterval(4))
-        send(to: device, failed: { [weak self] in self?.starting = nil }) { client in _ = try await client.play(on: device.id, itemId: episode.id) }
+        send(to: device, confirmed: true, failed: { [weak self] in self?.starting = nil }) { client in _ = try await client.play(on: device.id, itemId: episode.id) }
         // A TV that never starts it: the row stops saying so.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(15))
@@ -285,10 +322,10 @@ final class TVRemote {
         let before = devices[index].nowPlaying
         devices[index].nowPlaying = nil
         hold(device.id, until: Date().addingTimeInterval(Self.hold))
+        taps += 1
         do {
             let result = try await client.control(device: device.id, .stop)
             guard result.delivered else { throw FlexarrClientError.http(status: 409, message: "Flexarr isn't open on \(device.name).") }
-            taps += 1
             // Undo only for a title it can play again (a private one has no id to play).
             if offeringUndo, let before, !before.item.isPrivate {
                 stopped = (device.id, before.moved(paused: true))
@@ -314,14 +351,24 @@ final class TVRemote {
             devices[index].nowPlaying = snapshot
             hold(undo.deviceId, until: Date().addingTimeInterval(6))
         }
+        let device = devices.first { $0.id == undo.deviceId }
         Task {
             do {
-                _ = try await client.play(on: undo.deviceId, itemId: undo.itemId, startSeconds: snapshot?.positionSeconds)
+                let result = try await client.play(on: undo.deviceId, itemId: undo.itemId, startSeconds: snapshot?.positionSeconds)
+                guard result.delivered else { throw FlexarrClientError.http(status: 409, message: "Flexarr isn't open on \(result.deviceName).") }
                 taps += 1
             } catch {
                 restarting = false
+                stopped = nil
                 if let index = devices.firstIndex(where: { $0.id == undo.deviceId }) { devices[index].nowPlaying = nil }
-                fail(error, device: devices.first { $0.id == undo.deviceId })
+                fail(error, device: device)
+                return
+            }
+            // A TV that took it but never starts: the remote stops waiting.
+            try? await Task.sleep(for: .seconds(10))
+            if restarting, stopped?.deviceId == undo.deviceId {
+                restarting = false
+                stopped = nil
             }
         }
     }
@@ -356,9 +403,9 @@ final class TVRemote {
     }
 
     /// Puts the bar away until the TV plays something else (nothing on the TV changes).
-    func hideBar() {
-        guard let device = barDevice, let item = device.nowPlaying?.item else { return }
-        hiddenBar = Self.barKey(device.id, item)
+    func hideBar(_ device: Device) {
+        guard let item = device.nowPlaying?.item else { return }
+        hiddenBars.insert(Self.barKey(device.id, item))
     }
 
     /// Shows `change` on the device's now playing straight away, and holds back reports that don't know of it yet.
@@ -370,12 +417,16 @@ final class TVRemote {
 
     /// Sends a command; when the hold on the device's reports ends, the latest report is applied (or the list asked
     /// for). A tap is felt once the TV took it; a failure, as an error.
-    private func send(to device: Device, failed: (@MainActor () -> Void)? = nil, _ command: @escaping @MainActor (FlexarrClient) async throws -> Void) {
+    /// `confirmed`: nothing shows until the TV takes it (Next, an episode), so the tap is felt then; otherwise it's
+    /// felt at once, with the change already on screen.
+    private func send(to device: Device, confirmed: Bool = false, failed: (@MainActor () -> Void)? = nil,
+                      _ command: @escaping @MainActor (FlexarrClient) async throws -> Void) {
         guard let client else { return }
+        if !confirmed { taps += 1 }
         Task {
             do {
                 try await command(client)
-                taps += 1
+                if confirmed { taps += 1 }
             } catch {
                 failed?()
                 fail(error, device: device)

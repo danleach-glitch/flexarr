@@ -785,7 +785,7 @@ final class AppModel {
                 link.host = "play"
                 link.path = "/\(id)"
                 link.queryItems = [URLQueryItem(name: "profile", value: profileId)]
-                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : command.seconds.map { [URLQueryItem(name: "t", value: String(Int($0)))] } ?? [])
+                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : command.seconds.flatMap { Int(exactly: $0.rounded()) }.map { [URLQueryItem(name: "t", value: String($0))] } ?? [])
                     + (command.shuffle ? [URLQueryItem(name: "shuffle", value: "1")] : [])
                 if let url = link.url { open(url: url) }
                 return

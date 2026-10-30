@@ -20,7 +20,7 @@ struct TVPlayingBar: View {
     private func bar(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
         HStack(spacing: 12) {
             Button {
-                withAnimation { remote.hideBar() }
+                withAnimation { remote.hideBar(device) }
             } label: {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
@@ -33,7 +33,7 @@ struct TVPlayingBar: View {
             .accessibilityHint("Keeps playing on \(device.name)")
             .padding(.leading, -8)
             .padding(.trailing, -10)
-            Button { remote.open() } label: {
+            Button { remote.open(on: device.id) } label: {
                 HStack(spacing: 12) {
                     TVStill(item: playing.item, width: 240)
                         .frame(width: 64, height: 36)
@@ -54,7 +54,7 @@ struct TVPlayingBar: View {
             }
             .buttonStyle(CardButtonStyle())
             .accessibilityHint("Opens the remote")
-            Button { remote.togglePlayPause() } label: {
+            Button { remote.togglePlayPause(on: device) } label: {
                 Label(playing.paused ? "Play" : "Pause", systemImage: playing.paused ? "play.fill" : "pause.fill")
             }
             .buttonStyle(RoundActionStyle())
@@ -89,7 +89,10 @@ struct TVPlayingBar: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Playing on \(device.name): \(playing.item.displayTitle)")
-        .accessibilityAction(named: "Undo stop") { remote.undoStop() }
+        // Undo for a stop on this TV, while it's offered.
+        .accessibilityActions {
+            if remote.notice?.undo?.deviceId == device.id { Button("Undo stop") { remote.undoStop() } }
+        }
     }
 }
 

@@ -19,11 +19,14 @@ struct TVRemoteView: View {
     /// What was last shown, kept on screen while Continue on iPhone stops the TV.
     @State private var lastShown: (device: Device, playing: DeviceNowPlaying)?
     @ScaledMetric(relativeTo: .body) private var extraIcon: CGFloat = 18
+    /// The sheet's own width: side by side needs room for the picture and the controls.
+    @State private var width: CGFloat = 0
 
     private static let skipSeconds: Double = 10
 
-    /// Side by side: a phone in landscape, or an iPad.
-    private var sideBySide: Bool { verticalSizeClass == .compact || horizontalSizeClass == .regular }
+    /// Side by side: a phone in landscape, or a sheet wide enough for the picture beside the controls (an iPad's,
+    /// when it's wide), whatever size class it reports.
+    private var sideBySide: Bool { verticalSizeClass == .compact || width >= 700 }
 
     /// The TV and what it's playing to show: the remote's, or while continuing on this phone, what was last shown.
     private var shown: (device: Device, playing: DeviceNowPlaying)? {
@@ -67,12 +70,20 @@ struct TVRemoteView: View {
             } else if !remote.listedSinceOpening && remote.current == nil {
                 // Opened before the list came (from the Lock Screen, say): waiting for it, not "nothing".
                 ProgressView().controlSize(.large).tint(Color.screen)
+            } else if remote.notice?.undo != nil {
+                // Just stopped: "Stopped · Undo" says it; nothing more over it.
+                Color.clear
+                    .accessibilityElement()
+                    .accessibilityLabel("Stopped")
+                    .accessibilityActions { Button("Undo stop") { remote.undoStop() } }
             } else {
-                StatusView(state: .empty("Nothing is playing."))
+                StatusView(state: .empty(remote.selectedName.map { "Nothing is playing on \($0)." } ?? "Nothing is playing."))
             }
         }
         .overlay(alignment: .bottom) { RemoteNoticeView().padding(.bottom, 16) }
-        .accessibilityAction(named: "Undo stop") { remote.undoStop() }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onAppear { remote.isPresented = true }
+        .onDisappear { remote.isPresented = false }
         .task(id: remote.current?.nowPlaying?.item.parentId) { await loadEpisodes() }
         .onChange(of: remote.current?.nowPlaying, initial: true) { _, playing in
             if let device = remote.current, let playing { lastShown = (device, playing) }
@@ -253,7 +264,8 @@ struct TVRemoteView: View {
     /// Continue on iPhone, and Stop set apart from it (Undo follows a stop); stacked at the largest text sizes.
     @ViewBuilder
     private func actions(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
-        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+        // Stacked, well apart: both full width at these sizes, so a slip shouldn't land on Stop.
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 24)) : AnyLayout(HStackLayout(spacing: 12))
         layout {
             // A private title can't be played here: there's nothing to say which it is.
             if !playing.item.isPrivate {
@@ -273,7 +285,12 @@ struct TVRemoteView: View {
             }
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 12) }
             Button { Task { await remote.stop() } } label: {
-                Label("Stop", systemImage: "stop.fill")
+                Label {
+                    Text("Stop")
+                } icon: {
+                    // A muted coral on the icon alone: it interrupts someone's watching, though it can be undone.
+                    Image(systemName: "stop.fill").foregroundStyle(Color.danger.opacity(0.85))
+                }
                     .labelStyle(.titleAndIcon)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.screen)

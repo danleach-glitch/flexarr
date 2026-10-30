@@ -75,9 +75,11 @@ private struct LockScreenView: View {
                             Text(subtitle)
                                 .font(.caption)
                                 .foregroundStyle(TVPalette.usher)
-                                .layoutPriority(1)
                         }
+                        // The TV whole; the episode gives way.
                         TVLabel(name: context.attributes.deviceName, isAppleTV: context.attributes.isAppleTV)
+                            .layoutPriority(1)
+                            .fixedSize()
                     }
                 }
                 .lineLimit(1)
