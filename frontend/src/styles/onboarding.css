@@ -135,67 +135,78 @@
   color: var(--usher);
 }
 
-/* Welcome */
+/* Welcome: the mark, a line or two, and the steps two by two. */
 .onboard-welcome {
   text-align: center;
-  padding-top: 48px;
+  padding-top: 36px;
 }
 
+/* Also the finish's, when there's nothing to tick yet. */
 .onboard-hero-mark {
+  display: block;
   width: 72px;
   height: 72px;
-  margin-bottom: 24px;
+  margin: 0 auto 24px;
   filter: drop-shadow(0 10px 30px color-mix(in srgb, var(--silver) 40%, transparent));
 }
 
+.onboard-welcome .onboard-hero-mark {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+}
+
 .onboard-welcome h1 {
-  font-size: var(--step-5);
+  font-size: var(--step-4);
 }
 
 .onboard-welcome .onboard-lede {
   max-width: 26rem;
-  margin: 0 auto 32px;
-  font-size: var(--step-1);
+  margin: 0 auto 24px;
 }
 
 .onboard-plan {
   list-style: none;
-  margin: 0 auto 32px;
+  margin: 0 0 28px;
   padding: 0;
-  max-width: 24rem;
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   text-align: left;
 }
 
 .onboard-plan li {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--screen) 7%, transparent);
   border-radius: 12px;
+  background: color-mix(in srgb, var(--room) 50%, transparent);
+  font-size: var(--step--1);
+  line-height: 1.3;
 }
 
 .onboard-plan-icon {
   display: grid;
   place-items: center;
   flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--screen) 6%, transparent);
   color: var(--silver);
 }
 
 .onboard-plan-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .onboard-welcome-actions {
   display: grid;
   justify-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .onboard-primary {
@@ -517,18 +528,14 @@
     font-size: var(--step-3);
   }
 
-  .onboard-welcome h1 {
-    font-size: var(--step-4);
+  .onboard-plan {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
   }
 
   .onboard-foot {
     flex-wrap: wrap;
   }
-}
-
-.onboard-hero-mark {
-  display: block;
-  margin-inline: auto;
 }
 
 .onboard .button.onboard-primary:disabled {
@@ -687,64 +694,6 @@
   }
 }
 
-/* Welcome, compacted: a smaller mark, and the steps two by two. */
-.onboard-welcome {
-  padding-top: 36px;
-}
-
-.onboard-welcome .onboard-hero-mark {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-}
-
-.onboard-welcome h1 {
-  font-size: var(--step-4);
-}
-
-.onboard-welcome .onboard-lede {
-  margin-bottom: 24px;
-  font-size: var(--step-0);
-}
-
-.onboard-welcome .onboard-plan {
-  max-width: none;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 28px;
-}
-
-.onboard-welcome .onboard-plan li {
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--screen) 7%, transparent);
-  background: color-mix(in srgb, var(--room) 50%, transparent);
-  font-size: var(--step--1);
-  line-height: 1.3;
-}
-
-.onboard-welcome .onboard-plan-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-}
-
-.onboard-welcome .onboard-plan-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.onboard-welcome-actions {
-  gap: 12px;
-}
-
-@media (max-width: 520px) {
-  .onboard-welcome .onboard-plan {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-}
-
 .onboard .button.onboard-store {
   gap: 6px;
 }
@@ -758,4 +707,8 @@
   width: 15px;
   height: 15px;
   margin-top: -2px;
+}
+
+.onboard-tile-warn {
+  margin-top: 12px;
 }

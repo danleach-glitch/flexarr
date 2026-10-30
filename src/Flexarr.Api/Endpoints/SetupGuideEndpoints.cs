@@ -171,27 +171,38 @@ public static partial class SetupGuideEndpoints
                     }
                 }
 
-                var tried = new List<string>();
+                // Every likely address is tested at once (an unreachable one can keep the app waiting for seconds), and the
+                // likeliest that worked is the one saved.
                 var known = existing is null ? null : Field(existing, "url")?.GetValue<string>();
-                foreach (var address in FlexarrAddresses(http, arr, install).Prepend(known is null ? null : new Uri(known).GetLeftPart(UriPartial.Authority)).OfType<string>().Distinct())
+                var addresses = FlexarrAddresses(http, arr, install).Prepend(known is null ? null : new Uri(known).GetLeftPart(UriPartial.Authority))
+                    .OfType<string>().Distinct().ToList();
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(8));
+                var trials = addresses.Select(async address =>
                 {
-                    SetField(notification, "url", $"{address}{path}?{secret}");
-                    SetField(notification, "method", 1);
-                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    timeout.CancelAfter(TimeSpan.FromSeconds(8));
+                    var attempt = WebhookAt(notification, $"{address}{path}?{secret}");
                     try
                     {
-                        await client.TestNotificationAsync(arr, notification, timeout.Token);
+                        await client.TestNotificationAsync(arr, attempt, timeout.Token);
+                        return attempt;
                     }
                     catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
                     {
-                        tried.Add(address);
+                        return null;
+                    }
+                }).ToList();
+                var tried = new List<string>();
+                for (var i = 0; i < addresses.Count; i++)
+                {
+                    if (await trials[i] is not { } working)
+                    {
+                        tried.Add(addresses[i]);
                         continue;
                     }
 
-                    await client.SaveNotificationAsync(arr, notification, ct);
-                    LogWebhookAdded(logger, arr.Name, address);
-                    return Results.Ok(new ArrWebhookDto(true, address, null));
+                    await client.SaveNotificationAsync(arr, working, ct);
+                    LogWebhookAdded(logger, arr.Name, addresses[i]);
+                    return Results.Ok(new ArrWebhookDto(true, addresses[i], null));
                 }
 
                 LogWebhookUnreachable(logger, arr.Name, string.Join(", ", tried));
@@ -217,6 +228,15 @@ public static partial class SetupGuideEndpoints
 
     private static JsonNode? Field(JsonObject n, string name) =>
         n["fields"]?.AsArray().OfType<JsonObject>().FirstOrDefault(f => f["name"]?.GetValue<string>() == name)?["value"];
+
+    /// <summary>A copy of the webhook connection, calling <paramref name="url"/> by POST.</summary>
+    private static JsonObject WebhookAt(JsonObject notification, string url)
+    {
+        var copy = notification.DeepClone().AsObject();
+        SetField(copy, "url", url);
+        SetField(copy, "method", 1);
+        return copy;
+    }
 
     private static void SetField(JsonObject n, string name, JsonNode value)
     {

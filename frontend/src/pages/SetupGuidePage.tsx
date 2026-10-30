@@ -34,6 +34,7 @@ import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
 import { freeColour, profileColours } from '../lib/profileColours'
+import { tooBroad } from '../lib/setupGuide'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
 
@@ -310,7 +311,8 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
   const [baseUrl, setBaseUrl] = useState<string>()
   const [apiKey, setApiKey] = useState('')
   const [error, setError] = useState<string>()
-  const [webhookError, setWebhookError] = useState<string>()
+  /** Adding Flexarr's webhook, after connecting: going on, done, or why it couldn't. */
+  const [webhook, setWebhook] = useState<'adding' | 'added' | { error: string }>()
   const [busy, setBusy] = useState(false)
   const address = baseUrl ?? found ?? ''
 
@@ -324,10 +326,13 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
       if (!status.ok) return setError(status.error ?? `Couldn’t reach ${kind}.`)
       const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined }))
       await saveSettings({ arr: [...current, connection] })
-      // New downloads show straight away once the app can tell Flexarr about them.
-      const added = await addArrWebhook(kind).catch((err: unknown) => ({ ok: false, error: errorText(err) }))
-      setWebhookError(added.ok ? undefined : (added.error ?? 'Couldn’t add the webhook.'))
       props.onConnected()
+      // New downloads show straight away once the app can tell Flexarr about them. That can take a few seconds, so it
+      // goes on after the app shows as connected.
+      setWebhook('adding')
+      void addArrWebhook(kind)
+        .catch((err: unknown) => ({ ok: false, error: errorText(err) }))
+        .then((added) => setWebhook(added.ok ? 'added' : { error: added.error ?? 'Couldn’t add the webhook.' }))
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -341,7 +346,7 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
     try {
       const rest = settings.arr.filter((a) => a.kind !== kind).map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined }))
       await saveSettings({ arr: rest })
-      setWebhookError(undefined)
+      setWebhook(undefined)
       props.onConnected()
     } catch (err) {
       setError(errorText(err))
@@ -349,9 +354,11 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
   }
 
   const status = connected
-    ? webhookError
-      ? 'Connected. Add its webhook in Settings › Connections.'
-      : 'Connected'
+    ? webhook === 'adding'
+      ? 'Connected. Setting up instant updates…'
+      : typeof webhook === 'object'
+        ? 'Connected. Add its webhook in Settings › Connections.'
+        : 'Connected'
     : found
       ? 'Found on your network'
       : arrPurpose[kind]
@@ -524,6 +531,11 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
                   </button>
                 )}
               </div>
+              {picked && !library && picking !== type && tooBroad(picked.folder) && (
+                <p className="onboard-warn onboard-tile-warn" role="status">
+                  That’s a whole drive or home folder. Choose the folder your {libraryTypeLabel[type].toLowerCase()} are in.
+                </p>
+              )}
               {picking === type && (
                 <div className="onboard-tile-picker">
                   <FolderPicker

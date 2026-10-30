@@ -14,3 +14,19 @@ export const isDone = (guide: SetupGuide, id: SetupStep) => guide[id] || guide.s
 /** Whether Home should list what's left: the guide was opened, not put away, and isn't finished. */
 export const showsChecklist = (guide: SetupGuide | null | undefined): guide is SetupGuide =>
   !!guide && guide.opened && !guide.dismissed && setupItems.some((i) => !isDone(guide, i.id))
+
+/**
+ * A folder too broad to be a library: a whole disk, or someone's home folder. Reading all of it takes hours and finds
+ * everything but the films. Folders like /data or /media are left alone, since media often lives right there.
+ */
+export function tooBroad(path: string) {
+  const p = path.replace(/[\\/]+$/, '') || '/'
+  return (
+    p === '/' ||
+    /^[A-Za-z]:$/.test(p) ||
+    /^\/(Volumes|Users|home|System|Library|Applications|private)$/.test(p) ||
+    /^\/Volumes\/[^/]+$/.test(p) ||
+    /^\/(Users|home)\/[^/]+$/.test(p) ||
+    /^\/root$/.test(p)
+  )
+}
