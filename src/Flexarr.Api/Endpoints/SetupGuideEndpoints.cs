@@ -128,13 +128,18 @@ public static partial class SetupGuideEndpoints
             try
             {
                 var path = $"/api/v1/webhooks/{arr.Kind.ToString().ToLowerInvariant()}";
-                var existing = (await client.GetNotificationsAsync(arr, ct)).OfType<JsonObject>()
-                    .FirstOrDefault(n => IsWebhook(n) && Field(n, "url")?.GetValue<string>()?.Contains(path, StringComparison.OrdinalIgnoreCase) == true);
+                // Only this server's own webhook (it has this secret) is brought up to date: another Flexarr's is left alone.
+                var notifications = (await client.GetNotificationsAsync(arr, ct)).OfType<JsonObject>().ToList();
+                var secret = $"secret={Uri.EscapeDataString(current.WebhookSecret)}";
+                var existing = notifications.FirstOrDefault(n => IsWebhook(n) && Field(n, "url")?.GetValue<string>() is { } url
+                    && url.Contains(path, StringComparison.OrdinalIgnoreCase) && url.Contains(secret, StringComparison.Ordinal));
                 notification = existing ?? (await client.GetNotificationSchemaAsync(arr, ct)).OfType<JsonObject>().FirstOrDefault(IsWebhook)
                     ?? throw new InvalidOperationException($"{arr.Name} has no Webhook connection to add.");
                 if (existing is null)
                 {
-                    notification["name"] = "Flexarr";
+                    // The apps want names of their own.
+                    var taken = notifications.Any(n => string.Equals(n["name"]?.GetValue<string>(), "Flexarr", StringComparison.OrdinalIgnoreCase));
+                    notification["name"] = taken ? $"Flexarr ({Dns.GetHostName()})" : "Flexarr";
                 }
 
                 foreach (var (key, value) in notification.ToList())
@@ -150,7 +155,7 @@ public static partial class SetupGuideEndpoints
                 var known = existing is null ? null : Field(existing, "url")?.GetValue<string>();
                 foreach (var address in FlexarrAddresses(http, arr, install).Prepend(known is null ? null : new Uri(known).GetLeftPart(UriPartial.Authority)).OfType<string>().Distinct())
                 {
-                    SetField(notification, "url", $"{address}{path}?secret={Uri.EscapeDataString(current.WebhookSecret)}");
+                    SetField(notification, "url", $"{address}{path}?{secret}");
                     SetField(notification, "method", 1);
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     timeout.CancelAfter(TimeSpan.FromSeconds(8));

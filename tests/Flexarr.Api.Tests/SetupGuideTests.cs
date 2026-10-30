@@ -87,6 +87,35 @@ public sealed class SetupGuideTests
     }
 
     [Fact]
+    public async Task Webhook_LeavesAnotherFlexarrsWebhookAlone()
+    {
+        using var server = new FlexarrApiFactory();
+        var arr = new FakeArr();
+        arr.Responses["GET //sonarr.test/api/v3/notification"] = """
+            [{"id":3,"implementation":"Webhook","name":"Flexarr","onDownload":true,
+              "fields":[{"name":"url","value":"http://other:8383/api/v1/webhooks/sonarr?secret=theirs"},{"name":"method","value":1}]}]
+            """;
+        arr.Responses["GET //sonarr.test/api/v3/notification/schema"] = """[{"implementation":"Webhook","name":"","onDownload":false,"fields":[]}]""";
+        arr.Responses["POST //sonarr.test/api/v3/notification/test"] = "{}";
+        arr.Responses["POST //sonarr.test/api/v3/notification"] = """{"id":8}""";
+        string? saved = null;
+        arr.OnRequest = r =>
+        {
+            if (r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/v3/notification")
+            {
+                saved = r.Content!.ReadAsStringAsync().Result;
+            }
+        };
+        using var app = arr.Serve(server);
+
+        var result = await (await Client(app).PostAsJsonAsync("/api/v1/arr/webhook", new { name = "Sonarr" })).Content.ReadFromJsonAsync<ArrWebhookDto>(Json);
+
+        Assert.True(result!.Ok, result.Error);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("PUT ", StringComparison.Ordinal));
+        Assert.StartsWith("Flexarr (", JsonNode.Parse(saved!)!["name"]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Webhook_SaysSoWhenTheAppCantReachFlexarr()
     {
         using var server = new FlexarrApiFactory();
