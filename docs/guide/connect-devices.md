@@ -7,13 +7,13 @@ Every device signs in to your server with a code. The device shows the code, and
 
 ## Allow it from your phone
 
-When a device asks to connect, every iPhone and Android phone signed in as the main profile asks **Connect “Living room”?**, with the device's code. Check the code matches the one on the device's screen and tap **Allow**. If the device isn't yours, tap **Don't allow**, and it has to ask again with a new code.
+When a device asks to connect, every iPhone and Android phone signed in as the main profile asks **Connect “Living room”?**, with the device's code. Check the code matches the one on the device's screen and tap **Allow**. If the device isn't yours, tap **Don't allow**: the device says **Not allowed**, and asks again only if someone there chooses **Try again**.
 
 The phone asks while Flexarr is open on it. When it isn't, a notification says the device wants to connect, if notifications are turned on for that phone. Choose **Allow** or **Don't allow** on the notification itself (the phone asks to be unlocked first), or tap it to get the same question in the app. The web app asks too, when it's open on the main profile.
 
 To see every device waiting, open **Settings** in the app, or **Settings › Access › Connect a device** on the web. Each one has **Allow** and **Don't allow**.
 
-After **Don't allow**, the device shows a new code by itself, and you aren't asked about that one. It's listed in Settings as turned away, with **Allow** if you change your mind. To ask again from the device, go back and choose the server again.
+Turned a device away by mistake? Choose **Try again** on the device, and allow it this time. (An app from before version 0.56 shows a new code by itself instead; you aren't asked about that one, but it's listed in Settings as turned away, with **Allow**.)
 
 ## iPhone and iPad
 
@@ -43,7 +43,7 @@ The Apple TV app isn't on the App Store yet. Until it is, [install it with Xcode
 
 The TV also shows a QR code. Scan it with a phone that's already signed in to Flexarr in its browser, and the approval page opens with the code filled in.
 
-> **Note** If a code runs out before you've typed it, choose **New code** on the device.
+> **Note** A code lasts as long as the device keeps showing it. If you go back and choose the server again, the device gets a new code.
 
 ## Other browsers
 

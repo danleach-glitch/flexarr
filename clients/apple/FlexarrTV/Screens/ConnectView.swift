@@ -135,10 +135,22 @@ private struct PairWithServer: View {
     let server: DiscoveredServer
     let onBack: () -> Void
     @State private var pairing: Pairing?
+    /// Try again after "Don't allow": a fresh start, with a fresh code the phones are asked about.
+    @State private var attempt = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            if let pairing, let start = pairing.current {
+            if let pairing, pairing.declined {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Not allowed")
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(Color.screen)
+                    Text("The main profile turned this Apple TV away. If that was a mistake, try again and allow it this time.")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color.usher)
+                        .frame(maxWidth: 1100, alignment: .leading)
+                }
+            } else if let pairing, let start = pairing.current {
                 // The iPhone's steps, word for word: a phone signed in as the main profile is asked to allow it,
                 // and the web app does it without one. A new server has nobody to allow it yet, so setting it up in a
                 // browser comes first; the QR code only helps a phone that's signed in already, so it's small,
@@ -196,10 +208,18 @@ private struct PairWithServer: View {
                     .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Color.screen)
             }
-            Button("Back", action: onBack)
-                .buttonStyle(ActionButtonStyle(prominent: false))
+            HStack(spacing: 30) {
+                // First, so it has the focus.
+                if let pairing, pairing.declined {
+                    Button("Try again") { attempt += 1 }
+                        .buttonStyle(ActionButtonStyle(prominent: true))
+                }
+                Button("Back", action: onBack)
+                    .buttonStyle(ActionButtonStyle(prominent: false))
+            }
+            .focusSection()
         }
-        .task(id: server) {
+        .task(id: "\(server.address.absoluteString)#\(attempt)") {
             let pairing = Pairing(server: server)
             self.pairing = pairing
             await pairing.run(model: model)
@@ -215,7 +235,7 @@ private struct PairWithServer: View {
                 .kerning(6)
                 .fixedSize()
             if renewed {
-                Label("New code", systemImage: "arrow.clockwise")
+                Text("A new code")
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(Color.silver)
             }

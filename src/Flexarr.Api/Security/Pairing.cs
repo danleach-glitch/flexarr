@@ -10,7 +10,11 @@ using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
 
-public sealed record PairingStartRequest(string? DeviceName);
+/// <param name="StopsWhenDeclined">
+/// The app says "Not allowed" itself after "Don't allow", and asks again only when someone chooses Try again. Apps from
+/// before 0.56 send nothing and ask for a new code by themselves at once, which isn't asked about (see Decline).
+/// </param>
+public sealed record PairingStartRequest(string? DeviceName, bool StopsWhenDeclined = false);
 
 /// <param name="Id">The device's secret handle for polling; never shown to people.</param>
 /// <param name="Code">What a person approves: shown on the TV and in its QR code.</param>
@@ -19,7 +23,9 @@ public sealed record PairingStartDto(string Id, string Code, DateTime ExpiresAt)
 /// <param name="Status">"waiting", "approved" (with the device's own token, given once) or "expired".</param>
 /// <param name="ApiKey">The token the TV sends as X-Api-Key from now on. Not the server's API key: it can be signed out
 /// on its own, from Settings.</param>
-public sealed record PairingStatusDto(string Status, string? ApiKey);
+/// <param name="Declined">With "expired": it ended because the main profile chose "Don't allow". Apps from before 0.56
+/// don't read it.</param>
+public sealed record PairingStatusDto(string Status, string? ApiKey, bool Declined = false);
 
 /// <param name="RequestedFrom">The address the TV asked from, so the approver can tell it's theirs.</param>
 /// <param name="ExpiresAt">Moved on while the device is still showing its code (see <see cref="Pairings.Status"/>).</param>
@@ -80,6 +86,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
 
     /// <summary>Addresses just turned away, and until when the next code from each is its own retry.</summary>
     private readonly ConcurrentDictionary<string, DateTime> _declined = new(StringComparer.Ordinal);
+
+    /// <summary>Pairings turned away, by id, and until when the device polling one is told so.</summary>
+    private readonly ConcurrentDictionary<string, DateTime> _declinedIds = new(StringComparer.Ordinal);
 
     /// <summary>One open command stream of the main profile's. Disposing it (the request ended) stops its notices.</summary>
     public sealed class Listener : IDisposable
@@ -143,7 +152,9 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     /// and asking again (Back, then choosing the server again) mustn't use up its address's places.
     /// </summary>
     /// <param name="announced">The details to notify the main profile's phones of, or null for a device's own retry just after "Don't allow".</param>
-    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, out PairingDetailsDto? announced, DeviceType? deviceType = null)
+    /// <param name="stopsWhenDeclined">From an app that says "Not allowed" itself: never its own retry, so always asked about.</param>
+    public PairingStartDto? Start(string? deviceName, NetworkZone zone, string? address, out PairingDetailsDto? announced, DeviceType? deviceType = null,
+        bool stopsWhenDeclined = false)
     {
         Sweep();
         announced = null;
@@ -164,7 +175,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         var code = new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
         var now = clock.GetUtcNow().UtcDateTime;
         // Only the one code straight after "Don't allow" is quiet: asking again after that is someone trying again.
-        var quiet = address is not null && _declined.TryRemove(address, out var until) && until > now;
+        var quiet = address is not null && _declined.TryRemove(address, out var until) && until > now && !stopsWhenDeclined;
         var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, name,
             now + Lifetime, zone, address, deviceType, quiet);
         _pending[pending.Id] = pending;
@@ -188,7 +199,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         Sweep();
         if (!_pending.TryGetValue(id, out var pending))
         {
-            return new PairingStatusDto("expired", null);
+            return new PairingStatusDto("expired", null, _declinedIds.ContainsKey(id));
         }
 
         if (!pending.Approved)
@@ -260,9 +271,10 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     public static bool UnfitName(string? name) => name is not null && PathComparison.Printable(name) != name;
 
     /// <summary>
-    /// "That's not my TV", or not now: the code is dropped, so the TV gives up on it and shows a new one by itself. That
-    /// one is listed as turned away rather than asked about, or "Don't allow" would only bring the question straight
-    /// back; it can still be allowed from the list. Choosing the server again on the device asks as usual.
+    /// "That's not my TV", or not now: the code is dropped, and the device is told it was turned away. Apps from 0.56
+    /// say "Not allowed" and ask again only on Try again. Older ones show a new code by themselves at once: that one is
+    /// listed as turned away rather than asked about, or "Don't allow" would only bring the question straight back; it
+    /// can still be allowed from the list.
     /// </summary>
     public bool Decline(string code)
     {
@@ -271,10 +283,13 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
             return false;
         }
 
+        var now = clock.GetUtcNow().UtcDateTime;
         if (pending.Address is { } address)
         {
-            _declined[address] = clock.GetUtcNow().UtcDateTime + DeclinedQuiet;
+            _declined[address] = now + DeclinedQuiet;
         }
+
+        _declinedIds[pending.Id] = now + Lifetime;
 
         Tell(new PairingNotice(null, Format(pending.Code)));
         return true;
@@ -303,6 +318,11 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         foreach (var (address, until) in _declined.Where(d => d.Value < now))
         {
             _declined.TryRemove(new KeyValuePair<string, DateTime>(address, until));
+        }
+
+        foreach (var (id, until) in _declinedIds.Where(d => d.Value < now))
+        {
+            _declinedIds.TryRemove(new KeyValuePair<string, DateTime>(id, until));
         }
     }
 
@@ -333,7 +353,8 @@ public static class PairingEndpoints
                 return Results.Problem(UnfitNameMessage, statusCode: 400);
             }
 
-            if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), out var announced, DeviceTypes.Of(http.Request)) is not { } started)
+            if (pairings.Start(request.DeviceName, zone, http.Connection.RemoteIpAddress?.ToString(), out var announced, DeviceTypes.Of(http.Request),
+                    request.StopsWhenDeclined) is not { } started)
             {
                 return Results.Problem("Too many devices are waiting to connect. Try again in a few minutes.", statusCode: 429);
             }

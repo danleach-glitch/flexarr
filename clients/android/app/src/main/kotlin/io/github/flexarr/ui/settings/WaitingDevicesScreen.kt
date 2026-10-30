@@ -125,7 +125,13 @@ fun WaitingDevicesScreen(model: AppModel) {
             }
             val waiting = pairing.waiting
             item {
-                Group(footer = problem ?: "Allow one only if its screen shows the same code.".takeIf { waiting.isNotEmpty() }) {
+                Group(
+                    footer = problem ?: listOfNotNull(
+                        "Allow one only if its screen shows the same code.".takeIf { waiting.isNotEmpty() },
+                        // Without them, a device asking is only heard about while Flexarr is open here.
+                        "Turn on Notifications to be asked when Flexarr isn't open.".takeIf { !model.notifications.isOn },
+                    ).joinToString(" ").ifEmpty { null },
+                ) {
                     when {
                         waiting.isEmpty() && loading -> Row(Modifier.fillMaxWidth().padding(16.dp)) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)

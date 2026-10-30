@@ -319,8 +319,10 @@ public struct FlexarrClient: Sendable {
     // MARK: Pairing (connecting without typing the API key)
 
     /// Asks the server for a code to show; someone signed in as the main profile allows it on their phone or in the web app.
+    /// Says this app shows "Not allowed" itself after "Don't allow" (and asks again only on Try again), so the server
+    /// asks the main profile about every code it asks for (servers before 0.56 ignore it).
     public func startPairing(deviceName: String) async throws -> PairingStart {
-        let data = try await send("POST", "pairing", body: ["deviceName": deviceName])
+        let data = try await send("POST", "pairing", body: PairingStartBody(deviceName: deviceName, stopsWhenDeclined: true))
         return try decode(PairingStart.self, from: data)
     }
 

@@ -223,6 +223,24 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task DontAllow_IsToldToTheDevice_AndTryAgainFromANewApp_IsAskedAbout()
+    {
+        var tv = Tv("192.168.1.82");
+        var first = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Loft", stopsWhenDeclined = true })).Content.ReadFromJsonAsync<JsonElement>();
+        await Admin().PostAsJsonAsync(Api($"/pairing/code/{first.GetProperty("code").GetString()}/decline"), new { });
+
+        var told = await tv.GetFromJsonAsync<JsonElement>(Api($"/pairing/{first.GetProperty("id").GetString()}"));
+        Assert.Equal(("expired", true), (told.GetProperty("status").GetString(), told.GetProperty("declined").GetBoolean()));
+
+        // Try again, at once: an app that stops when turned away isn't retrying by itself, so this one is asked about.
+        var again = await (await tv.PostAsJsonAsync(Api("/pairing"), new { deviceName = "Loft", stopsWhenDeclined = true })).Content.ReadFromJsonAsync<JsonElement>();
+        var listed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"))).EnumerateArray()
+            .Single(p => p.GetProperty("code").GetString() == again.GetProperty("code").GetString());
+        Assert.False(listed.GetProperty("turnedAway").GetBoolean());
+        await Admin().PostAsJsonAsync(Api($"/pairing/code/{again.GetProperty("code").GetString()}/decline"), new { }); // frees its place for the other tests
+    }
+
+    [Fact]
     public async Task ADeviceAskingAgainAndAgain_IsNeverRefused_ForItsOwnEarlierCodes()
     {
         var tv = Tv("192.168.1.81");
@@ -234,7 +252,8 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
 
         Assert.All(statuses, s => Assert.Equal(HttpStatusCode.OK, s));
         var waiting = await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"));
-        Assert.Single(waiting.EnumerateArray(), p => p.GetProperty("deviceName").GetString() == "Hall");
+        var hall = Assert.Single(waiting.EnumerateArray(), p => p.GetProperty("deviceName").GetString() == "Hall");
+        await Admin().PostAsJsonAsync(Api($"/pairing/code/{hall.GetProperty("code").GetString()}/decline"), new { }); // frees its place for the other tests
     }
 
     [Fact]
