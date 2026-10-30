@@ -314,8 +314,8 @@ public static partial class DiscoveryEndpoints
             var tracks = trackItems.Select(t => new SearchTrackDto(t, trackIds.First(x => x.Id == t.Id).Album)).ToList();
 
             // The database only finds the words as typed; top up with near misses ("breking bad", "amelie", "spiderman").
-            titles.AddRange(await CloseItemsAsync(Search.SearchIndex.Group.Title, limit - titles.Count, titles));
-            albums.AddRange(await CloseItemsAsync(Search.SearchIndex.Group.Album, 8 - albums.Count, albums));
+            titles.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Title, limit - titles.Count, titles, ct));
+            albums.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Album, 8 - albums.Count, albums, ct));
             if (people.Count < 8)
             {
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
@@ -333,20 +333,6 @@ public static partial class DiscoveryEndpoints
             }
 
             return new SearchResultsDto(titles, episodes, people, genres, albums, tracks);
-
-            async Task<List<ItemSummaryDto>> CloseItemsAsync(Search.SearchIndex.Group group, int wanted, List<ItemSummaryDto> found)
-            {
-                if (wanted <= 0)
-                {
-                    return [];
-                }
-
-                // Twice as many as wanted: some may be in libraries this profile doesn't see, or gone from disk.
-                var close = await index.FindAsync(db, term, group, wanted * 2, found.Select(i => i.Id).ToHashSet(), ct);
-                var ids = close.Select(m => m.Id).ToList();
-                var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToListAsync(ct);
-                return [.. items.OrderBy(i => ids.IndexOf(i.Id)).Take(wanted)];
-            }
         }).WithTags("Discovery");
 
         api.MapGet("/genres", async (FlexarrDbContext db, CancellationToken ct) =>

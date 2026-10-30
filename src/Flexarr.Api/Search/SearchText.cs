@@ -125,12 +125,7 @@ public static class SearchText
                 return 0;
             }
 
-            if (allowed == 0)
-            {
-                continue;
-            }
-
-            var distance = partial ? PrefixDistance(word, candidate, allowed) : Distance(word, candidate, allowed);
+            var distance = Distance(word, candidate, allowed, partial);
             if (distance is not null && (best is null || distance < best))
             {
                 best = distance;
@@ -141,59 +136,53 @@ public static class SearchText
     }
 
     /// <summary>The fewest typos turning <paramref name="word"/> into the start of <paramref name="text"/>, if within <paramref name="allowed"/>.</summary>
-    private static int? PrefixDistance(string word, string text, int allowed)
-    {
-        if (allowed == 0)
-        {
-            return null;
-        }
-
-        int? best = null;
-        for (var length = Math.Max(1, word.Length - allowed); length <= Math.Min(text.Length, word.Length + allowed); length++)
-        {
-            var distance = Distance(word, text[..length], allowed);
-            if (distance is not null && (best is null || distance < best))
-            {
-                best = distance;
-            }
-        }
-
-        return best;
-    }
+    private static int? PrefixDistance(string word, string text, int allowed) => Distance(word, text, allowed, prefix: true);
 
     /// <summary>
-    /// Edits (insert, delete, substitute, or swap two neighbouring letters) between two words, or null when more than
-    /// <paramref name="allowed"/>.
+    /// Edits (insert, delete, substitute, or swap two neighbouring letters) between <paramref name="a"/> and
+    /// <paramref name="b"/>, or the start of it when <paramref name="prefix"/>; null when more than
+    /// <paramref name="allowed"/>. Words are taken to start with the right letter (or its neighbour, swapped): people
+    /// rarely get the first one wrong, and checking it first skips nearly every word.
     /// </summary>
-    private static int? Distance(string a, string b, int allowed)
+    private static int? Distance(string a, string b, int allowed, bool prefix)
     {
-        if (Math.Abs(a.Length - b.Length) > allowed)
+        if (allowed == 0 || a.Length == 0 || b.Length == 0)
         {
             return null;
         }
 
-        var rows = new int[3][];
-        for (var r = 0; r < 3; r++)
+        if (a[0] != b[0] && !(a.Length > 1 && b.Length > 1 && a[0] == b[1] && a[1] == b[0]))
         {
-            rows[r] = new int[b.Length + 1];
+            return null;
         }
 
-        for (var j = 0; j <= b.Length; j++)
+        var target = prefix ? b.AsSpan(0, Math.Min(b.Length, a.Length + allowed)) : b.AsSpan();
+        if (!prefix && Math.Abs(a.Length - b.Length) > allowed)
         {
-            rows[1][j] = j;
+            return null;
+        }
+
+        var width = target.Length + 1;
+        Span<int> rows = width * 3 <= 384 ? stackalloc int[width * 3] : new int[width * 3];
+        // Row i lives at (i + 1) % 3, so row 0 is the second third.
+        var start = rows.Slice(width, width);
+        for (var j = 0; j < width; j++)
+        {
+            start[j] = j;
         }
 
         for (var i = 1; i <= a.Length; i++)
         {
-            // Row i lives at (i + 1) % 3, so row 0 is rows[1].
-            var (twoBack, previous, current) = (rows[(i + 2) % 3], rows[i % 3], rows[(i + 1) % 3]);
+            var twoBack = rows.Slice((i + 2) % 3 * width, width);
+            var previous = rows.Slice(i % 3 * width, width);
+            var current = rows.Slice((i + 1) % 3 * width, width);
             current[0] = i;
             var rowMin = i;
-            for (var j = 1; j <= b.Length; j++)
+            for (var j = 1; j < width; j++)
             {
-                var substitute = a[i - 1] == b[j - 1] ? 0 : 1;
+                var substitute = a[i - 1] == target[j - 1] ? 0 : 1;
                 var value = Math.Min(Math.Min(previous[j] + 1, current[j - 1] + 1), previous[j - 1] + substitute);
-                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                if (i > 1 && j > 1 && a[i - 1] == target[j - 2] && a[i - 2] == target[j - 1])
                 {
                     value = Math.Min(value, twoBack[j - 2] + 1);
                 }
@@ -208,7 +197,14 @@ public static class SearchText
             }
         }
 
-        var result = rows[(a.Length + 1) % 3][b.Length];
+        var last = rows.Slice((a.Length + 1) % 3 * width, width);
+        // For a prefix, the best of every length the word could have been typed as.
+        var result = prefix ? int.MaxValue : last[width - 1];
+        for (var j = Math.Max(1, a.Length - allowed); prefix && j < width; j++)
+        {
+            result = Math.Min(result, last[j]);
+        }
+
         return result <= allowed ? result : null;
     }
 }

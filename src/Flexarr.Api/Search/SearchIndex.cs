@@ -1,3 +1,4 @@
+using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +47,25 @@ public sealed class SearchIndex : IDisposable
             .Take(take)
             .Select(m => new Match(m.Entry.Id, m.Entry.Name))
             .ToList();
+    }
+
+    /// <summary>
+    /// Up to <paramref name="wanted"/> items close to <paramref name="text"/> that the database didn't find
+    /// (<paramref name="found"/>), as this profile sees them.
+    /// </summary>
+    public async Task<List<ItemSummaryDto>> CloseItemsAsync(FlexarrDbContext db, string profileId, string text, Group group, int wanted,
+        IEnumerable<ItemSummaryDto> found, CancellationToken ct)
+    {
+        if (wanted <= 0)
+        {
+            return [];
+        }
+
+        // Twice as many as wanted: some may be in libraries this profile doesn't see, or gone from disk.
+        var close = await FindAsync(db, text, group, wanted * 2, found.Select(i => i.Id).ToHashSet(), ct);
+        var ids = close.Select(m => m.Id).ToList();
+        var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
+        return [.. items.OrderBy(i => ids.IndexOf(i.Id)).Take(wanted)];
     }
 
     public void Dispose() => gate.Dispose();
