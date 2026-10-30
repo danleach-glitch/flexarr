@@ -117,6 +117,9 @@ class FlexarrClient(
 
     suspend fun libraryGenres(libraryId: String): List<GenreCount> = get("libraries/$libraryId/genres")
 
+    /** A library's own home page: a hero of its titles, then rows of just this library (the TV's Browse). */
+    suspend fun libraryBrowse(libraryId: String): Home = get("libraries/$libraryId/browse")
+
     suspend fun home(): Home = get("home")
 
     /** Just the Continue watching row, for the home-screen widget. */

@@ -188,3 +188,35 @@ object ServerVersion {
         return compareValuesBy(numbers, listOf(major, minor, patch), { it[0] }, { it[1] }, { it[2] }) >= 0
     }
 }
+
+/** The A–Z rail's letters: "#" for numbers and symbols, then A to Z. */
+val alphabetLetters: List<String> = listOf("#") + ('A'..'Z').map { it.toString() }
+
+/**
+ * A title's letter on the A–Z rail, ignoring a leading "The", "A" or "An" as the server's sort does; "#" for anything
+ * that doesn't start with a letter from A to Z.
+ */
+fun alphabetLetter(title: String): String {
+    var rest = title
+    for (article in listOf("the ", "a ", "an ")) {
+        if (rest.lowercase().startsWith(article)) {
+            rest = rest.drop(article.length)
+            break
+        }
+    }
+    val first = rest.firstOrNull()?.uppercaseChar() ?: return "#"
+    return if (first in 'A'..'Z') first.toString() else "#"
+}
+
+/**
+ * Letters with nothing to jump to: none among the [loaded] titles' letters, and either every title is loaded
+ * ([complete]) or the list has already gone past the letter. "#" also covers accented titles, which sort after Z, so
+ * it's only known once everything is loaded.
+ */
+fun emptyAlphabetLetters(loaded: List<String>, complete: Boolean): Set<String> {
+    val found = loaded.toSet()
+    val last = loaded.lastOrNull() ?: "#"
+    return alphabetLetters.filter { letter ->
+        letter !in found && (complete || (letter != "#" && last != "#" && last > letter))
+    }.toSet()
+}

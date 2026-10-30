@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -50,6 +51,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,32 +91,44 @@ fun TvHomeScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) 
         val empty = if (home.featured.isEmpty() && home.rows.none { it.shows }) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
         TvHomeContent(home, empty)
     }
+    when (val state = loader.state) {
+        is Load.Loaded -> TvHomeRows(state.value.home, state.value.emptyMessage, takeFocus, onFocusTaken)
+        is Load.Failed -> RoomBackground(ambient = null) { TvStatusView(state.message, retry = loader.retry) }
+        Load.Loading -> RoomBackground(ambient = null) { TvStatusView() }
+    }
+}
+
+/**
+ * Home's layout, which a library's Browse shares: the hero (with [top] over its top-left corner: a library's view
+ * switch), then the rows, on a room washed in the featured title's colour.
+ */
+@Composable
+internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: Boolean, onFocusTaken: () -> Unit, top: (@Composable () -> Unit)? = null) {
     var featuredIndex by remember { mutableIntStateOf(0) }
-    val featured = (loader.state as? Load.Loaded)?.value?.home?.featured.orEmpty()
+    val featured = home.featured
     val ambient = animateColorAsState(
         featured.getOrNull(featuredIndex % featured.size.coerceAtLeast(1))?.let { glowColor(it.accentColor) } ?: Flexarr.room,
         tween(800),
         label = "ambient",
     )
+    // Nothing to take focus: say so, rather than holding it back for a hero that won't come.
+    LaunchedEffect(takeFocus, featured.isEmpty()) { if (takeFocus && featured.isEmpty()) onFocusTaken() }
 
     RoomBackground(ambient = { ambient.value }, intensity = 0.28f, reach = 900.dp) {
-        when (val state = loader.state) {
-            is Load.Loaded -> {
-                val home = state.value.home
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-                    if (home.featured.isNotEmpty()) {
-                        item(key = "hero") {
-                            HomeHero(home, featuredIndex, onIndex = { featuredIndex = it }, takeFocus = takeFocus, onFocusTaken = onFocusTaken)
-                        }
-                    } else {
-                        state.value.emptyMessage?.let { message -> item(key = "empty") { EmptyHome(message) } }
-                        item(key = "top") { Box(Modifier.height(30.dp)) }
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+            if (featured.isNotEmpty()) {
+                item(key = "hero") {
+                    Box {
+                        HomeHero(home, featuredIndex, onIndex = { featuredIndex = it }, takeFocus = takeFocus, onFocusTaken = onFocusTaken)
+                        top?.let { Box(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) { it() } }
                     }
-                    items(home.rows.filter { it.shows }, key = { it.id }) { HomeRowView(it) }
                 }
+            } else {
+                top?.let { item(key = "top-controls") { Box(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) { it() } } }
+                emptyMessage?.let { message -> item(key = "empty") { EmptyHome(message) } }
+                item(key = "top") { Box(Modifier.height(30.dp)) }
             }
-            is Load.Failed -> TvStatusView(state.message, retry = loader.retry)
-            Load.Loading -> TvStatusView()
+            items(home.rows.filter { it.shows }, key = { it.id }) { HomeRowView(it) }
         }
     }
 }
@@ -124,7 +138,7 @@ fun TvHomeScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) 
  * (docs/android-tv.md), and a row with nothing in it would be a bare heading.
  */
 private val HomeRow.shows: Boolean
-    get() = style != HomeRowStyle.Live && style != HomeRowStyle.Tracks && style != HomeRowStyle.Playlists && items.any { !it.kind.isMusic }
+    get() = style != HomeRowStyle.Live && style != HomeRowStyle.Tracks && style != HomeRowStyle.Playlists && items.any { it.showsOnTv }
 
 /**
  * Full-bleed featured hero: backdrop, clear logo, facts, two lines of overview, Play and More info. Left on Play or
@@ -143,9 +157,10 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
         // As the app opens, keep asking for a moment: the first request can come before Play is placed.
-        repeat(8) {
-            if (runCatching { play.requestFocus() }.isSuccess && focused) return@repeat
+        for (attempt in 0 until 8) {
+            runCatching { play.requestFocus() }
             delay(150)
+            if (focused) break
         }
         onFocusTaken()
     }
@@ -216,7 +231,7 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
 @Composable
 private fun HomeRowView(row: HomeRow) {
     val navigator = LocalNavigator.current
-    val items = row.items.filter { !it.kind.isMusic }
+    val items = row.items.filter { it.showsOnTv }
     Column {
         TvRowHeading(row.title)
         CompositionLocalProvider(LocalInContinueWatching provides (row.id == "continue")) {
@@ -230,9 +245,26 @@ private fun HomeRowView(row: HomeRow) {
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
                     else -> items(items, key = { it.id }) { TvPosterCard(it, onClick = { navigator.open(it) }) }
                 }
+                navigator.libraryLink(row.link)?.let { seeAll -> item(key = "see-all") { TvSeeAllCard(wide = row.style == HomeRowStyle.Wide, onClick = seeAll) } }
             }
         }
     }
+}
+
+/** The end of a row that links to its library: all of it, in a grid. */
+@Composable
+private fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit) {
+    val width = if (wide) TvLayout.WideWidth else TvLayout.PosterWidth
+    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, artwork = {
+        Column(
+            Modifier.size(width, if (wide) width * 9f / 16f else width * 1.5f),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(24.dp))
+            Text("See all", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+        }
+    })
 }
 
 /** Home with nothing to show: no library yet, a first scan under way, or libraries with nothing recognised in them. */

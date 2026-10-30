@@ -255,3 +255,10 @@ fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit) 
     }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }
+
+/**
+ * Whether the TV has a screen for it yet: films, shows and their episodes. Music comes with its screens; podcasts stay
+ * on the phone and the web (docs/android-tv.md).
+ */
+internal val ItemSummary.showsOnTv: Boolean
+    get() = !kind.isMusic && kind != MediaKind.Podcast && kind != MediaKind.PodcastEpisode

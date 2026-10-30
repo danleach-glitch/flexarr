@@ -20,6 +20,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.outlined.Search
+import io.github.flexarr.core.Library
+import io.github.flexarr.core.LibrarySort
+import io.github.flexarr.core.LibraryType
+import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.components.rememberLoader
+import io.github.flexarr.ui.library.LibraryMenuEntry
+import io.github.flexarr.ui.library.icon
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
@@ -40,6 +50,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -54,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
+import kotlinx.coroutines.delay
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -71,17 +83,22 @@ import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 
-/** A screen of its own in the sidebar. */
-private enum class TvTab(val route: String, val title: String, val icon: ImageVector) {
-    Home("home", "Home", Icons.Outlined.Home),
-    Settings("settings", "Settings", Icons.Outlined.Settings),
+/** A screen of its own in the sidebar: Home, a library, Search or Settings. [route] is its first screen's. */
+private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
+    companion object {
+        val Home = TvTab("home", "Home", Icons.Outlined.Home)
+        val Search = TvTab("search", "Search", Icons.Outlined.Search)
+        val Settings = TvTab("settings", "Settings", Icons.Outlined.Settings)
+
+        fun library(library: Library) = TvTab("tab/library/${library.id}", library.name, library.icon)
+    }
 }
 
 /**
  * The app, as the Apple TV's MainTabView: a sidebar (who's watching, Home, the libraries, then Search and Settings) over
  * the screens. It's out of the way while browsing; Back on a tab's first screen, or left from the screen's left edge,
- * brings it in, and Back on it leaves the app. The libraries, Search and Discover join it with their screens
- * (docs/android-tv.md).
+ * brings it in, and Back on it leaves the app. The libraries are in the order the profile chose (Settings › Sidebar);
+ * music and Live TV join them with their screens (docs/android-tv.md).
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -90,15 +107,22 @@ fun TvMainScreen(model: AppModel) {
     val context = LocalContext.current
     val nav = rememberNavController()
     val navigator = remember(nav) { Navigator(nav, model, context) }
-    var tab by rememberSaveable { mutableStateOf(TvTab.Home) }
+    var tabRoute by rememberSaveable { mutableStateOf(TvTab.Home.route) }
+    val libraries = rememberLoader(model.credentials, model.librariesVersion) { client.libraries() }
+    val libraryList = (libraries.state as? Load.Loaded)?.value.orEmpty()
+    // Films, shows and home videos so far: music has its own screens to come.
+    val libraryTabs = LibraryMenuEntry.ordered(model, libraryList).filterIsInstance<LibraryMenuEntry.Shelf>()
+        .map { it.library }.filter { it.type != LibraryType.Music }
     var sidebarOpen by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
-    // Home's Play takes focus as the app opens, so it's ready to browse.
-    var startFocus by remember { mutableStateOf(true) }
+    // The screen a tab opens on takes focus (Home's Play, a library's first title, Search's field) as the app opens and
+    // as a tab is chosen, so it's ready to browse. Named by route, so the tab being left (still there as the new one comes) doesn't take it.
+    var arrivingAt by remember { mutableStateOf<String?>(TvTab.Home.route) }
     val content = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val entry by nav.currentBackStackEntryAsState()
-    val atTabRoot = entry?.destination?.route == tab.route
+    // Choosing a tab clears the screens before it, so its first screen is the only one.
+    val atTabRoot = entry != null && nav.previousBackStackEntry == null
 
     // Signed in (or as someone else): commands for this device ("play on the living room TV") come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
@@ -109,8 +133,9 @@ fun TvMainScreen(model: AppModel) {
     }
 
     fun select(chosen: TvTab) {
-        if (chosen != tab || !atTabRoot) {
-            tab = chosen
+        if (chosen.route != tabRoute || !atTabRoot) {
+            tabRoute = chosen.route
+            arrivingAt = chosen.route
             nav.navigate(chosen.route) {
                 popUpTo(nav.graph.id) { inclusive = true }
                 launchSingleTop = true
@@ -132,13 +157,32 @@ fun TvMainScreen(model: AppModel) {
                     true
                 },
             ) {
+                fun arrives(route: String) = arrivingAt == route
+                fun arrived(route: String): () -> Unit = { if (arrivingAt == route) arrivingAt = null }
                 NavHost(nav, startDestination = TvTab.Home.route) {
-                    composable(TvTab.Home.route) { TvHomeScreen(model, takeFocus = startFocus, onFocusTaken = { startFocus = false }) }
+                    composable(TvTab.Home.route) { TvHomeScreen(model, takeFocus = arrives(TvTab.Home.route), onFocusTaken = arrived(TvTab.Home.route)) }
+                    composable("tab/library/{id}") { entry ->
+                        val id = entry.arguments?.getString("id")
+                        val route = "tab/library/$id"
+                        libraryList.firstOrNull { it.id == id }?.let { TvLibraryTab(model, it, takeFocus = arrives(route), onFocusTaken = arrived(route)) } ?: TvStatusView()
+                    }
+                    composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
                     composable("item/{id}") { TvDetailScreen(model, it.arguments!!.getString("id")!!) }
+                    composable("person/{id}?name={name}") { entry ->
+                        TvPersonScreen(model, entry.arguments!!.getString("id")!!, entry.arguments?.getString("name").orEmpty())
+                    }
+                    // A row's "See all" or a genre: the library's titles in a grid, on top, so Back comes back.
+                    composable("library/{id}?sort={sort}&genre={genre}") { entry ->
+                        val id = entry.arguments?.getString("id")
+                        val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
+                        val genre = entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() }
+                        libraryList.firstOrNull { it.id == id }?.let { TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre) } ?: TvStatusView()
+                    }
                 }
             }
-            Sidebar(model, sidebarOpen, tab, onSelect = ::select, onProfile = {
+            val tabs = listOf(TvTab.Home) + libraryTabs.map(TvTab::library) + listOf(TvTab.Search, TvTab.Settings)
+            Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
             }, onClose = ::closeSidebar, closesOnBack = !atTabRoot)
@@ -158,16 +202,29 @@ fun TvMainScreen(model: AppModel) {
  * version at its foot. Choosing a tab, Right or Back (on a screen opened from a tab) puts it away.
  */
 @Composable
-private fun Sidebar(model: AppModel, open: Boolean, selected: TvTab, onSelect: (TvTab) -> Unit, onProfile: () -> Unit, onClose: () -> Unit, closesOnBack: Boolean) {
+private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected: String, onSelect: (TvTab) -> Unit, onProfile: () -> Unit, onClose: () -> Unit, closesOnBack: Boolean) {
     AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.7f), 0.5f to Color.Transparent)))
     }
     AnimatedVisibility(open, enter = slideInHorizontally { -it } + fadeIn(), exit = slideOutHorizontally { -it } + fadeOut()) {
         val first = remember { FocusRequester() }
-        LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+        var hasFocus by remember { mutableStateOf(false) }
+        // The row's placed a frame or two after the sidebar starts sliding in: keep asking until it has focus.
+        LaunchedEffect(Unit) {
+            for (attempt in 0 until 10) {
+                runCatching { first.requestFocus() }
+                delay(50)
+                if (hasFocus) break
+            }
+        }
         BackHandler(enabled = closesOnBack, onBack = onClose)
         Column(
             Modifier.fillMaxHeight().width(230.dp).padding(12.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(16.dp)).padding(vertical = 18.dp, horizontal = 10.dp)
+                .onFocusChanged {
+                    // Focus gone from it by any other way than choosing (up past the top, say): put it away too.
+                    if (hasFocus && !it.hasFocus) onClose()
+                    hasFocus = it.hasFocus
+                }
                 .onKeyEvent { event ->
                     (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight).also { if (it) onClose() }
                 },
@@ -179,20 +236,22 @@ private fun Sidebar(model: AppModel, open: Boolean, selected: TvTab, onSelect: (
                     Spacer(Modifier.height(8.dp))
                 }
             }
-            TvTab.entries.forEach { tab ->
-                if (tab == TvTab.Settings) {
-                    // A rule between the libraries and the rest.
-                    Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(Flexarr.aisle))
+            // However many libraries there are, the list scrolls rather than pushing Search and Settings out of reach.
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(tabs, key = { it.route }) { tab ->
+                    if (tab == TvTab.Search) {
+                        // A rule between the libraries and the rest.
+                        Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(Flexarr.aisle))
+                    }
+                    SidebarRow(
+                        tab.title,
+                        selected = tab.route == selected,
+                        onClick = { onSelect(tab) },
+                        modifier = if (tab.route == selected) Modifier.focusRequester(first) else Modifier,
+                        icon = { Icon(tab.icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    )
                 }
-                SidebarRow(
-                    tab.title,
-                    selected = tab == selected,
-                    onClick = { onSelect(tab) },
-                    modifier = if (tab == selected) Modifier.focusRequester(first) else Modifier,
-                    icon = { Icon(tab.icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                )
             }
-            Spacer(Modifier.weight(1f))
             // The logo and the app's version, quietly at the foot.
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(13.dp)

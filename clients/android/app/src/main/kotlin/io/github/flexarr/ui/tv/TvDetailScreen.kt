@@ -260,8 +260,7 @@ private fun Sections(
         Column {
             TvRowHeading("Cast and crew")
             LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 15.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                // A person's page comes with the other screens (docs/android-tv.md).
-                items(cast.take(30)) { credit -> TvPersonCard(credit.name, credit.character ?: credit.role.raw, credit.image, onClick = {}) }
+                items(cast.take(30)) { credit -> TvPersonCard(credit.name, credit.character ?: credit.role.raw, credit.image, onClick = { navigator.openPerson(credit.personId, credit.name) }) }
             }
         }
     }
@@ -269,7 +268,7 @@ private fun Sections(
         Column {
             TvRowHeading("More like this")
             LazyRow(contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 14.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing)) {
-                items(similar.filter { !it.kind.isMusic }, key = { it.id }) { other -> TvPosterCard(other, onClick = { navigator.open(other) }) }
+                items(similar.filter { it.showsOnTv }, key = { it.id }) { other -> TvPosterCard(other, onClick = { navigator.open(other) }) }
             }
         }
     }
