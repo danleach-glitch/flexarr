@@ -49,13 +49,21 @@ public static partial class SetupGuideEndpoints
 
     public static RouteGroupBuilder MapSetupGuideEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/setup-guide").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        // The main profile's, locked or not: Home lists what's left without asking for the PIN, and the guide's own
+        // changes (to settings) ask for it as they're made.
+        var group = api.MapGroup("/setup-guide").WithTags("Settings").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         group.MapGet("/", async (HttpContext http, IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, SignIns signIns, TailscaleService tailscale,
             CancellationToken ct) =>
         {
             var current = options.CurrentValue;
             var guide = current.SetupGuide;
+            // Put away for good: Home asks on every visit, and there's nothing left to work out.
+            if (guide.Dismissed)
+            {
+                return new SetupGuideDto(guide.Opened, true, guide.Skipped, false, false, false, false, false);
+            }
+
             return new SetupGuideDto(
                 guide.Opened,
                 guide.Dismissed,
@@ -244,7 +252,8 @@ public static partial class SetupGuideEndpoints
 
         if (http.Request.Host.Host is { Length: > 0 } reached && !IsLoopback(reached))
         {
-            yield return $"http://{(IPAddress.TryParse(reached, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{reached}]" : reached)}:{http.Request.Host.Port ?? port}";
+            // HostString already brackets an IPv6 address.
+            yield return $"http://{reached}:{http.Request.Host.Port ?? port}";
         }
 
         yield return $"http://host.docker.internal:{port}";

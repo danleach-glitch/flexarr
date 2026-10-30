@@ -28,6 +28,7 @@ import { AsyncButton } from '../components/AsyncButton'
 import { FolderPicker } from '../components/FolderPicker'
 import { Antenna, AppleLogo, Check, Close, External, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
 import { PairingPrompt } from '../components/PairingPrompt'
+import { UnlockPrompt } from '../components/UnlockDialog'
 import { Avatar } from '../components/ProfilePicker'
 import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
@@ -66,14 +67,9 @@ export function SetupGuidePage() {
   const asked = params.get('step') as Place | null
   const place: Place = asked === 'done' || steps.some((s) => s.id === asked) ? asked! : 'welcome'
   const index = steps.findIndex((s) => s.id === place)
-  const [skipped, setSkipped] = useState<SetupStep[]>([])
 
   useEffect(() => {
     void saveSetupGuide({ opened: true }).catch(() => undefined)
-    // Kept across visits, so coming back from Home's list adds to what was skipped before.
-    void getSetupGuide()
-      .then((g) => setSkipped(g.skipped))
-      .catch(() => undefined)
   }, [])
 
   function go(next: Place) {
@@ -86,11 +82,11 @@ export function SetupGuidePage() {
     next: () => go(steps[index + 1]?.id ?? 'done'),
     skip: () => {
       const id = steps[index].id
-      if (id !== 'name') {
-        const now = [...new Set([...skipped, id])]
-        setSkipped(now)
-        void saveSetupGuide({ skipped: now }).catch(() => undefined)
-      }
+      // Added to what the server has, so a skip from an earlier visit isn't lost.
+      if (id !== 'name')
+        void getSetupGuide()
+          .then((g) => saveSetupGuide({ skipped: [...new Set([...g.skipped, id])] }))
+          .catch(() => undefined)
       go(steps[index + 1]?.id ?? 'done')
     },
   }
@@ -133,8 +129,9 @@ export function SetupGuidePage() {
           {place === 'away' && <AwayStep nav={nav} />}
         </section>
       )}
-      {/* A TV or phone opened while the guide is up asks here to connect. */}
+      {/* A TV or phone opened while the guide is up asks here to connect; a change made once settings have locked again asks for the PIN. */}
       <PairingPrompt />
+      <UnlockPrompt />
     </div>
   )
 }
@@ -808,8 +805,14 @@ function Done({ onFinish }: { onFinish: () => void }) {
   const folders = useApi(getArrFolders, [])
   const guide = useApi(getSetupGuide, [])
   const media = libraries.data?.filter((l) => l.type !== 'Podcasts') ?? []
-  // A library just added hasn't started its first scan yet: that counts as being checked too.
-  const scanning = media.filter((l) => l.scan || !l.lastScannedAt)
+  // A library just added hasn't started its first scan yet: that counts as being checked too, for a little while (one
+  // that never gets scanned mustn't spin for ever).
+  const [fresh, setFresh] = useState(true)
+  useEffect(() => {
+    const timer = setTimeout(() => setFresh(false), 30_000)
+    return () => clearTimeout(timer)
+  }, [])
+  const scanning = media.filter((l) => l.scan || (fresh && !l.lastScannedAt))
   const { reload } = libraries
 
   // Still reading: look again until it's done.

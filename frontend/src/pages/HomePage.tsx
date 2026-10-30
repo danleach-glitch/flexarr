@@ -21,8 +21,10 @@ export function HomePage() {
   const episodes = useApi((signal) => (podcasts ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts])
   // The setup guide, for the main profile: servers before it answer 404, and have no guide.
   const { me } = useSession()
+  // Settings locked or not: the list is the main profile's either way.
+  const main = me?.isAdmin === true || me?.canUnlock === true
   const admin = me?.isAdmin === true
-  const guide = useApi((signal) => (admin ? getSetupGuide(signal).catch(() => null) : Promise.resolve(null)), [admin])
+  const guide = useApi((signal) => (main ? getSetupGuide(signal).catch(() => null) : Promise.resolve(null)), [main])
 
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data || guide.loading) return <div className="hero hero-loading" aria-busy="true" />
