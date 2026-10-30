@@ -48,7 +48,7 @@ const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactN
   },
   { id: 'libraries', title: 'Add your libraries', lede: 'Choose the folders that hold your films, shows and music.', icon: <Film />, summary: 'Add your films, shows and music' },
   { id: 'profiles', title: 'Who’s watching?', lede: 'Everyone gets their own Continue watching and history.', icon: <Home />, summary: 'Add everyone who watches' },
-  { id: 'devices', title: 'Watch on your TV', lede: 'Get the app and open it at home. When it asks to connect, choose Allow here.', icon: <Tv />, summary: 'Connect your TV and phone' },
+  { id: 'devices', title: 'Watch on all your devices', lede: 'Get the app and open it at home. When it asks to connect, choose Allow here.', icon: <Tv />, summary: 'Watch on all your devices' },
   { id: 'away', title: 'Watch away from home', lede: 'Tailscale lets your devices reach Flexarr from anywhere, privately.', icon: <Antenna />, summary: 'Watch away from home' },
 ]
 
@@ -530,6 +530,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
               {picking === type && (
                 <div className="onboard-tile-picker">
                   <FolderPicker
+                    pickLabel="Add library"
                     onPick={(folder) => {
                       setChosen({ ...chosen, [type]: { folder } })
                       setPicking(undefined)
@@ -564,7 +565,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
             </button>
           ) : (
             <AsyncButton className="button onboard-primary" busy={busy} onClick={add}>
-              {toAdd.length > 1 ? `Add ${toAdd.length} libraries` : 'Add library'}
+              Next
             </AsyncButton>
           )
         }
@@ -635,7 +636,7 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
       )}
       <StepFooter
         nav={nav}
-        skipLabel={more ? null : 'Just me'}
+        skipLabel={more ? null : 'Skip'}
         next={
           <button type="button" className="button onboard-primary" disabled={!more} onClick={nav.next}>
             Continue
@@ -704,6 +705,7 @@ function AwayStep({ nav }: { nav: StepNav }) {
   const [error, setError] = useState<string>()
   const ts = remote.data?.tailscale
   const on = !!ts?.privateAccess || !!remote.data?.tailnetAddress
+  const docker = !!remote.data?.inContainer && !ts?.installed
 
   async function turn(on: boolean) {
     setError(undefined)
@@ -720,13 +722,13 @@ function AwayStep({ nav }: { nav: StepNav }) {
     : on
       ? 'On. Your devices switch to it by themselves.'
       : remote.data.inMacApp
-        ? 'Install Tailscale on this Mac and your devices.'
-        : remote.data.inContainer && !ts?.installed
-          ? 'Not available in Docker.'
+        ? 'Install Tailscale on this Mac and your devices, signed in to the same account.'
+        : docker
+          ? 'Tailscale can’t be turned on from Flexarr in Docker. The guide has other ways.'
           : !ts?.installed
-            ? 'Install Tailscale on this server first.'
+            ? 'Not installed on this server yet. It’s free for personal use.'
             : !ts.running
-              ? 'Installed, but not signed in.'
+              ? 'Installed. Open Tailscale on this server and sign in.'
               : 'Ready to turn on.'
 
   return (
@@ -756,10 +758,24 @@ function AwayStep({ nav }: { nav: StepNav }) {
               <AsyncButton className="button small" onClick={() => turn(true)}>
                 Turn on
               </AsyncButton>
-            ) : (
+            ) : remote.data && docker ? (
               <a className="button quiet small" href="https://flexarr.io/guide/away-from-home" target="_blank" rel="noreferrer">
-                How
+                Guide
               </a>
+            ) : (
+              remote.data && (
+                <span className="onboard-tile-end">
+                  {/* Installed, or signed in, while the guide waits: look again. */}
+                  <AsyncButton className="button quiet small" onClick={remote.reload}>
+                    Check again
+                  </AsyncButton>
+                  {(!ts?.installed || remote.data.inMacApp) && (
+                    <a className="button small" href="https://tailscale.com/download" target="_blank" rel="noreferrer">
+                      Get Tailscale
+                    </a>
+                  )}
+                </span>
+              )
             )}
           </div>
         </div>
