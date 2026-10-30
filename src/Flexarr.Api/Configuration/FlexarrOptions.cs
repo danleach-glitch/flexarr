@@ -81,6 +81,12 @@ public sealed class FlexarrOptions
     /// </summary>
     public bool? AskPinForMainProfile { get; set; }
 
+    /// <summary>
+    /// The table of ratings (<see cref="Flexarr.Core.Media.RatingAges.Version"/>) every title's age was last worked out
+    /// with, so startup only does it again when that changes (or the database did).
+    /// </summary>
+    public string? RatingAges { get; set; }
+
     /// <summary>Whether <see cref="LegacySignInsUntil"/> hasn't passed yet.</summary>
     public bool AcceptsLegacySignIns(DateTime utcNow) =>
         LegacySignInsUntil is { } until && utcNow < (until.Kind == DateTimeKind.Local ? until.ToUniversalTime() : until);

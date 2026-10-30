@@ -87,6 +87,15 @@ public sealed class MediaItem
     public string? Overview { get; set; }
     public string? ContentRating { get; set; }
 
+    /// <summary>
+    /// The age it's suitable from (see <see cref="RatingAges"/>): from its own <see cref="ContentRating"/>, or, for a
+    /// season, episode, album or track without one, its parent's. Null is unrated. Kept up to date by the context.
+    /// </summary>
+    public int? RatingAge { get; set; }
+
+    /// <summary>A parent's Allow or Block for profiles with an age limit; seasons and episodes carry their show's.</summary>
+    public KidsOverride KidsOverride { get; set; }
+
     /// <summary>Studio for movies, network for TV.</summary>
     public string? Studio { get; set; }
 

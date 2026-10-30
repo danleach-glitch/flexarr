@@ -29,6 +29,7 @@ public static class EventEndpoints
     {
         // Titles from libraries hidden from this profile are told as playing, but not what they are.
         var hidden = db.HiddenLibraryIds.ToHashSet();
+        var kidsSettings = LibraryVisibility.KidsSettingsVersion;
         if (!current.IsTrusted)
         {
             await Results.Problem("Only the API key or a signed-in browser or device can follow what's playing.", statusCode: 403).ExecuteAsync(http);
@@ -63,7 +64,16 @@ public static class EventEndpoints
 
                 while (listener.Events.TryRead(out var playback))
                 {
-                    if (playback.Item is { } item && hidden.Contains(item.LibraryId))
+                    // An age limit or a library hidden since the stream opened applies from the next event on.
+                    if (kidsSettings != LibraryVisibility.KidsSettingsVersion)
+                    {
+                        kidsSettings = LibraryVisibility.KidsSettingsVersion;
+                        await LibraryVisibility.ApplyAsync(db, current.Id, ct);
+                        hidden = db.HiddenLibraryIds.ToHashSet();
+                    }
+
+                    if (playback.Item is { } item && (hidden.Contains(item.LibraryId)
+                        || db.IsLimited() && item.Id != Guid.Empty && !await LibraryVisibility.CanSeeAsync(db, item.LibraryId, item.Id, ct)))
                     {
                         playback = playback with { Item = item.Private() };
                     }

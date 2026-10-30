@@ -48,7 +48,7 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 30) {
                 if !home.featured.isEmpty {
                     HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
-                } else if let message = EmptyHomeMessage(libraries: model.libraries) {
+                } else if let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                     // Above whatever else Home has (Coming soon, channels).
                     EmptyHome(message: message)
                 }
@@ -93,10 +93,12 @@ private struct EmptyHome: View {
             Text(message.title)
                 .font(.marquee(64, weight: .black))
                 .foregroundStyle(Color.screen)
-            Text(message.body)
-                .font(.title3)
-                .foregroundStyle(Color.usher)
-                .fixedSize(horizontal: false, vertical: true)
+            if !message.body.isEmpty {
+                Text(message.body)
+                    .font(.title3)
+                    .foregroundStyle(Color.usher)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !message.folders.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(message.folders, id: \.self) { folder in
@@ -110,6 +112,9 @@ private struct EmptyHome: View {
         .frame(maxWidth: 1100, alignment: .leading)
         .padding(.top, 160)
         .padding(.horizontal, Layout.edge)
+        // Somewhere for focus to be: with nothing focusable on the screen, the remote couldn't reach the sidebar again
+        // once it had folded away.
+        .focusable()
     }
 }
 
@@ -142,7 +147,7 @@ struct HomeHero: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 24) {
                     TitleArt(item: item, maxWidth: 760, maxHeight: 230, fontSize: 110)
-                    FactsLine(facts: item.facts)
+                    FactsLine(facts: item.facts(scores: !model.isKids))
                     if let overview = overviews[item.id] ?? nil {
                         Text(overview)
                             .font(.system(size: 27))

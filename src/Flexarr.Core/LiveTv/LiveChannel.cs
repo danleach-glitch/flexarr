@@ -25,6 +25,9 @@ public sealed class LiveChannel
     public string? GuideId { get; set; }
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Profiles with an age limit may watch it: guide ratings are too patchy to go by, so a parent picks channels.</summary>
+    public bool FineForKids { get; set; }
 }
 
 /// <summary>A programme in the guide, on one channel.</summary>

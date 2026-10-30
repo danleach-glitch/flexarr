@@ -73,7 +73,7 @@ struct ArtistView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
-                FactsLine(facts: item.facts)
+                FactsLine(facts: item.facts(scores: !model.isKids))
                 if let genres = page.detail?.genres, !genres.isEmpty {
                     Text(genres.prefix(3).joined(separator: ", "))
                         .font(.subheadline.weight(.medium))

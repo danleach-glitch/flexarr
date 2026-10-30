@@ -35,15 +35,46 @@ struct ProfilePickerView: View {
     var marksCurrent = false
 
     @State private var asking: Profile?
+    /// Leaving a kids profile: the pad asks for the main profile's PIN, keeping the chosen profile's own if it had one.
+    @State private var parent: ParentPin?
+    /// The main profile's PIN, once it's been given right here (to unlock, or before a wrong PIN of the chosen
+    /// profile's own): sent with the next choice, so it isn't asked for twice. Forgotten when the picker closes.
+    @State private var knownParentPin: String?
+    /// Locking this Apple TV to kids profiles, or unlocking it: the pad asks for the main profile's PIN.
+    @State private var kidsLockPin: KidsLockStep?
+    /// Lock to kids profiles is on its way to the server, so another press doesn't send a second.
+    @State private var locking = false
     @State private var switching: String?
     @State private var error: String?
     @FocusState private var focused: String?
 
+    private struct ParentPin: Equatable {
+        let ownPin: String?
+    }
+
+    private enum KidsLockStep { case lock, unlock }
+
+    /// Focus ids for the buttons under the profiles (profiles go by their ids).
+    private static let unlockFocus = "kids-unlock", lockFocus = "kids-lock"
+
     var body: some View {
         VStack(spacing: 70) {
-            if let asking {
-                PinPad(profile: asking, error: $error, onCancel: { cancelPin(asking) }) { pin in
-                    await choose(asking, pin: pin)
+            if let step = kidsLockPin {
+                PinPad(profile: nil, title: "Enter the main profile’s PIN", error: $error, onCancel: cancelKidsLockPin) { pin in
+                    switch step {
+                    case .unlock: await release(pin)
+                    case .lock: await lock(pin: pin)
+                    }
+                }
+                .transition(.opacity)
+            } else if let asking {
+                PinPad(profile: parent == nil ? asking : mainProfile, title: parent == nil ? nil : "Enter the main profile’s PIN", error: $error,
+                       onCancel: { cancelPin(asking) }) { pin in
+                    if let parent {
+                        await choose(asking, pin: parent.ownPin, parentPin: pin)
+                    } else {
+                        await choose(asking, pin: pin)
+                    }
                 }
                 .transition(.opacity)
             } else {
@@ -51,11 +82,13 @@ struct ProfilePickerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: asking)
+        .animation(.easeInOut(duration: 0.25), value: kidsLockPin)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoomBackground(ambient: nil))
         // A link asked to play as a profile with a PIN: straight to its PIN.
         .onAppear { if let profile = model.linkProfile, !marksCurrent { asking = profile } }
         .onChange(of: model.linkProfile) { _, profile in if let profile, !marksCurrent { asking = profile } }
+        .onDisappear { knownParentPin = nil }
     }
 
     private var choices: some View {
@@ -87,8 +120,31 @@ struct ProfilePickerView: View {
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(Color.screen)
             }
+
+            // Locked to kids profiles, the others wait behind the main profile's PIN.
+            if model.kidsLock {
+                Button {
+                    error = nil
+                    kidsLockPin = .unlock
+                } label: {
+                    Label("Unlock", systemImage: "lock.open")
+                }
+                .buttonStyle(ActionButtonStyle())
+                .focused($focused, equals: Self.unlockFocus)
+            } else if marksCurrent && model.offersKidsLock {
+                // Not disabled while it's busy: tvOS doesn't reliably move focus back onto a button that was.
+                Button {
+                    Task { await lock(pin: nil) }
+                } label: {
+                    Label(locking ? "Locking" : "Lock to kids profiles", systemImage: "lock")
+                }
+                .buttonStyle(ActionButtonStyle())
+                .focused($focused, equals: Self.lockFocus)
+            }
         }
     }
+
+    private var mainProfile: Profile? { model.profiles.first(where: \.isMain) }
 
     private var defaultFocus: String? {
         guard marksCurrent else { return model.profiles.first?.id }
@@ -118,6 +174,7 @@ struct ProfilePickerView: View {
 
     private func cancelPin(_ profile: Profile) {
         asking = nil
+        parent = nil
         error = nil
         // The avatar was replaced by the keypad, so focus has to be handed back.
         Task {
@@ -126,11 +183,71 @@ struct ProfilePickerView: View {
         }
     }
 
-    private func choose(_ profile: Profile, pin: String?) async {
+    /// `parentPin` is one just typed on the main profile's pad; otherwise the one given earlier here goes, if any.
+    private func choose(_ profile: Profile, pin: String?, parentPin: String? = nil) async {
+        let sentParentPin = parentPin ?? knownParentPin
         switching = profile.id
         defer { switching = nil }
         do {
-            try await model.switchProfile(to: profile, pin: pin)
+            try await model.switchProfile(to: profile, pin: pin, parentPin: sentParentPin)
+        } catch FlexarrClientError.parentPinNeeded(let message) {
+            if parentPin == nil {
+                // Leaving a kids profile (or the PIN given earlier no longer works): ask for the main profile's PIN,
+                // then try again with both.
+                knownParentPin = nil
+                asking = profile
+                parent = ParentPin(ownPin: pin)
+            } else {
+                self.error = message ?? "That PIN isn’t right."
+            }
+        } catch FlexarrClientError.ownPinWrong {
+            // The main profile's PIN was right, so it's kept; back to the chosen profile's own.
+            knownParentPin = sentParentPin
+            asking = profile
+            parent = nil
+            self.error = "That isn’t \(profile.name)’s PIN."
+        } catch {
+            self.error = ConnectionError(error).message
+        }
+    }
+
+    /// The pad replaced the button, so focus has to be handed back: to it, or once unlocked (when it's gone) to the
+    /// first profile.
+    private func cancelKidsLockPin() {
+        let step = kidsLockPin
+        kidsLockPin = nil
+        error = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(50))
+            switch step {
+            case .unlock: focused = model.kidsLock ? Self.unlockFocus : model.profiles.first?.id
+            case .lock: focused = Self.lockFocus
+            case nil: break
+            }
+        }
+    }
+
+    private func release(_ pin: String) async {
+        do {
+            try await model.releaseKidsLock(pin: pin)
+            knownParentPin = pin
+            cancelKidsLockPin()
+        } catch {
+            self.error = ConnectionError(error).message
+        }
+    }
+
+    /// Without a PIN first: the main profile, unlocked here, needs none; otherwise the server asks for it.
+    private func lock(pin: String?) async {
+        guard !locking else { return }
+        locking = true
+        defer { locking = false }
+        error = nil
+        do {
+            try await model.lockToKids(pin: pin)
+            kidsLockPin = nil
+        } catch FlexarrClientError.parentPinNeeded(let message) {
+            if pin == nil { kidsLockPin = .lock } else { error = message ?? "That PIN isn’t right." }
         } catch {
             self.error = ConnectionError(error).message
         }
@@ -193,9 +310,12 @@ private struct ProfileButtonStyle: ButtonStyle {
     }
 }
 
-/// A 4 to 8 digit PIN entered with the remote: a keypad, since the Siri Remote has no number keys.
-private struct PinPad: View {
-    let profile: Profile
+/// A 4 to 8 digit PIN entered with the remote: a keypad, since the Siri Remote has no number keys. `profile`'s by
+/// default; with a `title`, whatever that says (the main profile's, for a parent), under `profile`'s picture or, with
+/// none, a lock.
+struct PinPad: View {
+    let profile: Profile?
+    var title: String? = nil
     @Binding var error: String?
     let onCancel: () -> Void
     let onSubmit: (String) async -> Void
@@ -209,8 +329,15 @@ private struct PinPad: View {
     var body: some View {
         HStack(spacing: 120) {
             VStack(spacing: 30) {
-                ProfileAvatar(profile: profile, size: 180)
-                Text("Enter \(profile.name)’s PIN")
+                if let profile {
+                    ProfileAvatar(profile: profile, size: 180)
+                } else {
+                    Image(systemName: "lock.circle.fill")
+                        .font(.system(size: 150))
+                        .foregroundStyle(Color.usher)
+                        .frame(width: 180, height: 180)
+                }
+                Text(title ?? profile.map { "Enter \($0.name)’s PIN" } ?? "Enter the PIN")
                     .font(.marquee(56, weight: .heavy))
                     .foregroundStyle(Color.screen)
                 HStack(spacing: 22) {

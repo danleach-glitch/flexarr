@@ -834,6 +834,20 @@ kbd {
   grid-auto-columns: clamp(110px, 9vw, 150px);
 }
 
+/* A child's profile: bigger artwork to point at, and no scores to read. */
+.shell.kids .row-poster .row-track,
+.shell.kids .row-tracks .row-track {
+  grid-auto-columns: clamp(168px, 17vw, 260px);
+}
+
+.shell.kids .poster-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.shell.kids .facts .score {
+  display: none;
+}
+
 /* Tracks are album covers: square, the same width as posters. */
 .row-tracks .row-track,
 .row-playlists .row-track {

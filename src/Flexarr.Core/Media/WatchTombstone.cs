@@ -29,6 +29,9 @@ public sealed class WatchTombstone
     public List<TombstonePlayback> Playback { get; set; } = [];
 
     public List<TombstoneCollection> Collections { get; set; } = [];
+
+    /// <summary>A parent's Allow or Block on the film or show, for profiles with an age limit.</summary>
+    public KidsOverride KidsOverride { get; set; }
 }
 
 /// <summary>A <see cref="PlaybackState"/> as it was.</summary>

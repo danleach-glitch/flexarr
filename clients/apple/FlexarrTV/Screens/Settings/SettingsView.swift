@@ -18,7 +18,7 @@ struct SettingsView: View {
         SettingsPage(title: "Settings", summary: "Flexarr for Apple TV \(Bundle.main.shortVersion)") {
             if let profile = model.currentProfile {
                 SettingsGroupLabel("Watching as")
-                if model.profiles.count > 1 {
+                if model.offersProfilePicker {
                     SettingsRow(title: profile.name, profile: profile, value: "Switch", help: "Switch to another profile. Each has its own Continue Watching, watch history and playback settings.") {
                         choosingProfile = true
                     }

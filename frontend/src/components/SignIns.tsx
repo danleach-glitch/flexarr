@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ApiError, getSignIns, renameSignIn, revokeSignIn, signOut, signOutOthers, type SignIn } from '../api/client'
+import { ApiError, getSignIns, releaseSignInKidsLock, renameSignIn, revokeSignIn, signOut, signOutOthers, type SignIn } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { deviceTypeName } from '../lib/deviceTypes'
 import { relativeTime } from '../lib/format'
@@ -42,7 +42,7 @@ const KindIcon = ({ signIn }: { signIn: SignIn }) => (
 const describe = (s: SignIn) => `${s.name}, ${s.isThisOne ? 'this browser' : `${signedIn(s)} ${day(s.createdAt)}`}`
 
 /** Sign-ins that look the same in the list (the same browser signing in again and again) are shown as one. */
-const sameKind = (s: SignIn) => (s.isThisOne ? s.id : [s.kind, s.name, s.zone, s.address ?? '', s.profileId].join('\u0000'))
+const sameKind = (s: SignIn) => (s.isThisOne || s.kidsLock ? s.id : [s.kind, s.name, s.zone, s.address ?? '', s.profileId].join('\u0000'))
 
 /** Signed in during the last three days, and since this browser did: worth a second look if nobody remembers doing it. */
 const newer = (s: SignIn, thisOne: SignIn | undefined) =>
@@ -144,6 +144,7 @@ export function SignIns() {
             <span className="sign-in-name">
               <strong>{s.name}</strong>
               {s.isThisOne && <span className="pill">This browser</span>}
+              {s.kidsLock && <span className="pill">Locked to kids</span>}
               {isNew(s) && (
                 <span className="pill new" title="Signed in recently. If you don’t recognise it, sign it out.">
                   New
@@ -158,6 +159,11 @@ export function SignIns() {
       )}
       {editing !== s.id && (
         <span className="sign-in-actions">
+          {s.kidsLock && (
+            <AsyncButton className="button quiet small" aria-label={`Unlock ${describe(s)} from kids profiles`} onClick={() => releaseSignInKidsLock(s.id).then(list.reload)}>
+              Unlock
+            </AsyncButton>
+          )}
           <button className="button quiet small" data-rename={s.id} aria-label={`Rename ${describe(s)}`} onClick={() => setEditing(s.id)}>
             Rename
           </button>

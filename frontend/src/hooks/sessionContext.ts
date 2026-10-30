@@ -11,3 +11,9 @@ export interface SessionContextValue {
 export const SessionContext = createContext<SessionContextValue>({ me: undefined, profiles: undefined })
 
 export const useSession = () => useContext(SessionContext)
+
+/** A child is watching (the kids app), and whether any age limit applies (no Discover, requests or recordings). */
+export function useAgeLimits() {
+  const { me } = useSession()
+  return { kids: me?.isKids === true, limited: me?.maxRatingAge != null }
+}

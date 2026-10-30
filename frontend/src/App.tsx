@@ -8,6 +8,7 @@ import {
   getProfiles,
   getSystemStatus,
   migrateStoredApiKey,
+  PICK_PROFILE_EVENT,
   profileToken,
   saveProfileToken,
   setupStatus,
@@ -165,6 +166,12 @@ function whereTheCodeIs(install: InstallKind | undefined) {
 export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  // Unlocking or locking to kids profiles asks who's watching straight away (see pickProfileWith).
+  useEffect(() => {
+    const again = () => setAttempt((n) => n + 1)
+    window.addEventListener(PICK_PROFILE_EVENT, again)
+    return () => window.removeEventListener(PICK_PROFILE_EVENT, again)
+  }, [])
   const [setupInstall, setSetupInstall] = useState<InstallKind>()
   // Once the linked code turns out wrong (a new one since), the code box stays, whatever happens next.
   const [linkedCode, setLinkedCode] = useState(takeLinkedSetupCode)

@@ -18,6 +18,7 @@ import type {
   Home,
   ItemDetail,
   ItemSummary,
+  KidsOverride,
   Library,
   LibraryRequest,
   Loudness,
@@ -507,6 +508,8 @@ export const getLyrics = (id: string, signal?: AbortSignal) =>
     if (error instanceof ApiError && error.status === 404) return null
     throw error
   })
+/** A parent's Allow or Block on a film, show, artist or podcast for profiles with an age limit; its episodes follow it. */
+export const setKidsOverride = (id: string, override: KidsOverride) => request<void>('PUT', `/items/${id}/kids`, { override })
 
 /** A track's ReplayGain, or null when the server has no file for it (404). Tags it lacks come back as nulls inside. */
 export const getLoudness = (id: string, signal?: AbortSignal) =>
@@ -660,6 +663,8 @@ export const getGenreItems = (name: string, kind?: string, signal?: AbortSignal)
 export const getLiveTvStatus = (signal?: AbortSignal) => cachedGet<LiveTvStatus>('/livetv/status', signal)
 /** What's on now and next changes by the minute, so it's never served from the cache. */
 export const getLiveChannels = (signal?: AbortSignal) => apiGet<LiveChannel[]>('/livetv/channels', signal)
+/** Whether profiles with an age limit may watch a channel (the main profile picks them). */
+export const setChannelFineForKids = (id: string, fineForKids: boolean) => request<void>('PUT', `/livetv/channels/${id}/kids`, { fineForKids })
 export const getLiveGuide = (from: Date, hours: number, signal?: AbortSignal) =>
   apiGet<LiveGuide>(`/livetv/guide?from=${encodeURIComponent(from.toISOString())}&hours=${hours}`, signal)
 /** Starts watching a channel; `replaces` is the viewer's previous channel, let go first so its connection is free. */
@@ -1288,6 +1293,10 @@ export interface Profile {
   asksPin?: boolean
   /** Titles it adds to its watchlist that aren't in the library are requested. Absent from servers before 0.56. */
   autoRequestWatchlist?: boolean
+  /** Its age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
+  maxRatingAge?: number | null
+  /** A child's profile: the kids app, and leaving it takes the main profile's PIN. Absent from servers before 0.56. */
+  isKids?: boolean
 }
 
 /** Whether choosing a profile here asks for its PIN. */
@@ -1296,8 +1305,12 @@ export const asksPin = (profile: Profile) => profile.asksPin ?? profile.hasPin
 /** Changing or removing the main profile's PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
 
+/** A profile's age limit (null for none) and whether it's a child's; a kids profile always has a limit. */
+export type AgeLimit = { maxRatingAge: number | null; isKids: boolean }
+
 export const getProfiles = (signal?: AbortSignal) => cachedGet<Profile[]>('/profiles', signal, 5 * 60_000)
-export const createProfile = (profile: Omit<ProfileChanges, 'removePin'>) => request<Profile>('POST', '/profiles', profile)
+export const createProfile = (profile: Omit<ProfileChanges, 'removePin'> & Partial<AgeLimit>) => request<Profile>('POST', '/profiles', profile)
+export const setAgeLimit = (id: string, limit: AgeLimit) => request<Profile>('PUT', `/profiles/${id}/age-limit`, limit)
 export const updateProfile = (id: string, profile: ProfileChanges) =>
   request<Profile>('PUT', `/profiles/${id}`, profile)
 /** Where a profile's requests go; null is wherever Seerr adds them by default. */
@@ -1311,15 +1324,59 @@ export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/
 export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${id}/image`, image)
 export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
 
-/** Switches to a profile (checking its PIN) and remembers it on this device. */
-export async function selectProfile(id: string, pin?: string) {
-  const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin })
+/**
+ * Switches to a profile (checking its PIN) and remembers it on this device. Leaving a kids profile takes the main
+ * profile's PIN as `parentPin`; without it the server says so (an ApiError whose problem has `parentPin`).
+ */
+export async function selectProfile(id: string, pin?: string, parentPin?: string) {
+  const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin, parentPin })
   // The main profile needs no token: it's the default, and over Tailscale its PIN signs this browser in instead (an
   // HttpOnly cookie). Its token is the same in every browser, so it isn't kept where scripts can read it.
   saveProfileToken(result.profile.isMain ? null : result.token)
   // This browser may have just been signed in, which the cache can't tell from the token: ask afresh.
   clearApiCache()
   return result.profile
+}
+
+/** The server wants the main profile's PIN for this: leaving a kids profile, or locking or releasing a device. */
+export const wantsParentPin = (err: unknown) => err instanceof ApiError && err.problem?.parentPin === true
+
+/** The parent's PIN was right, but the chosen profile's own wasn't. */
+export const ownPinWrong = (err: unknown) => err instanceof ApiError && err.problem?.ownPin === true
+
+/** Asks the app to show who's watching again, now, without loading the page again (see askForProfile). */
+export const PICK_PROFILE_EVENT = 'flexarr:pick-profile'
+
+// The main profile's PIN, just given to unlock or lock this browser, for the profile chosen straight after: in memory
+// only, and taken once, so it isn't asked for twice in a row.
+let parentPinForNextChoice: string | undefined
+
+/** Opens who's watching, keeping `parentPin` for the choice made there. */
+export function pickProfileWith(parentPin: string | undefined) {
+  parentPinForNextChoice = parentPin
+  askForProfile()
+  window.dispatchEvent(new Event(PICK_PROFILE_EVENT))
+}
+
+/** The parent's PIN kept for this choice, if any; it's forgotten once taken. */
+export function takeParentPin() {
+  const pin = parentPinForNextChoice
+  parentPinForNextChoice = undefined
+  return pin
+}
+
+/** Locks this browser to kids profiles, choosing one (else the one chosen here, or the first). */
+export async function lockToKids(pin?: string, profileId?: string) {
+  const result = await request<{ token: string; profile: Profile }>('POST', '/profiles/kids-lock', { pin, profileId })
+  saveProfileToken(result.token)
+  clearApiCache()
+  return result.profile
+}
+
+/** Releases this browser from kids profiles, with the main profile's PIN. */
+export async function releaseKidsLock(pin: string) {
+  await request<void>('POST', '/profiles/kids-lock/release', { pin })
+  clearApiCache()
 }
 
 export type NetworkZone = 'Local' | 'Tailnet' | 'Internet'
@@ -1337,6 +1394,12 @@ export interface Me {
   adminPinMissing?: boolean
   /** When managing the server takes the PIN again here; null for the API key, which always may. */
   unlockedUntil?: string | null
+  /** The profile is a child's: the kids app. Absent from servers before 0.56. */
+  isKids?: boolean
+  /** The profile's age limit (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
+  maxRatingAge?: number | null
+  /** This browser is locked to kids profiles. Absent from servers before 0.56. */
+  kidsLock?: boolean
 }
 
 export interface RemoteAccess {
@@ -1410,6 +1473,8 @@ export interface SignIn {
   isThisOne: boolean
   /** For a device, what it is, once its app says (apps from before 0.54 don't). Unknown values may come later. */
   deviceType?: DeviceType | null
+  /** Locked to kids profiles (absent from servers before 0.56). */
+  kidsLock?: boolean
 }
 
 export type DeviceType = 'AppleTv' | 'IPhone' | 'IPad' | 'AndroidPhone' | 'AndroidTablet' | 'AndroidTv'
@@ -1417,6 +1482,7 @@ export type DeviceType = 'AppleTv' | 'IPhone' | 'IPad' | 'AndroidPhone' | 'Andro
 export const getSignIns = (signal?: AbortSignal) => apiGet<SignIn[]>('/sign-ins', signal)
 export const revokeSignIn = (id: string) => request<void>('DELETE', `/sign-ins/${id}`)
 export const renameSignIn = (id: string, name: string) => request<void>('PATCH', `/sign-ins/${id}`, { name })
+export const releaseSignInKidsLock = (id: string) => request<void>('POST', `/sign-ins/${id}/release-kids-lock`, {})
 /** Signs out every browser and TV but this one; returns how many. */
 export const signOutOthers = () => request<{ signedOut: number }>('POST', '/sign-ins/sign-out-others', {})
 

@@ -173,7 +173,8 @@ public static class MusicMixes
     internal static async Task<List<Mix>> TodaysAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var key = $"music-mixes:{profileId}:{today.DayNumber}";
+        // A new age limit, or Allow and Block, makes them afresh: their names and covers come from what they hold.
+        var key = $"music-mixes:{profileId}:{today.DayNumber}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}";
         if (cache.TryGetValue(key, out List<Mix>? cached) && cached is not null)
         {
             return cached;

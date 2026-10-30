@@ -6,6 +6,7 @@ import {
   getAllLibraries,
   getRequestDestinations,
   removeProfileImage,
+  setAgeLimit,
   setRequestLibraries,
   setWatchlistRequests,
   uploadProfileImage,
@@ -20,6 +21,7 @@ import { Crown, Pencil, Trash } from '../../components/icons'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
 import { freeColour, profileColours } from '../../lib/profileColours'
+import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
 import { RequestLibrarySelect } from './RequestsSection'
 import { SettingsHeader } from './shared'
@@ -32,6 +34,8 @@ export function ProfilesSection() {
   // Seerr being away only takes the request choices out of the form.
   const destinations = useApi(getRequestDestinations, []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
+  // A kids profile is only as safe as the main profile's PIN, which is what it takes to leave one.
+  const mainHasPin = data?.find((p) => p.isMain)?.hasPin ?? false
   const reload = () => {
     setEditing(undefined)
     setVersion((v) => v + 1)
@@ -54,7 +58,14 @@ export function ProfilesSection() {
       <MainPinChoice />
       <div className="panel profile-list">
         {editing === 'new' && (
-          <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} destinations={destinations} onDone={reload} onCancel={() => setEditing(undefined)} />
+          <ProfileForm
+            defaultColour={freeColour(data ?? [])}
+            libraries={libraries}
+            destinations={destinations}
+            mainHasPin={mainHasPin}
+            onDone={reload}
+            onCancel={() => setEditing(undefined)}
+          />
         )}
         {data?.map((p) =>
           // The form takes the profile's place in the list, rather than showing it twice.
@@ -66,6 +77,7 @@ export function ProfilesSection() {
               defaultColour={freeColour(data)}
               libraries={libraries}
               destinations={destinations}
+              mainHasPin={mainHasPin}
               onDone={reload}
               onCancel={() => setEditing(undefined)}
             />
@@ -83,7 +95,7 @@ export function ProfilesSection() {
                   {p.isCurrent && <span className="tag profile-you">You</span>}
                 </strong>
                 <span className="muted">
-                  {[p.isMain ? 'Main profile, manages the server' : 'Profile', p.hasPin ? 'PIN' : 'No PIN'].join(' · ')}
+                  {[p.isMain ? 'Main profile, manages the server' : p.isKids ? null : 'Profile', p.hasPin ? 'PIN' : 'No PIN', ageLimitText(p)].filter(Boolean).join(' · ')}
                 </span>
               </span>
               <span className="library-row-actions">
@@ -154,6 +166,7 @@ function ProfileForm({
   defaultColour,
   libraries,
   destinations,
+  mainHasPin,
   onDone,
   onCancel,
 }: {
@@ -161,6 +174,7 @@ function ProfileForm({
   defaultColour: string
   libraries: Library[]
   destinations: RequestDestination[]
+  mainHasPin: boolean
   onDone: () => void
   onCancel: () => void
 }) {
@@ -186,6 +200,8 @@ function ProfileForm({
   const [currentPin, setCurrentPin] = useState('')
   const [apiKey, setApiKey] = useState<string>()
   const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (choosingPin || removePin)
+  const [maxRatingAge, setMaxRatingAge] = useState<number | null>(profile?.maxRatingAge ?? null)
+  const [isKids, setIsKids] = useState(profile?.isKids ?? false)
   const [errors, setErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -198,9 +214,12 @@ function ProfileForm({
     setSaving(true)
     try {
       const confirmation = asksForCurrentPin ? (apiKey !== undefined ? { apiKey: apiKey.trim() } : { currentPin }) : {}
+      // The age limit first: if the server refuses it, nothing else has changed.
+      if (profile && (maxRatingAge !== (profile.maxRatingAge ?? null) || isKids !== (profile.isKids ?? false)))
+        await setAgeLimit(profile.id, { maxRatingAge, isKids })
       const saved = profile
         ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden, ...confirmation })
-        : await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden })
+        : await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden, maxRatingAge, isKids })
       const { requestShowsLibraryId: showsLibraryId, requestFilmsLibraryId: filmsLibraryId } = requestLibraries
       if (showsLibraryId !== (profile?.requestShowsLibraryId ?? null) || filmsLibraryId !== (profile?.requestFilmsLibraryId ?? null))
         await setRequestLibraries(saved.id, { showsLibraryId, filmsLibraryId })
@@ -355,6 +374,51 @@ function ProfileForm({
         )}
       </fieldset>
 
+      {!profile?.isMain && (
+        <fieldset className="profile-section profile-libraries">
+          <legend className="visually-hidden">Age limit</legend>
+          <span className="setting-text">
+            <strong>Age limit</strong>
+            <span className="muted">Titles rated above it, and unrated ones, are hidden.</span>
+          </span>
+          <div className="profile-library-list">
+            <label className="profile-library">
+              <span>Up to</span>
+              <select
+                value={maxRatingAge ?? ''}
+                onChange={(e) => {
+                  const age = e.target.value === '' ? null : Number(e.target.value)
+                  setMaxRatingAge(age)
+                  // A U or PG limit is likely a child's; without a limit there's no kids profile.
+                  if (age === null) setIsKids(false)
+                  else if (!profile && age <= 8 && mainHasPin) setIsKids(true)
+                }}
+              >
+                <option value="">No limit</option>
+                {[...ratingSteps].reverse().map((s) => (
+                  <option key={s.age} value={s.age}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="profile-library">
+              <span className="setting-text">
+                <span>Kids profile</span>
+                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the main profile’s PIN.' : 'Needs a main profile PIN first.'}</span>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                className="switch"
+                checked={isKids}
+                disabled={maxRatingAge === null || (!mainHasPin && !isKids)}
+                onChange={(e) => setIsKids(e.target.checked)}
+              />
+            </label>
+          </div>
+        </fieldset>
+      )}
       {libraries.length > 1 && (
         <fieldset className="profile-section profile-libraries">
           <legend className="visually-hidden">Libraries</legend>

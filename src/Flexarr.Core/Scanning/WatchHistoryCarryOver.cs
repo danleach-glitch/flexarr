@@ -33,7 +33,7 @@ public static class WatchHistoryCarryOver
     {
         var rows = await doomed
             .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Episode)
-            .Where(i => i.PlaybackStates.Any() || db.CollectionItems.Any(c => c.MediaItemId == i.Id))
+            .Where(i => i.PlaybackStates.Any() || db.CollectionItems.Any(c => c.MediaItemId == i.Id) || i.ParentId == null && i.KidsOverride != KidsOverride.None)
             .Select(i => new
             {
                 i.Kind,
@@ -46,6 +46,8 @@ public static class WatchHistoryCarryOver
                 Playback = i.PlaybackStates.Select(p => new TombstonePlayback(p.UserId, p.PositionSeconds, p.DurationSeconds, p.Watched, p.PlayCount,
                     p.LastPlayedAt, p.AudioLanguage, p.SubtitleLanguage)).ToList(),
                 Collections = db.CollectionItems.Where(c => c.MediaItemId == i.Id).Select(c => new TombstoneCollection(c.CollectionId, c.Position)).ToList(),
+                // Episodes carry their show's, which its own tombstone keeps.
+                KidsOverride = i.ParentId == null ? i.KidsOverride : KidsOverride.None,
             })
             .AsNoTracking().ToListAsync(ct).ConfigureAwait(false);
 
@@ -62,6 +64,7 @@ public static class WatchHistoryCarryOver
                 AirDate = row.AirDate,
                 Playback = row.Playback,
                 Collections = row.Collections,
+                KidsOverride = row.KidsOverride,
             });
         }
     }
@@ -120,6 +123,8 @@ public static class WatchHistoryCarryOver
             }
 
             await CopyCollectionsAsync(db, added, from.Id, to.Id, ct).ConfigureAwait(false);
+            var kids = await items.Where(i => i.Id == from.Id).Select(i => i.KidsOverride).FirstAsync(ct).ConfigureAwait(false);
+            await KeepKidsOverrideAsync(db, kids, to.Id, ct).ConfigureAwait(false);
             if (from.Kind == MediaKind.Movie)
             {
                 carried += await CopyPlaybackAsync(db, added, [(from.Id, to.Id)], ct).ConfigureAwait(false);
@@ -177,6 +182,11 @@ public static class WatchHistoryCarryOver
             }
 
             users ??= (await db.Profiles.Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+            if (tombstone.Kind != MediaKind.Episode)
+            {
+                await KeepKidsOverrideAsync(db, tombstone.KidsOverride, target, ct).ConfigureAwait(false);
+            }
+
             carried += await RestoreAsync(db, added, users, tombstone, target, ct).ConfigureAwait(false);
             db.WatchTombstones.Remove(tombstone);
         }
@@ -190,6 +200,22 @@ public static class WatchHistoryCarryOver
         }
 
         return carried;
+    }
+
+    /// <summary>
+    /// Gives title <paramref name="to"/> a parent's Allow or Block from the one it replaces, unless a parent has said
+    /// something of their own about it since. Its seasons and episodes follow.
+    /// </summary>
+    private static async Task KeepKidsOverrideAsync(FlexarrDbContext db, KidsOverride kids, Guid to, CancellationToken ct)
+    {
+        if (kids == KidsOverride.None
+            || await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == to && i.KidsOverride == KidsOverride.None)
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.KidsOverride, kids), ct).ConfigureAwait(false) == 0)
+        {
+            return;
+        }
+
+        await db.PassDownRatingsAsync([to], ct).ConfigureAwait(false);
     }
 
     /// <summary>The watch states and collection memberships this run has added but not yet saved.</summary>

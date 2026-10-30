@@ -15,7 +15,8 @@ struct FlexarrTVApp: App {
         _model = State(initialValue: model)
         // The guide over the live picture is the Apple TV's (it's the grid from the Live TV screen).
         model.liveTv.makeGuide = { client, channels, current, onWatch, onClose in
-            LiveGuideOverlay.controller(client: client, channels: channels, currentId: current, onWatch: onWatch, onClose: onClose)
+            LiveGuideOverlay.controller(client: client, channels: channels, currentId: current, records: !model.hasAgeLimit,
+                                        onWatch: onWatch, onClose: onClose)
         }
         // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents).
         AppDependencyManager.shared.add(dependency: model)

@@ -72,8 +72,11 @@ extension ItemSummary {
         return nil
     }
 
-    /// Short facts for heroes and detail headers: year, runtime or seasons, rating, resolution.
-    public var facts: [String] {
+    /// Short facts for heroes and detail headers: year, runtime or seasons, rating, score, resolution.
+    public var facts: [String] { facts(scores: true) }
+
+    /// The facts, leaving out the score when `scores` is false (for a kids profile, where it means nothing).
+    public func facts(scores: Bool) -> [String] {
         var facts: [String] = []
         if let releaseYear { facts.append(String(releaseYear)) }
         switch kind {
@@ -97,7 +100,7 @@ extension ItemSummary {
             }
         }
         if let contentRating, !contentRating.isEmpty { facts.append(contentRating) }
-        if let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
+        if scores, let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
         if let resolution, !resolution.isEmpty { facts.append(resolution) }
         return facts
     }
@@ -294,10 +297,17 @@ public struct EmptyHomeMessage: Sendable, Hashable {
     /// The folders looked in, when the libraries are there but empty.
     public let folders: [String]
 
-    /// Nil while some library has something in it; podcasts come built in, so they don't count.
-    public init?(libraries: [Library]) {
+    /// Nil while some library has something in it; podcasts come built in, so they don't count. For a profile with an
+    /// age limit, named by `limitedProfile`, it's one line: libraries and folders are a grown-up's business.
+    public init?(libraries: [Library], limitedProfile: String? = nil) {
         let media = libraries.filter { $0.type != .podcasts }
         guard media.allSatisfy({ $0.itemCount == 0 }) else { return nil }
+        if let limitedProfile {
+            title = "Nothing here for \(limitedProfile) yet"
+            body = ""
+            folders = []
+            return
+        }
         guard !media.isEmpty else {
             title = "Nothing to watch yet"
             body = "Open Flexarr in a browser and add a library in Settings › Libraries."

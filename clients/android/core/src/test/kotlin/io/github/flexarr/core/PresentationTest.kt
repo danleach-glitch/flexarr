@@ -41,8 +41,8 @@ class PresentationTest {
     @Test
     fun movieFacts() {
         val movie = fixture<ItemDetail>("item-movie").item
-        assertEquals(movie.releaseYear?.toString(), movie.facts.first())
-        assertTrue(movie.facts.any { it.endsWith("m") || it.endsWith("h") })
+        assertEquals(movie.releaseYear?.toString(), movie.facts().first())
+        assertTrue(movie.facts().any { it.endsWith("m") || it.endsWith("h") })
     }
 
     @Test

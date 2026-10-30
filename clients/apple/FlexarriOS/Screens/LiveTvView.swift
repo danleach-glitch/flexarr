@@ -46,8 +46,11 @@ struct LiveTvView: View {
         .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
         .toolbar {
             if channels?.isEmpty == false {
-                NavigationLink { LiveRecordingsView() } label: {
-                    Label("Recordings", systemImage: "record.circle")
+                // A recording is for everyone, so a profile with an age limit has none to see or set.
+                if !model.hasAgeLimit {
+                    NavigationLink { LiveRecordingsView() } label: {
+                        Label("Recordings", systemImage: "record.circle")
+                    }
                 }
                 Button { showsGuide.toggle() } label: {
                     Label(showsGuide ? "List" : "Guide", systemImage: showsGuide ? "list.bullet" : "calendar")
@@ -117,7 +120,7 @@ struct LiveTvView: View {
                     }
                     .contextMenu {
                         Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
-                        ForEach([channel.now, channel.next].compactMap { $0 }) { programme in
+                        ForEach(model.hasAgeLimit ? [] : [channel.now, channel.next].compactMap { $0 }) { programme in
                             Button { record(programme) } label: {
                                 Label("Record \(programme.title)", systemImage: "record.circle")
                             }

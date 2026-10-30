@@ -18,6 +18,8 @@ struct LiveGuideGrid: View {
     var onRecordingsChanged: (() -> Void)? = nil
     /// Where focus starts: what's on now on this channel (the one being watched), scrolled into view.
     var focusChannel: String? = nil
+    /// Programmes can be set to record: not for a profile with an age limit, since a recording is for everyone.
+    var records = true
 
     @FocusState private var focusedProgramme: Int64?
 
@@ -74,7 +76,7 @@ struct LiveGuideGrid: View {
         .alert(details?.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = detailsChannel {
                 Button("Watch \(channel.name) now") { onWatch(channel) }
-                if let details, details.end > now {
+                if records, let details, details.end > now {
                     Button(DvrActions.recordLabel(details)) { act { try await toggleRecording(details, on: channel) } }
                     Button(DvrActions.seriesLabel(details)) { act { try await DvrActions.toggleSeries(details, on: channel.id, client: $0) } }
                 }
@@ -160,7 +162,7 @@ struct LiveGuideGrid: View {
                                                 recording: programme.isSetToRecord))
                     .focused($focusedProgramme, equals: programme.id)
                     .contextMenu {
-                        if programme.end > now {
+                        if records, programme.end > now {
                             Button { act { try await toggleRecording(programme, on: channel) } } label: {
                                 Label(DvrActions.recordLabel(programme), systemImage: programme.isSetToRecord ? "record.circle.fill" : "record.circle")
                             }

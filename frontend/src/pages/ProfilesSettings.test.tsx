@@ -164,3 +164,73 @@ describe('Profile menu', () => {
     expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/session') && init?.method === 'DELETE')).toBe(true)
   })
 })
+
+describe('Age limits', () => {
+  it('saves a profile’s age limit', async () => {
+    let limit: Record<string, unknown> | undefined
+    const child = { ...kids, hiddenLibraryIds: [], maxRatingAge: 8, isKids: true }
+    const mum = { ...kids, id: 'p2', name: 'Mum', hiddenLibraryIds: [] }
+    mockApi({
+      '/libraries': [movies],
+      '/me': adminHere,
+      '/profiles': [main, child, mum],
+      'PUT /profiles/p2': mum,
+      'PUT /profiles/p2/age-limit': (init?: RequestInit) => {
+        limit = JSON.parse(String(init?.body))
+        return { ...mum, maxRatingAge: 15 }
+      },
+    })
+
+    renderAt('/settings/profiles')
+    expect(await screen.findByText(/Kids profile · up to PG/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Mum' }))
+    const form = await screen.findByRole('form', { name: 'Edit Mum' })
+    fireEvent.change(within(form).getByRole('combobox', { name: 'Up to' }), { target: { value: '15' } })
+    expect(within(form).getByRole('switch', { name: /Kids profile/ })).not.toBeChecked()
+    fireEvent.click(within(form).getByRole('button', { name: 'Save profile' }))
+
+    await vi.waitFor(() => expect(limit).toEqual({ maxRatingAge: 15, isKids: false }))
+  })
+
+  it('makes a new profile limited to PG a kids profile, unless it’s switched off', async () => {
+    let created: Record<string, unknown> | undefined
+    mockApi({
+      '/libraries': [movies],
+      '/me': adminHere,
+      '/profiles': [main],
+      'POST /profiles': (init?: RequestInit) => {
+        created = JSON.parse(String(init?.body))
+        return { ...kids, id: 'new' }
+      },
+    })
+
+    renderAt('/settings/profiles')
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a profile' }))
+    const form = await screen.findByRole('form', { name: 'New profile' })
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Ada' } })
+    expect(within(form).getByRole('switch', { name: /Kids profile/ })).toBeDisabled()
+    fireEvent.change(within(form).getByRole('combobox', { name: 'Up to' }), { target: { value: '8' } })
+    expect(within(form).getByRole('switch', { name: /Kids profile/ })).toBeChecked()
+    fireEvent.click(within(form).getByRole('button', { name: 'Add profile' }))
+
+    await vi.waitFor(() => expect(created).toMatchObject({ name: 'Ada', maxRatingAge: 8, isKids: true }))
+  })
+})
+
+describe('A kids profile', () => {
+  it('has no Settings, Discover or Coming soon, even by the address', async () => {
+    const child = { ...kids, isCurrent: true, maxRatingAge: 8, isKids: true }
+    mockApi({
+      '/libraries': [movies],
+      '/me': { ...adminHere, profileId: 'c1', isAdmin: false, isKids: true, maxRatingAge: 8 },
+      '/profiles': [{ ...main, isCurrent: false }, child],
+      '/home': { featured: [], rows: [], upcoming: [], downloading: 0 },
+    })
+
+    renderAt('/')
+    expect(await screen.findByRole('link', { name: 'Home' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Discover' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Coming soon' })).not.toBeInTheDocument()
+  })
+})

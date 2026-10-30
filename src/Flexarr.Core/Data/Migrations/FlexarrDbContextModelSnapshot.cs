@@ -26,6 +26,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("FineForKids")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("LastScannedAt")
                         .HasColumnType("TEXT");
 
@@ -94,6 +97,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("FineForKids")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Group")
                         .HasMaxLength(200)
@@ -671,6 +677,11 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("ImdbId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("KidsOverride")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -714,6 +725,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<string>("PosterUrl")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("RatingAge")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateOnly?>("ReleaseDate")
                         .HasColumnType("TEXT");
@@ -1018,9 +1032,15 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("ImageUpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsKids")
+                        .HasColumnType("INTEGER");
+
                     b.PrimitiveCollection<string>("LibraryOrder")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("MaxRatingAge")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1089,6 +1109,7 @@ namespace Flexarr.Core.Data.Migrations
                             Color = "#a9c2ec",
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
                             HiddenLibraryIds = "[]",
+                            IsKids = false,
                             LibraryOrder = "[]",
                             Name = "Main profile",
                             PodcastAutoDownload = true,
@@ -1166,6 +1187,11 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ImdbId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KidsOverride")
+                        .IsRequired()
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Kind")

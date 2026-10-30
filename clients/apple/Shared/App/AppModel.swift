@@ -51,6 +51,10 @@ final class AppModel {
     private(set) var profilesLoaded = false
     /// The household has several profiles and nobody has chosen one on this device yet.
     private(set) var needsProfileChoice = false
+    /// This device is locked to kids profiles: the picker offers only them, until the main profile's PIN releases it.
+    private(set) var kidsLock = false
+    /// How this app is signed in ("device" for its own sign-in; see `SignInInfo.method`), as the server last said.
+    private(set) var signInMethod: String?
     /// A link (or another device) asked to play as this profile, which has a PIN: "Who's watching?" opens on its PIN.
     private(set) var linkProfile: Profile?
     /// What to open once a profile is chosen, for a link that asked for one with a PIN.
@@ -188,6 +192,21 @@ final class AppModel {
     }
 
     var currentProfile: Profile? { profiles.first(where: \.isCurrent) }
+
+    /// A child is watching: the kids app (no Settings, no requests, bigger artwork).
+    var isKids: Bool { currentProfile?.isKidsProfile == true }
+
+    /// The profile has an age limit: Discover, Coming Soon and requests aren't offered, since their titles have no age.
+    var hasAgeLimit: Bool { currentProfile?.hasAgeLimit == true }
+
+    /// Who's watching can be changed here: several profiles, or a lock to kids profiles that Unlock releases.
+    var offersProfilePicker: Bool { profiles.count > 1 || kidsLock }
+
+    /// "Lock to kids profiles" is offered: a grown-up watching, a kids profile to lock to, and this app's own sign-in
+    /// (the server keeps the lock on a device's sign-in, which the server's key or a Tailscale address doesn't have).
+    var offersKidsLock: Bool {
+        signInMethod == "device" && !kidsLock && !isKids && profiles.contains(where: \.isKidsProfile)
+    }
 
     /// With exactly two profiles, the one that isn't watching: switching is a single press.
     var otherProfile: Profile? {
@@ -336,7 +355,9 @@ final class AppModel {
         }
         guard let client else { return }
         defer { profilesLoaded = true }
-        guard let list = try? await client.profiles() else { return }
+        async let listed = try? client.profiles()
+        async let signIn = try? client.me()
+        guard let list = await listed else { return }
         // A token for a profile that's since been removed acts as nobody: forget it and ask again.
         if !list.contains(where: \.isCurrent), var credentials, credentials.profileToken != nil {
             credentials.profileToken = nil
@@ -345,6 +366,9 @@ final class AppModel {
             return await loadProfiles()
         }
         profiles = list
+        let me = await signIn
+        kidsLock = me?.kidsLock == true
+        signInMethod = me?.method
         // Asked to, a shared Apple TV asks who's watching once each time the app starts, whoever watched last.
         let asksNow = Self.asksWhoIsWatching && !askedWhoIsWatching
         askedWhoIsWatching = true
@@ -381,20 +405,65 @@ final class AppModel {
     }
 
     /// Makes `profile` the one watching on this device (remembered across launches). A wrong
-    /// PIN throws the server's message. Every screen reloads, since history and libraries differ.
-    func switchProfile(to profile: Profile, pin: String? = nil) async throws {
-        guard var credentials else { return }
+    /// PIN throws the server's message. Every screen reloads, since history and libraries differ. Leaving a kids
+    /// profile takes the main profile's PIN as `parentPin`: without it, `FlexarrClientError.parentPinNeeded` comes back
+    /// as it is, so the picker can ask; so does `.ownPinWrong`, a right `parentPin` with a wrong `pin`.
+    func switchProfile(to profile: Profile, pin: String? = nil, parentPin: String? = nil) async throws {
+        guard let credentials else { return }
         let selection: ProfileSelection
         do {
-            selection = try await credentials.client.selectProfile(profile.id, pin: pin)
+            selection = try await credentials.client.selectProfile(profile.id, pin: pin, parentPin: parentPin)
+        } catch let error as FlexarrClientError {
+            switch error {
+            case .parentPinNeeded, .ownPinWrong: throw error
+            default: break
+            }
+            throw ConnectionError(error)
         } catch {
             throw ConnectionError(error)
         }
+        chose(selection, among: profiles)
+    }
+
+    /// Locks this device to kids profiles, choosing one: the main profile's PIN unless it's unlocked here. With several
+    /// kids profiles, "Who's watching?" then asks which one this device stays on.
+    func lockToKids(pin: String?) async throws {
+        guard let credentials else { return }
+        let selection: ProfileSelection
+        do {
+            selection = try await credentials.client.lockToKids(pin: pin)
+        } catch let error as FlexarrClientError {
+            if case .parentPinNeeded = error { throw error }
+            throw ConnectionError(error)
+        } catch {
+            throw ConnectionError(error)
+        }
+        kidsLock = true
+        chose(selection, among: profiles.filter(\.isKidsProfile))
+        if profiles.count > 1 { needsProfileChoice = true }
+    }
+
+    /// Releases this device from kids profiles with the main profile's PIN; every profile is offered again.
+    func releaseKidsLock(pin: String) async throws {
+        guard let client else { return }
+        do {
+            try await client.releaseKidsLock(pin: pin)
+        } catch {
+            throw ConnectionError(error)
+        }
+        kidsLock = false
+        await loadProfiles()
+    }
+
+    /// Takes on the profile the server chose: its token, and every screen afresh.
+    private func chose(_ selection: ProfileSelection, among list: [Profile]) {
+        guard var credentials else { return }
+        let profile = selection.profile
         player.stop()
         music.stop()
         credentials.profileToken = selection.token
         store.saveProfile(selection.token)
-        profiles = profiles.map { $0.marked(current: $0.id == profile.id) }
+        profiles = list.map { $0.marked(current: $0.id == profile.id) }
         needsProfileChoice = false
         libraries = []
         forgetWatchlist()
@@ -924,6 +993,7 @@ final class Router {
 private extension Profile {
     func marked(current: Bool) -> Profile {
         Profile(id: id, name: name, color: color, hasPin: hasPin, isMain: isMain, isCurrent: current,
-                hiddenLibraryIds: hiddenLibraryIds, image: image, libraryOrder: libraryOrder, asksPin: asksPin)
+                hiddenLibraryIds: hiddenLibraryIds, image: image, libraryOrder: libraryOrder, asksPin: asksPin,
+                maxRatingAge: maxRatingAge, isKids: isKids)
     }
 }

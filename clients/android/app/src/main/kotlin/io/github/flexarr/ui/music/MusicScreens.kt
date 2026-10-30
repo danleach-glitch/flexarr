@@ -319,7 +319,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                             title = item.title,
                             ambient = ambient,
                             below = {
-                                FactsLine(item.facts)
+                                FactsLine(item.facts(scores = !model.isKids))
                                 if (state.value.genres.isNotEmpty()) {
                                     Text(state.value.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1)
                                 }

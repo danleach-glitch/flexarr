@@ -544,6 +544,23 @@
   color: inherit;
 }
 
+/* A library's switch for profiles with an age limit, under its folders. */
+.library-kids {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 420px;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.92rem;
+}
+
+/* Settings › Live TV: the channels profiles with an age limit may watch. */
+.kids-channels {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
 /* Under the media folders: the mappings saved, opened to edit them by hand. */
 .saved-mappings {
   padding: 14px 0;

@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ApiError, asksPin, clearApiCache, saveProfileToken, selectProfile, signIn, UnauthorizedError, type Profile } from '../api/client'
+import {
+  ApiError,
+  asksPin,
+  clearApiCache,
+  ownPinWrong,
+  saveProfileToken,
+  selectProfile,
+  signIn,
+  takeParentPin,
+  UnauthorizedError,
+  wantsParentPin,
+  type Profile,
+} from '../api/client'
 import { AsyncButton } from './AsyncButton'
 import { Crown } from './icons'
 
@@ -52,7 +64,12 @@ export function ProfilePicker({
   const [lockedUntil, setLockedUntil] = useState<number>()
   const [now, setNow] = useState(() => Date.now())
   const [usingKey, setUsingKey] = useState(false)
+  /** Leaving a kids profile: the pad asks for the main profile's PIN, keeping the chosen profile's own (if it has one). */
+  const [parent, setParent] = useState<{ ownPin?: string }>()
   const field = useRef<HTMLInputElement>(null)
+  const main = profiles.find((p) => p.isMain)
+  // The main profile's PIN, given just now (to unlock this browser, or before a wrong own PIN): not asked for again.
+  const knownParentPin = useRef(takeParentPin())
 
   const remaining = lockedUntil === undefined ? 0 : Math.max(0, Math.ceil((lockedUntil - now) / 1000))
   const locked = remaining > 0
@@ -63,17 +80,33 @@ export function ProfilePicker({
     setError(undefined)
     setLockedUntil(undefined)
     setUsingKey(false)
+    setParent(undefined)
   }
 
-  async function choose(profile: Profile, code?: string) {
+  async function choose(profile: Profile, code?: string, parentCode?: string) {
     if (asksPin(profile) && code === undefined) {
       ask(profile)
       return
     }
     setChecking(true)
+    const parentPin = parentCode ?? knownParentPin.current
     try {
-      onChosen(await selectProfile(profile.id, code))
+      onChosen(await selectProfile(profile.id, code, parentPin))
     } catch (e) {
+      if (wantsParentPin(e) && parentCode === undefined) {
+        // A kept PIN that no longer works is forgotten, and asked for.
+        knownParentPin.current = undefined
+        ask(profile)
+        setParent({ ownPin: code })
+        return
+      }
+      if (ownPinWrong(e) && parentPin !== undefined) {
+        // The parent's was right: back to this profile's own, keeping the parent's for when it is.
+        knownParentPin.current = parentPin
+        ask(profile)
+        setError(`That isn’t ${profile.name}’s PIN.`)
+        return
+      }
       const seconds = e instanceof ApiError && e.status === 429 ? lockoutSeconds(e) : undefined
       if (seconds !== undefined) {
         setNow(Date.now())
@@ -184,7 +217,7 @@ export function ProfilePicker({
           className="pin-pad"
           onSubmit={(e) => {
             e.preventDefault()
-            if (!checking && !locked && pin.length >= 4) void choose(asking, pin)
+            if (!checking && !locked && pin.length >= 4) void (parent ? choose(asking, parent.ownPin, pin) : choose(asking, pin))
           }}
           // With a key of the pad focused, the keyboard's digits and Backspace still work.
           onKeyDown={(e) => {
@@ -193,8 +226,8 @@ export function ProfilePicker({
             else if (e.key === 'Backspace') erase()
           }}
         >
-          <Avatar profile={asking} size={88} />
-          <h1>Enter {asking.name}’s PIN</h1>
+          <Avatar profile={parent && main ? main : asking} size={88} />
+          <h1>{parent ? 'Enter the main profile’s PIN' : `Enter ${asking.name}’s PIN`}</h1>
           <input
             ref={field}
             className="pin-display"
@@ -210,7 +243,7 @@ export function ProfilePicker({
           {locked ? (
             <div className="pin-lockout" role="status">
               <p className="error">Too many wrong PINs. Try again in {waitFor(remaining)}.</p>
-              {asking.isMain && (
+              {(asking.isMain || parent) && (
                 <p className="muted">
                   Forgotten it?{' '}
                   <button type="button" className="text-button" onClick={() => setUsingKey(true)}>

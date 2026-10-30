@@ -68,7 +68,7 @@ struct ArtistView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
                 HStack(spacing: 22) {
-                    FactsLine(facts: item.facts)
+                    FactsLine(facts: item.facts(scores: !model.isKids))
                     if let genres = page.detail?.genres, !genres.isEmpty {
                         Text(genres.prefix(3).joined(separator: ", "))
                             .font(.system(size: 26, weight: .medium))

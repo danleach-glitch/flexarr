@@ -39,12 +39,15 @@ export interface Library {
   itemCount: number
   lastScannedAt: string | null
   scan: ScanStatus | null
+  /** Everything in it is fine for profiles with an age limit, rated or not. Absent from servers before 0.56. */
+  fineForKids?: boolean
 }
 
 export interface LibraryRequest {
   name: string
   type: LibraryType
   folders: string[]
+  fineForKids?: boolean
 }
 
 export interface Artwork {
@@ -180,7 +183,13 @@ export interface ItemDetail {
   canSearchSubtitles?: boolean
   /** For a film or show, whether it's on this profile's watchlist. Absent from servers before 0.56. */
   onWatchlist?: boolean | null
+  /** The age it's suitable from, on the UK's steps (0 is U, 8 PG); null, unrated. Absent from servers before 0.56. */
+  ratingAge?: number | null
+  /** A parent's say for profiles with an age limit; only sent to the main profile. Absent from servers before 0.56. */
+  kidsOverride?: KidsOverride | null
 }
+
+export type KidsOverride = 'None' | 'Allow' | 'Block'
 
 export interface Person {
   id: string
@@ -824,6 +833,8 @@ export interface LiveChannel {
   isFavourite: boolean
   now: LiveProgramme | null
   next: LiveProgramme | null
+  /** Profiles with an age limit may watch it. Absent from servers before 0.56. */
+  fineForKids?: boolean
 }
 
 export interface LiveGuide {

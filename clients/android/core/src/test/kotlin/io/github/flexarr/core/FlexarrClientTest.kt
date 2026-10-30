@@ -181,6 +181,39 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `leaving a kids profile asks for the main profile's PIN`() = runTest {
+        server.enqueue(json("""{"title":"Enter the main profile’s PIN.","parentPin":true}""", code = 403))
+        val error = runCatching { client().selectProfile("mum", parentPin = "2580") }.exceptionOrNull()
+        assertTrue(error is FlexarrException.ParentPinNeeded)
+        assertEquals("Enter the main profile’s PIN.", error?.message)
+        assertEquals("""{"parentPin":"2580"}""", server.takeRequest().body?.utf8())
+
+        server.enqueue(json("""{"title":"This device is locked to kids profiles.","kidsLock":true}""", code = 403))
+        assertTrue(runCatching { client().selectProfile("mum") }.exceptionOrNull() is FlexarrException.KidsLocked)
+    }
+
+    @Test
+    fun `the right parent PIN with the wrong own PIN says which was wrong`() = runTest {
+        server.enqueue(json("""{"title":"That PIN isn't right.","ownPin":true}""", code = 403))
+        val error = runCatching { client().selectProfile("dad", pin = "1111", parentPin = "2580") }.exceptionOrNull()
+        assertTrue(error is FlexarrException.OwnPinWrong)
+        assertEquals("That PIN isn't right.", error?.message)
+        assertEquals("""{"pin":"1111","parentPin":"2580"}""", server.takeRequest().body?.utf8())
+    }
+
+    @Test
+    fun `kids profiles and the lock are read, and older servers have neither`() = runTest {
+        server.enqueue(json("""{"token":"ada.sig","profile":{"id":"ada","name":"Ada","color":"#e8a0bf","maxRatingAge":8,"isKids":true,"isCurrent":true}}"""))
+        val selection = client().lockToKids(pin = "2580")
+        assertTrue(selection.profile.isKids && selection.profile.hasAgeLimit)
+        assertEquals("/api/v1/profiles/kids-lock", server.takeRequest().url.encodedPath)
+
+        server.enqueue(json("""{"profileId":"ada","method":"device","isAdmin":false,"kidsLock":true}"""))
+        assertTrue(client().me().kidsLock)
+        assertTrue(!Profile(id = "p", name = "P", color = "#fff").hasAgeLimit)
+    }
+
+    @Test
     fun `an HTML page is not a Flexarr server`() = runTest {
         server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
         val error = runCatching { client().systemStatus() }.exceptionOrNull()

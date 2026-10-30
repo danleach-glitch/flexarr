@@ -278,6 +278,11 @@ public sealed class ApiKeyAuthenticationHandler(
                 profile = signIn.ProfileId ?? PlaybackState.DefaultUser;
                 admin = profile == PlaybackState.DefaultUser && unlocks.IsUnlocked(signIn.Id);
             }
+            else if (signIn.KidsLock && await FirstKidsProfileAsync(db) is { } kids)
+            {
+                // Locked to kids profiles and its own has gone: another of them, never one without a limit.
+                (profile, admin) = (kids, false);
+            }
             else
             {
                 // Its profile has been removed: it watches as the main profile, but only manages the server once the
@@ -289,7 +294,15 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             var basis = linkedProfile ?? PlaybackState.DefaultUser;
             trusted = method != Methods.Tailscale || basis == PlaybackState.DefaultUser;
-            profile = await ChosenProfileAsync(db) ?? basis;
+            var chosen = await ChosenProfileAsync(db);
+            profile = chosen ?? basis;
+            // At home with "only away from home", a browser without a profile chosen would be the main profile, so a
+            // child could leave a kids profile by opening a private window. With kids profiles in the house, it starts
+            // on one; choosing the main profile there takes its PIN, which signs the browser in.
+            if (method == Methods.Local && chosen is null && await FirstKidsProfileAsync(db) is { } kids)
+            {
+                profile = kids;
+            }
             // Without a sign-in, only the key itself. The main profile's PIN gives a browser at home or on the tailnet
             // a sign-in of its own, unlocked (see AdminEndpoints). Over Tailscale that matters doubly: another program
             // on this machine can pose as a tailnet user (it only needs one of their devices' addresses).
@@ -325,6 +338,10 @@ public sealed class ApiKeyAuthenticationHandler(
 
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
+
+    /// <summary>The household's first kids profile, if it has one.</summary>
+    private Task<string?> FirstKidsProfileAsync(FlexarrDbContext db) =>
+        db.Profiles.AsNoTracking().Where(p => p.IsKids).OrderBy(p => p.CreatedAt).Select(p => p.Id).FirstOrDefaultAsync(Context.RequestAborted);
 
     /// <summary>The profile named by a valid <c>X-Flexarr-Profile</c> token, if it still exists.</summary>
     private async Task<string?> ChosenProfileAsync(FlexarrDbContext db)

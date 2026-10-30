@@ -108,7 +108,7 @@ struct DetailView: View {
                     } else {
                         TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52)
                     }
-                    FactsLine(facts: item.facts)
+                    FactsLine(facts: item.facts(scores: !model.isKids))
                     if let genres = detail?.genres, !genres.isEmpty {
                         Text(genres.prefix(3).joined(separator: ", "))
                             .font(.subheadline.weight(.medium))
@@ -188,7 +188,10 @@ struct DetailView: View {
                     }
                 }
 
-                if item.isResumable && !watched {
+                // A child's history keeps itself: watching is the only way to change it.
+                if model.isKids {
+                    EmptyView()
+                } else if item.isResumable && !watched {
                     // Part way through, either way: unwatched forgets the place (it leaves Continue Watching).
                     Menu {
                         Button { Task { await model.setWatched(item, true) } } label: {

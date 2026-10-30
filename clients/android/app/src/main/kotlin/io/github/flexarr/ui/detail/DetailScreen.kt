@@ -15,6 +15,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -233,7 +234,8 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 } else {
                     TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52)
                 }
-                FactsLine(item.facts)
+                // No scores for a child.
+                FactsLine(item.facts(scores = !LocalContext.current.appModel.isKids))
                 if (detail.genres.isNotEmpty()) {
                     Text(detail.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 }
@@ -284,18 +286,21 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             if (item.kind == MediaKind.Series && item.childCount > 0) {
                 LabeledAction("Shuffle", Icons.Filled.Shuffle, { navigator.shuffle(item) }, slot)
             }
-            if (item.isResumable && !watched) {
-                // Part way through, either way: unwatched forgets the place (it leaves Continue Watching).
-                var menu by remember { mutableStateOf(false) }
-                Box(slot) {
-                    LabeledAction("Watched", Icons.Filled.Check, { menu = true })
-                    DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("Mark as watched") }, onClick = { menu = false; navigator.setWatched(item, true) })
-                        DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { menu = false; navigator.setWatched(item, false) })
+            // A child's watched marks follow what they watch, not what they tap.
+            if (!model.isKids) {
+                if (item.isResumable && !watched) {
+                    // Part way through, either way: unwatched forgets the place (it leaves Continue Watching).
+                    var menu by remember { mutableStateOf(false) }
+                    Box(slot) {
+                        LabeledAction("Watched", Icons.Filled.Check, { menu = true })
+                        DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(text = { Text("Mark as watched") }, onClick = { menu = false; navigator.setWatched(item, true) })
+                            DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { menu = false; navigator.setWatched(item, false) })
+                        }
                     }
+                } else {
+                    LabeledAction(if (watched) "Unwatched" else "Watched", if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check, { navigator.setWatched(item, !watched) }, slot)
                 }
-            } else {
-                LabeledAction(if (watched) "Unwatched" else "Watched", if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check, { navigator.setWatched(item, !watched) }, slot)
             }
             if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
                 DownloadAction(model, item, slot)

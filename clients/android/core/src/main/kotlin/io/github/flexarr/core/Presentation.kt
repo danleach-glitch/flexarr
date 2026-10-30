@@ -70,9 +70,9 @@ val ItemSummary.episodeSubtitle: String?
 val ItemSummary.releaseYear: Int?
     get() = year ?: releaseDate?.take(4)?.toIntOrNull() ?: airDate?.take(4)?.toIntOrNull()
 
-/** Short facts for heroes and detail headers: year, runtime or seasons, rating, resolution. */
-val ItemSummary.facts: List<String>
-    get() = buildList {
+/** Short facts for heroes and detail headers: year, runtime or seasons, rating, score, resolution; [scores] false (kids profiles) leaves the score out. */
+fun ItemSummary.facts(scores: Boolean = true): List<String> =
+    buildList {
         releaseYear?.let { add(it.toString()) }
         fun count(n: Int, noun: String) = add(if (n == 1) "1 $noun" else "$n ${noun}s")
         when (kind) {
@@ -83,7 +83,7 @@ val ItemSummary.facts: List<String>
             else -> (runtimeMinutes?.let(Format::runtime) ?: durationSeconds?.let(Format::runtime))?.let(::add)
         }
         contentRating?.takeIf { it.isNotEmpty() }?.let(::add)
-        communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
+        if (scores) communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
         resolution?.takeIf { it.isNotEmpty() }?.let(::add)
     }
 

@@ -190,6 +190,49 @@ struct FlexarrClientTests {
         }
     }
 
+    @Test func leavingAKidsProfileAsksForTheMainProfilesPin() async throws {
+        let wanted = #"{"title":"Enter the main profile’s PIN.","status":403,"parentPin":true}"#
+        let (client, host) = stubbedClient(.init(status: 403, body: Data(wanted.utf8)))
+
+        await #expect(throws: FlexarrClientError.parentPinNeeded(message: "Enter the main profile’s PIN.")) {
+            try await client.selectProfile("mum", parentPin: "2580")
+        }
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"parentPin":"2580"}"#)
+
+        let (locked, _) = stubbedClient(.init(status: 403, body: Data(#"{"title":"This device is locked to kids profiles.","status":403,"kidsLock":true}"#.utf8)))
+        await #expect(throws: FlexarrClientError.kidsLocked(message: "This device is locked to kids profiles.")) {
+            try await locked.selectProfile("mum")
+        }
+    }
+
+    @Test func aWrongOwnPinAfterTheRightParentPinSaysWhich() async {
+        let wrong = #"{"title":"That PIN isn't right.","status":403,"ownPin":true}"#
+        let (client, _) = stubbedClient(.init(status: 403, body: Data(wrong.utf8)))
+
+        await #expect(throws: FlexarrClientError.ownPinWrong(message: "That PIN isn't right.")) {
+            try await client.selectProfile("mum", pin: "0000", parentPin: "2580")
+        }
+        #expect(FlexarrClientError.ownPinWrong(message: nil).errorDescription == "That PIN isn’t right.")
+    }
+
+    @Test func locksToKidsAndReadsTheLimits() async throws {
+        let body = ##"{"token":"ada.sig","profile":{"id":"ada","name":"Ada","color":"#e8a0bf","hasPin":false,"isMain":false,"isCurrent":true,"hiddenLibraryIds":[],"image":null,"maxRatingAge":8,"isKids":true}}"##
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(body.utf8)))
+
+        let selection = try await client.lockToKids(pin: "2580", profileId: "ada")
+
+        #expect(selection.profile.isKidsProfile && selection.profile.hasAgeLimit)
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.url?.path == "/api/v1/profiles/kids-lock")
+
+        let (me, _) = stubbedClient(.init(status: 200, body: Data(#"{"profileId":"ada","method":"device","isAdmin":false,"isKids":true,"maxRatingAge":8,"kidsLock":true}"#.utf8)))
+        #expect(try await me.me().kidsLock == true)
+        // Older servers say nothing of either.
+        let old = Profile(id: "p", name: "P", color: "#fff")
+        #expect(!old.isKidsProfile && !old.hasAgeLimit)
+    }
+
     @Test func sendsTheChosenProfilesToken() async throws {
         let host = "test-\(UUID().uuidString.lowercased()).local"
         StubProtocol.register(host: host, .init(status: 200, body: Data("[]".utf8)))

@@ -176,7 +176,7 @@ public static class SettingsTransfer
         db.HiddenLibraryIds = [];
         var libraries = (await db.Libraries.AsNoTracking().Include(l => l.Folders).OrderBy(l => l.Name).ToListAsync(ct))
             .Where(l => l.Type != LibraryType.Podcasts && !RecordingsLibrary.Is(l))
-            .Select(l => new { l.Name, l.Type, Folders = l.Folders.Select(f => f.Path).Order().ToList() });
+            .Select(l => new { l.Name, l.Type, Folders = l.Folders.Select(f => f.Path).Order().ToList(), l.FineForKids });
 
         return new JsonObject
         {
@@ -298,7 +298,10 @@ public static class SettingsTransfer
                     continue;
                 }
 
-                var created = new Library { Name = original.Name, Type = original.Type, Folders = [.. folders.Select(f => new LibraryFolder { Path = f })] };
+                var created = new Library
+                {
+                    Name = original.Name, Type = original.Type, Folders = [.. folders.Select(f => new LibraryFolder { Path = f })], FineForKids = original.FineForKids,
+                };
                 db.Libraries.Add(created);
                 await db.SaveChangesAsync(ct);
                 foreach (var folder in folders)
@@ -414,7 +417,8 @@ public static class SettingsTransfer
     private static string? Text(JsonObject node, string name) =>
         Get(node, name) is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
-    private sealed record FileLibrary(string Name, LibraryType Type, List<string> Folders);
+    /// <param name="FineForKids">Everything in it is fine for profiles with an age limit (absent from files before 0.56).</param>
+    private sealed record FileLibrary(string Name, LibraryType Type, List<string> Folders, bool FineForKids = false);
 
     private static readonly JsonSerializerOptions LibraryJson = new(JsonSerializerDefaults.Web)
     {

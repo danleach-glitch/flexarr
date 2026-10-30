@@ -1,6 +1,7 @@
 using System.Globalization;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.LiveTv;
@@ -79,7 +80,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     // ---- Films, episodes and requests ----
 
     private sealed record Fresh(Guid Id, MediaKind Kind, Guid LibraryId, string Title, int? Year, string? Overview, string? Poster,
-        string? TmdbId, string? ImdbId, int? Season, int? Episode, DateOnly? AirDate, DateTime AddedAt, Guid? SeriesId);
+        string? TmdbId, string? ImdbId, int? Season, int? Episode, DateOnly? AirDate, DateTime AddedAt, Guid? SeriesId, int? RatingAge = null,
+        KidsOverride KidsOverride = KidsOverride.None);
 
     private sealed record Show(Guid Id, string Title, string? Poster, string? TmdbId, string? TvdbId, string? ImdbId, DateTime AddedAt);
 
@@ -90,14 +92,14 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             return;
         }
 
-        var libraries = await db.Libraries.AsNoTracking().Select(l => new { l.Id, l.Type, l.Name, l.CreatedAt }).ToListAsync(ct);
+        var libraries = await db.Libraries.AsNoTracking().Select(l => new { l.Id, l.Type, l.Name, l.CreatedAt, l.FineForKids }).ToListAsync(ct);
         // A finished recording has notifications of its own; a library's first scan is no news.
         var skipped = libraries.Where(l => l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name).Select(l => l.Id).ToHashSet();
         var created = libraries.ToDictionary(l => l.Id, l => l.CreatedAt);
         var fresh = (await db.MediaItems.AsNoTracking()
                 .Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode) && i.AddedAt > from && i.AddedAt <= to)
                 .Select(i => new Fresh(i.Id, i.Kind, i.LibraryId, i.Title, i.Year, i.Overview, i.PosterUrl, i.TmdbId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber,
-                    i.AirDate, i.AddedAt, i.Kind == MediaKind.Episode ? i.Parent!.ParentId : null))
+                    i.AirDate, i.AddedAt, i.Kind == MediaKind.Episode ? i.Parent!.ParentId : null, i.RatingAge, i.KidsOverride))
                 .ToListAsync(ct))
             .Where(i => !skipped.Contains(i.LibraryId) && created.TryGetValue(i.LibraryId, out var at) && i.AddedAt - at > FirstScan)
             .ToList();
@@ -114,13 +116,17 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
         foreach (var profile in devices.GroupBy(d => d.ProfileId))
         {
-            var hidden = await db.Profiles.Where(p => p.Id == profile.Key).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct) ?? [];
+            var sees = await db.Profiles.Where(p => p.Id == profile.Key).Select(p => new { p.HiddenLibraryIds, p.MaxRatingAge }).FirstOrDefaultAsync(ct);
+            var hidden = sees?.HiddenLibraryIds ?? [];
+            var kidsLibraries = sees?.MaxRatingAge is null ? [] : libraries.Where(l => l.FineForKids).Select(l => l.Id).ToList();
             var ids = fresh.Select(i => i.Id).ToList();
             var watched = (await db.PlaybackStates.Where(p => p.UserId == profile.Key && p.Watched && ids.Contains(p.MediaItemId))
                 .Select(p => p.MediaItemId).ToListAsync(ct)).ToHashSet();
-            var theirs = answered.Where(a => a.ProfileId == profile.Key).ToList();
+            // Requests and the watchlist name titles Flexarr can't check the age of: not news for a profile with an age limit.
+            var theirs = sees?.MaxRatingAge is null ? answered.Where(a => a.ProfileId == profile.Key).ToList() : [];
             var told = theirs.SelectMany(a => a.Items).ToHashSet();
-            var unseen = fresh.Where(i => !hidden.Contains(i.LibraryId) && !watched.Contains(i.Id)).ToList();
+            var unseen = fresh.Where(i => !hidden.Contains(i.LibraryId) && LibraryVisibility.AgeAllows(sees?.MaxRatingAge, kidsLibraries, i.LibraryId, i.RatingAge, i.KidsOverride)
+                && !watched.Contains(i.Id)).ToList();
 
             // Phones of one profile can still want different things.
             foreach (var wants in profile.GroupBy(d => (d.Films, d.Shows, d.Requests)))
@@ -461,7 +467,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
         var fresh = await db.PodcastEpisodes.AsNoTracking()
             .Where(e => e.MediaItem!.AddedAt > from && e.MediaItem.AddedAt <= to && e.MediaItem.MissingSince == null)
-            .Select(e => new { e.MediaItemId, e.FeedId, e.PublishedAt, e.MediaItem!.Title, e.MediaItem.AddedAt })
+            .Select(e => new { e.MediaItemId, e.FeedId, e.PublishedAt, e.MediaItem!.Title, e.MediaItem.AddedAt, e.MediaItem.LibraryId, e.MediaItem.RatingAge, e.MediaItem.KidsOverride })
             .ToListAsync(ct);
         fresh = fresh.Where(e => (e.PublishedAt ?? e.AddedAt) > now - PodcastFreshness).ToList();
         var feedIds = fresh.Select(e => e.FeedId).Distinct().ToList();
@@ -471,10 +477,14 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             .Select(s => new { s.ProfileId, s.FeedId, s.SubscribedAt }).ToListAsync(ct);
         var shows = await db.MediaItems.AsNoTracking().Where(i => feedIds.Contains(i.Id))
             .Select(i => new { i.Id, i.Title, i.PosterUrl }).ToDictionaryAsync(i => i.Id, ct);
+        var (limits, kidsLibraries) = await AgeLimitsAsync(db, ct);
 
         foreach (var follow in follows)
         {
-            var episodes = fresh.Where(e => e.FeedId == follow.FeedId && e.AddedAt > follow.SubscribedAt + FollowGrace)
+            // An explicit episode isn't news to a child following a clean podcast.
+            var limit = limits.GetValueOrDefault(follow.ProfileId);
+            var episodes = fresh.Where(e => e.FeedId == follow.FeedId && e.AddedAt > follow.SubscribedAt + FollowGrace
+                    && LibraryVisibility.AgeAllows(limit, kidsLibraries, e.LibraryId, e.RatingAge, e.KidsOverride))
                 .OrderByDescending(e => e.PublishedAt ?? e.AddedAt).ToList();
             if (episodes.Count == 0 || !shows.TryGetValue(follow.FeedId, out var show))
             {
@@ -491,6 +501,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>The profiles with an age limit, and the libraries fine for kids.</summary>
+    private static async Task<(Dictionary<string, int?> Limits, List<Guid> KidsLibraries)> AgeLimitsAsync(FlexarrDbContext db, CancellationToken ct) =>
+        (await db.Profiles.AsNoTracking().Where(p => p.MaxRatingAge != null).ToDictionaryAsync(p => p.Id, p => p.MaxRatingAge, ct),
+            await db.Libraries.AsNoTracking().IgnoreQueryFilters().Where(l => l.FineForKids).Select(l => l.Id).ToListAsync(ct));
 
     // ---- Recordings ----
 
@@ -518,6 +533,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 .Select(f => new { f.Path, f.MediaItemId, Poster = f.MediaItem!.PosterUrl ?? f.MediaItem.Parent!.Parent!.PosterUrl }).ToListAsync(ct))
             .GroupBy(f => f.Path).ToDictionary(g => g.Key, g => g.First());
 
+        // Live TV's recordings have no ratings, so profiles with an age limit aren't told of them.
+        var (limits, _) = await AgeLimitsAsync(db, ct);
+        listening = listening.Where(d => !limits.ContainsKey(d.ProfileId)).ToList();
         foreach (var recording in finished)
         {
             // Recordings are the household's, but whoever set one up is who's waiting for it.
@@ -608,7 +626,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        db.HiddenLibraryIds = await db.Profiles.Where(p => p.Id == profileId).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct) ?? [];
+        await LibraryVisibility.ApplyAsync(db, profileId, ct);
         var calendar = await UpcomingEndpoints.UpcomingAsync(2, options, arr, null, db, null, ct);
 
         var showIds = calendar.Where(u => u.Kind == MediaKind.Episode && u.LibraryItemId is not null).Select(u => u.LibraryItemId!.Value).Distinct().ToList();

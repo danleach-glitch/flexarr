@@ -11,6 +11,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Titles leave by themselves once you've watched the film or started the show.
 - The main profile can have a profile request what it adds to its watchlist, in **Settings › Profiles**. It's off to start with.
 
+### Kids profiles
+- Give any profile an age limit in **Settings › Profiles**: U, PG, 12, 15 or 18. Titles rated above it are hidden from that profile everywhere, on every device: Home, the libraries, search, Continue Watching, the next episode, collections, Siri and notifications. Ratings from any country count, rounded up to the next UK age, so a show rated TV-14 in the US is a 15 and one rated 16 in Germany an 18.
+- Titles without a rating are hidden too, and so are music and home videos, which have none. Choose **Fine for kids** on a library in **Settings › Libraries** to let all of it through, or **Allow for kids** and **Block for kids** in a film's or show's **⋯** menu to decide for one title. Live TV shows only the channels you pick under **Channels for kids** in **Settings › Live TV**.
+- Profiles with an age limit don't see Discover or Coming soon, can't make requests and can't add podcasts, since Flexarr can't tell how old a title it hasn't got is for.
+- Leaving a profile with an age limit for one with a looser limit, or none, takes the main profile's PIN, on every device.
+- Films Flexarr looks up on TMDB itself (not through Radarr) now show the age rating of your server's country, falling back to the UK's.
+- Make it a **Kids profile** for a child: no Settings, no scores or score-ranked rows, no marking things watched and no trailers, with a **Watch again** row on Home for their favourites. On the web, the artwork is bigger too. A child with nothing to watch yet sees one line, not the setup screen.
+- **Lock to kids profiles** keeps a TV, phone or browser on kids profiles until the main profile's PIN unlocks it: in the web's profile menu, and in Settings or the profile picker on Apple TV, iPhone and Android. **Settings › Devices** on the web shows what's locked, and **Unlock** releases it from there.
+
 ### Getting started
 - A new server now welcomes you with a short setup guide after you choose its PIN, one card at a time. It asks your name, then walks you through connecting Sonarr, Radarr and Lidarr, adding your libraries, adding everyone who watches, getting Flexarr on all your devices, and watching away from home. You can skip any step after your name, or choose **Set up later** to leave the guide.
 - The guide fills in the address of any Sonarr, Radarr or Lidarr it finds running nearby, so you only paste the API key. It then offers each app's media folders as ready-made libraries (one each for films, TV shows and music), so there's no folder browsing, and warns you if you pick a whole drive. At the end it says what's still being read, and points out a library that came up empty or a folder Flexarr can't see.

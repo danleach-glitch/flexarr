@@ -124,3 +124,59 @@ describe('PIN pad', () => {
     expect(localStorage.getItem('flexarr.profile')).toBeNull()
   })
 })
+
+describe('Leaving a kids profile', () => {
+  it('asks for the main profile’s PIN when the server wants it, and tries again with it', async () => {
+    const mum = { ...kids, id: 'p2', name: 'Mum', hasPin: false }
+    const sent: Record<string, unknown>[] = []
+    mockApi({
+      'POST /profiles/p2/select': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+        sent.push(body)
+        return body.parentPin
+          ? { token: 'p2.sig', profile: { ...mum, isCurrent: true } }
+          : new Response(JSON.stringify({ detail: 'Enter the main profile’s PIN.', parentPin: true }), { status: 403 })
+      },
+    })
+    const chosen = vi.fn()
+    render(<ProfilePicker profiles={[main, mum]} onChosen={chosen} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Mum/ }))
+    expect(await screen.findByRole('heading', { name: 'Enter the main profile’s PIN' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2580' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    await vi.waitFor(() => expect(chosen).toHaveBeenCalled())
+    expect(sent.at(-1)).toMatchObject({ parentPin: '2580' })
+  })
+
+  it('goes back to a profile’s own PIN when that was the wrong one, keeping the parent’s', async () => {
+    const dad = { ...kids, id: 'p3', name: 'Dad', hasPin: true }
+    const sent: Record<string, unknown>[] = []
+    mockApi({
+      'POST /profiles/p3/select': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+        sent.push(body)
+        if (!body.parentPin) return new Response(JSON.stringify({ detail: 'Choose the main profile and enter its PIN.', parentPin: true }), { status: 403 })
+        if (body.pin !== '1234') return new Response(JSON.stringify({ detail: 'That PIN isn’t right.', ownPin: true }), { status: 403 })
+        return { token: 'p3.sig', profile: { ...dad, isCurrent: true } }
+      },
+    })
+    const chosen = vi.fn()
+    render(<ProfilePicker profiles={[main, dad]} onChosen={chosen} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Dad/ }))
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '9999' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+    expect(await screen.findByRole('heading', { name: 'Enter the main profile’s PIN' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2580' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    expect(await screen.findByRole('heading', { name: 'Enter Dad’s PIN' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('That isn’t Dad’s PIN.')
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '1234' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+    await vi.waitFor(() => expect(chosen).toHaveBeenCalled())
+    expect(sent.at(-1)).toMatchObject({ pin: '1234', parentPin: '2580' })
+  })
+})

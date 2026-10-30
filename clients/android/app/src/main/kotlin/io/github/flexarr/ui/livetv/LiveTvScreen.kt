@@ -124,6 +124,8 @@ fun LiveTvScreen(model: AppModel) {
     // The list or the guide, remembered on this device.
     var showsGuide by remember { mutableStateOf(context.settings.getBoolean(GUIDE_KEY, false)) }
     var notice by remember { mutableStateOf<String?>(null) }
+    // Recordings have no age to check, so a profile with an age limit has none.
+    val records = model.currentProfile?.hasAgeLimit != true
 
     suspend fun load() {
         try {
@@ -178,7 +180,7 @@ fun LiveTvScreen(model: AppModel) {
         Column {
             PageTitle("Live TV", onBack = { navigator.back() }) {
                 if (all.isNotEmpty()) {
-                    IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Recordings", tint = Flexarr.screen) }
+                    if (records) IconButton(onClick = navigator::openRecordings) { Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Recordings", tint = Flexarr.screen) }
                     IconButton(onClick = {
                         showsGuide = !showsGuide
                         context.settings.edit().putBoolean(GUIDE_KEY, showsGuide).apply()
@@ -204,7 +206,7 @@ fun LiveTvScreen(model: AppModel) {
                                         channel,
                                         starting = model.liveStartingChannel == channel.id,
                                         onWatch = { navigator.watch(channel, order) },
-                                        onRecord = ::record,
+                                        onRecord = if (records) ::record else null,
                                         onFavourite = { setFavourite(channel, !channel.isFavourite) },
                                     )
                                 }
@@ -275,7 +277,7 @@ internal fun ChannelLogo(channel: LiveChannel, width: Dp, starting: Boolean, mod
 }
 
 @Composable
-private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> Unit, onRecord: (LiveProgramme) -> Unit, onFavourite: () -> Unit) {
+private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> Unit, onRecord: ((LiveProgramme) -> Unit)?, onFavourite: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val favouriteLabel = if (channel.isFavourite) "Remove from Favourites" else "Add to Favourites"
     Box {
@@ -311,7 +313,7 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
         }
         DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = Flexarr.seat) {
             DropdownMenuItem(text = { Text("Watch") }, onClick = { menu = false; onWatch() })
-            listOfNotNull(channel.now, channel.next).forEach { programme ->
+            if (onRecord != null) listOfNotNull(channel.now, channel.next).forEach { programme ->
                 DropdownMenuItem(text = { Text("Record ${programme.title}") }, onClick = { menu = false; onRecord(programme) })
             }
             DropdownMenuItem(text = { Text(favouriteLabel) }, onClick = { menu = false; onFavourite() })
@@ -363,6 +365,8 @@ private fun LiveGuideView(
     val windowStart = remember { halfHourBefore(Instant.now()) }
     val windowEnd = windowStart.plus(GUIDE_HOURS.toLong(), ChronoUnit.HOURS)
     var details by remember { mutableStateOf<Pair<LiveProgramme, LiveChannel>?>(null) }
+    // Recordings have no age to check, so a profile with an age limit has none.
+    val records = model.currentProfile?.hasAgeLimit != true
 
     suspend fun load() {
         runCatching { client.liveGuide(Instant.now().minusSeconds(3600), GUIDE_HOURS + 2) }.onSuccess { guide = it }
@@ -450,7 +454,7 @@ private fun LiveGuideView(
                                         onTap = { if (onNow) navigator.watch(channel, order) else details = programme to channel },
                                         menu = { close ->
                                             if (onNow) DropdownMenuItem(text = { Text("Watch") }, onClick = { close(); navigator.watch(channel, order) })
-                                            if (programme.end > now) {
+                                            if (records && programme.end > now) {
                                                 DropdownMenuItem(text = { Text(recordLabel(programme)) }, onClick = { close(); act { toggleRecording(client, programme, channel.id) } })
                                                 DropdownMenuItem(text = { Text(seriesLabel(programme)) }, onClick = { close(); act { toggleSeries(client, programme, channel.id); null } })
                                             }
@@ -482,7 +486,7 @@ private fun LiveGuideView(
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     TextButton(onClick = { details = null; navigator.watch(channel, order) }) { Text("Watch ${channel.name} now") }
-                    if (programme.end > now) {
+                    if (records && programme.end > now) {
                         TextButton(onClick = { details = null; act { toggleRecording(client, programme, channel.id) } }) { Text(recordLabel(programme)) }
                         TextButton(onClick = { details = null; act { toggleSeries(client, programme, channel.id); null } }) { Text(seriesLabel(programme)) }
                     }

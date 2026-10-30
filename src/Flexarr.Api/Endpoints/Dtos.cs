@@ -13,9 +13,12 @@ public sealed record LibraryDto(
     IReadOnlyList<string> Folders,
     int ItemCount,
     DateTime? LastScannedAt,
-    ScanStatusDto? Scan);
+    ScanStatusDto? Scan,
+    // Everything in it is fine for profiles with an age limit, rated or not. Absent from servers before 0.56.
+    bool FineForKids = false);
 
-public sealed record LibraryRequest(string Name, LibraryType Type, IReadOnlyList<string> Folders);
+/// <param name="FineForKids">Everything in it is fine for profiles with an age limit; null leaves it as it is.</param>
+public sealed record LibraryRequest(string Name, LibraryType Type, IReadOnlyList<string> Folders, bool? FineForKids = null);
 
 /// <summary>Relative URLs of available artwork (null when there is none, so clients can show a placeholder).</summary>
 public sealed record ArtworkDto(string? Poster, string? Backdrop, string? Logo, string? Thumb);
@@ -87,7 +90,14 @@ public sealed record ItemDetailDto(
     ItemSummaryDto? NextUp = null,
     ItemDetailDto? Season = null,
     bool CanSearchSubtitles = false,
-    bool? OnWatchlist = null);
+    bool? OnWatchlist = null,
+    // The age it's suitable from, on the UK's steps (0 is U, 8 PG); null, unrated. Absent from servers before 0.56.
+    int? RatingAge = null,
+    // A parent's Allow or Block for profiles with an age limit; only for the main profile. Absent from servers before 0.56.
+    KidsOverride? KidsOverride = null);
+
+/// <summary>A parent's say over a title for profiles with an age limit.</summary>
+public sealed record KidsOverrideRequest(KidsOverride Override);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 

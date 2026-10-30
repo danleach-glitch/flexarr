@@ -104,6 +104,8 @@ fun LiveRecordingsScreen(model: AppModel) {
             PageTitle("Recordings", onBack = { navigator.back() })
             val loaded = recordings
             when {
+                // Recordings have no age to check, so a profile with an age limit has none.
+                model.currentProfile?.hasAgeLimit == true -> StatusView("Recordings aren’t available on this profile.", empty = true)
                 loaded == null && failed != null -> StatusView(failed, retry = { scope.launch { load() } })
                 loaded == null -> StatusView()
                 else -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true; scope.launch { load(); refreshing = false } }) {

@@ -128,6 +128,31 @@ public static class ItemEndpoints
                 .Summaries(profile.Id).ToListAsync(ct));
         }).WithTags("Items");
 
+        // A parent's Allow or Block for profiles with an age limit, on a film, show, artist or podcast (its seasons,
+        // episodes and tracks follow it).
+        api.MapPut("/items/{id:guid}/kids", async (Guid id, KidsOverrideRequest request, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (!Enum.IsDefined(request.Override))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["override"] = ["Choose none, allow or block."] });
+            }
+
+            if (await db.MediaItems.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.Id == id && i.MissingSince == null, ct) is not { } item)
+            {
+                return Results.NotFound();
+            }
+
+            if (item.ParentId is not null)
+            {
+                return Results.Problem("Allow or block the whole title: its seasons and episodes follow it.", statusCode: 409);
+            }
+
+            item.KidsOverride = request.Override;
+            await db.SaveChangesAsync(ct);
+            LibraryVisibility.KidsSettingsChanged();
+            return Results.NoContent();
+        }).WithTags("Items").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
+
         return api;
     }
 
@@ -188,7 +213,8 @@ public static class ItemEndpoints
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
             ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked,
-            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0);
+            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
+            RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null);
     }
 
     private static FileDto ToDto(MediaFile f) => new(

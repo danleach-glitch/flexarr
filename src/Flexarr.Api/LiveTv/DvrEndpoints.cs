@@ -36,10 +36,16 @@ public static class DvrEndpoints
 {
     public static RouteGroupBuilder MapDvrEndpoints(this RouteGroupBuilder api)
     {
+        // Recordings have no ratings, so profiles with an age limit don't record (the writes below turn them away) or see them.
         var group = api.MapGroup("/livetv/recordings").WithTags("Live TV").RequireAuthorization();
 
         group.MapGet("/", async (FlexarrDbContext db, DvrService dvr, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, CancellationToken ct) =>
         {
+            if (db.IsLimited())
+            {
+                return new RecordingsDto([], [], [], 0, "", null);
+            }
+
             var now = clock.GetUtcNow().UtcDateTime;
             var streams = await dvr.StreamsAsync(ct);
             var upcoming = await db.Recordings.AsNoTracking()
@@ -83,7 +89,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.Ok(await DtoAsync(db, dvr, recording, ct));
-        });
+        }).NotForAgeLimited();
 
         group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, DvrService dvr, DvrSignal signal, ILibraryScanQueue scans, CancellationToken ct) =>
         {
@@ -116,7 +122,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.NoContent();
-        });
+        }).NotForAgeLimited();
 
         group.MapPost("/series", async (RecordSeriesRequest request, FlexarrDbContext db, DvrSignal signal, CurrentProfile profile, CancellationToken ct) =>
         {
@@ -139,7 +145,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.Ok((await RulesAsync(db, ct)).First(r => r.Id == rule.Id));
-        });
+        }).NotForAgeLimited();
 
         group.MapPut("/series/{id:guid}", async (Guid id, SeriesUpdate update, FlexarrDbContext db, DvrSignal signal, CancellationToken ct) =>
         {
@@ -158,7 +164,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.Ok((await RulesAsync(db, ct)).First(r => r.Id == rule.Id));
-        });
+        }).NotForAgeLimited();
 
         // A series stops: its scheduled showings come off the list; what it recorded stays.
         group.MapDelete("/series/{id:guid}", async (Guid id, FlexarrDbContext db, DvrSignal signal, CancellationToken ct) =>
@@ -173,7 +179,7 @@ public static class DvrEndpoints
             await db.SaveChangesAsync(ct);
             signal.Request();
             return Results.NoContent();
-        });
+        }).NotForAgeLimited();
 
         return api;
     }

@@ -25,6 +25,9 @@ public sealed class Library
     public List<LibraryFolder> Folders { get; set; } = [];
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastScannedAt { get; set; }
+
+    /// <summary>Everything in it is fine for profiles with an age limit, rated or not (a cartoons folder, family videos).</summary>
+    public bool FineForKids { get; set; }
 }
 
 /// <summary>
