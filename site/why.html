@@ -108,7 +108,7 @@
         <p class="kicker">Why Flexarr</p>
         <h1>How Flexarr compares.</h1>
         <p class="lede">Flexarr, side by side with Plex, Jellyfin and Emby, and with the apps people use to watch them. Where another one does something better, we say so.</p>
-        <p class="stamp">Checked <strong>28 October 2026</strong> against Flexarr 0.52.0</p>
+        <p class="stamp">Checked <strong>30 October 2026</strong> against Flexarr 0.55.0</p>
       </div>
 
       <section aria-labelledby="fit">
@@ -150,7 +150,7 @@
             <thead>
               <tr>
                 <th scope="col"><span class="visually-hidden">Feature</span></th>
-                <th scope="col" class="us">Flexarr<small>0.52.0</small></th>
+                <th scope="col" class="us">Flexarr<small>0.55.0</small></th>
                 <th scope="col">Plex<small>Media Server and apps</small></th>
                 <th scope="col">Jellyfin<small>12.4, with Swiftfin 1.6.1</small></th>
                 <th scope="col">Emby<small>4.10</small></th>
@@ -204,7 +204,7 @@
               <tr class="group"><th colspan="5" scope="colgroup"><span>Your library</span></th></tr>
               <tr>
                 <th scope="row">Built on Sonarr, Radarr and Lidarr</th>
-                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own.</td>
+                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own. In the next release, setup finds them on your network and adds Flexarr's webhook to each.</td>
                 <td><span class="m">❌</span>Uses its own online lookups. The *arr apps only tell it to rescan.<a class="ref" href="#s64">64</a></td>
                 <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.<a class="ref" href="#s21">21</a></td>
                 <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.</td>
@@ -253,7 +253,7 @@
               </tr>
               <tr>
                 <th scope="row">Music</th>
-                <td class="us"><span class="m">✅</span>Synced lyrics, playlists, daily mixes, artist radio, crossfade and offline albums.</td>
+                <td class="us"><span class="m">✅</span>Synced lyrics, playlists, daily mixes, artist radio, crossfade, offline albums and a visualiser.</td>
                 <td><span class="m">🟡</span>Plexamp is a fine music app. Lyrics, its Sonic mixes and radio need Plex Pass.<a class="ref" href="#s8">8</a></td>
                 <td><span class="m">🟡</span>Synced lyrics, playlists and instant mixes. No crossfade in the web app; no music in Swiftfin.<a class="ref" href="#s27">27</a></td>
                 <td><span class="m">🟡</span>Playlists and instant mixes. Lyrics need Premiere.<a class="ref" href="#s36">36</a></td>
@@ -368,6 +368,13 @@
                 <td><span class="m">🟡</span>Users report TrueHD converted.<a class="ref" href="#s44">44</a></td>
               </tr>
               <tr>
+                <th scope="row">Dialogue boost and night mode<a class="ref" href="#dialogue-note">†</a></th>
+                <td class="us"><span class="m">✅</span>In the next release, free: dialogue boost, night mode (on a schedule if you like) and stereo or 5.1, on the web, iPhone and Apple TV.</td>
+                <td><span class="m">💳</span>Boost Dialog and Normalize Loudness, with Plex Pass. The server converts the sound; not yet on the web.<a class="ref" href="#s71">71</a></td>
+                <td><span class="m">❔</span>None built in that we found.</td>
+                <td><span class="m">❔</span>None built in that we found.</td>
+              </tr>
+              <tr>
                 <th scope="row">Hardware video conversion</th>
                 <td class="us"><span class="m">✅</span>Free: a Mac's graphics, Intel Quick Sync, VA-API and NVIDIA.</td>
                 <td><span class="m">💳</span>With Plex Pass.<a class="ref" href="#s11">11</a></td>
@@ -430,6 +437,7 @@
         </div>
         <p class="scroll-hint">Scroll the table sideways to see every column.</p>
         <p class="footnote" id="atmos-note">* No Apple TV app can send TrueHD or DTS-HD to a receiver as it is: tvOS doesn't allow it. The best any app can do is decode it to lossless multichannel sound, which loses TrueHD's Atmos height channels, or send Atmos from Dolby Digital Plus. The rows above say which each one does.</p>
+        <p class="footnote" id="dialogue-note">† The Apple TV's own Enhance Dialogue (tvOS 18 and later) works in every app here, Flexarr included.<a class="ref" href="#s72">72</a> The row is about what each one adds itself.</p>
       </section>
 
       <section aria-labelledby="players">
@@ -545,7 +553,7 @@
               </tr>
               <tr>
                 <th scope="row">Styled subtitles (ASS)</th>
-                <td class="us"><span class="m">✅</span>In the next release: exactly as made in the web player, with the file's own fonts; their colours and positions on Apple TV, iPhone and iPad.</td>
+                <td class="us"><span class="m">✅</span>Exactly as made in the web player, with the file's own fonts; their positions on Apple TV, iPhone and iPad.</td>
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s47">47</a></td>
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s49">49</a></td>
                 <td><span class="m">🟡</span>In one of its two players.<a class="ref" href="#s26">26</a></td>
@@ -553,7 +561,7 @@
               </tr>
               <tr>
                 <th scope="row">Find subtitles from the player</th>
-                <td class="us"><span class="m">✅</span>In the next release: through Bazarr, on Apple TV, iPhone and the web, best match first.</td>
+                <td class="us"><span class="m">✅</span>Through Bazarr, on Apple TV, iPhone and the web, best match first.</td>
                 <td><span class="m">✅</span>OpenSubtitles, free.<a class="ref" href="#s47">47</a></td>
                 <td><span class="m">🟡</span>From Plex servers only.<a class="ref" href="#s49">49</a></td>
                 <td><span class="m">🟡</span>For admins, through the server.</td>
@@ -600,8 +608,8 @@
       <section aria-labelledby="method">
         <h2 id="method">How we checked</h2>
         <div class="method">
-          <p>Every claim about another product was checked on 28 October 2026 against that company's own pages, support articles, App Store listings and code, linked below. Where the only evidence is what users report on a forum, the table says "users report". Where we couldn't confirm something, it shows ❔ rather than a guess.</p>
-          <p>Flexarr is described as it is in version 0.52.0, the latest release, except for two subtitle rows that are finished and marked "In the next release". Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
+          <p>Every claim about another product was checked on 28 October 2026 (the dialogue row on 30 October) against that company's own pages, support articles, App Store listings and code, linked below. Where the only evidence is what users report on a forum, the table says "users report". Where we couldn't confirm something, it shows ❔ rather than a guess.</p>
+          <p>Flexarr is described as it is in version 0.55.0, the latest release, except where a row says "In the next release": that work is finished and waiting for the next version. The App Store apps can trail a release by a few days while Apple reviews them. Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
           <p>Prices and features change. If something here is wrong or out of date, <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">tell us on GitHub</a> and we'll fix it.</p>
         </div>
         <ol class="sources">
@@ -675,6 +683,8 @@
           <li id="s68">Emby and Chromecast: <a href="https://emby.media/support/articles/Chromecast.html" target="_blank" rel="noopener">emby.media</a>, and AirPlay reports: <a href="https://emby.media/community/topic/71935-emby-for-ios-176-released" target="_blank" rel="noopener">emby.media/community</a></li>
           <li id="s69">The history and evolution of Emby: <a href="https://emby.media/community/blogs/entry/576-the-history-and-evolution-of-emby/" target="_blank" rel="noopener">emby.media</a></li>
           <li id="s70">Infuse on the App Store: <a href="https://apps.apple.com/us/app/infuse/id1136220934" target="_blank" rel="noopener">apps.apple.com</a></li>
+          <li id="s71">Audio enhancements: Boost Dialog and Normalize Loudness (September 2026): <a href="https://forums.plex.tv/t/audio-enhancements-boost-dialog-normalize-loudness/942925" target="_blank" rel="noopener">forums.plex.tv</a></li>
+          <li id="s72">Enhance Dialogue on Apple TV, answered by Firecore (October 2024): <a href="https://community.firecore.com/t/does-enhance-dialogues-feature-also-work-for-infuse-in-apple-tv-4k/51364" target="_blank" rel="noopener">community.firecore.com</a></li>
         </ol>
       </section>
 
