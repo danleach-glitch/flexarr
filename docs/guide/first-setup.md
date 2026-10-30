@@ -51,11 +51,12 @@ A few things to know:
 
 ## The setup guide
 
-Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose **Get started**, or **I'll set it up myself** to go straight to Home. Every step can be skipped, and **Set up later** leaves the guide whenever you like:
+Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose **Get started**, or **I'll set it up myself** to go straight to Home. Every step after your name can be skipped, and **Set up later** leaves the guide whenever you like:
 
-1. **Your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app, so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Don't use them? Choose **Skip**.
+1. **Your name.** Type your name and choose a colour for your profile, the one that runs Flexarr.
+1. **Your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app, so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Connected the wrong one? Choose **Disconnect**. Don't use them? Choose **Skip**.
 2. **Libraries.** Each app's media folders are listed, ticked and ready: choose **Add**. Otherwise, choose a kind (**Movies**, **TV Shows**, **Music** or **Home Videos**) and pick the folder that holds it.
-3. **Who's watching.** Add a profile for each person in the house, or choose **Just me**. See [Profiles](profiles.md).
+3. **Who's watching.** Add a profile for each person in the house, or choose **Just me**. Added someone by mistake? Choose the **✕** on their picture. See [Profiles](profiles.md).
 4. **Your TV and phone.** Open the Flexarr app on your device at home. It shows a code; type it in here. See [Connect your devices](connect-devices.md).
 5. **Away from home.** Turn on Tailscale, if you have it. See [Watch away from home](away-from-home.md).
 

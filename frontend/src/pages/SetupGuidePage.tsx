@@ -4,6 +4,7 @@ import {
   addArrWebhook,
   createLibrary,
   createProfile,
+  deleteProfile,
   discoverArrs,
   getArrFolders,
   getLibraries,
@@ -15,25 +16,29 @@ import {
   saveSetupGuide,
   setTailscaleAccess,
   testArr,
+  updateProfile,
   type ArrFolder,
   type ArrKind,
   type LibraryType,
+  type Profile,
   type Settings,
   type SetupStep,
 } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { ConnectTv } from '../components/ConnectTv'
 import { FolderPicker } from '../components/FolderPicker'
-import { Antenna, Check, Film, Folder, Home, Music, Plus, Stack, Tv } from '../components/icons'
+import { Antenna, Check, Close, Film, Folder, Home, Music, Pencil, Plus, Stack, Tv } from '../components/icons'
 import { Avatar } from '../components/ProfilePicker'
 import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
-import { freeColour } from '../lib/profileColours'
+import { freeColour, profileColours } from '../lib/profileColours'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
 
-const steps: { id: SetupStep; title: string; lede: string; icon: ReactNode; summary: string }[] = [
+/** The steps; the first, the main profile's name, isn't one the server keeps track of. */
+const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactNode; summary: string }[] = [
+  { id: 'name', title: 'What’s your name?', lede: 'Your profile is the one that runs Flexarr.', icon: <Pencil />, summary: 'Tell Flexarr your name' },
   {
     id: 'apps',
     title: 'Connect your apps',
@@ -47,7 +52,9 @@ const steps: { id: SetupStep; title: string; lede: string; icon: ReactNode; summ
   { id: 'away', title: 'Watch away from home', lede: 'Tailscale lets your devices reach Flexarr from anywhere, privately.', icon: <Antenna />, summary: 'Watch away from home' },
 ]
 
-type Place = SetupStep | 'welcome' | 'done'
+const tracked = steps.filter((s): s is (typeof steps)[number] & { id: SetupStep } => s.id !== 'name')
+
+type Place = SetupStep | 'name' | 'welcome' | 'done'
 
 /**
  * The first-run guide: a welcome, a card for each step, and a finish. Every step can be skipped, and leaving part way
@@ -78,9 +85,12 @@ export function SetupGuidePage() {
     back: () => go(index > 0 ? steps[index - 1].id : 'welcome'),
     next: () => go(steps[index + 1]?.id ?? 'done'),
     skip: () => {
-      const now = [...new Set([...skipped, steps[index].id])]
-      setSkipped(now)
-      void saveSetupGuide({ skipped: now }).catch(() => undefined)
+      const id = steps[index].id
+      if (id !== 'name') {
+        const now = [...new Set([...skipped, id])]
+        setSkipped(now)
+        void saveSetupGuide({ skipped: now }).catch(() => undefined)
+      }
       go(steps[index + 1]?.id ?? 'done')
     },
   }
@@ -99,7 +109,7 @@ export function SetupGuidePage() {
         )}
       </header>
       {place === 'welcome' ? (
-        <Welcome onStart={() => go('apps')} />
+        <Welcome onStart={() => go('name')} />
       ) : place === 'done' ? (
         <Done onFinish={() => navigate('/')} />
       ) : (
@@ -115,6 +125,7 @@ export function SetupGuidePage() {
             <h1 id="onboard-title">{steps[index].title}</h1>
             <p className="onboard-lede">{steps[index].lede}</p>
           </div>
+          {place === 'name' && <NameStep nav={nav} />}
           {place === 'apps' && <AppsStep nav={nav} />}
           {place === 'libraries' && <LibrariesStep nav={nav} />}
           {place === 'profiles' && <ProfilesStep nav={nav} />}
@@ -174,6 +185,76 @@ function StepFooter({ nav, next, skipLabel = 'Skip' }: { nav: StepNav; next: Rea
         {next}
       </span>
     </footer>
+  )
+}
+
+/** The main profile's name and colour, which start as "Main profile" in blue. */
+function NameStep({ nav }: { nav: StepNav }) {
+  const profiles = useApi(getProfiles, [])
+  const main = profiles.data?.find((p) => p.isMain)
+  const [name, setName] = useState<string>()
+  const [color, setColor] = useState<string>()
+  const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState(false)
+
+  if (!main) return <p className="onboard-wait">{profiles.error?.message ?? 'Loading…'}</p>
+  // The name it was given when the server was made isn't anyone's: start with an empty box.
+  const shown = name ?? (main.name === 'Main profile' ? '' : main.name)
+  const chosen = color ?? main.color
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setError(undefined)
+    setBusy(true)
+    try {
+      await updateProfile(main!.id, { name: shown.trim(), color: chosen })
+      nav.next()
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={save} aria-label="Your name">
+      <div className="onboard-me">
+        <Avatar profile={{ name: shown.trim() || '?', color: chosen, image: main.image }} size={88} />
+        <div className="onboard-me-fields">
+          {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the one thing this step asks. */}
+          <input type="text" value={shown} required maxLength={40} placeholder="Your name" aria-label="Your name" autoFocus onChange={(e) => setName(e.target.value)} />
+          <div className="onboard-swatches" role="radiogroup" aria-label="Colour">
+            {profileColours.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                role="radio"
+                aria-checked={chosen.toLowerCase() === c.value}
+                aria-label={c.name}
+                className="onboard-swatch"
+                style={{ background: c.value }}
+                onClick={() => setColor(c.value)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      {error && (
+        <p className="onboard-error" role="alert">
+          {error}
+        </p>
+      )}
+      {/* Everyone needs a name, so this step has no Skip. */}
+      <StepFooter
+        nav={nav}
+        skipLabel={null}
+        next={
+          <AsyncButton type="submit" className="button onboard-primary" busy={busy} disabled={!shown.trim()}>
+            Continue
+          </AsyncButton>
+        }
+      />
+    </form>
   )
 }
 
@@ -251,6 +332,19 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
     }
   }
 
+  // Connected by mistake, or to the wrong one: take it off again.
+  async function disconnect() {
+    setError(undefined)
+    try {
+      const rest = settings.arr.filter((a) => a.kind !== kind).map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined }))
+      await saveSettings({ arr: rest })
+      setWebhookError(undefined)
+      props.onConnected()
+    } catch (err) {
+      setError(errorText(err))
+    }
+  }
+
   const status = connected
     ? webhookError
       ? 'Connected. Add its webhook in Settings › Connections.'
@@ -268,8 +362,13 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
           <span className={found && !connected ? 'onboard-found' : undefined}>{status}</span>
         </span>
         {connected ? (
-          <span className="onboard-tick" role="img" aria-label="Connected">
-            <Check />
+          <span className="onboard-tile-end">
+            <AsyncButton className="button quiet small" onClick={disconnect}>
+              Disconnect
+            </AsyncButton>
+            <span className="onboard-tick" role="img" aria-label="Connected">
+              <Check />
+            </span>
           </span>
         ) : (
           !open && (
@@ -279,6 +378,11 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
           )
         )}
       </div>
+      {error && !open && (
+        <p className="onboard-error" role="alert">
+          {error}
+        </p>
+      )}
       {open && !connected && (
         <form className="onboard-form" onSubmit={connect} aria-label={`Connect ${kind}`}>
           <label>
@@ -493,14 +597,31 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
     }
   }
 
+  async function remove(p: Profile) {
+    setError(undefined)
+    try {
+      await deleteProfile(p.id)
+      profiles.reload()
+    } catch (err) {
+      setError(errorText(err))
+    }
+  }
+
   const more = (profiles.data?.length ?? 0) > 1
   return (
     <>
       <ul className="onboard-people">
         {profiles.data?.map((p) => (
           <li key={p.id}>
-            <Avatar profile={p} size={64} />
-            <span>{p.name}</span>
+            <span className="onboard-person">
+              <Avatar profile={p} size={64} />
+              {!p.isMain && (
+                <AsyncButton className="onboard-remove" aria-label={`Remove ${p.name}`} title="Remove" onClick={() => remove(p)}>
+                  <Close />
+                </AsyncButton>
+              )}
+            </span>
+            <span>{p.isMain ? `${p.name} (you)` : p.name}</span>
           </li>
         ))}
       </ul>
@@ -681,7 +802,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
       )}
       {guide.data && (
         <ul className="onboard-summary">
-          {steps.map((s) => (
+          {tracked.map((s) => (
             <li key={s.id} className={guide.data![s.id] ? 'is-done' : undefined}>
               <span className="onboard-summary-icon">{guide.data![s.id] ? <Check /> : s.icon}</span>
               {s.summary}

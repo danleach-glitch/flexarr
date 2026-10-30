@@ -681,3 +681,103 @@
 .onboard-code .connect-tv {
   margin: 0;
 }
+
+/* Your name: the avatar takes it up as it's typed. */
+.onboard-me {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.onboard-me .avatar {
+  flex: none;
+  transition: background-color 0.2s ease;
+}
+
+.onboard-me-fields {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.onboard-me-fields input {
+  min-height: 52px;
+  font-size: var(--step-1);
+}
+
+.onboard-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.onboard-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px var(--seat);
+}
+
+.onboard-swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--seat), 0 0 0 4px var(--screen);
+}
+
+/* A person added by mistake comes off with the ✕ on their avatar. */
+.onboard-person {
+  position: relative;
+}
+
+.onboard-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--seat);
+  border-radius: 50%;
+  background: var(--aisle);
+  color: var(--screen);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.onboard-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.onboard-people li:hover .onboard-remove,
+.onboard-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .onboard-remove {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .onboard-me {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .onboard-me .avatar {
+    align-self: center;
+  }
+}
+
+.onboard-tile-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
