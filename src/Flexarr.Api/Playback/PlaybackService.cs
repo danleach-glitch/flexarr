@@ -367,6 +367,7 @@ public sealed class PlaybackService(
         }
 
         await db.SaveChangesAsync(ct);
+        Watchlist.WatchlistService.LookAgain();
         return true;
     }
 

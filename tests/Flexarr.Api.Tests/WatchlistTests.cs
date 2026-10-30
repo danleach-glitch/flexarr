@@ -372,7 +372,7 @@ public sealed class WatchlistTests : IAsyncLifetime
         // The one that stood took the TMDB id, so Discover still marks it, and adding it again finds it.
         var keys = await Client().GetFromJsonAsync<JsonElement>(Api("/watchlist/keys"));
         Assert.Contains("tv:8301", keys.GetProperty("titles").EnumerateArray().Select(t => t.GetString()));
-        Assert.Equal(HttpStatusCode.OK, (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "tv", tmdbId = 8301 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "tv", tmdbId = 8301 })).StatusCode);        Assert.Equal(1, await InDbAsync(db => db.WatchlistEntries.CountAsync(w => w.RemovedAt == null)));
     }
 
     [Fact]
@@ -491,6 +491,60 @@ public sealed class WatchlistTests : IAsyncLifetime
         await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = film.Id });
 
         Assert.NotNull((await InDbAsync(db => db.WatchlistEntries.SingleAsync())).ArrivedAt);
+    }
+
+    [Fact]
+    public async Task AddingBackByTmdbId_ATitleNowInTheLibrary_LinksItAndIsntRequested()
+    {
+        await Client().PutAsJsonAsync(Api("/profiles/owner/watchlist-requests"), new { autoRequest = true });
+        SeerrKnows("movie", 9011, "Came In", "2023-06-01");
+        var first = await (await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9011 })).Content.ReadFromJsonAsync<JsonElement>();
+        await Client().DeleteAsync(Api($"/watchlist/{first.GetProperty("entry").GetProperty("id").GetGuid()}"));
+        var library = Films();
+        var film = Film(library, "Came In", "9011");
+        await SeedAsync(db => db.AddRange(library, film));
+        _seerr.Requests.Clear();
+
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9011 });
+
+        Assert.Equal(film.Id, (await InDbAsync(db => db.WatchlistEntries.SingleAsync())).MediaItemId);
+        Assert.Equal(0, Requests());
+    }
+
+    [Fact]
+    public async Task OneTitleSeerrAnswersBadly_DoesntStopTheOthersSayingWhereTheyAre()
+    {
+        SeerrKnows("movie", 9021, "Broken", "2023-06-01");
+        SeerrKnows("movie", 9022, "Coming", DateTime.UtcNow.AddMonths(3).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9021 });
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 9022 });
+        _seerr.Responses["GET /api/v1/movie/9021"] = "<html>Error</html>";
+        using (var scope = _server.Services.CreateScope())
+        {
+            ((Microsoft.Extensions.Caching.Memory.MemoryCache)scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()).Clear();
+        }
+
+        var list = await ListAsync();
+
+        Assert.Equal("Coming", list.EnumerateArray().Single(e => e.GetProperty("tmdbId").GetInt32() == 9022).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task AFilmWatchedOffline_LeavesEvenThoughThePlayIsDatedEarlier()
+    {
+        var library = Films();
+        var film = Film(library, "On The Plane", "9031");
+        var other = Film(library, "Watched Later", "9032");
+        await SeedAsync(db => db.AddRange(library, film, other));
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = film.Id });
+        // Something watched since sets the newest play, then the phone reports one from earlier.
+        await SeedAsync(db => db.PlaybackStates.Add(new PlaybackState { MediaItemId = other.Id, Watched = true, LastPlayedAt = DateTime.UtcNow.AddMinutes(1) }));
+        Assert.Single((await ListAsync()).EnumerateArray());
+
+        (await Client().PostAsJsonAsync(Api($"/items/{film.Id}/offline-progress"),
+            new { positionSeconds = 0, finished = true, playedAt = DateTime.UtcNow.AddSeconds(30) })).EnsureSuccessStatusCode();
+
+        Assert.Empty((await ListAsync()).EnumerateArray());
     }
 
     [Fact]

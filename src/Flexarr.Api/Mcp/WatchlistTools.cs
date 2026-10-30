@@ -103,7 +103,8 @@ public static class WatchlistTools
             throw new InvalidOperationException(refusal!.Message);
         }
 
-        var name = added.Entry.Year is { } released ? $"{added.Entry.Title} ({released})" : added.Entry.Title;
+        var shown = new string(added.Entry.Title.Where(c => !char.IsControl(c)).Take(100).ToArray());
+        var name = added.Entry.Year is { } released ? $"{shown} ({released})" : shown;
         return added.Entry.Status switch
         {
             _ when added.Requested => $"Added {name} to the watchlist and requested it.",

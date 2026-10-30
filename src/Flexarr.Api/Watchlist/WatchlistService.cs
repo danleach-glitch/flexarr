@@ -202,8 +202,13 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             entry.RemovedReason = null;
             entry.AddedAt = DateTime.UtcNow;
             entry.Source = source;
-            // Already in the library: nothing to tell anyone. Not yet: tell them when it comes.
+            // Already in the library: nothing to tell anyone (and nothing to request). Not yet: tell them when it comes.
             entry.ArrivedAt = item is not null ? DateTime.UtcNow : null;
+            if (item is not null && entry.MediaItemId is null
+                && !await db.WatchlistEntries.AnyAsync(w => w.ProfileId == profileId && w.MediaItemId == item.Id, ct))
+            {
+                entry.MediaItemId = item.Id;
+            }
         }
         else if (item is not null)
         {
@@ -267,7 +272,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
                 : (null, new WatchlistRefusal(409, "That couldn't be added. Try again."));
         }
 
-        var requested = mayRequest && source == WatchlistSource.Flexarr && await AutoRequestAsync(profileId, entry, ct);
+        // In the library already (even held by another of its entries): nothing to request.
+        var requested = mayRequest && source == WatchlistSource.Flexarr && item is null && await AutoRequestAsync(profileId, entry, ct);
         return (new WatchlistAdded(await DtoAsync(profileId, entry, ct), requested), null);
     }
 
@@ -277,6 +283,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     /// <summary>Takes a title off. It's kept as removed, so a sync can pass that on; a request for it isn't cancelled.</summary>
     public async Task<bool> RemoveAsync(string profileId, Guid id, CancellationToken ct)
     {
+        LookAgain();
         var removed = await Live(profileId).Where(w => w.Id == id)
             .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, WatchlistRemoval.Removed), ct) > 0;
         // Removals long past go for good, so they can't pile up.
@@ -297,10 +304,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     /// </summary>
     internal async Task PruneAsync(string profileId, CancellationToken ct)
     {
-        // Only worth looking when there's been a play, or a title has come into the library, since the last look.
+        // Only worth looking when there's been a play, or a title has come into the library, since the last look (or
+        // something said to look again: plays dated in the past, a title linked or taken off).
         var lastPlay = await db.PlaybackStates.Where(p => p.UserId == profileId).MaxAsync(p => (DateTime?)p.LastPlayedAt, ct);
         var linkedCount = await Live(profileId).CountAsync(w => w.MediaItemId != null, ct);
-        var stamp = (lastPlay, linkedCount);
+        var stamp = (lastPlay, linkedCount + 1_000_000 * Volatile.Read(ref pruneGeneration));
         var stampKey = $"watchlist:pruned:{profileId}";
         if (cache.TryGetValue(stampKey, out (DateTime?, int) seen) && seen == stamp)
         {
@@ -325,8 +333,16 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             }
         }
 
-        cache.Set(stampKey, (lastPlay, linkedCount - watched.Count - started.Count), TimeSpan.FromHours(1));
+        cache.Set(stampKey, (lastPlay, linkedCount - watched.Count - started.Count + 1_000_000 * Volatile.Read(ref pruneGeneration)), TimeSpan.FromHours(1));
     }
+
+    private static int pruneGeneration;
+
+    /// <summary>
+    /// Makes the next read of any watchlist look for titles to take off, whatever it saw last: for plays recorded with
+    /// a past date (watched offline, imported from Plex), which a newest-play check can't see, and titles newly linked.
+    /// </summary>
+    public static void LookAgain() => Interlocked.Increment(ref pruneGeneration);
 
     /// <summary>
     /// Points titles that have come into the library (or come back to it) at their library item, among the titles this
@@ -382,6 +398,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
 
             entry.MediaItemId = match.Id;
             holders.Add(entry);
+            LookAgain();
         }
     }
 
@@ -405,7 +422,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
 
         var mediaType = entry.Kind == MediaKind.Movie ? "movie" : "tv";
-        if (await SeerrFactsAsync(mediaType, tmdbId, ct) is not { Availability: AvailabilityDto.None } facts || ReferenceEquals(facts, Unanswered))
+        if (await SeerrFactsAsync(mediaType, tmdbId, ct) is not { Availability: AvailabilityDto.None } facts
+            || ReferenceEquals(facts, Unanswered) || ReferenceEquals(facts, Unreadable))
         {
             return false; // Already asked for, partly in, or Seerr isn't answering (so it can't say).
         }
@@ -496,6 +514,13 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     /// <summary>Kept for a minute when Seerr doesn't answer, so a list isn't held up asking again.</summary>
     private static readonly SeerrFacts Unanswered = new(AvailabilityDto.None, null, []);
 
+    /// <summary>Kept for a minute for one title Seerr answered badly (an error, a page that isn't JSON): Seerr itself is up.</summary>
+    private static readonly SeerrFacts Unreadable = new(AvailabilityDto.None, null, []);
+
+    /// <summary>Seerr didn't answer at all (a timeout, no connection), as opposed to answering badly about one title.</summary>
+    private static bool SeerrUnreachable(Exception ex, CancellationToken ct) =>
+        (ex is TaskCanceledException && !ct.IsCancellationRequested) || ex is HttpRequestException { StatusCode: null };
+
     private static string MediaType(MediaKind kind) => kind == MediaKind.Movie ? "movie" : "tv";
 
     private static string Key(MediaKind kind, int tmdbId) => $"{MediaType(kind)}:{tmdbId.ToString(CultureInfo.InvariantCulture)}";
@@ -537,7 +562,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
                 {
                     await stop.CancelAsync();
                 }
-                else if (facts is not null)
+                else if (facts is not null && !ReferenceEquals(facts, Unreadable))
                 {
                     result[$"{title.MediaType}:{title.TmdbId.ToString(CultureInfo.InvariantCulture)}"] = facts;
                 }
@@ -584,7 +609,14 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
         catch (Exception ex) when (SeerrFailed(ex, ct))
         {
-            // The list still shows; the title just can't say whether it's on its way.
+            // The list still shows; the title just can't say whether it's on its way. Only Seerr not answering at all
+            // stops the others asking.
+            if (!SeerrUnreachable(ex, ct))
+            {
+                cache.Set(key, Unreadable, SeerrFailureCacheFor);
+                return Unreadable;
+            }
+
             cache.Set(downKey, true, SeerrFailureCacheFor);
             return Unanswered;
         }
@@ -612,6 +644,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         catch (Exception ex) when (SeerrFailed(ex, ct))
         {
             cache.Set(key, (string?)null, SeerrFailureCacheFor);
+            if (SeerrUnreachable(ex, ct))
+            {
+                cache.Set($"watchlist:seerr:down:{instance.BaseUrl}", true, SeerrFailureCacheFor);
+            }
+
             return null;
         }
     }

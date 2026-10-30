@@ -108,7 +108,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         answered.AddRange(await WatchlistArrivalsAsync(db, answered, to, now, ct));
         if (devices.Count == 0)
         {
-            await db.SaveChangesAsync(ct);
+            await SaveAsync(db, ct);
             return;
         }
 
@@ -142,7 +142,29 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(db, ct);
+    }
+
+    /// <summary>
+    /// Saves the tick's changes. If a watchlist title was linked to another of the profile's entries meanwhile (added
+    /// again by its library id), that one stands and this one is only marked arrived, so the tick still saves and
+    /// nobody is told twice.
+    /// </summary>
+    private static async Task SaveAsync(FlexarrDbContext db, CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            foreach (var entry in db.ChangeTracker.Entries<WatchlistEntry>().Where(e => e.State == EntityState.Modified))
+            {
+                entry.Property(w => w.MediaItemId).CurrentValue = entry.Property(w => w.MediaItemId).OriginalValue;
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private static async Task<Dictionary<Guid, Show>> ShowsAsync(FlexarrDbContext db, List<Fresh> fresh, CancellationToken ct)
