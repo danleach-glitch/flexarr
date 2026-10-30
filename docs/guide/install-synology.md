@@ -86,4 +86,4 @@ When a new release is out, Container Manager's **Image** page marks the Flexarr 
 
 ## Next: set it up
 
-Open **http://&lt;your-nas&gt;:8383** in a browser on your home network, using the NAS's name or IP address, and enter the setup code from the container's log (in Container Manager, select the container and open **Log**). The first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).
+In Container Manager, select the container and open **Log**. It says **Set it up at http://localhost:8383/#setup=…**. Copy that link into a browser on your home network, putting the NAS's name or IP address in place of `localhost`. The page has the setup code filled in, so you only choose a PIN. The first browser to do it becomes the new server's owner. Carry on with [First setup](first-setup.md).

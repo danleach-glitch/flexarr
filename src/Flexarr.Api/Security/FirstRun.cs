@@ -119,7 +119,7 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
             file = "(couldn't be saved to a file)";
         }
 
-        LogCode(code, file);
+        LogCode(SetupLink("localhost", code), code, file);
         return code;
     }
 
@@ -147,9 +147,19 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
         }
     }
 
-    // A warning, so it's in the console even where only warnings are (the macOS service), and easy to spot in it.
-    [LoggerMessage(Level = LogLevel.Warning, Message = "This server isn't set up yet. To set it up, open it in a browser on your home network and enter the setup code {Code}. The code is also in {File}.")]
-    private partial void LogCode(string code, string file);
+    /// <summary>
+    /// The welcome page with the code filled in: after the #, which browsers never send to the server, so the code
+    /// stays out of logs and proxies. Docker's log viewers make it something to click.
+    /// </summary>
+    internal static string SetupLink(string host, string code) => $"http://{host}:{DefaultPort}/#setup={code}";
+
+    /// <summary>The port in the Dockerfile, appsettings.json and the install guides.</summary>
+    private const int DefaultPort = 8383;
+
+    // A warning, so it's in the console even where only warnings are (the macOS service), and easy to spot in it. The
+    // link first: setting up from it is only choosing a PIN.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "This server isn't set up yet. Set it up at {Link} (from another computer, use this one's name or IP address in place of localhost). The setup code is {Code}, also in {File}.")]
+    private partial void LogCode(string link, string code, string file);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Setup was tried with a wrong code {Tries} times, so it has a new code")]
     private partial void LogTooManyTries(int tries);

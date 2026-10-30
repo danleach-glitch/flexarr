@@ -152,9 +152,9 @@ function whereTheCodeIs(install: InstallKind | undefined) {
     case 'MacLaunchAgent':
       return 'It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.'
     case 'Docker':
-      return 'It’s in the Flexarr container’s log.'
+      return 'The Flexarr container’s log has it, and a link that fills it in for you.'
     default:
-      return 'It’s in the server’s log.'
+      return 'The server’s log has it, and a link that fills it in for you.'
   }
 }
 
@@ -237,7 +237,9 @@ export default function App() {
   function setUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    const code = form.get('setupCode')?.toString().trim()
+    // The server's log gives a link with the code in it; pasted whole, the code is taken from it.
+    const typed = form.get('setupCode')?.toString().trim()
+    const code = typed?.includes('setup=') ? new URLSearchParams(typed.slice(typed.indexOf('#') + 1)).get('setup')?.trim() : typed
     const pin = form.get('setupPin')?.toString() ?? ''
     if (!code) return
     if (pin !== form.get('setupPinAgain')?.toString()) {

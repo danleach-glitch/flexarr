@@ -138,7 +138,12 @@
 </ul>
 <p>If the page doesn&#39;t load, check that Flexarr is running (your install guide, linked from <a href="/guide/what-you-need">What you need</a>, shows how) and that you&#39;ve typed <code>http://</code>, not <code>https://</code>.</p>
 <h2 id="enter-the-setup-code"><a class="anchor" href="#enter-the-setup-code" aria-hidden="true" tabindex="-1">#</a>Enter the setup code</h2>
-<p>With the Mac app, there&#39;s nothing to look up: the first time it starts, it opens the welcome page in your browser with the code already filled in, so you only choose a PIN. <strong>Open Flexarr</strong> in its menu does the same until the server is set up.</p>
+<p>Usually there&#39;s nothing to look up:</p>
+<ul>
+<li><strong>The Mac app</strong> opens the welcome page in your browser the first time it starts, with the code already filled in. <strong>Open Flexarr</strong> in its menu does the same until the server is set up.</li>
+<li><strong>Docker</strong> (including Synology and Unraid): the container&#39;s log says <strong>Set it up at <a href="http://localhost:8383/#setup=…" rel="noopener">http://localhost:8383/#setup=…</a></strong>. Open that link. From another computer, put the server&#39;s name or IP address in place of <code>localhost</code>. Pasting the whole link into the setup code box works too.</li>
+</ul>
+<p>Either way you only choose a PIN. If you open the server&#39;s address without the link, it asks for the code itself.</p>
 <p>A new server greets you with <strong>Welcome to your Flexarr server</strong> and asks for its <strong>setup code</strong>. The code proves you&#39;re the one who installed it: some setups (a reverse proxy, Docker Desktop) make visitors from the internet look as though they&#39;re on your home network, and only someone with the server can read its code. It&#39;s eight letters and numbers, like <code>K7QM-3PXT</code>, and it&#39;s in:</p>
 <ul>
 <li><strong>Docker</strong> (including Synology and Unraid): the container&#39;s log. Run <code>docker logs flexarr</code>, or open the container&#39;s log in your NAS&#39;s Docker app. It&#39;s also in <code>setup-code.txt</code> in the container&#39;s settings folder.</li>

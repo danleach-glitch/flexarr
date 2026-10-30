@@ -245,7 +245,8 @@ describe('App', () => {
     fill('WRONG-ONE', '2468')
     expect(await screen.findByText("That isn't this server's setup code.")).toBeInTheDocument()
 
-    fill('ABCD-EFGH', '2468')
+    // The whole link from the server's log, pasted in.
+    fill('http://localhost:8383/#setup=ABCD-EFGH', '2468')
 
     expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()

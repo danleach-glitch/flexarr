@@ -139,4 +139,4 @@ Flexarr converts on the processor. Docker Desktop can pass an NVIDIA graphics ca
 
 ## Next: set it up
 
-Open **http://&lt;server&gt;:8383** in a browser on your home network, using the computer's name or IP address (or **http://localhost:8383** on the computer itself), and enter the setup code from `docker logs flexarr`. The first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).
+Look at the container's log (`docker logs flexarr`, or **Logs** on the container in Docker Desktop). It says **This server isn't set up yet. Set it up at http://localhost:8383/#setup=…**. Open that link: on the computer running Docker it works as it is, and from another computer put the server's name or IP address in place of `localhost`. The page has the setup code filled in, so you only choose a PIN. The first browser to do it becomes the new server's owner. Carry on with [First setup](first-setup.md).
