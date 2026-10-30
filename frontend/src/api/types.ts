@@ -178,6 +178,8 @@ export interface ItemDetail {
   season?: ItemDetail | null
   /** Bazarr can find subtitles for this film or episode. Absent from servers before 0.53. */
   canSearchSubtitles?: boolean
+  /** For a film or show, whether it's on this profile's watchlist. Absent from servers before 0.56. */
+  onWatchlist?: boolean | null
 }
 
 export interface Person {

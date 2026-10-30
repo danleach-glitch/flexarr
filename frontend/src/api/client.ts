@@ -1188,10 +1188,53 @@ export interface ExternalDetail {
   availability: ExternalTitle['availability']
   libraryItemId: string | null
   recommendations: ExternalTitle[]
+  /** Whether it's on this profile's watchlist. Absent from servers before 0.56. */
+  onWatchlist?: boolean | null
 }
 
 export const getExternalTitle = (mediaType: string, tmdbId: string, signal?: AbortSignal) =>
   apiGet<ExternalDetail>(`/requests/title/${mediaType}/${tmdbId}`, signal)
+
+/** Where a title on the watchlist has got to: in the library, requested or downloading, not out yet, or none of those. */
+export type WatchlistStatus = 'Ready' | 'OnItsWay' | 'Coming' | 'NotAvailable'
+
+export interface WatchlistEntry {
+  id: string
+  mediaType: 'movie' | 'tv'
+  tmdbId: number | null
+  title: string
+  year: number | null
+  poster: string | null
+  backdrop: string | null
+  addedAt: string
+  status: WatchlistStatus
+  releaseDate: string | null
+  libraryItemId: string | null
+  /** The library title, when it's ready, for the usual card. */
+  item: ItemSummary | null
+  source: 'flexarr' | 'trakt'
+}
+
+/** A library title by its id, or one from outside it by TMDB id. */
+export type WatchlistKey = { libraryItemId: string } | { mediaType: 'movie' | 'tv'; tmdbId: number }
+
+const watchlistQuery = (key: WatchlistKey) =>
+  'libraryItemId' in key ? `libraryItemId=${encodeURIComponent(key.libraryItemId)}` : `mediaType=${key.mediaType}&tmdbId=${key.tmdbId}`
+
+/** Tells open pages the watchlist changed, so its page and buttons can catch up. */
+export const watchlistChanged = () => window.dispatchEvent(new Event('flexarr:watchlist'))
+
+export const getWatchlist = (signal?: AbortSignal) => apiGet<WatchlistEntry[]>('/watchlist', signal)
+/** `requested`: adding it also asked Seerr for it (when the profile requests what it adds). */
+export const addToWatchlist = async (key: WatchlistKey) => {
+  const added = await request<{ entry: WatchlistEntry; requested: boolean }>('POST', '/watchlist', key)
+  watchlistChanged()
+  return added
+}
+export const removeFromWatchlist = async (key: WatchlistKey | { id: string }) => {
+  await request<void>('DELETE', 'id' in key ? `/watchlist/${key.id}` : `/watchlist?${watchlistQuery(key)}`)
+  watchlistChanged()
+}
 
 export interface Profile {
   id: string
@@ -1215,6 +1258,8 @@ export interface Profile {
    * in it's only asked for if the owner wants it to be. Absent from servers before 0.56, where `hasPin` says.
    */
   asksPin?: boolean
+  /** Titles it adds to its watchlist that aren't in the library are requested. Absent from servers before 0.56. */
+  autoRequestWatchlist?: boolean
 }
 
 /** Whether choosing a profile here asks for its PIN. */
@@ -1230,6 +1275,8 @@ export const updateProfile = (id: string, profile: ProfileChanges) =>
 /** Where a profile's requests go; null is wherever Seerr adds them by default. */
 export const setRequestLibraries = (id: string, libraries: { showsLibraryId: string | null; filmsLibraryId: string | null }) =>
   request<Profile>('PUT', `/profiles/${id}/request-libraries`, libraries)
+/** Whether a profile's watchlist requests what it adds (main profile only). */
+export const setWatchlistRequests = (id: string, autoRequest: boolean) => request<Profile>('PUT', `/profiles/${id}/watchlist-requests`, { autoRequest })
 /** The order of a profile's libraries in every app's menu; /libraries lists them in it. */
 export const setLibraryOrder = (id: string, order: string[]) => request<Profile>('PUT', `/profiles/${id}/library-order`, { order })
 export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)

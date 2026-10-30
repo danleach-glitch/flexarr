@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { getTracks, removeFromContinueWatching, setWatched, type ItemSummary } from '../api/client'
+import { addToWatchlist, getTracks, removeFromContinueWatching, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { openAddToPlaylist } from './AddToPlaylist'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -50,6 +50,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       actions.push('divider')
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark as unwatched', run: mark(item, false) })
+      actions.push({ label: 'Add to watchlist', run: async () => { await addToWatchlist({ libraryItemId: item.id }) } })
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Episode':
@@ -67,6 +68,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     case 'Series':
       actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
       actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
+      actions.push({ label: 'Add to watchlist', run: async () => { await addToWatchlist({ libraryItemId: item.id }) } })
       actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Album':

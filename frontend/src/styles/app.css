@@ -1284,6 +1284,51 @@ kbd {
   align-self: flex-start;
 }
 
+/* Request (or where it stands) on the left, the watchlist bookmark on the right. */
+.external-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.external-card-actions .watchlist-toggle {
+  width: 36px;
+  height: 36px;
+  margin-top: 8px;
+  color: var(--silver);
+}
+
+.external-card-actions .watchlist-toggle[aria-pressed='true'],
+.external-card-actions .watchlist-toggle:hover {
+  color: var(--screen);
+}
+
+/* ---------- Watchlist ---------- */
+
+.watchlist-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.watchlist-card {
+  position: relative;
+}
+
+/* A ready title's own card, with the bookmark over its poster's corner to take it off. */
+.watchlist-card > .watchlist-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 36px;
+  height: 36px;
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(6px);
+}
+
 .external-state {
   margin-top: 8px;
   font-size: var(--step--1);

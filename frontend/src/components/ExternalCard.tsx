@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { imageUrl, type ExternalTitle } from '../api/client'
 import { RequestButton } from './RequestButton'
+import { WatchlistButton } from './WatchlistButton'
 
-/** A title from outside the library: its poster opens it (in Flexarr if you have it), with a request button. */
+/** A title from outside the library: its poster opens it (in Flexarr if you have it), with request and watchlist buttons. */
 export function ExternalCard({ title }: { title: ExternalTitle }) {
+  const [requested, setRequested] = useState(false)
   const poster = (
     <div className="card-frame">
       <div className="artwork artwork-poster">
@@ -22,7 +25,16 @@ export function ExternalCard({ title }: { title: ExternalTitle }) {
       </Link>
       <span className="card-title">{title.title}</span>
       <span className="card-subtitle">{[title.mediaType === 'tv' ? 'Series' : 'Film', title.year].filter(Boolean).join(', ')}</span>
-      <RequestButton title={title} />
+      <div className="external-card-actions">
+        <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} />
+        <WatchlistButton
+          compact
+          titleKey={title.libraryItemId ? { libraryItemId: title.libraryItemId } : { mediaType: title.mediaType, tmdbId: title.tmdbId }}
+          title={title.title}
+          on={false}
+          onRequested={() => setRequested(true)}
+        />
+      </div>
     </div>
   )
 }

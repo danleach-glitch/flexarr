@@ -7,6 +7,7 @@ import {
   getRequestDestinations,
   removeProfileImage,
   setRequestLibraries,
+  setWatchlistRequests,
   uploadProfileImage,
   getProfiles,
   updateProfile,
@@ -169,6 +170,7 @@ function ProfileForm({
     requestShowsLibraryId: profile?.requestShowsLibraryId ?? null,
     requestFilmsLibraryId: profile?.requestFilmsLibraryId ?? null,
   })
+  const [autoRequest, setAutoRequest] = useState(profile?.autoRequestWatchlist ?? false)
   // Only kinds with a choice left once the hidden libraries are taken out.
   const requestFields = requestRows.map((r) => ({ ...r, choices: requestChoices(destinations, r.mediaType, hidden) })).filter((r) => r.choices.length > 1)
   const [picture, setPicture] = useState<File | null>()
@@ -202,6 +204,7 @@ function ProfileForm({
       const { requestShowsLibraryId: showsLibraryId, requestFilmsLibraryId: filmsLibraryId } = requestLibraries
       if (showsLibraryId !== (profile?.requestShowsLibraryId ?? null) || filmsLibraryId !== (profile?.requestFilmsLibraryId ?? null))
         await setRequestLibraries(saved.id, { showsLibraryId, filmsLibraryId })
+      if (autoRequest !== (profile?.autoRequestWatchlist ?? false)) await setWatchlistRequests(saved.id, autoRequest)
       if (picture) await uploadProfileImage(saved.id, picture)
       else if (picture === null && profile?.image) await removeProfileImage(saved.id)
       onDone()
@@ -390,6 +393,18 @@ function ProfileForm({
               </label>
             ))}
           </div>
+        </fieldset>
+      )}
+      {destinations.length > 0 && (
+        <fieldset className="profile-section">
+          <legend className="visually-hidden">Watchlist</legend>
+          <label className="profile-section-head">
+            <span className="setting-text">
+              <strong>Request what {profile ? profile.name : 'this profile'} adds to the watchlist</strong>
+              <span className="muted">Films and shows that aren’t in the library are requested as they’re added.</span>
+            </span>
+            <input type="checkbox" role="switch" className="switch" checked={autoRequest} onChange={(e) => setAutoRequest(e.target.checked)} />
+          </label>
         </fieldset>
       )}
       {errors.length > 0 && (
