@@ -43,6 +43,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<MediaRequest> MediaRequests => Set<MediaRequest>();
     public DbSet<NotificationCursor> NotificationCursors => Set<NotificationCursor>();
     public DbSet<RecentSearch> RecentSearches => Set<RecentSearch>();
+    public DbSet<WatchlistEntry> WatchlistEntries => Set<WatchlistEntry>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -307,6 +308,22 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.ProfileId).HasMaxLength(64);
             e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
+        });
+
+        modelBuilder.Entity<WatchlistEntry>(e =>
+        {
+            e.Property(w => w.ProfileId).HasMaxLength(64);
+            e.Property(w => w.TvdbId).HasMaxLength(32);
+            e.Property(w => w.ImdbId).HasMaxLength(32);
+            e.Property(w => w.Title).HasMaxLength(500);
+            e.Property(w => w.PosterUrl).HasMaxLength(2048);
+            e.Property(w => w.BackdropUrl).HasMaxLength(2048);
+            e.HasOne<Profile>().WithMany().HasForeignKey(w => w.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            // A title removed from the library stays on the list, to be found again by its TMDB id.
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(w => w.MediaItemId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(w => new { w.ProfileId, w.Kind, w.TmdbId }).IsUnique().HasFilter("\"TmdbId\" IS NOT NULL");
+            e.HasIndex(w => new { w.ProfileId, w.MediaItemId }).IsUnique().HasFilter("\"MediaItemId\" IS NOT NULL");
+            e.HasIndex(w => new { w.ArrivedAt, w.Kind, w.TmdbId });
         });
 
         modelBuilder.Entity<NotificationCursor>(e =>

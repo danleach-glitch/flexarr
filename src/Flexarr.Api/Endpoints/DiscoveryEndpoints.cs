@@ -68,6 +68,13 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
             }
 
+            // Titles from this profile's watchlist it can play now; nothing until something on the list is in.
+            if (LayoutEndpoints.IsOn(options.Layout.Home, Watchlist.WatchlistService.HomeRowId))
+            {
+                var ready = await services.GetRequiredService<Watchlist.WatchlistService>().ReadyAsync(me, RowSize, ct);
+                rows.Add(new HomeRowDto(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", "poster", ready, "/watchlist"));
+            }
+
             // The channel watched last, then the profile's favourites, with what's on them; nothing until there's one.
             if (options.LiveTv?.Account is not null && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
             {

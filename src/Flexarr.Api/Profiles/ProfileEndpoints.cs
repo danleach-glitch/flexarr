@@ -20,14 +20,19 @@ namespace Flexarr.Api.Profiles;
 /// Choosing it here asks for its PIN. The main profile's PIN guards managing the server, so on a browser or device the
 /// owner signed in, choosing it only asks if the owner wants it to (absent from servers before 0.56: there, HasPin).
 /// </param>
+/// <param name="AutoRequestWatchlist">Titles it adds to its watchlist that aren't in the library are requested (absent from servers before 0.56).</param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
-    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false);
+    Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
+    bool AutoRequestWatchlist = false);
 
 /// <summary>The order of a profile's libraries in the menu: library ids, and "live-tv"; empty goes back to by name.</summary>
 public sealed record LibraryOrderRequest(IReadOnlyList<string> Order);
 
 /// <summary>Where a profile's requests go. Both are set each time; null is wherever Seerr adds them by default.</summary>
 public sealed record RequestLibrariesRequest(Guid? ShowsLibraryId, Guid? FilmsLibraryId);
+
+/// <summary>Whether a profile's watchlist requests what it adds. Only the admin chooses, since it sets Sonarr and Radarr downloading.</summary>
+public sealed record WatchlistRequestsRequest(bool AutoRequest);
 
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
 /// <param name="CurrentPin">Changing or removing the main profile's PIN takes the one it has now...</param>
@@ -150,6 +155,18 @@ public static partial class ProfileEndpoints
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(profile, current));
         });
+
+        group.MapPut("/{id}/watchlist-requests", async (string id, WatchlistRequestsRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            profile.AutoRequestWatchlist = request.AutoRequest;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         // Like the request libraries, a profile's own choice; every app's menu follows it.
         group.MapPut("/{id}/library-order", async (string id, LibraryOrderRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
@@ -400,7 +417,7 @@ public static partial class ProfileEndpoints
 
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
-            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p));
+            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist);
 
     private static IResult? Validate(ProfileRequest request)
     {

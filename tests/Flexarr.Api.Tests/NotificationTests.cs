@@ -318,6 +318,50 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AWatchlistTitleComingIn_TellsWhoWantedIt()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 693134, Title = "Dune: Part Two", AddedAt = _clock.Now.AddDays(-5) });
+            db.MediaItems.Add(Film(library, "Dune: Part Two", _clock.Now.AddMinutes(1), tmdb: "693134"));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("From your watchlist", sent.GetProperty("t").GetString());
+        Assert.Equal("Dune: Part Two (2020) is ready to watch.", sent.GetProperty("b").GetString());
+        using var scope = _server.Services.CreateScope();
+        var entry = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().WatchlistEntries.SingleAsync();
+        Assert.NotNull(entry.ArrivedAt);
+        Assert.NotNull(entry.MediaItemId);
+    }
+
+    [Fact]
+    public async Task AWatchlistTitleAlsoRequested_IsToldOnce()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 438631, Title = "Dune", AddedAt = _clock.Now.AddDays(-2) });
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 438631, RequestedAt = _clock.Now.AddDays(-2) });
+            db.MediaItems.Add(Film(library, "Dune", _clock.Now.AddMinutes(1), tmdb: "438631"));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("Your request is ready", sent.GetProperty("t").GetString());
+    }
+
+    [Fact]
     public async Task PodcastEpisodes_OfShowsFollowed_AfterFollowing()
     {
         var (_, phone) = await PhoneAsync();

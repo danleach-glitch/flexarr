@@ -66,6 +66,9 @@ public sealed class Profile
     /// <summary>The film library films this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestFilmsLibraryId { get; set; }
 
+    /// <summary>Titles this profile adds to its watchlist that aren't in the library are requested through Seerr.</summary>
+    public bool AutoRequestWatchlist { get; set; }
+
     /// <summary>
     /// The order of the libraries in every app's menu: library ids, and "live-tv" for Live TV where an app lists it
     /// among them. Libraries it doesn't mention (a new one) follow, by name. Empty: all by name.

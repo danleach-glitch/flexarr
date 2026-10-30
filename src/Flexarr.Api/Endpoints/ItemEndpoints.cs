@@ -80,13 +80,18 @@ public static class ItemEndpoints
         // includeSeason (the web's title page): a series also carries its Up Next episode and one season's episodes (the
         // requested number, else the first unwatched), so the page needs one request rather than three in a row.
         api.MapGet("/items/{id:guid}", async (Guid id, bool? includeSeason, int? season, FlexarrDbContext db, PlaybackService playback,
-            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, Watchlist.WatchlistService watchlist, CancellationToken ct) =>
         {
             var bazarr = options.CurrentValue.Bazarr?.Instance is not null;
             var detail = await DetailAsync(id, db, profile, bazarr, ct);
             if (detail is null)
             {
                 return Results.NotFound();
+            }
+
+            if (detail.Item.Kind is MediaKind.Movie or MediaKind.Series)
+            {
+                detail = detail with { OnWatchlist = await watchlist.ContainsItemAsync(profile.Id, id, ct) };
             }
 
             if (includeSeason == true && detail.Item.Kind == MediaKind.Series)

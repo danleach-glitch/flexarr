@@ -45,6 +45,7 @@ public sealed record RequestDestinationDto(Guid Id, string Name, string MediaTyp
 public sealed record ExternalPersonDto(string Name, string? Character, string? Image);
 
 /// <summary>Everything worth knowing about a film or show you don't have, from Seerr (which gets it from TMDB).</summary>
+/// <param name="OnWatchlist">Whether it's on the profile's watchlist (absent from servers before 0.56).</param>
 /// <param name="CriticScore">Rotten Tomatoes critics, percent.</param>
 /// <param name="AudienceScore">Rotten Tomatoes audience, percent.</param>
 public sealed record ExternalDetailDto(
@@ -71,7 +72,8 @@ public sealed record ExternalDetailDto(
     string? Studio,
     AvailabilityDto Availability,
     Guid? LibraryItemId,
-    IReadOnlyList<ExternalTitleDto> Recommendations);
+    IReadOnlyList<ExternalTitleDto> Recommendations,
+    bool? OnWatchlist = null);
 
 public static class RequestEndpoints
 {
@@ -174,7 +176,8 @@ public static class RequestEndpoints
             }
         });
 
-        group.MapGet("/title/{mediaType}/{tmdbId:int}", async (string mediaType, int tmdbId, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/title/{mediaType}/{tmdbId:int}", async (string mediaType, int tmdbId, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db,
+            Watchlist.WatchlistService watchlist, CurrentProfile current, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance || mediaType is not ("movie" or "tv"))
             {
@@ -198,7 +201,8 @@ public static class RequestEndpoints
 
                 var ratings = await SafeGetAsync(seerr, instance, mediaType == "movie" ? $"movie/{tmdbId}/ratingscombined" : $"tv/{tmdbId}/ratings", ct);
                 var recommendations = await SafeGetAsync(seerr, instance, $"{mediaType}/{tmdbId}/recommendations", ct);
-                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden));
+                var onWatchlist = (await watchlist.MembershipAsync(current.Id, new Watchlist.WatchlistAdd(null, mediaType, tmdbId), ct)).OnWatchlist;
+                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden) with { OnWatchlist = onWatchlist });
             }
             catch (HttpRequestException ex)
             {
@@ -226,16 +230,7 @@ public static class RequestEndpoints
 
             try
             {
-                var kind = KindOf(request.MediaType);
-                var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.CurrentValue.PathMappings, db, current.Id, kind, ct);
-                await seerr.RequestAsync(instance, request.MediaType, request.TmdbId, to, ct);
-                // Remembered here (Seerr only knows Flexarr asked), so whoever asked hears when it's in.
-                if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == current.Id && r.Kind == kind && r.TmdbId == request.TmdbId && r.FulfilledAt == null, ct))
-                {
-                    db.MediaRequests.Add(new MediaRequest { ProfileId = current.Id, Kind = kind, TmdbId = request.TmdbId });
-                    await db.SaveChangesAsync(ct);
-                }
-
+                await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct);
                 return Results.Accepted();
             }
             catch (HttpRequestException ex)
@@ -246,6 +241,33 @@ public static class RequestEndpoints
 
         return api;
     }
+
+    /// <summary>
+    /// Asks Seerr for a title for a profile, sent to the library it chose, and remembers who asked (Seerr only knows
+    /// Flexarr did) so they hear when it's in. Throws <see cref="HttpRequestException"/> when Seerr refuses.
+    /// </summary>
+    /// <param name="mediaType">"movie" or "tv".</param>
+    internal static async Task PlaceAsync(SeerrClient seerr, SeerrInstance instance, FlexarrOptions options, FlexarrDbContext db, string profileId, string mediaType,
+        int tmdbId, CancellationToken ct)
+    {
+        var kind = KindOf(mediaType);
+        var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);
+        await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct);
+        if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null, ct))
+        {
+            db.MediaRequests.Add(new MediaRequest { ProfileId = profileId, Kind = kind, TmdbId = tmdbId });
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    /// <summary>What Seerr's status for a title (from <c>mediaInfo.status</c>) means for whether you can have it.</summary>
+    internal static AvailabilityDto AvailabilityOf(int? seerrStatus) => seerrStatus switch
+    {
+        5 => AvailabilityDto.Available,
+        4 => AvailabilityDto.PartlyAvailable,
+        2 or 3 => AvailabilityDto.Requested,
+        _ => AvailabilityDto.None,
+    };
 
     private static async Task<JsonElement?> SafeGetAsync(SeerrClient seerr, SeerrInstance instance, string path, CancellationToken ct)
     {
@@ -332,13 +354,7 @@ public static class RequestEndpoints
     {
         var key = $"{r.MediaType}:{r.Id.ToString(CultureInfo.InvariantCulture)}";
         var inLibrary = library.TryGetValue(key, out var itemId);
-        var availability = inLibrary ? AvailabilityDto.Available : r.MediaInfo?.Status switch
-        {
-            5 => AvailabilityDto.Available,
-            4 => AvailabilityDto.PartlyAvailable,
-            2 or 3 => AvailabilityDto.Requested,
-            _ => AvailabilityDto.None,
-        };
+        var availability = inLibrary ? AvailabilityDto.Available : AvailabilityOf(r.MediaInfo?.Status);
         var date = r.ReleaseDate ?? r.FirstAirDate;
         return new ExternalTitleDto(
             r.Id, r.MediaType, r.Title ?? r.Name ?? "Untitled",

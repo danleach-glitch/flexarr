@@ -105,6 +105,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         fresh = await WithoutReplacementsAsync(db, fresh, shows, ct);
 
         var answered = await RequestsAsync(db, to, now, ct);
+        answered.AddRange(await WatchlistArrivalsAsync(db, answered, to, now, ct));
         if (devices.Count == 0)
         {
             await db.SaveChangesAsync(ct);
@@ -295,6 +296,47 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", what, "flexarr.video", $"item:{first.SeriesId}",
                     Artwork(first.Poster), Video(first.SeriesId, first.Id)), episodes.Select(e => e.Id).ToList()));
             }
+        }
+
+        return answered;
+    }
+
+    /// <summary>
+    /// Titles on a watchlist that are now in the library, to tell whoever put them there. A title they requested has
+    /// "Your request is ready" instead, so they hear once; either way the entry is marked as arrived.
+    /// </summary>
+    private static async Task<List<Answered>> WatchlistArrivalsAsync(FlexarrDbContext db, List<Answered> requests, DateTime settled, DateTime now, CancellationToken ct)
+    {
+        var answered = new List<Answered>();
+        var waiting = await db.WatchlistEntries.Where(w => w.ArrivedAt == null && w.TmdbId != null).ToListAsync(ct);
+        foreach (var entry in waiting)
+        {
+            var tmdb = entry.TmdbId!.Value.ToString(CultureInfo.InvariantCulture);
+            var title = await db.MediaItems.AsNoTracking()
+                .Where(i => i.Kind == entry.Kind && i.TmdbId == tmdb && i.ParentId == null)
+                .Where(i => i.Kind == MediaKind.Movie ? i.AddedAt <= settled : i.Children.Any(s => s.Children.Any(e => e.AddedAt <= settled)))
+                .Select(i => new { i.Id, i.Title, i.Year, i.PosterUrl }).FirstOrDefaultAsync(ct);
+            if (title is null)
+            {
+                continue;
+            }
+
+            entry.MediaItemId = title.Id;
+            entry.ArrivedAt = now;
+            var told = requests.Any(r => r.ProfileId == entry.ProfileId && r.Message.Thread == $"item:{title.Id}")
+                || await db.MediaRequests.AnyAsync(r => r.ProfileId == entry.ProfileId && r.Kind == entry.Kind && r.TmdbId == entry.TmdbId && r.FulfilledAt != null && r.FulfilledAt >= entry.AddedAt, ct);
+            if (told)
+            {
+                continue;
+            }
+
+            var first = entry.Kind == MediaKind.Movie ? title.Id : await db.MediaItems.AsNoTracking()
+                .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == title.Id).OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ThenBy(e => e.AirDate)
+                .Select(e => e.Id).FirstOrDefaultAsync(ct);
+            var items = entry.Kind == MediaKind.Movie ? [title.Id]
+                : await db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == title.Id && e.AddedAt <= settled).Select(e => e.Id).ToListAsync(ct);
+            answered.Add(new Answered(entry.ProfileId, new PushMessage("From your watchlist", $"{WithYear(title.Title, title.Year)} is ready to watch.", "flexarr.video",
+                $"item:{title.Id}", Artwork(title.PosterUrl), Video(title.Id, first)), items));
         }
 
         return answered;

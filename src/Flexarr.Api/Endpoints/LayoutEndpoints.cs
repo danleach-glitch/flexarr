@@ -114,6 +114,7 @@ public static class LayoutEndpoints
     private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music) =>
     [
         new("continue", "Continue watching", true),
+        new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
         new("live-tv", "Live TV (your favourite channels)", true),
         .. RecentRows(libraries.ToList(), combine),
         new("top-movies", "Top 10 films", true),

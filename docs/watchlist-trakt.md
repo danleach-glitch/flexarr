@@ -23,13 +23,13 @@ Each line lists the phase that delivers it.
 - **Siri, Shortcuts, MCP and Home Assistant** can add or remove titles: "add Dune to my watchlist". *(1)*
 - **Four statuses:** *(1)*
   - **Ready:** in the library.
-  - **On its way:** requested, or downloading with progress from Sonarr/Radarr.
+  - **On its way:** requested through Flexarr, or Seerr says it's requested or being fetched. (Download progress later: the \*arr queue doesn't carry TMDB ids yet.)
   - **Coming:** has a release date that hasn't arrived.
   - **Not available:** can be requested.
 - **A Watchlist page** in the sidebar and as a TV tab. It filters by status and by films or shows, and sorts by date added, release date or title. *(1)*
-- **A Home row, "Ready from your watchlist",** that holds only titles you can play now. It's off the layout by default, like other rows. *(1)*
+- **A Home row, "Ready from your watchlist",** that holds only titles you can play now. It's in the layout straight after Continue watching, and only appears once something on the list is ready. *(1)*
 - **Titles leave on their own:** a film when it's watched, a show when you start it (Continue Watching takes over from there). You can still remove anything by hand. *(1)*
-- **An arrival notification** when a title on your watchlist is ready, built on the existing request notifications. It's per profile and can be turned off. *(1)*
+- **An arrival notification** ("From your watchlist") when a title on your watchlist is ready, built on the existing request notifications and following the phone's Requests switch, so there's no new setting. A title you also requested gets "Your request is ready" only. *(1)*
 
 ### Requests from the watchlist
 
@@ -71,9 +71,11 @@ Each line lists the phase that delivers it.
 
 New endpoints only; nothing changes shape.
 
-- `GET/POST/DELETE /api/v1/watchlist`, `GET /api/v1/watchlist/contains?…` for the button's state, and the Home row through the existing layout.
+- `GET/POST /api/v1/watchlist`, `DELETE /api/v1/watchlist/{id}` or `DELETE /api/v1/watchlist?libraryItemId=…|mediaType=…&tmdbId=…`, `GET /api/v1/watchlist/contains?…` for the button's state, and the Home row (`watchlist`) through the existing layout.
+- `PUT /api/v1/profiles/{id}/watchlist-requests` (admin): the auto-request switch; `ProfileDto.autoRequestWatchlist`.
+- MCP tools `watchlist`, `add_to_watchlist` (a library id, or a title looked up through Seerr) and `remove_from_watchlist`.
 - `POST /api/v1/trakt/connect`, which returns the device code and QR link; `GET /api/v1/trakt/status`; `POST /api/v1/trakt/import`, as a preview and then a confirm; `DELETE /api/v1/trakt`.
-- Item and external-title DTOs gain an optional `onWatchlist`. Apps treat it as optional ("Absent from servers before …").
+- Item and external-title detail DTOs gain an optional `onWatchlist`. Apps treat it as optional ("Absent from servers before 0.56").
 
 ## Trakt specifics
 
@@ -110,4 +112,4 @@ All four in phase 1: web, iPhone and iPad, Apple TV, Android. On the Apple TV an
 - **Trakt's API terms keep changing** (the VIP requirement, token lifetime, list caps). Keep the Trakt client small, and make the connection's status visible.
 - **The client secret ships in releases** and can be extracted. It can't reach any account unless that person approves it; rotate it if it leaks.
 - **When should a show leave the watchlist:** on starting it, or on finishing it? Plan: on starting it.
-- **Is the Home row on by default for new installs?** Plan: off, like other optional rows.
+- **Is the Home row on by default?** Yes: it's empty (so hidden) until something on the list is ready.
