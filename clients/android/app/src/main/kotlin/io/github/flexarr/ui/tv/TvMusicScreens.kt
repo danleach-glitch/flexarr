@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -96,7 +97,7 @@ private fun AppModel.showNowPlaying() {
 /** Asks for focus until the item is placed (it can come a frame or two after its screen). */
 private suspend fun FocusRequester.takeFocusSoon() {
     repeat(10) {
-        if (runCatching { requestFocus() }.isSuccess) return
+        if (runCatching { requestFocus() }.getOrDefault(false)) return
         delay(50)
     }
 }
@@ -175,9 +176,15 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
 
     // Arriving from the sidebar: the first card, once there is one (or nothing to take it, said at once).
     val hasCards = artists.isNotEmpty() || browse.playlists.isNotEmpty() || browse.recentAlbums.isNotEmpty()
+    val list = rememberLazyListState()
+    // Once everything's in: the artists come before the albums and playlists above them, which would move the first card.
     LaunchedEffect(takeFocus, hasCards, loading) {
-        if (!takeFocus) return@LaunchedEffect
-        if (hasCards) first.takeFocusSoon() else if (loading) return@LaunchedEffect
+        if (!takeFocus || loading) return@LaunchedEffect
+        if (hasCards) {
+            first.takeFocusSoon()
+            // Focusing the first card can nudge the list down; the artist count at the top stays in view.
+            list.scrollToItem(0)
+        }
         onFocusTaken()
     }
 
@@ -192,7 +199,7 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
             failed != null && artists.isEmpty() -> TvStatusView(failed, retry = { attempt++ })
             artists.isEmpty() && !loading -> TvStatusView("Nothing in this library yet.", empty = true)
             artists.isEmpty() -> TvStatusView()
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 10.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+            else -> LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 10.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
                 item(key = "count") {
                     Text(
                         if (total == 1) "1 artist" else "${Format.count(total)} artists",

@@ -193,14 +193,14 @@ object ServerVersion {
 val alphabetLetters: List<String> = listOf("#") + ('A'..'Z').map { it.toString() }
 
 /**
- * A title's letter on the A–Z rail, ignoring a leading "The", "A" or "An" as the server's sort does; "#" for anything
- * that doesn't start with a letter from A to Z.
+ * A title's letter on the A–Z rail, by the server's sort title (SortTitle.For): trimmed, and without a leading "The",
+ * "A" or "An" when something follows it; "#" for anything that doesn't start with a letter from A to Z.
  */
 fun alphabetLetter(title: String): String {
-    var rest = title
+    var rest = title.trim()
     for (article in listOf("the ", "a ", "an ")) {
-        if (rest.lowercase().startsWith(article)) {
-            rest = rest.drop(article.length)
+        if (rest.length > article.length && rest.regionMatches(0, article, 0, article.length, ignoreCase = true)) {
+            rest = rest.substring(article.length)
             break
         }
     }

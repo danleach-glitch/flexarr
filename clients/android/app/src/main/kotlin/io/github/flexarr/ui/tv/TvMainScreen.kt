@@ -265,6 +265,14 @@ fun TvMainScreen(model: AppModel) {
                     true
                 },
             ) {
+                // A library that isn't in the list: still loading, failed to load (with Try again), or gone (another
+                // profile can't see it, or it was removed).
+                @Composable
+                fun MissingLibrary() = when (val state = libraries.state) {
+                    is Load.Failed -> TvStatusView(state.message, retry = libraries.retry)
+                    is Load.Loaded -> TvStatusView("This library isn’t here any more.", empty = true)
+                    Load.Loading -> TvStatusView()
+                }
                 fun arrives(route: String) = arrivingAt == route
                 fun arrived(route: String): () -> Unit = { if (arrivingAt == route) arrivingAt = null }
                 NavHost(nav, startDestination = TvTab.Home.route) {
@@ -273,7 +281,7 @@ fun TvMainScreen(model: AppModel) {
                         val id = entry.arguments?.getString("id")
                         val route = "tab/library/$id"
                         when (val library = libraryList.firstOrNull { it.id == id }) {
-                            null -> TvStatusView()
+                            null -> MissingLibrary()
                             // Music has a screen of its own: artists, new albums and playlists.
                             else -> if (library.type == LibraryType.Music) {
                                 TvMusicLibraryScreen(model, library, takeFocus = arrives(route), onFocusTaken = arrived(route))
@@ -298,7 +306,7 @@ fun TvMainScreen(model: AppModel) {
                         val id = entry.arguments?.getString("id")
                         val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
                         val genre = entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() }
-                        libraryList.firstOrNull { it.id == id }?.let { TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre) } ?: TvStatusView()
+                        libraryList.firstOrNull { it.id == id }?.let { TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre) } ?: MissingLibrary()
                     }
                 }
             }

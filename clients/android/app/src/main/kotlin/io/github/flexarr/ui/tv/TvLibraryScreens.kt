@@ -54,6 +54,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.core.alphabetLetter
 import io.github.flexarr.core.alphabetLetters
 import io.github.flexarr.core.emptyAlphabetLetters
@@ -67,6 +68,9 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
@@ -77,13 +81,18 @@ import kotlinx.coroutines.launch
 @Composable
 fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusTaken: () -> Unit) {
     val saved = TvLibraryOpening.saved(LocalContext.current)
+    // Genres' tiles have pictures from servers of 0.54 on; before that they're plain, so those libraries open on Browse
+    // and offer no Genres, as the phone does. Taken as able until the server says.
+    val client = model.client
+    val tiles = rememberLoader(model.credentials) { client?.let { ServerVersion.atLeast(it.systemStatus().version, 0, 54) } ?: true }
+    val hasGenres = TvLibraryOpening.hasGenres(library) && (tiles.state as? Load.Loaded)?.value != false
     var picked by rememberSaveable(library.id, saved) { mutableStateOf<TvLibraryOpening?>(null) }
     // Just switched: the view taking over gives its switch focus, as the word pressed has gone.
     var switching by remember { mutableStateOf(false) }
     val chosen = picked ?: saved
-    val view = if (chosen == TvLibraryOpening.Genres && !TvLibraryOpening.hasGenres(library)) TvLibraryOpening.Browse else chosen
+    val view = if (chosen == TvLibraryOpening.Genres && !hasGenres) TvLibraryOpening.Browse else chosen
     val switch: @Composable () -> Unit = {
-        LibraryViewSwitch(library, view, takesFocus = switching, onFocusTaken = { switching = false }) {
+        LibraryViewSwitch(library, view, hasGenres, takesFocus = switching, onFocusTaken = { switching = false }) {
             switching = it != view
             picked = it
         }
@@ -100,14 +109,14 @@ fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusT
  * it doesn't read as a second row of tabs.
  */
 @Composable
-private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, takesFocus: Boolean, onFocusTaken: () -> Unit, onSelect: (TvLibraryOpening) -> Unit) {
+private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, hasGenres: Boolean, takesFocus: Boolean, onFocusTaken: () -> Unit, onSelect: (TvLibraryOpening) -> Unit) {
     val all = when (library.type) {
         LibraryType.TvShows -> "All shows"
         LibraryType.HomeVideos -> "All folders"
         else -> "All films"
     }
     val choices = listOf(TvLibraryOpening.Browse to "Browse", TvLibraryOpening.All to all) +
-        (if (TvLibraryOpening.hasGenres(library)) listOf(TvLibraryOpening.Genres to "Genres") else emptyList())
+        (if (hasGenres) listOf(TvLibraryOpening.Genres to "Genres") else emptyList())
     val requester = remember { FocusRequester() }
     LaunchedEffect(takesFocus) {
         if (!takesFocus) return@LaunchedEffect
@@ -195,6 +204,9 @@ private fun genreCaption(library: Library, genre: GenreCount): String {
 
 private const val GENRES_ACROSS = 5
 
+/** How many pages an A–Z jump asks for at once. */
+private const val JUMP_PAGES = 3
+
 /**
  * Every title in a library as a poster grid, paged as it scrolls, with sort and genre at the top and an A–Z rail down
  * the right to jump through it when sorted by title. On a tab, [top] is the Browse and All switch; opened from a row's
@@ -238,11 +250,20 @@ fun TvLibraryGrid(
         val current = ++generation
         loading = true
         try {
-            val wanted = items.size.coerceIn(PAGE_SIZE, MAX_PAGE_SIZE)
-            val page = client.libraryItems(library.id, sort, genre, skip = 0, take = if (loadedOnce) wanted else PAGE_SIZE)
+            // As far as it had got, however far that is, a page at a time: past MAX_PAGE_SIZE, one request would cut the
+            // list short and lose the place.
+            val wanted = if (loadedOnce) items.size.coerceAtLeast(PAGE_SIZE) else PAGE_SIZE
+            val first = client.libraryItems(library.id, sort, genre, skip = 0, take = wanted.coerceAtMost(MAX_PAGE_SIZE))
+            var fetched = first.items
+            while (fetched.size < wanted && fetched.size < first.total) {
+                val next = client.libraryItems(library.id, sort, genre, skip = fetched.size, take = (wanted - fetched.size).coerceAtMost(MAX_PAGE_SIZE))
+                if (next.items.isEmpty()) break
+                val known = fetched.map { it.id }.toSet()
+                fetched = fetched + next.items.filter { it.id !in known }
+            }
             if (current != generation) return@LaunchedEffect
-            items = page.items
-            total = page.total
+            items = fetched
+            total = first.total
             error = null
             loadedOnce = true
         } catch (e: CancellationException) {
@@ -276,11 +297,16 @@ fun TvLibraryGrid(
             }
         }
     }
-    // Arriving from the sidebar: the first title, once it's there.
-    LaunchedEffect(takeFocus, items.firstOrNull()?.id) {
-        if (!takeFocus || items.isEmpty()) return@LaunchedEffect
-        delay(50)
-        runCatching { firstRequester.requestFocus() }
+    // Arriving from the sidebar: the first title, once it's there. Handed back once loading's done either way, so a
+    // library that opened empty doesn't take focus later, when a refresh brings titles.
+    LaunchedEffect(takeFocus, items.firstOrNull()?.id, loadedOnce) {
+        if (!takeFocus || !loadedOnce) return@LaunchedEffect
+        if (items.isNotEmpty()) {
+            delay(50)
+            runCatching { firstRequester.requestFocus() }
+            // Focusing the first title can nudge the grid down; the heading stays in view.
+            grid.scrollToItem(0)
+        }
         onFocusTaken()
     }
     // A letter jumped to: its first title takes focus once the grid has brought it in.
@@ -308,11 +334,20 @@ fun TvLibraryGrid(
                     }
                     val empty = emptyAlphabetLetters(items.map { alphabetLetter(it.title) }, items.size >= total)
                     if (letter in empty || items.size >= total) return@launch
-                    val page = runCatching { client.libraryItems(library.id, sort, genre, skip = items.size, take = MAX_PAGE_SIZE) }.getOrNull()
-                    if (page == null || current != generation || page.items.isEmpty()) return@launch
-                    val known = items.map { it.id }.toSet()
-                    items = items + page.items.filter { it.id !in known }
-                    total = page.total
+                    // The next few pages at once rather than one after another: a jump from A to W in a big library
+                    // is then a round trip or two.
+                    val skip = items.size
+                    val pages = coroutineScope {
+                        (0 until JUMP_PAGES).map { n -> skip + n * MAX_PAGE_SIZE }.filter { it < total }.map { from ->
+                            async { runCatching { client.libraryItems(library.id, sort, genre, skip = from, take = MAX_PAGE_SIZE) }.getOrNull() }
+                        }.awaitAll()
+                    }
+                    if (current != generation || skip != items.size) return@launch
+                    val arrived = pages.takeWhile { it != null }.filterNotNull()
+                    if (arrived.isEmpty() || arrived.all { it.items.isEmpty() }) return@launch
+                    val known = items.mapTo(HashSet()) { it.id }
+                    items = items + arrived.flatMap { it.items }.filter { known.add(it.id) }
+                    total = arrived.last().total
                 }
             } finally {
                 jumping = null
@@ -356,7 +391,7 @@ fun TvLibraryGrid(
             }
         }
         if (showsLetters) {
-            val empty = emptyAlphabetLetters(items.map { alphabetLetter(it.title) }, items.size >= total)
+            val empty = remember(items, total) { emptyAlphabetLetters(items.map { alphabetLetter(it.title) }, items.size >= total) }
             LetterRail(empty, jumping, ::jump, Modifier.align(Alignment.CenterEnd).padding(end = TvLayout.Edge - 10.dp))
         }
     }

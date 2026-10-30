@@ -14,6 +14,15 @@ class AlphabetTest {
     }
 
     @Test
+    fun lettersFollowTheServersSortTitle() {
+        // Trimmed first, as SortTitle.For is.
+        assertEquals("M", alphabetLetter("  The Matrix"))
+        // An article with nothing after it is the title itself.
+        assertEquals("T", alphabetLetter("The "))
+        assertEquals("A", alphabetLetter("A"))
+    }
+
+    @Test
     fun numbersSymbolsAndAccentsAreHash() {
         assertEquals("#", alphabetLetter("1917"))
         assertEquals("#", alphabetLetter("Élite"))
