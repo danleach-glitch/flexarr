@@ -69,6 +69,7 @@ public enum Speakers
 /// <summary>Sound settings for a device to take. Each one that's absent stays as the device has it.</summary>
 public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode? NightMode = null, Speakers? Speakers = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsEmpty => DialogueBoost is null && NightMode is null && Speakers is null;
 }
 

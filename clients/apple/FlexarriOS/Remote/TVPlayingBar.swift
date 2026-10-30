@@ -60,6 +60,10 @@ struct TVPlayingBar: View {
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
+            #if DEBUG
+            // `-FlexarrShowRemote YES` opens the remote as soon as a TV is playing.
+            .task { if UserDefaults.standard.bool(forKey: "FlexarrShowRemote") { showsRemote = true } }
+            #endif
             .sheet(isPresented: $showsRemote) {
                 TVRemoteView()
                     .presentationDetents([.large])

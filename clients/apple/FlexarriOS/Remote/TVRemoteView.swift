@@ -360,6 +360,11 @@ struct TVRemoteView: View {
         let item = playing.item
         remote.stop()
         dismiss()
-        model.player.play(itemId: item.id, preview: item, startAt: position, client: client)
+        // Once the sheet has gone: the player can't come up over it.
+        let player = model.player
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            player.play(itemId: item.id, preview: item, startAt: position, client: client)
+        }
     }
 }

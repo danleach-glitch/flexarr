@@ -660,7 +660,8 @@ final class PlaybackController: NSObject {
         screen.applyRate(rate)
     }
 
-    private func report(paused: Bool, ended: Bool = false) {
+    /// `at`: where it's going (a seek that hasn't landed yet), rather than where the player's clock is.
+    private func report(paused: Bool, ended: Bool = false, at target: Double? = nil) {
         if let info, info.isOffline {
             lastReport = Date()
             if recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: ended || isPastCredits(info)) }
@@ -669,7 +670,7 @@ final class PlaybackController: NSObject {
         guard recordsHistory, let client, let sessionId = info?.sessionId else { return }
         lastReport = Date()
         reportedPaused = paused && !ended
-        let position = self.position
+        let position = target ?? self.position
         let remote = remoteReport()
         send { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended, remote: remote) }
     }
@@ -699,11 +700,13 @@ final class PlaybackController: NSObject {
 
     /// Something a remote shows changed (a seek, the tracks, the button over the picture, the sound): tells the
     /// server now rather than at the next regular report.
-    func reportForRemotes() {
+    func reportForRemotes(at target: Double? = nil) {
         guard hasPlayed, let transport, info?.isOffline == false else { return }
         switch transport.phase {
-        case .playing: report(paused: false)
-        case .paused: report(paused: true)
+        case .playing: report(paused: false, at: target)
+        case .paused: report(paused: true, at: target)
+        // Catching up after a seek: as it was.
+        case .buffering: report(paused: reportedPaused, at: target)
         default: break
         }
     }
@@ -1187,7 +1190,7 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {
         lastPosition = seconds
-        reportForRemotes()
+        reportForRemotes(at: seconds)
         if isFinishing, seconds < (info?.durationSeconds ?? 0) - 1 {
             // Scrubbed back out of the end: not finishing after all.
             nextCancelled = false
