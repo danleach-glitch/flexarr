@@ -303,9 +303,11 @@ class FlexarrClient(
 
     private fun request(method: String, path: String, query: Map<String, String>, body: RequestBody?, base: HttpUrl): Request {
         // An id from outside the app (a link, say) mustn't climb out of the path it was put in: OkHttp would resolve
-        // `..` against the segments before it. Ids never are one.
-        if (path.split('/').any { isDotSegment(it) }) throw FlexarrException.Http(404, null)
-        val url = base.newBuilder().addPathSegments("api/v1/$path").apply {
+        // `..` against the segments before it, and splits on a backslash as well as a slash. Ids never are one.
+        if (path.split('/', '\\').any { isDotSegment(it) }) throw FlexarrException.Http(404, null)
+        // Read as already encoded, so a name made one segment by [pathSegment] stays one; anything else that needs
+        // encoding (a space) still is.
+        val url = base.newBuilder().addEncodedPathSegments("api/v1/$path").apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
         return Request.Builder().url(url).header("Accept", "application/json").apply {
@@ -497,6 +499,12 @@ class FlexarrClient(
         fun isPlainId(id: String): Boolean = plainId.matches(id)
 
         private val plainId = Regex("^[A-Za-z0-9_-]+$")
+
+        /**
+         * Free text (a genre's name) as one segment of a path: its slashes, backslashes and percent signs encoded, so
+         * "Action/Adventure" or a name with `\..\` in it can't become segments of their own.
+         */
+        fun pathSegment(text: String): String = text.replace("%", "%25").replace("/", "%2F").replace("\\", "%5C")
 
         /** `.` or `..`, however it's written (OkHttp reads `%2e` as a dot too). */
         internal fun isDotSegment(segment: String): Boolean = segment.replace("%2e", ".", ignoreCase = true).let { it == "." || it == ".." }

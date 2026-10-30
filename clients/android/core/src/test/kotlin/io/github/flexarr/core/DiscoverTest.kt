@@ -129,4 +129,18 @@ class DiscoverTest {
         assertEquals(3, client.genres().size)
         assertEquals("/api/v1/genres", server.takeRequest().target)
     }
+
+    @Test
+    fun `a genre's name stays one segment of the path`() = runTest {
+        val client = FlexarrClient(server.url("/"))
+        repeat(3) { server.enqueue(json("""{"total":0,"items":[]}""")) }
+
+        client.genreItems("Action/Adventure")
+        assertEquals("/api/v1/genres/Action%2FAdventure/items?take=120", server.takeRequest().target)
+        // A backslash is a separator to OkHttp: encoded, it can't climb to another of the server's paths.
+        client.genreItems("x\\..\\..\\me")
+        assertEquals("/api/v1/genres/x%5C..%5C..%5Cme/items?take=120", server.takeRequest().target)
+        client.genreItems("100% Drama")
+        assertEquals("/api/v1/genres/100%25%20Drama/items?take=120", server.takeRequest().target)
+    }
 }

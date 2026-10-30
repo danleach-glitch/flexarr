@@ -134,9 +134,10 @@ suspend fun FlexarrClient.genres(): List<Genre> = get("genres")
 
 /** What the library has in a genre, best rated first; [kind] narrows it to films or shows. */
 suspend fun FlexarrClient.genreItems(name: String, kind: MediaKind? = null, take: Int = 120): Paged<ItemSummary> =
-    // The name is percent-encoded as the request is made ("Science Fiction", "Action & Adventure").
+    // One segment, whatever's in the name; the rest of it is percent-encoded as the request is made ("Science
+    // Fiction", "Action & Adventure").
     get(
-        "genres/$name/items",
+        "genres/${FlexarrClient.pathSegment(name)}/items",
         buildMap {
             put("take", take.toString())
             if (kind != null) put("kind", kind.raw)
