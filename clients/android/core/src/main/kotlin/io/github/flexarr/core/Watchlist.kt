@@ -5,7 +5,8 @@ import kotlinx.serialization.serializer
 import java.time.LocalDate
 
 // The watchlist, as FlexarrKit's Watchlist.swift: films and shows a profile wants to watch later, in the library or
-// not. Absent from servers before 0.56, which answer 404 for it.
+// not. Absent from servers before 0.56: they answer a GET for a path they don't know with the web app's index.html
+// (200, text/html), which the client turns down as UnexpectedResponse, so that (or a 404) reads as no watchlist.
 
 /** Where a title on the watchlist has got to. */
 @Serializable(with = WatchlistStatus.Serializer::class)
@@ -152,8 +153,8 @@ internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 // Client
 
 /**
- * The profile's watchlist, newest first; null from servers before 0.56, which have none (they answer 404, or the web
- * app's page for a path they don't know).
+ * The profile's watchlist, newest first; null from servers before 0.56, which have none: they answer with the web app's
+ * page (200, text/html) for a path they don't know. A 404 (a proxy in front, say) reads the same.
  */
 suspend fun FlexarrClient.watchlist(): List<WatchlistEntry>? {
     val text = try {

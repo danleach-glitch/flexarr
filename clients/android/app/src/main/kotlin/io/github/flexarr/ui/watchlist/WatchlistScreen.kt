@@ -28,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -87,7 +88,10 @@ fun WatchlistScreen(model: AppModel) {
     var filter by rememberSaveable { mutableStateOf(WatchlistFilter.Everything) }
     var kind by rememberSaveable { mutableStateOf(WatchlistKind.All) }
     var sort by rememberSaveable { mutableStateOf(WatchlistSort.ReadyFirst) }
-    val loader = rememberLoader(model.credentials, model.watchlistVersion) { model.loadWatchlist().orEmpty() }
+    // A refresh that fails leaves the list showing, so say so.
+    val loader = rememberLoader(model.credentials, model.watchlistVersion, onRefreshFailed = { navigator.tellFailure("Couldn’t refresh your watchlist", it) }) {
+        model.loadWatchlist().orEmpty()
+    }
     val hasEntries = (loader.state as? Load.Loaded)?.value?.isNotEmpty() == true
     RoomBackground(ambient = null) {
         Column {
@@ -177,12 +181,13 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
                 // Where it streams, for a title the library hasn't got.
                 entry.streamingLine?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 if (canRequest) {
+                    // 28 to see, 48 to touch: the reserved space around it takes the taps too.
                     Text(
                         "Request",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Flexarr.screen,
-                        modifier = Modifier.padding(top = 4.dp).alpha(if (requesting) 0.5f else 1f).heightIn(min = 28.dp).clip(CircleShape)
+                        modifier = Modifier.minimumInteractiveComponentSize().alpha(if (requesting) 0.5f else 1f).heightIn(min = 28.dp).clip(CircleShape)
                             .background(Flexarr.screen.copy(alpha = 0.14f))
                             .pressable({ request() }, enabled = !requesting).padding(horizontal = 12.dp, vertical = 6.dp),
                     )

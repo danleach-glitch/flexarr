@@ -20,6 +20,7 @@ import io.github.flexarr.core.Profile
 import io.github.flexarr.core.SystemStatus
 import io.github.flexarr.core.WatchlistAdded
 import io.github.flexarr.core.WatchlistEntry
+import io.github.flexarr.core.WatchlistStatus
 import io.github.flexarr.core.addToWatchlist
 import io.github.flexarr.core.removeFromWatchlist
 import io.github.flexarr.core.removeLibraryItemFromWatchlist
@@ -216,6 +217,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         private set
 
     /**
+     * Goes up only when a watchlist change could alter Home's "Ready from your watchlist" row (a library title went on
+     * or off, or was requested), so taking off a title the library hasn't got doesn't load all of Home again.
+     */
+    var homeWatchlistVersion by mutableIntStateOf(0)
+        private set
+
+    /**
      * The profile's whole watchlist, for the Watchlist screen (it asks Seerr where each title has got to, so only there).
      * Null from a server without one; throws when the server can't be reached.
      */
@@ -275,7 +283,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             watchlistItems = before
             throw e
         } finally {
-            watchlistChanged()
+            watchlistChanged(affectsHome = true)
         }
     }
 
@@ -286,7 +294,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             client.removeFromWatchlist(entry.id)
             entry.libraryItemId?.let { watchlistItems = watchlistItems - it }
         } finally {
-            watchlistChanged()
+            watchlistChanged(affectsHome = entry.inLibrary)
         }
     }
 
@@ -297,15 +305,23 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         try {
             client.requestTitle(entry.mediaType, tmdbId)
         } finally {
-            watchlistChanged()
+            watchlistChanged(affectsHome = entry.inLibrary)
         }
     }
 
-    /** The watchlist changed here: its screen and Home load again, and the widget asks again. */
-    private fun watchlistChanged() {
+    /**
+     * The watchlist changed here: its screen loads again, Home too when [affectsHome] (its ready row could change), and
+     * the widget asks again.
+     */
+    private fun watchlistChanged(affectsHome: Boolean) {
         watchlistVersion++
+        if (affectsHome) homeWatchlistVersion++
         scope.launch { WatchlistWidget.refresh(context) }
     }
+
+    /** In the library (or the entry is ready there), so its going could change Home's ready row. */
+    private val WatchlistEntry.inLibrary: Boolean
+        get() = libraryItemId != null || item != null || status == WatchlistStatus.Ready
 
     private fun forgetWatchlist() {
         watchlistRefresh?.cancel()

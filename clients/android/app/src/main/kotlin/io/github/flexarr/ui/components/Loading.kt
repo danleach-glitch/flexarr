@@ -73,14 +73,15 @@ fun RepeatWhileShowing(periodMs: Long, vararg keys: Any?, action: suspend () -> 
 /**
  * Runs [load] now and again whenever [keys] change, or the screen comes back to an answer more than a minute old.
  * Reloading keeps what's on screen until the new answer comes, so coming back from the player doesn't flash a
- * spinner, and a reload that fails leaves it there.
+ * spinner, and a reload that fails leaves it there (telling [onRefreshFailed], for a screen that says so).
  */
 @Composable
-fun <T> rememberLoader(vararg keys: Any?, load: suspend () -> T): Loader<T> {
+fun <T> rememberLoader(vararg keys: Any?, onRefreshFailed: ((Exception) -> Unit)? = null, load: suspend () -> T): Loader<T> {
     var state by remember { mutableStateOf<Load<T>>(Load.Loading) }
     var attempt by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var loadedAt by remember { mutableStateOf<Long?>(null) }
+    val refreshFailed by rememberUpdatedState(onRefreshFailed)
     RefreshWhenStale(loadedAt) { attempt++ }
     LaunchedEffect(*keys, attempt) {
         val shown = state is Load.Loaded
@@ -94,7 +95,7 @@ fun <T> rememberLoader(vararg keys: Any?, load: suspend () -> T): Loader<T> {
         } catch (e: Exception) {
             // The server out of reach is expected now and then (a home server, away from home): not worth a warning.
             if (e is FlexarrException.Unreachable) flexarrLog.info("Couldn't load", e) else flexarrLog.warning("Couldn't load", e)
-            if (!shown) state = Load.Failed(e.message ?: "Something went wrong.")
+            if (!shown) state = Load.Failed(e.message ?: "Something went wrong.") else refreshFailed?.invoke(e)
         } finally {
             refreshing = false
         }

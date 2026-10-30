@@ -164,6 +164,9 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         }
     }
 
+    /** Says [failure] in a snackbar, with the reason when there is one. */
+    fun tellFailure(failure: String, error: Exception) = tell(failure, error)
+
     /** "Couldn’t download this. The server can’t be reached." */
     private fun tell(failure: String, error: Exception) {
         val reason = error.message?.takeIf { it.isNotBlank() }
